@@ -223,14 +223,54 @@ if "leaving tap unavailable until daemon restart" not in log_failure.group(0):
     raise SystemExit("FAIL: permission-loss logging must not claim a retry loop is running")
 PY
 
-if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
   rg -q 'canvasManager\.setInputPassthrough\(true\)'; then
-  echo "FAIL: input safety trigger must enable native canvas input passthrough" >&2
+  echo "FAIL: input safety escape hatch must enable native canvas input passthrough before exit" >&2
   exit 1
 fi
 
-if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
-  rg -q 'canvasManager\.setInputPassthrough\(false\)'; then
-  echo "FAIL: input safety trigger must restore native canvas input passthrough" >&2
+if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'perception\.stop\(\)'; then
+  echo "FAIL: input safety escape hatch must stop the perception input tap" >&2
+  exit 1
+fi
+
+if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'NSApp\.terminate\(nil\)'; then
+  echo "FAIL: input safety escape hatch must terminate the daemon app" >&2
+  exit 1
+fi
+
+if ! sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'Darwin\.exit\(0\)'; then
+  echo "FAIL: input safety escape hatch must include a process-exit fallback" >&2
+  exit 1
+fi
+
+if sed -n '/private func activateInputSafetyEmergencyExit/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'setInputPassthrough\(false\)|inputSafetyVisualFeedbackPresenter\.trigger'; then
+  echo "FAIL: input safety escape hatch must not re-enable capture or create feedback UI before exit" >&2
+  exit 1
+fi
+
+python3 - "$ROOT/scripts/aos-service.mjs" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+plist = re.search(r"function plistXML\(paths\).*?function writeServicePlist", source, re.S)
+if not plist:
+    raise SystemExit("FAIL: could not find aos-service plistXML section")
+text = plist.group(0)
+if "KeepAlive: false" not in text:
+    raise SystemExit("FAIL: AOS launch agent plist must not KeepAlive-respawn the daemon")
+if "KeepAlive: true" in text:
+    raise SystemExit("FAIL: AOS launch agent plist must not contain KeepAlive: true")
+PY
+
+if ! sed -n '/func stop()/,/MARK: - CGEventTap/p' "$ROOT/src/perceive/daemon.swift" |
+  rg -q 'teardownEventTap\(\)'; then
+  echo "FAIL: PerceptionEngine.stop must tear down the global event tap" >&2
   exit 1
 fi

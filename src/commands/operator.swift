@@ -1,7 +1,6 @@
 // operator.swift — Runtime introspection commands for operator parity.
 
 import Foundation
-import AppKit
 import ApplicationServices
 import CoreGraphics
 
@@ -12,53 +11,6 @@ private struct PermissionsState: Encodable {
     let screen_recording: Bool
     let listen_access: Bool
     let post_access: Bool
-}
-
-private struct DaemonViewBlock: Encodable {
-    let reachable: Bool
-    let accessibility: Bool?
-    let input_tap: PermissionsInputTapBlock?
-}
-
-private struct PermissionsInputTapBlock: Encodable {
-    let status: String
-    let attempts: Int
-    // Optional: a legacy daemon (lacking the structured `input_tap` block)
-    // doesn't expose these. Emit with encodeIfPresent so consumers can detect
-    // "unknown" rather than reading a fabricated `false`.
-    let listen_access: Bool?
-    let post_access: Bool?
-
-    private enum CodingKeys: String, CodingKey {
-        case status, attempts, listen_access, post_access
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(status, forKey: .status)
-        try c.encode(attempts, forKey: .attempts)
-        try c.encodeIfPresent(listen_access, forKey: .listen_access)
-        try c.encodeIfPresent(post_access, forKey: .post_access)
-    }
-}
-
-private struct CLIViewBlock: Encodable {
-    let accessibility: Bool
-    let screen_recording: Bool
-    let listen_access: Bool
-    let post_access: Bool
-}
-
-private struct DisagreementEntry: Encodable {
-    let cli: Bool
-    let daemon: Bool
-}
-
-private struct PermissionRequirement: Encodable {
-    let id: String
-    let granted: Bool
-    let required_for: [String]
-    let setup_trigger: String
 }
 
 private struct PermissionsSetupState: Encodable {
@@ -72,12 +24,187 @@ private struct PermissionsSetupState: Encodable {
     let recommended_command: String?
 }
 
+private struct PermissionsIdentityFacts: Encodable {
+    let executable_path: String
+    let bundle_path: String
+}
+
+private struct PermissionsFactsResponse: Encodable {
+    let status: String
+    let mode: String
+    let permissions: PermissionsState
+    let identity: PermissionsIdentityFacts
+}
+
+private struct PermissionsSetupMarkerFacts: Encodable {
+    let marker_exists: Bool
+    let marker_path: String
+    let completed_at: String?
+    let bundle_path: String?
+    let current_bundle_path: String
+    let bundle_matches_current: Bool
+    let setup_completed: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case marker_exists, marker_path, completed_at, bundle_path
+        case current_bundle_path, bundle_matches_current, setup_completed
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(marker_exists, forKey: .marker_exists)
+        try c.encode(marker_path, forKey: .marker_path)
+        try c.encodeIfPresent(completed_at, forKey: .completed_at)
+        try c.encodeIfPresent(bundle_path, forKey: .bundle_path)
+        try c.encode(current_bundle_path, forKey: .current_bundle_path)
+        try c.encode(bundle_matches_current, forKey: .bundle_matches_current)
+        try c.encode(setup_completed, forKey: .setup_completed)
+    }
+}
+
+private struct PermissionsSetupMarkerWriteResponse: Encodable {
+    let status: String
+    let action: String
+    let marker: PermissionsSetupMarkerFacts
+}
+
+private struct PermissionsPromptResponse: Encodable {
+    let status: String
+    let permission: String
+    let native_trigger: String
+    let attempted: Bool
+    let trigger_result: Bool?
+    let before: PermissionsState
+    let after: PermissionsState
+    let granted: Bool
+}
+
+private struct PermissionsResetTargetResponse: Encodable {
+    let status: String
+    let mode: String
+    let target_path: String
+    let tcc_identifier: String
+    let available: Bool
+    let command: String
+    let arguments: [String]
+    let unavailable_reason: String?
+}
+
+private struct PermissionsTCCResetResponse: Encodable {
+    let status: String
+    let mode: String
+    let target_path: String
+    let tcc_identifier: String
+    let tcc_reset: PermissionsResetRuntimeStep
+}
+
 private struct RuntimeInputTapBlock: Encodable {
     let status: String
     let attempts: Int
+    let owner_pid: Int?
+    let owner_kind: String
+    let launchd_managed: Bool
+    let installed_mode_socket_reachable: Bool
+    let stale_input_tap_capable_daemons: Int
     // Optional: a legacy daemon (lacking the structured `input_tap` block)
     // doesn't expose these. Emit with encodeIfPresent so consumers see "field
     // absent" rather than a fabricated `false`.
+    let listen_access: Bool?
+    let post_access: Bool?
+    let last_error_at: String?
+    let duplicate_tcc_rows_observable: Bool
+    let duplicate_tcc_rows_observability: String
+
+    private enum CodingKeys: String, CodingKey {
+        case status, attempts, owner_pid, owner_kind, launchd_managed
+        case installed_mode_socket_reachable, stale_input_tap_capable_daemons
+        case listen_access, post_access, last_error_at
+        case duplicate_tcc_rows_observable, duplicate_tcc_rows_observability
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(owner_pid, forKey: .owner_pid)
+        try c.encode(owner_kind, forKey: .owner_kind)
+        try c.encode(launchd_managed, forKey: .launchd_managed)
+        try c.encode(installed_mode_socket_reachable, forKey: .installed_mode_socket_reachable)
+        try c.encode(stale_input_tap_capable_daemons, forKey: .stale_input_tap_capable_daemons)
+        try c.encodeIfPresent(listen_access, forKey: .listen_access)
+        try c.encodeIfPresent(post_access, forKey: .post_access)
+        try c.encodeIfPresent(last_error_at, forKey: .last_error_at)
+        try c.encode(duplicate_tcc_rows_observable, forKey: .duplicate_tcc_rows_observable)
+        try c.encode(duplicate_tcc_rows_observability, forKey: .duplicate_tcc_rows_observability)
+    }
+}
+
+private struct RuntimeState: Encodable {
+    let mode: String
+    let state_dir: String
+    let other_mode_state_dir: String
+    let daemon_running: Bool
+    let daemon_pid: Int?
+    let serving_pid: Int?
+    let lock_owner_pid: Int?
+    let service_pid: Int?
+    let ownership_state: String
+    let ownership_kind: String
+    let owner_pid: Int?
+    let owner_launchd_managed: Bool
+    let socket_path: String
+    let socket_exists: Bool
+    let socket_reachable: Bool
+    let other_mode_socket_path: String
+    let other_mode_socket_reachable: Bool
+    let uptime_seconds: Double?
+    let event_tap_expected: Bool
+    let input_tap_status: String?
+    let input_tap_attempts: Int?
+    let input_tap: RuntimeInputTapBlock?
+    let installed_app_path: String
+    let installed_app_exists: Bool
+    let legacy_state_dir: String
+    let legacy_state_items: [String]
+    let repo_artifacts: [String]
+}
+
+private struct PermissionsResetRuntimeStep: Encodable {
+    let command: String
+    let attempted: Bool
+    let exit_code: Int32?
+    let status: String
+    let stdout: String?
+    let stderr: String?
+}
+
+private struct RuntimeTCCResetTarget {
+    let identifier: String
+    let available: Bool
+    let unavailableReason: String?
+}
+
+private struct RuntimeOwnershipClassification {
+    let state: String
+    let kind: String
+    let ownerPID: Int?
+    let launchdManaged: Bool
+}
+
+private struct DaemonHealthState {
+    let servingPID: Int?
+    let uptime: Double?
+    let inputTapStatus: String?
+    let inputTapAttempts: Int?
+    let inputTapListenAccess: Bool?
+    let inputTapPostAccess: Bool?
+    let inputTapLastErrorAt: String?
+    let daemonAccessibility: Bool?
+}
+
+private struct DaemonHealthInputTapFacts: Encodable {
+    let status: String
+    let attempts: Int
     let listen_access: Bool?
     let post_access: Bool?
     let last_error_at: String?
@@ -96,767 +223,379 @@ private struct RuntimeInputTapBlock: Encodable {
     }
 }
 
-private struct RuntimeState: Encodable {
+private struct DaemonHealthPermissionsFacts: Encodable {
+    let accessibility: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case accessibility
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(accessibility, forKey: .accessibility)
+    }
+}
+
+private struct DaemonHealthFacts: Encodable {
     let mode: String
-    let state_dir: String
-    let other_mode_state_dir: String
-    let daemon_running: Bool
-    let daemon_pid: Int?
-    let serving_pid: Int?
-    let lock_owner_pid: Int?
-    let service_pid: Int?
-    let ownership_state: String
     let socket_path: String
     let socket_exists: Bool
-    let socket_reachable: Bool
-    let other_mode_socket_path: String
-    let other_mode_socket_reachable: Bool
-    let uptime_seconds: Double?
-    let event_tap_expected: Bool
-    let input_tap_status: String?
-    let input_tap_attempts: Int?
-    let input_tap: RuntimeInputTapBlock?
-    let installed_app_path: String
-    let installed_app_exists: Bool
-    let legacy_state_dir: String
-    let legacy_state_items: [String]
-    let repo_artifacts: [String]
-}
-
-private struct RuntimeIdentityState: Encodable {
-    let program: String
-    let mode: String
-    let executable_path: String
-    let state_dir: String
-    let socket_path: String
-    let build_timestamp: String?
-    let repo_root: String?
-    let git_commit: String?
-    let bundle_version: String?
-    let bundle_build: String?
-}
-
-private struct LaunchAgentState: Encodable {
-    let label: String
-    let installed: Bool
-    let loaded: Bool
-    let running: Bool
+    let reachable: Bool
     let pid: Int?
-    let plist_path: String
-    let actual_binary_path: String?
-    let expected_binary_path: String
-    let actual_log_path: String?
-    let expected_log_path: String
-    let target_matches_expected: Bool
-    let log_path_matches_expected: Bool
-    let notes: [String]
-}
-
-private struct DoctorPlatform: Encodable {
-    let os: String
-    let version: String
-}
-
-private struct DoctorResponse: Encodable {
-    let status: String
-    let platform: DoctorPlatform
-    let identity: RuntimeIdentityState
-    let permissions: PermissionsState
-    let permissions_requirements: [PermissionRequirement]
-    let permissions_setup: PermissionsSetupState
-    let runtime: RuntimeState
-    let aos_service: LaunchAgentState
-    let ready_for_testing: Bool
-    let ready_source: String
-    let notes: [String]
-}
-
-private struct PermissionsResponse: Encodable {
-    let status: String
-    let permissions: PermissionsState
-    let daemon_view: DaemonViewBlock
-    let cli_view: CLIViewBlock
-    let requirements: [PermissionRequirement]
-    let setup: PermissionsSetupState
-    let missing_permissions: [String]
-    let ready_for_testing: Bool
-    let ready_source: String
-    let disagreement: [String: DisagreementEntry]?
-    let notes: [String]
+    let uptime_seconds: Double?
+    let input_tap: DaemonHealthInputTapFacts?
+    let permissions: DaemonHealthPermissionsFacts
 
     private enum CodingKeys: String, CodingKey {
-        case status, permissions, daemon_view, cli_view, requirements, setup
-        case missing_permissions, ready_for_testing, ready_source
-        case disagreement, notes
+        case mode, socket_path, socket_exists, reachable, pid
+        case uptime_seconds, input_tap, permissions
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(status, forKey: .status)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(socket_path, forKey: .socket_path)
+        try c.encode(socket_exists, forKey: .socket_exists)
+        try c.encode(reachable, forKey: .reachable)
+        try c.encodeIfPresent(pid, forKey: .pid)
+        try c.encodeIfPresent(uptime_seconds, forKey: .uptime_seconds)
+        try c.encodeIfPresent(input_tap, forKey: .input_tap)
         try c.encode(permissions, forKey: .permissions)
-        try c.encode(daemon_view, forKey: .daemon_view)
-        try c.encode(cli_view, forKey: .cli_view)
-        try c.encode(requirements, forKey: .requirements)
-        try c.encode(setup, forKey: .setup)
-        try c.encode(missing_permissions, forKey: .missing_permissions)
-        try c.encode(ready_for_testing, forKey: .ready_for_testing)
-        try c.encode(ready_source, forKey: .ready_source)
-        try c.encodeIfPresent(disagreement, forKey: .disagreement)
-        try c.encode(notes, forKey: .notes)
     }
 }
 
-private struct PermissionsSetupResponse: Encodable {
-    let status: String
-    let completed: Bool
-    let permissions: PermissionsState
-    let requirements: [PermissionRequirement]
-    let setup: PermissionsSetupState
-    let missing_permissions: [String]
-    let marker_path: String
-    let restarted_services: [String]
-    let notes: [String]
-}
-
-private struct PermissionsResetRuntimeStep: Encodable {
-    let command: String
-    let attempted: Bool
-    let exit_code: Int32?
-    let status: String
-    let stdout: String?
-    let stderr: String?
-}
-
-private struct PermissionsResetRuntimeResponse: Encodable {
-    let status: String
-    let mode: String
-    let dry_run: Bool
-    let target_path: String
-    let tcc_identifier: String
-    let service_stop: PermissionsResetRuntimeStep
-    let tcc_reset: PermissionsResetRuntimeStep
-    let service_resets: [PermissionsResetRuntimeStep]
-    let next_actions: [ReadyNextAction]
-    let fallback: [String]
-    let notes: [String]
-}
-
-private struct RuntimeTCCResetTarget {
-    let identifier: String
-    let available: Bool
-    let unavailableReason: String?
-}
-
-private struct GitStatusState: Encodable {
-    let branch: String
-    let ahead_of_origin_main: Int?
-    let dirty_files: Int
-    let worktrees: Int
-}
-
-private struct StatusCleanDaemon: Decodable {
-    let pid: Int
-    let args: String
-}
-
-private struct StatusCleanCanvas: Decodable {
-    let id: String
-    let mode: String
-}
-
-private struct StatusCleanReport: Decodable {
-    let status: String
-    let stale_daemons: [StatusCleanDaemon]
-    let canvases: [StatusCleanCanvas]
-    let notes: [String]
-}
-
-private struct StatusStaleResources: Encodable {
-    let status: String
-    let stale_daemons: Int
-    let canvases: [String]
-    let notes: [String]
-}
-
-private struct StatusResponse: Encodable {
-    let status: String
-    let identity: RuntimeIdentityState
-    let runtime: RuntimeState
-    let permissions: PermissionsState
-    let permissions_setup: PermissionsSetupState
-    let daemon_snapshot: SpatialSnapshotData?
-    let stale_resources: StatusStaleResources
-    let git: GitStatusState?
-    let recommended_entrypoints: [String]
-    let notes: [String]
-}
-
-private struct ReadyStartupBlock: Encodable {
-    let attempted: Bool
-    let command: String
-    let exit_code: Int32
-    let status: String
-}
-
-private struct ReadyBlocker: Encodable {
-    let kind: String
-    let id: String
-    let scope: String?
-    let message: String
-    let target_path: String?
-    let settings_url: String?
-    let blocks: [String]
-
-    private enum CodingKeys: String, CodingKey {
-        case kind, id, scope, message, target_path, settings_url, blocks
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(kind, forKey: .kind)
-        try c.encode(id, forKey: .id)
-        try c.encodeIfPresent(scope, forKey: .scope)
-        try c.encode(message, forKey: .message)
-        try c.encodeIfPresent(target_path, forKey: .target_path)
-        try c.encodeIfPresent(settings_url, forKey: .settings_url)
-        try c.encode(blocks, forKey: .blocks)
-    }
-}
-
-private struct ReadyNextAction: Encodable {
-    let type: String
-    let label: String
-    let command: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case type, label, command
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(type, forKey: .type)
-        try c.encode(label, forKey: .label)
-        try c.encodeIfPresent(command, forKey: .command)
-    }
-}
-
-private struct ReadyActionStep: Encodable {
-    let step: String
-    let result: String
-    let detail: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case step, result, detail
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(step, forKey: .step)
-        try c.encode(result, forKey: .result)
-        try c.encodeIfPresent(detail, forKey: .detail)
-    }
-}
-
-private struct ReadyResponse: Encodable {
-    let status: String
-    let ready: Bool
-    let phase: String
-    let diagnosis: String
-    let mode: String
-    let ready_source: String
-    let startup: ReadyStartupBlock
-    let runtime: RuntimeState
-    let permissions: PermissionsState
-    let permissions_setup: PermissionsSetupState
-    let blocked_capabilities: [String]
-    let blockers: [ReadyBlocker]
-    let next_actions: [ReadyNextAction]
-    let action_trace: [ReadyActionStep]
-    let notes: [String]
-}
-
-private struct ReadyStartupDecision {
-    let startup: ReadyStartupBlock
-    let actionTrace: [ReadyActionStep]
-}
-
-private struct DaemonHealthState {
-    let servingPID: Int?
-    let uptime: Double?
-    let inputTapStatus: String?
-    let inputTapAttempts: Int?
-    let inputTapListenAccess: Bool?
-    let inputTapPostAccess: Bool?
-    let inputTapLastErrorAt: String?
-    let daemonAccessibility: Bool?
-}
-
-// MARK: - Public Commands
-
-func readyCommand(args: [String]) {
-    guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" || $0 == "--post-permission" }) else {
-        let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" && $0 != "--post-permission" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair] [--post-permission]", code: "UNKNOWN_FLAG")
-    }
-
-    let asJSON = args.contains("--json")
-    let repair = args.contains("--repair")
-    let postPermission = args.contains("--post-permission")
+private func currentDaemonHealthFacts() -> DaemonHealthFacts {
     let mode = aosCurrentRuntimeMode()
-    let prefix = aosInvocationDisplayName()
-    // Test-only escape hatch: readiness regression tests run against isolated
-    // mock sockets and must not rewrite or kickstart the developer LaunchAgent.
-    let skipServiceStart = ProcessInfo.processInfo.environment["AOS_TEST_SKIP_READY_SERVICE_START"] == "1"
-    let serviceArgs = ["service", "start", "--mode", mode.rawValue, "--json"]
-    let decision = decideReadyStartup(
-        serviceArgs: serviceArgs,
-        skipServiceStart: skipServiceStart,
-        repair: repair,
-        mode: mode,
-        prefix: prefix
-    )
-    let startup = decision.startup
-    var actionTrace = decision.actionTrace
-    var response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
+    let socketPath = aosSocketPath(for: mode)
+    let socketExists = FileManager.default.fileExists(atPath: socketPath)
+    let socketReachable = socketIsReachable(socketPath)
+    let health = fetchDaemonHealth(socketPath: socketPath)
 
-    if !repair && !skipServiceStart,
-       let autoRepairReason = readyAutoRepairReason(response, postPermission: postPermission) {
-        response = runReadyRuntimeRepair(
-            startup: startup,
-            actionTrace: actionTrace,
-            mode: mode,
-            prefix: prefix,
-            budgetMs: postPermission ? 20_000 : 10_000,
-            reason: autoRepairReason
+    let inputTap: DaemonHealthInputTapFacts?
+    if let status = health?.inputTapStatus,
+       let attempts = health?.inputTapAttempts {
+        inputTap = DaemonHealthInputTapFacts(
+            status: status,
+            attempts: attempts,
+            listen_access: health?.inputTapListenAccess,
+            post_access: health?.inputTapPostAccess,
+            last_error_at: health?.inputTapLastErrorAt
         )
-        actionTrace = response.action_trace
-    }
-
-    if repair && !response.ready {
-        if response.blockers.contains(where: { $0.id == "stale_daemons" }) {
-            response = runReadyCleanRepair(
-                startup: startup,
-                actionTrace: actionTrace,
-                mode: mode,
-                prefix: prefix
-            )
-            actionTrace = response.action_trace
-        }
-
-        if response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
-            response = runReadyRuntimeRepair(
-                startup: startup,
-                actionTrace: actionTrace,
-                mode: mode,
-                prefix: prefix,
-                budgetMs: 20_000,
-                reason: nil
-            )
-            actionTrace = response.action_trace
-        }
-
-        if !response.ready, response.blockers.contains(where: { $0.kind == "permission" }) {
-            actionTrace.append(ReadyActionStep(
-                step: "runtime_tcc_reset_handoff",
-                result: "human_required",
-                detail: "\(prefix) permissions reset-runtime --mode \(mode.rawValue)"
-            ))
-            response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
-        }
     } else {
-        response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
+        inputTap = nil
     }
 
-    if asJSON {
-        print(jsonString(response))
-    } else {
-        if response.ready {
-            print("ready=true mode=\(mode.rawValue) daemon=reachable tap=\(response.runtime.input_tap_status ?? "unknown")")
-        } else {
-            let daemonState = response.runtime.socket_reachable ? "reachable" : (response.runtime.daemon_running ? "running" : "down")
-            print("ready=false phase=\(response.phase) diagnosis=\(response.diagnosis) mode=\(mode.rawValue) daemon=\(daemonState) tap=\(response.runtime.input_tap_status ?? "unknown") blocked=\(response.blocked_capabilities.joined(separator: ","))")
-            if !response.action_trace.isEmpty {
-                print("Action trace:")
-                for step in response.action_trace {
-                    print("  \(step.step): \(step.result)")
-                    if let detail = step.detail, !detail.isEmpty {
-                        print("    \(detail)")
-                    }
-                }
-            }
-            for blocker in response.blockers {
-                if response.phase == "human_required", blocker.kind == "permission" {
-                    continue
-                }
-                print("- \(blocker.message)")
-                if let target = blocker.target_path {
-                    print("  target: \(target)")
-                }
-                if let settings = blocker.settings_url {
-                    print("  settings: \(settings)")
-                }
-            }
-            printReadyHumanHandoff(response: response, mode: mode, prefix: prefix)
-            if !response.next_actions.isEmpty {
-                print("Next:")
-                for action in response.next_actions {
-                    if response.phase == "human_required", action.type == "open_settings" {
-                        continue
-                    }
-                    if let command = action.command {
-                        print("  \(command)  # \(action.label)")
-                    } else {
-                        print("  \(action.label)")
-                    }
-                }
-            }
-        }
-    }
-
-    exit(response.ready ? 0 : 1)
-}
-
-private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMode, prefix: String) {
-    guard response.phase == "human_required" else { return }
-    let permissionBlockers = response.blockers.filter { $0.kind == "permission" }
-    guard !permissionBlockers.isEmpty else { return }
-
-    print("")
-    print("Human action needed:")
-    print("Preferred permission reset sequence:")
-    for line in permissionResetSafeSequenceLines(blockers: permissionBlockers, mode: mode, prefix: prefix) {
-        print("  \(line)")
-    }
-    print("Affected permissions:")
-    for line in permissionFixLines(blockers: permissionBlockers, mode: mode) {
-        print("  \(line)")
-    }
-    print("Manual Settings removal is only the fallback if reset-runtime reports that targeted reset is unavailable or failed.")
-}
-
-func statusCommand(args: [String]) {
-    guard args.allSatisfy({ $0 == "--json" }) else {
-        let unknown = args.first(where: { $0 != "--json" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) status [--json]", code: "UNKNOWN_FLAG")
-    }
-
-    let prefix = aosInvocationDisplayName()
-    let permissions = currentPermissionsState()
-    let permissionsSetup = currentPermissionsSetupState(permissions: permissions)
-    let runtime = currentRuntimeState()
-    let identity = aosCurrentRuntimeIdentity(program: "aos")
-    let snapshotResult = currentSpatialSnapshot()
-    let cleanReport = currentCleanReport()
-    let git = currentGitStatus()
-
-    var notes: [String] = []
-    if !runtime.daemon_running {
-        notes.append("Daemon is not running.")
-    } else if !runtime.socket_reachable {
-        notes.append("Daemon process appears to be running, but the socket is not reachable.")
-    }
-    notes.append(contentsOf: runtimeHealthNotes(runtime))
-    if runtime.socket_reachable, let tap = runtime.input_tap, tap.status != "active" {
-        notes.append(inputTapRecoveryGuidance(
-            context: .default,
-            status: tap.status,
-            attempts: tap.attempts
-        ))
-        if tap.listen_access == false || tap.post_access == false {
-            notes.append(inputMonitoringSubGuidance(
-                listenAccess: tap.listen_access,
-                postAccess: tap.post_access,
-                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode())
-            ))
-        }
-    }
-    if !permissions.accessibility {
-        notes.append("Accessibility permission is not granted.")
-    }
-    if !permissions.screen_recording {
-        notes.append("Screen Recording permission is not granted.")
-    }
-    if !permissionsSetup.setup_completed, let command = permissionsSetup.recommended_command {
-        notes.append("Run '\(command)' before interactive testing.")
-    }
-    if cleanReport.status == "dirty" {
-        let canvasIDs = cleanReport.canvases.map(\.id)
-        if !canvasIDs.isEmpty {
-            notes.append("Stale canvas cleanup recommended: \(canvasIDs.joined(separator: ", ")).")
-        }
-        if !cleanReport.stale_daemons.isEmpty {
-            notes.append("Stale daemon cleanup recommended: \(cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")).")
-        }
-        notes.append(contentsOf: cleanReport.notes)
-    }
-    notes.append(contentsOf: snapshotResult.notes)
-
-    let response = StatusResponse(
-        status: notes.isEmpty ? "ok" : "degraded",
-        identity: RuntimeIdentityState(
-            program: identity.program,
-            mode: identity.mode,
-            executable_path: identity.executable_path,
-            state_dir: identity.state_dir,
-            socket_path: identity.socket_path,
-            build_timestamp: identity.build_timestamp,
-            repo_root: identity.repo_root,
-            git_commit: identity.git_commit,
-            bundle_version: identity.bundle_version,
-            bundle_build: identity.bundle_build
-        ),
-        runtime: runtime,
-        permissions: permissions,
-        permissions_setup: permissionsSetup,
-        daemon_snapshot: snapshotResult.snapshot,
-        stale_resources: StatusStaleResources(
-            status: cleanReport.status,
-            stale_daemons: cleanReport.stale_daemons.count,
-            canvases: cleanReport.canvases.map(\.id),
-            notes: cleanReport.notes
-        ),
-        git: git,
-        recommended_entrypoints: [
-            "\(prefix) help <command> [--json]",
-            "\(prefix) introspect review",
-            "\(prefix) clean"
-        ],
-        notes: notes
+    return DaemonHealthFacts(
+        mode: mode.rawValue,
+        socket_path: socketPath,
+        socket_exists: socketExists,
+        reachable: socketReachable,
+        pid: health?.servingPID,
+        uptime_seconds: health?.uptime,
+        input_tap: inputTap,
+        permissions: DaemonHealthPermissionsFacts(accessibility: health?.daemonAccessibility)
     )
-
-    if args.contains("--json") {
-        print(jsonString(response))
-        return
-    }
-
-    let focusedApp = snapshotResult.snapshot?.focused_app ?? "?"
-    let displays = snapshotResult.snapshot?.displays ?? 0
-    let windows = snapshotResult.snapshot?.windows ?? 0
-    let channels = snapshotResult.snapshot?.channels ?? 0
-    let staleCanvasCount = cleanReport.canvases.count
-    let tapValue: String
-    if !runtime.socket_reachable {
-        tapValue = "unknown"
-    } else {
-        tapValue = runtime.input_tap_status ?? "unknown"
-    }
-    let daemonState = runtime.socket_reachable ? "reachable" : (runtime.daemon_running ? "running" : "down")
-    var line = "status=\(response.status) mode=\(runtime.mode) daemon=\(daemonState) pid=\(runtime.daemon_pid.map { String($0) } ?? "?") tap=\(tapValue) focused_app=\(focusedApp) displays=\(displays) windows=\(windows) channels=\(channels) stale_canvases=\(staleCanvasCount)"
-    if let git {
-        let ahead = git.ahead_of_origin_main.map { String($0) } ?? "?"
-        line += " branch=\(git.branch) ahead=\(ahead) dirty=\(git.dirty_files)"
-    }
-    print(line)
-    for note in response.notes {
-        print(note)
-    }
-    print("Next: \(prefix) help <command> | \(prefix) introspect review")
 }
 
-private func currentCleanReport() -> StatusCleanReport {
-    let script = aosRepoPath("scripts/aos-clean.mjs")
-    guard FileManager.default.fileExists(atPath: script) else {
-        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: ["Clean command script is missing: \(script)"])
+// MARK: - Broker Primitive Commands
+
+func daemonBrokerCommand(args: [String]) {
+    guard args.first == "health" else {
+        exitError("__daemon requires the health primitive.", code: "UNKNOWN_SUBCOMMAND")
     }
-    let result = runProcess("/usr/bin/env", arguments: ["node", script, "--dry-run", "--json"])
-    guard result.exitCode == 0,
-          let data = result.stdout.data(using: .utf8),
-          let report = try? JSONDecoder().decode(StatusCleanReport.self, from: data) else {
-        let detail = [result.stderr, result.stdout]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first(where: { !$0.isEmpty }) ?? "clean dry-run failed"
-        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: [detail])
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__daemon health requires --json.", code: "INVALID_ARG")
     }
-    return report
+
+    print(jsonString(currentDaemonHealthFacts()))
 }
 
-func doctorCommand(args: [String]) {
-    guard args.allSatisfy({ $0 == "--json" }) else {
-        let unknown = args.first(where: { $0 != "--json" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) doctor [--json]", code: "UNKNOWN_FLAG")
+func runtimeBrokerCommand(args: [String]) {
+    guard args.first == "status-facts" else {
+        exitError("__runtime requires the status-facts primitive.", code: "UNKNOWN_SUBCOMMAND")
+    }
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__runtime status-facts requires --json.", code: "INVALID_ARG")
     }
 
-    let permissions = currentPermissionsState()
-    let permissionRequirements = currentPermissionRequirements(permissions: permissions)
-    let permissionsSetup = currentPermissionsSetupState(permissions: permissions)
     let mode = aosCurrentRuntimeMode()
-    // Fetch daemon health once and share it with currentRuntimeState so the
-    // ready_for_testing computation below consumes the same view that populated
-    // runtime.input_tap. Avoids a race where a second fetch could fail and flip
-    // ready_for_testing to the CLI fallback while recovery notes still cite the
-    // daemon-reported tap state.
-    let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
-    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
-    let aosService = launchAgentState(
-        label: aosServiceLabel(for: mode),
-        expectedBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode),
-        logPath: aosDaemonLogPath(for: mode)
-    )
+    let health = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
+    print(jsonString(currentRuntimeState(preFetchedHealth: health)))
+}
 
-    var notes: [String] = []
-    if !runtime.daemon_running {
-        notes.append("Daemon is not running.")
-    } else if !runtime.socket_reachable {
-        notes.append("Daemon process appears to be running, but the socket is not reachable.")
+// MARK: - Permission Broker Commands
+
+func permissionsCommand(args: [String]) {
+    guard let sub = args.first else {
+        exitError("__permissions requires a primitive. Usage: aos __permissions <facts|setup-marker|prompt|reset-target|tcc-reset> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
-    notes.append(contentsOf: runtimeHealthNotes(runtime))
-    if runtime.other_mode_socket_reachable {
-        notes.append("BROKEN STATE: \(runtime.mode) runtime is active while the \(mode.other.rawValue) socket is also reachable.")
+    switch sub {
+    case "facts":
+        permissionsFactsCommand(args: Array(args.dropFirst()))
+    case "setup-marker":
+        permissionsSetupMarkerCommand(args: Array(args.dropFirst()))
+    case "prompt":
+        permissionsPromptCommand(args: Array(args.dropFirst()))
+    case "reset-target":
+        permissionsResetTargetCommand(args: Array(args.dropFirst()))
+    case "tcc-reset":
+        permissionsTCCResetCommand(args: Array(args.dropFirst()))
+    default:
+        exitError("Unknown __permissions primitive: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
-    if !permissions.accessibility {
-        notes.append("Accessibility permission is not granted.")
-    }
-    if !permissions.screen_recording {
-        notes.append("Screen Recording permission is not granted.")
-    }
-    if !permissionsSetup.setup_completed, let command = permissionsSetup.recommended_command {
-        notes.append("Run '\(command)' before interactive testing.")
-    }
-    if !aosService.target_matches_expected {
-        notes.append("AOS launch agent target does not match the expected \(runtime.mode) runtime binary.")
-    }
-    if !runtime.legacy_state_items.isEmpty {
-        notes.append("Legacy shared runtime state still exists in \(runtime.legacy_state_dir).")
-    }
-    if !runtime.repo_artifacts.isEmpty {
-        notes.append("Repo build artifacts are still present: \(runtime.repo_artifacts.joined(separator: ", ")).")
+}
+
+private func permissionsFactsCommand(args: [String]) {
+    guard args == ["--json"] else {
+        exitError("__permissions facts requires --json.", code: "INVALID_ARG")
     }
 
-    let evaluation = evaluateReadyForTesting(
-        daemon: daemonHealth?.asView,
-        cliAccessibility: permissions.accessibility,
-        cliScreenRecording: permissions.screen_recording,
-        setupCompleted: permissionsSetup.setup_completed
-    )
-
-    if runtime.socket_reachable, let tap = runtime.input_tap, tap.status != "active" {
-        notes.append(inputTapRecoveryGuidance(
-            context: .default,
-            status: tap.status,
-            attempts: tap.attempts
-        ))
-        if tap.listen_access == false || tap.post_access == false {
-            notes.append(inputMonitoringSubGuidance(
-                listenAccess: tap.listen_access,
-                postAccess: tap.post_access,
-                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
-            ))
-        }
-    }
-
-    let version = ProcessInfo.processInfo.operatingSystemVersion
-    let identity = aosCurrentRuntimeIdentity(program: "aos")
-    let response = DoctorResponse(
-        status: notes.isEmpty ? "ok" : "degraded",
-        platform: DoctorPlatform(
-            os: "macOS",
-            version: "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
-        ),
-        identity: RuntimeIdentityState(
-            program: identity.program,
-            mode: identity.mode,
-            executable_path: identity.executable_path,
-            state_dir: identity.state_dir,
-            socket_path: identity.socket_path,
-            build_timestamp: identity.build_timestamp,
-            repo_root: identity.repo_root,
-            git_commit: identity.git_commit,
-            bundle_version: identity.bundle_version,
-            bundle_build: identity.bundle_build
-        ),
+    let permissions = currentPermissionsState()
+    let complete = permissions.accessibility &&
+        permissions.screen_recording &&
+        permissions.listen_access &&
+        permissions.post_access
+    let response = PermissionsFactsResponse(
+        status: complete ? "ok" : "degraded",
+        mode: aosCurrentRuntimeMode().rawValue,
         permissions: permissions,
-        permissions_requirements: permissionRequirements,
-        permissions_setup: permissionsSetup,
-        runtime: runtime,
-        aos_service: aosService,
-        ready_for_testing: evaluation.readyForTesting,
-        ready_source: evaluation.readySource,
-        notes: notes
+        identity: PermissionsIdentityFacts(
+            executable_path: aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode()),
+            bundle_path: Bundle.main.bundlePath
+        )
     )
     print(jsonString(response))
 }
 
-func permissionsCommand(args: [String]) {
-    guard let sub = args.first else {
-        exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup|reset-runtime> ...",
-                  code: "MISSING_SUBCOMMAND")
+private func permissionsSetupMarkerCommand(args: [String]) {
+    guard let action = args.first else {
+        exitError("__permissions setup-marker requires get or write.", code: "MISSING_SUBCOMMAND")
     }
-    switch sub {
-    case "check":
-        permissionsCheckCommand(args: Array(args.dropFirst()), usage: "aos permissions check [--json]")
-    case "preflight":
-        permissionsCheckCommand(args: Array(args.dropFirst()), usage: "aos permissions preflight [--json]")
-    case "setup":
-        permissionsSetupCommand(args: Array(args.dropFirst()))
-    case "reset-runtime":
-        permissionsResetRuntimeCommand(args: Array(args.dropFirst()))
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__permissions setup-marker \(action) requires --json.", code: "INVALID_ARG")
+    }
+
+    switch action {
+    case "get":
+        let permissions = currentPermissionsState()
+        print(jsonString(currentPermissionsSetupMarkerFacts(permissions: permissions)))
+    case "write":
+        let permissions = currentPermissionsState()
+        let markerPath = aosPermissionsMarkerPath()
+        let writeOK = writePermissionsSetupMarker(path: markerPath, permissions: permissions)
+        let marker = currentPermissionsSetupMarkerFacts(permissions: permissions)
+        print(jsonString(PermissionsSetupMarkerWriteResponse(
+            status: writeOK ? "ok" : "degraded",
+            action: "write",
+            marker: marker
+        )))
+        if !writeOK {
+            exit(1)
+        }
     default:
-        exitError("Unknown permissions subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+        exitError("Unknown __permissions setup-marker action: \(action)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 
-private func decideReadyStartup(
-    serviceArgs: [String],
-    skipServiceStart: Bool,
-    repair: Bool,
-    mode: AOSRuntimeMode,
-    prefix: String
-) -> ReadyStartupDecision {
-    let command = "\(prefix) \(serviceArgs.joined(separator: " "))"
-    let skippedStartup = ReadyStartupBlock(
-        attempted: false,
-        command: command,
-        exit_code: 0,
-        status: "skipped"
-    )
+private enum PermissionPromptKind: String {
+    case accessibility
+    case screenRecording = "screen-recording"
+    case listenEvent = "listen-event"
+    case postEvent = "post-event"
 
-    if skipServiceStart {
-        return ReadyStartupDecision(
-            startup: skippedStartup,
-            actionTrace: [
-                ReadyActionStep(
-                    step: "service_start",
-                    result: "skipped",
-                    detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
-                )
-            ]
-        )
-    }
-
-    if !repair {
-        let preflight = buildReadyResponse(
-            startup: skippedStartup,
-            actionTrace: [],
-            mode: mode,
-            prefix: prefix
-        )
-        if preflight.ready {
-            return ReadyStartupDecision(
-                startup: skippedStartup,
-                actionTrace: [
-                    ReadyActionStep(
-                        step: "ready_preflight",
-                        result: "ready",
-                        detail: "managed daemon is already reachable, owned by the expected runtime, and input tap is active"
-                    )
-                ]
-            )
+    var permissionID: String {
+        switch self {
+        case .accessibility:
+            return "accessibility"
+        case .screenRecording:
+            return "screen_recording"
+        case .listenEvent:
+            return "listen_access"
+        case .postEvent:
+            return "post_access"
         }
     }
 
-    let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
-    let startup = ReadyStartupBlock(
-        attempted: true,
-        command: command,
-        exit_code: result.exitCode,
-        status: result.exitCode == 0 ? "ok" : "degraded"
+    var nativeTrigger: String {
+        switch self {
+        case .accessibility:
+            return "AXIsProcessTrustedWithOptions"
+        case .screenRecording:
+            return "CGRequestScreenCaptureAccess"
+        case .listenEvent:
+            return "CGRequestListenEventAccess"
+        case .postEvent:
+            return "CGRequestPostEventAccess"
+        }
+    }
+}
+
+private func permissionsPromptCommand(args: [String]) {
+    guard args.count == 2, let rawPermission = args.first, args[1] == "--json" else {
+        exitError("__permissions prompt requires <accessibility|screen-recording|listen-event|post-event> --json.",
+                  code: "INVALID_ARG")
+    }
+    guard let kind = PermissionPromptKind(rawValue: rawPermission) else {
+        exitError("Unknown __permissions prompt permission: \(rawPermission)", code: "UNKNOWN_PERMISSION")
+    }
+
+    let before = currentPermissionsState()
+    let attempted: Bool
+    let triggerResult: Bool?
+    if permissionGranted(kind, in: before) {
+        attempted = false
+        triggerResult = nil
+    } else {
+        attempted = true
+        triggerResult = triggerPermissionPrompt(kind)
+    }
+
+    let after = currentPermissionsState()
+    let granted = permissionGranted(kind, in: after)
+    print(jsonString(PermissionsPromptResponse(
+        status: granted ? "ok" : "degraded",
+        permission: kind.permissionID,
+        native_trigger: kind.nativeTrigger,
+        attempted: attempted,
+        trigger_result: triggerResult,
+        before: before,
+        after: after,
+        granted: granted
+    )))
+    exit(granted ? 0 : 1)
+}
+
+private func permissionGranted(_ kind: PermissionPromptKind, in permissions: PermissionsState) -> Bool {
+    switch kind {
+    case .accessibility:
+        return permissions.accessibility
+    case .screenRecording:
+        return permissions.screen_recording
+    case .listenEvent:
+        return permissions.listen_access
+    case .postEvent:
+        return permissions.post_access
+    }
+}
+
+private func triggerPermissionPrompt(_ kind: PermissionPromptKind) -> Bool {
+    switch kind {
+    case .accessibility:
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    case .screenRecording:
+        return CGRequestScreenCaptureAccess()
+    case .listenEvent:
+        return requestListenEventAccess()
+    case .postEvent:
+        return requestPostEventAccess()
+    }
+}
+
+private func permissionsResetTargetCommand(args: [String]) {
+    let mode = parsePermissionsResetPrimitiveArgs(args, command: "reset-target")
+    let facts = currentPermissionsResetTargetResponse(mode: mode)
+    print(jsonString(facts))
+}
+
+private func permissionsTCCResetCommand(args: [String]) {
+    let mode = parsePermissionsResetPrimitiveArgs(args, command: "tcc-reset")
+    let targetPath = permissionResetTargetPath(mode: mode)
+    let target = tccResetTargetForRuntime(mode: mode, targetPath: targetPath)
+    let resetArgs = permissionsTCCResetArguments(identifier: target.identifier)
+    let resetCommand = permissionsTCCResetCommandString(arguments: resetArgs)
+
+    if !target.available {
+        print(jsonString(PermissionsTCCResetResponse(
+            status: "degraded",
+            mode: mode.rawValue,
+            target_path: targetPath,
+            tcc_identifier: target.identifier,
+            tcc_reset: PermissionsResetRuntimeStep(
+                command: resetCommand,
+                attempted: false,
+                exit_code: nil,
+                status: "unavailable",
+                stdout: nil,
+                stderr: target.unavailableReason
+            )
+        )))
+        exit(1)
+    }
+
+    let result = runProcess("/usr/bin/tccutil", arguments: resetArgs)
+    let resetOK = result.exitCode == 0
+    print(jsonString(PermissionsTCCResetResponse(
+        status: resetOK ? "ok" : "degraded",
+        mode: mode.rawValue,
+        target_path: targetPath,
+        tcc_identifier: target.identifier,
+        tcc_reset: PermissionsResetRuntimeStep(
+            command: resetCommand,
+            attempted: true,
+            exit_code: result.exitCode,
+            status: resetOK ? "ok" : "failed",
+            stdout: trimmedOutput(result.stdout),
+            stderr: trimmedOutput(result.stderr)
+        )
+    )))
+    exit(resetOK ? 0 : 1)
+}
+
+private func parsePermissionsResetPrimitiveArgs(_ args: [String], command: String) -> AOSRuntimeMode {
+    var asJSON = false
+    var mode: AOSRuntimeMode? = nil
+    var i = 0
+
+    while i < args.count {
+        switch args[i] {
+        case "--json":
+            asJSON = true
+        case "--mode":
+            i += 1
+            guard i < args.count, let parsed = AOSRuntimeMode(rawValue: args[i]) else {
+                exitError("--mode must be 'repo' or 'installed'", code: "INVALID_ARG")
+            }
+            mode = parsed
+        default:
+            exitError("Unknown flag: \(args[i]). Usage: aos __permissions \(command) [--mode repo|installed] --json",
+                      code: "UNKNOWN_FLAG")
+        }
+        i += 1
+    }
+
+    guard asJSON else {
+        exitError("__permissions \(command) requires --json.", code: "INVALID_ARG")
+    }
+    return mode ?? aosCurrentRuntimeMode()
+}
+
+private func currentPermissionsResetTargetResponse(mode: AOSRuntimeMode) -> PermissionsResetTargetResponse {
+    let targetPath = permissionResetTargetPath(mode: mode)
+    let target = tccResetTargetForRuntime(mode: mode, targetPath: targetPath)
+    let resetArgs = permissionsTCCResetArguments(identifier: target.identifier)
+    return PermissionsResetTargetResponse(
+        status: "ok",
+        mode: mode.rawValue,
+        target_path: targetPath,
+        tcc_identifier: target.identifier,
+        available: target.available,
+        command: permissionsTCCResetCommandString(arguments: resetArgs),
+        arguments: resetArgs,
+        unavailable_reason: target.unavailableReason
     )
-    let trace = ReadyActionStep(
-        step: "service_start",
-        result: result.exitCode == 0 ? startup.status : "degraded",
-        detail: result.exitCode == 0 ? nil : compactProcessDetail(result)
-    )
-    return ReadyStartupDecision(startup: startup, actionTrace: [trace])
+}
+
+private func permissionsTCCResetArguments(identifier: String) -> [String] {
+    ["reset", "All", identifier]
+}
+
+private func permissionsTCCResetCommandString(arguments: [String]) -> String {
+    "tccutil \(arguments.joined(separator: " "))"
 }
 
 func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false) {
@@ -914,32 +653,6 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
 
 // MARK: - Shared Introspection Helpers
 
-private struct SpatialSnapshotResult {
-    let snapshot: SpatialSnapshotData?
-    let notes: [String]
-}
-
-private func currentGitStatus() -> GitStatusState? {
-    guard let repoRoot = aosCurrentRepoRoot() else { return nil }
-    let branch = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "branch", "--show-current"])
-        .stdout
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    let aheadRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "rev-list", "--count", "origin/main..HEAD"])
-        .stdout
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    let dirtyRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "status", "--porcelain"])
-        .stdout
-    let worktreesRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "worktree", "list"])
-        .stdout
-
-    return GitStatusState(
-        branch: branch.isEmpty ? "?" : branch,
-        ahead_of_origin_main: Int(aheadRaw),
-        dirty_files: dirtyRaw.split(whereSeparator: \.isNewline).count,
-        worktrees: max(worktreesRaw.split(whereSeparator: \.isNewline).count, 1)
-    )
-}
-
 private func currentPermissionsState() -> PermissionsState {
     if testAssumePermissionsGranted() {
         return PermissionsState(
@@ -967,36 +680,21 @@ private func testAssumePermissionsGranted() -> Bool {
         aosHasExplicitStateRootOverride()
 }
 
-private func currentPermissionRequirements(permissions: PermissionsState) -> [PermissionRequirement] {
-    [
-        PermissionRequirement(
-            id: "accessibility",
-            granted: permissions.accessibility,
-            required_for: ["global input tap", "mouse/keyboard actions", "AX element actions"],
-            setup_trigger: "AXIsProcessTrustedWithOptions prompt"
-        ),
-        PermissionRequirement(
-            id: "screen_recording",
-            granted: permissions.screen_recording,
-            required_for: ["screen capture", "perception", "visual debugging"],
-            setup_trigger: "CGRequestScreenCaptureAccess prompt"
-        ),
-        PermissionRequirement(
-            id: "listen_access",
-            granted: permissions.listen_access,
-            required_for: ["global input tap", "input event fan-out", "hotkeys"],
-            setup_trigger: "CGRequestListenEventAccess prompt"
-        ),
-        PermissionRequirement(
-            id: "post_access",
-            granted: permissions.post_access,
-            required_for: ["synthetic events", "mouse/keyboard actions", "AX element actions"],
-            setup_trigger: "CGRequestPostEventAccess prompt"
-        )
-    ]
+private func currentPermissionsSetupState(permissions: PermissionsState) -> PermissionsSetupState {
+    let marker = currentPermissionsSetupMarkerFacts(permissions: permissions)
+    return PermissionsSetupState(
+        marker_exists: marker.marker_exists,
+        marker_path: marker.marker_path,
+        completed_at: marker.completed_at,
+        bundle_path: marker.bundle_path,
+        current_bundle_path: marker.current_bundle_path,
+        bundle_matches_current: marker.bundle_matches_current,
+        setup_completed: marker.setup_completed,
+        recommended_command: marker.setup_completed ? nil : "aos permissions setup --once"
+    )
 }
 
-private func currentPermissionsSetupState(permissions: PermissionsState) -> PermissionsSetupState {
+private func currentPermissionsSetupMarkerFacts(permissions: PermissionsState) -> PermissionsSetupMarkerFacts {
     let markerPath = aosPermissionsMarkerPath()
     let marker = readPermissionsSetupMarker(path: markerPath)
     let currentBundlePath = Bundle.main.bundlePath
@@ -1011,15 +709,14 @@ private func currentPermissionsSetupState(permissions: PermissionsState) -> Perm
         marker != nil &&
         (bundleMatchesCurrent || mode == .repo)
 
-    return PermissionsSetupState(
+    return PermissionsSetupMarkerFacts(
         marker_exists: marker != nil,
         marker_path: markerPath,
         completed_at: completedAt,
         bundle_path: bundlePath,
         current_bundle_path: currentBundlePath,
         bundle_matches_current: bundleMatchesCurrent,
-        setup_completed: setupCompleted,
-        recommended_command: setupCompleted ? nil : "aos permissions setup --once"
+        setup_completed: setupCompleted
     )
 }
 
@@ -1032,783 +729,13 @@ private func missingPermissionIDs(_ permissions: PermissionsState) -> [String] {
     return missing
 }
 
-private func permissionsCheckCommand(args: [String], usage: String) {
-    guard args.allSatisfy({ $0 == "--json" }) else {
-        let unknown = args.first(where: { $0 != "--json" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: \(usage)", code: "UNKNOWN_FLAG")
-    }
-
-    let cliPermissions = currentPermissionsState()
-    let cliView = cliView(from: cliPermissions)
-
-    let mode = aosCurrentRuntimeMode()
-    let daemonView: DaemonViewBlock
-    var daemonHealth: DaemonHealthView? = nil
-    if let view = fetchDaemonHealth(socketPath: aosSocketPath(for: mode), budgetMs: 1000)?.asView {
-        daemonHealth = view
-        daemonView = DaemonViewBlock(
-            reachable: true,
-            accessibility: view.permissions.accessibility,
-            input_tap: PermissionsInputTapBlock(
-                status: view.inputTap.status,
-                attempts: view.inputTap.attempts,
-                listen_access: view.inputTap.listenAccess,
-                post_access: view.inputTap.postAccess
-            )
-        )
-    } else {
-        daemonView = DaemonViewBlock(reachable: false, accessibility: nil, input_tap: nil)
-    }
-
-    let setup = currentPermissionsSetupState(permissions: cliPermissions)
-
-    let requirements = currentPermissionRequirements(permissions: cliPermissions)
-
-    let evaluation = evaluateReadyForTesting(
-        daemon: daemonHealth,
-        cliAccessibility: cliPermissions.accessibility,
-        cliScreenRecording: cliPermissions.screen_recording,
-        setupCompleted: setup.setup_completed
-    )
-
-    let missing = missingPermissionIDsFor(
-        daemon: daemonHealth,
-        cli: cliView
-    )
-
-    // Disagreement only flags fields where BOTH sides have an opinion. A
-    // legacy daemon that doesn't expose a field (Bool? == nil) is treated as
-    // "no opinion", not as a divergence vs. the CLI view (CONTRACT-GOVERNANCE
-    // rule 2: "comparable field").
-    var disagreement: [String: DisagreementEntry] = [:]
-    if let view = daemonHealth {
-        if let daemonAcc = view.permissions.accessibility, daemonAcc != cliView.accessibility {
-            disagreement["accessibility"] = DisagreementEntry(cli: cliView.accessibility, daemon: daemonAcc)
-        }
-        if let daemonListen = view.inputTap.listenAccess, daemonListen != cliView.listen_access {
-            disagreement["listen_access"] = DisagreementEntry(cli: cliView.listen_access, daemon: daemonListen)
-        }
-        if let daemonPost = view.inputTap.postAccess, daemonPost != cliView.post_access {
-            disagreement["post_access"] = DisagreementEntry(cli: cliView.post_access, daemon: daemonPost)
-        }
-    }
-
-    var notes: [String] = []
-    if !cliPermissions.accessibility {
-        notes.append("Accessibility permission is not granted (CLI view).")
-    }
-    if !cliPermissions.screen_recording {
-        notes.append("Screen Recording permission is not granted.")
-    }
-    if !cliPermissions.listen_access {
-        notes.append("Input Monitoring listen access is not granted (CLI view).")
-    }
-    if !cliPermissions.post_access {
-        notes.append("Input Monitoring post access is not granted (CLI view).")
-    }
-    if !setup.marker_exists {
-        notes.append("Permission onboarding has not been completed for this runtime identity.")
-    } else if !setup.bundle_matches_current && !setup.setup_completed {
-        notes.append("Permission onboarding marker belongs to a different app bundle path.")
-    }
-    if let command = setup.recommended_command {
-        notes.append("Run '\(command)' before interactive testing.")
-    }
-    if daemonHealth == nil {
-        notes.append("Daemon unreachable; readiness computed from CLI preflights only.")
-    } else if let view = daemonHealth, view.inputTap.status != "active" {
-        notes.append(inputTapRecoveryGuidance(
-            context: .default,
-            status: view.inputTap.status,
-            attempts: view.inputTap.attempts
-        ))
-        if view.inputTap.listenAccess == false || view.inputTap.postAccess == false {
-            notes.append(inputMonitoringSubGuidance(
-                listenAccess: view.inputTap.listenAccess,
-                postAccess: view.inputTap.postAccess,
-                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
-            ))
-        }
-    }
-
-    let response = PermissionsResponse(
-        status: notes.isEmpty ? "ok" : "degraded",
-        permissions: cliPermissions,
-        daemon_view: daemonView,
-        cli_view: cliView,
-        requirements: requirements,
-        setup: setup,
-        missing_permissions: missing,
-        ready_for_testing: evaluation.readyForTesting,
-        ready_source: evaluation.readySource,
-        disagreement: disagreement.isEmpty ? nil : disagreement,
-        notes: notes
-    )
-    print(jsonString(response))
-}
-
-private func missingPermissionIDsFor(daemon: DaemonHealthView?, cli: CLIViewBlock) -> [String] {
-    var missing: [String] = []
-    let accessibility = daemon?.permissions.accessibility ?? cli.accessibility
-    let listen = daemon?.inputTap.listenAccess ?? cli.listen_access
-    let post = daemon?.inputTap.postAccess ?? cli.post_access
-    if !accessibility { missing.append("accessibility") }
-    if !cli.screen_recording { missing.append("screen_recording") }
-    if !listen { missing.append("listen_access") }
-    if !post { missing.append("post_access") }
-    return missing
-}
-
-private func cliView(from permissions: PermissionsState) -> CLIViewBlock {
-    CLIViewBlock(
-        accessibility: permissions.accessibility,
-        screen_recording: permissions.screen_recording,
-        listen_access: permissions.listen_access,
-        post_access: permissions.post_access
-    )
-}
-
-private func permissionRecoveryNotes(missing: [String], mode: AOSRuntimeMode) -> [String] {
-    let prefix = aosInvocationDisplayName()
-    var notes = permissionResetSafeSequenceLines(
-        blockers: missing.map { id in
-            ReadyBlocker(
-                kind: "permission",
-                id: id,
-                scope: nil,
-                message: "",
-                target_path: permissionResetTargetPath(mode: mode),
-                settings_url: nil,
-                blocks: []
-            )
-        },
-        mode: mode,
-        prefix: prefix
-    )
-    notes.append("Affected permissions:")
-    for id in missing {
-        switch id {
-        case "accessibility":
-            notes.append(staleGrantGuidance(mode: mode, service: "Accessibility"))
-        case "screen_recording":
-            notes.append("Screen Recording permission is not granted. Run \(aosInvocationDisplayName()) permissions setup --once or grant Screen Recording in System Settings.")
-        case "listen_access":
-            notes.append(staleGrantGuidance(mode: mode, service: "Input Monitoring listen access"))
-        case "post_access":
-            notes.append(staleGrantGuidance(mode: mode, service: "Input Monitoring post access"))
-        default:
-            notes.append("Missing permission: \(id).")
-        }
-    }
-    return notes
-}
-
-private func permissionPanel(for id: String) -> String {
-    switch id {
-    case "accessibility":
-        return "Accessibility"
-    case "screen_recording":
-        return "Screen Recording"
-    case "listen_access", "post_access", "input_monitoring_listen", "input_monitoring_post":
-        return "Input Monitoring"
-    default:
-        return id
-    }
-}
-
-private func permissionEntryName(mode: AOSRuntimeMode) -> String {
-    switch mode {
-    case .repo:
-        return "aos"
-    case .installed:
-        return "AOS.app"
-    }
-}
-
-private func permissionAction(for blocker: ReadyBlocker, mode: AOSRuntimeMode) -> String {
-    if mode == .repo, blocker.scope == "daemon" {
-        return "targeted reset"
-    }
-    return "enable"
-}
-
-private func permissionFixLines(blockers: [ReadyBlocker], mode: AOSRuntimeMode) -> [String] {
-    var seen = Set<String>()
-    var lines: [String] = []
-    for blocker in blockers {
-        let panel = permissionPanel(for: blocker.id)
-        let action = permissionAction(for: blocker, mode: mode)
-        let key = "\(panel)|\(action)"
-        if seen.insert(key).inserted {
-            lines.append("\(panel) -> \(permissionEntryName(mode: mode)) (\(action))")
-        }
-    }
-    return lines
-}
-
 private func permissionResetTargetPath(mode: AOSRuntimeMode) -> String {
     aosExpectedBinaryPath(program: "aos", mode: mode)
 }
 
-private func permissionResetSafeSequenceLines(blockers: [ReadyBlocker], mode: AOSRuntimeMode, prefix: String) -> [String] {
-    let targetPath = permissionResetTargetPath(mode: mode)
-    var lines = [
-        "Runtime mode: \(mode.rawValue)",
-        "Target binary: \(targetPath)",
-        "1. Agent: run \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
-        "2. Agent: run \(prefix) permissions setup --once",
-        "3. Human: grant the macOS permission prompt, or physically remove/re-add the repo-mode aos runtime in System Settings if the grant remains stale.",
-        "4. Human: return to the waiting session and say: finished",
-        "5. Session: run \(prefix) ready --post-permission",
-        "Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale.",
-    ]
-    if blockers.contains(where: { $0.id == "screen_recording" }) {
-        lines.insert("Screen Recording can be re-requested by permissions setup after reset.", at: 4)
-    }
-    return lines
-}
-
-private func buildReadyResponse(
-    startup: ReadyStartupBlock,
-    actionTrace: [ReadyActionStep],
-    mode: AOSRuntimeMode,
-    prefix: String
-) -> ReadyResponse {
-    let permissions = currentPermissionsState()
-    let setup = currentPermissionsSetupState(permissions: permissions)
-    let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
-    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
-    let cleanReport = currentCleanReport()
-    let evaluation = evaluateReadyForTesting(
-        daemon: daemonHealth?.asView,
-        cliAccessibility: permissions.accessibility,
-        cliScreenRecording: permissions.screen_recording,
-        setupCompleted: setup.setup_completed
-    )
-    let blockers = readyBlockers(
-        runtime: runtime,
-        daemon: daemonHealth?.asView,
-        permissions: permissions,
-        setup: setup,
-        cleanReport: cleanReport,
-        mode: mode
-    )
-    let ready = runtime.socket_reachable && evaluation.readyForTesting && blockers.isEmpty
-    let blockedCapabilities = Array(Set(blockers.flatMap(\.blocks))).sorted()
-    let phase = readyPhase(ready: ready, blockers: blockers)
-    let diagnosis = readyDiagnosis(
-        ready: ready,
-        blockers: blockers,
-        daemon: daemonHealth?.asView,
-        permissions: permissions
-    )
-
-    return ReadyResponse(
-        status: ready ? "ok" : "degraded",
-        ready: ready,
-        phase: phase,
-        diagnosis: diagnosis,
-        mode: mode.rawValue,
-        ready_source: evaluation.readySource,
-        startup: startup,
-        runtime: runtime,
-        permissions: permissions,
-        permissions_setup: setup,
-        blocked_capabilities: blockedCapabilities,
-        blockers: blockers,
-        next_actions: readyNextActions(blockers: blockers, setup: setup, mode: mode, prefix: prefix),
-        action_trace: actionTrace,
-        notes: readyNotes(
-            runtime: runtime,
-            daemon: daemonHealth?.asView,
-            permissions: permissions,
-            setup: setup,
-            cleanReport: cleanReport,
-            mode: mode
-        )
-    )
-}
-
-private func waitForReadyResponse(
-    startup: ReadyStartupBlock,
-    actionTrace: [ReadyActionStep],
-    mode: AOSRuntimeMode,
-    prefix: String,
-    budgetMs: Int
-) -> ReadyResponse {
-    let deadline = Date().addingTimeInterval(Double(budgetMs) / 1000.0)
-    var trace = actionTrace
-    var response = buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
-    while Date() < deadline {
-        response = buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
-        if response.ready {
-            trace.append(ReadyActionStep(step: "wait_for_recovery", result: "ready", detail: "daemon became ready during repair wait"))
-            return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
-        }
-        usleep(500_000)
-    }
-    trace.append(ReadyActionStep(step: "wait_for_recovery", result: "timed_out", detail: "daemon did not become ready within \(budgetMs)ms"))
-    return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
-}
-
-private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bool) -> String? {
-    guard !response.ready else { return nil }
-    let blockerIDs = Set(response.blockers.map(\.id))
-    let hasRepairableRuntimeBlocker = response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
-    if blockerIDs.contains("stale_daemons") {
-        return nil
-    }
-    if postPermission && hasRepairableRuntimeBlocker {
-        return "post-permission bounded daemon restart/recheck"
-    }
-    if blockerIDs.contains("daemon_ownership_mismatch") {
-        return "automatic after daemon ownership mismatch"
-    }
-    if blockerIDs.contains("input_tap_not_active") {
-        return "automatic after input tap inactive"
-    }
-    return nil
-}
-
-private func runReadyCleanRepair(
-    startup: ReadyStartupBlock,
-    actionTrace: [ReadyActionStep],
-    mode: AOSRuntimeMode,
-    prefix: String
-) -> ReadyResponse {
-    let clean = runProcess(aosExecutablePath(), arguments: ["clean", "--json"])
-    var trace = actionTrace
-    trace.append(ReadyActionStep(
-        step: "clean",
-        result: clean.exitCode == 0 ? "ok" : "failed",
-        detail: compactProcessDetail(clean)
-    ))
-    return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
-}
-
-private func runReadyRuntimeRepair(
-    startup: ReadyStartupBlock,
-    actionTrace: [ReadyActionStep],
-    mode: AOSRuntimeMode,
-    prefix: String,
-    budgetMs: Int,
-    reason: String?
-) -> ReadyResponse {
-    let restartArgs = ["service", "restart", "--mode", mode.rawValue, "--json"]
-    let restart = runProcess(aosExecutablePath(), arguments: restartArgs)
-    let details = [reason, compactProcessDetail(restart)]
-        .compactMap { $0 }
-        .filter { !$0.isEmpty }
-        .joined(separator: "\n")
-    var trace = actionTrace
-    trace.append(ReadyActionStep(
-        step: "service_restart",
-        result: restart.exitCode == 0 ? "ok" : "degraded",
-        detail: details.isEmpty ? nil : details
-    ))
-    return waitForReadyResponse(
-        startup: startup,
-        actionTrace: trace,
-        mode: mode,
-        prefix: prefix,
-        budgetMs: budgetMs
-    )
-}
-
-private func firstSettingsBlocker(in blockers: [ReadyBlocker]) -> ReadyBlocker? {
-    blockers.first(where: { $0.settings_url != nil })
-}
-
-private func settingsOpenReason(for blocker: ReadyBlocker) -> String {
-    switch blocker.id {
-    case "accessibility":
-        return "review Accessibility access for \(blocker.scope ?? "AOS")"
-    case "screen_recording":
-        return "review Screen Recording access for \(blocker.scope ?? "AOS")"
-    case "input_monitoring_listen", "input_monitoring_post":
-        return "review Input Monitoring access for \(blocker.scope ?? "AOS")"
-    default:
-        return "review \(blocker.id)"
-    }
-}
-
-private func runtimeIdentityLabel(mode: AOSRuntimeMode) -> String {
-    switch mode {
-    case .repo:
-        return "repo-mode 'aos'"
-    case .installed:
-        return "installed-mode 'AOS.app'"
-    }
-}
-
-private func staleGrantGuidance(mode: AOSRuntimeMode, service: String) -> String {
-    let panel: String
-    if service.lowercased().contains("input monitoring") {
-        panel = "Input Monitoring"
-    } else if service.lowercased().contains("screen") {
-        panel = "Screen Recording"
-    } else {
-        panel = "Accessibility"
-    }
-    let entry = permissionEntryName(mode: mode)
-    switch mode {
-    case .repo:
-        return "\(panel) -> \(entry) (targeted reset via \(aosInvocationDisplayName()) permissions reset-runtime --mode repo)"
-    case .installed:
-        return "\(panel) -> \(entry) (enable)"
-    }
-}
-
-private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
-    if ready { return "ready" }
-    if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
-    if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
-    if blockers.contains(where: { $0.id == "stale_daemons" }) { return "runtime_blocked" }
-    if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
-    if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
-    if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
-    return "degraded"
-}
-
-private func readyDiagnosis(
-    ready: Bool,
-    blockers: [ReadyBlocker],
-    daemon: DaemonHealthView?,
-    permissions: PermissionsState
-) -> String {
-    if ready { return "ready" }
-    if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) {
-        return "daemon_ownership_mismatch"
-    }
-    if blockers.contains(where: { $0.id == "stale_daemons" }) {
-        return "stale_daemons"
-    }
-    if blockers.contains(where: { $0.id == "daemon_unreachable" }) {
-        return "daemon_socket_unreachable"
-    }
-    if let view = daemon,
-       (view.permissions.accessibility == false && permissions.accessibility) ||
-        (view.inputTap.listenAccess == false || view.inputTap.postAccess == false) {
-        return "daemon_tcc_grant_stale_or_missing"
-    }
-    if blockers.contains(where: { $0.id == "input_tap_not_active" }) {
-        return "input_tap_not_active"
-    }
-    if blockers.contains(where: { $0.kind == "setup" }) {
-        return "permissions_onboarding_required"
-    }
-    return "not_ready"
-}
-
-private func readyBlockers(
-    runtime: RuntimeState,
-    daemon: DaemonHealthView?,
-    permissions: PermissionsState,
-    setup: PermissionsSetupState,
-    cleanReport: StatusCleanReport,
-    mode: AOSRuntimeMode
-) -> [ReadyBlocker] {
-    var blockers: [ReadyBlocker] = []
-    let daemonPath = aosExpectedBinaryPath(program: "aos", mode: mode)
-    let currentPath = aosExecutablePath()
-
-    if !runtime.socket_reachable {
-        blockers.append(ReadyBlocker(
-            kind: "runtime",
-            id: "daemon_unreachable",
-            scope: "daemon",
-            message: runtime.daemon_running
-                ? "Daemon process appears to be running, but the socket is not reachable."
-                : "Daemon is not running or did not become reachable.",
-            target_path: daemonPath,
-            settings_url: nil,
-            blocks: ["see", "do", "show", "tell", "listen"]
-        ))
-    }
-
-    if runtime.ownership_state == "mismatch" {
-        let serving = runtime.serving_pid.map(String.init) ?? "none"
-        let lock = runtime.lock_owner_pid.map(String.init) ?? "none"
-        let service = runtime.service_pid.map(String.init) ?? "none"
-        blockers.append(ReadyBlocker(
-            kind: "runtime",
-            id: "daemon_ownership_mismatch",
-            scope: "daemon",
-            message: "Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).",
-            target_path: daemonPath,
-            settings_url: nil,
-            blocks: ["see", "do", "show", "tell", "listen"]
-        ))
-    }
-
-    if !cleanReport.stale_daemons.isEmpty {
-        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
-        blockers.append(ReadyBlocker(
-            kind: "runtime",
-            id: "stale_daemons",
-            scope: "daemon",
-            message: "Stale AOS daemon process(es) detected: \(pids). Run cleanup before treating this runtime as ready.",
-            target_path: daemonPath,
-            settings_url: nil,
-            blocks: ["see", "do", "show", "tell", "listen"]
-        ))
-    }
-
-    if !permissions.accessibility {
-        blockers.append(ReadyBlocker(
-            kind: "permission",
-            id: "accessibility",
-            scope: "cli",
-            message: "CLI lacks Accessibility permission.",
-            target_path: currentPath,
-            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            blocks: ["see", "do", "inspect"]
-        ))
-    }
-
-    if daemon?.permissions.accessibility == false {
-        blockers.append(ReadyBlocker(
-            kind: "permission",
-            id: "accessibility",
-            scope: "daemon",
-            message: staleGrantGuidance(mode: mode, service: "Accessibility"),
-            target_path: daemonPath,
-            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            blocks: ["see", "do", "inspect", "listen"]
-        ))
-    }
-
-    if !permissions.screen_recording {
-        blockers.append(ReadyBlocker(
-            kind: "permission",
-            id: "screen_recording",
-            scope: "cli",
-            message: "CLI lacks Screen Recording permission.",
-            target_path: currentPath,
-            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-            blocks: ["see"]
-        ))
-    }
-
-    if let tap = daemon?.inputTap, tap.status != "active" {
-        blockers.append(ReadyBlocker(
-            kind: "runtime",
-            id: "input_tap_not_active",
-            scope: "daemon",
-            message: "Daemon input tap is not active (status=\(tap.status), attempts=\(tap.attempts)).",
-            target_path: daemonPath,
-            settings_url: nil,
-            blocks: ["see", "do", "listen"]
-        ))
-    }
-
-    if daemon?.inputTap.listenAccess == false {
-        blockers.append(ReadyBlocker(
-            kind: "permission",
-            id: "input_monitoring_listen",
-            scope: "daemon",
-            message: staleGrantGuidance(mode: mode, service: "Input Monitoring listen access"),
-            target_path: daemonPath,
-            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-            blocks: ["see", "listen"]
-        ))
-    }
-
-    if daemon?.inputTap.postAccess == false {
-        blockers.append(ReadyBlocker(
-            kind: "permission",
-            id: "input_monitoring_post",
-            scope: "daemon",
-            message: staleGrantGuidance(mode: mode, service: "Input Monitoring post access"),
-            target_path: daemonPath,
-            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-            blocks: ["do"]
-        ))
-    }
-
-    if !setup.setup_completed {
-        blockers.append(ReadyBlocker(
-            kind: "setup",
-            id: "permissions_onboarding",
-            scope: nil,
-            message: "Permission onboarding has not completed for this runtime identity.",
-            target_path: nil,
-            settings_url: nil,
-            blocks: ["see", "do", "inspect"]
-        ))
-    }
-
-    return blockers
-}
-
-private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
-    return id == "daemon_unreachable" ||
-        id == "daemon_ownership_mismatch" ||
-        id == "stale_daemons" ||
-        id == "input_tap_not_active"
-}
-
-private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupState, mode: AOSRuntimeMode, prefix: String) -> [ReadyNextAction] {
-    var actions: [ReadyNextAction] = []
-    var seen = Set<String>()
-
-    func append(_ action: ReadyNextAction) {
-        let key = "\(action.type)|\(action.command ?? action.label)"
-        if seen.insert(key).inserted {
-            actions.append(action)
-        }
-    }
-
-    if blockers.isEmpty {
-        return actions
-    }
-
-    let hasPermissionBlocker = blockers.contains(where: { $0.kind == "permission" })
-    let hasRepairableRuntimeBlocker = blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
-
-    if hasPermissionBlocker {
-        append(ReadyNextAction(
-            type: "command",
-            label: "stop the managed daemon and run or classify targeted reset for this runtime identity",
-            command: "\(prefix) permissions reset-runtime --mode \(mode.rawValue)"
-        ))
-        append(ReadyNextAction(
-            type: "command",
-            label: "request fresh macOS permission prompts after reset-runtime completes",
-            command: "\(prefix) permissions setup --once"
-        ))
-        append(ReadyNextAction(
-            type: "command",
-            label: "bounded handoff check after permissions have been granted",
-            command: "\(prefix) ready --post-permission"
-        ))
-    }
-
-    if hasRepairableRuntimeBlocker && !hasPermissionBlocker {
-        if blockers.contains(where: { $0.id == "stale_daemons" }) {
-            append(ReadyNextAction(
-                type: "command",
-                label: "clean stale daemon processes and stale runtime resources",
-                command: "\(prefix) clean"
-            ))
-        }
-        append(ReadyNextAction(
-            type: "command",
-            label: "run automated repair: restart/recheck, then print human instructions if needed",
-            command: "\(prefix) ready --repair"
-        ))
-        append(ReadyNextAction(
-            type: "command",
-            label: "restart the managed daemon and re-check readiness",
-            command: "\(prefix) service restart --mode \(mode.rawValue)"
-        ))
-    }
-
-    if !setup.setup_completed && !hasPermissionBlocker {
-        append(ReadyNextAction(
-            type: "command",
-            label: "run permission onboarding",
-            command: setup.recommended_command ?? "\(prefix) permissions setup --once"
-        ))
-    }
-
-    append(ReadyNextAction(
-        type: "command",
-        label: "re-check readiness",
-        command: "\(prefix) ready"
-    ))
-
-    return actions
-}
-
-private func compactProcessDetail(_ output: ProcessOutput) -> String? {
-    let combined = [output.stderr, output.stdout]
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
-        .joined(separator: "\n")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !combined.isEmpty else { return nil }
-
-    if let data = combined.data(using: .utf8),
-       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-        if let error = object["error"] as? [String: Any] {
-            let code = error["code"].map { "\($0)" } ?? "unknown"
-            let message = error["message"].map { "\($0)" } ?? ""
-            return message.isEmpty ? "error=\(code)" : "error=\(code): \(message)"
-        }
-        let status = object["status"].map { "\($0)" }
-        let reason = object["reason"].map { "\($0)" }
-        let inputTap = object["input_tap"] as? [String: Any]
-        let tapStatus = inputTap?["status"].map { "\($0)" }
-        let attempts = inputTap?["attempts"].map { "\($0)" }
-        let parts = [
-            status.map { "status=\($0)" },
-            reason.map { "reason=\($0)" },
-            tapStatus.map { "tap=\($0)" },
-            attempts.map { "attempts=\($0)" }
-        ].compactMap { $0 }
-        if !parts.isEmpty {
-            return parts.joined(separator: " ")
-        }
-    }
-
-    let lines = combined.split(separator: "\n").prefix(6).map(String.init)
-    let clipped = lines.joined(separator: "\n")
-    if clipped.count <= 700 {
-        return clipped
-    }
-    return String(clipped.prefix(700)) + "..."
-}
-
-private func readyNotes(
-    runtime: RuntimeState,
-    daemon: DaemonHealthView?,
-    permissions: PermissionsState,
-    setup: PermissionsSetupState,
-    cleanReport: StatusCleanReport,
-    mode: AOSRuntimeMode
-) -> [String] {
-    var notes: [String] = []
-    if !runtime.daemon_running {
-        notes.append("Daemon is not running.")
-    } else if !runtime.socket_reachable {
-        notes.append("Daemon process appears to be running, but the socket is not reachable.")
-    }
-    notes.append(contentsOf: runtimeHealthNotes(runtime))
-    if let tap = daemon?.inputTap, tap.status != "active" {
-        notes.append(inputTapRecoveryGuidance(
-            context: .default,
-            status: tap.status,
-            attempts: tap.attempts
-        ))
-        if tap.listenAccess == false || tap.postAccess == false {
-            notes.append(inputMonitoringSubGuidance(
-                listenAccess: tap.listenAccess,
-                postAccess: tap.postAccess,
-                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
-            ))
-        }
-    }
-    if !permissions.accessibility {
-        notes.append("Accessibility permission is not granted (CLI view).")
-    }
-    if daemon?.permissions.accessibility == false {
-        notes.append("Accessibility permission is not granted (daemon view).")
-    }
-    if !permissions.screen_recording {
-        notes.append("Screen Recording permission is not granted.")
-    }
-    if !setup.setup_completed, let command = setup.recommended_command {
-        notes.append("Run '\(command)' before interactive testing.")
-    }
-    if !cleanReport.stale_daemons.isEmpty {
-        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
-        notes.append("Stale daemon cleanup required before readiness: \(pids). Run '\(aosInvocationDisplayName()) clean'.")
-    }
-    return notes
-}
-
-private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> RuntimeState {
+private func currentRuntimeState(
+    preFetchedHealth: DaemonHealthState? = nil
+) -> RuntimeState {
     let mode = aosCurrentRuntimeMode()
     let socketPath = aosSocketPath(for: mode)
     let otherModeSocketPath = aosSocketPath(for: mode.other)
@@ -1817,16 +744,19 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
     let otherSocketReachable = socketIsReachable(otherModeSocketPath)
     let health = preFetchedHealth ?? fetchDaemonHealth(socketPath: socketPath)
     let explicitStateRootOverride = aosHasExplicitStateRootOverride()
-    let servicePID = explicitStateRootOverride ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
+        && ProcessInfo.processInfo.environment["AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL"] != "1"
+    let ignoreLaunchdForTest = ProcessInfo.processInfo.environment["AOS_TEST_IGNORE_LAUNCHD"] == "1"
+    let servicePID = (explicitStateRootOverride || ignoreLaunchdForTest) ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
     let lockOwnerPID = aosDaemonLockOwnerPID(for: mode)
     let servingPID = health?.servingPID
     let daemonPID = servingPID ?? lockOwnerPID ?? servicePID ?? fallbackDaemonProcessID()
     let daemonRunning = daemonPID != nil || socketReachable
-    let ownershipState = currentOwnershipState(
+    let ownership = currentOwnershipClassification(
         socketReachable: socketReachable,
         servingPID: servingPID,
         lockOwnerPID: lockOwnerPID,
-        servicePID: servicePID
+        servicePID: servicePID,
+        explicitStateRootOverride: explicitStateRootOverride
     )
 
     let inputTapBlock: RuntimeInputTapBlock?
@@ -1836,9 +766,16 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         inputTapBlock = RuntimeInputTapBlock(
             status: status,
             attempts: attempts,
+            owner_pid: ownership.ownerPID,
+            owner_kind: ownership.kind,
+            launchd_managed: ownership.launchdManaged,
+            installed_mode_socket_reachable: otherSocketReachable,
+            stale_input_tap_capable_daemons: 0,
             listen_access: health?.inputTapListenAccess,
             post_access: health?.inputTapPostAccess,
-            last_error_at: health?.inputTapLastErrorAt
+            last_error_at: health?.inputTapLastErrorAt,
+            duplicate_tcc_rows_observable: false,
+            duplicate_tcc_rows_observability: "unavailable: AOS does not query or mutate the macOS TCC database; duplicate Privacy UI rows require human observation."
         )
     } else {
         inputTapBlock = nil
@@ -1853,7 +790,10 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         serving_pid: servingPID,
         lock_owner_pid: lockOwnerPID,
         service_pid: servicePID,
-        ownership_state: ownershipState,
+        ownership_state: ownership.state,
+        ownership_kind: ownership.kind,
+        owner_pid: ownership.ownerPID,
+        owner_launchd_managed: ownership.launchdManaged,
         socket_path: socketPath,
         socket_exists: socketExists,
         socket_reachable: socketReachable,
@@ -1870,23 +810,6 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         legacy_state_items: legacyStateItems(),
         repo_artifacts: repoArtifactList()
     )
-}
-
-private func currentSpatialSnapshot() -> SpatialSnapshotResult {
-    guard let response = sendEnvelopeRequest(service: "see", action: "snapshot", data: [:]) else {
-        return SpatialSnapshotResult(snapshot: nil, notes: ["Daemon snapshot is unavailable."])
-    }
-    if let error = response["error"] as? String {
-        return SpatialSnapshotResult(snapshot: nil, notes: [error])
-    }
-    let snapshotDict = (response["data"] as? [String: Any])?["snapshot"] as? [String: Any]
-        ?? response["snapshot"] as? [String: Any]
-    guard let snapshotDict,
-          let data = try? JSONSerialization.data(withJSONObject: snapshotDict, options: [.sortedKeys]),
-          let snapshot = try? JSONDecoder().decode(SpatialSnapshotData.self, from: data) else {
-        return SpatialSnapshotResult(snapshot: nil, notes: ["Failed to decode daemon snapshot."])
-    }
-    return SpatialSnapshotResult(snapshot: snapshot, notes: [])
 }
 
 private func fallbackDaemonProcessID() -> Int? {
@@ -1963,108 +886,86 @@ extension DaemonHealthState {
     }
 }
 
-private func currentOwnershipState(
+private func currentOwnershipClassification(
     socketReachable: Bool,
     servingPID: Int?,
     lockOwnerPID: Int?,
-    servicePID: Int?
-) -> String {
+    servicePID: Int?,
+    explicitStateRootOverride: Bool
+) -> RuntimeOwnershipClassification {
     if let servingPID, let lockOwnerPID, servingPID != lockOwnerPID {
-        return "mismatch"
+        return RuntimeOwnershipClassification(
+            state: "mismatch",
+            kind: "mismatch",
+            ownerPID: servingPID,
+            launchdManaged: false
+        )
     }
 
     let ownerPID = servingPID ?? lockOwnerPID
     if let ownerPID, let servicePID, ownerPID != servicePID {
-        return parentProcessID(of: ownerPID) == servicePID ? "consistent" : "mismatch"
+        if parentProcessID(of: ownerPID) == servicePID {
+            return RuntimeOwnershipClassification(
+                state: "consistent",
+                kind: "launchd_managed",
+                ownerPID: ownerPID,
+                launchdManaged: true
+            )
+        }
+        return RuntimeOwnershipClassification(
+            state: "mismatch",
+            kind: "mismatch",
+            ownerPID: ownerPID,
+            launchdManaged: false
+        )
+    }
+
+    if let ownerPID, servicePID == nil {
+        if explicitStateRootOverride {
+            return RuntimeOwnershipClassification(
+                state: "consistent",
+                kind: "foreground_dev",
+                ownerPID: ownerPID,
+                launchdManaged: false
+            )
+        }
+        return RuntimeOwnershipClassification(
+            state: "unmanaged",
+            kind: "unmanaged",
+            ownerPID: ownerPID,
+            launchdManaged: false
+        )
     }
 
     let pids = [ownerPID, servicePID].compactMap { $0 }
     if pids.isEmpty {
-        return socketReachable ? "unknown" : "absent"
+        return RuntimeOwnershipClassification(
+            state: socketReachable ? "unknown" : "absent",
+            kind: socketReachable ? "unknown" : "absent",
+            ownerPID: nil,
+            launchdManaged: false
+        )
     }
-    return Set(pids).count <= 1 ? "consistent" : "mismatch"
+    if Set(pids).count <= 1 {
+        return RuntimeOwnershipClassification(
+            state: "consistent",
+            kind: servicePID == nil ? "unknown" : "launchd_managed",
+            ownerPID: ownerPID ?? servicePID,
+            launchdManaged: servicePID != nil
+        )
+    }
+    return RuntimeOwnershipClassification(
+        state: "mismatch",
+        kind: "mismatch",
+        ownerPID: ownerPID,
+        launchdManaged: false
+    )
 }
 
 private func parentProcessID(of pid: Int) -> Int? {
     let output = runProcess("/bin/ps", arguments: ["-o", "ppid=", "-p", String(pid)])
     guard output.exitCode == 0 else { return nil }
     return Int(output.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
-}
-
-private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
-    var notes: [String] = []
-    if runtime.ownership_state == "mismatch" {
-        let serving = runtime.serving_pid.map(String.init) ?? "none"
-        let lock = runtime.lock_owner_pid.map(String.init) ?? "none"
-        let service = runtime.service_pid.map(String.init) ?? "none"
-        notes.append("Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).")
-    }
-    // Suppress when the typed runtime.input_tap block is present: callers
-    // (statusCommand, doctorCommand) emit a richer headline via
-    // inputTapRecoveryGuidance that supersedes this short one.
-    if runtime.event_tap_expected, let tapStatus = runtime.input_tap_status,
-       tapStatus != "active", runtime.input_tap == nil {
-        notes.append("Perception input tap is not active (status=\(tapStatus)).")
-    }
-    return notes
-}
-
-private func launchAgentState(label: String, expectedBinaryPath: String, logPath: String) -> LaunchAgentState {
-    let home = aosHomeDir()
-    let plistPath = "\(home)/Library/LaunchAgents/\(label).plist"
-    let installed = FileManager.default.fileExists(atPath: plistPath)
-    let loaded = installed && isLaunchAgentLoaded(label: label)
-    let pid = launchdProcessID(label: label)
-    let running = pid != nil
-    let actualBinaryPath = installed ? plistProgramPathAt(path: plistPath) : nil
-    let actualLogPath = installed ? plistValueAt(path: plistPath, keyPath: ":StandardErrorPath") : nil
-    var notes: [String] = []
-
-    if !installed {
-        notes.append("Launch agent plist is not installed.")
-    } else if !loaded {
-        notes.append("Launch agent plist exists but is not loaded.")
-    }
-    if installed && !running {
-        notes.append("Launch agent is not running.")
-    }
-    if let actualBinaryPath, actualBinaryPath != expectedBinaryPath {
-        notes.append("Launch agent target differs from the expected binary.")
-    }
-    if let actualLogPath, actualLogPath != logPath {
-        notes.append("Launch agent log path differs from the expected state directory.")
-    }
-
-    return LaunchAgentState(
-        label: label,
-        installed: installed,
-        loaded: loaded,
-        running: running,
-        pid: pid,
-        plist_path: plistPath,
-        actual_binary_path: actualBinaryPath,
-        expected_binary_path: expectedBinaryPath,
-        actual_log_path: actualLogPath,
-        expected_log_path: logPath,
-        target_matches_expected: actualBinaryPath == nil ? !installed : actualBinaryPath == expectedBinaryPath,
-        log_path_matches_expected: actualLogPath == nil ? !installed : actualLogPath == logPath,
-        notes: notes
-    )
-}
-
-private func isLaunchAgentLoaded(label: String) -> Bool {
-    runProcess("/bin/launchctl", arguments: ["print", "gui/\(getuid())/\(label)"]).exitCode == 0
-}
-
-private func plistProgramPathAt(path: String) -> String? {
-    plistValueAt(path: path, keyPath: ":ProgramArguments:0")
-}
-
-private func plistValueAt(path: String, keyPath: String) -> String? {
-    let output = runProcess("/usr/libexec/PlistBuddy", arguments: ["-c", "Print \(keyPath)", path])
-    guard output.exitCode == 0 else { return nil }
-    let value = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-    return value.isEmpty ? nil : value
 }
 
 private func legacyStateItems() -> [String] {
@@ -2121,309 +1022,6 @@ private func requestPostEventAccess() -> Bool {
     return true
 }
 
-private struct PermissionsResetRuntimeOptions {
-    let asJSON: Bool
-    let dryRun: Bool
-    let allowServiceReset: Bool
-    let emergencyServiceReset: Bool
-    let mode: AOSRuntimeMode
-}
-
-private func permissionsResetRuntimeCommand(args: [String]) {
-    let options = parsePermissionsResetRuntimeArgs(args)
-    let response = runPermissionsResetRuntime(options: options)
-    if options.asJSON {
-        print(jsonString(response))
-    } else {
-        print("status=\(response.status) mode=\(response.mode) dry_run=\(response.dry_run)")
-        print("target=\(response.target_path)")
-        print("tcc_identifier=\(response.tcc_identifier)")
-        print("service_stop=\(response.service_stop.status)")
-        print("tcc_reset=\(response.tcc_reset.status)")
-        if !response.service_resets.isEmpty {
-            print("service_resets=\(response.service_resets.map(\.status).joined(separator: ","))")
-        }
-        if !response.notes.isEmpty {
-            for note in response.notes {
-                print(note)
-            }
-        }
-        if !response.next_actions.isEmpty {
-            print("Next:")
-            for action in response.next_actions {
-                if let command = action.command {
-                    print("  \(command)  # \(action.label)")
-                } else {
-                    print("  \(action.label)")
-                }
-            }
-        }
-        if !response.fallback.isEmpty {
-            print("Fallback:")
-            for line in response.fallback {
-                print("  \(line)")
-            }
-        }
-    }
-    exit(response.status == "ok" ? 0 : 1)
-}
-
-private func parsePermissionsResetRuntimeArgs(_ args: [String]) -> PermissionsResetRuntimeOptions {
-    var asJSON = false
-    var dryRun = false
-    var allowServiceReset = false
-    var emergencyServiceReset = false
-    var mode: AOSRuntimeMode? = nil
-    var i = 0
-
-    while i < args.count {
-        switch args[i] {
-        case "--json":
-            asJSON = true
-        case "--dry-run":
-            dryRun = true
-        case "--allow-service-reset":
-            allowServiceReset = true
-        case "--emergency-ack-other-apps":
-            emergencyServiceReset = true
-        case "--mode":
-            i += 1
-            guard i < args.count, let parsed = AOSRuntimeMode(rawValue: args[i]) else {
-                exitError("--mode must be 'repo' or 'installed'", code: "INVALID_ARG")
-            }
-            mode = parsed
-        default:
-            exitError("Unknown flag: \(args[i]). Usage: aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]",
-                      code: "UNKNOWN_FLAG")
-        }
-        i += 1
-    }
-
-    if allowServiceReset && !emergencyServiceReset {
-        exitError("--allow-service-reset is emergency-only and requires --emergency-ack-other-apps. Do not use it unless Michael explicitly asks for break-glass TCC service reset.",
-                  code: "EMERGENCY_ACK_REQUIRED")
-    }
-    if emergencyServiceReset && !allowServiceReset {
-        exitError("--emergency-ack-other-apps requires --allow-service-reset.",
-                  code: "INVALID_ARG")
-    }
-
-    return PermissionsResetRuntimeOptions(
-        asJSON: asJSON,
-        dryRun: dryRun,
-        allowServiceReset: allowServiceReset,
-        emergencyServiceReset: emergencyServiceReset,
-        mode: mode ?? aosCurrentRuntimeMode()
-    )
-}
-
-private func runPermissionsResetRuntime(options: PermissionsResetRuntimeOptions) -> PermissionsResetRuntimeResponse {
-    let prefix = aosInvocationDisplayName()
-    let targetPath = permissionResetTargetPath(mode: options.mode)
-    let target = tccResetTargetForRuntime(mode: options.mode, targetPath: targetPath)
-    let identifier = target.identifier
-    let stopArgs = ["service", "stop", "--mode", options.mode.rawValue, "--json"]
-    let stopCommand = "\(prefix) \(stopArgs.joined(separator: " "))"
-    let resetArgs = ["reset", "All", identifier]
-    let resetCommand = target.available
-        ? "tccutil \(resetArgs.joined(separator: " "))"
-        : "targeted tccutil reset unavailable for \(identifier)"
-    let serviceResetCommands: [PermissionsResetRuntimeStep] = options.allowServiceReset
-        ? permissionResetServiceNames().map { service in
-            PermissionsResetRuntimeStep(
-                command: "tccutil reset \(service)",
-                attempted: false,
-                exit_code: nil,
-                status: "planned",
-                stdout: nil,
-                stderr: nil
-            )
-        }
-        : []
-
-    if options.dryRun {
-        return PermissionsResetRuntimeResponse(
-            status: "ok",
-            mode: options.mode.rawValue,
-            dry_run: true,
-            target_path: targetPath,
-            tcc_identifier: identifier,
-            service_stop: PermissionsResetRuntimeStep(
-                command: stopCommand,
-                attempted: false,
-                exit_code: nil,
-                status: "planned",
-                stdout: nil,
-                stderr: nil
-            ),
-            tcc_reset: PermissionsResetRuntimeStep(
-                command: resetCommand,
-                attempted: false,
-                exit_code: nil,
-                status: target.available ? "planned" : "unavailable",
-                stdout: nil,
-                stderr: target.unavailableReason
-            ),
-            service_resets: serviceResetCommands,
-            next_actions: permissionResetPostActions(prefix: prefix),
-            fallback: [],
-            notes: [
-                "Dry run only; no service or TCC state was changed.",
-                target.available
-                    ? "The real command stops the managed daemon before calling tccutil."
-                    : "The real command stops the managed daemon, then reports the targeted reset as unavailable for the bare repo binary.",
-                options.allowServiceReset
-                    ? "Emergency dry run only: if targeted bundle reset fails, the command would reset Accessibility/ListenEvent/PostEvent decisions for all apps."
-                    : "Service-wide TCC reset is not part of normal recovery; it is an emergency-only capability that requires an explicit break-glass request."
-            ]
-        )
-    }
-
-    let stopResult = runProcess(aosExecutablePath(), arguments: stopArgs)
-    let stopOK = stopResult.exitCode == 0 && serviceStopReportedStopped(stopResult)
-    let stopStep = PermissionsResetRuntimeStep(
-        command: stopCommand,
-        attempted: true,
-        exit_code: stopResult.exitCode,
-        status: stopOK ? "ok" : "failed",
-        stdout: trimmedOutput(stopResult.stdout),
-        stderr: trimmedOutput(stopResult.stderr)
-    )
-
-    if !stopOK {
-        return PermissionsResetRuntimeResponse(
-            status: "degraded",
-            mode: options.mode.rawValue,
-            dry_run: false,
-            target_path: targetPath,
-            tcc_identifier: identifier,
-            service_stop: stopStep,
-            tcc_reset: PermissionsResetRuntimeStep(
-                command: resetCommand,
-                attempted: false,
-                exit_code: nil,
-                status: "blocked",
-                stdout: nil,
-                stderr: nil
-            ),
-            service_resets: [],
-            next_actions: [
-                ReadyNextAction(
-                    type: "command",
-                    label: "inspect managed daemon state before changing macOS permissions",
-                    command: "\(prefix) service status --mode \(options.mode.rawValue)"
-                )
-            ],
-            fallback: [],
-            notes: [
-                "The managed daemon did not report running=false, so TCC reset was not attempted.",
-                "Do not remove or reset Accessibility/Input Monitoring while the daemon may still be running."
-            ]
-        )
-    }
-
-    if !target.available {
-        let serviceResetSteps = options.allowServiceReset ? runPermissionResetServiceCommands() : []
-        let serviceResetOK = !serviceResetSteps.isEmpty && serviceResetSteps.allSatisfy { $0.status == "ok" }
-        return PermissionsResetRuntimeResponse(
-            status: serviceResetOK ? "ok" : "degraded",
-            mode: options.mode.rawValue,
-            dry_run: false,
-            target_path: targetPath,
-            tcc_identifier: identifier,
-            service_stop: stopStep,
-            tcc_reset: PermissionsResetRuntimeStep(
-                command: resetCommand,
-                attempted: false,
-                exit_code: nil,
-                status: "unavailable",
-                stdout: nil,
-                stderr: target.unavailableReason
-            ),
-            service_resets: serviceResetSteps,
-            next_actions: permissionResetPostActions(prefix: prefix),
-            fallback: serviceResetOK ? [] : permissionResetFallbackLines(mode: options.mode, targetPath: targetPath),
-            notes: serviceResetOK
-                ? [
-                    "Targeted reset is unavailable for this runtime identity, but emergency Accessibility/ListenEvent/PostEvent service resets completed after the managed daemon stopped.",
-                    "The next command should request fresh macOS prompts."
-                ]
-                : [
-                    "The managed daemon is stopped.",
-                    target.unavailableReason ?? "Targeted tccutil reset is unavailable for this runtime identity.",
-                    "Normal fallback is stopped-daemon manual removal/re-add for this AOS runtime.",
-                    "Do not run service-wide TCC reset unless Michael explicitly asks for break-glass recovery."
-                ]
-        )
-    }
-
-    let resetResult = runProcess("/usr/bin/tccutil", arguments: resetArgs)
-    let resetOK = resetResult.exitCode == 0
-    let resetStep = PermissionsResetRuntimeStep(
-        command: resetCommand,
-        attempted: true,
-        exit_code: resetResult.exitCode,
-        status: resetOK ? "ok" : "failed",
-        stdout: trimmedOutput(resetResult.stdout),
-        stderr: trimmedOutput(resetResult.stderr)
-    )
-
-    let serviceResetSteps: [PermissionsResetRuntimeStep]
-    if resetOK {
-        serviceResetSteps = []
-    } else if options.allowServiceReset {
-        serviceResetSteps = runPermissionResetServiceCommands()
-    } else {
-        serviceResetSteps = []
-    }
-    let serviceResetOK = !serviceResetSteps.isEmpty && serviceResetSteps.allSatisfy { $0.status == "ok" }
-    let completed = resetOK || serviceResetOK
-
-    return PermissionsResetRuntimeResponse(
-        status: completed ? "ok" : "degraded",
-        mode: options.mode.rawValue,
-        dry_run: false,
-        target_path: targetPath,
-        tcc_identifier: identifier,
-        service_stop: stopStep,
-        tcc_reset: resetStep,
-        service_resets: serviceResetSteps,
-        next_actions: permissionResetPostActions(prefix: prefix),
-        fallback: completed ? [] : permissionResetFallbackLines(mode: options.mode, targetPath: targetPath),
-        notes: resetOK
-            ? [
-                "Targeted TCC reset completed after the managed daemon stopped.",
-                "The next command should request fresh macOS prompts instead of asking for manual row removal."
-            ]
-            : serviceResetOK
-            ? [
-                "Targeted bundle reset failed, but emergency Accessibility/ListenEvent/PostEvent service resets completed after the managed daemon stopped.",
-                "The next command should request fresh macOS prompts."
-            ]
-            : [
-                "The managed daemon is stopped, but tccutil reset failed.",
-                "The repo ./aos binary is not a LaunchServices bundle, so targeted tccutil reset may be unavailable for it.",
-                "Do not run service-wide TCC reset unless Michael explicitly asks for break-glass recovery."
-            ]
-    )
-}
-
-private func serviceStopReportedStopped(_ output: ProcessOutput) -> Bool {
-    let combined = [output.stdout, output.stderr]
-        .joined(separator: "\n")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let data = combined.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let running = object["running"] as? Bool else {
-        return false
-    }
-    return !running
-}
-
-private func tccIdentifierForRuntime(mode: AOSRuntimeMode, targetPath: String) -> String {
-    tccResetTargetForRuntime(mode: mode, targetPath: targetPath).identifier
-}
-
 private func tccResetTargetForRuntime(mode: AOSRuntimeMode, targetPath: String) -> RuntimeTCCResetTarget {
     let identifier: String
     if let identifier = codeSigningIdentifier(path: targetPath) {
@@ -2471,385 +1069,10 @@ private func codeSigningIdentifier(path: String) -> String? {
     return nil
 }
 
-private func permissionResetPostActions(prefix: String) -> [ReadyNextAction] {
-    [
-        ReadyNextAction(
-            type: "command",
-            label: "request fresh macOS permission prompts after reset-runtime completes",
-            command: "\(prefix) permissions setup --once"
-        ),
-        ReadyNextAction(
-            type: "command",
-            label: "bounded readiness check after permissions have been granted",
-            command: "\(prefix) ready --post-permission"
-        )
-    ]
-}
-
-private func permissionResetFallbackLines(mode: AOSRuntimeMode, targetPath: String) -> [String] {
-    [
-        "Confirm the managed daemon is stopped: \(aosInvocationDisplayName()) service status --mode \(mode.rawValue)",
-        "Normal fallback only if running=false: remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
-        "Service-wide TCC reset is break-glass only; do not run it unless Michael explicitly asks for emergency recovery.",
-        "Return to the waiting session and say: finished; the session then runs \(aosInvocationDisplayName()) ready --post-permission."
-    ]
-}
-
-private func permissionResetServiceNames() -> [String] {
-    ["Accessibility", "ListenEvent", "PostEvent"]
-}
-
-private func runPermissionResetServiceCommands() -> [PermissionsResetRuntimeStep] {
-    permissionResetServiceNames().map { service in
-        let args = ["reset", service]
-        let result = runProcess("/usr/bin/tccutil", arguments: args)
-        return PermissionsResetRuntimeStep(
-            command: "tccutil \(args.joined(separator: " "))",
-            attempted: true,
-            exit_code: result.exitCode,
-            status: result.exitCode == 0 ? "ok" : "failed",
-            stdout: trimmedOutput(result.stdout),
-            stderr: trimmedOutput(result.stderr)
-        )
-    }
-}
-
 private func trimmedOutput(_ value: String) -> String? {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
 }
-
-private struct PermissionsSetupOptions {
-    let asJSON: Bool
-    let once: Bool
-}
-
-private func permissionsSetupCommand(args: [String]) {
-    let options = parsePermissionsSetupArgs(args)
-    let response = runPermissionsSetup(once: options.once)
-    if options.asJSON {
-        print(jsonString(response))
-        return
-    }
-
-    print("completed=\(response.completed) accessibility=\(response.permissions.accessibility) screen_recording=\(response.permissions.screen_recording) listen_access=\(response.permissions.listen_access) post_access=\(response.permissions.post_access)")
-    // This summary line is the CLI-side setup state. The structured response
-    // below can still be degraded when daemon-owned grants are stale.
-    let setupEval = evaluateReadyForTesting(
-        daemon: nil,
-        cliAccessibility: response.permissions.accessibility,
-        cliScreenRecording: response.permissions.screen_recording,
-        setupCompleted: response.setup.setup_completed
-    )
-    print("ready_for_testing=\(setupEval.readyForTesting)")
-    if !response.restarted_services.isEmpty {
-        print("restarted=\(response.restarted_services.joined(separator: ","))")
-    }
-    if !response.notes.isEmpty {
-        for note in response.notes {
-            print(note)
-        }
-    }
-}
-
-private func parsePermissionsSetupArgs(_ args: [String]) -> PermissionsSetupOptions {
-    var asJSON = false
-    var once = false
-
-    for arg in args {
-        switch arg {
-        case "--json":
-            asJSON = true
-        case "--once":
-            once = true
-        default:
-            exitError("Unknown flag: \(arg). Usage: aos permissions setup [--json] [--once]",
-                      code: "UNKNOWN_FLAG")
-        }
-    }
-
-    return PermissionsSetupOptions(asJSON: asJSON, once: once)
-}
-
-private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
-    let markerPath = aosPermissionsMarkerPath()
-    let mode = aosCurrentRuntimeMode()
-    let initial = currentPermissionsState()
-    let initialSetup = currentPermissionsSetupState(permissions: initial)
-    let initialRequirements = currentPermissionRequirements(permissions: initial)
-    let initialDaemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.asView
-    let initialMissing = missingPermissionIDsFor(
-        daemon: initialDaemonHealth,
-        cli: cliView(from: initial)
-    )
-
-    if once && initialSetup.setup_completed && initialMissing.isEmpty {
-        return PermissionsSetupResponse(
-            status: "ok",
-            completed: true,
-            permissions: initial,
-            requirements: initialRequirements,
-            setup: initialSetup,
-            missing_permissions: [],
-            marker_path: markerPath,
-            restarted_services: [],
-            notes: ["Permissions are already granted; onboarding was skipped."]
-        )
-    }
-
-    if once && initialSetup.setup_completed && !initialMissing.isEmpty {
-        return PermissionsSetupResponse(
-            status: "degraded",
-            completed: false,
-            permissions: initial,
-            requirements: initialRequirements,
-            setup: initialSetup,
-            missing_permissions: initialMissing,
-            marker_path: markerPath,
-            restarted_services: [],
-            notes: permissionRecoveryNotes(missing: initialMissing, mode: mode)
-        )
-    }
-
-    if once &&
-        initial.accessibility &&
-        initial.screen_recording &&
-        initial.listen_access &&
-        initial.post_access &&
-        initialMissing.isEmpty {
-        writePermissionsSetupMarker(path: markerPath, permissions: initial)
-        let restartedServices = restartPermissionsDependentServices()
-        var notes = ["Permissions were already granted; onboarding marker was recorded without additional prompts."]
-        if restartedServices.isEmpty {
-            notes.append("No managed services were running to restart.")
-        } else {
-            notes.append("Restarted services: \(restartedServices.joined(separator: ", ")).")
-        }
-
-        let finalSetup = currentPermissionsSetupState(permissions: initial)
-        return PermissionsSetupResponse(
-            status: "ok",
-            completed: true,
-            permissions: initial,
-            requirements: initialRequirements,
-            setup: finalSetup,
-            missing_permissions: [],
-            marker_path: markerPath,
-            restarted_services: restartedServices,
-            notes: notes
-        )
-    }
-
-    if once &&
-        initial.accessibility &&
-        initial.screen_recording &&
-        initial.listen_access &&
-        initial.post_access &&
-        !initialMissing.isEmpty {
-        return PermissionsSetupResponse(
-            status: "degraded",
-            completed: false,
-            permissions: initial,
-            requirements: initialRequirements,
-            setup: initialSetup,
-            missing_permissions: initialMissing,
-            marker_path: markerPath,
-            restarted_services: [],
-            notes: permissionRecoveryNotes(missing: initialMissing, mode: mode)
-        )
-    }
-
-    preparePermissionsSetupUI()
-
-    var notes: [String] = []
-    let intro = permissionSetupIntroAlert()
-    if intro == .alertSecondButtonReturn {
-        notes.append("Permission onboarding was cancelled before any prompts were shown.")
-        return PermissionsSetupResponse(
-            status: "degraded",
-            completed: false,
-            permissions: currentPermissionsState(),
-            requirements: currentPermissionRequirements(permissions: currentPermissionsState()),
-            setup: currentPermissionsSetupState(permissions: currentPermissionsState()),
-            missing_permissions: missingPermissionIDs(currentPermissionsState()),
-            marker_path: markerPath,
-            restarted_services: [],
-            notes: notes
-        )
-    }
-
-    if !initial.accessibility && !requestAccessibilityPermission() {
-        notes.append("Accessibility permission setup was cancelled before completion.")
-    }
-
-    let afterAX = currentPermissionsState()
-    if notes.isEmpty && !afterAX.screen_recording && !requestScreenRecordingPermission() {
-        notes.append("Screen Recording permission setup was cancelled before completion.")
-    }
-
-    let afterScreen = currentPermissionsState()
-    if notes.isEmpty && !afterScreen.listen_access && !requestListenEventPermission() {
-        notes.append("Input Monitoring listen access setup was cancelled before completion.")
-    }
-
-    let afterListen = currentPermissionsState()
-    if notes.isEmpty && !afterListen.post_access && !requestPostEventPermission() {
-        notes.append("Input Monitoring post access setup was cancelled before completion.")
-    }
-
-    let finalPermissions = currentPermissionsState()
-    if !finalPermissions.accessibility {
-        notes.append("Accessibility permission is still not granted.")
-    }
-    if !finalPermissions.screen_recording {
-        notes.append("Screen Recording permission is still not granted.")
-    }
-    if !finalPermissions.listen_access {
-        notes.append("Input Monitoring listen access is still not granted.")
-    }
-    if !finalPermissions.post_access {
-        notes.append("Input Monitoring post access is still not granted.")
-    }
-
-    let completed = notes.isEmpty
-    var restartedServices: [String] = []
-    if completed {
-        writePermissionsSetupMarker(path: markerPath, permissions: finalPermissions)
-        restartedServices = restartPermissionsDependentServices()
-        if restartedServices.isEmpty {
-            notes.append("Permissions were granted, but no managed services were running to restart.")
-        } else {
-            notes.append("Restarted services: \(restartedServices.joined(separator: ", ")).")
-        }
-    }
-
-    let requirements = currentPermissionRequirements(permissions: finalPermissions)
-    let setup = currentPermissionsSetupState(permissions: finalPermissions)
-    let finalDaemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.asView
-    let missing = missingPermissionIDsFor(
-        daemon: finalDaemonHealth,
-        cli: cliView(from: finalPermissions)
-    )
-    if completed && !missing.isEmpty {
-        notes.append(contentsOf: permissionRecoveryNotes(missing: missing, mode: mode))
-    }
-
-    return PermissionsSetupResponse(
-        status: completed && missing.isEmpty ? "ok" : "degraded",
-        completed: completed && missing.isEmpty,
-        permissions: finalPermissions,
-        requirements: requirements,
-        setup: setup,
-        missing_permissions: missing,
-        marker_path: markerPath,
-        restarted_services: restartedServices,
-        notes: notes
-    )
-}
-
-private func preparePermissionsSetupUI() {
-    _ = NSApplication.shared
-    NSApp.setActivationPolicy(.regular)
-    NSApp.activate(ignoringOtherApps: true)
-}
-
-private func permissionSetupIntroAlert() -> NSApplication.ModalResponse {
-    NSApp.activate(ignoringOtherApps: true)
-    let alert = NSAlert()
-    let identity = runtimeIdentityLabel(mode: aosCurrentRuntimeMode())
-    alert.alertStyle = .informational
-    alert.messageText = "AOS permissions setup"
-    alert.informativeText = """
-    AOS will request the remaining macOS permissions one at a time for the current \(identity) identity.
-
-    This flow only uses safe prompt-triggering probes. It does not perform destructive actions.
-
-    Keep this window open while you approve each prompt. If macOS sends you to System Settings instead, grant access there and then come back here.
-    """
-    alert.addButton(withTitle: "Continue")
-    alert.addButton(withTitle: "Cancel")
-    return alert.runModal()
-}
-
-private func requestPermissionWithDialog(
-    title: String,
-    description: String,
-    settingsAnchor: String,
-    isGranted: () -> Bool,
-    triggerPrompt: () -> Void
-) -> Bool {
-    var prompted = false
-    while !isGranted() {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = title
-        alert.informativeText = """
-        \(description)
-
-        Click "\(prompted ? "I’ve Granted Access" : "Request \(title)")" to continue after approving the macOS prompt. If the prompt does not appear, open System Settings directly.
-        """
-        alert.addButton(withTitle: prompted ? "I’ve Granted Access" : "Request \(title)")
-        alert.addButton(withTitle: "Open Settings")
-        alert.addButton(withTitle: "Cancel")
-
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            if !prompted { triggerPrompt(); prompted = true }
-        case .alertSecondButtonReturn:
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(settingsAnchor)") {
-                NSWorkspace.shared.open(url)
-            }
-        default:
-            return false
-        }
-    }
-    return true
-}
-
-private func requestAccessibilityPermission() -> Bool {
-    requestPermissionWithDialog(
-        title: "Grant Accessibility",
-        description: "Accessibility is required for the global input tap and controlled input actions.",
-        settingsAnchor: "Privacy_Accessibility",
-        isGranted: { AXIsProcessTrusted() },
-        triggerPrompt: {
-            let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-            AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-        }
-    )
-}
-
-private func requestScreenRecordingPermission() -> Bool {
-    requestPermissionWithDialog(
-        title: "Grant Screen Recording",
-        description: "Screen Recording is required for capture and some perception features.",
-        settingsAnchor: "Privacy_ScreenCapture",
-        isGranted: { preflightScreenRecordingAccess() },
-        triggerPrompt: { CGRequestScreenCaptureAccess() }
-    )
-}
-
-private func requestListenEventPermission() -> Bool {
-    requestPermissionWithDialog(
-        title: "Grant Input Monitoring Listen Access",
-        description: "Input Monitoring listen access is required for the daemon's global input tap, input event fan-out, and hotkeys.",
-        settingsAnchor: "Privacy_ListenEvent",
-        isGranted: { preflightListenEventAccess() },
-        triggerPrompt: { _ = requestListenEventAccess() }
-    )
-}
-
-private func requestPostEventPermission() -> Bool {
-    requestPermissionWithDialog(
-        title: "Grant Input Monitoring Post Access",
-        description: "Input Monitoring post access is required for synthetic mouse and keyboard actions.",
-        settingsAnchor: "Privacy_ListenEvent",
-        isGranted: { preflightPostEventAccess() },
-        triggerPrompt: { _ = requestPostEventAccess() }
-    )
-}
-
 
 private func readPermissionsSetupMarker(path: String) -> [String: Any]? {
     guard let data = FileManager.default.contents(atPath: path),
@@ -2859,7 +1082,8 @@ private func readPermissionsSetupMarker(path: String) -> [String: Any]? {
     return json
 }
 
-private func writePermissionsSetupMarker(path: String, permissions: PermissionsState) {
+@discardableResult
+private func writePermissionsSetupMarker(path: String, permissions: PermissionsState) -> Bool {
     let dir = (path as NSString).deletingLastPathComponent
     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
@@ -2875,20 +1099,13 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
     ]
 
     guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
-        return
-    }
-
-    try? data.write(to: URL(fileURLWithPath: path))
-}
-
-private func restartPermissionsDependentServices() -> [String] {
-    return [aosServiceLabel()].filter(restartManagedLaunchAgent)
-}
-
-private func restartManagedLaunchAgent(_ label: String) -> Bool {
-    let domain = "gui/\(getuid())/\(label)"
-    guard runProcess("/bin/launchctl", arguments: ["print", domain]).exitCode == 0 else {
         return false
     }
-    return runProcess("/bin/launchctl", arguments: ["kickstart", "-k", domain]).exitCode == 0
+
+    do {
+        try data.write(to: URL(fileURLWithPath: path))
+        return true
+    } catch {
+        return false
+    }
 }

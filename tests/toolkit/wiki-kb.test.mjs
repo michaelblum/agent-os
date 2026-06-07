@@ -102,7 +102,7 @@ test('renderMarkdown escapes HTML and strips unsafe links', () => {
 test('normalizeGraphPayload canonicalizes wiki graph page kinds', () => {
   const graph = normalizeGraphPayload({
     nodes: [
-      { id: 'sigil/agents/default.md', name: 'Default', type: 'agent' },
+      { id: 'aos/entities/default.md', name: 'Default', type: 'entity' },
       {
         id: 'aos/plugins/demo/references/readme.md',
         name: 'Plugin Reference',
@@ -116,7 +116,7 @@ test('normalizeGraphPayload canonicalizes wiki graph page kinds', () => {
   assert.deepEqual(
     graph.nodes.map((node) => [node.id, node.type]),
     [
-      ['sigil/agents/default.md', 'entity'],
+      ['aos/entities/default.md', 'entity'],
       ['aos/plugins/demo/references/readme.md', 'reference'],
       ['custom/page.md', 'page'],
     ],
@@ -126,6 +126,7 @@ test('normalizeGraphPayload canonicalizes wiki graph page kinds', () => {
     ['entity', 'page', 'reference'],
   );
   assert.equal(normalizeWikiPageKind('plugin'), 'reference');
+  assert.equal(normalizeWikiPageKind('agent'), 'page');
 });
 
 test('safeExternalHref allows explicit safe protocols only', () => {

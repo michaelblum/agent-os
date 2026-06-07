@@ -307,6 +307,8 @@ class Canvas {
     var parent: String?
     var owner: CanvasOwnerInfo?
     private(set) var sourceURL: String?
+    var placement: [String: JSONValue]?
+    var logicalSurfaceKey: String?
     private var inputPassthrough = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
@@ -416,7 +418,10 @@ class Canvas {
         }
         let controller = WKUserContentController()
         controller.addUserScript(WKUserScript(
-            source: aosCanvasBootstrapScript("window.__aosCanvasId = \(jsStringLiteral(id));"),
+            source: aosCanvasBootstrapScript("""
+window.__aosCanvasId = \(jsStringLiteral(id));
+window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.size.width), \(cgFrame.size.height)];
+"""),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
@@ -518,6 +523,8 @@ class Canvas {
             id: id,
             url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
+            requestedFrame: [desiredCGFrame.origin.x, desiredCGFrame.origin.y, desiredCGFrame.size.width, desiredCGFrame.size.height],
+            placement: placement,
             anchorWindow: anchorWindowID.map { Int($0) },
             anchorChannel: anchorChannelID,
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
@@ -533,7 +540,8 @@ class Canvas {
             lifecycleState: lifecycleState,
             windowNumbers: windowNumbers,
             segments: nil,
-            owner: owner
+            owner: owner,
+            logicalSurfaceKey: logicalSurfaceKey
         )
     }
 }
@@ -566,7 +574,7 @@ class CanvasManager {
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
-    var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
+    var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
     /// (payload) — relayed to subscribers as canvas_geometry events
@@ -636,6 +644,143 @@ class CanvasManager {
         ]
     }
 
+    func visibleSurfaceAudit(point: CGPoint? = nil) -> [String: Any] {
+        let registeredInfos = canvases.values.map { $0.toInfo() }.sorted { $0.id < $1.id }
+        let registeredWindowNumbers = Set(registeredInfos.flatMap { $0.windowNumbers ?? [] })
+        let currentPID = Int(getpid())
+        var allNativeWindows = nativeWindowServerEntries()
+        allNativeWindows.append(contentsOf: testFixtureNativeWindowServerEntries())
+        let nativeWindows = allNativeWindows.filter { ($0["owner_pid"] as? Int) == currentPID }
+        let externalAOSWindows = externalAOSNativeWindows(from: allNativeWindows, currentPID: currentPID)
+        let nativeByWindowNumber = Dictionary(uniqueKeysWithValues: nativeWindows.map { (($0["window_number"] as? Int) ?? -1, $0) })
+
+        let registered = registeredInfos.map { info -> [String: Any] in
+            var row = canvasInfoDictionary(info)
+            let windowNumbers = info.windowNumbers ?? []
+            row["join_key"] = ["window_numbers": windowNumbers]
+            if let requestedFrame = info.requestedFrame {
+                row["requested_frame"] = requestedFrame
+                row["requested_frame_source"] = "Canvas.desiredCGFrame"
+            } else {
+                row["requested_frame_unavailable_reason"] = "canvas type does not expose a single requested frame"
+            }
+            if let placement = info.placement {
+                row["placement"] = jsonDictionary(placement)
+            } else {
+                row["placement_unavailable_reason"] = "canvas has not reported toolkit placement metadata"
+            }
+            let actualNativeWindows = windowNumbers.compactMap { nativeByWindowNumber[$0] }
+            row["actual_native_windows"] = actualNativeWindows
+            if let actualNativeFrame = (actualNativeWindows.first?["actual_frame"] as? [String: Any]) {
+                row["actual_native_frame"] = actualNativeFrame
+            }
+            row["native_join_status"] = windowNumbers.isEmpty
+                ? "no_window_numbers"
+                : (windowNumbers.allSatisfy { nativeByWindowNumber[$0] != nil } ? "matched" : "missing_native_window")
+            if let logicalSurfaceKey = info.logicalSurfaceKey {
+                row["logical_surface_key"] = logicalSurfaceKey
+            }
+            return row
+        }
+
+        let unmatchedNativeWindows = nativeWindows.filter { native in
+            guard let windowNumber = native["window_number"] as? Int else { return true }
+            return !registeredWindowNumbers.contains(windowNumber)
+        }
+        let orphanNativeWindows = unmatchedNativeWindows.filter { native in
+            (native["visible"] as? Bool) == true && (native["on_screen"] as? Bool) == true
+        }
+        let nonVisibleUnmatchedNativeWindows = unmatchedNativeWindows.filter { native in
+            !((native["visible"] as? Bool) == true && (native["on_screen"] as? Bool) == true)
+        }
+
+        let registeredMissingNative = registered.filter { row in
+            (row["native_join_status"] as? String) == "missing_native_window"
+        }
+
+        var groups: [String: [[String: Any]]] = [:]
+        for row in registered {
+            guard let key = row["logical_surface_key"] as? String, !key.isEmpty else { continue }
+            let visibleNative = (row["actual_native_windows"] as? [[String: Any]] ?? []).contains { native in
+                (native["on_screen"] as? Bool) == true
+            }
+            if visibleNative {
+                groups[key, default: []].append(row)
+            }
+        }
+        let duplicates = groups
+            .filter { $0.value.count > 1 }
+            .map { key, rows in
+                [
+                    "logical_surface_key": key,
+                    "count": rows.count,
+                    "canvas_ids": rows.compactMap { $0["id"] as? String },
+                    "entries": rows,
+                ] as [String: Any]
+            }
+            .sorted { (($0["logical_surface_key"] as? String) ?? "") < (($1["logical_surface_key"] as? String) ?? "") }
+
+        var inputTarget: [String: Any] = [
+            "available": point != nil,
+            "method": "native_window_front_to_back_order_with_registry_interactivity",
+        ]
+        if let point {
+            inputTarget["point"] = [point.x, point.y]
+            inputTarget["winner"] = inputTargetWinner(
+                at: point,
+                nativeWindows: nativeWindows,
+                externalAOSWindows: externalAOSWindows,
+                registeredInfos: registeredInfos
+            )
+        } else {
+            inputTarget["unavailable_reason"] = "pass --point x,y to evaluate a native point"
+        }
+
+        let worktreeRoot: Any = aosRepoRootFromBases([FileManager.default.currentDirectoryPath]) ?? NSNull()
+        return [
+            "status": "success",
+            "schema_version": 1,
+            "runtime": [
+                "pid": Int(getpid()),
+                "mode": aosCurrentRuntimeMode().rawValue,
+                "worktree_root": worktreeRoot,
+                "cwd": FileManager.default.currentDirectoryPath,
+                "native_window_scope": "current_daemon_process",
+                "current_daemon_pid": currentPID,
+                "cross_process_aos_window_discovery": [
+                    "ran": true,
+                    "native_window_scope": "visible_on_screen_aos_owned_windows_not_owned_by_current_daemon_process",
+                    "candidate_identification": [
+                        "CGWindow owner PID differs from current daemon PID",
+                        "native window is visible and on screen",
+                        "owner name, executable path, or command line indicates an AOS runtime",
+                    ],
+                    "native_source": "CGWindowListCopyWindowInfo(kCGWindowListOptionAll)",
+                    "process_metadata_source": "NSRunningApplication plus one batched ps command for prefiltered unique candidate PIDs; git provenance is unavailable in the live audit fast path",
+                    "stale_daemon_model": "same aos (serve|__serve) process pattern used by ./aos clean --dry-run --json",
+                    "cleanup_command": "./aos clean --dry-run --json",
+                    "inspect_command": "./aos status --json",
+                ] as [String: Any],
+            ],
+            "join": [
+                "key": "CanvasInfo.windowNumbers[] == CGWindowListCopyWindowInfo[kCGWindowNumber]",
+                "native_source": "CGWindowListCopyWindowInfo(kCGWindowListOptionAll)",
+                "registry_source": "CanvasManager.canvases.toInfo()",
+            ],
+            "registered_canvases": registered,
+            "native_windows": nativeWindows,
+            "orphan_native_windows": orphanNativeWindows,
+            "non_visible_unmatched_native_windows": nonVisibleUnmatchedNativeWindows,
+            "external_aos_native_windows": externalAOSWindows,
+            "registered_without_native_window": registeredMissingNative,
+            "duplicate_logical_surfaces": duplicates,
+            "input_target_winner": inputTarget,
+            "unavailable": [
+                "orphan_synthesis": "read-only audit cannot synthesize a native daemon window without a registry entry",
+            ],
+        ]
+    }
+
     func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
         guard let canvas = canvases[id] else { return }
         canvas.setAlpha(alpha)
@@ -660,6 +805,382 @@ class CanvasManager {
         [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
     }
 
+    private func jsonDictionary(_ object: [String: JSONValue]) -> [String: Any] {
+        object.mapValues { $0.anyValue }
+    }
+
+    private func canvasInfoDictionary(_ info: CanvasInfo) -> [String: Any] {
+        var row: [String: Any] = [
+            "id": info.id,
+            "at": info.at,
+            "interactive": info.interactive,
+        ]
+        if let url = info.url { row["url"] = url }
+        if let anchorWindow = info.anchorWindow { row["anchor_window"] = anchorWindow }
+        if let anchorChannel = info.anchorChannel { row["anchor_channel"] = anchorChannel }
+        if let offset = info.offset { row["offset"] = offset }
+        if let windowLevel = info.windowLevel { row["window_level"] = windowLevel }
+        if let ttl = info.ttl { row["ttl"] = ttl }
+        if let scope = info.scope { row["scope"] = scope }
+        if let autoProject = info.autoProject { row["auto_project"] = autoProject }
+        if let track = info.track { row["track"] = track }
+        if let parent = info.parent { row["parent"] = parent }
+        if let cascade = info.cascade { row["cascade"] = cascade }
+        if let suspended = info.suspended { row["suspended"] = suspended }
+        if let lifecycleState = info.lifecycleState { row["lifecycleState"] = lifecycleState }
+        if let windowNumbers = info.windowNumbers { row["windowNumbers"] = windowNumbers }
+        if let placement = info.placement {
+            row["placement"] = jsonDictionary(placement)
+        }
+        if let segments = info.segments {
+            row["segments"] = segments.map { segment in
+                [
+                    "display_id": Int(segment.displayID),
+                    "index": segment.index,
+                    "dw_bounds": segment.dwBounds,
+                    "native_bounds": segment.nativeBounds,
+                ] as [String: Any]
+            }
+        }
+        if let owner = info.owner, let ownerDict = owner.dictionary() {
+            row["owner"] = ownerDict
+        }
+        if let logicalSurfaceKey = info.logicalSurfaceKey {
+            row["logical_surface_key"] = logicalSurfaceKey
+        }
+        return row
+    }
+
+    private func frameDictionary(_ rect: CGRect) -> [String: Any] {
+        [
+            "x": rect.origin.x,
+            "y": rect.origin.y,
+            "w": rect.size.width,
+            "h": rect.size.height,
+        ]
+    }
+
+    private func displayRelationships(for frame: CGRect) -> [[String: Any]] {
+        NSScreen.screens.compactMap { screen in
+            let cgFrame = canvasCGFrame(screen.frame)
+            let intersection = frame.intersection(cgFrame)
+            guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { return nil }
+            let displayID = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue
+            return [
+                "display_id": displayID ?? -1,
+                "frame": frameDictionary(cgFrame),
+                "intersection": frameDictionary(intersection),
+            ] as [String: Any]
+        }
+    }
+
+    private func nativeWindowServerEntries(ownerPID: Int? = nil) -> [[String: Any]] {
+        guard let infos = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        return infos.enumerated().compactMap { index, info in
+            let actualOwnerPID = info[kCGWindowOwnerPID as String] as? Int ?? -1
+            if let ownerPID, actualOwnerPID != ownerPID { return nil }
+            let boundsDict = info[kCGWindowBounds as String] as? [String: Any] ?? [:]
+            let frame = CGRect(
+                x: numberValue(boundsDict["X"]) ?? 0,
+                y: numberValue(boundsDict["Y"]) ?? 0,
+                width: numberValue(boundsDict["Width"]) ?? 0,
+                height: numberValue(boundsDict["Height"]) ?? 0
+            )
+            let alpha = numberValue(info[kCGWindowAlpha as String]) ?? 1
+            let onScreen = (info[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            let windowNumber = info[kCGWindowNumber as String] as? Int
+            let layer = info[kCGWindowLayer as String] as? Int
+            let isVisible = onScreen && alpha > 0 && frame.width > 0 && frame.height > 0
+            return [
+                "window_number": windowNumber ?? -1,
+                "owner_pid": actualOwnerPID,
+                "owner_name": info[kCGWindowOwnerName as String] as? String ?? "",
+                "name": info[kCGWindowName as String] as? String ?? "",
+                "actual_frame": frameDictionary(frame),
+                "window_layer": layer ?? 0,
+                "alpha": alpha,
+                "on_screen": onScreen,
+                "visible": isVisible,
+                "front_to_back_index": index,
+                "display_relationship": displayRelationships(for: frame),
+                "focus": [
+                    "is_key_window": NSApp.keyWindow?.windowNumber == windowNumber,
+                    "source": "NSApp.keyWindow for registered daemon process windows; unavailable for unrelated native windows",
+                ],
+            ] as [String: Any]
+        }
+    }
+
+    private func testFixtureNativeWindowServerEntries() -> [[String: Any]] {
+        guard let raw = ProcessInfo.processInfo.environment["AOS_TEST_VISIBLE_SURFACE_AUDIT_NATIVE_WINDOWS_JSON"],
+              let data = raw.data(using: .utf8),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return rows
+    }
+
+    private func externalAOSNativeWindows(from nativeWindows: [[String: Any]], currentPID: Int) -> [[String: Any]] {
+        let staleDaemonPIDs = Set(aosCleanStaleDaemonCandidatePIDs(currentPID: currentPID))
+        let candidates = nativeWindows.filter { native in
+            guard let ownerPID = native["owner_pid"] as? Int, ownerPID != currentPID else { return false }
+            guard (native["visible"] as? Bool) == true, (native["on_screen"] as? Bool) == true else { return false }
+            return isCheapExternalAOSWindowCandidate(native: native, staleDaemonPIDs: staleDaemonPIDs)
+        }
+        let commandLines = processCommandLines(pids: Set(candidates.compactMap { $0["owner_pid"] as? Int }))
+        let processIdentities = Dictionary(uniqueKeysWithValues: Set(candidates.compactMap { $0["owner_pid"] as? Int }).map { pid in
+            (pid, externalAOSProcessIdentity(pid: pid, commandLine: commandLines[pid]))
+        })
+
+        return candidates.compactMap { native in
+            guard let ownerPID = native["owner_pid"] as? Int,
+                  let processIdentity = processIdentities[ownerPID],
+                  isExternalAOSWindowCandidate(native: native, processIdentity: processIdentity, staleDaemonPIDs: staleDaemonPIDs) else { return nil }
+
+            var row = native
+            let classification = externalAOSWindowClassification(
+                processIdentity: processIdentity,
+                appearsInStaleDaemonModel: staleDaemonPIDs.contains(ownerPID)
+            )
+            row["classification"] = classification
+            row["process_identity"] = processIdentity
+            row["appears_in_aos_clean_stale_daemons"] = staleDaemonPIDs.contains(ownerPID)
+            row["current_daemon_pid"] = currentPID
+            row["scope"] = "external_process"
+            row["reason"] = "visible on-screen AOS-owned native window is not owned by current daemon process"
+            return row
+        }
+        .sorted { (($0["front_to_back_index"] as? Int) ?? Int.max) < (($1["front_to_back_index"] as? Int) ?? Int.max) }
+    }
+
+    private func isCheapExternalAOSWindowCandidate(
+        native: [String: Any],
+        staleDaemonPIDs: Set<Int>
+    ) -> Bool {
+        if let ownerPID = native["owner_pid"] as? Int, staleDaemonPIDs.contains(ownerPID) { return true }
+        let ownerName = ((native["owner_name"] as? String) ?? "").lowercased()
+        if ownerName == "aos" || ownerName == "agent-os" || ownerName.contains("aos") { return true }
+        if let ownerPID = native["owner_pid"] as? Int,
+           let runningApp = NSRunningApplication(processIdentifier: pid_t(ownerPID)) {
+            let executablePath = runningApp.executableURL?.path.lowercased() ?? ""
+            let bundlePath = runningApp.bundleURL?.path.lowercased() ?? ""
+            return executablePath.hasSuffix("/aos") || bundlePath.contains("/aos.app/")
+        }
+        return false
+    }
+
+    private func isExternalAOSWindowCandidate(
+        native: [String: Any],
+        processIdentity: [String: Any],
+        staleDaemonPIDs: Set<Int>
+    ) -> Bool {
+        if let ownerPID = native["owner_pid"] as? Int, staleDaemonPIDs.contains(ownerPID) { return true }
+        let ownerName = ((native["owner_name"] as? String) ?? "").lowercased()
+        let executablePath = ((processIdentity["executable_path"] as? String) ?? "").lowercased()
+        let commandLine = ((processIdentity["command_line"] as? String) ?? "").lowercased()
+        return ownerName == "aos"
+            || ownerName == "agent-os"
+            || ownerName.contains("aos")
+            || executablePath.hasSuffix("/aos")
+            || executablePath.contains("/aos.app/")
+            || commandLine.contains("/aos serve")
+            || commandLine.contains("/aos __serve")
+            || commandLine.contains("aos serve")
+            || commandLine.contains("aos __serve")
+    }
+
+    private func externalAOSWindowClassification(
+        processIdentity: [String: Any],
+        appearsInStaleDaemonModel: Bool
+    ) -> String {
+        if appearsInStaleDaemonModel { return "stale_aos_daemon_window" }
+        if (processIdentity["runtime_mode"] as? String) == "installed" { return "installed_mode_window" }
+        let commandLine = ((processIdentity["command_line"] as? String) ?? "").lowercased()
+        if commandLine.contains(" serve") || commandLine.contains(" __serve") {
+            return "external_aos_daemon_window"
+        }
+        return "unknown_aos_runtime_window"
+    }
+
+    private func externalAOSProcessIdentity(pid: Int, commandLine: String?) -> [String: Any] {
+        let runningApp = NSRunningApplication(processIdentifier: pid_t(pid))
+        let executablePath = runningApp?.executableURL?.path
+        let bundlePath = runningApp?.bundleURL?.path
+        let inferredMode = inferAOSRuntimeMode(executablePath: executablePath, bundlePath: bundlePath, commandLine: commandLine)
+        let worktreeRoot = inferProcessWorktreeRoot(executablePath: executablePath, commandLine: commandLine)
+        var row: [String: Any] = [
+            "pid": pid,
+            "owner_name": runningApp?.localizedName ?? NSNull(),
+            "executable_path": executablePath ?? NSNull(),
+            "executable_path_unavailable_reason": executablePath == nil ? "NSRunningApplication did not expose executableURL for PID \(pid)" : NSNull(),
+            "bundle_path": bundlePath ?? NSNull(),
+            "bundle_path_unavailable_reason": bundlePath == nil ? "NSRunningApplication did not expose bundleURL for PID \(pid)" : NSNull(),
+            "command_line": commandLine ?? NSNull(),
+            "command_line_unavailable_reason": commandLine == nil ? "ps did not return command line for PID \(pid)" : NSNull(),
+            "runtime_mode": inferredMode ?? NSNull(),
+            "runtime_mode_unavailable_reason": inferredMode == nil ? "runtime mode was not inferable from executable path or command line" : NSNull(),
+            "state_root": NSNull(),
+            "state_root_unavailable_reason": "not available from native window-server or process command-line metadata",
+            "socket_path": NSNull(),
+            "socket_path_unavailable_reason": "not available from native window-server or process command-line metadata",
+            "worktree_root": worktreeRoot ?? NSNull(),
+            "worktree_root_unavailable_reason": worktreeRoot == nil ? "no enclosing git worktree could be inferred from executable path or command line" : NSNull(),
+            "branch": NSNull(),
+            "branch_unavailable_reason": "git branch lookup is not run in the live audit fast path" as Any,
+            "repo_git_commit": NSNull(),
+            "repo_git_commit_unavailable_reason": "git commit lookup is not run in the live audit fast path" as Any,
+        ]
+        if worktreeRoot == nil {
+            row["branch_unavailable_reason"] = "no worktree root available"
+            row["repo_git_commit_unavailable_reason"] = "no worktree root available"
+        }
+        return row
+    }
+
+    private func inferAOSRuntimeMode(executablePath: String?, bundlePath: String?, commandLine: String?) -> String? {
+        let haystack = [executablePath, bundlePath, commandLine]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        if haystack.contains("aos_runtime_mode=installed") || haystack.contains("/applications/aos.app/") {
+            return "installed"
+        }
+        if haystack.contains("aos_runtime_mode=repo") || haystack.contains("/code/agent-os/aos") || haystack.contains("/agent-os/aos") {
+            return "repo"
+        }
+        return nil
+    }
+
+    private func inferProcessWorktreeRoot(executablePath: String?, commandLine: String?) -> String? {
+        var bases: [String] = []
+        if let executablePath {
+            bases.append(URL(fileURLWithPath: executablePath).deletingLastPathComponent().path)
+        }
+        if let commandLine {
+            for token in commandLine.split(separator: " ") {
+                let value = String(token)
+                if value.hasPrefix("/") {
+                    bases.append(URL(fileURLWithPath: value).deletingLastPathComponent().path)
+                }
+            }
+        }
+        return aosRepoRootFromBases(bases)
+    }
+
+    private func processCommandLines(pids: Set<Int>) -> [Int: String] {
+        let sortedPIDs = pids.sorted()
+        guard !sortedPIDs.isEmpty else { return [:] }
+        let output = runProcess("/bin/ps", arguments: ["-p", sortedPIDs.map(String.init).joined(separator: ","), "-o", "pid=,args="])
+        guard output.exitCode == 0 else { return [:] }
+        var rows: [Int: String] = [:]
+        for rawLine in output.stdout.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard let firstSpace = line.firstIndex(where: { $0 == " " || $0 == "\t" }) else { continue }
+            let pidText = line[..<firstSpace].trimmingCharacters(in: .whitespaces)
+            guard let pid = Int(pidText) else { continue }
+            let commandLine = line[firstSpace...].trimmingCharacters(in: .whitespaces)
+            if !commandLine.isEmpty {
+                rows[pid] = commandLine
+            }
+        }
+        return rows
+    }
+
+    private func aosCleanStaleDaemonCandidatePIDs(currentPID: Int) -> [Int] {
+        let output = runProcess("/usr/bin/pgrep", arguments: ["-f", "aos (serve|__serve)"])
+        guard output.exitCode == 0 else { return [] }
+        return output.stdout
+            .split(whereSeparator: \.isNewline)
+            .compactMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { $0 != currentPID }
+    }
+
+    private func numberValue(_ value: Any?) -> CGFloat? {
+        if let value = value as? CGFloat { return value }
+        if let value = value as? Double { return CGFloat(value) }
+        if let value = value as? Int { return CGFloat(value) }
+        if let value = value as? NSNumber { return CGFloat(truncating: value) }
+        return nil
+    }
+
+    private func logicalSurfaceKey(from metadata: [String: JSONValue]?) -> String? {
+        guard let value = metadata?["logical_surface_key"] else { return nil }
+        guard case .string(let raw) = value else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func inputTargetWinner(
+        at point: CGPoint,
+        nativeWindows: [[String: Any]],
+        externalAOSWindows: [[String: Any]],
+        registeredInfos: [CanvasInfo]
+    ) -> [String: Any] {
+        let byWindowNumber: [Int: CanvasInfo] = Dictionary(
+            registeredInfos.flatMap { info in
+                (info.windowNumbers ?? []).map { ($0, info) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let externalByWindowNumber: [Int: [String: Any]] = Dictionary(
+            uniqueKeysWithValues: externalAOSWindows.compactMap { native in
+                guard let windowNumber = native["window_number"] as? Int else { return nil }
+                return (windowNumber, native)
+            }
+        )
+
+        let frontToBackWindows = (nativeWindows + externalAOSWindows)
+            .sorted { (($0["front_to_back_index"] as? Int) ?? Int.max) < (($1["front_to_back_index"] as? Int) ?? Int.max) }
+
+        for native in frontToBackWindows {
+            guard let frameDict = native["actual_frame"] as? [String: Any],
+                  let x = numberValue(frameDict["x"]),
+                  let y = numberValue(frameDict["y"]),
+                  let w = numberValue(frameDict["w"]),
+                  let h = numberValue(frameDict["h"]) else { continue }
+            let frame = CGRect(x: x, y: y, width: w, height: h)
+            guard frame.contains(point), (native["visible"] as? Bool) == true else { continue }
+            let windowNumber = native["window_number"] as? Int ?? -1
+            if let external = externalByWindowNumber[windowNumber] {
+                return [
+                    "status": "external_aos_native_window",
+                    "scope": "external_process",
+                    "window_number": windowNumber,
+                    "owner_pid": external["owner_pid"] ?? NSNull(),
+                    "classification": external["classification"] ?? "unknown_aos_runtime_window",
+                    "native": external,
+                    "process_identity": external["process_identity"] ?? NSNull(),
+                    "reason": "frontmost visible AOS-owned native window at point is owned by another process",
+                ] as [String: Any]
+            }
+            if let info = byWindowNumber[windowNumber] {
+                return [
+                    "status": info.interactive && info.suspended != true ? "matched_registered_surface" : "matched_noninteractive_or_suspended_surface",
+                    "canvas_id": info.id,
+                    "window_number": windowNumber,
+                    "interactive": info.interactive,
+                    "suspended": info.suspended ?? false,
+                    "lifecycleState": info.lifecycleState ?? "unknown",
+                    "window_level": info.windowLevel ?? "default",
+                    "native": native,
+                    "reason": "first visible daemon-owned native window containing point in CGWindowList front-to-back order",
+                ] as [String: Any]
+            }
+            return [
+                "status": "orphan_native_window",
+                "window_number": windowNumber,
+                "native": native,
+                "reason": "frontmost visible daemon-owned native window at point is not joined to a registered canvas",
+            ] as [String: Any]
+        }
+
+        return [
+            "status": "none",
+            "reason": "no visible daemon-owned native window contains point",
+        ]
+    }
+
     private func geometryChange(from previous: CGRect, to next: CGRect) -> String {
         let originChanged = abs(previous.origin.x - next.origin.x) > 0.5 || abs(previous.origin.y - next.origin.y) > 0.5
         let sizeChanged = abs(previous.size.width - next.size.width) > 0.5 || abs(previous.size.height - next.size.height) > 0.5
@@ -672,14 +1193,21 @@ class CanvasManager {
         change: String? = nil,
         cause: String? = nil,
         phase: String? = nil,
-        transactionID: String? = nil
+        transactionID: String? = nil,
+        metadata: [String: JSONValue]? = nil
     ) -> [String: Any] {
-        [
+        var context: [String: Any] = [
             "change": change ?? "frame",
             "cause": cause ?? "unknown",
             "phase": phase ?? "settled",
             "transaction_id": transactionID ?? UUID().uuidString,
         ]
+        if let metadata {
+            for (key, value) in metadata {
+                context[key] = value
+            }
+        }
+        return context
     }
 
     private func emitGeometry(_ canvas: CanvasLike, previousFrame: CGRect?, currentFrame: CGRect, context: [String: Any]) {
@@ -716,6 +1244,9 @@ class CanvasManager {
             "at": frameArray(currentFrame),
             "canvas": canvasPayload,
         ]
+        if let placement = context["placement"] as? [String: JSONValue] {
+            payload["placement"] = jsonDictionary(placement)
+        }
         if let previousFrame {
             payload["previous_frame"] = frameArray(previousFrame)
         }
@@ -863,6 +1394,18 @@ class CanvasManager {
             result.append(contentsOf: collectTree(canvas.id))
         }
         return result
+    }
+
+    private func statusMenuItems(from dict: [String: Any]) -> [[String: Any]]? {
+        let payload = dict["payload"] as? [String: Any]
+        let rawItems = dict["items"] ?? payload?["items"]
+        if let items = rawItems as? [[String: Any]] {
+            return items
+        }
+        if let items = rawItems as? [[String: String]] {
+            return items.map { item in item.mapValues { $0 as Any } }
+        }
+        return nil
     }
 
     private final class LifecycleWaiter {
@@ -1147,6 +1690,9 @@ class CanvasManager {
         }
         canvas.cascadeFromParent = req.cascade ?? true
         canvas.owner = req.owner
+        if let logicalSurfaceKey = logicalSurfaceKey(from: req.geometry) {
+            canvas.logicalSurfaceKey = logicalSurfaceKey
+        }
         // Explicit parent from request (implicit parent set by daemon layer)
         if let explicitParent = req.parent {
             guard let parentCanvas = canvases[explicitParent] else {
@@ -1228,7 +1774,7 @@ class CanvasManager {
                         let cg = canvas.cgFrame
 
                         // No display-snap: let the canvas straddle displays freely,
-                        // same as the avatar animation path. updatePosition's retry
+                        // same as the renderer animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
                         self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height), geometry: self.geometryContext(
                             change: change,
@@ -1401,9 +1947,9 @@ class CanvasManager {
                 }
 
                 // Canvas-provided menu items for the status bar right-click menu.
-                // { type: "set_menu_items", items: [{title: "...", id: "..."}, ...] }
+                // { type: "set_menu_items", payload: {items: [{title: "...", id: "..."}]} }
                 if type == "set_menu_items",
-                   let rawItems = dict["items"] as? [[String: String]] {
+                   let rawItems = self?.statusMenuItems(from: dict) {
                     self?.onMenuItems?(id, rawItems)
                     return
                 }
@@ -1498,13 +2044,21 @@ class CanvasManager {
             }
         }
 
+        if let placement = req.geometry?["placement"]?.objectValue {
+            canvas.placement = placement
+        }
+        if let logicalSurfaceKey = logicalSurfaceKey(from: req.geometry) {
+            canvas.logicalSurfaceKey = logicalSurfaceKey
+        }
+
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
             if moveCanvas(canvas, to: newFrame, geometry: geometryContext(
                 change: req.geometryChange,
                 cause: req.geometryCause,
                 phase: req.geometryPhase,
-                transactionID: req.geometryTransactionID
+                transactionID: req.geometryTransactionID,
+                metadata: req.geometry
             )) {
                 lifecycleDirty = false
             }

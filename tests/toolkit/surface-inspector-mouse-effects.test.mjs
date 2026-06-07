@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { computeMinimapLayout } from '../../packages/toolkit/components/surface-inspector/index.js'
 import {
+  applyMouseEffectsGestureFrame,
   applyMouseEffectsInput,
   createMouseEffectsState,
   mouseEffectsNeedAnimationFrame,
@@ -9,6 +10,7 @@ import {
   renderMouseEffectsOverlay,
   sweepMouseEffectsState,
 } from '../../packages/toolkit/components/surface-inspector/mouse-effects.js'
+import { createPointerGestureStream } from '../../packages/toolkit/runtime/gesture-stream.js'
 
 const displays = [
   {
@@ -56,6 +58,29 @@ test('left drag release collapses the line tail toward the mouse-up point', () =
   assert.equal(mouseEffectsNeedAnimationFrame(state, 1240), true)
   assert.equal(sweepMouseEffectsState(state, 1400), true)
   assert.equal(renderMouseEffectsOverlay(state, layout, 1400), '')
+})
+
+test('passive gesture subscriber renders the same drag overlay from gesture frames', () => {
+  const state = createMouseEffectsState()
+  const layout = minimapLayout()
+  const stream = createPointerGestureStream({ kind: 'drag' })
+
+  stream.subscribe((frame) => {
+    applyMouseEffectsGestureFrame(state, frame, frame.coordinates.desktop_world, frame.timing.t)
+  })
+
+  stream.handleCanvasInput({ type: 'left_mouse_down', desktop_world: { x: 1200, y: 260 } }, { now: 1000 })
+  stream.handleCanvasInput({ type: 'left_mouse_dragged', desktop_world: { x: 1450, y: 410 } }, { now: 1120 })
+
+  const activeHtml = renderMouseEffectsOverlay(state, layout, 1160)
+  assert.match(activeHtml, /mouse-events active/)
+  assert.match(activeHtml, /minimap-pointer-line/)
+  assert.match(activeHtml, /minimap-pointer-arrow/)
+
+  stream.handleCanvasInput({ type: 'left_mouse_up', desktop_world: { x: 1480, y: 430 } }, { now: 1200 })
+  const releaseHtml = renderMouseEffectsOverlay(state, layout, 1240)
+  assert.match(releaseHtml, /mouse-events release/)
+  assert.match(releaseHtml, /--line-origin:100%/)
 })
 
 test('active drag omits the direction arrow when the line is too short', () => {

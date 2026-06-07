@@ -106,5 +106,10 @@ mechanics.
 - Do not invent new scoping models for runtime resources; preserve runtime mode
   isolation and wiki namespace conventions.
 - Treat `_dev` demos as non-canonical.
+- Preserve the AOS TCC capability broker canon: `./aos` is the stable
+  permissioned process identity and privileged IPC surface; public command
+  policy and composition belong outside Swift unless a native-boundary
+  justification is explicit. See
+  `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.

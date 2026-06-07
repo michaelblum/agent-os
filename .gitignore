@@ -12,6 +12,8 @@ aos
 dist/
 packages/hand-off/hand-off
 tools/dogfood/__pycache__/
+__pycache__/
+*.pyc
 node_modules/
 
 # Editor / workspace files
@@ -21,6 +23,7 @@ node_modules/
 # Local scratch outputs
 clipboard.txt
 .aos-test-tmp/
+.playwright-cli/
 
 # Local gateway secrets
 packages/gateway/.env

@@ -122,7 +122,7 @@ registry = json.load(open("manifests/commands/aos-commands.json", encoding="utf-
 registry_paths = {tuple(item["path"]) for item in registry["commands"]}
 external_paths = {tuple(item["path"]) for item in manifest["commands"]}
 assert registry_paths <= external_paths, sorted(registry_paths - external_paths)
-bootstrap_families = {"serve", "status", "ready", "doctor", "permissions"}
+bootstrap_families = {"serve", "ready", "permissions"}
 def concrete_usage_path(usage):
     if usage.startswith("aos "):
         aos_usage = usage
@@ -181,14 +181,37 @@ assert update_case, "show update switch case missing"
 assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
 for path, primitive in [
     (("serve",), "__serve"),
-    (("status",), "__status"),
-    (("ready",), "__ready"),
-    (("doctor",), "__doctor"),
-    (("permissions",), "__permissions"),
 ]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == [primitive], command
+command = commands[("doctor",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-doctor.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+command = commands[("ready",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-ready.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+command = commands[("status",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-status.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+for subcommand in ["check", "preflight", "setup", "reset-runtime"]:
+    command = commands[("permissions", subcommand)]
+    assert command["executable"] == "/usr/bin/env", command
+    assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs", subcommand], command
+    assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+    assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
+    assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
+    assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
+command = commands[("permissions",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
+assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
+assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
     native = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-native.mjs", primitive]]
     assert len(native) == 1, (primitive, native)
@@ -207,8 +230,45 @@ else
     fail "native primitive external manifest routing drifted"
 fi
 
+if OUT="$(./aos permissions reset-runtime --mode repo --dry-run --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+d = json.loads(os.environ["OUT"])
+assert d["status"] == "ok", d
+assert d["mode"] == "repo", d
+assert d["dry_run"] is True, d
+assert d["service_stop"]["status"] == "planned", d
+assert d["tcc_reset"]["status"] == "unavailable", d
+PY
+then
+    pass "permissions reset-runtime routes through external dry-run composition"
+else
+    fail "permissions reset-runtime external dry-run route drifted: ${OUT:-}"
+fi
+
+SETUP_ROOT="$(mktemp -d)"
+if AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 ./aos __permissions setup-marker write --json >/dev/null 2>&1 \
+    && OUT="$(AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 AOS_DISABLE_DAEMON_AUTOSTART=1 ./aos permissions setup --once --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+d = json.loads(os.environ["OUT"])
+assert d["status"] == "ok", d
+assert d["completed"] is True, d
+assert d["setup"]["setup_completed"] is True, d
+assert d["missing_permissions"] == [], d
+assert d["restarted_services"] == [], d
+PY
+then
+    pass "permissions setup routes through external once skip composition"
+else
+    fail "permissions setup external once skip route drifted: ${OUT:-}"
+fi
+rm -rf "$SETUP_ROOT"
+
 LISTEN_ROOT="$(mktemp -d)"
-if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
+if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
     sleep 1
     if SOCK="$LISTEN_ROOT/repo/sock" node - <<'NODE'
 const net = require('node:net');
@@ -276,6 +336,7 @@ async function main() {
       AOS_STATE_ROOT: root,
       AOS_RUNTIME_MODE: 'repo',
       AOS_PATH: process.env.AOS_BIN,
+      AOS_ALLOW_DAEMON_AUTOSTART: '1',
     },
     stdio: ['pipe', fs.openSync(out, 'a'), fs.openSync(err, 'a')],
   });
@@ -328,6 +389,7 @@ const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
     AOS_STATE_ROOT: process.env.ROOT,
     AOS_RUNTIME_MODE: 'repo',
     AOS_PATH: process.env.AOS_BIN,
+    AOS_ALLOW_DAEMON_AUTOSTART: '1',
   },
   stdio: 'ignore',
 });
@@ -556,10 +618,10 @@ cleanup_isolated_daemon() {
     fi
 }
 trap 'cleanup_isolated_daemon "$COMM_ROOT"; rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"' EXIT
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --who >"$COMM_WHO" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos listen external-dispatch --limit 5 >"$COMM_READ" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --who >"$COMM_WHO" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos listen external-dispatch --limit 5 >"$COMM_READ" 2>/dev/null
 if COMM_REGISTER="$COMM_REGISTER" COMM_WHO="$COMM_WHO" COMM_SEND="$COMM_SEND" COMM_READ="$COMM_READ" python3 - <<'PY'
 import json
 import os

@@ -1,5 +1,6 @@
 import { createWorkbenchSubject } from './subject.js';
 import { formatSubjectEntryHandle } from './subject-entry-handle.js';
+import { createVisualObjectDescriptor } from './visual-object-contract.js';
 
 export const RADIAL_MENU_SUBJECT_TYPE = 'aos.radial_menu.3d';
 export const RADIAL_MENU_ITEM_RESOURCE_TYPE = 'aos.radial_menu.item_resource';
@@ -45,6 +46,15 @@ function list(values = []) {
   return Array.isArray(values) ? values.filter(Boolean) : [];
 }
 
+function visualEvidenceContracts(extra = []) {
+  return [
+    'json_serializable',
+    'deterministic_descriptor_validation',
+    'non_avatar_visual_object',
+    ...list(extra),
+  ];
+}
+
 function itemLogical(item = {}) {
   const logical = isPlainObject(item.logical) ? item.logical : item;
   return {
@@ -73,6 +83,130 @@ export function radialMenuLogicalItems(menu = {}) {
   return items
     .map((item) => itemLogical(item))
     .filter((item) => item.id && !item.hidden);
+}
+
+export function createRadialMenuVisualObjectDescriptors({
+  menu = {},
+  selectedItemId = '',
+} = {}) {
+  const menuId = text(menu.id, 'default');
+  const logicalItems = radialMenuLogicalItems(menu);
+  const selectedItem = logicalItems.find((item) => item.id === selectedItemId) || logicalItems[0] || null;
+  const selectedItemIdText = selectedItem?.id || null;
+  const selectedSourceItem = list(menu.items).find((item) => item.id === selectedItemIdText) || {};
+  const objectId = selectedItemIdText
+    ? `radial-menu.${menuId}.item.${selectedItemIdText}`
+    : `radial-menu.${menuId}`;
+  const descriptors = [
+    createVisualObjectDescriptor({
+      id: `radial-menu-${menuId}-selected-item`,
+      label: 'Selected radial menu item',
+      kind: 'select',
+      technology: 'threejs-3d',
+      state_path: `radial_menu.${menuId}.selected_item_id`,
+      route: 'aos.radial_menu.config.patch',
+      coerce: 'string',
+      options: logicalItems.map((item) => ({ value: item.id, label: item.label })),
+      renderer_sync: ['resolveSelectedRadialItem', 'renderRadialMenuPreview'],
+      group_key: `radial-menu.${menuId}`,
+      object_ids: logicalItems.map((item) => `radial-menu.${menuId}.item.${item.id}`),
+      evidence_contracts: visualEvidenceContracts(['aos.radial_menu.logical_items']),
+    }),
+  ];
+
+  if (selectedItemIdText) {
+    descriptors.push(
+      createVisualObjectDescriptor({
+        id: `radial-menu-${menuId}-${selectedItemIdText}-radius-scale`,
+        label: `${selectedItem.label} radius scale`,
+        kind: 'slider',
+        technology: 'threejs-3d',
+        state_path: `radial_menu.${menuId}.items.${selectedItemIdText}.geometry.radiusScale`,
+        route: 'canvas_object.transform.patch',
+        coerce: 'number',
+        min: 0.25,
+        max: 4,
+        step: 0.01,
+        renderer_sync: ['resolveRadialMenuConfig', 'renderRadialMenuPreview'],
+        group_key: `radial-menu.${menuId}.geometry`,
+        object_ids: [objectId],
+        evidence_contracts: visualEvidenceContracts(['canvas_object.transform.patch']),
+      }),
+      createVisualObjectDescriptor({
+        id: `radial-menu-${menuId}-${selectedItemIdText}-hover-scale`,
+        label: `${selectedItem.label} hover scale`,
+        kind: 'slider',
+        technology: 'threejs-3d',
+        state_path: `radial_menu.${menuId}.items.${selectedItemIdText}.three.item.hover.transform.scale.to`,
+        route: 'canvas_object.transform.patch',
+        coerce: 'number',
+        min: 0.5,
+        max: 4,
+        step: 0.01,
+        renderer_sync: ['resolveRadialMenuConfig', 'renderRadialMenuPreview'],
+        group_key: `radial-menu.${menuId}.hover`,
+        object_ids: [objectId],
+        evidence_contracts: visualEvidenceContracts(['canvas_object.transform.patch']),
+      }),
+      createVisualObjectDescriptor({
+        id: `radial-menu-${menuId}-${selectedItemIdText}-visible`,
+        label: `${selectedItem.label} visible`,
+        kind: 'toggle',
+        technology: 'threejs-3d',
+        state_path: `radial_menu.${menuId}.items.${selectedItemIdText}.hidden`,
+        route: 'canvas_object.visibility.patch',
+        coerce: 'boolean_inverse',
+        renderer_sync: ['resolveRadialMenuConfig', 'renderRadialMenuPreview'],
+        group_key: `radial-menu.${menuId}.visibility`,
+        object_ids: [objectId],
+        evidence_contracts: visualEvidenceContracts(['canvas_object.visibility.patch']),
+      }),
+    );
+  }
+
+  if (Array.isArray(selectedSourceItem.effects) && selectedSourceItem.effects.length > 0) {
+    descriptors.push(createVisualObjectDescriptor({
+      id: `radial-menu-${menuId}-${selectedItemIdText}-effect-enabled`,
+      label: `${selectedItem.label} effect enabled`,
+      kind: 'toggle',
+      technology: 'threejs-3d',
+      state_path: `radial_menu.${menuId}.items.${selectedItemIdText}.effects.0.enabled`,
+      route: 'canvas_object.effects.patch',
+      coerce: 'boolean',
+      renderer_sync: ['resolveRadialMenuConfig', 'renderRadialMenuPreview'],
+      group_key: `radial-menu.${menuId}.effects`,
+      object_ids: [objectId, selectedSourceItem.effects[0]?.ref].filter(Boolean),
+      evidence_contracts: visualEvidenceContracts(['canvas_object.effects.patch']),
+    }));
+  }
+
+  descriptors.push(
+    createVisualObjectDescriptor({
+      id: `radial-menu-${menuId}-preview-resource`,
+      label: 'Radial menu preview resource',
+      kind: 'resource',
+      technology: 'threejs-3d',
+      projection: {
+        classification: 'projection_only',
+        reason: 'runtime-or-world-projection',
+      },
+      evidence_contracts: visualEvidenceContracts(['aos.radial_menu.preview']),
+    }),
+    createVisualObjectDescriptor({
+      id: `radial-menu-${menuId}-export-action`,
+      label: 'Export radial menu',
+      kind: 'action',
+      technology: 'dom-toolkit',
+      action_id: 'aos.radial_menu.export',
+      projection: {
+        classification: 'projection_only',
+        reason: 'app-action-shortcut',
+      },
+      evidence_contracts: visualEvidenceContracts(['aos.radial_menu.export']),
+    }),
+  );
+
+  return descriptors;
 }
 
 export function radialMenuSubjectId(menuOrId = {}) {
@@ -139,6 +273,7 @@ export function createRadialMenuWorkbenchSubject({
   const logicalItems = radialMenuLogicalItems(menu);
   const selectedItem = logicalItems.find((item) => item.id === selectedItemId) || logicalItems[0] || null;
   const selectedResourcePath = selectedItem ? `${itemResourcePrefix}/${selectedItem.id}` : '';
+  const visualObjectDescriptors = createRadialMenuVisualObjectDescriptors({ menu, selectedItemId });
   const hostsFor = (facetKey, options = {}) => [
     canvasHost(canvasId, { facet: facetKey, ...options }),
   ];
@@ -253,6 +388,7 @@ export function createRadialMenuWorkbenchSubject({
       selected_resource_path: selectedResourcePath || null,
       logical_item_count: logicalItems.length,
       logical_items: logicalItems,
+      visual_object_descriptors: visualObjectDescriptors,
       ...cloneJson(state),
     },
     metadata: {

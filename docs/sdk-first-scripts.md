@@ -97,11 +97,11 @@ const health = await aos.selfCheck();
 //   daemon: { status: "ok", pid: 66940, mode: "repo", uptime: 3600 },
 //   permissions: { accessibility: true, screenRecording: true },
 //   canvases: [
-//     { id: "avatar", url: "aos://sigil/renderer/index.html", interactive: false },
-//     { id: "agent-terminal", url: "aos://sigil/agent-terminal/index.html", interactive: true }
+//     { id: "status-surface", url: "aos://demo/status/index.html", interactive: false },
+//     { id: "control-panel", url: "aos://demo/panel/index.html", interactive: true }
 //   ],
 //   services: {
-//     sigil: { running: true, pid: 67001 },
+//     surfaceRuntime: { running: true, pid: 67001 },
 //     gateway: { running: true }
 //   }
 // }

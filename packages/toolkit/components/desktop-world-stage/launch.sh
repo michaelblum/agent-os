@@ -21,7 +21,7 @@ $AOS show create --id "$CANVAS_ID" \
   --scope global \
   --url "aos://$TOOLKIT_CONTENT_ROOT/components/desktop-world-stage/index.html"
 
-$AOS show wait --id "$CANVAS_ID" --manifest desktop-world-stage --timeout 5s >/dev/null
+$AOS show wait --id "$CANVAS_ID" --manifest desktop-world-stage --timeout 5s --json >/dev/null
 
 echo "DesktopWorld visual stage launched as ${CANVAS_ID}"
 echo "Send non-interactive layers with canvas.send to ${CANVAS_ID}: desktop_world_stage.layer.upsert/remove/clear"

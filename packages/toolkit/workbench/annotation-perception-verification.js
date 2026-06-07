@@ -39,8 +39,11 @@ function firstRect(value) {
 }
 
 function targetBounds(target = {}) {
+  const provenance = target.provenance && typeof target.provenance === 'object' ? target.provenance : {}
   return normalizeRect(
     target.perceived_bounds
+      ?? provenance.bounds
+      ?? provenance.frame
       ?? target.bounds?.viewport_local
       ?? target.bounds?.parent_local
       ?? target.bounds?.desktop_world
@@ -63,18 +66,19 @@ export function boundsOverlapRatio(a, b) {
 
 function normalizeTarget(target = {}) {
   const bounds = targetBounds(target)
+  const provenance = target.provenance && typeof target.provenance === 'object' ? target.provenance : {}
   return {
-    id: text(target.id ?? target.target_id ?? target.path, 'unknown-target'),
-    path: text(target.path ?? target.target_path ?? target.id, 'unknown-target'),
+    id: text(target.ref ?? target.path, 'unknown-target'),
+    path: text(target.path ?? target.target_path ?? target.ref, 'unknown-target'),
     kind: text(target.kind, 'region'),
     label: text(target.label ?? target.name, 'Target'),
     source_ids: {
-      canvas_id: text(target.source_ids?.canvas_id ?? target.canvas_id) || null,
+      canvas_id: text(target.source_ids?.canvas_id ?? provenance.canvas_id) || null,
       surface_id: text(target.source_ids?.surface_id ?? target.surface_id ?? target.surface) || null,
       window_id: text(target.source_ids?.window_id ?? target.window_id) || null,
       display_id: text(target.source_ids?.display_id ?? target.display_id) || null,
-      subject_id: text(target.source_ids?.subject_id ?? target.subject_id ?? target.id) || null,
-      adapter_subject_id: text(target.source_ids?.adapter_subject_id ?? target.ref ?? target.do_target) || null,
+      subject_id: text(target.source_ids?.subject_id ?? target.subject_id ?? target.ref) || null,
+      adapter_subject_id: text(target.source_ids?.adapter_subject_id ?? target.ref ?? provenance.do_target) || null,
     },
     perceived_bounds: bounds,
     role: text(target.role) || null,

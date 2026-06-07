@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   SIGIL_AVATAR_INPUT_REGION_ID,
-  SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+  SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
   SIGIL_SELECTION_MODE_INPUT_REGION_ID,
   createSigilInputRegionAdapter,
   selectSigilInputRegionOwner,
@@ -68,7 +68,7 @@ test('avatar region registers expected payload and skips redundant updates', () 
     windowObject: { __aosSurfaceCanvasId: 'surface-owner' },
     fallbackCanvasId: 'avatar-main',
     avatarNativeFrame: () => [60, 80, 80, 80],
-    contextMenuIsOpen: () => false,
+    avatarControlsIsOpen: () => false,
     logger: quietLogger(),
   })
 
@@ -106,7 +106,7 @@ test('frame and enabled state changes update or remove avatar region', () => {
     windowObject: {},
     fallbackCanvasId: 'avatar-main',
     avatarNativeFrame: () => frame,
-    contextMenuIsOpen: () => false,
+    avatarControlsIsOpen: () => false,
     logger: quietLogger(),
   })
 
@@ -132,7 +132,7 @@ test('avatar region is removed while a higher-fidelity hit canvas is active', ()
     fallbackCanvasId: 'avatar-main',
     avatarNativeFrame: () => [60, 80, 80, 80],
     avatarRegionEnabled: () => !hitCanvasActive,
-    contextMenuIsOpen: () => false,
+    avatarControlsIsOpen: () => false,
     logger: quietLogger(),
   })
 
@@ -145,7 +145,7 @@ test('avatar region is removed while a higher-fidelity hit canvas is active', ()
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
 })
 
-test('context-menu region has higher priority and expected metadata', () => {
+test('avatar-controls region has higher priority and expected metadata', () => {
   const host = createHost()
   const adapter = createSigilInputRegionAdapter({
     host,
@@ -153,8 +153,8 @@ test('context-menu region has higher priority and expected metadata', () => {
     windowObject: { __aosCanvasId: 'avatar-main' },
     fallbackCanvasId: 'avatar-main',
     avatarNativeFrame: () => null,
-    contextMenuIsOpen: () => true,
-    contextMenuNativeFrame: () => [200, 220, 240, 160],
+    avatarControlsIsOpen: () => true,
+    avatarControlsNativeFrame: () => [200, 220, 240, 160],
     logger: quietLogger(),
   })
 
@@ -163,11 +163,11 @@ test('context-menu region has higher priority and expected metadata', () => {
   assert.equal(host.calls.length, 1)
   assert.equal(host.calls[0].method, 'register')
   assert.deepEqual(host.calls[0].payload, {
-    id: SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+    id: SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
     owner_canvas_id: 'avatar-main',
     frame: [200, 220, 240, 160],
     coordinate_space: 'native',
-    semantic_label: 'Sigil context menu input claim',
+    semantic_label: 'Sigil avatar controls input claim',
     priority: 120,
     consume_policy: 'captured',
     remove_on_owner_suspend: true,
@@ -175,7 +175,7 @@ test('context-menu region has higher priority and expected metadata', () => {
     metadata: {
       app: 'sigil',
       surface: 'avatar-main',
-      purpose: 'context-menu-pointer-capture',
+      purpose: 'avatar-controls-pointer-capture',
     },
   })
 })
@@ -188,7 +188,7 @@ test('update NOT_FOUND triggers a register retry', async () => {
     liveState: createLiveState(),
     windowObject: {},
     avatarNativeFrame: () => frame,
-    contextMenuIsOpen: () => false,
+    avatarControlsIsOpen: () => false,
     logger: quietLogger(),
   })
 
@@ -212,7 +212,7 @@ test('selection mode registers an active-only capture region', () => {
     windowObject: { __aosCanvasId: 'avatar-main' },
     fallbackCanvasId: 'avatar-main',
     avatarNativeFrame: () => null,
-    contextMenuIsOpen: () => false,
+    avatarControlsIsOpen: () => false,
     selectionModeIsActive: () => liveState.selectionMode.active,
     selectionModeNativeFrame: () => [0, 0, 1440, 900],
     logger: quietLogger(),
@@ -237,8 +237,6 @@ test('selection mode registers an active-only capture region', () => {
       app: 'sigil',
       surface: 'avatar-main',
       purpose: 'selection-mode-pointer-capture',
-      cursor_suppression: 'hide_native',
-      cursor_suppression_owner: 'selection_mode',
     },
   })
   assert.equal(host.calls[1].method, 'remove')
@@ -256,8 +254,8 @@ test('cleanup removes all known regions', () => {
     liveState,
     windowObject: {},
     avatarNativeFrame: () => [60, 80, 80, 80],
-    contextMenuIsOpen: () => true,
-    contextMenuNativeFrame: () => [200, 220, 240, 160],
+    avatarControlsIsOpen: () => true,
+    avatarControlsNativeFrame: () => [200, 220, 240, 160],
     selectionModeIsActive: () => liveState.selectionMode.active,
     selectionModeNativeFrame: () => [0, 0, 1440, 900],
     logger: quietLogger(),
@@ -269,11 +267,11 @@ test('cleanup removes all known regions', () => {
   assert.deepEqual(host.calls.map((call) => call.method), ['register', 'register', 'register', 'remove', 'remove', 'remove'])
   assert.deepEqual(host.calls.slice(3).map((call) => call.id), [
     SIGIL_AVATAR_INPUT_REGION_ID,
-    SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+    SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
     SIGIL_SELECTION_MODE_INPUT_REGION_ID,
   ])
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
-  assert.equal(adapter.snapshot().regions.contextMenu.registered, false)
+  assert.equal(adapter.snapshot().regions.avatarControls.registered, false)
   assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
 })
 
@@ -285,14 +283,14 @@ test('non-primary segments do not register regions', () => {
     windowObject: {},
     isPrimarySegment: () => false,
     avatarNativeFrame: () => [60, 80, 80, 80],
-    contextMenuIsOpen: () => true,
-    contextMenuNativeFrame: () => [200, 220, 240, 160],
+    avatarControlsIsOpen: () => true,
+    avatarControlsNativeFrame: () => [200, 220, 240, 160],
     logger: quietLogger(),
   })
 
   assert.equal(adapter.sync(), false)
   assert.equal(host.calls.length, 0)
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
-  assert.equal(adapter.snapshot().regions.contextMenu.registered, false)
+  assert.equal(adapter.snapshot().regions.avatarControls.registered, false)
   assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
 })

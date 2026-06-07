@@ -50,7 +50,6 @@ At minimum inspect these live or historical Sigil surfaces:
 - `apps/sigil/codex-terminal/`
 - `apps/sigil/radial-item-editor/`
 - `apps/sigil/radial-item-workbench/`
-- `apps/sigil/studio/`
 - `apps/sigil/workbench/`
 - `apps/sigil/chat/`
 
@@ -73,7 +72,7 @@ Classify each surface as exactly one primary bucket, with a short rationale:
   hit-region controller, or shared lifecycle helpers.
 - **Transitional private path**: live code still owns platform-like behavior
   that should move to toolkit/daemon or consume an existing primitive.
-- **Parked legacy**: old chat, studio, workbench, or compatibility paths that
+- **Parked legacy**: old chat, workbench, or compatibility paths that
   should not be migrated unless a new product decision revives them.
 
 Be strict about the boundary. `avatar-main` may remain a private full-coverage
@@ -114,7 +113,7 @@ the durable plan so #305 has either:
   satisfies the same product needs.
 - No new daemon product branches named for Sigil, avatar, radial, menu, chat, or
   context menu.
-- No migration of parked legacy chat/studio/workbench surfaces unless the audit
+- No migration of parked legacy chat/workbench surfaces unless the audit
   proves they are still active product paths.
 - No broad visual redesign.
 - Do not treat `apps/sigil` grep hits inside historical acceptance docs as live

@@ -5,7 +5,13 @@
 
 `panel/` is the default opt-in AOS windowing layer for window-shaped canvases.
 It owns reusable policy for panel chrome, drag, resize, close, minimize,
-maximize, restore, safe placement, and cross-display affordances.
+maximize, restore, safe placement, and drag/drop-capable movement.
+
+Legacy cross-display transfer outlines are superseded by One-World/union-backed
+surfaces. Do not add new `drag-transfer.js` callers or tests. The active
+follow-up is to make drag/drop a first-class toolkit capability, hook draggable
+panels and the embedded avatar compact panel into it, then delete the old
+transfer-outline path.
 
 This layer is not the daemon and not an app. Keep the policy generic and
 customizable:
@@ -29,4 +35,6 @@ interactive canvases should be reserved for real DOM interaction needs.
 
 Use `docs/api/toolkit/panel-window.md` for the consumer-facing panel/window
 contract, including `mountChrome`, `createPanelWindowController`, layout
-helpers, and `createStageAffordance`.
+helpers, and `createStageAffordance`. Treat any remaining private panel drag,
+raw `drag_start` / `move_abs` / `drag_end`, or transfer-outline language as
+cleanup debt unless a current work card explicitly preserves it.

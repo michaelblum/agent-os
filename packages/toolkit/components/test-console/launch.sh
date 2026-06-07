@@ -79,7 +79,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest test-console-v0 \
   --js 'typeof window.__testConsoleState === "object" && document.querySelector("[data-aos-ref=\"test-console-v0:root\"]")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 if [[ -n "$RUN_DIR" ]]; then
   CONTENT_JSON="$(aos_supervised_run_console_payload_json "$RUN_DIR")"
@@ -113,7 +114,8 @@ EXPECTED_STEP_ID_JSON="$(python3 -c 'import json, sys; print(json.dumps(sys.argv
   --id "$CANVAS_ID" \
   --manifest test-console-v0 \
   --js "window.__testConsoleState?.step_id === ${EXPECTED_STEP_ID_JSON} && document.querySelector('[data-aos-ref=\"test-console-v0:response-confirm\"]')" \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Supervised Run Test Console V0 launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"

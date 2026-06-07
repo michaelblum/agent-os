@@ -3,6 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  devGhGroups,
+  devGhSubcommandsFor,
+  findDevGhCommandSpec,
+  formatDevGhHelp,
+} from './aos-dev-gh-spec.mjs';
 
 function printJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -13,36 +19,265 @@ function die(message, code = 'ERROR', exitCode = 1) {
   process.exit(exitCode);
 }
 
-function parseOptions(args) {
+function invocationDisplayName() {
+  return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
+}
+
+function printHelpAndExit(pathParts) {
+  const help = formatDevGhHelp(pathParts, { invocation: invocationDisplayName() });
+  process.stdout.write(help);
+  process.exit(0);
+}
+
+function pathIsDispatchable(pathParts) {
+  return findDevGhCommandSpec(pathParts) != null;
+}
+
+function requireDispatchable(pathParts) {
+  if (!pathIsDispatchable(pathParts)) {
+    die(`Unknown dev gh command: ${pathParts.join(' ')}`, 'UNKNOWN_SUBCOMMAND');
+  }
+}
+
+const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr']);
+const LIST_FLAGS = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
+const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
+const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
+const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
+const ISSUE_VIEW_TEMPLATE = '{{printf "#%v %s\\n%s\\n\\n%s\\n" .number .title .url .body}}';
+const tempBodyFiles = [];
+
+function appendOperation(options, value, _command, flag) {
+  options.issueEditOperations.push({ flag, value });
+}
+
+const FLAG_SPECS = {
+  '--json': { assign: (options) => { options.json = true; } },
+  '--repo': {
+    summary: 'a GitHub repository in owner/name form',
+    assign: (options, value) => { options.repo = value; },
+  },
+  '--cwd': {
+    summary: 'a local checkout path',
+    assign: (options, value) => { options.cwd = value; },
+  },
+  '--body-file': {
+    summary: 'a path or -',
+    assign: (options, value, command, flag) => {
+      options.bodyFile = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
+    },
+  },
+  '--title': {
+    summary: 'an issue title',
+    assign: (options, value, command, flag) => {
+      options.title = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
+    },
+    invalid: '--title is only valid for issue create and edit subcommands',
+  },
+  '--pr': {
+    summary: 'a PR number',
+    assign: (options, value) => { options.prNumber = value; },
+  },
+  '--reason': {
+    summary: 'completed or not planned',
+    assign: (options, value) => { options.closeReason = value; },
+    invalid: '--reason is only valid for issue close subcommands',
+  },
+  '--sort': {
+    summary: 'created or name',
+    assign: (options, value) => { options.sort = value; },
+    invalid: '--sort is only valid for label list subcommands',
+  },
+  '--order': {
+    summary: 'asc or desc',
+    assign: (options, value) => { options.order = value; },
+    invalid: '--order is only valid for label list subcommands',
+  },
+  '--state': {
+    summary: (command) => command === 'pr:list' ? 'open, closed, merged, or all' : 'open, closed, or all',
+    assign: (options, value) => { options.state = value; },
+    invalid: '--state is only valid for list subcommands',
+  },
+  '--limit': {
+    summary: 'a numeric result limit',
+    assign: (options, value) => {
+      if (!/^[0-9]+$/.test(value)) die(`--limit must be numeric: ${value}`, 'INVALID_ARG');
+      options.limit = Number.parseInt(value, 10);
+    },
+    invalid: '--limit is only valid for list subcommands',
+  },
+  '--label': {
+    summary: 'a label name',
+    assign: (options, value) => { options.labels.push(value); },
+    invalid: '--label is only valid for issue create and issue/PR list subcommands',
+  },
+  '--add-label': {
+    summary: 'a label name',
+    assign: appendOperation,
+    invalid: '--add-label is only valid for issue edit subcommands',
+  },
+  '--remove-label': {
+    summary: 'a label name',
+    assign: appendOperation,
+    invalid: '--remove-label is only valid for issue edit subcommands',
+  },
+  '--author': {
+    summary: 'a GitHub login',
+    assign: (options, value) => { options.author = value; },
+    invalid: '--author is only valid for list subcommands',
+  },
+  '--assignee': {
+    summary: 'a GitHub login or @me',
+    assign: (options, value, command) => {
+      if (command === 'issue:create') options.assignees.push(value);
+      else options.assignee = value;
+    },
+    invalid: '--assignee is only valid for issue create and list subcommands',
+  },
+  '--add-assignee': {
+    summary: 'a GitHub login or @me',
+    assign: appendOperation,
+    invalid: '--add-assignee is only valid for issue edit subcommands',
+  },
+  '--remove-assignee': {
+    summary: 'a GitHub login or @me',
+    assign: appendOperation,
+    invalid: '--remove-assignee is only valid for issue edit subcommands',
+  },
+  '--search': {
+    summary: 'a search query',
+    assign: (options, value) => { options.search = value; },
+    invalid: '--search is only valid for list subcommands',
+  },
+  '--milestone': {
+    summary: 'an issue milestone name',
+    assign: (options, value, command, flag) => {
+      options.milestone = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
+    },
+  },
+  '--base': {
+    summary: 'a base branch name',
+    assign: (options, value) => { options.base = value; },
+  },
+  '--head': {
+    summary: 'a head branch name',
+    assign: (options, value) => { options.head = value; },
+  },
+  '--draft': { assign: (options) => { options.draft = true; } },
+  '--squash': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--squash is only valid for PR merge subcommands',
+  },
+  '--merge': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--merge is only valid for PR merge subcommands',
+  },
+  '--rebase': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--rebase is only valid for PR merge subcommands',
+  },
+  '--match-head-commit': {
+    summary: 'a commit SHA',
+    assign: (options, value) => { options.matchHeadCommit = value; },
+    invalid: '--match-head-commit is only valid for PR merge subcommands',
+  },
+};
+
+const COMMAND_FLAGS = new Map([
+  ['common', COMMON_FLAGS],
+  ['issue:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, '--milestone'])],
+  ['issue:create', new Set([...COMMON_FLAGS, '--title', '--label', '--assignee', '--milestone'])],
+  ['issue:close', new Set([...COMMON_FLAGS, '--reason'])],
+  ['issue:edit', new Set([
+    ...COMMON_FLAGS,
+    '--add-label',
+    '--remove-label',
+    '--add-assignee',
+    '--remove-assignee',
+    '--milestone',
+    '--title',
+  ])],
+  ['label:list', new Set([...COMMON_FLAGS, '--limit', '--search', '--sort', '--order'])],
+  ['pr:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, ...PR_LIST_FLAGS])],
+  ['pr:merge', new Set([...COMMON_FLAGS, ...PR_MERGE_STRATEGY_FLAGS, '--match-head-commit'])],
+]);
+
+function flagErrorMessage(flag, command, allowedFlags) {
+  const spec = FLAG_SPECS[flag];
+  if (!spec) return null;
+  if (allowedFlags.has(flag)) return null;
+  if (command === 'label:list' && flag === '--state') return `Unknown dev gh flag: ${flag}`;
+  if (spec.invalid) return spec.invalid;
+  if (LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for list subcommands`;
+  if (PR_LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for PR list subcommands`;
+  if ((PR_MERGE_STRATEGY_FLAGS.has(flag) || flag === '--match-head-commit') && command !== 'pr:merge') {
+    return `${flag} is only valid for PR merge subcommands`;
+  }
+  return null;
+}
+
+function parseOptions(args, command = 'common') {
   const options = {
     json: false,
     repo: null,
     cwd: null,
     bodyFile: null,
+    title: null,
     prNumber: null,
+    state: null,
+    limit: null,
+    labels: [],
+    author: null,
+    assignee: null,
+    assignees: [],
+    search: null,
+    milestone: null,
+    base: null,
+    head: null,
+    draft: false,
+    mergeStrategy: null,
+    matchHeadCommit: null,
+    closeReason: null,
+    sort: null,
+    order: null,
+    issueEditOperations: [],
     positionals: [],
+  };
+  const allowedFlags = COMMAND_FLAGS.get(command) ?? COMMAND_FLAGS.get('common');
+  const requireValueAt = (index, flag, summary) => {
+    if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
+      die(`${flag} requires ${summary}`, 'MISSING_ARG');
+    }
+    return args[index + 1];
   };
   for (let i = 0; i < args.length;) {
     const arg = args[i];
-    if (arg === '--json') {
-      options.json = true;
-      i += 1;
-    } else if (arg === '--repo') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--repo requires a GitHub repository in owner/name form', 'MISSING_ARG');
-      options.repo = args[i + 1];
-      i += 2;
-    } else if (arg === '--cwd') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--cwd requires a local checkout path', 'MISSING_ARG');
-      options.cwd = args[i + 1];
-      i += 2;
-    } else if (arg === '--body-file') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--body-file requires a path', 'MISSING_ARG');
-      options.bodyFile = args[i + 1];
-      i += 2;
-    } else if (arg === '--pr') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
-      options.prNumber = args[i + 1];
-      i += 2;
+    const spec = FLAG_SPECS[arg];
+    if (spec) {
+      const error = flagErrorMessage(arg, command, allowedFlags);
+      if (error) die(error, 'UNKNOWN_FLAG');
+      if (!allowedFlags.has(arg)) die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
+      if (spec.summary) {
+        const summary = typeof spec.summary === 'function' ? spec.summary(command) : spec.summary;
+        const value = requireValueAt(i, arg, summary);
+        spec.assign(options, value, command, arg);
+        i += 2;
+      } else {
+        spec.assign(options, null, command, arg);
+        i += 1;
+      }
     } else if (arg.startsWith('--')) {
       die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
@@ -89,6 +324,7 @@ function writeProcessOutput(result) {
 
 function runGhAndExit(args, cwd) {
   const result = runGh(args, cwd);
+  cleanupTempBodyFiles();
   writeProcessOutput(result);
   process.exit(result.status);
 }
@@ -158,6 +394,28 @@ function appendRepo(args, repoFullName) {
   if (repoFullName) args.push('--repo', repoFullName);
 }
 
+function appendListFilters(args, options, kind) {
+  if (options.state) args.push('--state', options.state);
+  if (options.limit != null) args.push('--limit', String(options.limit));
+  for (const label of options.labels) args.push('--label', label);
+  if (options.author) args.push('--author', options.author);
+  if (options.assignee) args.push('--assignee', options.assignee);
+  if (options.search) args.push('--search', options.search);
+  if (kind === 'issue' && options.milestone) args.push('--milestone', options.milestone);
+  if (kind === 'pr') {
+    if (options.base) args.push('--base', options.base);
+    if (options.head) args.push('--head', options.head);
+    if (options.draft) args.push('--draft');
+  }
+}
+
+function appendLabelListFilters(args, options) {
+  if (options.limit != null) args.push('--limit', String(options.limit));
+  if (options.search) args.push('--search', options.search);
+  if (options.sort) args.push('--sort', options.sort);
+  if (options.order) args.push('--order', options.order);
+}
+
 function repositoryInfo(repoFullName, repoRoot) {
   const args = ['repo', 'view'];
   if (repoFullName) args.push(repoFullName);
@@ -204,6 +462,44 @@ function resolvePRNumber(requested, repoFullName, repoRoot, json) {
 function resolveUserPath(value) {
   const expanded = value.startsWith('~') ? path.join(process.env.HOME || '', value.slice(1)) : value;
   return path.resolve(expanded);
+}
+
+function cleanupTempBodyFiles() {
+  while (tempBodyFiles.length > 0) {
+    const { file, dir } = tempBodyFiles.pop();
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      // Best-effort cleanup only; the gh result should remain authoritative.
+    }
+    try {
+      fs.rmdirSync(dir);
+    } catch {
+      // Best-effort cleanup only; the gh result should remain authoritative.
+    }
+  }
+}
+
+function materializeBodyFile(value, description) {
+  if (value === '-' || value === '/dev/stdin') {
+    let body = '';
+    if (process.stdin.isTTY) {
+      die(`${description} body requested from stdin, but no stdin was provided`, 'MISSING_BODY_STDIN');
+    }
+    try {
+      body = fs.readFileSync(0, 'utf8');
+    } catch (error) {
+      die(`Could not read ${description} from stdin: ${error.message}`, 'BODY_STDIN_READ_FAILED');
+    }
+    const tempDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'aos-dev-gh-body-'));
+    const tempFile = path.join(tempDir, 'body.md');
+    fs.writeFileSync(tempFile, body, 'utf8');
+    tempBodyFiles.push({ file: tempFile, dir: tempDir });
+    return tempFile;
+  }
+  const bodyFile = resolveUserPath(value);
+  if (!fs.existsSync(bodyFile)) die(`Missing ${description} body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+  return bodyFile;
 }
 
 function sanitizeAuthStatus(value) {
@@ -299,63 +595,189 @@ function contextCommand(args) {
   else process.stdout.write(`dev gh context: ${status}\n`);
 }
 
+function appendIssueCreateMetadata(args, options) {
+  for (const label of options.labels) args.push('--label', label);
+  for (const assignee of options.assignees) args.push('--assignee', assignee);
+  if (options.milestone) args.push('--milestone', options.milestone);
+}
+
+function appendIssueEditMetadata(args, options) {
+  for (const operation of options.issueEditOperations) {
+    if (operation.flag === '--body-file') {
+      const bodyFile = materializeBodyFile(operation.value, 'issue');
+      args.push(operation.flag, bodyFile);
+    } else {
+      args.push(operation.flag, operation.value);
+    }
+  }
+  return options.issueEditOperations.length;
+}
+
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: view or comment', 'MISSING_SUBCOMMAND');
-  const options = parseOptions(args.slice(1));
-  const repoRoot = repoRootFrom(options);
-  const repoFullName = repositoryFullName(options, repoRoot);
-  if (action === 'view') {
+  if (!action) die(`dev gh issue requires a subcommand: ${devGhSubcommandsFor('issue').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['issue', action]);
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), 'issue:list');
+    if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendListFilters(ghArgs, options, 'issue');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,createdAt,updatedAt,labels,assignees,author');
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'view') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh issue view requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['issue', 'view', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
-    if (options.json) ghArgs.push('--json', 'number,title,state,url,body,labels,comments');
+    if (options.json) ghArgs.push('--json', ISSUE_VIEW_JSON_FIELDS);
+    else ghArgs.push('--json', ISSUE_VIEW_JSON_FIELDS, '--template', ISSUE_VIEW_TEMPLATE);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh issue comment requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    if (!options.bodyFile) die('dev gh issue comment requires --body-file <path>', 'MISSING_ARG');
-    const bodyFile = resolveUserPath(options.bodyFile);
-    if (!fs.existsSync(bodyFile)) die(`Missing issue comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    if (!options.bodyFile) die('dev gh issue comment requires --body-file <path|->', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const bodyFile = materializeBodyFile(options.bodyFile, 'issue comment');
     const ghArgs = ['issue', 'comment', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'create') {
+    const options = parseOptions(args.slice(1), 'issue:create');
+    if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    if (!options.title) die('dev gh issue create requires --title <title>', 'MISSING_ARG');
+    if (!options.bodyFile) die('dev gh issue create requires --body-file <path|->', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const bodyFile = materializeBodyFile(options.bodyFile, 'issue');
+    const ghArgs = ['issue', 'create'];
+    appendRepo(ghArgs, repoFullName);
+    ghArgs.push('--title', options.title, '--body-file', bodyFile);
+    appendIssueCreateMetadata(ghArgs, options);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'close') {
+    const options = parseOptions(args.slice(1), 'issue:close');
+    if (options.positionals.length === 0) die('dev gh issue close requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    if (options.bodyFile) die('dev gh issue close does not accept --body-file; post a separate issue comment first', 'UNKNOWN_FLAG');
+    const issueNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(issueNumber)) die(`Issue number must be numeric for close: ${issueNumber}`, 'INVALID_ISSUE');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'close', issueNumber];
+    appendRepo(ghArgs, repoFullName);
+    if (options.closeReason) ghArgs.push('--reason', options.closeReason);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'edit') {
+    const options = parseOptions(args.slice(1), 'issue:edit');
+    if (options.positionals.length === 0) die('dev gh issue edit requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const issueNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(issueNumber)) die(`Issue number must be numeric for edit: ${issueNumber}`, 'INVALID_ISSUE');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'edit', issueNumber];
+    appendRepo(ghArgs, repoFullName);
+    const editCount = appendIssueEditMetadata(ghArgs, options);
+    if (editCount === 0) {
+      die('dev gh issue edit requires at least one edit flag', 'MISSING_ARG');
+    }
     runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh issue subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
   }
 }
 
+function labelCommand(args) {
+  const action = args[0];
+  if (!action) die(`dev gh label requires a subcommand: ${devGhSubcommandsFor('label').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['label', action]);
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), 'label:list');
+    if (options.positionals.length > 0) die(`Unknown dev gh label argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['label', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendLabelListFilters(ghArgs, options);
+    if (options.json) ghArgs.push('--json', 'name,description,color,isDefault,url');
+    runGhAndExit(ghArgs, repoRoot);
+  } else {
+    die(`Unknown dev gh label subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
+  }
+}
+
 function prCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh pr requires a subcommand: view, checks, or comment', 'MISSING_SUBCOMMAND');
-  const options = parseOptions(args.slice(1));
-  const repoRoot = repoRootFrom(options);
-  const repoFullName = repositoryFullName(options, repoRoot);
-  if (action === 'view') {
+  if (!action) die(`dev gh pr requires a subcommand: ${devGhSubcommandsFor('pr').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['pr', action]);
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), 'pr:list');
+    if (options.positionals.length > 0) die(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['pr', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendListFilters(ghArgs, options, 'pr');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author');
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'view') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length > 1) die('dev gh pr view accepts at most one PR number', 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['pr', 'view'];
     if (options.positionals[0]) ghArgs.push(options.positionals[0]);
     appendRepo(ghArgs, repoFullName);
-    if (options.json) ghArgs.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft,body,comments,reviews');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'checks') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length > 1) die('dev gh pr checks accepts at most one PR number', 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['pr', 'checks'];
     if (options.positionals[0]) ghArgs.push(options.positionals[0]);
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'name,state,bucket,link,startedAt,completedAt,workflow');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    if (!options.bodyFile) die('dev gh pr comment requires --body-file <path>', 'MISSING_ARG');
-    const bodyFile = resolveUserPath(options.bodyFile);
-    if (!fs.existsSync(bodyFile)) die(`Missing PR comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    if (!options.bodyFile) die('dev gh pr comment requires --body-file <path|->', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const bodyFile = materializeBodyFile(options.bodyFile, 'PR comment');
     const ghArgs = ['pr', 'comment', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'merge') {
+    const options = parseOptions(args.slice(1), 'pr:merge');
+    if (options.positionals.length === 0) die('dev gh pr merge requires exactly one PR number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const prNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(prNumber)) die(`PR number must be numeric for merge: ${prNumber}`, 'INVALID_PR');
+    if (!options.mergeStrategy) die('dev gh pr merge requires one of --squash, --merge, or --rebase', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['pr', 'merge', prNumber];
+    appendRepo(ghArgs, repoFullName);
+    ghArgs.push(options.mergeStrategy);
+    if (options.matchHeadCommit) ghArgs.push('--match-head-commit', options.matchHeadCommit);
+    if (options.bodyFile) {
+      const bodyFile = materializeBodyFile(options.bodyFile, 'PR merge');
+      ghArgs.push('--body-file', bodyFile);
+    }
     runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh pr subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
@@ -364,7 +786,8 @@ function prCommand(args) {
 
 function ciCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh ci requires a subcommand: inspect', 'MISSING_SUBCOMMAND');
+  if (!action) die(`dev gh ci requires a subcommand: ${devGhSubcommandsFor('ci').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['ci', action]);
   if (action !== 'inspect') die(`Unknown dev gh ci subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
   const options = parseOptions(args.slice(1));
   if (options.positionals.length > 1) die('dev gh ci inspect accepts at most one PR number', 'UNKNOWN_ARG');
@@ -470,15 +893,26 @@ function reviewCommentsCommand(args) {
   else process.stdout.write(`dev gh review-comments: PR #${prNumber}\n`);
 }
 
-const [group, ...rest] = process.argv.slice(2);
-if (!group) {
-  process.stdout.write('Usage: aos dev gh <context|issue|pr|ci|review-comments> ...\n');
-  process.exit(0);
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+  printHelpAndExit(cliArgs.filter((arg) => arg !== '--help' && arg !== '-h'));
 }
 
-if (group === 'context') contextCommand(rest);
+const [group, ...rest] = cliArgs;
+if (!group) {
+  printHelpAndExit([]);
+}
+
+if (group === 'context') {
+  requireDispatchable(['context']);
+  contextCommand(rest);
+}
 else if (group === 'issue') issueCommand(rest);
+else if (group === 'label') labelCommand(rest);
 else if (group === 'pr') prCommand(rest);
 else if (group === 'ci') ciCommand(rest);
-else if (group === 'review-comments') reviewCommentsCommand(rest);
-else die(`Unknown dev gh group: ${group}`, 'UNKNOWN_SUBCOMMAND');
+else if (group === 'review-comments') {
+  requireDispatchable(['review-comments']);
+  reviewCommentsCommand(rest);
+}
+else die(`Unknown dev gh group: ${group}. Expected one of: ${devGhGroups().join(', ')}`, 'UNKNOWN_SUBCOMMAND');

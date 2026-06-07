@@ -1,7 +1,7 @@
 import state from '../state.js';
-import { updateGeometry, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
+import { updateGeometry, updatePrimaryStellation, updatePrimaryAppearance, updatePrimaryTesseronProportion, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
-import { createAuraObjects, animateAura } from '../aura.js';
+import { createAuraObjects, animateAura, hideAuraObjects } from '../aura.js';
 import {
     createPhenomena,
     animatePhenomena,
@@ -10,14 +10,16 @@ import {
     updateAccretion,
     updateNeutrinos,
 } from '../phenomena.js';
-import { createParticleObjects, animateParticles, animateTrails } from '../particles.js';
+import { createParticleObjects, animateParticles, animateTrails, hideTrailSprites } from '../particles.js';
 import { createLightning, animateLightning } from '../lightning.js';
 import { createMagneticField, animateMagneticField, updateMagneticTentacleCount } from '../magnetic.js';
 import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../omega.js';
 import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
-import { classifyRenderLoopWork, createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
+import { classifyRenderLoopWork, renderLoopContinuationReasons } from './render-loop.js';
+import { createWorldRafScheduler } from './world-raf-scheduler.js';
+import { createSurfaceTransportProbe } from './surface-transport-probe.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
@@ -43,7 +45,6 @@ import {
 } from './surface-render-state.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
-import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
@@ -52,12 +53,10 @@ import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
     clearAnnotationReticleSemanticCandidatesForCanvas,
-    createAnnotationReticleAcquisitionState,
     createAnnotationReticleTargetEvidenceCache,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
     recordAnnotationReticleSemanticCandidateIds,
-    reticleOuterMarginExit,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
     SIGIL_ANNOTATION_RETICLE_ITEM_ID,
 } from './annotation-reticle.js';
@@ -65,24 +64,25 @@ import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     createAvatarDoubleClickTracker,
+    selectionModeKeyName,
 } from './selection-mode-input.js';
-import { currentAvatarRenderSource } from './avatar-render-model-adapter.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
+    buildSelectionModeSnapshotPayload,
     resolveSigilAvatarIdleRotation,
     selectionModeOverlayHasActiveEffects,
 } from './selection-mode-runtime.js';
-import { createSelectionModeCursorModelRenderer } from './selection-mode-cursor-model-renderer.js';
+import { createSelectionModeNativeFrameResolver } from './selection-mode-native-frame.js';
 import {
     createDefaultActiveContextState,
     createDefaultContextRecordingState,
     createSigilContextRecordingRuntime,
 } from './context-recording-runtime.js';
 import {
-    contextMenuOpenCommandOpened,
-    resolveContextMenuRightClickRoute,
-} from './context-menu-input.js';
+    avatarControlsOpenCommandOpened,
+    resolveAvatarControlsRightClickRoute,
+} from './avatar-controls-input.js';
 import {
     currentSigilRoot,
     currentToolkitRoot,
@@ -93,20 +93,39 @@ import {
 } from './content-roots.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    applyRadialMenuObjectEffectsPatch,
     applyRadialMenuObjectTransformPatch,
 } from './radial-object-control.js';
-import { buildAvatarObjectRegistry } from './avatar-object-control.js';
+import {
+    applyAvatarObjectEffectsPatch,
+    applyAvatarObjectTransformPatch,
+    buildAvatarObjectRegistry,
+} from './avatar-object-control.js';
 import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
 import {
     createSigilUxTreeCommandRuntime,
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
-import { createSigilContextMenu } from '../../context-menu/menu.js';
+import {
+    configureTransparentSigilRenderer,
+    transparentSigilRendererOptions,
+} from './webgl-renderer.js';
+import {
+    createSigilAvatarControls,
+    resolveAvatarPanelAvoidancePosition,
+} from '../../avatar-controls/surface.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
+import { copyTextToClipboard } from './clipboard-utils.js';
 
 const {
+    createVisualObjectResourceLifecycleEvidence,
+    validateVisualObjectResourceLifecycleEvidence,
+} = await import(toolkitSpecifier('workbench/visual-object-resource-lifecycle.js'));
+const {
+    buildBrowserTabAnnotationCandidate,
+    buildNativeAxAncestorAnnotationCandidates,
     buildNativeAxElementAnnotationCandidate,
     buildNativeWindowAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
@@ -144,6 +163,16 @@ const radialTargetSurface = createRadialMenuTargetSurface({
     url: sigilUrl('renderer/radial-menu-surface.html'),
     id: 'sigil-radial-menu-avatar-main',
 });
+const SIGIL_AVATAR_PANEL_CANVAS_ID = 'sigil-avatar-controls-avatar-main';
+const SIGIL_AVATAR_PANEL_FRAME = [1, 1, 332, 540];
+const SIGIL_AVATAR_PANEL_URL = sigilUrl('avatar-editor/panel.html', {
+    query: {
+        id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+        owner: 'avatar-main',
+        'sigil-root': currentSigilRoot(),
+        'toolkit-root': currentToolkitRoot(),
+    },
+});
 
 const liveJs = {
     avatarPos: { x: 0, y: 0, valid: false },
@@ -172,7 +201,7 @@ const liveJs = {
     mousedownPos: null,
     mousedownAvatarPos: null,
     avatarVisible: false,
-    contextMenu: { open: false, bounds: null, stack: null },
+    avatarControls: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
     utilityCanvasOpenPromises: new Map(),
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
@@ -181,7 +210,6 @@ const liveJs = {
     annotationReticle: null,
     selectionMode: createDefaultSelectionModeState(),
     selectionModeOverlay: null,
-    selectionModeCursorModel: null,
     uxCommandRuntime: {
         lastExecution: null,
         executedCount: 0,
@@ -213,7 +241,7 @@ const AGENT_TERMINAL_URL = sigilUrl('agent-terminal/index.html', {
 });
 const AGENT_TERMINAL_PARK_SCALE = 0.24;
 const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
-const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
+const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/runtime-modes.md';
 const SIGIL_CONTENT_ROOT = currentSigilRoot();
 const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
 const WIKI_WORKBENCH_URL = toolkitUrl('components/wiki-subject-browser/index.html');
@@ -244,7 +272,7 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     getCandidateList: () => annotationReticleCandidateList(),
     projectPoint: (point) => stagePoint(point),
     getOverlayBounds: () => ({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }),
-    closeContextMenu: (reason) => contextMenu.close(reason),
+    closeAvatarControls: (reason) => avatarControls.close(reason),
     exitAnnotationReticle,
     clearGestureState,
     syncInputRegions: syncSigilInputRegions,
@@ -254,6 +282,8 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     isOnAvatar,
     consumeAvatarDoubleClick,
     setActiveContextProvider: contextRecordingRuntime.setActiveContextProvider,
+    openLineageCommentEditor: (config = {}) => openSelectionModeCommentEditor(config),
+    closeLineageCommentEditor: () => closeSelectionModeCommentEditor(),
     executeCommand: executeSelectionModeRouteCommand,
 });
 
@@ -269,11 +299,27 @@ window.__sigilBootError = null;
 window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
-const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+let avatarSceneFrameRequested = false;
+let renderLoopDelayed = false;
+let renderLoopLastMode = 'idle';
+const renderLoop = createWorldRafScheduler({ requestAnimationFrame, cancelAnimationFrame });
+const avatarSceneScheduler = renderLoop.register('avatar-scene', {
+    needsFrame: () => avatarSceneFrameRequested,
+    onFrame: (ctx) => {
+        avatarSceneFrameRequested = false;
+        renderLoopDelayed = false;
+        animate(ctx);
+    },
+});
+const surfaceTransportProbe = createSurfaceTransportProbe({
+    label: 'sigil-avatar-main',
+});
 const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
 let structuralFrameDirty = true;
 let radialGestureVisuals = null;
-let selectionModeCursorModelRenderer = null;
+let selectionModeCommentEditor = null;
+let selectionModeCommentEditorEl = null;
+let lastSelectionModeEffectActive = false;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
 const sessionVitality = createSessionVitalityController({
@@ -296,6 +342,21 @@ const INPUT_POINTER_EVENT_TYPES = new Set([
 ]);
 
 let sigilInputRegions = null;
+const selectionModeNativeFrameResolver = createSelectionModeNativeFrameResolver(() => {
+    const bounds = liveJs.visibleBounds?.w > 0 && liveJs.visibleBounds?.h > 0
+        ? liveJs.visibleBounds
+        : liveJs.globalBounds;
+    if (!bounds || bounds.w <= 0 || bounds.h <= 0) return null;
+    const origin = desktopWorldToNativePoint({ x: bounds.x, y: bounds.y, valid: true }, liveJs.displays)
+        || { x: bounds.x, y: bounds.y };
+    const opposite = desktopWorldToNativePoint({ x: bounds.x + bounds.w, y: bounds.y + bounds.h, valid: true }, liveJs.displays)
+        || { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
+    const x = Math.round(Math.min(origin.x, opposite.x));
+    const y = Math.round(Math.min(origin.y, opposite.y));
+    const w = Math.max(1, Math.round(Math.abs(opposite.x - origin.x) || bounds.w));
+    const h = Math.max(1, Math.round(Math.abs(opposite.y - origin.y) || bounds.h));
+    return [x, y, w, h];
+});
 
 function nativeFrameForAvatar() {
     if (!liveJs.avatarPos.valid) return null;
@@ -310,20 +371,108 @@ function nativeFrameForAvatar() {
     ];
 }
 
+function rectFromFrame(frame) {
+    if (!Array.isArray(frame) || frame.length < 4) return null;
+    const rect = {
+        x: Number(frame[0]),
+        y: Number(frame[1]),
+        w: Number(frame[2]),
+        h: Number(frame[3]),
+    };
+    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
+    if (rect.w <= 0 || rect.h <= 0) return null;
+    return rect;
+}
+
+function frameFromRectDictionary(rect) {
+    if (!rect || typeof rect !== 'object') return null;
+    return rectFromFrame([
+        rect.x,
+        rect.y,
+        rect.w ?? rect.width,
+        rect.h ?? rect.height,
+    ]);
+}
+
+function rectContainsRect(outer, inner) {
+    return !!(outer && inner
+        && inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.w <= outer.x + outer.w
+        && inner.y + inner.h <= outer.y + outer.h);
+}
+
+function nativeVisibleViewportForRect(rect) {
+    const displays = liveJs.displays || [];
+    return displays.map((display) => (
+        frameFromRectDictionary(display.nativeVisibleBounds)
+        || frameFromRectDictionary(display.native_visible_bounds)
+        || frameFromRectDictionary(display.visibleBounds)
+        || frameFromRectDictionary(display.visible_bounds)
+        || frameFromRectDictionary(display.nativeBounds)
+        || frameFromRectDictionary(display.native_bounds)
+        || frameFromRectDictionary(display.bounds)
+    )).find((viewport) => rectContainsRect(viewport, rect))
+        || displays.map((display) => (
+            frameFromRectDictionary(display.nativeVisibleBounds)
+            || frameFromRectDictionary(display.native_visible_bounds)
+            || frameFromRectDictionary(display.visibleBounds)
+            || frameFromRectDictionary(display.visible_bounds)
+            || frameFromRectDictionary(display.nativeBounds)
+            || frameFromRectDictionary(display.native_bounds)
+            || frameFromRectDictionary(display.bounds)
+        )).find((viewport) => {
+            const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+            return viewport
+                && center.x >= viewport.x
+                && center.y >= viewport.y
+                && center.x < viewport.x + viewport.w
+                && center.y < viewport.y + viewport.h;
+        })
+        || null;
+}
+
+function panelNativeFrameFromLifecycle(message = {}) {
+    const canvas = message.canvas || {};
+    return rectFromFrame(canvas.placement?.final_settled_frame)
+        || rectFromFrame(canvas.placement?.policy_adjusted_frame)
+        || rectFromFrame(canvas.at)
+        || rectFromFrame(message.at);
+}
+
+function panelFrameToAvatarControlsBounds(frame) {
+    const nativeRect = Array.isArray(frame) ? rectFromFrame(frame) : frameFromRectDictionary(frame);
+    if (!nativeRect) return null;
+    return nativeToDesktopWorldRect(nativeRect, liveJs.displays) || nativeRect;
+}
+
+function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
+    if (!avatarControls.isOpen() || !liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
+    const panelRect = panelNativeFrameFromLifecycle(message);
+    const avatarRect = rectFromFrame(nativeFrameForAvatar());
+    const viewport = nativeVisibleViewportForRect(panelRect);
+    const next = resolveAvatarPanelAvoidancePosition({
+        avatarRect,
+        panelRect,
+        viewport,
+        margin: 12,
+    });
+    if (!next || next.overlap !== 0) return false;
+    const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
+    setAvatarPosition(desktopPoint.x, desktopPoint.y);
+    hideTrailSprites();
+    interactionTrace.record('sigil-avatar-panel:avoid-overlap', {
+        panelRect,
+        avatarRect,
+        viewport,
+        next,
+        desktopPoint,
+    });
+    return true;
+}
+
 function nativeFrameForSelectionMode() {
-    const bounds = liveJs.visibleBounds?.w > 0 && liveJs.visibleBounds?.h > 0
-        ? liveJs.visibleBounds
-        : liveJs.globalBounds;
-    if (!bounds || bounds.w <= 0 || bounds.h <= 0) return null;
-    const origin = desktopWorldToNativePoint({ x: bounds.x, y: bounds.y, valid: true }, liveJs.displays)
-        || { x: bounds.x, y: bounds.y };
-    const opposite = desktopWorldToNativePoint({ x: bounds.x + bounds.w, y: bounds.y + bounds.h, valid: true }, liveJs.displays)
-        || { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
-    const x = Math.round(Math.min(origin.x, opposite.x));
-    const y = Math.round(Math.min(origin.y, opposite.y));
-    const w = Math.max(1, Math.round(Math.abs(opposite.x - origin.x) || bounds.w));
-    const h = Math.max(1, Math.round(Math.abs(opposite.y - origin.y) || bounds.h));
-    return [x, y, w, h];
+    return selectionModeNativeFrameResolver.resolve();
 }
 
 function removeSigilInputRegions() {
@@ -331,7 +480,9 @@ function removeSigilInputRegions() {
 }
 
 function syncSigilInputRegions() {
-    sigilInputRegions?.sync();
+    const changed = sigilInputRegions?.sync();
+    surfaceTransportProbe.recordRenderEmit('input_region.sync', changed);
+    return changed;
 }
 
 function boundsWithMinMax(rect) {
@@ -371,7 +522,7 @@ function recordInteraction(stage, data = {}) {
     interactionTrace.record(stage, {
         ...data,
         state: liveJs.currentState,
-        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
         avatarVisible: liveJs.avatarVisible,
         avatarPos: liveJs.avatarPos,
     });
@@ -401,14 +552,22 @@ function runBootStep(stage, fn) {
 }
 
 function scheduleRenderFrame(options = {}) {
-    if (options.structural !== false) structuralFrameDirty = true;
-    renderLoop.schedule(animate, options);
+    if (rendererSuspended) return;
+    const delayMs = Math.max(0, Number(options.delayMs) || 0);
+    renderLoopLastMode = options.mode || 'dirty';
+    avatarSceneFrameRequested = true;
+    if (options.structural !== false) {
+        structuralFrameDirty = true;
+        avatarSceneScheduler.requestStructural();
+    }
+    renderLoopDelayed = delayMs > 0;
+    avatarSceneScheduler.scheduleFrame({ delayMs });
 }
 
-function updateRenderLoopDebug(mode = renderLoop.lastMode, continuationReasons = []) {
+function updateRenderLoopDebug(mode = renderLoopLastMode, continuationReasons = []) {
     liveJs.renderLoop = {
-        queued: renderLoop.queued,
-        delayed: renderLoop.delayed,
+        queued: avatarSceneFrameRequested || renderLoop.pendingFrame,
+        delayed: renderLoopDelayed,
         suspended: renderLoop.suspended || rendererSuspended,
         mode,
         continuationReasons,
@@ -423,13 +582,16 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
     return renderLoopContinuationReasons({
         rendererSuspended,
         visibilityTransitionActive: !!visibilityTransition.active,
-        fastTravelActive: !!liveJs.travel,
+        fastTravelActive: !!liveJs.travel || liveJs.currentState === 'FAST_TRAVEL',
         radialActivationTransitionActive: radialActivationTransition.active(),
         radialGestureActive: !!radialGesture && radialGesture.phase !== 'idle',
-        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
         annotationReticleActive: !!annotationReticle.active,
         selectionModeActive: liveJs.selectionMode?.active === true,
         selectionModeEffectActive: selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now()),
+        selectionModePerimeterFillActive: liveJs.selectionModeOverlay?.active === true
+            && Array.isArray(liveJs.selectionModeOverlay?.frames)
+            && liveJs.selectionModeOverlay.frames.some((frame) => !!frame?.perimeterFill),
         avatarMotionActive: liveJs.avatarVisible
             && !state.isPaused
             && Number(vitalityFrame?.rotationMultiplier ?? 1) !== 0,
@@ -529,12 +691,17 @@ function applySurfaceRenderSnapshot(snapshot) {
     if (Number.isFinite(snapshot.appScale)) state.appScale = snapshot.appScale;
     if (Number.isFinite(snapshot.globalTime)) state.globalTime = snapshot.globalTime;
     applyOmegaRenderStateSnapshot(state, snapshot.omega);
-    if (snapshot.contextMenu && typeof snapshot.contextMenu === 'object') {
-        contextMenu.applySnapshot(snapshot.contextMenu);
+    if (snapshot.avatarControls && typeof snapshot.avatarControls === 'object') {
+        avatarControls.applySnapshot(snapshot.avatarControls);
     }
     if (snapshot.annotationReticle && typeof snapshot.annotationReticle === 'object') {
         annotationReticle.applySnapshot(snapshot.annotationReticle);
         syncAnnotationReticleSnapshot();
+    }
+    if (snapshot.selectionMode && typeof snapshot.selectionMode === 'object') {
+        liveJs.selectionMode = snapshot.selectionMode;
+        liveJs.selectionModeOverlay = selectionModeRuntime.buildProjectedOverlay(liveJs.selectionMode);
+        if (state) state.selectionMode = liveJs.selectionMode;
     }
     fastTravel.applySnapshot(snapshot.fastTravel);
     syncOmegaTrailToTravelOrigin();
@@ -557,9 +724,10 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         globalTime: state.globalTime,
         appearanceVersion: liveJs.appearanceVersion,
         omega: omegaRenderStateSnapshot(state),
-        contextMenu: contextMenu?.snapshot?.(),
+        avatarControls: avatarControls?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
         annotationReticle: liveJs.annotationReticle,
+        selectionMode: liveJs.selectionMode,
     };
     if (liveJs.lastPublishedAppearanceVersion !== liveJs.appearanceVersion) {
         snapshot.appearance = snapshotAppearance();
@@ -579,6 +747,13 @@ function stagePoint(point) {
     return desktopWorldToSegmentLocalPoint(point);
 }
 
+function validDesktopWorldPoint(point) {
+    const x = Number(point?.x);
+    const y = Number(point?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, valid: true };
+}
+
 function projectRadialGestureSnapshot(radial) {
     if (!radial || typeof radial !== 'object') return null;
     return {
@@ -591,6 +766,25 @@ function projectRadialGestureSnapshot(radial) {
                 center: stagePoint(item.center),
             }))
             : [],
+    };
+}
+
+function projectDirectFastTravelGesture() {
+    if (liveJs.currentState !== 'FAST_TRAVEL') return null;
+    const originPoint = validDesktopWorldPoint(liveJs.mousedownAvatarPos);
+    const pointerPoint = validDesktopWorldPoint(liveJs.pointerPos);
+    if (!originPoint || !pointerPoint) return null;
+    const origin = stagePoint(originPoint);
+    const pointer = stagePoint(pointerPoint);
+    if (!origin || !pointer) return null;
+    return {
+        phase: 'fastTravel',
+        source: 'avatar-drag',
+        origin,
+        pointer,
+        radii: {
+            handoff: 0,
+        },
     };
 }
 
@@ -642,7 +836,7 @@ function updateDefaultAvatarSaveState(next = {}) {
     };
 }
 
-async function saveDefaultAvatarDefinition(reason = 'menu-close') {
+async function saveDefaultAvatarDefinition(reason = 'controls-close') {
     if (defaultAvatarSaveInFlight) return false;
     defaultAvatarSaveInFlight = true;
     updateDefaultAvatarSaveState({ lastError: null });
@@ -674,7 +868,7 @@ async function saveDefaultAvatarDefinition(reason = 'menu-close') {
     }
 }
 
-async function handleContextMenuClose({ reason = 'close' } = {}) {
+async function handleAvatarControlsClose({ reason = 'close' } = {}) {
     if (!defaultAvatarDirty) return;
     const shouldSave = window.confirm('Save changes?');
     if (!shouldSave) {
@@ -754,7 +948,7 @@ function applyAvatarWindowLevel(level = state.avatarWindowLevel) {
     host.canvasUpdate({ id: 'avatar-main', window_level: normalized });
 }
 
-async function handleAvatarMenuAction(action) {
+async function handleAvatarControlsAction(action) {
     const json = avatarDefinitionJson();
     if (action === 'copy') {
         try {
@@ -778,11 +972,14 @@ async function handleAvatarMenuAction(action) {
     return false;
 }
 
-const contextMenu = createSigilContextMenu({
+const avatarControls = createSigilAvatarControls({
     state,
     liveJs,
     projectPoint: desktopWorldToSegmentLocalPoint,
     updateGeometry,
+    updatePrimaryStellation,
+    updatePrimaryAppearance,
+    updatePrimaryTesseronProportion,
     updateOmegaGeometry,
     updateAllColors,
     updatePulsars,
@@ -792,10 +989,18 @@ const contextMenu = createSigilContextMenu({
     updateMagneticTentacleCount,
     onAppearanceChange: markAppearanceChanged,
     onUtilityAction: toggleUtilityCanvas,
-    onAvatarAction: handleAvatarMenuAction,
+    onAvatarAction: handleAvatarControlsAction,
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
     onBoundsChange: syncSigilInputRegions,
-    onClose: handleContextMenuClose,
+    onClose: handleAvatarControlsClose,
+    actionDispatcher(action, payload = {}, options = {}) {
+        if (action === 'canvas.suspend') return host.canvasSuspend(payload.id);
+        if (action === 'canvas.resume') return host.canvasResume(payload.id);
+        return host.request('aos.action', { ...payload, action }, options);
+    },
+    panelId: SIGIL_AVATAR_PANEL_CANVAS_ID,
+    panelUrl: null, // One-World Phase 3: embedded path (usesPanel=false); panel canvas never created
+    panelFrameToBounds: panelFrameToAvatarControlsBounds,
     trace: interactionTrace,
 });
 sigilInputRegions = createSigilInputRegionAdapter({
@@ -805,9 +1010,9 @@ sigilInputRegions = createSigilInputRegionAdapter({
     windowObject: window,
     isPrimarySegment: isPrimarySurfaceSegment,
     avatarNativeFrame: nativeFrameForAvatar,
-    avatarRegionEnabled: () => !hitTarget.hit.interactive,
-    contextMenuIsOpen: () => contextMenu.isOpen(),
-    contextMenuNativeFrame: () => nativeFrameFromDesktopRect(contextMenu.interactiveBounds()),
+    avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking,
+    avatarControlsIsOpen: () => avatarControls.isOpen(),
+    avatarControlsNativeFrame: () => nativeFrameFromDesktopRect(avatarControls.interactiveBounds()),
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
@@ -820,6 +1025,7 @@ const UTILITY_CANVAS_IDS = new Set([
     WIKI_WORKBENCH_CANVAS_ID,
     AGENT_TERMINAL_CANVAS_ID,
     LEGACY_CODEX_TERMINAL_CANVAS_ID,
+    SIGIL_AVATAR_PANEL_CANVAS_ID,
 ]);
 
 function markAppearanceChanged() {
@@ -970,6 +1176,99 @@ function isAgentTerminalVisible() {
 function isUtilityCanvasVisible(id) {
     const current = liveJs.utilityCanvases.get(id);
     return !!current && current.suspended !== true;
+}
+
+function publishStatusMenuItems() {
+    if (!isPrimarySurfaceSegment()) return;
+    host.setStatusMenuItems([
+        {
+            id: 'sigil.status.console',
+            title: 'Console Log',
+            checked: isUtilityCanvasVisible('__log__'),
+        },
+        {
+            id: 'sigil.status.surface_inspector',
+            title: 'Surface Inspector',
+            checked: isUtilityCanvasVisible('surface-inspector'),
+        },
+        {
+            id: 'sigil.status.annotation_mode',
+            title: 'Annotation Mode',
+            checked: isUtilityCanvasVisible('surface-inspector') && !!annotationReticle.active,
+        },
+        { type: 'separator' },
+        {
+            id: 'sigil.status.reload',
+            title: 'Reload',
+            key_equivalent: 'r',
+        },
+        {
+            id: 'sigil.status.remove',
+            title: 'Remove',
+        },
+        { type: 'separator' },
+        {
+            id: 'aos.app.quit',
+            title: 'Quit AOS',
+        },
+    ]);
+}
+
+async function reloadFromStatusMenu() {
+    try {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+    } catch (error) {
+        console.warn('[sigil] status menu reload cleanup failed:', error);
+    } finally {
+        window.location.reload();
+    }
+}
+
+async function handleStatusMenuAction(msg = {}) {
+    const id = String(msg.id || msg.action_id || '').trim();
+    if (!id) return false;
+    if (id === 'sigil.status.console') {
+        await toggleUtilityCanvas('log-console');
+        return true;
+    }
+    if (id === 'sigil.status.surface_inspector') {
+        await toggleUtilityCanvas('surface-inspector');
+        return true;
+    }
+    if (id === 'sigil.status.annotation_mode') {
+        await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
+        host.post('canvas.send', {
+            target: 'surface-inspector',
+            message: {
+                type: 'canvas_inspector.annotation_toggle',
+                reason: 'status_item_menu',
+            },
+        });
+        publishStatusMenuItems();
+        return true;
+    }
+    if (id === 'sigil.status.reload') {
+        void reloadFromStatusMenu();
+        return true;
+    }
+    if (id === 'sigil.status.remove') {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+        host.post('canvas.remove', { id: 'avatar-main' });
+        return true;
+    }
+    if (id === 'aos.app.quit') {
+        await host.aosAction({ action: 'app.quit', source: 'status_item_menu' });
+        return true;
+    }
+    return false;
 }
 
 function finiteOrNull(value) {
@@ -1174,6 +1473,33 @@ async function prewarmAgentTerminalCanvas() {
     }
 }
 
+async function prewarmAvatarPanelCanvas() {
+    // One-World Phase 3: embedded path active; no panel canvas to prewarm.
+    if (!avatarControls.usesExternalPanel()) return;
+    if (liveJs._avatarPanelPrewarmStarted) return;
+    liveJs._avatarPanelPrewarmStarted = true;
+    try {
+        await host.canvasCreate({
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            url: SIGIL_AVATAR_PANEL_URL,
+            frame: SIGIL_AVATAR_PANEL_FRAME,
+            interactive: true,
+            focus: false,
+            suspended: true,
+            window_level: 'floating',
+        });
+        liveJs.utilityCanvases.set(SIGIL_AVATAR_PANEL_CANVAS_ID, {
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            suspended: true,
+            at: SIGIL_AVATAR_PANEL_FRAME,
+        });
+    } catch (error) {
+        if (!/ID_COLLISION|DUPLICATE|already exists/i.test(String(error?.message || error))) {
+            console.warn('[sigil] avatar panel prewarm failed:', error);
+        }
+    }
+}
+
 async function toggleUtilityCanvas(kind) {
     const config = utilityConfig(kind);
     const current = liveJs.utilityCanvases.get(config.id);
@@ -1226,6 +1552,8 @@ async function toggleUtilityCanvas(kind) {
             }
         }
         console.warn('[sigil] utility toggle failed:', kind, error);
+    } finally {
+        publishStatusMenuItems();
     }
 }
 
@@ -1280,6 +1608,7 @@ async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
         if (liveJs.utilityCanvasOpenPromises.get(config.id) === promise) {
             liveJs.utilityCanvasOpenPromises.delete(config.id);
         }
+        publishStatusMenuItems();
     }
 }
 
@@ -1367,10 +1696,8 @@ function initScene() {
     state.camera = state.perspCamera;
     state.camera.position.z = 20;
 
-    state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    state.renderer.setSize(width, height);
-    state.renderer.setPixelRatio(window.devicePixelRatio);
-    state.renderer.setClearColor(0x000000, 0);
+    state.renderer = new THREE.WebGLRenderer(transparentSigilRendererOptions());
+    configureTransparentSigilRenderer(state.renderer, { width, height });
     state.renderer.domElement.style.position = 'absolute';
     state.renderer.domElement.style.inset = '0';
     state.renderer.domElement.style.zIndex = '1';
@@ -1398,7 +1725,7 @@ function onWindowResize() {
         state.camera.bottom = -height / 2;
     }
     state.camera.updateProjectionMatrix();
-    state.renderer.setSize(width, height);
+    configureTransparentSigilRenderer(state.renderer, { width, height, updatePixelRatio: false });
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
@@ -1432,15 +1759,16 @@ function isOnAvatar(x, y) {
     return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
 }
 
-function setAvatarHover(over) {
+function setAvatarHover(over, { immediate = false } = {}) {
     const next = !!over;
-    if (liveJs.avatarHover === next) return;
+    if (liveJs.avatarHover === next && !immediate) return;
     liveJs.avatarHover = next;
+    if (immediate) liveJs.avatarHoverProgress = next ? 1 : 0;
     scheduleRenderFrame();
 }
 
 function updateAvatarHoverFromPoint(x, y) {
-    if (!liveJs.avatarVisible || contextMenu.isOpen()) {
+    if (!liveJs.avatarVisible || avatarControls.isOpen()) {
         setAvatarHover(false);
         return;
     }
@@ -1459,8 +1787,6 @@ function clearGestureState() {
     liveJs.mousedownPos = null;
     liveJs.mousedownAvatarPos = null;
     liveJs.radialGestureMenu = null;
-    annotationReticleAcquisition?.reset?.();
-    radialReticleItemWasActive = false;
     syncRadialTargetSurface();
     setAvatarHover(false);
 }
@@ -1491,9 +1817,7 @@ const annotationReticle = createSigilAnnotationReticleController({
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
     getAnnotationCandidates: () => annotationReticleCandidateList(),
 });
-const annotationReticleAcquisition = createAnnotationReticleAcquisitionState();
 let radialTargetSurfaceDragActive = false;
-let radialReticleItemWasActive = false;
 liveJs.annotationReticle = annotationReticle.snapshot();
 liveJs.annotationReticleOverlay = null;
 const radialActivationTransition = createRadialActivationTransitionController({
@@ -1509,7 +1833,7 @@ function sigilUxTreeSnapshot() {
         metadata: {
             current_state: liveJs.currentState,
             selection_mode_active: liveJs.selectionMode?.active === true,
-            context_menu_open: contextMenu?.isOpen?.() ?? false,
+            avatar_controls_open: avatarControls?.isOpen?.() ?? false,
         },
     });
 }
@@ -1544,8 +1868,9 @@ const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
     ),
     sendActivationUpdate,
     enterAnnotationReticle,
+    enterSelectionMode,
     requestAnnotationSnapshot,
-    openContextMenuAt,
+    openAvatarControlsAt,
     toggleUtilityCanvas,
     openWikiWorkbench,
 });
@@ -1558,9 +1883,9 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     getRadialGestureMenu: () => radialGestureMenu,
     fastTravel,
     clearGestureState,
+    clearRadialGestureDismissTimer,
     consumeAvatarDoubleClick,
     resetAvatarDoubleClick,
-    markSelectionModeEntryReleasePending,
     setInteractionState,
     applyRadialGestureMove,
     enterSelectionMode,
@@ -1568,7 +1893,9 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     acquireSelectionModeCandidates,
     cycleSelectionModeTarget,
     commitSelectionMode,
-    contextMenu,
+    selectionModeSnapshot,
+    selectionModeRecord,
+    avatarControls,
     cancelInteraction,
     wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
 });
@@ -2095,6 +2422,8 @@ function annotationReticleSemanticTargetForDesktopWorld(canvasId = '', target = 
         || target.display_bounds
         || target.bounds
         || target.rect
+        || target.provenance?.bounds
+        || target.provenance?.frame
     );
     if (!sourceRect) return target;
 
@@ -2144,10 +2473,17 @@ function annotationReticleHandleCanvasLifecycle(msg = {}) {
 }
 
 function annotationReticleHandleSemanticTargets(payload = {}) {
-    const canvasId = String(payload.canvas_id || payload.surface_id || payload.id || payload.source_canvas_id || '').trim();
     const targets = Array.isArray(payload.semantic_targets)
         ? payload.semantic_targets
         : (Array.isArray(payload.targets) ? payload.targets : []);
+    const canvasId = String(
+        payload.canvas_id
+        || payload.surface_id
+        || payload.id
+        || payload.source_canvas_id
+        || targets.find((target) => target?.provenance?.canvas_id)?.provenance?.canvas_id
+        || ''
+    ).trim();
     if (!canvasId) return;
     clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, canvasId);
     if (!targets.length) return;
@@ -2173,18 +2509,19 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
             candidateIds.push(candidate.id);
             continue;
         }
-        const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(canvasId, target);
+        const targetCanvasId = String(target.provenance?.canvas_id || canvasId).trim();
+        const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(targetCanvasId, target);
         const projection = buildSemanticTargetProjectionAdapterResult(desktopTarget, {
-            canvas_id: canvasId,
+            canvas_id: targetCanvasId,
             refreshed_at: desktopTarget.refreshed_at || payload.refreshed_at || new Date().toISOString(),
-            provenance_source_payload_id: desktopTarget.payload_id || payload.payload_id,
+            provenance_source_payload_id: desktopTarget.provenance?.source_payload_id || desktopTarget.payload_id || payload.payload_id,
         });
         const candidate = {
             id: projection.subject_id,
             subject_id: projection.subject_id,
             subject_path: projection.subject_path,
             root_id: projection.root_id,
-            root_label: canvasId,
+            root_label: targetCanvasId,
             root_kind: 'canvas',
             subject_kind: projection.subject_kind,
             label: desktopTarget.name || desktopTarget.label || desktopTarget.role || projection.subject_id,
@@ -2193,7 +2530,7 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
             source_metadata: {
                 ...desktopTarget,
                 adapter_scope: 'sigil_cached_semantic_targets',
-                canvas_id: canvasId,
+                canvas_id: targetCanvasId,
             },
         };
         annotationReticleUpsertCandidate(candidate);
@@ -2333,17 +2670,115 @@ function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'prev
     return true;
 }
 
+function annotationReticleNativeBrowserContext(payload = {}) {
+    const source = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    const context = source?.browser_context || source?.source_metadata?.browser_context || null;
+    return context && typeof context === 'object' ? context : null;
+}
+
+function annotationReticleWindowTitleFromBrowserContext(context = null) {
+    const textCandidates = Array.isArray(context?.text_candidates) ? context.text_candidates : [];
+    return String(
+        textCandidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow'
+            && String(candidate?.source_attribute || '').toLowerCase() === 'axtitle')?.value
+        || textCandidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow')?.value
+        || context?.active_tab_title
+        || ''
+    ).trim();
+}
+
+function annotationReticleFallbackAppNameFromBrowserContext(context = null) {
+    return String(context?.app_name || context?.browser_app_name || 'Native App').trim();
+}
+
+function annotationReticleFallbackWindowId(bounds = null, title = '') {
+    if (!bounds) return '';
+    return [
+        'fallback',
+        bounds.x,
+        bounds.y,
+        bounds.w,
+        bounds.h,
+        title,
+    ].join(':')
+        .replace(/[^a-zA-Z0-9:_-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+}
+
+function annotationReticleNativeWindowFallbackFromAxPayload(payload = {}) {
+    const context = annotationReticleNativeBrowserContext(payload);
+    const bounds = annotationReticleRectFromObject(
+        payload.window_bounds
+        || context?.window_bounds
+        || (Array.isArray(context?.text_candidates)
+            ? context.text_candidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow')?.bounds
+            : null),
+    );
+    if (!bounds) return null;
+    const title = String(payload.window_title || annotationReticleWindowTitleFromBrowserContext(context) || payload.title || '').trim();
+    return {
+        window_id: payload.window_id || annotationReticleFallbackWindowId(bounds, title),
+        app: payload.app || payload.app_name || annotationReticleFallbackAppNameFromBrowserContext(context),
+        pid: payload.pid ?? payload.app_pid ?? null,
+        bundle_id: payload.bundle_id || '',
+        title,
+        bounds,
+        browser_context: context || null,
+    };
+}
+
+function annotationReticleNativeBrowserTabContentRect(payload = {}, context = null) {
+    if (context?.content_bounds) return context.content_bounds;
+    const role = String(payload?.role || payload?.kind || '').toLowerCase();
+    if ((role === 'axgroup' || role === 'axwebarea') && payload?.bounds) return payload.bounds;
+    return null;
+}
+
+function annotationReticleUpsertNativeBrowserTab(payload = {}, {
+    windowEvent = null,
+    windowCandidate = null,
+    refreshedAt = new Date().toISOString(),
+} = {}) {
+    const context = annotationReticleNativeBrowserContext(payload)
+        || annotationReticleNativeBrowserContext(windowEvent || {})
+        || annotationReticleNativeBrowserContext(windowCandidate || {});
+    if (!context) return;
+    const windowPayload = {
+        ...(windowEvent || {}),
+        ...(windowCandidate?.source_metadata || {}),
+        browser_context: context,
+    };
+    const candidate = buildBrowserTabAnnotationCandidate(windowPayload, {
+        window: windowPayload,
+        root_id: windowCandidate?.root_id || windowCandidate?.subject_id,
+        root_label: windowCandidate?.label || windowCandidate?.root_label,
+        content_rect: annotationReticleNativeBrowserTabContentRect(payload, context),
+        refreshed_at: refreshedAt,
+        source_event_id: payload?.ref || payload?.id || windowEvent?.ref || windowEvent?.id || '',
+    });
+    annotationReticleUpsertCandidate(candidate);
+}
+
 function annotationReticleHandleNativeWindow(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent = payload;
-    annotationReticleUpsertCandidate(buildNativeWindowAnnotationCandidate(payload, {
-        refreshed_at: payload.ts || new Date().toISOString(),
+    const refreshedAt = payload.ts || new Date().toISOString();
+    const windowCandidate = buildNativeWindowAnnotationCandidate(payload, {
+        refreshed_at: refreshedAt,
         source_event_id: payload.ref || payload.id || '',
-    }));
+    });
+    annotationReticleUpsertCandidate(windowCandidate);
+    annotationReticleUpsertNativeBrowserTab(payload, {
+        windowEvent: payload,
+        windowCandidate,
+        refreshedAt,
+    });
 }
 
 function annotationReticleHandleNativeAxElement(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent = payload;
-    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent;
+    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent
+        || annotationReticleNativeWindowFallbackFromAxPayload(payload);
     const windowCandidate = buildNativeWindowAnnotationCandidate(windowEvent || {}, {
         refreshed_at: windowEvent?.ts || new Date().toISOString(),
     });
@@ -2351,6 +2786,19 @@ function annotationReticleHandleNativeAxElement(payload = {}) {
     const selectedRoot = activeScope?.adapter_id === 'macos-ax' || activeScope?.root_kind === 'native_window'
         ? activeScope
         : windowCandidate;
+    annotationReticleUpsertNativeBrowserTab(payload, {
+        windowEvent,
+        windowCandidate,
+        refreshedAt: payload.ts || new Date().toISOString(),
+    });
+    for (const candidate of buildNativeAxAncestorAnnotationCandidates(payload, {
+        selected_root: selectedRoot,
+        window: windowEvent,
+        refreshed_at: payload.ts || new Date().toISOString(),
+        source_event_id: payload.ref || payload.id || '',
+    })) {
+        annotationReticleUpsertCandidate(candidate);
+    }
     annotationReticleUpsertCandidate(buildNativeAxElementAnnotationCandidate(payload, {
         selected_root: selectedRoot,
         window: windowEvent,
@@ -2540,12 +2988,14 @@ function appendContextRecordingEvent(event = {}) {
     return contextRecordingRuntime.appendContextRecordingEvent(event);
 }
 
-function enterSelectionMode(pointer = null, reason = 'avatar-double-click') {
+function enterSelectionMode(pointer = null, reason = 'selection-mode-enter') {
     return selectionModeRuntime.enter(pointer, reason);
 }
 
 function exitSelectionMode(reason = 'cancel') {
-    return selectionModeRuntime.exit(reason);
+    const result = selectionModeRuntime.exit(reason);
+    selectionModeNativeFrameResolver.reset();
+    return result;
 }
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
@@ -2575,9 +3025,9 @@ function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
 }
 
 function executeSelectionModeRouteCommand(command = '', msg = {}, options = {}) {
-    if (command === 'selectBadge') {
+    if (command === 'selectLineageNode') {
         return selectionModeRuntime.selectTargetNode(options.nodeId || msg.nodeId || msg.node_id || '', {
-            reason: 'badge-click',
+            reason: 'lineage-click',
         });
     }
     return sigilUxCommandRuntime?.executeSelectionModeRoute(command, msg, options) || null;
@@ -2595,6 +3045,170 @@ function commitSelectionMode(reason = 'selection-mode-commit') {
     return selectionModeRuntime.commit(reason);
 }
 
+function clampSelectionModeCommentEditorPosition(left, top, width, height) {
+    const maxLeft = Math.max(12, window.innerWidth - width - 12);
+    const maxTop = Math.max(12, window.innerHeight - height - 12);
+    return {
+        left: Math.round(Math.max(12, Math.min(maxLeft, left))),
+        top: Math.round(Math.max(12, Math.min(maxTop, top))),
+    };
+}
+
+function closeSelectionModeCommentEditor() {
+    selectionModeCommentEditor = null;
+    if (selectionModeCommentEditorEl) {
+        selectionModeCommentEditorEl.remove();
+        selectionModeCommentEditorEl = null;
+    }
+    return true;
+}
+
+function renderSelectionModeCommentEditor() {
+    if (!selectionModeCommentEditor) {
+        closeSelectionModeCommentEditor();
+        return false;
+    }
+    const state = selectionModeCommentEditor;
+    const width = 320;
+    const height = state.mode === 'edit' ? 170 : 150;
+    const anchor = state.anchorRect || {};
+    const pointerX = Number(state.pointer?.x);
+    const pointerY = Number(state.pointer?.y);
+    const left = Number.isFinite(Number(anchor.x))
+        ? Number(anchor.x + (Number(anchor.width) || 0) + 12)
+        : (Number.isFinite(pointerX) ? pointerX + 12 : 40);
+    const top = Number.isFinite(Number(anchor.y))
+        ? Number(anchor.y - 8)
+        : (Number.isFinite(pointerY) ? pointerY - 18 : 40);
+    const position = clampSelectionModeCommentEditorPosition(left, top, width, height);
+    if (!selectionModeCommentEditorEl) {
+        const el = document.createElement('div');
+        el.className = 'selection-mode-comment-editor';
+        el.style.position = 'fixed';
+        el.style.zIndex = '25';
+        el.style.pointerEvents = 'auto';
+        el.style.background = 'rgba(10, 14, 20, 0.96)';
+        el.style.border = '1px solid rgba(142, 221, 255, 0.34)';
+        el.style.borderRadius = '8px';
+        el.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.32)';
+        el.style.padding = '10px';
+        el.style.color = 'rgba(238, 248, 255, 0.96)';
+        el.style.font = '12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+        el.style.width = `${width}px`;
+        document.body.appendChild(el);
+        selectionModeCommentEditorEl = el;
+        el.addEventListener('click', (event) => {
+            const button = event.target?.closest?.('button');
+            if (!button) return;
+            if (button.dataset.action === 'cancel') {
+                closeSelectionModeCommentEditor();
+                return;
+            }
+            if (button.dataset.action === 'delete') {
+                if (selectionModeCommentEditor?.nodeId && selectionModeCommentEditor?.commentId) {
+                    selectionModeRuntime.deleteNodeComment(selectionModeCommentEditor.nodeId, selectionModeCommentEditor.commentId);
+                }
+                closeSelectionModeCommentEditor();
+                return;
+            }
+            if (button.dataset.action === 'save') {
+                const textarea = selectionModeCommentEditorEl?.querySelector('textarea');
+                const text = String(textarea?.value || '').trim();
+                if (!text || !selectionModeCommentEditor?.nodeId) return;
+                if (selectionModeCommentEditor.mode === 'edit' && selectionModeCommentEditor.commentId) {
+                    selectionModeRuntime.setNodeComment(selectionModeCommentEditor.nodeId, text, {
+                        id: selectionModeCommentEditor.commentId,
+                        updated_at: new Date().toISOString(),
+                    });
+                } else {
+                    selectionModeRuntime.setNodeComment(selectionModeCommentEditor.nodeId, text, {
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    });
+                }
+                closeSelectionModeCommentEditor();
+            }
+        });
+        el.addEventListener('input', (event) => {
+            if (!event.target?.matches?.('textarea')) return;
+            if (selectionModeCommentEditor) {
+                selectionModeCommentEditor.text = event.target.value;
+            }
+        });
+    }
+    selectionModeCommentEditorEl.style.left = `${position.left}px`;
+    selectionModeCommentEditorEl.style.top = `${position.top}px`;
+    selectionModeCommentEditorEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:8px;">${state.mode === 'edit' ? 'Edit comment' : 'Add comment'}</div>
+        <textarea
+            rows="4"
+            style="width:100%;box-sizing:border-box;resize:vertical;min-height:72px;padding:8px;border-radius:6px;border:1px solid rgba(142,221,255,0.24);background:rgba(4,8,14,0.9);color:inherit;outline:none;"
+            placeholder="Leave a comment"
+        >${escapeHtml(state.text || '')}</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+            ${state.mode === 'edit' && state.commentId ? '<button type="button" data-action="delete" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,112,112,0.3);background:rgba(134,22,32,0.18);color:rgba(255,166,166,0.96);">Delete</button>' : ''}
+            <button type="button" data-action="cancel" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.04);color:inherit;">Cancel</button>
+            <button type="button" data-action="save" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(94,252,210,0.24);background:rgba(94,252,210,0.14);color:inherit;">${state.mode === 'edit' ? 'Update' : 'Add Comment'}</button>
+        </div>
+    `;
+    const textarea = selectionModeCommentEditorEl.querySelector('textarea');
+    if (textarea && textarea.value !== (state.text || '')) textarea.value = state.text || '';
+    textarea?.focus?.();
+    textarea?.setSelectionRange?.(textarea.value.length, textarea.value.length);
+    return true;
+}
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function openSelectionModeCommentEditor(config = {}) {
+    selectionModeCommentEditor = {
+        nodeId: String(config.nodeId || '').trim(),
+        commentId: String(config.commentId || '').trim(),
+        text: String(config.text || ''),
+        mode: config.mode === 'edit' ? 'edit' : 'new',
+        pointer: config.pointer || null,
+        anchorRect: config.anchorRect || null,
+        itemId: String(config.itemId || '').trim(),
+    };
+    return renderSelectionModeCommentEditor();
+}
+
+function selectionModeSnapshot(pointer = null, payload = {}) {
+    if (payload?.context?.nodeId) {
+        selectionModeRuntime.selectTargetNode(payload.context.nodeId, { reason: 'selection-mode-snapshot' });
+    }
+    const snapshot = selectionModeRuntime.snapshot();
+    const snapshotPayload = buildSelectionModeSnapshotPayload(snapshot, {
+        activeContext: contextRecordingRuntime.snapshot?.().activeContext || null,
+        capturedAt: new Date().toISOString(),
+    });
+    const text = `${JSON.stringify(snapshotPayload, null, 2)}\n`;
+    void copyTextToClipboard(text, { asyncWrite: writeClipboardText }).then((didCopy) => {
+        if (!didCopy) {
+            console.warn('[sigil] selection mode snapshot clipboard write failed; showing JSON fallback');
+            window.prompt('Copy Selection Mode snapshot JSON', text);
+        }
+    }).catch((error) => {
+        console.warn('[sigil] selection mode snapshot clipboard write failed; showing JSON fallback:', error);
+        window.prompt('Copy Selection Mode snapshot JSON', text);
+    });
+    return snapshotPayload;
+}
+
+function selectionModeRecord(pointer = null, payload = {}) {
+    if (payload?.context?.nodeId) {
+        selectionModeRuntime.selectTargetNode(payload.context.nodeId, { reason: 'selection-mode-record' });
+    }
+    return false;
+}
+
 function setSelectionModeNodeComment(nodeId = '', text = '', options = {}) {
     return selectionModeRuntime.setNodeComment(nodeId, text, options);
 }
@@ -2605,31 +3219,6 @@ function createSelectionModeContextFromDebugInput(input = {}) {
 
 function handleSelectionModeInput(msg = {}) {
     return selectionModeRuntime.handleInput(msg);
-}
-
-function readSelectionModeCursorModelSnapshot() {
-    liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
-    return liveJs.selectionModeCursorModel;
-}
-
-function currentAvatarRenderSourceForSelectionPointer() {
-    return currentAvatarRenderSource(state);
-}
-
-function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {
-    selectionModeCursorModelRenderer?.update(overlay || null, { time: state.globalTime });
-    return readSelectionModeCursorModelSnapshot();
-}
-
-function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
-    const item = radial?.items?.find((candidate) => candidate.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID);
-    if (!item) return null;
-    return radialItemPointerMetrics(radial, item);
-}
-
-function updateAnnotationReticleAcquisition(radial = liveJs.radialGestureMenu) {
-    const metrics = annotationReticleItemMetrics(radial);
-    return annotationReticleAcquisition.update(radial, metrics);
 }
 
 function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
@@ -2679,6 +3268,198 @@ function emitStatusItemState() {
     });
 }
 
+function geometryHasFinitePositions(geometry) {
+    const position = geometry?.getAttribute?.('position');
+    if (!position?.array?.length) return false;
+    for (const value of position.array) {
+        if (!Number.isFinite(value)) return false;
+    }
+    return true;
+}
+
+function captureStellationProfilerObservation() {
+    const memory = performance?.memory || null;
+    const rendererInfo = state.renderer?.info || null;
+    const rendererMemory = rendererInfo?.memory || null;
+    const programs = rendererInfo?.programs;
+    return {
+        heap: memory ? {
+            used: finiteOrNull(memory.usedJSHeapSize),
+            total: finiteOrNull(memory.totalJSHeapSize),
+            limit: finiteOrNull(memory.jsHeapSizeLimit),
+        } : null,
+        renderer: rendererInfo ? {
+            geometries: finiteOrNull(rendererMemory?.geometries),
+            textures: finiteOrNull(rendererMemory?.textures),
+            programs: Array.isArray(programs) ? programs.length : finiteOrNull(programs),
+            draw_calls: finiteOrNull(rendererInfo.render?.calls),
+            triangles: finiteOrNull(rendererInfo.render?.triangles),
+        } : null,
+    };
+}
+
+function reduceProfilerSamples(samples, proofDurationMs) {
+    const profilerSamples = Array.isArray(samples) ? samples : [];
+    const heapSamples = profilerSamples.map((sample) => sample.heap).filter(Boolean);
+    const heapUsedSamples = heapSamples.map((sample) => sample.used).filter((value) => Number.isFinite(value));
+    const heapPeak = heapUsedSamples.length > 0 ? Math.max(...heapUsedSamples) : null;
+    const heapBefore = heapSamples[0] || null;
+    const heapAfter = heapSamples[heapSamples.length - 1] || null;
+    const rendererSamples = profilerSamples.map((sample) => sample.renderer).filter(Boolean);
+    const rendererAfter = rendererSamples[rendererSamples.length - 1] || null;
+
+    return {
+        kind: 'live_profiler_runtime_duration',
+        source: heapBefore ? 'performance.memory' : 'renderer.info',
+        metric: heapBefore ? 'usedJSHeapSize' : 'renderer_resource_counts',
+        window_ms: proofDurationMs,
+        sample_count: profilerSamples.length,
+        available: heapBefore != null || rendererAfter != null,
+        before: heapBefore?.used ?? null,
+        after: heapAfter?.used ?? null,
+        peak: heapPeak,
+        delta: heapBefore && heapAfter ? heapAfter.used - heapBefore.used : null,
+        limit: heapBefore?.limit ?? heapAfter?.limit ?? null,
+        within_limit: heapBefore && heapPeak != null && heapBefore.limit != null ? heapPeak <= heapBefore.limit : null,
+        resource_counts: rendererAfter ? {
+            geometries: rendererAfter.geometries,
+            textures: rendererAfter.textures,
+            programs: rendererAfter.programs,
+            draw_calls: rendererAfter.draw_calls,
+        } : null,
+    };
+}
+
+function runPrimaryStellationResourceSmoke(options = {}) {
+    const requestedEdits = Number(options.edits) || 40;
+    const edits = Math.max(1, Math.min(5000, requestedEdits));
+    const minDurationMs = Math.max(0, Math.min(15000, Number(options.minDurationMs ?? options.min_duration_ms) || 0));
+    const sampleEvery = Math.max(1, Math.floor(edits / 20));
+    state.__sigilGeometryStats = {};
+    state.avatar.shape.type = 20;
+    state.avatar.shape.tesseron = { enabled: false, proportion: 0.5, matchMother: true, child: {} };
+    state.avatar.shape.stellationFactor = 0;
+    state.avatar.appearance.skin = 'none';
+    updateGeometry(20);
+
+    const stats = state.__sigilGeometryStats;
+    const meshes = {
+        depth: state.depthMesh,
+        core: state.coreMesh,
+        wire: state.wireframeMesh,
+    };
+    const geometries = {
+        depth: meshes.depth?.geometry,
+        core: meshes.core?.geometry,
+        wire: meshes.wire?.geometry,
+    };
+    const materials = {
+        depth: meshes.depth?.material,
+        core: meshes.core?.material,
+        wire: meshes.wire?.material,
+    };
+    const initialFullRebuilds = stats.primaryFullRebuilds;
+    let stable = true;
+    let finite = true;
+    const profilerSamples = [];
+    const recordProfilerSample = () => {
+        const observation = captureStellationProfilerObservation();
+        profilerSamples.push({
+            ts: performance.now(),
+            ...observation,
+        });
+        return observation;
+    };
+
+    recordProfilerSample();
+
+    const proofStartedAt = performance.now();
+    let index = 0;
+    for (; index < edits || (minDurationMs > 0 && performance.now() - proofStartedAt < minDurationMs); index += 1) {
+        const value = ((index % 20) + 1) / 16;
+        state.avatar.shape.stellationFactor = value;
+        const update = updatePrimaryStellation(value);
+        stable &&= update.updated === true && update.suppressed === false;
+        stable &&= state.depthMesh === meshes.depth && state.coreMesh === meshes.core && state.wireframeMesh === meshes.wire;
+        stable &&= state.depthMesh?.geometry === geometries.depth && state.coreMesh?.geometry === geometries.core && state.wireframeMesh?.geometry === geometries.wire;
+        stable &&= state.depthMesh?.material === materials.depth && state.coreMesh?.material === materials.core && state.wireframeMesh?.material === materials.wire;
+        finite &&= geometryHasFinitePositions(state.depthMesh?.geometry)
+            && geometryHasFinitePositions(state.coreMesh?.geometry)
+            && geometryHasFinitePositions(state.wireframeMesh?.geometry);
+        if (index % sampleEvery === 0) recordProfilerSample();
+    }
+    const proofDurationMs = performance.now() - proofStartedAt;
+    recordProfilerSample();
+    const profilerMeasurement = reduceProfilerSamples(profilerSamples, proofDurationMs);
+    const proofWindowKind = minDurationMs > 0 ? 'live_runtime_duration' : 'live_edit_loop';
+
+    let jsonOk = true;
+    try {
+        JSON.stringify(state.avatar);
+    } catch {
+        jsonOk = false;
+    }
+
+    return {
+        edits: index,
+        requestedEdits: edits,
+        proofWindow: {
+            kind: proofWindowKind,
+            durationMs: proofDurationMs,
+            minDurationMs,
+            iterationLimit: edits,
+        },
+        fullRebuildDelta: stats.primaryFullRebuilds - initialFullRebuilds,
+        updates: stats.primaryStellationUpdates,
+        suppressed: stats.primaryStellationSuppressed,
+        replacementCreated: stats.primaryStellationReplacementGeometriesCreated,
+        replacementDisposed: stats.primaryStellationReplacementGeometriesDisposed,
+        temporaryCreated: stats.primaryStellationTemporaryGeometriesCreated,
+        temporaryDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
+        retained: stats.primaryStellationRetainedGeometries,
+        maxRetained: stats.primaryStellationMaxRetainedGeometries,
+        gpuMorphSetups: stats.primaryStellationGpuMorphSetups,
+        gpuMorphUpdates: stats.primaryStellationGpuMorphUpdates,
+        gpuMorphInfluence: state.coreMesh?.morphTargetInfluences?.[0] ?? null,
+        finite,
+        stable,
+        jsonOk,
+        profilerMeasurement,
+        evidence: createVisualObjectResourceLifecycleEvidence({
+            descriptor: {
+                id: 'sigil-avatar-stellation',
+                state_path: 'avatar.shape.stellationFactor',
+                route: 'canvas_object.transform.patch',
+                renderer_sync: ['updatePrimaryStellation'],
+            },
+            editCount: index,
+            rebuildsBefore: initialFullRebuilds,
+            rebuildsAfter: stats.primaryFullRebuilds,
+            retainedResources: stats.primaryStellationRetainedGeometries,
+            retainedResourceLimit: stats.primaryStellationMaxRetainedGeometries,
+            replacementResourcesCreated: stats.primaryStellationReplacementGeometriesCreated,
+            replacementResourcesDisposed: stats.primaryStellationReplacementGeometriesDisposed,
+            temporaryResourcesCreated: stats.primaryStellationTemporaryGeometriesCreated,
+            temporaryResourcesDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
+            finiteDataValid: finite,
+            identityStable: stable,
+            jsonSerializableState: state.avatar,
+            profilerMeasurement,
+            poolingBoundary: {
+                owner: 'sigil-renderer',
+                decision: 'renderer-local',
+                rationale: 'Primary stellation reuse mutates renderer-owned Three.js buffers and materials in place; no toolkit pool is extracted for Three.js resources.',
+            },
+            proofWindow: {
+                kind: proofWindowKind,
+                durationMs: proofDurationMs,
+                minDurationMs,
+                iterationLimit: edits,
+            },
+        }),
+    };
+}
+
 // canvas_object.marks — publish the avatar's current desktop position so the
 // Surface Inspector can mark it on its minimap and indented tree list.
 // Event-driven via setAvatarPosition + visibility changes; a ~5 s heartbeat
@@ -2694,19 +3475,44 @@ function emitRadialMenuObjectRegistry() {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
         avatarPos: liveJs.avatarPos,
         avatarVisible: liveJs.avatarVisible,
+        avatarScale: liveJs.avatarSize,
+        selectionModeAvatarOffset: state.selectionModeAvatarOffset,
     });
     host.post('canvas_object.registry', registry);
 }
 
 function handleCanvasObjectTransformPatch(msg = {}) {
     if (!isPrimarySurfaceSegment()) return;
-    const result = applyRadialMenuObjectTransformPatch(state.radialGestureMenu, msg, {
+    let result = applyAvatarObjectTransformPatch(state, msg, {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
     });
+    if (result.status === 'stale' && result.reason === 'unknown_object') {
+        result = applyRadialMenuObjectTransformPatch(state.radialGestureMenu, msg, {
+            canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+        });
+    }
     if (result.status !== 'applied') {
         console.warn('[sigil] object transform patch rejected:', result.reason, result.message || result.target?.object_id);
     }
     host.post('canvas_object.transform.result', result);
+    emitRadialMenuObjectRegistry();
+    scheduleRenderFrame();
+}
+
+function handleCanvasObjectEffectsPatch(msg = {}) {
+    if (!isPrimarySurfaceSegment()) return;
+    let result = applyAvatarObjectEffectsPatch(state, msg, {
+        canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    });
+    if (result.status === 'stale' && result.reason === 'unknown_object') {
+        result = applyRadialMenuObjectEffectsPatch(state.radialGestureMenu, msg, {
+            canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+        });
+    }
+    if (result.status !== 'applied') {
+        console.warn('[sigil] object effects patch rejected:', result.reason, result.message || result.target?.object_id);
+    }
+    host.post('canvas_object.effects.result', result);
     emitRadialMenuObjectRegistry();
     scheduleRenderFrame();
 }
@@ -2768,12 +3574,15 @@ function startMarkHeartbeat() {
 
 function setAvatarVisibility(visible) {
     const next = !!visible;
+    if (!next) setAvatarHover(false, { immediate: true });
     if (liveJs.avatarVisible === next && !visibilityTransition.active) return;
     liveJs.avatarVisible = next;
     if (!next) {
-        contextMenu.close('avatar-hidden');
-        radialGestureMenu.cancel('avatar-hidden');
+        const radialSnapshot = liveJs.radialGestureMenu;
+        avatarControls.close('avatar-hidden');
+        const result = radialGestureMenu.cancel('avatar-hidden');
         clearGestureState();
+        beginRadialGestureDismissal(result, radialSnapshot);
         liveJs.currentState = 'IDLE';
         liveJs.state = 'IDLE';
     }
@@ -2781,11 +3590,13 @@ function setAvatarVisibility(visible) {
     emitAvatarMark();
     syncSigilInputRegions();
     syncHitTargetToAvatar();
+    if (next && isPrimarySurfaceSegment()) void prewarmAvatarPanelCanvas();
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function animateVisibility(visible, lifecycleAction = null, origin = null) {
     const targetVisible = !!visible;
+    if (!targetVisible) setAvatarHover(false, { immediate: true });
     if (liveJs.avatarVisible === targetVisible && !visibilityTransition.active) return;
     if (targetVisible) setAvatarVisibility(true);
     visibilityTransition.begin({
@@ -2814,28 +3625,49 @@ function setAvatarPosition(x, y) {
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
+function selectionModeAvatarPositionFromPointer(point = null) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    const offset = state.selectionModeAvatarOffset || {};
+    return {
+        x: point.x + (Number(offset.x) || 0),
+        y: point.y + (Number(offset.y) || 0),
+    };
+}
+
+function updateSelectionModeAvatarRide(point = null) {
+    if (!liveJs.selectionMode?.active || !liveJs.avatarVisible) return false;
+    const next = selectionModeAvatarPositionFromPointer(point);
+    if (!next) return false;
+    setAvatarPosition(next.x, next.y);
+    return true;
+}
+
 function syncHitTargetToAvatar() {
     if (!isPrimarySurfaceSegment() || !liveJs.avatarPos.valid) return;
     hitTarget.setSize(state.avatarHitRadius * 2);
-    hitTarget.syncWorldCenter(
+    const changed = hitTarget.syncWorldCenter(
         liveJs.avatarPos,
         liveJs.avatarVisible && ['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL'].includes(liveJs.currentState),
         { displays: liveJs.displays }
     );
+    surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
+    return changed;
 }
 
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
     recordInteraction('interaction:cancel', { reason });
-    radialGestureMenu.cancel(reason);
+    const radialSnapshot = liveJs.radialGestureMenu;
+    const result = radialGestureMenu.cancel(reason);
     exitAnnotationReticle(reason);
     clearGestureState();
+    beginRadialGestureDismissal(result, radialSnapshot);
     fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
 }
 
-let lastContextMenuOpenAt = 0;
-let lastContextMenuOpenPoint = null;
+let lastAvatarControlsOpenAt = 0;
+let lastAvatarControlsOpenPoint = null;
 const recentDaemonPointerEvents = new Map();
 const HIT_ECHO_SUPPRESS_MS = 450;
 const HIT_ECHO_SUPPRESS_DISTANCE = 6;
@@ -2852,10 +3684,6 @@ function consumeAvatarDoubleClick(x, y) {
 
 function resetAvatarDoubleClick() {
     avatarDoubleClickTracker.resetAvatarDoubleClick();
-}
-
-function markSelectionModeEntryReleasePending() {
-    avatarDoubleClickTracker.markSelectionModeEntryReleasePending();
 }
 
 function clearSelectionModeEntryReleasePending() {
@@ -2889,43 +3717,47 @@ function isRecentDaemonPointerEcho(kind, point) {
     return distance(point.x, point.y, prior.x, prior.y) <= HIT_ECHO_SUPPRESS_DISTANCE;
 }
 
-function isDuplicateContextMenuOpenClick(x, y) {
-    if (!lastContextMenuOpenPoint) {
-        recordInteraction('context-menu:duplicate-check', { x, y, duplicate: false, reason: 'no-prior-open' });
+function isDuplicateAvatarControlsOpenClick(x, y) {
+    if (!lastAvatarControlsOpenPoint) {
+        recordInteraction('avatar-controls:duplicate-check', { x, y, duplicate: false, reason: 'no-prior-open' });
         return false;
     }
-    const elapsed = performance.now() - lastContextMenuOpenAt;
+    const elapsed = performance.now() - lastAvatarControlsOpenAt;
     if (elapsed > 900) {
-        recordInteraction('context-menu:duplicate-check', { x, y, elapsed, duplicate: false, reason: 'elapsed' });
+        recordInteraction('avatar-controls:duplicate-check', { x, y, elapsed, duplicate: false, reason: 'elapsed' });
         return false;
     }
     const tolerance = Math.max(16, Math.min(80, Number(state.avatarHitRadius) || 0));
-    const delta = distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y);
+    const delta = distance(x, y, lastAvatarControlsOpenPoint.x, lastAvatarControlsOpenPoint.y);
     const duplicate = delta <= tolerance;
-    recordInteraction('context-menu:duplicate-check', { x, y, elapsed, tolerance, delta, duplicate });
+    recordInteraction('avatar-controls:duplicate-check', { x, y, elapsed, tolerance, delta, duplicate });
     return duplicate;
 }
 
-function openContextMenuAt(x, y, options = {}) {
+function openAvatarControlsAt(x, y, options = {}) {
     if (!liveJs.avatarVisible) {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'avatar-hidden' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-hidden' });
+        return false;
+    }
+    if (!options.force && liveJs.avatarParking?.mode === 'status') {
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-parked-at-status' });
         return false;
     }
     if (!options.force && liveJs.currentState !== 'IDLE') {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'state-not-idle' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'state-not-idle' });
         return false;
     }
     if (!options.force && !isOnAvatar(x, y)) {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'not-on-avatar' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'not-on-avatar' });
         return false;
     }
-    cancelInteraction('context-menu');
-    contextMenu.openAt({ x, y, valid: true });
-    lastContextMenuOpenAt = performance.now();
-    lastContextMenuOpenPoint = { x, y };
+    cancelInteraction('avatar-controls');
+    avatarControls.openAt({ x, y, valid: true });
+    lastAvatarControlsOpenAt = performance.now();
+    lastAvatarControlsOpenPoint = { x, y };
     syncSigilInputRegions();
     if (!rendererSuspended) scheduleRenderFrame();
-    recordInteraction('context-menu:open-request', { x, y, options });
+    recordInteraction('avatar-controls:open-request', { x, y, options });
     return true;
 }
 
@@ -2934,31 +3766,114 @@ function syncRadialTargetSurface() {
     return radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
 }
 
+function radialClickOpenAnimation(snapshot) {
+    const config = snapshot?.visuals?.openAnimation || state.radialGestureMenu?.visuals?.openAnimation || {};
+    return {
+        ...config,
+        trigger: config.trigger || 'avatar-click',
+        startedAt: state.globalTime,
+    };
+}
+
+let radialGestureDismissTimer = null;
+let radialGestureDismissGeneration = 0;
+
+function clearRadialGestureDismissTimer() {
+    radialGestureDismissGeneration += 1;
+    if (radialGestureDismissTimer != null) {
+        window.clearTimeout(radialGestureDismissTimer);
+        radialGestureDismissTimer = null;
+    }
+}
+
+function beginRadialGestureDismissal(result, sourceSnapshot = liveJs.radialGestureMenu) {
+    const source = sourceSnapshot && typeof sourceSnapshot === 'object' ? sourceSnapshot : null;
+    const openAnimation = source?.openAnimation || radialClickOpenAnimation(source || {});
+    const durationMs = Number.isFinite(Number(openAnimation.durationMs ?? openAnimation.duration_ms))
+        ? Number(openAnimation.durationMs ?? openAnimation.duration_ms)
+        : 333;
+    if (!result || !source) return null;
+
+    clearRadialGestureDismissTimer();
+
+    const closingSnapshot = {
+        ...result,
+        phase: 'closing',
+        openAnimation,
+        dismissAnimation: {
+            ...openAnimation,
+            startedAt: state.globalTime,
+            durationMs,
+        },
+        openedBy: source.openedBy ?? result.openedBy ?? null,
+        releasePoint: source.releasePoint ?? result.releasePoint ?? null,
+    };
+
+    liveJs.radialGestureMenu = closingSnapshot;
+    radialGestureMenu.applySnapshot(closingSnapshot);
+    syncRadialTargetSurface();
+
+    const generation = radialGestureDismissGeneration;
+    radialGestureDismissTimer = window.setTimeout(() => {
+        if (generation !== radialGestureDismissGeneration) return;
+        radialGestureDismissTimer = null;
+        if (liveJs.radialGestureMenu?.phase !== 'closing') return;
+        liveJs.radialGestureMenu = null;
+        radialGestureMenu.applySnapshot(null);
+        radialGestureVisuals?.reset?.();
+        syncRadialTargetSurface();
+        if (!rendererSuspended) scheduleRenderFrame();
+    }, Math.max(0, durationMs));
+
+    if (!rendererSuspended) scheduleRenderFrame();
+    return closingSnapshot;
+}
+
+function radialClickTriggerLockPointer(origin) {
+    if (state.radialGestureMenu?.orientation !== 'trigger-vector') return origin;
+    const basis = Number.isFinite(Number(state.radialGestureMenu?.radiusBasis))
+        ? Number(state.radialGestureMenu.radiusBasis)
+        : liveJs.avatarHitRadius;
+    const deadZone = Math.max(1, Number(state.radialGestureMenu?.deadZoneRadius || 0.6) * Math.max(1, basis));
+    const angle = Number.isFinite(Number(state.radialGestureMenu?.startAngle))
+        ? Number(state.radialGestureMenu.startAngle)
+        : -90;
+    const radians = angle * Math.PI / 180;
+    const lockDistance = deadZone + 1;
+    return {
+        x: origin.x + Math.cos(radians) * lockDistance,
+        y: origin.y + Math.sin(radians) * lockDistance,
+        valid: true,
+    };
+}
+
+function openRadialMenuFromClick(x, y, reason = 'avatar-click-radial') {
+    clearRadialGestureDismissTimer();
+    const origin = { ...liveJs.avatarPos, valid: true };
+    liveJs.radialGestureMenu = radialGestureMenu.start(origin, radialClickTriggerLockPointer(origin));
+    const snapshot = radialGestureMenu.snapshot();
+    liveJs.radialGestureMenu = {
+        ...snapshot,
+        openAnimation: radialClickOpenAnimation(snapshot),
+        openedBy: 'avatar-click',
+        releasePoint: { x, y, valid: true },
+    };
+    radialGestureMenu.applySnapshot(liveJs.radialGestureMenu);
+    syncRadialTargetSurface();
+    emitAvatarMark();
+    setInteractionState('RADIAL', reason);
+    if (!rendererSuspended) scheduleRenderFrame();
+    return liveJs.radialGestureMenu;
+}
+
 function applyRadialGestureMove(update, x, y) {
+    if (update?.snapshot?.phase && update.snapshot.phase !== 'closing') {
+        clearRadialGestureDismissTimer();
+    }
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
     syncRadialTargetSurface();
     emitAvatarMark();
-    const reticleAcquisition = updateAnnotationReticleAcquisition(liveJs.radialGestureMenu);
-    if (liveJs.radialGestureMenu?.phase === 'radial') {
-        if (liveJs.radialGestureMenu.activeItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
-            radialReticleItemWasActive = true;
-        } else {
-            const metrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
-            if (metrics && metrics.relation !== 'outward') radialReticleItemWasActive = false;
-        }
-    }
-    const reticleMetrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
-    const crossedReticleAtHandoff = update?.enteredFastTravel
-        && update?.priorActiveItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID
-        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
-    const liveReticleHandoff = radialReticleItemWasActive
-        && liveJs.radialGestureMenu?.phase === 'fastTravel'
-        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
-    if (liveJs.radialGestureMenu?.phase === 'fastTravel' && (reticleAcquisition.acquire || crossedReticleAtHandoff || liveReticleHandoff)) {
-        radialReticleItemWasActive = false;
-        if (!annotationReticle.active) enterAnnotationReticle({ x, y, valid: true }, 'drag-through-reticle');
-        else updateAnnotationReticlePreview({ x, y, valid: true });
-    } else if (annotationReticle.active) {
+    if (annotationReticle.active) {
         updateAnnotationReticlePreview({ x, y, valid: true });
     }
     if (update?.enteredFastTravel) {
@@ -2989,12 +3904,7 @@ function handleLeftMouseDown(x, y) {
             return;
         case 'GOTO':
             if (isOnAvatar(x, y)) {
-                if (consumeAvatarDoubleClick(x, y)) {
-                    sigilUxCommandRuntime.executeSelectionModeEnter({ type: 'left_mouse_down', x, y }, {
-                        pointer: { x, y, valid: true },
-                    });
-                    return;
-                }
+                resetAvatarDoubleClick();
                 clearGestureState();
                 setInteractionState('IDLE', 'goto-click-on-avatar');
                 return;
@@ -3013,16 +3923,27 @@ function handleLeftMouseUp(x, y) {
                 liveJs.mousedownPos
                 && distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) >= liveJs.dragThreshold
             ) {
+                if (isOnAvatar(x, y)) {
+                    clearGestureState();
+                    fastTravel.clearGesture('press-release-on-avatar');
+                    setInteractionState('IDLE', 'press-release-on-avatar');
+                    return;
+                }
                 clearGestureState();
                 queueFastTravel(x, y);
                 setInteractionState('IDLE', 'press-release-fast-travel');
                 return;
             }
-            sigilUxCommandRuntime.executeAvatarGotoBegin({ type: 'left_mouse_up', x, y }, {
-                pointer: { x, y, valid: true },
-            });
+            if (!isOnAvatar(x, y)) {
+                clearGestureState();
+                fastTravel.clearGesture('press-release-off-avatar');
+                setInteractionState('IDLE', 'press-release-off-avatar');
+                return;
+            }
+            openRadialMenuFromClick(x, y);
             return;
         case 'RADIAL': {
+            const radialSnapshot = liveJs.radialGestureMenu;
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -3034,6 +3955,12 @@ function handleLeftMouseUp(x, y) {
             const annotationDisposition = annotationReticleReleaseDisposition(result);
             if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
             clearGestureState();
+            beginRadialGestureDismissal(result, radialSnapshot);
+            if (result?.committed?.type === 'fastTravel') {
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'radial-release-fast-travel');
+                return;
+            }
             fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-item' : 'radial-release');
             setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-release-item' : 'radial-release-cancel');
             return;
@@ -3042,6 +3969,18 @@ function handleLeftMouseUp(x, y) {
             const releaseDistanceFromDown = liveJs.mousedownPos
                 ? distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y)
                 : 0;
+            if (isOnAvatar(x, y)) {
+                const radialSnapshot = liveJs.radialGestureMenu;
+                const result = radialGestureMenu.cancel('fast-travel-release-on-avatar');
+                const annotationDisposition = annotationReticleReleaseDisposition(result);
+                if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
+                clearGestureState();
+                beginRadialGestureDismissal(result, radialSnapshot);
+                fastTravel.clearGesture('fast-travel-release-on-avatar');
+                setInteractionState('IDLE', 'fast-travel-release-on-avatar');
+                return;
+            }
+            const radialSnapshot = liveJs.radialGestureMenu;
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -3052,6 +3991,7 @@ function handleLeftMouseUp(x, y) {
             });
             const annotationCommit = commitAnnotationReticleRelease(x, y);
             clearGestureState();
+            beginRadialGestureDismissal(result, radialSnapshot);
             if (annotationCommit?.placement?.point) {
                 const point = annotationCommit.placement.point;
                 queueFastTravel(point.x, point.y);
@@ -3089,16 +4029,22 @@ function handleLeftMouseUp(x, y) {
 }
 
 function handleMouseMove(x, y) {
-    if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+    if (liveJs.currentState === 'RADIAL') {
         const update = radialGestureMenu.move({ x, y, valid: true });
         applyRadialGestureMove(update, x, y);
         return;
     }
+    if (liveJs.currentState === 'FAST_TRAVEL') {
+        fastTravel.updateGesture({ x, y, valid: true });
+        if (!rendererSuspended) scheduleRenderFrame();
+        return;
+    }
     if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
     if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
-    sigilUxCommandRuntime.executeAvatarRadialBegin({ type: 'left_mouse_dragged', x, y }, {
-        pointer: { x, y, valid: true },
-    });
+    fastTravel.beginGesture({ ...liveJs.mousedownAvatarPos, valid: true });
+    fastTravel.updateGesture({ x, y, valid: true });
+    setInteractionState('FAST_TRAVEL', 'press-drag-fast-travel');
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function handleInputEvent(msg) {
@@ -3108,7 +4054,7 @@ function handleInputEvent(msg) {
         || msg?.type === 'left_mouse_down'
         || msg?.type === 'left_mouse_up'
         || msg?.type === 'scroll_wheel'
-        || (contextMenu.isOpen() && msg?.type !== 'mouse_moved')
+        || (avatarControls.isOpen() && msg?.type !== 'mouse_moved')
     ) {
         recordInteraction('input', {
             type: msg.type,
@@ -3128,26 +4074,40 @@ function handleInputEvent(msg) {
         });
     }
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
-        liveJs.pointerPos = { x: msg.x, y: msg.y };
+        liveJs.pointerPos = { x: msg.x, y: msg.y, valid: true };
         liveJs.cursorTarget = { x: msg.x, y: msg.y, valid: true };
         if (!liveJs.currentCursor.valid) {
             liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
+        }
+        if (liveJs.selectionMode?.active) {
+            updateSelectionModeAvatarRide({ x: msg.x, y: msg.y });
         }
         if (msg.type === 'mouse_moved') updateAvatarHoverFromPoint(msg.x, msg.y);
         rememberDaemonPointerEvent(msg);
     }
 
-    if (handleSelectionModeInput(msg)) return;
+        if (handleSelectionModeInput(msg)) return;
 
-    if (
-        contextMenu.isOpen()
-        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
-        && typeof msg.x === 'number'
+        if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+            if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
+                cancelInteraction('escape');
+                return;
+            }
+            if (msg.type === 'right_mouse_down') {
+                cancelInteraction('right-click');
+                return;
+            }
+        }
+
+        if (
+            avatarControls.isOpen()
+            && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
+            && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
-        const inMenu = contextMenu.containsDesktopPoint(point);
-        if (msg.type !== 'mouse_moved') recordInteraction('context-menu:route-attempt', { type: msg.type, point, inMenu });
+        const inControls = avatarControls.containsDesktopPoint(point);
+        if (msg.type !== 'mouse_moved') recordInteraction('avatar-controls:route-attempt', { type: msg.type, point, inControls });
         const sourceOrigin = msg.sourceOrigin ?? msg.source_origin ?? null;
         const sourceCanvasId = msg.sourceCanvasId ?? msg.source_canvas_id ?? null;
         const ownerCanvasId = msg.ownerCanvasId ?? msg.owner_canvas_id ?? null;
@@ -3157,15 +4117,18 @@ function handleInputEvent(msg) {
         const routeOptions = {
             raw: msg,
             ...(sourceIdentity ? { sourceIdentity } : {}),
-            ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-context-menu' } : {}),
+            ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-avatar-controls' } : {}),
         };
-        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, routeOptions)) {
-            if (msg.type !== 'mouse_moved') recordInteraction('context-menu:routed', { type: msg.type, point, inMenu });
+        if (
+            (inControls || msg.type !== 'left_mouse_down' || avatarControls.usesExternalPanel?.())
+            && avatarControls.handlePointerEvent(msg.type, point, routeOptions)
+        ) {
+            if (msg.type !== 'mouse_moved') recordInteraction('avatar-controls:routed', { type: msg.type, point, inControls });
             return;
         }
         if (msg.type === 'left_mouse_down') {
-            recordInteraction('context-menu:outside-left-down', { point });
-            contextMenu.close('outside-click');
+            recordInteraction('avatar-controls:outside-left-down', { point });
+            avatarControls.close('outside-click');
         }
     }
 
@@ -3181,35 +4144,36 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
-            recordInteraction('context-menu:right-down', { x: msg.x, y: msg.y, open: contextMenu.isOpen() });
+            recordInteraction('avatar-controls:right-down', { x: msg.x, y: msg.y, open: avatarControls.isOpen() });
             {
-                const route = resolveContextMenuRightClickRoute(msg, {
-                    isOpen: contextMenu.isOpen(),
-                    isDuplicateOpenClick: isDuplicateContextMenuOpenClick,
+                const route = resolveAvatarControlsRightClickRoute(msg, {
+                    isOpen: avatarControls.isOpen(),
+                    isDuplicateOpenClick: isDuplicateAvatarControlsOpenClick,
+                    isAvatarPointer: isOnAvatar,
                 });
                 if (route.direct === 'duplicate_open_echo') {
-                    recordInteraction('context-menu:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
+                    recordInteraction('avatar-controls:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
                     return;
                 }
                 if (route.command === 'toggle') {
-                    recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
-                    sigilUxCommandRuntime.executeContextMenuRightClick(route, msg);
+                    recordInteraction('avatar-controls:right-down-close-open-controls', { x: msg.x, y: msg.y });
+                    sigilUxCommandRuntime.executeAvatarControlsRightClick(route, msg);
                     return;
                 }
                 if (route.command === 'open') {
-                    const result = sigilUxCommandRuntime.executeContextMenuRightClick(route, msg);
-                    if (contextMenuOpenCommandOpened(result)) return;
-                    contextMenu.close('right-click-away');
+                    const result = sigilUxCommandRuntime.executeAvatarControlsRightClick(route, msg);
+                    if (avatarControlsOpenCommandOpened(result)) return;
+                    avatarControls.close('right-click-away');
                     cancelInteraction('right-click');
                     return;
                 }
-                contextMenu.close('right-click-away');
+                avatarControls.close('right-click-away');
                 cancelInteraction('right-click');
                 return;
             }
         case 'key_down':
             if (msg.key_code === 53) {
-                contextMenu.close('escape');
+                avatarControls.close('escape');
                 cancelInteraction('escape');
             }
             return;
@@ -3257,7 +4221,7 @@ function handleHitCanvasEvent(payload = {}) {
         offsetY: payload.offsetY,
         dx: payload.dx,
         dy: payload.dy,
-        contextMenuOpen: contextMenu.isOpen(),
+        avatarControlsOpen: avatarControls.isOpen(),
         hitFrame: hitTarget.hit.frame,
     });
     if (payload.kind === 'right_mouse_down' || payload.kind === 'right_mouse_up' || payload.kind === 'right_mouse_dragged') {
@@ -3268,8 +4232,8 @@ function handleHitCanvasEvent(payload = {}) {
         || payload.kind === 'left_mouse_dragged'
         || payload.kind === 'left_mouse_up';
     if (payload.kind === 'left_mouse_down' || payload.kind === 'left_mouse_dragged' || payload.kind === 'left_mouse_up') {
-        if (!contextMenu.isOpen()) {
-            interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'menu-closed' });
+        if (!avatarControls.isOpen()) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'controls-closed' });
             return;
         }
     }
@@ -3278,8 +4242,8 @@ function handleHitCanvasEvent(payload = {}) {
         interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'no-point' });
         return;
     }
-    if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-menu', point });
+    if (isLeftHitEvent && !avatarControls.containsDesktopPoint(point)) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-controls', point });
         return;
     }
     if (isLeftHitEvent && isRecentDaemonPointerEcho(payload.kind, point)) {
@@ -3343,9 +4307,11 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         return;
     }
     if (payload.kind === 'radial_cancel') {
-        radialGestureMenu.cancel('radial-surface-cancel');
+        const radialSnapshot = liveJs.radialGestureMenu;
+        const result = radialGestureMenu.cancel('radial-surface-cancel');
         exitAnnotationReticle('radial-surface-cancel');
         clearGestureState();
+        beginRadialGestureDismissal(result, radialSnapshot);
         fastTravel.clearGesture('radial-surface-cancel');
         setInteractionState('IDLE', 'radial-surface-cancel');
         return;
@@ -3408,7 +4374,14 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
     });
     const annotationDisposition = annotationReticleReleaseDisposition(result);
     if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
+    const radialSnapshot = liveJs.radialGestureMenu;
     clearGestureState();
+    beginRadialGestureDismissal(result, radialSnapshot);
+    if (result?.committed?.type === 'fastTravel') {
+        queueFastTravel(item.center.x, item.center.y);
+        setInteractionState('IDLE', 'radial-surface-fast-travel');
+        return;
+    }
     fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
     setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
 }
@@ -3497,6 +4470,12 @@ function handleHostMessage(rawMsg) {
             source: msg?.source ?? rawMsg?.source ?? rawMsg?.payload?.source ?? null,
             primarySegment: isPrimarySurfaceSegment(),
         });
+        if (msg?.type === 'input_event' || msg?.envelope_type === 'input_event') {
+            surfaceTransportProbe.recordInputEvent({
+                ...msg,
+                canvas_id: window.__aosCanvasId || window.__aosSurfaceCanvasId || 'avatar-main',
+            });
+        }
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
@@ -3505,9 +4484,35 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    const panelMessage = (
+        msg.type === 'canvas_message'
+        && msg.payload
+        && typeof msg.payload.type === 'string'
+        && msg.payload.type.startsWith('sigil.avatar_panel.')
+    )
+        ? msg.payload
+        : msg;
+    if (typeof panelMessage.type === 'string' && panelMessage.type.startsWith('sigil.avatar_panel.')) {
+        surfaceTransportProbe.recordPanelMessage('received', panelMessage.type);
+        if (avatarControls.handlePanelMessage(panelMessage)) return;
+    }
+
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID && msg.action === 'removed') {
+            avatarControls.close('panel-removed');
+        } else if (
+            canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID
+            && (msg.action === 'suspended' || msg.suspended === true || msg.canvas?.suspended === true)
+        ) {
+            // Owner-side close requests update avatarControls before the panel suspends.
+            // Ignore stale warm lifecycle events that can arrive while an open is resuming.
+        } else if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID) {
+            avatarControls.updatePanelFrame?.(panelNativeFrameFromLifecycle(msg), 'lifecycle');
+            structuralFrameDirty = true;
+            avoidAvatarPanelOverlapFromLifecycle(msg);
+        }
         if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {
                 liveJs.utilityCanvases.delete(canvasId);
@@ -3554,6 +4559,7 @@ function handleHostMessage(rawMsg) {
                     }
                 }
             }
+            publishStatusMenuItems();
         }
         return;
     }
@@ -3566,6 +4572,18 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'canvas_object.transform.patch') {
         handleCanvasObjectTransformPatch(msg);
+        return;
+    }
+
+    if (msg.type === 'canvas_object.effects.patch') {
+        handleCanvasObjectEffectsPatch(msg);
+        return;
+    }
+
+    if (msg.type === 'status_item.menu_action') {
+        void handleStatusMenuAction(msg).catch((error) => {
+            console.warn('[sigil] status menu action failed:', error);
+        });
         return;
     }
 
@@ -3590,11 +4608,13 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.show') {
+        setAvatarHover(false, { immediate: true });
         animateVisibility(true, null, originFromMessage(msg));
         return;
     }
 
     if (msg.type === 'status_item.hide') {
+        setAvatarHover(false, { immediate: true });
         animateVisibility(false, null, originFromMessage(msg));
         return;
     }
@@ -3630,6 +4650,8 @@ function handleHostMessage(rawMsg) {
         } else if (msg.action === 'suspend') {
             if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
             rendererSuspended = true;
+            avatarSceneFrameRequested = false;
+            renderLoopDelayed = false;
             removeSigilInputRegions();
             renderLoop.suspend();
         } else if (msg.action === 'resume') {
@@ -3648,6 +4670,7 @@ function handleHostMessage(rawMsg) {
             ?? computeDesktopWorldBounds(liveJs.displays);
         liveJs.visibleBounds = boundsWithMinMax(msg.visible_desktop_world_bounds)
             ?? computeVisibleDesktopWorldBounds(liveJs.displays);
+        selectionModeRuntime.refreshDisplayGeometry('display_geometry');
         annotationReticleRefreshCanvasCandidates();
         syncSigilInputRegions();
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
@@ -3742,6 +4765,7 @@ let primarySurfaceServicesStarted = false;
 function startPrimarySurfaceServices() {
     if (primarySurfaceServicesStarted) return;
     primarySurfaceServicesStarted = true;
+    publishStatusMenuItems();
     host.subscribe([
         'display_geometry',
         'input_event',
@@ -3774,6 +4798,7 @@ function startPrimarySurfaceServices() {
 async function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
+    publishStatusMenuItems();
     overlay.mount();
     visibilityTransition.mount();
     fastTravel.mount();
@@ -3822,19 +4847,6 @@ async function init() {
             },
         });
     });
-    runBootStep('createSelectionModeCursorModelRenderer', () => {
-        selectionModeCursorModelRenderer = createSelectionModeCursorModelRenderer({
-            scene: state.scene,
-            projectPoint: (point) => point?.valid === false ? null : projectStageLocalToScene(point.x, point.y),
-            projectRadius(point, radius) {
-                if (!point || point.valid === false) return null;
-                const center = projectStageLocalToScene(point.x, point.y);
-                const edge = projectStageLocalToScene(point.x + radius, point.y);
-                return center.distanceTo(edge);
-            },
-            getAvatarRenderSource: currentAvatarRenderSourceForSelectionPointer,
-        });
-    });
     runBootStep('createAuraObjects', () => createAuraObjects());
     runBootStep('createParticleObjects', () => createParticleObjects());
     runBootStep('createPhenomena', () => createPhenomena());
@@ -3852,13 +4864,14 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     state.appScale = 0;
     state.polyGroup.scale.setScalar(0);
     if (state.omegaGroup) state.omegaGroup.visible = false;
+    hideAuraObjects();
+    hideTrailSprites();
     if (isPrimarySurfaceSegment()) {
         if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
         removeSigilInputRegions();
     }
     overlay.clear();
-    refreshSelectionModeCursorModelSnapshot(null);
     radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
     visibilityTransition.clear();
@@ -3882,6 +4895,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
         liveJs._pendingLifecycleComplete = null;
     }
+    lastSelectionModeEffectActive = false;
     updateRenderLoopDebug('idle', []);
 }
 
@@ -3891,6 +4905,7 @@ function animate() {
     const frameStartedAt = performance.now();
     const dt = 0.016;
     const primarySegment = isPrimarySurfaceSegment();
+    liveJs.avatarSize = liveJs.selectionMode?.active ? Number(state.selectionModeAvatarScale || 0.5) : 1.0;
     if (
         primarySegment
         || !Number.isFinite(liveJs.surfaceRenderSnapshot?.globalTime)
@@ -4005,10 +5020,13 @@ function animate() {
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
     const activeRadialActivationTransition = radialActivationTransition.tick(state.globalTime);
+    const selectionModeEffectActive = selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now());
+    const selectionModeEffectStateChanged = selectionModeEffectActive !== lastSelectionModeEffectActive;
     const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
     const work = classifyRenderLoopWork({
         continuationReasons,
         structuralDirty: structuralFrameDirty || selectionModeOverlayCleanupFrame,
+        selectionModeEffectStateChanged,
     });
     structuralFrameDirty = false;
     liveJs.renderLoop.work = {
@@ -4018,14 +5036,18 @@ function animate() {
         publishState: work.publishState,
         idleMotionDelayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
     };
+    surfaceTransportProbe.recordRenderFrame(liveJs.renderLoop.work);
+    lastSelectionModeEffectActive = selectionModeEffectActive;
 
     if (work.structural) {
-        contextMenu.updateSegmentPosition();
+        avatarControls.updateSegmentPosition();
 
-        if (primarySegment && contextMenu.isOpen()) {
-            hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
+        if (primarySegment && avatarControls.isOpen() && avatarControls.interactiveBounds()) {
+            const changed = hitTarget.syncWorldRect(avatarControls.interactiveBounds(), true, { displays: liveJs.displays });
+            surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
         } else if (primarySegment && liveJs.avatarParking) {
-            hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+            const changed = hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+            surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
         } else if (primarySegment && liveJs.avatarPos.valid) {
             syncHitTargetToAvatar();
         }
@@ -4035,6 +5057,7 @@ function animate() {
         }
     }
     if (work.overlay) {
+        surfaceTransportProbe.recordRenderEmit('overlay.draw');
         overlay.draw({
             state: liveJs.currentState,
             avatarPos: avatarStagePos,
@@ -4042,6 +5065,7 @@ function animate() {
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
             radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
+            fastTravelGesture: projectDirectFastTravelGesture(),
             annotationReticle: liveJs.annotationReticle,
             annotationReticleOverlay: liveJs.annotationReticleOverlay || buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle),
             selectionMode: liveJs.selectionMode,
@@ -4054,15 +5078,6 @@ function animate() {
             menuRingRadius: liveJs.menuRingRadius,
             dragCancelRadius: liveJs.dragCancelRadius,
         });
-    }
-    if (
-        liveJs.selectionModeOverlay?.visible === true
-        || liveJs.selectionModeOverlay?.active === true
-        || liveJs.selectionModeCursorModel?.visible === true
-    ) {
-        refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
-    } else {
-        readSelectionModeCursorModelSnapshot();
     }
     if (work.structural || activeRadialActivationTransition) {
         radialGestureVisuals?.update(liveJs.radialGestureMenu, {
@@ -4082,8 +5097,9 @@ function animate() {
         recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
     }
     const vitalityScale = Number.isFinite(vitalityFrame.scaleMultiplier) ? vitalityFrame.scaleMultiplier : 1;
-    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * (1 + liveJs.avatarHoverProgress * 0.055));
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * liveJs.avatarSize * (1 + liveJs.avatarHoverProgress * 0.055));
     if (desktopWorldSurface?.isPrimary && work.publishState) {
+        surfaceTransportProbe.recordRenderEmit('desktopWorldSurface.publishState');
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
     const renderStartedAt = performance.now();
@@ -4101,7 +5117,7 @@ function animate() {
 
     updateRenderLoopDebug(continuationReasons.length ? 'continuous' : 'idle', continuationReasons);
     if (continuationReasons.length > 0) {
-        renderLoop.schedule(animate, {
+        scheduleRenderFrame({
             mode: 'continuous',
             structural: false,
             delayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
@@ -4117,6 +5133,9 @@ window.__sigilDebug = {
     dispatchDesktop(msg) {
         handleInputEvent(msg);
         return liveJs.currentState;
+    },
+    stellationResourceSmoke(options) {
+        return runPrimaryStellationResourceSmoke(options);
     },
     snapshot() {
         return {
@@ -4143,7 +5162,6 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
-            selectionModeCursorModel: readSelectionModeCursorModelSnapshot(),
             uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,
@@ -4152,7 +5170,7 @@ window.__sigilDebug = {
             annotationReticleEvents: liveJs.annotationReticleEvents,
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
-            contextMenu: contextMenu?.snapshot?.(),
+            avatarControls: avatarControls?.snapshot?.(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
             interactionTrace: {
@@ -4176,10 +5194,27 @@ window.__sigilDebug = {
                 isPrimary: desktopWorldSurface.isPrimary,
                 latency: desktopWorldSurface.stateLatencySnapshot(),
             } : null,
+            surfaceTransportProbe: surfaceTransportProbe.snapshot(),
         };
     },
-    refreshSelectionModeCursorModel() {
-        return refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
+    surfaceTransportProbe: {
+        enable() {
+            return surfaceTransportProbe.setEnabled(true);
+        },
+        disable() {
+            return surfaceTransportProbe.setEnabled(false);
+        },
+        reset() {
+            surfaceTransportProbe.reset();
+            return surfaceTransportProbe.snapshot();
+        },
+        snapshot(options) {
+            return surfaceTransportProbe.snapshot(options);
+        },
+        mark(name, payload) {
+            surfaceTransportProbe.mark(name, payload);
+            return surfaceTransportProbe.snapshot();
+        },
     },
     avatarDefinition,
     importAvatarDefinitionText,
@@ -4281,7 +5316,9 @@ export async function boot() {
     emitRadialMenuObjectRegistry();
 
     recordBoot('boot:displayReady', { displays: displays.length });
-    if (isPrimarySurfaceSegment()) void prewarmAgentTerminalCanvas();
+    if (isPrimarySurfaceSegment()) {
+        void prewarmAgentTerminalCanvas();
+    }
 
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
     if (position) {
@@ -4303,6 +5340,7 @@ export async function boot() {
         y: Math.round(liveJs.avatarPos.y),
         boot_elapsed_ms: bootElapsedMs(),
     });
+    publishStatusMenuItems();
     window.headsup.statusItemReady = true;
     emitStatusItemState();
 }

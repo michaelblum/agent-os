@@ -4,6 +4,8 @@ set -euo pipefail
 source "$(dirname "$0")/../../../lib/sigil/radial-menu.sh"
 source "$(dirname "$0")/../../../lib/harness-contracts.sh"
 
+aos_real_input_surface_require_enabled || exit $?
+
 AVATAR_ID="${AOS_SIGIL_AVATAR_ID:-avatar-main}"
 INSPECTOR_ID="${AOS_SIGIL_INSPECTOR_ID:-surface-inspector}"
 RADIAL_ID="sigil-radial-menu-$AVATAR_ID"
@@ -11,6 +13,7 @@ HIT_ID="sigil-hit-$AVATAR_ID"
 AGENT_TERMINAL_ID="sigil-agent-terminal"
 WIKI_WORKBENCH_ID="sigil-wiki-workbench"
 DESKTOP_WORLD_STAGE_ID="aos-desktop-world-stage"
+RESTORE_STATUS_ITEM_ENABLED=""
 
 phase() {
   local label="$1"
@@ -28,6 +31,20 @@ ready_quiet() {
   "$(aos_visual_aos)" ready --json >/dev/null
 }
 
+capture_status_item_state() {
+  RESTORE_STATUS_ITEM_ENABLED="$("$(aos_visual_aos)" set | python3 -c 'import json,sys; print("true" if ((json.load(sys.stdin).get("status_item") or {}).get("enabled") is True) else "false")')"
+}
+
+disable_status_item_frontload() {
+  "$(aos_visual_aos)" set status_item.enabled false >/dev/null
+}
+
+restore_status_item_state() {
+  if [[ "$RESTORE_STATUS_ITEM_ENABLED" == "true" ]]; then
+    "$(aos_visual_aos)" set status_item.enabled true >/dev/null || true
+  fi
+}
+
 cleanup_canvases() {
   aos_real_input_surface_cleanup_subject_family "$AVATAR_ID" >/dev/null || true
   aos_visual_remove_canvas "$WIKI_WORKBENCH_ID" 5
@@ -39,6 +56,7 @@ cleanup_canvases() {
 final_cleanup() {
   local status="$?"
   cleanup_canvases || true
+  restore_status_item_state
   aos_harness_contract_release_all
   exit "$status"
 }
@@ -51,10 +69,12 @@ aos_harness_contract_acquire "tests/scenarios/sigil/radial-menu/real-input.sh" \
   --blocks repo-service-mutator
 
 echo "INFO: this scenario uses real mouse input through the active repo daemon. Keep the keyboard and mouse idle."
+phase capture-status-item-state capture_status_item_state
 phase prepare-live-roots aos_visual_prepare_live_roots
 phase ready-after-live-roots ready_quiet
 phase start-real-input-surface aos_real_input_surface_start "$INSPECTOR_ID"
 phase seed-sigil aos_visual_seed_sigil repo
+phase disable-status-item-frontload disable_status_item_frontload
 phase ready-after-seed ready_quiet
 cleanup_canvases
 phase ready-after-initial-cleanup ready_quiet

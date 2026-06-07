@@ -37,9 +37,14 @@ export const AVATAR_SUBJECT_SOURCE = Object.freeze({
 });
 
 let radialMenuWorkbenchSubjectFactory = null;
+let visualObjectControllerUpdate = null;
 
 export function setRadialMenuWorkbenchSubjectFactory(factory) {
     radialMenuWorkbenchSubjectFactory = typeof factory === 'function' ? factory : null;
+}
+
+export function setVisualObjectControllerUpdate(controller) {
+    visualObjectControllerUpdate = typeof controller === 'function' ? controller : null;
 }
 
 function isPlainObject(value) {
@@ -518,6 +523,150 @@ export function applyEditorObjectPatch(state = {}, message = {}) {
 export function applyEditorEffectsPatch(state = {}, message = {}) {
     return applyRadialMenuObjectEffectsPatch(selectedRadialConfig(state), message, {
         canvasId: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+    });
+}
+
+function visualObjectEditorState(state = {}) {
+    const item = selectedRadialItem(state);
+    if (!item?.id) {
+        return {
+            radial_menu: {
+                'sigil.radial.main': {
+                    selected_item_id: null,
+                    items: {},
+                },
+            },
+        };
+    }
+    return {
+        radial_menu: {
+            'sigil.radial.main': {
+                selected_item_id: item.id,
+                items: {
+                    [item.id]: item,
+                },
+            },
+        },
+    };
+}
+
+function visualDescriptorPatchTarget(state = {}, descriptor = {}) {
+    const registry = buildEditorObjectRegistry(state);
+    const descriptorObjectIds = Array.isArray(descriptor.object_ids) ? descriptor.object_ids : [];
+    const object = registry.objects.find((entry) => descriptorObjectIds.includes(entry.object_id))
+        || registry.objects[0]
+        || null;
+    return object
+        ? {
+            canvas_id: registry.canvas_id,
+            object_id: object.object_id,
+        }
+        : {
+            canvas_id: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+            object_id: 'unknown',
+        };
+}
+
+function visualDescriptorTransformPatch(mutation = {}) {
+    if (mutation.value === undefined) return {};
+    const value = Number(mutation.value);
+    if (!Number.isFinite(value)) return {};
+    return {
+        scale: {
+            x: value,
+            y: value,
+            z: value,
+        },
+    };
+}
+
+function visualDescriptorMessage(state = {}, descriptor = {}, mutation = {}, requestId = '') {
+    const target = visualDescriptorPatchTarget(state, descriptor);
+    if (mutation.route === 'canvas_object.visibility.patch') {
+        return {
+            type: 'canvas_object.transform.patch',
+            schema_version: '2026-05-03',
+            request_id: text(requestId, `visual-object-${mutation.descriptor_id || descriptor.id || 'visibility'}`),
+            target,
+            patch: {
+                visible: !mutation.value,
+            },
+        };
+    }
+    if (mutation.route === 'canvas_object.effects.patch') {
+        return {
+            type: 'canvas_object.effects.patch',
+            schema_version: '2026-05-03',
+            request_id: text(requestId, `visual-object-${mutation.descriptor_id || descriptor.id || 'effects'}`),
+            target,
+            patch: {
+                controls: {
+                    enabled: mutation.value,
+                },
+            },
+        };
+    }
+    return {
+        type: 'canvas_object.transform.patch',
+        schema_version: '2026-05-03',
+        request_id: text(requestId, `visual-object-${mutation.descriptor_id || descriptor.id || 'transform'}`),
+        target,
+        patch: visualDescriptorTransformPatch(mutation),
+    };
+}
+
+export function applyRadialItemVisualObjectDescriptorUpdate(state = {}, {
+    descriptor,
+    descriptorId = '',
+    value,
+    requestId = '',
+    onRouteResult,
+    onSync,
+} = {}) {
+    if (!visualObjectControllerUpdate) {
+        throw new Error('Sigil radial item editor requires toolkit visual object controller update');
+    }
+    const subject = buildRadialItemWorkbenchSubject(state);
+    const descriptors = Array.isArray(subject?.state?.visual_object_descriptors)
+        ? subject.state.visual_object_descriptors
+        : [];
+    const targetDescriptor = descriptor
+        || descriptors.find((entry) => entry?.id === descriptorId)
+        || null;
+    if (!targetDescriptor) {
+        throw new TypeError(`Unknown radial visual object descriptor ${descriptorId || '(missing)'}.`);
+    }
+    const adapterState = visualObjectEditorState(state);
+    const routeHandlers = {
+        'canvas_object.transform.patch': (context) => {
+            const message = visualDescriptorMessage(state, targetDescriptor, context.mutation, requestId);
+            const result = applyEditorObjectPatch(state, message);
+            if (typeof onRouteResult === 'function') onRouteResult({ ...context, message, result });
+            return result;
+        },
+        'canvas_object.visibility.patch': (context) => {
+            const message = visualDescriptorMessage(state, targetDescriptor, context.mutation, requestId);
+            const result = applyEditorObjectPatch(state, message);
+            if (typeof onRouteResult === 'function') onRouteResult({ ...context, message, result });
+            return result;
+        },
+        'canvas_object.effects.patch': (context) => {
+            const message = visualDescriptorMessage(state, targetDescriptor, context.mutation, requestId);
+            const result = applyEditorEffectsPatch(state, message);
+            if (typeof onRouteResult === 'function') onRouteResult({ ...context, message, result });
+            return result;
+        },
+    };
+    const rendererSyncHandlers = Object.fromEntries((targetDescriptor.renderer_sync || []).map((label) => [
+        label,
+        (context) => {
+            if (typeof onSync === 'function') return onSync({ ...context, label });
+            return { status: 'observed' };
+        },
+    ]));
+    return visualObjectControllerUpdate(targetDescriptor, value, adapterState, {
+        routeHandlers,
+        rendererSyncHandlers,
     });
 }
 

@@ -28,14 +28,14 @@ const DEFAULT_RUNTIME_MECHANICS = Object.freeze([
         reason: 'Pointer move and drag events refresh hover/render state without invoking a command.',
     },
     {
-        id: 'sigil.context_menu.duplicate_echo',
+        id: 'sigil.avatar.controls.duplicate_echo',
         category: 'guard',
-        reason: 'Duplicate right-click echo suppression protects the existing context-menu toggle path.',
+        reason: 'Duplicate right-click echo suppression protects the existing avatar-controls toggle path.',
     },
     {
-        id: 'sigil.context_menu.right_click_away',
+        id: 'sigil.avatar.controls.right_click_away',
         category: 'guard',
-        reason: 'Missing pointer coordinates close or cancel the context menu without executing a command.',
+        reason: 'Missing pointer coordinates close or cancel the avatar controls without executing a command.',
     },
     {
         id: 'sigil.radial.pointer_tracking',

@@ -84,7 +84,7 @@ test('Markdown work-card adapter emits safe HTML, metadata, semantic targets, an
   assert.equal(mermaid.source_line_end, 11);
   assert.match(mermaid.source_hash, /^sha256:[a-f0-9]{64}$/);
   assert.equal(
-    expression.metadata.source_map.some((entry) => entry.target_id === 'checklist-keep-markdown-canonical'),
+    expression.metadata.source_map.some((entry) => entry.ref === 'html-workbench-expression:checklist-keep-markdown-canonical'),
     true,
   );
 });
@@ -131,18 +131,18 @@ test('checkpoint and resume payloads refer to expression targets without source 
     expression,
     outputKind: 'decision_sidecar',
     decisions: [{
-      target_id: target.target_id,
+      ref: target.ref,
       decision: 'approved',
-      source_path: target.source_path,
-      source_line_start: target.source_line_start,
-      source_line_end: target.source_line_end,
+      source_path: target.extension.source.path,
+      source_line_start: target.extension.source.line_start,
+      source_line_end: target.extension.source.line_end,
     }],
     resumedBy: 'test',
   });
 
   assert.equal(resume.resume.output_kind, 'decision_sidecar');
   assert.equal(resume.resume.automatic_source_mutation, false);
-  assert.equal(resume.resume.decisions[0].target_id, target.target_id);
+  assert.equal(resume.resume.decisions[0].ref, target.ref);
   assert.equal(resume.checkpoint.resume.metadata.resume_payload.output_kind, 'decision_sidecar');
 });
 
@@ -175,12 +175,16 @@ test('HTML expression surface payload exposes revealable live semantic targets',
     metadata: {
       expression_id: 'sample-expression',
       semantic_targets: [{
-        target_id: 'goal',
-        data_aos_ref: 'html-workbench-expression:goal',
-        aos_ref: 'html-workbench-expression:goal',
-        accessible_label: 'Goal',
-        selector: '[data-semantic-target-id="goal"]',
-        reveal_eligible: true,
+        ref: 'html-workbench-expression:goal',
+        surface: 'html-workbench-expression',
+        role: 'document_region',
+        name: 'Goal',
+        kind: 'section',
+        enabled: true,
+        state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+        actions: [],
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="goal"]', dom_id: 'goal' },
       }],
     },
   });
@@ -204,7 +208,7 @@ test('HTML expression surface payload exposes revealable live semantic targets',
 
   assert.equal(payload.type, 'canvas_inspector.semantic_targets');
   assert.equal(payload.canvas_id, 'html-workbench-expression');
-  assert.equal(payload.semantic_targets[0].id, 'goal');
+  assert.equal(payload.semantic_targets[0].ref, 'html-workbench-expression:goal');
   assert.equal(payload.semantic_targets[0].current_render_status, 'visible');
   assert.equal(payload.semantic_targets[0].can_reveal, true);
   assert.deepEqual(payload.semantic_targets[0].display_space_rect, { x: 20, y: 40, w: 300, h: 60 });
@@ -215,10 +219,16 @@ test('HTML expression surface keeps offscreen semantic targets revealable withou
     metadata: {
       expression_id: 'sample-expression',
       semantic_targets: [{
-        target_id: 'suggested-verification',
-        data_aos_ref: 'html-workbench-expression:suggested-verification',
-        selector: '[data-semantic-target-id="suggested-verification"]',
-        reveal_eligible: true,
+        ref: 'html-workbench-expression:suggested-verification',
+        surface: 'html-workbench-expression',
+        role: 'document_region',
+        name: 'Suggested Verification',
+        kind: 'verification',
+        enabled: true,
+        state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+        actions: [],
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', dom_id: 'suggested-verification' },
       }],
     },
   });
@@ -246,10 +256,16 @@ test('HTML expression reveal hook scrolls an offscreen semantic target and retur
     metadata: {
       expression_id: 'sample-expression',
       semantic_targets: [{
-        target_id: 'suggested-verification',
-        data_aos_ref: 'html-workbench-expression:suggested-verification',
-        selector: '[data-semantic-target-id="suggested-verification"]',
-        reveal_eligible: true,
+        ref: 'html-workbench-expression:suggested-verification',
+        surface: 'html-workbench-expression',
+        role: 'document_region',
+        name: 'Suggested Verification',
+        kind: 'verification',
+        enabled: true,
+        state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+        actions: [],
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', dom_id: 'suggested-verification' },
       }],
     },
   });
@@ -332,10 +348,16 @@ test('HTML expression surface replays current semantic targets when Surface Insp
       metadata: {
         expression_id: 'sample-expression',
         semantic_targets: [{
-          target_id: 'goal',
-          data_aos_ref: 'html-workbench-expression:goal',
-          selector: '[data-semantic-target-id="goal"]',
-          reveal_eligible: true,
+          ref: 'html-workbench-expression:goal',
+          surface: 'html-workbench-expression',
+          role: 'document_region',
+          name: 'Goal',
+          kind: 'section',
+          enabled: true,
+          state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+          actions: [],
+          extension: { reveal_eligible: true },
+          provenance: { selector: '[data-semantic-target-id="goal"]', dom_id: 'goal' },
         }],
       },
     });
@@ -353,7 +375,7 @@ test('HTML expression surface replays current semantic targets when Surface Insp
     assert.equal(sent[0].payload.target, 'surface-inspector');
     assert.equal(sent[0].payload.message.type, 'canvas_inspector.semantic_targets');
     assert.equal(sent[0].payload.message.replay_reason, 'surface_inspector_bootstrap');
-    assert.equal(sent[0].payload.message.semantic_targets[0].id, 'goal');
+    assert.equal(sent[0].payload.message.semantic_targets[0].ref, 'html-workbench-expression:goal');
     assert.equal(sent[0].payload.message.semantic_targets[0].can_reveal, true);
     assert.deepEqual(sent[0].payload.message.semantic_targets[0].display_space_rect, { x: 20, y: 40, w: 300, h: 60 });
   } finally {
@@ -375,56 +397,35 @@ test('generated fixture is deterministic for the checked-in work-card', async ()
   assert.deepEqual(fixture, expression.metadata);
 });
 
-test('generated Employer Brand human alignment expression fixture is deterministic and complete', async () => {
-  const sourcePath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md';
-  const htmlPath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.html';
-  const metadataPath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.json';
-  const markdown = await fs.readFile(path.join(repoRoot, sourcePath), 'utf8');
+test('generated workbench semantic targets single-source identity and source data', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
-    markdown,
-    sourcePath,
-    artifactKind: 'human_alignment_pack',
+    markdown: sampleWorkCard,
+    sourcePath: 'docs/design/work-cards/sample.md',
     generatedAt: '2026-05-10T00:00:00.000Z',
-    htmlPath,
+    expressionId: 'sample-expression',
   });
-  const fixture = JSON.parse(await fs.readFile(path.join(repoRoot, metadataPath), 'utf8'));
 
-  assert.deepEqual(fixture, expression.metadata);
-  assert.equal(fixture.artifact_kind, 'human_alignment_pack');
-  assert.equal(fixture.source.kind, 'markdown');
-  assert.equal(fixture.source.path, sourcePath);
-  assert.equal(fixture.html.path, htmlPath);
-
-  const requiredTargets = [
-    'current-assumptions',
-    'companies-and-competitor-set',
-    'source-categories-and-page-types',
-    'desired-evidence-elements-and-expected-clip-counts',
-    'what-not-to-collect',
-    'kilos-interpretation',
-    'source-trust-and-inaccessible-source-policy',
-    'report-tone-and-direction',
-    'explicit-human-decision-points',
-  ];
-  const targetIds = new Set(fixture.semantic_targets.map((target) => target.target_id));
-  for (const targetId of requiredTargets) {
-    assert.equal(targetIds.has(targetId), true, `missing semantic target ${targetId}`);
-    assert.equal(
-      fixture.source_map.some((entry) => entry.target_id === targetId),
-      true,
-      `missing source map entry ${targetId}`,
-    );
+  for (const target of expression.metadata.semantic_targets) {
+    assert.equal(Object.hasOwn(target, 'ref'), true);
+    for (const key of ['id', 'target_id', 'data_aos_ref', 'aos_ref', 'accessible_label', 'semantic_target_id', 'subject_id', 'do_target']) {
+      assert.equal(Object.hasOwn(target, key), false, `${target.ref} leaked top-level ${key}`);
+    }
+    assert.equal(Object.hasOwn(target.extension, 'dom_id'), false, `${target.ref} duplicated dom_id under extension`);
+    assert.equal(Object.hasOwn(target.provenance, 'dom_id'), true, `${target.ref} missing provenance.dom_id`);
+    assert.equal(Object.hasOwn(target.provenance, 'source_payload_id'), false, `${target.ref} duplicated source_payload_id`);
+    for (const key of ['source_path', 'source_line_start', 'source_line_end']) {
+      assert.equal(Object.hasOwn(target.provenance, key), false, `${target.ref} duplicated ${key} under provenance`);
+    }
+    assert.equal(target.extension.source.path, 'docs/design/work-cards/sample.md');
+    assert.equal(Number.isInteger(target.extension.source.line_start), true);
+    assert.equal(Number.isInteger(target.extension.source.line_end), true);
   }
-
-  assert.equal(fixture.mermaid_blocks.length, 1);
-  assert.match(fixture.mermaid_blocks[0].source_hash, /^sha256:[a-f0-9]{64}$/);
-  assert.equal(targetIds.has(fixture.mermaid_blocks[0].target_id), true);
 });
 
 test('resume fixture maps annotation and decision sidecars back to expression source lines', async () => {
   const metadata = JSON.parse(await fs.readFile(path.join(repoRoot, 'docs/design/fixtures/aos-html-workbench-expression-v0/expression.json'), 'utf8'));
   const resume = JSON.parse(await fs.readFile(path.join(repoRoot, 'docs/design/fixtures/aos-html-workbench-expression-v0/resume-decision-sidecar.json'), 'utf8'));
-  const targets = new Map(metadata.semantic_targets.map((target) => [target.target_id, target]));
+  const targets = new Map(metadata.semantic_targets.map((target) => [target.ref, target]));
 
   assert.equal(resume.schema, 'aos_html_workbench_expression_resume');
   assert.equal(resume.expression_id, metadata.expression_id);
@@ -432,10 +433,10 @@ test('resume fixture maps annotation and decision sidecars back to expression so
   assert.equal(resume.automatic_source_mutation, false);
 
   for (const record of [...resume.annotations, ...resume.decisions]) {
-    const target = targets.get(record.target_id);
-    assert.ok(target, `missing target ${record.target_id}`);
-    assert.equal(record.source_path, target.source_path);
-    assert.equal(record.source_line_start, target.source_line_start);
-    assert.equal(record.source_line_end, target.source_line_end);
+    const target = targets.get(record.ref);
+    assert.ok(target, `missing target ${record.ref}`);
+    assert.equal(record.source_path, target.extension.source.path);
+    assert.equal(record.source_line_start, target.extension.source.line_start);
+    assert.equal(record.source_line_end, target.extension.source.line_end);
   }
 });

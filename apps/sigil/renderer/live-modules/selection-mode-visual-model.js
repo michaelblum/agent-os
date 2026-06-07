@@ -1,7 +1,5 @@
 import {
-    AVATAR_RENDER_SOURCE,
     CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
-    CURRENT_AVATAR_RENDER_MODEL_SOURCE,
     CURRENT_LIVE_SIGIL_AVATAR_SOURCE,
 } from './avatar-render-model-adapter.js';
 
@@ -9,33 +7,16 @@ const DEFAULT_SELECTION_MODE_EFFECTS = Object.freeze({
     enter: 'supernova',
     exit: 'reverse_supernova',
 });
-const DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS = 520;
+const DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS = 720;
 const SELECTION_MODE_EFFECT_DURATIONS_MS = Object.freeze({
-    supernova: 520,
-    reverse_supernova: 520,
+    supernova: 380,
+    reverse_supernova: 340,
 });
 const DEFAULT_AVATAR_IDLE_SPIN_SPEED = 0.01;
-
-// These values intentionally mirror the legacy fast-travel line defaults so
-// Selection Mode keeps its current feel without reading fastTravelLine* state.
-const DEFAULT_SELECTION_MODE_TRAIL = Object.freeze({
-    interDimensional: true,
-    duration: 0.22,
-    delay: 0,
-    repeatCount: 10,
-    repeatDuration: 2.0,
-    trailMode: 'fade',
-    lag: 0.05,
-    scale: 1.5,
-});
 
 function numberOr(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
-}
-
-function boolOr(value, fallback) {
-    return typeof value === 'boolean' ? value : fallback;
 }
 
 function hexToRgba(value = '', alpha = 1) {
@@ -62,6 +43,23 @@ export function selectionModeEffectDurationMs(effect = '') {
     return SELECTION_MODE_EFFECT_DURATIONS_MS[effect] || DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS;
 }
 
+function selectionModeEffectProfile(effect = '') {
+    if (effect === 'supernova' || effect === 'reverse_supernova') {
+        return {
+            source: 'celestial-v1-supernova-release',
+            reference: 'celestial/_legacy/celestial-v1.html',
+            shockwave_ms: 200,
+            particle_families: ['white_release_sparks', 'edge_color_friction_sparks', 'white_dwarf_core'],
+        };
+    }
+    return {
+        source: 'selection_mode_custom_effect',
+        reference: '',
+        shockwave_ms: 0,
+        particle_families: [],
+    };
+}
+
 export function resolveSigilAvatarIdleRotation(rendererState = null) {
     const configured = Number(rendererState?.idleSpinSpeed ?? rendererState?.idleSpin ?? DEFAULT_AVATAR_IDLE_SPIN_SPEED);
     const baseSpeed = Number.isFinite(configured) ? configured : DEFAULT_AVATAR_IDLE_SPIN_SPEED;
@@ -74,29 +72,36 @@ export function resolveSigilAvatarIdleRotation(rendererState = null) {
     };
 }
 
-function resolveAvatarPointerSource(rendererState = null) {
-    const vitality = rendererState?.sessionVitality || {};
-    const vitalityMultiplier = Number(vitality.scaleMultiplier ?? vitality.rotationMultiplier ?? 1);
+function resolveAvatarPointerEffects(rendererState = null) {
+    const colors = rendererState?.colors || {};
+    const auraPrimary = colors.aura?.[0] || colors.face?.[0] || '#bc13fe';
+    const auraSecondary = colors.aura?.[1] || colors.edge?.[0] || auraPrimary;
+    const phenomena = rendererState?.phenomena || {};
+    const enabledFamilies = [];
+    if (rendererState?.isPulsarEnabled || phenomena.pulsar?.enabled) enabledFamilies.push('pulsar');
+    if (rendererState?.isAccretionEnabled || phenomena.accretion?.enabled) enabledFamilies.push('accretion');
+    if (rendererState?.isGammaEnabled || phenomena.gamma?.enabled) enabledFamilies.push('gamma');
+    if (rendererState?.isNeutrinosEnabled || phenomena.neutrino?.enabled) enabledFamilies.push('neutrino');
+    if (rendererState?.isLightningEnabled || rendererState?.lightning?.enabled) enabledFamilies.push('lightning');
+    if (rendererState?.isMagneticEnabled || rendererState?.magnetic?.enabled) enabledFamilies.push('magnetic');
     return {
-        source: AVATAR_RENDER_SOURCE,
+        source: CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
         appearance_source: CURRENT_LIVE_SIGIL_AVATAR_SOURCE,
-        material_source: CURRENT_AVATAR_RENDER_MODEL_SOURCE,
-        effects_source: CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
-        trail: {
-            enabled: rendererState?.isTrailEnabled !== false,
-            style: rendererState?.trailStyle || 'omega',
-            count: Number(rendererState?.trailLength ?? 6),
-            opacity: Number(rendererState?.trailOpacity ?? 0.5),
-            fadeMs: Number(rendererState?.trailFadeMs ?? 400),
+        rendered_pointer_families: rendererState?.isAuraEnabled === false ? [] : ['aura_glow', 'aura_core'],
+        inherited_descriptor_families: enabledFamilies,
+        aura: {
+            enabled: rendererState?.isAuraEnabled !== false,
+            primary: auraPrimary,
+            secondary: auraSecondary,
+            reach: Number(rendererState?.auraReach ?? 1),
+            intensity: Number(rendererState?.auraIntensity ?? 1),
+            pulseRate: Number(rendererState?.auraPulseRate ?? 0.005),
+            wobbleCount: Number(rendererState?.wobbleCount ?? 0),
         },
-        rotation: {
-            axis: 'screen_plane_z',
-            source: 'selection_mode_pointer_single_axis',
-            speed: 0.01,
-            visible_avatar_y_speed: 0,
-            visible_avatar_x_speed: 0,
-            session_vitality_multiplier: Number.isFinite(vitalityMultiplier) ? vitalityMultiplier : 1,
-        },
+        pointer_scale_boundary: [
+            'aura glow/core render in the Selection Mode pointer harness',
+            'large avatar-only phenomena remain inherited descriptors until they have pointer-scale adapters',
+        ],
     };
 }
 
@@ -122,7 +127,7 @@ export function buildSelectionModeVisualStyle(rendererState = null) {
         source: 'sigil_avatar',
         primary: primaryColor,
         aura,
-        badge: {
+        lineage: {
             active: {
                 shadow: aura.primary,
                 fill: aura.core,
@@ -151,6 +156,11 @@ export function buildSelectionModeVisualStyle(rendererState = null) {
             ancestor: {
                 stroke: hexToRgba(primaryColor, 0.22),
                 fill: hexToRgba(primaryColor, 0.018),
+            },
+            perimeter: {
+                fill: hexToRgba(primaryColor, 0.11),
+                line: aura.secondary,
+                glow: aura.glow,
             },
         },
         connector: {
@@ -186,6 +196,7 @@ export function buildSelectionModeVisualEffects(selectionMode = {}, {
                 id: `selection-mode-effect:${index}:${entry.phase || 'effect'}:${startedAtMs}`,
                 phase: entry.phase || '',
                 effect,
+                profile: selectionModeEffectProfile(effect),
                 reason: entry.reason || '',
                 at: entry.at || '',
                 started_at_ms: startedAtMs,
@@ -206,119 +217,4 @@ export function selectionModeOverlayHasActiveEffects(overlay = {}, nowMs = Date.
         if (!Number.isFinite(startedAtMs) || !Number.isFinite(durationMs)) return effect?.active === true;
         return Number(nowMs) - startedAtMs < durationMs;
     });
-}
-
-export function buildSelectionModeCursorGlyph(cursor = null, rendererState = null) {
-    if (!cursor) return null;
-    const avatar = resolveAvatarPointerSource(rendererState);
-    const length = 44;
-    const base = length / Math.sqrt(3);
-    return {
-        kind: 'selection_mode_cursor',
-        model_kind: 'sigil_model',
-        source: avatar.source,
-        appearance_source: avatar.appearance_source,
-        material_source: avatar.material_source,
-        effects_source: avatar.effects_source,
-        shape: 'avatar_derived_triangular_pointer',
-        point: cursor,
-        hotspot: {
-            kind: 'tip',
-            x: cursor.x,
-            y: cursor.y,
-            local: { x: 0, y: 0, z: 0 },
-        },
-        geometry: {
-            primitive: 'triangular_pyramid',
-            sides: 3,
-            length,
-            base,
-            cross_section: 'equilateral_triangle',
-            expected_depth_axis: 'screen_plane',
-            long_axis: 'screen_north_west',
-            base_screen_quadrant: 'down_right',
-            hotspot_local: { x: 0, y: 0, z: 0 },
-        },
-        animation: {
-            rotates_on_axis: 'screen_plane_z',
-            axis: 'scene_z',
-            source: avatar.rotation.source,
-            rotation_speed: avatar.rotation.speed,
-            visible_avatar_y_speed: avatar.rotation.visible_avatar_y_speed,
-            visible_avatar_x_speed: avatar.rotation.visible_avatar_x_speed,
-            session_vitality_multiplier: avatar.rotation.session_vitality_multiplier,
-        },
-        trail: avatar.trail,
-        cursor_overrides: {
-            geometry: true,
-            orientation: true,
-            hotspot: true,
-            scale: true,
-            visibility: true,
-            single_axis_rotation: true,
-        },
-    };
-}
-
-export function resolveSelectionModeTrailTiming(rendererState = null) {
-    const configured = rendererState?.selectionModeTrail
-        || rendererState?.selectionMode?.trail
-        || {};
-    return {
-        source: 'selection_mode_trail',
-        interDimensional: boolOr(
-            configured.interDimensional ?? rendererState?.selectionModeTrailInterDimensional,
-            DEFAULT_SELECTION_MODE_TRAIL.interDimensional,
-        ),
-        duration: numberOr(
-            configured.duration ?? rendererState?.selectionModeTrailDuration,
-            DEFAULT_SELECTION_MODE_TRAIL.duration,
-        ),
-        delay: numberOr(
-            configured.delay ?? rendererState?.selectionModeTrailDelay,
-            DEFAULT_SELECTION_MODE_TRAIL.delay,
-        ),
-        repeatCount: Math.max(0, Math.round(numberOr(
-            configured.repeatCount ?? rendererState?.selectionModeTrailRepeatCount,
-            DEFAULT_SELECTION_MODE_TRAIL.repeatCount,
-        ))),
-        repeatDuration: numberOr(
-            configured.repeatDuration ?? rendererState?.selectionModeTrailRepeatDuration,
-            DEFAULT_SELECTION_MODE_TRAIL.repeatDuration,
-        ),
-        trailMode: String(
-            configured.trailMode ?? rendererState?.selectionModeTrailMode ?? DEFAULT_SELECTION_MODE_TRAIL.trailMode,
-        ),
-        lag: numberOr(
-            configured.lag ?? configured.lagFactor ?? rendererState?.selectionModeTrailLag,
-            DEFAULT_SELECTION_MODE_TRAIL.lag,
-        ),
-        scale: numberOr(
-            configured.scale ?? rendererState?.selectionModeTrailScale,
-            DEFAULT_SELECTION_MODE_TRAIL.scale,
-        ),
-    };
-}
-
-export function buildSelectionModeCursorTrailModel(rendererState = null) {
-    const avatar = resolveAvatarPointerSource(rendererState);
-    const timing = resolveSelectionModeTrailTiming(rendererState);
-    return {
-        kind: 'selection_mode_cursor_trail',
-        model_kind: 'sigil_model',
-        shape: 'avatar_derived_triangular_pointer',
-        repeatShape: 'avatar_derived_triangular_pointer',
-        repeatGeometry: 'triangular_pyramid',
-        source: avatar.source,
-        trail: avatar.trail,
-        timing,
-        timingSource: timing.source,
-        duration: timing.duration,
-        delay: timing.delay,
-        repeatCount: timing.repeatCount,
-        repeatDuration: timing.repeatDuration,
-        trailMode: timing.trailMode,
-        lag: timing.lag,
-        scale: timing.scale,
-    };
 }

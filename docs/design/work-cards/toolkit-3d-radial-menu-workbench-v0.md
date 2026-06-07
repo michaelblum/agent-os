@@ -9,7 +9,7 @@
 - Related adapter tracker: #297 Annotation projection and subject-address
   adapters.
 - Historical Sigil avatar configuration tracker: #75, now superseded by the
-  parked-legacy `apps/sigil/studio/` boundary. New avatar configuration work
+  parked-legacy avatar configuration boundary. New avatar configuration work
   should get a fresh product decision and issue.
 - Prior implementation slice:
   `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`.
@@ -362,9 +362,8 @@ Adjust after reading the code, but likely files include:
 - Do not execute arbitrary code from JSON. Keep module refs allowlisted.
 - Do not rename Sigil actions, semantic ids, or visible labels unless required
   by a failing compatibility path and called out in the completion report.
-- Do not revive parked legacy Sigil `chat/`, `studio/`, or historical
-  `workbench/` behavior unless a direct import/test breaks and the fix is
-  mechanical.
+- Do not revive parked legacy Sigil `chat/` or historical `workbench/`
+  behavior unless a direct import/test breaks and the fix is mechanical.
 - Do not run destructive git commands or discard unrelated dirty work.
 
 ## Acceptance Criteria

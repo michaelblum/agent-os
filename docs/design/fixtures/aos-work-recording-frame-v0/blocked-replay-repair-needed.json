@@ -1,0 +1,156 @@
+{
+  "schema": "aos.work-recording-frame.fixture.v0",
+  "case": "blocked_replay_records_repairable_without_rewriting_history",
+  "recording_id": "recording:display-brightness-070",
+  "original_frame_refs": [
+    "frame:baseline:display-brightness:001",
+    "frame:delta:display-brightness:002"
+  ],
+  "original_evidence_refs": [
+    "evidence:before-see",
+    "evidence:do-set-value",
+    "evidence:after-see"
+  ],
+  "history_mutation_policy": "append_only",
+  "previous_target_descriptor": {
+    "ref": "display-brightness-slider",
+    "state_id": "see_recording_slider001",
+    "role": "slider",
+    "name": "Brightness",
+    "target": {
+      "target_id": "control:display-brightness",
+      "owner_namespace": {
+        "app_id": "aos-toolkit-demo",
+        "canvas_id": "display-settings-panel",
+        "surface_id": "display-settings-panel",
+        "component_family": "toolkit.zag.slider",
+        "structural_owner": [
+          "settings-workbench",
+          "display-section"
+        ]
+      }
+    },
+    "state": {
+      "value": 0.4,
+      "min": 0,
+      "max": 1,
+      "step": 0.05,
+      "orientation": "horizontal",
+      "thumb_count": 1
+    },
+    "actions": [
+      "drag",
+      "set-value",
+      "focus"
+    ],
+    "provenance": {
+      "canvas_id": "display-settings-panel",
+      "do_target": "canvas:display-settings-panel/display-brightness-slider"
+    },
+    "reacquisition": {
+      "strategy": "owner-structural-fingerprint",
+      "machine_fingerprint": {
+        "role": "slider",
+        "structural_path": [
+          "settings-workbench",
+          "display-section",
+          "field:brightness"
+        ],
+        "capabilities": [
+          "drag",
+          "set-value",
+          "focus"
+        ],
+        "range_shape": {
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "orientation": "horizontal",
+          "thumb_count": 1
+        }
+      },
+      "hint_fingerprint": {
+        "label_hints": [
+          "Brightness"
+        ]
+      }
+    }
+  },
+  "replay_attempt": {
+    "id": "replay-attempt:display-brightness-070:stale",
+    "policy_ref": "replay-policy:display-brightness-070",
+    "requested_action_intent_ref": "intent:set-brightness-070",
+    "resolution": {
+      "status": "ambiguous",
+      "action_blocked": true,
+      "selected_ref": null,
+      "machine_facts_first": [
+        "target.owner_namespace",
+        "target.target_id",
+        "role",
+        "reacquisition.machine_fingerprint.structural_path",
+        "reacquisition.machine_fingerprint.capabilities"
+      ],
+      "hint_facts_only": [
+        "name",
+        "reacquisition.hint_fingerprint.label_hints"
+      ],
+      "candidate_refs": [
+        "display-brightness-slider",
+        "display-brightness-slider-secondary"
+      ],
+      "labels_used_as_hints_only": true
+    },
+    "execution_result": {
+      "id": "result:replay-blocked-brightness-070",
+      "transaction_id": "txn:replay-brightness-070",
+      "action_intent_id": "intent:set-brightness-070",
+      "status": "blocked",
+      "reason": "ambiguous_target_resolution",
+      "executed": false,
+      "execution": {
+        "backend": null,
+        "strategy": "semantic_reacquire_then_do",
+        "fallback_used": false,
+        "state_id": "see_recording_slider001"
+      },
+      "target": {
+        "target_dialect": "canvas",
+        "canvas_id": "display-settings-panel",
+        "ref": "display-brightness-slider",
+        "target_descriptor": {
+          "$ref": "#/previous_target_descriptor"
+        }
+      },
+      "resolved_target": {
+        "status": "ambiguous",
+        "action_blocked": true
+      },
+      "post_action_state": null
+    }
+  },
+  "appended_health_record": {
+    "id": "frame-health:display-brightness-070:repair-needed",
+    "kind": "recording_frame_health",
+    "verdict": "repairable",
+    "reason": "Replay blocked because target resolution was ambiguous.",
+    "affected_frame_refs": [
+      "frame:baseline:display-brightness:001",
+      "frame:delta:display-brightness:002"
+    ],
+    "evidence_refs": [
+      "evidence:before-see",
+      "evidence:do-set-value",
+      "evidence:after-see"
+    ],
+    "repair_policy": {
+      "mode": "append_repair_patch",
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [
+        "workflow-gate:recording-repair-review"
+      ],
+      "must_preserve_historical_frames": true,
+      "must_preserve_historical_evidence": true
+    }
+  }
+}

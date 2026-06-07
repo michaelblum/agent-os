@@ -15,7 +15,7 @@ apps/sigil/radial-item-editor/launch.sh wiki-graph
 ```
 
 The item argument is optional. Editable subjects are discovered from
-`DEFAULT_SIGIL_RADIAL_ITEMS` and currently include `context-menu`,
+`DEFAULT_SIGIL_RADIAL_ITEMS` and currently include `avatar-controls`,
 `agent-terminal`, and `wiki-graph`.
 
 `AOS_SIGIL_CONTENT_ROOT` and `AOS_TOOLKIT_CONTENT_ROOT` are AOS content-root

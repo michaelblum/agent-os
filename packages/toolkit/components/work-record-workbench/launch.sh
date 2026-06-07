@@ -5,29 +5,18 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
+source "$ROOT/scripts/aos-content-scope.sh"
 AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="${CANVAS_ID:-work-record-workbench}"
+ALLOW_START="false"
+if [[ "${1:-}" == "--allow-start" ]]; then
+  ALLOW_START="true"
+  shift
+fi
 TARGET="${1:-$ROOT/docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json}"
 PANEL_W="${AOS_WORK_RECORD_WORKBENCH_W:-1180}"
 PANEL_H="${AOS_WORK_RECORD_WORKBENCH_H:-720}"
-
-root_key_for() {
-  local prefix="$1"
-  local branch suffix
-  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
-  if [[ -z "$branch" || "$branch" == "main" ]]; then
-    printf '%s\n' "$prefix"
-    return
-  fi
-  suffix="$(
-    printf '%s' "$branch" \
-      | tr '[:upper:]' '[:lower:]' \
-      | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//'
-  )"
-  printf '%s_%s\n' "$prefix" "${suffix:-worktree}"
-}
-
-TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(root_key_for toolkit)}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 CANONICAL_REPO_ROOT="${AOS_CANONICAL_REPO_ROOT:-/Users/Michael/Code/agent-os}"
 
 if [[ ! -x "$AOS" ]]; then
@@ -46,26 +35,11 @@ fi
 
 "$AOS" set "content.roots.$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit" >/dev/null
 
-content_root_live() {
-  "$AOS" content status --json 2>/dev/null \
-    | TOOLKIT_CONTENT_ROOT="$TOOLKIT_CONTENT_ROOT" \
-      TOOLKIT_PATH="$ROOT/packages/toolkit" \
-      python3 -c '
-import json, os, sys
-try:
-    roots = json.load(sys.stdin).get("roots", {})
-except Exception:
-    sys.exit(1)
-sys.exit(0 if roots.get(os.environ["TOOLKIT_CONTENT_ROOT"]) == os.environ["TOOLKIT_PATH"] else 1)
-'
-}
-
-if ! content_root_live; then
-  echo "Refreshing repo daemon so new content root is live: $TOOLKIT_CONTENT_ROOT" >&2
-  "$AOS" service restart --mode repo >/dev/null
+if [[ "$ALLOW_START" == "true" ]]; then
+  aos_ensure_content_roots_live "$AOS" --allow-start "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
+else
+  aos_ensure_content_roots_live "$AOS" "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
 fi
-
-"$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
 
 DISPLAY_JSON="$("$AOS" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')"
 GEOMETRY="$(
@@ -101,7 +75,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest work-record-workbench \
   --js 'typeof window.__workRecordWorkbenchState === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 CONTENT_JSON="$(TARGET="$TARGET" python3 -c '
 import json, os, pathlib

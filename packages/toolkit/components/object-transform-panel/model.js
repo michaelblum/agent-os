@@ -105,7 +105,7 @@ function normalizeControlValue(value, fallback = null) {
 function normalizeEffectControl(control = {}) {
   const id = text(control.id);
   if (!id) return null;
-  const type = text(control.type, 'range');
+  const type = text(control.type, 'slider');
   const fallbackValue = type === 'checkbox' ? false : 0;
   return {
     id,
@@ -114,7 +114,7 @@ function normalizeEffectControl(control = {}) {
     value: normalizeControlValue(control.value, fallbackValue),
     min: finiteNumber(control.min, 0),
     max: finiteNumber(control.max, 3),
-    step: finiteNumber(control.step, type === 'range' ? 0.05 : 1),
+    step: finiteNumber(control.step, type === 'slider' ? 0.05 : 1),
     unit: text(control.unit),
     tooltip: text(control.tooltip),
   };

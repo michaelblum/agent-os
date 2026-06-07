@@ -6,6 +6,11 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="${AOS:-$ROOT/aos}"
+ALLOW_START="false"
+if [[ "${1:-}" == "--allow-start" ]]; then
+  ALLOW_START="true"
+  shift
+fi
 
 if [[ ! -x "$AOS" ]] && command -v aos >/dev/null 2>&1; then
   AOS="$(command -v aos)"
@@ -63,12 +68,21 @@ sys.exit(0 if all(roots.get(name) == path for name, path in checks) else 1)
 }
 
 if ! content_roots_live; then
+  if [[ "$ALLOW_START" != "true" ]]; then
+    "$AOS" content wait --root "$CONTENT_ROOT" --root "$TOOLKIT_CONTENT_ROOT" --timeout 3s --json >/dev/null
+    exit $?
+  fi
   echo "Refreshing repo daemon so new content roots are live: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT" >&2
   "$AOS" service restart --mode repo >/dev/null
 fi
 
-"$AOS" content wait --root "$CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
-"$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
+if [[ "$ALLOW_START" == "true" ]]; then
+  "$AOS" content wait --root "$CONTENT_ROOT" --auto-start --allow-start --timeout 15s --json >/dev/null
+  "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --allow-start --timeout 15s --json >/dev/null
+else
+  "$AOS" content wait --root "$CONTENT_ROOT" --timeout 15s --json >/dev/null
+  "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --timeout 15s --json >/dev/null
+fi
 
 DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
 GEOMETRY="$(
@@ -93,17 +107,23 @@ read -r WORKBENCH_X WORKBENCH_Y RESOLVED_WORKBENCH_W RESOLVED_WORKBENCH_H <<<"$G
 
 "$AOS" show remove --id "$WORKBENCH_ID" 2>/dev/null || true
 
-"$AOS" show create \
-  --id "$WORKBENCH_ID" \
-  --at "$WORKBENCH_X,$WORKBENCH_Y,$RESOLVED_WORKBENCH_W,$RESOLVED_WORKBENCH_H" \
-  --interactive \
-  --scope global \
-  --url "aos://$CONTENT_ROOT/radial-item-workbench/index.html?item=$ITEM_ID&toolkit-root=$TOOLKIT_CONTENT_ROOT" >/dev/null
+CREATE_ARGS=(show create --id "$WORKBENCH_ID")
+if [[ "$ALLOW_START" == "true" ]]; then
+  CREATE_ARGS+=(--allow-start)
+fi
+CREATE_ARGS+=(
+  --at "$WORKBENCH_X,$WORKBENCH_Y,$RESOLVED_WORKBENCH_W,$RESOLVED_WORKBENCH_H"
+  --interactive
+  --scope global
+  --url "aos://$CONTENT_ROOT/radial-item-workbench/index.html?item=$ITEM_ID&toolkit-root=$TOOLKIT_CONTENT_ROOT"
+)
+"$AOS" "${CREATE_ARGS[@]}" >/dev/null
 
 "$AOS" show wait \
   --id "$WORKBENCH_ID" \
   --js 'typeof window.__sigilRadialItemWorkbench === "object" && window.__sigilRadialItemWorkbench.snapshot().panel?.objects?.length > 0' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Sigil radial item workbench launched for $ITEM_ID"
 echo "Content roots: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT"

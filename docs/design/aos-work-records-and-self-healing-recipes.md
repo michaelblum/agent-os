@@ -110,8 +110,27 @@ fallback flag, and originating `state_id` when supplied. Work records should
 carry those fields as correlation metadata between the natural-language spine,
 the structured execution map, and immutable evidence.
 
+For AOS-owned target interactions, the current split between durable intent,
+execution result metadata, optional gesture evidence, state patches, and replay
+plans is defined in
+[`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md). Work Records
+store that family in their intent, execution-map, evidence, health, and replay
+policy layers; they do not collapse it into raw input replay.
+
+Work Recording frame packs over that family are defined in
+[`aos-work-recording-frame-contract-v0.md`](aos-work-recording-frame-contract-v0.md).
+The recording layer owns baseline snapshots, compact delta frames, periodic
+keyframes, evidence refs, replay policy, and frame health. The interaction
+grammar still owns target descriptors, action intents, execution results,
+optional gesture frames, observed input evidence, and state patches.
+
 Coordinates can be recorded, but they are fallback material. When semantic
-targets exist, prefer them.
+targets exist, prefer the AOS target descriptor vocabulary: state-scoped `ref`
+and `state_id` for the immediate action, durable `target.target_id` scoped by
+`target.owner_namespace`, primitive `actions`, current `state`, `provenance`
+for the current address, and `reacquisition` fingerprints for repair. Labels
+and accessibility text can help repair as hints, but they are not durable
+target identity.
 
 The first AOS action capture slice is intentionally saved-evidence only. A
 single source records before perception, the AOS `do` result, and after
@@ -133,13 +152,14 @@ Examples:
 ```text
 browser:<session>/<ref>
 ax:<pid>/<ref>
-canvas:<canvas-id>/<object-ref>
+canvas:<canvas-id>/<state-scoped-ref>
 screen:<state-id>/<x,y>
 ```
 
 The exact grammar can harden later. The important point is that target strings
-are compact handles while the execution map can carry richer candidates,
-metadata, and stale-ref repair hints.
+are compact current-address handles while the execution map can carry richer
+target descriptors: owner namespace, durable target id, primitive actions,
+state, provenance, and machine-first stale-ref repair hints.
 
 ## Playwright And Codegen
 
@@ -271,8 +291,9 @@ subject executable or inspectable. Tracked in #237.
 
 ## Relationship To Existing Work
 
-- #141 is the browser-only steerable-collection V0 projection. It should stay
-  scoped and can adopt work-record vocabulary when stable.
+- At the time of writing, #141 was the browser-only steerable-collection V0
+  projection. It should stay scoped and can adopt work-record vocabulary when
+  stable.
 - #148 should keep replay codegen deferred until #239 defines how codegen
   attaches to AOS work records.
 - #149 supervised runs already wants run control, timelines, evidence packs,

@@ -554,12 +554,14 @@ function auditRegistryClaims(repoRoot) {
     return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-provenance', 'dev-gh'];
+  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-provenance', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
     claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
     auditFormFlagClaim('dev-classify-help-flags', forms.get('dev-classify'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
     auditFormFlagClaim('dev-recommend-help-flags', forms.get('dev-recommend'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
+    auditFormFlagClaim('dev-situation-help-flags', forms.get('dev-situation'), ['--repo', '--issue-limit', '--recent-issue-limit', '--pr-limit', '--json'], false),
+    auditFormFlagClaim('dev-drift-lint-help-flags', forms.get('dev-drift-lint'), ['--paths', '--files', '--all-markdown', '--repo', '--json'], false),
     auditFormFlagClaim('dev-afk-dry-run-help-flags', forms.get('dev-afk-dry-run'), ['--packet', '--provider', '--dock', '--repo', '--timestamp', '--out', '--json'], false),
     auditFormFlagClaim('dev-afk-launch-attempt-help-flags', forms.get('dev-afk-launch-attempt'), ['--packet', '--provider', '--dock', '--repo', '--timestamp', '--out', '--json', '--duplicate-in-process', '--catalog-fixture', '--bridge-visibility-fixture', '--provider-session-id', '--launch-observed-at', '--codex-home-fixture', '--codex-home'], false),
     auditFormFlagClaim('dev-afk-session-trigger-help-flags', forms.get('dev-afk-session-trigger'), ['--packet', '--afk-work-queue', '--queue-run-fixture', '--afk-authorization', '--sleep-lease', '--provider', '--dock', '--repo', '--timestamp', '--out', '--result-route', '--idempotence-salt', '--existing-receipt', '--replacement-for', '--dry-run', '--supervised-live-launch', '--afk-live-launch', '--sleep-lease-live-launch', '--i-am-present', '--provider-launch-dry-run', '--bridge-visibility-fixture', '--cleanup-proof-fixture', '--provider-session-id', '--launch-observed-at', '--codex-home-fixture', '--codex-home', '--json'], false),
@@ -574,8 +576,8 @@ function auditRegistryClaims(repoRoot) {
 function auditWorkflowManifestClaims(manifest) {
   const rule = (manifest.rules || []).find((item) => item.id === workflowRuleID);
   if (!rule) return [claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
-  const expectedPatterns = ['docs/dev/workflow-rules.json', 'scripts/aos-dev-workflow.mjs', 'manifests/commands/aos-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
-  const expectedCommands = ['node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh'];
+  const expectedPatterns = ['docs/dev/workflow-rules.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'manifests/commands/aos-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
+  const expectedCommands = ['node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh', 'bash tests/dev-situation.sh', 'bash tests/dev-drift-lint.sh'];
   const patterns = rule.patterns || [];
   const commands = (rule.commands || []).map((item) => item.command);
   return [

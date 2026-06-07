@@ -25,6 +25,7 @@ import {
   AVATAR_SUBJECT_TYPE,
   applyEditorEffectsPatch,
   applyEditorObjectPatch,
+  applyRadialItemVisualObjectDescriptorUpdate,
   applyThingEditorEffectsPatch,
   applyThingEditorObjectPatch,
   buildThingEditorObjectRegistry,
@@ -45,10 +46,16 @@ import {
   selectedTerminalScreenMaterial,
   patchSelectedTerminalScreenMaterial,
   setRadialMenuWorkbenchSubjectFactory,
+  setVisualObjectControllerUpdate,
   setSelectedItemFractalPulseIntensity,
   setSelectedItemHoverSpin,
 } from '../../apps/sigil/radial-item-editor/model.js'
 import { createRadialMenuWorkbenchSubject } from '../../packages/toolkit/workbench/radial-menu-subject.js'
+import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js'
+import {
+  createVisualObjectResourceLifecycleEvidence,
+  validateVisualObjectResourceLifecycleEvidence,
+} from '../../packages/toolkit/workbench/visual-object-resource-lifecycle.js'
 import {
   subjectCapabilities,
   subjectContracts,
@@ -61,6 +68,7 @@ const repoRoot = path.resolve(__dirname, '../..')
 const canvasObjectControlSchemaPath = path.join(repoRoot, 'shared/schemas/canvas-object-control.schema.json')
 
 setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject)
+setVisualObjectControllerUpdate(applyVisualObjectControllerUpdate)
 
 function assertValidCanvasObjectControlMessage(message) {
   const result = spawnSync(
@@ -94,7 +102,7 @@ if errors:
 
 test('editableRadialItems exposes the current glTF radial item subjects', () => {
   assert.deepEqual(editableRadialItems(DEFAULT_SIGIL_RADIAL_ITEMS).map((item) => item.id), [
-    'context-menu',
+    'avatar-controls',
     'agent-terminal',
     'wiki-graph',
   ])
@@ -352,6 +360,116 @@ test('radial item editor workbench subject preserves edited non-default item set
     subject.state.logical_items.map((item) => [item.id, item.label, item.action]),
     [['custom-edited-item', 'Edited Custom Item', 'editedCustomAction']]
   )
+})
+
+test('radial item visual descriptors route transform edits through editor patch and sync paths', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'wiki-graph',
+    canvasId: 'preview',
+  })
+  const routeCalls = []
+  const syncCalls = []
+  const subject = buildRadialItemWorkbenchSubject(state)
+  const descriptor = subject.state.visual_object_descriptors.find((entry) => (
+    entry.id === 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'
+  ))
+
+  let result
+  const editValues = ['1.05', '1.15', '1.25', '1.35', '1.45', '1.35']
+  const item = selectedRadialItem(state)
+  for (const [index, value] of editValues.entries()) {
+    result = applyRadialItemVisualObjectDescriptorUpdate(state, {
+      descriptor,
+      value,
+      requestId: `req-visual-transform-${index}`,
+      onRouteResult({ message, result: routeResult }) {
+        routeCalls.push([message.type, routeResult.status, routeResult.target.object_id, routeResult.transform.scale.x])
+      },
+      onSync({ label }) {
+        syncCalls.push(label)
+        return { status: 'synced', label }
+      },
+    })
+  }
+  const registry = buildEditorObjectRegistry(state)
+  const preview = buildEditorRadialSnapshot(state)
+  const roundTrip = JSON.parse(JSON.stringify(exportSelectedRadialItemDefinition(state, {
+    generatedAt: '2026-05-03T12:00:00.000Z',
+  })))
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(result.value, 1.35)
+  assert.equal(item.geometry.radiusScale, 1.35)
+  assert.deepEqual(item.geometry.modelTransform.scale, { x: 1.35, y: 1.35, z: 1.35 })
+  assert.deepEqual(routeCalls, [
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.05],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.15],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.25],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.35],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.45],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.35],
+  ])
+  assert.deepEqual(syncCalls, editValues.flatMap(() => ['resolveRadialMenuConfig', 'renderRadialMenuPreview']))
+  assert.equal(registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID).transform.scale.x, 1.35)
+  assert.equal(preview.items[0].geometry.radiusScale, 1.35)
+  assert.equal(roundTrip.item.geometry.radiusScale, 1.35)
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor,
+    updateResult: result,
+    editCount: editValues.length,
+    retainedResources: [state, registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID)],
+    retainedResourceLimit: 2,
+    identityStable: selectedRadialItem(state) === item,
+    poolingBoundary: {
+      owner: 'sigil-radial-editor',
+      decision: 'renderer-local',
+      rationale: 'Radial object identity and preview sync are app-owned; no toolkit 3D resource pool is extracted for this JSON descriptor loop.',
+    },
+    jsonSerializableState: roundTrip,
+  })
+  assert.equal(evidence.route, 'canvas_object.transform.patch')
+  assert.equal(evidence.identity_stable, true)
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true)
+})
+
+test('radial item visual descriptors route visibility edits through editor patch and sync paths', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'wiki-graph',
+    canvasId: 'preview',
+  })
+  const routeCalls = []
+  const syncCalls = []
+
+  const result = applyRadialItemVisualObjectDescriptorUpdate(state, {
+    descriptorId: 'radial-menu-sigil.radial.main-wiki-graph-visible',
+    value: 'false',
+    requestId: 'req-visual-visibility',
+    onRouteResult({ message, result: routeResult }) {
+      routeCalls.push([message.type, message.patch.visible, routeResult.status, routeResult.visible])
+    },
+    onSync({ label }) {
+      syncCalls.push(label)
+      return { status: 'synced', label }
+    },
+  })
+  const item = selectedRadialItem(state)
+  const registry = buildEditorObjectRegistry(state)
+  const exported = exportSelectedRadialItemDefinition(state, {
+    generatedAt: '2026-05-03T12:00:00.000Z',
+  })
+  const serialized = JSON.parse(JSON.stringify(exported))
+
+  assert.equal(result.route, 'canvas_object.visibility.patch')
+  assert.equal(result.value, true)
+  assert.equal(item.hidden, true)
+  assert.deepEqual(item.geometry.visibility, { model: false })
+  assert.deepEqual(routeCalls, [
+    ['canvas_object.transform.patch', false, 'applied', false],
+  ])
+  assert.deepEqual(syncCalls, ['resolveRadialMenuConfig', 'renderRadialMenuPreview'])
+  assert.equal(registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID).visible, false)
+  assert.equal(serialized.item.hidden, true)
+  assert.deepEqual(serialized.item.geometry.visibility, { model: false })
 })
 
 test('3D thing editor loader preserves radial subject registry, preview, patches, and lock-in action', () => {

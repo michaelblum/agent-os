@@ -102,8 +102,16 @@ aos_visual_run_bounded() {
     elapsed=$((elapsed + 1))
   done
 
+  local had_errexit=0
+  case "$-" in
+    *e*) had_errexit=1 ;;
+  esac
+  set +e
   wait "$pid"
   status="$?"
+  if (( had_errexit )); then
+    set -e
+  fi
   if (( status != 0 )); then
     echo "FAIL: ${label} exited ${status}" >&2
     echo "stdout:" >&2

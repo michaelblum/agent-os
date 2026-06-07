@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos experience activate sigil --json >"$ROOT/activate.json"
+./aos experience activate sigil --json --allow-start >"$ROOT/activate.json"
 
 test -f "$ROOT/repo/wiki/sigil/agents/default.md" || {
   echo "FAIL: Sigil namespace seed missing after experience activation"

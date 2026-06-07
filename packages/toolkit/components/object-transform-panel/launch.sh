@@ -53,6 +53,7 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest object-transform-panel \
   --js 'typeof window.__objectTransformPanelState === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Object transform panel launched at ${X},${Y} (${W}x${H})"

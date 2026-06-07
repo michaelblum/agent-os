@@ -59,12 +59,6 @@ func serveCommand(args: [String]) {
         }
     }
 
-    daemon.canvasInspectorAnnotationModeHandler = { [weak statusItem] active in
-        DispatchQueue.main.async {
-            statusItem?.manager?.setCanvasInspectorAnnotationModeActive(active)
-        }
-    }
-
     daemon.statusItemStateHandler = { [weak statusItem] canvasID, visible in
         DispatchQueue.main.async {
             guard let mgr = statusItem?.manager, canvasID == mgr.toggleId else { return }

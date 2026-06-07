@@ -11,6 +11,8 @@ export const AVATAR_PRIMARY_OBJECT_ID = 'avatar.primary.shape';
 export const AVATAR_PRIMARY_TESSERON_OBJECT_ID = 'avatar.primary.tesseron';
 export const AVATAR_AURA_OBJECT_ID = 'avatar.effects.aura';
 export const AVATAR_PHENOMENA_OBJECT_ID = 'avatar.effects.phenomena';
+export const AVATAR_LIGHTNING_OBJECT_ID = 'avatar.effects.lightning';
+export const AVATAR_MAGNETIC_OBJECT_ID = 'avatar.effects.magnetic';
 export const AVATAR_TRAIL_OBJECT_ID = 'avatar.effects.trail';
 export const AVATAR_TRAVEL_OBJECT_ID = 'avatar.effects.travel';
 export const AVATAR_OMEGA_OBJECT_ID = 'avatar.omega.shape';
@@ -88,16 +90,56 @@ function effectControls(controls) {
     return { animation_effects: controls };
 }
 
+function resultFor(message, status, fields = {}) {
+    return {
+        type: 'canvas_object.transform.result',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        request_id: text(message?.request_id, 'missing-request'),
+        target: {
+            canvas_id: text(message?.target?.canvas_id, SIGIL_OBJECT_CONTROL_CANVAS_ID),
+            object_id: text(message?.target?.object_id, 'unknown'),
+        },
+        status,
+        ...fields,
+    };
+}
+
+function effectsResultFor(message, status, fields = {}) {
+    return {
+        type: 'canvas_object.effects.result',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        request_id: text(message?.request_id, 'missing-request'),
+        target: {
+            canvas_id: text(message?.target?.canvas_id, SIGIL_OBJECT_CONTROL_CANVAS_ID),
+            object_id: text(message?.target?.object_id, 'unknown'),
+        },
+        status,
+        ...fields,
+    };
+}
+
 function avatarRootTransform(rendererState = {}, options = {}) {
     const pos = options.avatarPos || rendererState.polyGroup?.position || {};
+    const selectionModeActive = bool(rendererState.selectionMode?.active, false);
+    const rideOffset = options.selectionModeAvatarOffset || rendererState.selectionModeAvatarOffset || {};
+    const avatarScale = selectionModeActive
+        ? finite(
+            options.selectionModeAvatarScale ?? options.avatarScale,
+            finite(rendererState.selectionModeAvatarScale ?? rendererState.avatarSize, 0.5),
+        )
+        : 1;
     const scale = finite(rendererState.z_depth, 1) * finite(rendererState.appScale, 1);
     return {
         position: {
-            x: finite(pos.x, 0),
-            y: finite(pos.y, 0),
-            z: finite(pos.z, 0),
+            x: finite(pos.x, 0) + (selectionModeActive ? finite(rideOffset.x, 0) : 0),
+            y: finite(pos.y, 0) + (selectionModeActive ? finite(rideOffset.y, 0) : 0),
+            z: finite(pos.z, 0) + (selectionModeActive ? finite(rideOffset.z, 0) : 0),
         },
-        scale: { x: scale, y: scale, z: scale },
+        scale: {
+            x: scale * avatarScale,
+            y: scale * avatarScale,
+            z: scale * avatarScale,
+        },
         rotationDegrees: { x: 0, y: 0, z: 0 },
     };
 }
@@ -127,7 +169,7 @@ function tesseronControls(config = {}) {
         effectControl({
             id: 'tesseron.proportion',
             label: 'Tesseron proportion',
-            type: 'range',
+            type: 'slider',
             value: finite(config.proportion, 0.5),
             min: 0.12,
             max: 0.9,
@@ -175,9 +217,9 @@ function buildPrimaryObjects(rendererState = {}, options = {}) {
             },
             controls: effectControls([
                 effectControl({ id: 'shape.type', label: 'Shape', type: 'number', value: finite(rendererState.currentGeometryType, 6), min: 4, max: 100, step: 1 }),
-                effectControl({ id: 'shape.stellation', label: 'Stellation', type: 'range', value: finite(rendererState.stellationFactor, 0), min: 0, max: 2, step: 0.01 }),
-                effectControl({ id: 'material.opacity', label: 'Face opacity', type: 'range', value: finite(rendererState.currentOpacity, 0.25), min: 0, max: 1, step: 0.01 }),
-                effectControl({ id: 'material.edgeOpacity', label: 'Edge opacity', type: 'range', value: finite(rendererState.currentEdgeOpacity, 1), min: 0, max: 1, step: 0.01 }),
+                effectControl({ id: 'shape.stellation', label: 'Stellation', type: 'slider', value: finite(rendererState.stellationFactor, 0), min: 0, max: 2, step: 0.01 }),
+                effectControl({ id: 'material.opacity', label: 'Face opacity', type: 'slider', value: finite(rendererState.currentOpacity, 0.25), min: 0, max: 1, step: 0.01 }),
+                effectControl({ id: 'material.edgeOpacity', label: 'Edge opacity', type: 'slider', value: finite(rendererState.currentEdgeOpacity, 1), min: 0, max: 1, step: 0.01 }),
             ]),
             metadata: {
                 ...shapeMetadata(rendererState, 'primary'),
@@ -227,8 +269,8 @@ function buildEffectObjects(rendererState = {}) {
                 animation_effects: 'Aura reach, pulse, wobble, spike, and session-vitality multipliers are effect controls, not Sigil app actions.',
             },
             controls: effectControls([
-                effectControl({ id: 'aura.intensity', label: 'Aura intensity', type: 'range', value: finite(rendererState.auraIntensity, 1), min: 0, max: 3, step: 0.05 }),
-                effectControl({ id: 'aura.reach', label: 'Aura reach', type: 'range', value: finite(rendererState.auraReach, 1), min: 0, max: 4, step: 0.05 }),
+                effectControl({ id: 'aura.intensity', label: 'Aura intensity', type: 'slider', value: finite(rendererState.auraIntensity, 1), min: 0, max: 3, step: 0.05 }),
+                effectControl({ id: 'aura.reach', label: 'Aura reach', type: 'slider', value: finite(rendererState.auraReach, 1), min: 0, max: 4, step: 0.05 }),
                 effectControl({ id: 'aura.wobble.count', label: 'Wobble count', type: 'number', value: finite(rendererState.wobbleCount, 1), min: 0, max: 24, step: 1 }),
             ]),
             metadata: {
@@ -273,6 +315,61 @@ function buildEffectObjects(rendererState = {}) {
             },
         }),
         registryObject({
+            objectId: AVATAR_LIGHTNING_OBJECT_ID,
+            parentObjectId: AVATAR_ROOT_OBJECT_ID,
+            name: 'Lightning Effects',
+            visible: bool(rendererState.isLightningEnabled),
+            descriptors: {
+                geometry: 'Renderer-neutral lightning bolt system rooted on or near the avatar.',
+                animation_effects: 'Bolt length, frequency, duration, branching, and brightness are avatar effect controls.',
+            },
+            controls: effectControls([
+                effectControl({ id: 'lightning.enabled', label: 'Lightning', type: 'checkbox', value: bool(rendererState.isLightningEnabled) }),
+                effectControl({ id: 'lightning.length', label: 'Length', type: 'slider', value: finite(rendererState.lightningBoltLength, 100), min: 0, max: 200, step: 1 }),
+                effectControl({ id: 'lightning.frequency', label: 'Frequency', type: 'slider', value: finite(rendererState.lightningFrequency, 2), min: 0, max: 12, step: 0.1 }),
+                effectControl({ id: 'lightning.brightness', label: 'Brightness', type: 'slider', value: finite(rendererState.lightningBrightness, 1), min: 0, max: 3, step: 0.05 }),
+            ]),
+            metadata: {
+                role: 'effect-group',
+                control_domain: 'object-effect',
+                source_refs: {
+                    enabled: 'state.isLightningEnabled',
+                    length: 'state.lightningBoltLength',
+                    frequency: 'state.lightningFrequency',
+                    duration: 'state.lightningDuration',
+                    branching: 'state.lightningBranching',
+                    brightness: 'state.lightningBrightness',
+                },
+            },
+        }),
+        registryObject({
+            objectId: AVATAR_MAGNETIC_OBJECT_ID,
+            parentObjectId: AVATAR_ROOT_OBJECT_ID,
+            name: 'Magnetic Effects',
+            visible: bool(rendererState.isMagneticEnabled),
+            descriptors: {
+                geometry: 'Renderer-neutral magnetic tentacle and field-line effect group.',
+                animation_effects: 'Tentacle count, speed, wander, field lines, radius, and strength are avatar effect controls.',
+            },
+            controls: effectControls([
+                effectControl({ id: 'magnetic.enabled', label: 'Magnetic', type: 'checkbox', value: bool(rendererState.isMagneticEnabled) }),
+                effectControl({ id: 'magnetic.tentacleCount', label: 'Tentacles', type: 'number', value: finite(rendererState.magneticTentacleCount, 0), min: 0, max: 64, step: 1 }),
+                effectControl({ id: 'magnetic.speed', label: 'Speed', type: 'slider', value: finite(rendererState.magneticTentacleSpeed, 1), min: 0, max: 12, step: 0.1 }),
+                effectControl({ id: 'magnetic.wander', label: 'Wander', type: 'slider', value: finite(rendererState.magneticWander, 3), min: 0, max: 12, step: 0.1 }),
+            ]),
+            metadata: {
+                role: 'effect-group',
+                control_domain: 'object-effect',
+                source_refs: {
+                    enabled: 'state.isMagneticEnabled',
+                    tentacles: 'state.magneticTentacleCount',
+                    speed: 'state.magneticTentacleSpeed',
+                    wander: 'state.magneticWander',
+                    field: 'state.magneticField*',
+                },
+            },
+        }),
+        registryObject({
             objectId: AVATAR_TRAIL_OBJECT_ID,
             parentObjectId: AVATAR_ROOT_OBJECT_ID,
             name: 'Avatar Motion Trail',
@@ -283,7 +380,7 @@ function buildEffectObjects(rendererState = {}) {
             },
             controls: effectControls([
                 effectControl({ id: 'trails.count', label: 'Trail count', type: 'number', value: finite(rendererState.trailLength, 0), min: 0, max: 200, step: 1 }),
-                effectControl({ id: 'trails.opacity', label: 'Trail opacity', type: 'range', value: finite(rendererState.trailOpacity, 0.5), min: 0, max: 1, step: 0.01 }),
+                effectControl({ id: 'trails.opacity', label: 'Trail opacity', type: 'slider', value: finite(rendererState.trailOpacity, 0.5), min: 0, max: 1, step: 0.01 }),
                 effectControl({ id: 'trails.fadeMs', label: 'Trail fade', type: 'number', value: finite(rendererState.trailFadeMs, 400), min: 16, max: 5000, step: 16, unit: 'ms' }),
             ]),
             metadata: {
@@ -342,8 +439,8 @@ function buildOmegaObjects(rendererState = {}) {
             animation_effects: 'Counter-spin, lock-position, inter-dimensional lag, and ghost trails are omega effect controls.',
         },
         controls: effectControls([
-            effectControl({ id: 'omega.scale', label: 'Omega scale', type: 'range', value: finite(rendererState.omegaScale, 1.5), min: 0, max: 6, step: 0.05 }),
-            effectControl({ id: 'omega.opacity', label: 'Omega opacity', type: 'range', value: finite(rendererState.omegaOpacity, 0.15), min: 0, max: 1, step: 0.01 }),
+            effectControl({ id: 'omega.scale', label: 'Omega scale', type: 'slider', value: finite(rendererState.omegaScale, 1.5), min: 0, max: 6, step: 0.05 }),
+            effectControl({ id: 'omega.opacity', label: 'Omega opacity', type: 'slider', value: finite(rendererState.omegaOpacity, 0.15), min: 0, max: 1, step: 0.01 }),
             effectControl({ id: 'omega.ghostCount', label: 'Omega ghosts', type: 'number', value: finite(rendererState.omegaGhostCount, 10), min: 0, max: 200, step: 1 }),
             effectControl({ id: 'omega.interDimensional', label: 'Inter-dimensional lag', type: 'checkbox', value: bool(rendererState.omegaInterDimensional) }),
         ]),
@@ -416,4 +513,56 @@ export function buildAvatarObjectRegistry(rendererState = {}, options = {}) {
         source_id: text(options.sourceId, 'sigil.avatar-object-control'),
         objects: [...objects, ...radialObjects],
     };
+}
+
+export function applyAvatarObjectTransformPatch(rendererState = {}, message = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    if (message.type && message.type !== 'canvas_object.transform.patch') {
+        return resultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: `unexpected message type ${message.type}`,
+        });
+    }
+    if (!message.request_id || !message.target || typeof message.target !== 'object') {
+        return resultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: 'transform patch requires request_id and target',
+        });
+    }
+    if (message.target.canvas_id !== canvasId) {
+        return resultFor(message, 'stale', {
+            reason: 'unknown_object',
+            message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
+        });
+    }
+    return resultFor(message, 'stale', {
+        reason: 'unknown_object',
+        message: `unknown avatar object ${message.target.object_id}`,
+    });
+}
+
+export function applyAvatarObjectEffectsPatch(rendererState = {}, message = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    if (message.type && message.type !== 'canvas_object.effects.patch') {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: `unexpected message type ${message.type}`,
+        });
+    }
+    if (!message.request_id || !message.target || typeof message.target !== 'object') {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: 'effects patch requires request_id and target',
+        });
+    }
+    if (message.target.canvas_id !== canvasId) {
+        return effectsResultFor(message, 'stale', {
+            reason: 'unknown_object',
+            message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
+        });
+    }
+    return effectsResultFor(message, 'stale', {
+        reason: 'unknown_object',
+        message: `unknown avatar object ${message.target.object_id}`,
+    });
 }

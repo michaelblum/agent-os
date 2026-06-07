@@ -87,6 +87,11 @@ Fixtures live under `shared/schemas/fixtures/input-event-v2/`:
 - `sequences/` contains mixed-source ordering fixtures for daemon events and
   toolkit synthetic events.
 
+The valid set covers raw pointer, scroll, key, and cancel payloads plus routed
+owned pointer, captured drag, scroll, and captured cancel deliveries. The
+invalid set includes version-claiming raw and routed payloads that omit required
+fields such as `scroll`, `cancel_reason`, `region_id`, or `capture_id`.
+
 Run:
 
 ```sh

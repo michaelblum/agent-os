@@ -7,6 +7,9 @@ import {
   renderMarkdown,
 } from '../markdown/render.js';
 import {
+  normalizeAgentUiTarget,
+} from '../runtime/semantic-targets.js';
+import {
   buildWorkbenchCheckpointResume,
   buildWorkbenchHumanCheckpoint,
   hashWorkbenchContent,
@@ -136,19 +139,34 @@ function sectionKind(title) {
   return 'section';
 }
 
+function targetDomId(target = {}) {
+  const ref = text(target.ref);
+  return text(target.provenance?.dom_id || ref.split(':').pop() || ref);
+}
+
+function targetSource(target = {}) {
+  return target.extension?.source || {};
+}
+
+function targetSelector(target = {}) {
+  return text(target.provenance?.selector, `[data-semantic-target-id="${targetDomId(target)}"]`);
+}
+
 function targetAttributes(target) {
+  const source = targetSource(target);
+  const domId = targetDomId(target);
   return [
-    `data-aos-ref="${escHtml(target.aos_ref)}"`,
+    `data-aos-ref="${escHtml(target.ref)}"`,
     `data-aos-surface="${HTML_WORKBENCH_EXPRESSION_SURFACE}"`,
-    `data-semantic-target-id="${escHtml(target.target_id)}"`,
-    `data-source-path="${escHtml(target.source_path)}"`,
-    `data-source-line-start="${target.source_line_start}"`,
-    `data-source-line-end="${target.source_line_end}"`,
+    `data-semantic-target-id="${escHtml(domId)}"`,
+    `data-source-path="${escHtml(source.path)}"`,
+    `data-source-line-start="${source.line_start}"`,
+    `data-source-line-end="${source.line_end}"`,
     `data-target-kind="${escHtml(target.kind)}"`,
   ].join(' ');
 }
 
-function semanticTarget({
+function workbenchAgentUiTarget({
   id,
   kind,
   label,
@@ -162,24 +180,38 @@ function semanticTarget({
   const normalizedKind = TARGET_KINDS.has(kind) ? kind : 'section';
   const lineStart = normalizeLine(startLine);
   const lineEnd = Math.max(lineStart, normalizeLine(endLine, lineStart));
-  return {
-    target_id: targetId,
-    data_aos_ref: `${HTML_WORKBENCH_EXPRESSION_SURFACE}:${targetId}`,
-    aos_ref: `${HTML_WORKBENCH_EXPRESSION_SURFACE}:${targetId}`,
-    kind: normalizedKind,
-    accessible_label: text(label, targetId),
-    source_path: text(sourcePath, DEFAULT_SOURCE_PATH),
-    source_line_start: lineStart,
-    source_line_end: lineEnd,
-    selector: text(selector, `[data-semantic-target-id="${targetId}"]`),
-    annotation_eligible: Boolean(eligible),
-    reveal_eligible: Boolean(eligible),
+  const source = {
+    path: text(sourcePath, DEFAULT_SOURCE_PATH),
+    line_start: lineStart,
+    line_end: lineEnd,
   };
+  return normalizeAgentUiTarget({
+    id: targetId,
+    ref: `${HTML_WORKBENCH_EXPRESSION_SURFACE}:${targetId}`,
+    surface: HTML_WORKBENCH_EXPRESSION_SURFACE,
+    role: 'document_region',
+    name: text(label, targetId),
+    kind: normalizedKind,
+    selector: text(selector, `[data-semantic-target-id="${targetId}"]`),
+  }, {
+    kind: normalizedKind,
+    actions: [],
+    extension: {
+      annotation_eligible: Boolean(eligible),
+      reveal_eligible: Boolean(eligible),
+      source,
+    },
+    provenance: {
+      dom_id: targetId,
+      selector: text(selector, `[data-semantic-target-id="${targetId}"]`),
+    },
+    suppressSourcePayloadId: true,
+  });
 }
 
 function injectLineTarget(html, target) {
   const attrs = targetAttributes(target);
-  const line = target.source_line_start;
+  const line = targetSource(target).line_start;
   if (target.kind === 'mermaid_block') {
     return html.replace(
       new RegExp(`<figure data-source-line="${line}" class="aos-markdown-mermaid"`),
@@ -207,22 +239,24 @@ function shiftSourceLines(html, offset) {
 }
 
 function sourceMapEntry(target) {
+  const source = targetSource(target);
   return {
-    target_id: target.target_id,
-    source_path: target.source_path,
-    source_line_start: target.source_line_start,
-    source_line_end: target.source_line_end,
-    selector: target.selector,
+    ref: target.ref,
+    source_path: source.path,
+    source_line_start: source.line_start,
+    source_line_end: source.line_end,
+    selector: targetSelector(target),
   };
 }
 
 function mermaidEntry(target, block) {
+  const source = targetSource(target);
   return {
-    target_id: target.target_id,
-    source_path: target.source_path,
-    source_line_start: target.source_line_start,
-    source_line_end: target.source_line_end,
-    selector: target.selector,
+    ref: target.ref,
+    source_path: source.path,
+    source_line_start: source.line_start,
+    source_line_end: source.line_end,
+    selector: targetSelector(target),
     source_hash: sourceHash(block.source),
   };
 }
@@ -250,7 +284,7 @@ export function buildMarkdownWorkCardHtmlExpression({
   const sourceMap = [];
   const mermaidBlocks = [];
 
-  const documentTarget = semanticTarget({
+  const documentTarget = workbenchAgentUiTarget({
     id: uniqueId('document', seen),
     kind: 'document',
     label: headings[0]?.title || path.basename(normalizedSourcePath),
@@ -265,7 +299,7 @@ export function buildMarkdownWorkCardHtmlExpression({
   const sectionTargets = headings.map((heading) => {
     const baseId = uniqueId(heading.title, seen);
     const kind = sectionKind(heading.title);
-    const target = semanticTarget({
+    const target = workbenchAgentUiTarget({
       id: baseId,
       kind,
       label: heading.title,
@@ -281,7 +315,7 @@ export function buildMarkdownWorkCardHtmlExpression({
 
   const blockTargets = blocks.map((block, index) => {
     const kind = block.language === 'mermaid' ? 'mermaid_block' : 'code_block';
-    const target = semanticTarget({
+    const target = workbenchAgentUiTarget({
       id: uniqueId(`${kind}-${index + 1}`, seen),
       kind,
       label: block.language === 'mermaid' ? `Mermaid block ${index + 1}` : `${block.language || 'code'} block ${index + 1}`,
@@ -297,7 +331,7 @@ export function buildMarkdownWorkCardHtmlExpression({
   });
 
   const checklistTargets = checklists.map((item, index) => {
-    const target = semanticTarget({
+    const target = workbenchAgentUiTarget({
       id: uniqueId(`checklist-${item.label || index + 1}`, seen),
       kind: 'checklist_item',
       label: item.label,
@@ -336,17 +370,17 @@ export function buildMarkdownWorkCardHtmlExpression({
           sectionHtml = injectLineTarget(sectionHtml, item.target);
         }
       }
-      bodyHtml += `<section id="${escHtml(section.target.target_id)}" ${targetAttributes(section.target)} class="aos-html-expression-section aos-html-expression-section--${escHtml(section.target.kind)}">${sectionHtml}</section>`;
+      bodyHtml += `<section id="${escHtml(targetDomId(section.target))}" ${targetAttributes(section.target)} class="aos-html-expression-section aos-html-expression-section--${escHtml(section.target.kind)}">${sectionHtml}</section>`;
     }
   }
 
   const outline = sectionTargets.map((section) => ({
-    target_id: section.target.target_id,
-    label: section.target.accessible_label,
+    ref: section.target.ref,
+    label: section.target.name,
     level: section.level,
-    selector: section.target.selector,
+    selector: targetSelector(section.target),
   }));
-  const title = documentTarget.accessible_label;
+  const title = documentTarget.name;
   const navHtml = outline.length
     ? `<nav class="aos-html-expression-outline" aria-label="Work-card outline"><ol>${outline.map((item) => `<li data-level="${item.level}"><a href="${escHtml(item.selector)}">${escHtml(item.label)}</a></li>`).join('')}</ol></nav>`
     : '';
@@ -474,7 +508,7 @@ export function buildHtmlWorkbenchExpressionCheckpoint({
         source_kind: expressionMetadata.source?.kind || 'markdown',
         path: expressionMetadata.source?.path || '',
       },
-      label: expressionMetadata.semantic_targets?.[0]?.accessible_label || expressionMetadata.expression_id,
+      label: expressionMetadata.semantic_targets?.[0]?.name || expressionMetadata.expression_id,
     },
     canvasId,
     launchStatus,

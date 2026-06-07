@@ -53,8 +53,9 @@ markdown/               Layer 1c — shared Markdown renderer and preview presen
   preview.css             document preview typography and spacing
 
 panel/                  Layer 1b — panel primitives
-  chrome.js               mountChrome — pure DOM scaffold + drag/resize lifecycle + absolute drag updates, final drag clamp, resize frame updates, and optional maximize/restore state
-  drag-transfer.js        cross-display panel transfer outline + release-frame controller
+  chrome.js               mountChrome — pure DOM scaffold + shared drag/drop, resize lifecycle, final drag clamp, resize frame updates, and optional maximize/restore state
+  drag-drop.js            first-class toolkit drag/drop movement controller for draggable panels/nodes
+  drag-transfer.js        legacy cross-display panel transfer outline controller; marked obsolete under One-World/#425
   defaults.css            optional stock panel visuals (opt-in)
   router.js               createRouter — manifest-prefix dispatch
   layouts/
@@ -96,14 +97,14 @@ components/             Layer 2 — reusable Content units
 ## Content Server
 
 Components are served via the AOS content server over `aos://toolkit/...` URLs
-on `main`. Topic worktrees should use branch-scoped toolkit roots, for example
-`aos://toolkit_codex_example/...`, so parallel sessions do not overwrite the
-canonical `toolkit` root.
+in the single-checkout local workflow. Branch-scoped toolkit roots, for example
+`aos://toolkit_codex_example/...`, are for explicit parallel session overrides
+so they do not overwrite the canonical `toolkit` root.
 
-**Setup on main:** `aos set content.roots.toolkit packages/toolkit`
+**Default setup:** `aos set content.roots.toolkit packages/toolkit`
 
-**Setup in a topic worktree:** source `scripts/aos-content-scope.sh` or use the
-component launch script so the root name is derived from the branch.
+**Explicit parallel-session setup:** source `scripts/aos-content-scope.sh` or
+use the component launch script so the root name is derived from the branch.
 
 **Loading a component standalone:** `aos show create --id <id> --url aos://toolkit/components/<name>/index.html`
 

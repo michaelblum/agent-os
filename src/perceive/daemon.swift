@@ -26,8 +26,7 @@ class PerceptionEngine {
     private var lastWindowID: Int = 0
     private var lastAppPID: pid_t = 0
     private var lastAppName: String = ""
-    private var lastElementRole: String = ""
-    private var lastElementTitle: String = ""
+    private var lastElementSignature: String = ""
     private var cursorIdleTimer: DispatchSourceTimer?
     private var lastMoveTime: Date = Date()
 
@@ -87,6 +86,15 @@ class PerceptionEngine {
         startEventTap()
         startSettleTimer()
         startAppLookupRefresh()
+    }
+
+    func stop() {
+        cancelEventTapRetry()
+        teardownEventTap()
+        cursorIdleTimer?.cancel()
+        cursorIdleTimer = nil
+        _appRefreshTimer?.cancel()
+        _appRefreshTimer = nil
     }
 
     // MARK: - CGEventTap (Depth 0)
@@ -257,6 +265,13 @@ class PerceptionEngine {
             type == .rightMouseDragged ||
             type == .otherMouseDragged {
             handleMouseEvent(event)
+        } else if type == .leftMouseDown ||
+            type == .leftMouseUp ||
+            type == .rightMouseDown ||
+            type == .rightMouseUp ||
+            type == .otherMouseDown ||
+            type == .otherMouseUp {
+            refreshCursorTargetForInputEvent(event)
         }
 
         guard let eventName = inputEventName(for: type) else { return false }
@@ -384,6 +399,19 @@ class PerceptionEngine {
         }
     }
 
+    private func refreshCursorTargetForInputEvent(_ event: CGEvent) {
+        let point = event.location
+        lastCursorPoint = point
+        lastMoveTime = Date()
+        guard attention.hasSubscribers else { return }
+        if attention.maxDepth >= 1 {
+            checkWindowAndAppChange(at: point)
+        }
+        if attention.maxDepth >= 2 {
+            queryAXElementAtCursor(point)
+        }
+    }
+
     // MARK: - Settle Timer (Depth 2)
 
     private func startSettleTimer() {
@@ -421,6 +449,24 @@ class PerceptionEngine {
 
     // MARK: - Depth 1: Window/App Detection
 
+    private func browserContextRectNumber(_ value: Any?) -> Double? {
+        if let n = value as? NSNumber { return n.doubleValue }
+        if let d = value as? Double { return d }
+        if let i = value as? Int { return Double(i) }
+        if let s = value as? String { return Double(s) }
+        return nil
+    }
+
+    private func browserContextWindowBounds(_ context: [String: Any]?) -> Bounds? {
+        guard let rect = context?["window_bounds"] as? [String: Any] else { return nil }
+        let x = browserContextRectNumber(rect["x"])
+        let y = browserContextRectNumber(rect["y"])
+        let width = browserContextRectNumber(rect["width"])
+        let height = browserContextRectNumber(rect["height"])
+        guard let x, let y, let width, let height, width > 0, height > 0 else { return nil }
+        return Bounds(x: x, y: y, width: width, height: height)
+    }
+
     private func checkWindowAndAppChange(at point: CGPoint) {
         let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 
@@ -440,16 +486,22 @@ class PerceptionEngine {
 
             if windowID != lastWindowID {
                 lastWindowID = windowID
+                lastElementSignature = ""
                 let bundleID = appLookup[pid]?.bundleID
-                let data = windowEnteredData(
+                let browserContext = axBrowserContext(pid: pid, appName: ownerName, bundleID: bundleID, point: point)
+                var data = windowEnteredData(
                     window_id: windowID, app: ownerName, pid: Int(pid),
-                    bundle_id: bundleID, bounds: Bounds(from: rect))
+                    bundle_id: bundleID, bounds: browserContextWindowBounds(browserContext) ?? Bounds(from: rect))
+                if let browserContext {
+                    data["browser_context"] = browserContext
+                }
                 onEvent?("window_entered", data)
             }
 
             if pid != lastAppPID {
                 lastAppPID = pid
                 lastAppName = ownerName
+                lastElementSignature = ""
                 let bundleID = appLookup[pid]?.bundleID
                 let data = appEnteredData(app: ownerName, pid: Int(pid), bundle_id: bundleID)
                 onEvent?("app_entered", data)
@@ -466,17 +518,19 @@ class PerceptionEngine {
         guard lastAppPID > 0 else { return }
 
         if let hit = axElementAtPoint(pid: lastAppPID, point: point) {
-            let newRole = hit.role
-            let newTitle = hit.title ?? ""
-            if newRole != lastElementRole || newTitle != lastElementTitle {
-                lastElementRole = newRole
-                lastElementTitle = newTitle
-                let data = elementFocusedData(
+            let signature = axElementTelemetrySignature(hit)
+            if signature != lastElementSignature {
+                lastElementSignature = signature
+                var data = elementFocusedData(
                     role: hit.role, title: hit.title, label: hit.label, value: hit.value,
                     bounds: hit.bounds.map { Bounds(from: $0) },
                     action_names: hit.actionNames,
-                    capabilities: hit.capabilities,
-                    context_path: hit.contextPath)
+                    settable_attributes: hit.settableAttributeNames,
+                    ancestor_chain: axAncestorPayloads(hit.ancestorChain))
+                if let app = appLookup[lastAppPID],
+                   let browserContext = axBrowserContext(pid: lastAppPID, appName: app.name, bundleID: app.bundleID, point: point) {
+                    data["browser_context"] = browserContext
+                }
                 onEvent?("element_focused", data)
             }
         }
@@ -501,4 +555,40 @@ class PerceptionEngine {
         }
         appLookup = lookup
     }
+}
+
+func axElementTelemetrySignature(_ hit: AXHitResult) -> String {
+    let bounds = hit.bounds.map { rect in
+        [
+            Int(rect.origin.x.rounded()),
+            Int(rect.origin.y.rounded()),
+            Int(rect.size.width.rounded()),
+            Int(rect.size.height.rounded()),
+        ].map(String.init).joined(separator: ",")
+    } ?? ""
+    return [
+        hit.role,
+        hit.title ?? "",
+        hit.label ?? "",
+        hit.value ?? "",
+        bounds,
+        hit.actionNames.joined(separator: "\u{1f}"),
+        hit.settableAttributeNames.joined(separator: "\u{1f}"),
+        hit.ancestorChain.map { item in
+            [
+                item.role,
+                item.title ?? "",
+                item.label ?? "",
+                item.value ?? "",
+                item.bounds.map { rect in
+                    [
+                        Int(rect.origin.x.rounded()),
+                        Int(rect.origin.y.rounded()),
+                        Int(rect.size.width.rounded()),
+                        Int(rect.size.height.rounded()),
+                    ].map(String.init).joined(separator: ",")
+                } ?? "",
+            ].joined(separator: "\u{1f}")
+        }.joined(separator: "\u{1d}"),
+    ].joined(separator: "\u{1e}")
 }

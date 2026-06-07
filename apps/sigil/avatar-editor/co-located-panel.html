@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Avatar Controls — Co-located Probe</title>
+  <link rel="stylesheet" href="./panel.css">
+</head>
+<body>
+  <!--
+    Phase 1 One-World co-location probe.
+
+    This document hosts both the panel layer (compact control surface) and the
+    owner layer (stub that applies changes in-heap) in a single WKWebView
+    document. They share a signal store in-heap with no daemon serialization
+    between them.
+
+    On load, co-located-panel.js auto-starts the owner layer (subscribes to
+    the store 'control_change' channel) in its browser-only init block. The
+    owner is live as soon as the module evaluates — no separate bootstrap
+    script.
+
+    The panel anchor div hosts the panel layer UI. Mount the panel layer via
+    window.__sigilCoLocatedProbeDebug.makePanelLayer({...}) in a live eval.
+
+    Probe live eval workflow (via ./aos show eval):
+      1. Enable:        window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.enable()
+      2. Reset:         window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.reset()
+      3. Verify owner:  typeof window.__sigilCoLocatedProbeDebug.ownerLayer.lastApplied  → 'function'
+      4. Mount panel:   var pl = window.__sigilCoLocatedProbeDebug.makePanelLayer({...})
+      5. Fire events:   (trigger slider changes through the panel mock)
+      6. Snapshot:      window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.snapshot()
+         → in_heap.writes and in_heap.applied both increment per event
+      7. Last applied:  window.__sigilCoLocatedProbeDebug.ownerLayer.lastApplied()
+
+    This is a parallel branch exploration. It does not replace the existing
+    separated canvases (panel.html + avatar-main renderer).
+
+    See: apps/sigil/avatar-editor/co-located-panel.js
+         docs/dev/reports/aos-one-world-phase1-co-location-probe-v0.md
+  -->
+  <div id="coloc-panel-anchor" class="sigil-avatar-panel-host"></div>
+  <script type="module" src="./co-located-panel.js"></script>
+</body>
+</html>

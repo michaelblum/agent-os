@@ -1,0 +1,54 @@
+@import url("../theme/avatar-control-surface.css");
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  --sigil-avatar-panel-title-weight: 850;
+  --sigil-avatar-panel-title-size: 12px;
+  --bg-panel: var(--sigil-avatar-controls-card-bg);
+  --bg-panel-header: rgba(5, 12, 18, 0.94);
+  --bg-panel-content: transparent;
+  --border-panel: var(--sigil-avatar-controls-border-color-control);
+  --border-subtle: var(--sigil-avatar-controls-border-color-divider);
+  --text-primary: var(--sigil-avatar-controls-color-primary);
+  --text-header: var(--sigil-avatar-controls-color-accent);
+  --aos-window-button-bg: rgba(5, 18, 24, 0.78);
+  --aos-window-button-border: 1px solid var(--sigil-avatar-controls-border-color-field);
+  --aos-window-button-color: var(--sigil-avatar-controls-color-primary);
+  --aos-panel-grip-color: var(--sigil-avatar-controls-color-accent-strong);
+  font-family: var(--sigil-avatar-controls-font-family);
+  background: transparent;
+}
+
+.aos-panel-root .aos-title {
+  color: var(--sigil-avatar-controls-color-primary);
+  font-size: var(--sigil-avatar-panel-title-size);
+  font-weight: var(--sigil-avatar-panel-title-weight);
+  text-transform: uppercase;
+}
+
+.sigil-avatar-panel-placeholder {
+  padding: var(--sigil-avatar-controls-space-12);
+  color: var(--sigil-avatar-controls-color-accent-muted);
+  font: var(--sigil-avatar-controls-type-value);
+}
+
+.sigil-avatar-panel-host {
+  min-height: 0;
+}
+
+.sigil-avatar-panel-host .sigil-avatar-control-surface {
+  width: 100%;
+  max-height: none;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Status Tile — World Extension Sample Widget</title>
+  <!--
+    AOS toolkit theme tokens. Served via the AOS content server at:
+      http://127.0.0.1:<port>/sigil/world/sample-widget/status-tile.html
+    The toolkit root (/toolkit/...) is registered separately in the content server.
+    If the stylesheet is unavailable (direct file open), the widget's inline
+    CSS via applyTheme() still applies --widget-* custom properties directly.
+  -->
+  <link rel="stylesheet" href="/toolkit/components/_base/theme.css">
+  <style>
+    body {
+      background: transparent;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 12px;
+      min-height: 100vh;
+    }
+    #world-widget-anchor {
+      /* The World anchor element: the widget mounts its DOM subtree here */
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Phase 2 One-World sample widget.
+
+    This document demonstrates a World extension widget:
+      - Imports only from world-extension-api.js (no renderer or runtime internals)
+      - Uses createSignal, createComputed, createEffect from the API
+      - Custom-themed via applyTheme()
+      - Registered with the World's shared RAF scheduler via mountWidget()
+
+    The widget (status-tile.js) imports only from world-extension-api.js. It
+    does NOT import from:
+      - apps/sigil/renderer/live-modules/* (renderer internals)
+      - apps/sigil/avatar-editor/* (avatar internals)
+      - packages/toolkit/* (toolkit internals)
+
+    This host entrypoint is permitted to import the scheduler (it is not
+    subject to gate 3, which checks only status-tile.js). This wires the
+    widget to a real shared RAF loop for live verification of onFrame().
+
+    Live eval verification (via ./aos show eval, after loading from content server):
+      - Confirm widget mounted:
+          document.querySelector('[data-world-widget]').getAttribute('data-world-widget')
+          → "status-tile"
+      - Confirm custom theme applied:
+          getComputedStyle(document.querySelector('.status-tile')).getPropertyValue('--widget-accent').trim()
+          → "#ff9500"
+      - Click and verify reactive signal chain (count + computed status):
+          document.querySelector('[data-tile-btn]').click();
+          document.querySelector('[data-tile-count]').textContent + ' | ' + document.querySelector('[data-tile-status]').textContent
+          → "1 | warming"
+      - Confirm onFrame received (after click schedules a frame):
+          window.__statusTileDebug.lastFrameCtx
+          → { structural: false, contributors: ['status-tile'] }
+
+    See: apps/sigil/world/world-extension-api.js
+         apps/sigil/world/sample-widget/status-tile.js
+         docs/api/world-extension-api-v0.md
+  -->
+  <div id="world-widget-anchor"></div>
+  <script type="module">
+    import { mountWidget } from '../world-extension-api.js';
+    import { statusTileWidget } from './status-tile.js';
+    // Host entrypoint: permitted to import the scheduler directly.
+    // Third-party widget code (status-tile.js) must NOT do this.
+    import { createWorldRafScheduler } from '../../renderer/live-modules/world-raf-scheduler.js';
+
+    // Create the shared RAF scheduler for this document
+    const scheduler = createWorldRafScheduler();
+
+    const anchor = document.getElementById('world-widget-anchor');
+    const handle = mountWidget(anchor, statusTileWidget, {
+        scheduler,
+        id: 'status-tile-sample',
+    });
+
+    // Expose for live eval
+    window.__statusTileMount = { handle, scheduler };
+  </script>
+</body>
+</html>

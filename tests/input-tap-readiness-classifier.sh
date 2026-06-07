@@ -67,6 +67,28 @@ assert "reason" not in d or d.get("reason") is None, d
 echo "PASS: classifier active -> ok"
 stop_mock
 
+# Case 1b: active tap from the wrong socket owner -> ownership mismatch, exit 1.
+start_mock active
+set +e
+OUT="$(AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL=1 AOS_TEST_SERVICE_PID=99999 ./aos service _verify-readiness --json --budget-ms 1000)"
+RC=$?
+set -e
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+assert d.get("status") == "degraded", d
+assert d.get("reason") == "daemon_ownership_mismatch", d
+assert d.get("pid") == 99999, d
+daemon = d.get("daemon_view") or {}
+assert isinstance(daemon.get("pid"), int), d
+assert daemon.get("pid") != d.get("pid"), d
+assert d.get("input_tap", {}).get("status") == "active", d
+assert any("socket answered" in note for note in d.get("notes", [])), d
+'
+[ "$RC" -eq 1 ] || { echo "FAIL: owner mismatch case exit=$RC"; exit 1; }
+echo "PASS: classifier active wrong owner -> daemon_ownership_mismatch"
+stop_mock
+
 # Case 2: retrying tap -> outcome inputTapInactive, exit 1.
 start_mock retrying
 set +e

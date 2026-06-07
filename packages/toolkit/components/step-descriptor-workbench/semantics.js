@@ -38,7 +38,7 @@ export function applyStepDescriptorWorkbenchSemanticTarget(element, target = {})
   return applySemanticTargetAttributes(element, {
     role: 'AXGroup',
     surface: STEP_DESCRIPTOR_WORKBENCH_SURFACE,
-    aosRef: target.aosRef || stepDescriptorWorkbenchAosRef(target.id),
+    ref: target.ref || stepDescriptorWorkbenchAosRef(target.id),
     ...target,
   }, {
     idPrefix: null,

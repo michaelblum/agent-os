@@ -8,6 +8,7 @@ aos_test_cleanup_prefix "$PREFIX"
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
+export AOS_ALLOW_DAEMON_AUTOSTART=1
 
 cleanup() {
   aos_test_kill_root "$ROOT"
@@ -16,10 +17,11 @@ cleanup() {
 trap cleanup EXIT
 
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
-./aos content wait --root toolkit --auto-start --timeout 10s >/dev/null
+./aos content wait --root toolkit --auto-start --allow-start --timeout 10s >/dev/null
 
 ./aos show create \
   --id lifecycle-smoke \
+  --allow-start \
   --at 80,80,320,220 \
   --url 'aos://toolkit/runtime/_smoke/lifecycle.html?resume_delay_ms=350' >/dev/null
 

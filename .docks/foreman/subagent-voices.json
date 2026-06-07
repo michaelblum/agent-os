@@ -1,0 +1,39 @@
+{
+  "_comment": "Per-role voice assignments. voice_slot must match a slot configured in your aos voice setup. All fields are used by dock-hook-runner.sh subagent phases.",
+  "foreman": {
+    "voice_slot": 1,
+    "gender": "male",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "gdi": {
+    "voice_slot": 2,
+    "gender": "female",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "operator": {
+    "voice_slot": 3,
+    "gender": "male",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "explorer": {
+    "voice_slot": 4,
+    "gender": "female",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "auditor": {
+    "voice_slot": 5,
+    "gender": "male",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "_fallback": {
+    "voice_slot": 6,
+    "gender": "",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  }
+}

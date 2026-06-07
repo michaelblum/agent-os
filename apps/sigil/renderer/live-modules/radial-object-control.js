@@ -1,9 +1,9 @@
 export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
 export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
-export const CONTEXT_MENU_RADIAL_ITEM_ID = 'context-menu';
+export const AVATAR_CONTROLS_RADIAL_ITEM_ID = 'avatar-controls';
 export const AGENT_TERMINAL_RADIAL_ITEM_ID = 'agent-terminal';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
-export const CONTEXT_MENU_MODEL_OBJECT_ID = 'radial.context-menu.model';
+export const AVATAR_CONTROLS_MODEL_OBJECT_ID = 'radial.avatar-controls.model';
 export const AGENT_TERMINAL_MODEL_OBJECT_ID = 'radial.agent-terminal.model';
 export const AGENT_TERMINAL_SCREEN_OBJECT_ID = 'radial.agent-terminal.part.screen';
 export const WIKI_BRAIN_GROUP_OBJECT_ID = 'radial.wiki-brain.group';
@@ -320,7 +320,7 @@ function ensureGeometry(item = {}) {
 }
 
 function modelObjectIdForItem(item = {}) {
-    if (item.id === CONTEXT_MENU_RADIAL_ITEM_ID) return CONTEXT_MENU_MODEL_OBJECT_ID;
+    if (item.id === AVATAR_CONTROLS_RADIAL_ITEM_ID) return AVATAR_CONTROLS_MODEL_OBJECT_ID;
     if (item.id === AGENT_TERMINAL_RADIAL_ITEM_ID) return AGENT_TERMINAL_MODEL_OBJECT_ID;
     return item.id ? `radial.${item.id}.model` : null;
 }
@@ -476,7 +476,7 @@ function wikiBrainObjectTargets() {
                         {
                             id: 'fiberPulse.intensity',
                             label: 'Fiber pulse',
-                            type: 'range',
+                            type: 'slider',
                             value: pulse.intensity,
                             min: 0,
                             max: 3,
@@ -486,7 +486,7 @@ function wikiBrainObjectTargets() {
                         {
                             id: 'fiberPulse.sparkDensity',
                             label: 'Spark density',
-                            type: 'range',
+                            type: 'slider',
                             value: pulse.sparkDensity,
                             min: 0,
                             max: 3,
@@ -548,7 +548,7 @@ function wikiBrainObjectTargets() {
                     animation_effects: [{
                         id: 'fractalPulse.intensity',
                         label: 'Tree pulse',
-                        type: 'range',
+                        type: 'slider',
                         value: pulse.intensity,
                         min: 0,
                         max: 3,

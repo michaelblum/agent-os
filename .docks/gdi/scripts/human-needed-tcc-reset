@@ -3,27 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "$repo_root"
-aos_bin="${AOS_DOCK_AOS_BIN:-./aos}"
 
-"$repo_root/.docks/harness/stop-condition.sh" write "$repo_root" gdi tcc_permission_reset 600
-
-echo "human_needed: repo-mode AOS permission repair"
-echo
-echo "GDI must stop the current goal loop here. Do not keep retrying live checks."
-echo
-echo "Running bounded readiness repair evidence:"
-"$aos_bin" ready --repair --json || true
-echo
-echo "Running targeted repo-mode runtime reset:"
-"$aos_bin" permissions reset-runtime --mode repo || true
-echo
-echo "Requesting repo-mode permission setup:"
-"$aos_bin" permissions setup --once || true
-echo
-"$repo_root/.docks/harness/dev-build-checkpoint-contract.sh" "$repo_root" stop_system_message
-cat <<'EOF'
-
-Continue only if post-permission readiness reports ready=true. If targeted reset
-reported unavailable or failed, report that exact blocker to Foreman instead of
-trying ad-hoc loops.
-EOF
+# Compatibility entrypoint. Migrate in-repo work cards/helpers to
+# human-needed-runtime-blocker once they can pass the actual runtime verdict.
+exec .docks/gdi/scripts/human-needed-runtime-blocker "${1:-accessibility}"

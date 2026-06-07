@@ -101,7 +101,6 @@ export function normalizeWikiPageKind(value, { path = '', plugin = '' } = {}) {
   const hasPlugin = Boolean(normalizeText(plugin))
 
   if (pagePath.endsWith('/SKILL.md')) return 'workflow'
-  if (pagePath.startsWith('sigil/agents/') || type === 'agent') return 'entity'
   if (
     (pagePath.includes('/plugins/') || pagePath.startsWith('plugins/'))
     && pagePath.includes('/references/')

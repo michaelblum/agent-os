@@ -123,8 +123,9 @@ A platform-hosted DesktopWorld stage is a transparent, click-through,
 display-spanning visual layer host. The daemon owns the underlying
 DesktopWorld canvas primitive. The toolkit owns the default stage model,
 messages, and layer policy. It is for visuals that belong to the whole desktop,
-such as avatars, radial menu graphics, drag ghosts, transfer outlines,
-spotlights, and transient agent telemetry.
+such as avatars, radial menu graphics, drag ghosts, spotlights, and transient
+agent telemetry. Legacy transfer outlines are superseded by One-World
+drag/drop movement in union coordinates.
 
 Normal inputs, text editors, forms, and workbenches do not live on this stage.
 They remain real interactive canvases.
@@ -273,8 +274,8 @@ replacement.
    persisted ratios.
 7. Add pane open/closed docking for sidebars and inspectors.
 8. Add edge and corner resize with min/max geometry.
-9. Add single-display panel drag clamping so title bars cannot be stranded.
-10. Add cross-display transfer outline behavior.
+9. Add panel drag clamping so title bars cannot be stranded.
+10. Add first-class toolkit drag/drop for World/union-backed panels and nodes.
 11. Promote the Sigil avatar/radial pattern into a desktop-world stage primitive.
 12. Add a visual/interaction binding registry.
 13. Build a normal-user surface manager, keeping Surface Inspector as the

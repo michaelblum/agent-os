@@ -182,7 +182,7 @@ window.headsup.receive = function receive(b64) {
 };
 
 const panelWindowController = createPanelWindowController({
-    drag: { clampOnEnd: true, transfer: true },
+    drag: { clampOnEnd: true },
     resize: false,
     maximize: false,
     minimize: false,

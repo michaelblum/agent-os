@@ -12,7 +12,9 @@ import {
   createButton,
   createButtonGroup,
   createCheckboxGroup,
+  createColorField,
   createSelect,
+  createSlider,
   createTextField,
   createTextarea,
   createTimerBar,
@@ -43,7 +45,9 @@ control.
 | `createTextField({ value, placeholder, label, maxLength, validate, onChange, onCommit })` | single-line text input with inline error state | `getValue`, `setValue`, `setError`, `on('change')`, `on('commit')`, `destroy` |
 | `createTextarea({ value, placeholder, rows, maxLength, spellcheck, readOnly, onChange, onCommit })` | native multi-line text area using shared textarea styling | `getValue`, `setValue`, `setReadOnly`, `on('change')`, `on('commit')`, `destroy` |
 | `createCheckboxGroup({ options, value, onChange })` | multi-choice checkbox column with select-all when there are at least three options | `getValue`, `setValue`, `on('change')`, `destroy` |
-| `createSelect({ options, value, label, onChange })` | native single-value select | `getValue`, `setValue`, `on('change')`, `destroy` |
+| `createSelect({ options, value, label, onChange })` | Zag-backed single-value listbox select | `getValue`, `setValue`, `setOptions`, `setDisabled`, `on('change')`, `destroy` |
+| `createSlider({ value, min, max, step, unit, label, onChange })` | Zag-backed numeric slider with single-thumb scalar values and array-shaped multi-thumb values | `getValue`, `getValues`, `setValue`, `setDisabled`, `on('change')`, `on('commit')`, `destroy` |
+| `createColorField({ value, label, onChange })` | native hex color input | `getValue`, `setValue`, `setDisabled`, `on('change')`, `destroy` |
 | `createTimerBar({ totalMs, direction, display, flashThresholdMs, flashIntervalMs, onExpire })` | cosmetic count-down/count-up timer with digital or pie display | `start`, `pause`, `resume`, `reset`, `getRemainingMs`, `destroy` |
 
 `createButton()`, `createToggle()`, and `createButtonGroup()` expose
@@ -92,6 +96,27 @@ behavior belongs in consumers that compose them.
 for existing semantic `<input type="number">` markup. It owns wheel and arrow-key
 stepping and returns `{ dispose() }`.
 
+## AOS Semantic Control Targets
+
+Toolkit sliders stamp the actionable `[data-aos-slider-control]` part with a
+target descriptor. `data-aos-ref` is the state-scoped ref used by immediate
+`aos do` calls. `data-semantic-target-id` is the local durable
+`target.target_id` inside the slider's owner namespace. ARIA fields remain
+accessibility and current-state presentation, not identity. The stamped target
+includes `role="slider"`, `data-aos-ref`, `data-semantic-target-id`,
+`data-aos-actions`, `aria-valuemin`, `aria-valuemax`, `aria-valuenow`,
+`aria-orientation`, `data-aos-values`, `data-aos-min`, `data-aos-max`,
+`data-aos-step`, and `data-aos-thumb-count`.
+
+Single-thumb sliders advertise `data-aos-actions="drag set-value"` and handle
+the internal `aos:semantic-action` event used by target-addressed
+`aos do set-value canvas:<canvas-id>/<ref>` and
+`aos do drag canvas:<canvas-id>/<ref> --to-value <value>`. Multi-thumb sliders
+advertise `drag` only until thumb-specific semantic refs exist; they must not be
+treated as safe single-value targets. Reacquisition should use the descriptor's
+machine facts, range shape, owner namespace, and primitive capabilities first;
+labels and accessible text are hints only.
+
 ## Styling
 
 `renderTextareaHtml(config)` is the string-rendering companion for surfaces that
@@ -102,7 +127,8 @@ Stock visual classes live in `packages/toolkit/controls/defaults.css`. Consumers
 may use the classes directly or override the shared `--aos-control-*` tokens by
 cascade. V0 controls use `.aos-button`, `.aos-segmented`, `.aos-toggle-switch`,
 `.aos-text-input`, `.aos-textarea`, `.aos-checkbox`, `.aos-select`,
-`.aos-timer-bar`, `.aos-field-error`, and primitive classes such as
+`.aos-slider`, `.aos-color-field`, `.aos-timer-bar`, `.aos-field-error`, and
+primitive classes such as
 `.aos-collapsible`, `.aos-accordion`, `.aos-splitter`, `.aos-popover`,
 `.aos-dialog`, `.aos-menu`, and `.aos-tooltip`.
 
@@ -111,4 +137,5 @@ cascade. V0 controls use `.aos-button`, `.aos-segmented`, `.aos-toggle-switch`,
 Panel-level schema rendering lives in
 [panel/window form harness](./panel-window.md#createformcontainer-fields-options).
 Use `createForm()` when a panel has field definitions such as
-`exclusive_choice`, `multi_choice`, `boolean`, `text`, `number`, or `select`.
+`exclusive_choice`, `radio_group`, `multi_choice`, `boolean`, `checkbox`,
+`text`, `textarea`, `number`, `slider`, `color`, or `select`.

@@ -9,6 +9,9 @@ const toolkitAgentTerminal = readFileSync(new URL('../../packages/toolkit/compon
 const chat = readFileSync(new URL('../../apps/sigil/chat/index.html', import.meta.url), 'utf8')
 const sigilAgents = readFileSync(new URL('../../apps/sigil/AGENTS.md', import.meta.url), 'utf8')
 const placementContract = readFileSync(new URL('../../docs/design/aos-panel-window-placement-contract.md', import.meta.url), 'utf8')
+const panelIndex = readFileSync(new URL('../../packages/toolkit/panel/index.js', import.meta.url), 'utf8')
+const panelChrome = readFileSync(new URL('../../packages/toolkit/panel/chrome.js', import.meta.url), 'utf8')
+const avatarControlsCompactSession = readFileSync(new URL('../../apps/sigil/avatar-controls/compact-surface-session.js', import.meta.url), 'utf8')
 
 test('Sigil radial item editor uses the toolkit panel/window controller for window drag', () => {
   assert.match(radialEditor, /await import\(`\/\$\{toolkitRoot\}\/panel\/index\.js`\)/)
@@ -61,6 +64,19 @@ test('Agent Terminal remains the shared mountChrome precedent', () => {
   assert.match(toolkitAgentTerminal, /maximize:\s*true/)
   assert.match(toolkitAgentTerminal, /resizable:\s*true/)
   assert.doesNotMatch(codexTerminal, /type:\s*'move_abs'/)
+})
+
+test('One-World panel drag path does not expose transfer-outline APIs as public toolkit surface', () => {
+  assert.match(panelIndex, /createDragDropController/)
+  assert.doesNotMatch(panelIndex, /createPanelTransferController/)
+  assert.doesNotMatch(panelIndex, /computePanelTransfer/)
+  assert.doesNotMatch(panelChrome, /createPanelTransferController/)
+  assert.doesNotMatch(panelChrome, /wirePanelTransferDisplayGeometry/)
+  assert.match(avatarControlsCompactSession, /mountChrome\(anchor/)
+  assert.match(avatarControlsCompactSession, /draggable:\s*true/)
+  assert.doesNotMatch(avatarControlsCompactSession, /type:\s*'move_abs'/)
+  assert.doesNotMatch(avatarControlsCompactSession, /type:\s*'drag_start'/)
+  assert.doesNotMatch(avatarControlsCompactSession, /type:\s*'drag_end'/)
 })
 
 test('legacy Sigil chat is explicitly parked instead of copied as a live pattern', () => {

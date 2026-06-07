@@ -102,16 +102,19 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     [
       'node --test tests/schemas/aos-external-command-manifest-v0.test.mjs',
       'bash tests/external-command-dispatch.sh',
+      'node --test tests/aos-dev-gh-help-parity.test.mjs',
       'bash tests/help-contract.sh',
     ],
   );
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
   assert.deepEqual(
     rules.get('command-surface-implementations')?.commands?.map((step) => step.command),
     [
       'bash tests/external-command-dispatch.sh',
       'bash tests/external-parser-flags.sh',
+      'node --test tests/aos-dev-gh-help-parity.test.mjs',
       'bash tests/help-contract.sh',
       'bash tests/provenance-ledger.sh',
     ],
@@ -130,10 +133,16 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'node --test tests/schemas/dev-workflow-profiles.test.mjs',
       'bash tests/dev-workflow-router.sh',
       'bash tests/dev-audit.sh',
+      'bash tests/dev-situation.sh',
+      'bash tests/dev-drift-lint.sh',
     ],
   );
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-workflow.mjs'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-situation.mjs'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-drift-lint.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-situation.sh'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-drift-lint.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-active-profile.test.mjs'));

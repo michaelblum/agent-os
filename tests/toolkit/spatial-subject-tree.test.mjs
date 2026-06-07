@@ -22,7 +22,7 @@ const topology = {
       windows: [
         {
           window_id: 1001,
-          title: 'Employer Brand Audit',
+          title: 'Runtime Audit',
           app_pid: 4242,
           app_name: 'AOS',
           bundle_id: 'dev.agent-os',
@@ -105,31 +105,46 @@ test('buildSpatialSubjectTree maps topology, canvas, targets, and projections in
       {
         id: 'comparative-audit',
         canvas_id: 'brand-audit',
-        adapter_id: 'employer-brand-surface',
-        adapter_type: 'employer_brand',
-        source_path: 'Employer_Brand_Audit/report.md',
-        subject_id: 'employer-brand-comparative-audit',
+        adapter_id: 'runtime-audit-surface',
+        adapter_type: 'generic',
+        source_path: 'docs/design/fixtures/aos-artifacts/example-design-pass/report.md',
+        subject_id: 'runtime-audit',
         bounds: { x: 24, y: 44, width: 852, height: 540 },
       },
     ],
     semantic_targets: [
       {
-        canvas_id: 'brand-audit',
         surface: 'comparative-audit',
-        id: 'primary-cta',
         ref: 'button-primary-cta',
         role: 'button',
         name: 'Primary CTA',
-        do_target: 'canvas:brand-audit/button-primary-cta',
-        bounds: { x: 48, y: 80, width: 160, height: 36 },
+        kind: 'control',
+        enabled: true,
+        actions: ['commit'],
+        extension: {
+          dom_id: 'primary-cta',
+        },
+        provenance: {
+          canvas_id: 'brand-audit',
+          do_target: 'canvas:brand-audit/button-primary-cta',
+          bounds: { x: 48, y: 80, width: 160, height: 36 },
+        },
       },
       {
-        canvas_id: 'brand-audit',
         surface: 'comparative-audit',
-        id: 'evidence-card',
+        ref: 'evidence-card-ref',
         role: 'region',
         name: 'Evidence Card',
-        bounds: { x: 48, y: 148, width: 360, height: 180 },
+        kind: 'region',
+        enabled: true,
+        actions: [],
+        extension: {
+          dom_id: 'evidence-card',
+        },
+        provenance: {
+          canvas_id: 'brand-audit',
+          frame: { x: 48, y: 148, width: 360, height: 180 },
+        },
       },
     ],
     annotation_projections: [
@@ -145,16 +160,20 @@ test('buildSpatialSubjectTree maps topology, canvas, targets, and projections in
   })
 
   assertSpatialSubjectTreeShape(tree)
-  const target = tree.nodes.find((node) => node.id === 'target:primary-cta')
+  const target = tree.nodes.find((node) => node.id === 'target:button-primary-cta')
   const projection = tree.nodes.find((node) => node.id === 'annotation:ann-cta-copy')
 
   assert.equal(target.parent_id, 'surface:comparative-audit')
   assert.equal(
     target.path,
-    'desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta',
+    'desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:button-primary-cta',
   )
   assert.deepEqual(target.bounds.desktop_world, { x: 172, y: 204, width: 160, height: 36 })
   assert.equal(target.capabilities.action, true)
+  assert.equal(target.source.canvas_id, 'brand-audit')
+  assert.equal(target.source.subject_id, 'button-primary-cta')
+  assert.equal(target.source.adapter_subject_id, 'canvas:brand-audit/button-primary-cta')
+  assert.equal(target.metadata.dom_id, 'primary-cta')
   assert.deepEqual(projection.bounds.viewport_local, { x: 48, y: 80, width: 160, height: 36 })
   assert.equal(projection.adapter.child_discovery, 'unsupported')
 })

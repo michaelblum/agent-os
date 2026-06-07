@@ -252,12 +252,19 @@ for full-screen capture.
 ./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
 ./aos dev capabilities list --json
 ./aos dev capabilities explain dev.github.issue_comment --json
+./aos dev capabilities explain dev.github.pr_checks --json
 ./aos dev docks list --json
 ./aos dev docks capabilities foreman --json
 ./aos dev build
-./aos dev build-checkpoint --json
 ./aos dev gh context --json
+./aos dev gh issue list --state open --limit 50 --milestone v0 --json
+./aos dev gh label list --limit 50 --search governance --json
+./aos dev gh pr list --state all --limit 30 --json
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
+./aos dev gh issue create --title "Follow-up tracker" --body-file /tmp/issue.md
+./aos dev gh issue close 298 --reason completed
+./aos dev gh issue edit 298 --remove-label lane:active --add-label lane:parked
+./aos dev gh pr merge 410 --merge --match-head-commit abc123
 ./aos dev gh ci inspect --pr 298 --json
 ./aos dev gh review-comments --pr 298 --json
 ```
@@ -267,19 +274,12 @@ the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
 and verification steps. The rules live in `docs/dev/workflow-rules.json` and
 are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 
-`build` wraps the repo `build.sh` and emits a `post_build_checkpoint` object in
-JSON mode. `build-checkpoint --json` exposes that same
-`aos.dev_build.post_build_checkpoint.v1` contract without rebuilding. Dock
-hooks consume this contract for post-rebuild pause/resume commands, human TCC
-instructions, and post-permission readiness guidance instead of duplicating
-permission ritual text in hook scripts.
-
-For dock sessions, hooks own the visible lifecycle around this checkpoint:
-successful GDI `aos dev build` shows the non-interactive human-needed surface
-and writes the completed-build marker; successful `aos ready --post-permission`
-removes that surface and clears the marker. Plain `aos ready` does not clear
-the marker, so incidental readiness probes cannot dismiss an active human-needed
-handoff.
+`build` wraps the repo `build.sh`, forces `--no-restart` unless the caller has
+already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
+in JSON mode. Dock hooks do not automate post-build TCC handling: they do not
+reset permissions, open System Settings, show a human-needed surface, write
+completed-build markers, or inject provider input. Repo-mode binary rebuilds
+are Foreman-owned and intentionally rare.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed agent
@@ -296,11 +296,25 @@ turning the profile into a rigid executor.
 `dev gh` is the repo GitHub control surface. It deliberately uses the real
 `gh` executable from `PATH`, the user's existing `gh` authentication, and the
 local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
-Direct operations such as `issue view`, `issue comment`, `pr view`, `pr checks`,
-and `pr comment` forward to `gh` and preserve its exit behavior. The composite
-helpers cover repo-specific repeated loops: `ci inspect` reads PR checks and
-fetches failed GitHub Actions logs when the check links to an Actions run, while
-`review-comments` uses `gh api graphql` to read review-thread resolution state.
+Direct operations such as `issue list`, `issue view`, `issue comment`,
+`issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
+`pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
+behavior. List operations expose the repo-safe inventory filters Foreman and
+GDI need most often: issue and PR lists support `--state`, `--limit`,
+`--label`, `--author`, `--assignee`, and `--search`, plus issue-specific
+`--milestone` and PR-specific `--base`, `--head`, and `--draft`; label lists
+support `--limit`, `--search`, `--sort`, and `--order`. Write operations are
+non-interactive: `issue create` requires `--title` and `--body-file`,
+`issue close` requires an issue number and optionally accepts `--reason`, and
+`issue edit` requires an issue number and at least one explicit edit flag:
+`--add-label`, `--remove-label`, `--add-assignee`, `--remove-assignee`,
+`--milestone`, `--title`, or `--body-file`. `pr merge` requires a PR number
+and exactly one of `--squash`, `--merge`, or `--rebase`; use
+`--match-head-commit` when merging a reviewed head. The
+composite helpers cover repo-specific repeated loops:
+`ci inspect` reads PR checks and fetches failed GitHub Actions logs when the
+check links to an Actions run, while `review-comments` uses `gh api graphql` to
+read review-thread resolution state.
 
 ### Wiki Repo Docs Projection
 
@@ -463,20 +477,30 @@ stable object reference or cache key.
 `aos see cursor` returns the cursor point, display ordinal, the frontmost
 visible window under the cursor when available, and an optional AX `element`.
 When present, the element includes `role`, `title`, `label`, `value`, `enabled`,
-`bounds`, `context_path`, `action_names`, and normalized `capabilities` such as
-`press`, `focus`, `set_value`, `scroll`, `increment`, or `decrement`. The
-capture-pipeline cursor response uses the same AX element fields when it can
+`bounds`, raw `action_names`, raw `settable_attributes`, and raw
+`ancestor_chain` entries. It does not synthesize user-facing capability labels
+or breadcrumb vocabulary in the binary. Toolkit and app layers derive labels,
+lineage, and normalized capabilities such as `press`, `focus`, `set_value`,
+`scroll`, `increment`, or `decrement` from those raw AX facts. The
+capture-pipeline cursor response uses the same raw AX element fields when it can
 resolve the element explicitly under the cursor.
 
-`--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
-canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
-semantic target probe inside that canvas and returns `semantic_targets`. Those
-entries project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such
-as `canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
-`data-semantic-target-id`. Entries with both `canvas_id` and `ref` also include
-`do_target`, the exact `canvas:<canvas-id>/<ref>` string accepted by
-`aos do click`. The probe does not use caller-supplied JavaScript; `show eval`
-remains a developer diagnostic bridge, not the agent perception contract.
+`--xray` returns raw visible bounded AX elements in `elements`; the daemon does
+not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
+captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
+target probe inside that canvas and returns `semantic_targets`. Those entries
+use the canonical `agent_ui_target` envelope: top-level `ref`, `state_id`,
+`surface`, `role`, `name`, `kind`, `enabled`, `target`, `state`, `actions`,
+`extension`, `provenance`, and `reacquisition`. `ref` is the state-scoped
+action handle. Durable machine identity lives in `target.target_id` scoped by
+`target.owner_namespace`; human labels, accessible text, local DOM ids, canvas
+id, parent canvas id, local geometry, metadata, and the
+`canvas:<canvas-id>/<ref>` action-routing string are presentation,
+provenance/current-address, or hint fields. They are not durable identity. The
+current V0 producer emits or consumes descriptor fields when it can derive them;
+older or partial AOS-owned surfaces may omit some fields until their producers
+migrate. The probe does not use caller-supplied JavaScript; `show eval` remains
+a developer diagnostic bridge, not the agent perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.
@@ -590,12 +614,12 @@ Primary public verbs:
 | --- | --- |
 | `click` | click coordinates, browser refs, or AOS canvas semantic refs |
 | `hover` | move cursor |
-| `drag` | drag between coordinates |
+| `drag` | drag between coordinates or AOS canvas semantic refs |
 | `scroll` | scroll at a point |
 | `type` | type text |
 | `key` | key combo |
 | `press` | semantic AX press |
-| `set-value` | semantic AX set-value |
+| `set-value` | semantic AX or AOS canvas semantic set-value |
 | `focus` | semantic AX focus |
 | `raise` | raise an app/window |
 | `move` | move a window |
@@ -614,14 +638,17 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass
-`semantic_targets[].do_target` directly when present; `canvas_id` and `ref`
-remain available for structured filtering. The CLI resolves the current
-AOS-owned canvas semantic target through the fixed probe path, rejects missing,
-disabled, ambiguous, suspended, noninteractive, or unsupported segmented
-canvases with machine-readable errors, and then clicks the resolved target
-center in global CG coordinates. V0 does not dereference a historical
-`state_id`; the id is preserved only as correlation metadata for the perception
-the action was chosen from.
+`semantic_targets[].provenance.do_target` directly when present;
+`provenance.canvas_id` and `ref` remain available for structured filtering.
+When the originating descriptor also has `state_id`, pass `--state-id <id>` so
+the actuator can detect stale state when that check is available. The CLI
+resolves the current AOS-owned canvas semantic target through the fixed probe
+path, rejects missing, disabled, stale, ambiguous, suspended, noninteractive,
+or unsupported segmented canvases with machine-readable errors, and then
+clicks the resolved `provenance.center` in global CG coordinates. V0 preserves
+historical `state_id` as correlation metadata; the descriptor contract already
+defines stale-ref status so future producers can reject a stale state/ref pair
+without changing target vocabulary.
 
 Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
 the action was chosen from a prior `aos see capture` response. Direct one-shot
@@ -649,6 +676,49 @@ the target dialect, canvas id, ref, local semantic-target center, global click
 point, coordinate space, capture scale factor, and source
 `aos_semantic_targets`. Coordinate fallback remains available for surfaces that
 do not expose a semantic ref or for unsupported segmented canvases.
+
+`set-value` and `drag` also accept current AOS canvas semantic refs:
+
+```bash
+aos do set-value canvas:<canvas-id>/<slider-ref> <value>
+aos do set-value canvas:<canvas-id>/<slider-ref> --value <value>
+aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>
+aos do drag canvas:<canvas-id>/<slider-ref> --to-value <value> --playback human
+```
+
+Playback modes are `--playback immediate`, `--playback human`, and
+`--playback auto`. `auto` prefers immediate semantic execution for AOS-owned
+canvas controls. Coordinate actions and `--playback human` continue to require
+the input-tap preflight. Immediate canvas semantic actions resolve the current
+target at action time and do not require agents to choose or pass target
+coordinates.
+
+For V0, single-thumb toolkit sliders support immediate `set-value` and
+`drag --to-value` through the canvas semantic action route. Multi-thumb sliders
+advertise `drag` but not single-value `set-value` unless a future thumb-specific
+target exists. Toolkit panel drag handles support immediate `drag --by` by
+updating the current canvas frame; `--playback human` resolves the current
+target center and uses CGEvent as a visible playback implementation detail.
+
+Target-addressed responses include the action, backend, playback mode,
+`execution.strategy`, `execution.backend`, `execution.fallback_used`, the
+correlation `state_id` when supplied, resolved target details, and post-action
+semantic state when the target can be collected after execution. Stale
+state/ref pairs report a machine-readable `stale_ref` status. Descriptor-based
+reacquisition may report `reacquired` only after one current target is found
+through machine facts first; same-label matches without a unique machine
+fingerprint report `ambiguous` with candidates instead of selecting one.
+
+Gesture frames and Work Recording references should carry the same descriptor
+vocabulary: the state-scoped `ref`/`state_id`, durable
+`target.target_id` scoped by `target.owner_namespace`, primitive `actions`,
+current `state`, `provenance` for the current address, and `reacquisition`
+fingerprints for repair. They should not promote labels or coordinates into
+durable target identity.
+
+For the design split between action intents, execution results, optional
+gesture evidence, state patches, and Work Recording replay plans, see
+[`docs/design/aos-interaction-grammar-v0.md`](../design/aos-interaction-grammar-v0.md).
 
 ## `aos graph`
 
@@ -928,10 +998,8 @@ Primary public verbs for knowledge-base consumers:
 
 `nodes[].type` is the wiki graph page kind, not a Workbench Subject
 `subject_type` and not arbitrary raw frontmatter. The V0 page-kind vocabulary is
-`page`, `concept`, `entity`, `workflow`, and `reference`. Compatibility
-normalization maps legacy Sigil agent wiki documents such as
-`sigil/agents/default.md` and frontmatter `type: agent` to `entity`; plugin
-pages under `references/` map to `reference`.
+`page`, `concept`, `entity`, `workflow`, and `reference`. Plugin pages under
+`references/` map to `reference`.
 
 ## Auxiliary Consumer Surfaces
 
@@ -1012,9 +1080,12 @@ Consumers:
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
-  longer safe recovery path: restart, wait/recheck, then report plain-English
-  human instructions when macOS privacy settings still require manual action. It
-  does not open Settings or show permission dialogs by itself.
+  longer safe recovery path, but stale daemon owners are cleaned before service
+  start/restart and unmanaged socket owners are reported as PID/command facts
+  instead of restart loops. For restartable daemon states, repair may restart,
+  wait/recheck, then report plain-English human instructions when macOS privacy
+  settings still require manual action. It does not open Settings or show
+  permission dialogs by itself.
 - `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]`
   is the preferred repo-development TCC reset transaction. It does not grant
   permissions. It stops the managed daemon first, then either resets the runtime
@@ -1049,6 +1120,15 @@ Consumers:
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely
   because another worktree last wrote the marker when the current CLI grants and
   daemon input tap are verified green.
+- `aos ready --json`, `aos status --json`, and `aos doctor --json` expose
+  `runtime_verdict` as the shared readiness/action-plan contract:
+  `ready`, `phase`, `diagnosis`, `blockers`, `blocked_capabilities`, `notes`,
+  `next_actions`, `ownership`, and `cleanup`.
+- When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
+  `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
+  The process command line is either present as `command_line` or explicitly
+  unavailable via `command_line_status` and
+  `command_line_unavailable_reason`.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
 - `aos status` text mode includes `tap=<status>` in the one-line summary.

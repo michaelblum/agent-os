@@ -82,8 +82,8 @@ export async function loadAgent(wikiPath) {
     const agent = parseAgentDoc(text);
 
     // Migration: if the doc has `home` but not `birthplace`, upgrade in memory
-    // only. Studio is responsible for persisting the normalized field on an
-    // explicit save; reads must not rewrite wiki content.
+    // only. The active configuration surface is responsible for persisting the
+    // normalized field on an explicit save; reads must not rewrite wiki content.
     const inst = agent.instance ?? {};
     const hasBirthplace = inst.birthplace != null;
     const hasHome = inst.home != null;

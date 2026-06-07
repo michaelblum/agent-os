@@ -1,0 +1,70 @@
+{
+  "schema": "aos.target-descriptor.fixture.v0",
+  "case": "descriptor_based_reacquisition_success",
+  "previous": {
+    "ref": "td1",
+    "state_id": "see_targetdescriptor001",
+    "target": {
+      "target_id": "control:opacity",
+      "owner_namespace": {
+        "app_id": "sigil",
+        "canvas_id": "avatar-panel-canvas",
+        "surface_id": "avatar-appearance-panel",
+        "component_family": "toolkit.panel.form",
+        "structural_owner": ["avatar-editor", "appearance"]
+      }
+    },
+    "reacquisition": {
+      "machine_fingerprint": {
+        "role": "slider",
+        "structural_path": ["avatar-editor", "appearance", "field:opacity"],
+        "capabilities": ["drag", "set-value", "focus"],
+        "nearby_group": "Appearance",
+        "range_shape": { "min": 0, "max": 1, "step": 0.01 }
+      },
+      "hint_fingerprint": {
+        "label_hints": ["Opacity"],
+        "source_hints": { "field_id": "opacity" }
+      }
+    }
+  },
+  "current_state_id": "see_targetdescriptor002",
+  "candidates": [
+    {
+      "ref": "td9",
+      "state_id": "see_targetdescriptor002",
+      "role": "slider",
+      "name": "Opacity",
+      "target": {
+        "target_id": "control:opacity",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "avatar-panel-canvas",
+          "surface_id": "avatar-appearance-panel",
+          "component_family": "toolkit.panel.form",
+          "structural_owner": ["avatar-editor", "appearance"]
+        }
+      },
+      "actions": ["drag", "set-value", "focus"],
+      "state": { "value": 0.6, "min": 0, "max": 1, "step": 0.01 },
+      "provenance": {
+        "canvas_id": "avatar-panel-canvas",
+        "do_target": "canvas:avatar-panel-canvas/td9",
+        "center": { "x": 126, "y": 96 }
+      }
+    }
+  ],
+  "resolution": {
+    "status": "reacquired",
+    "selected_ref": "td9",
+    "matched_by": [
+      "owner_namespace",
+      "target_id",
+      "role",
+      "structural_path",
+      "capabilities",
+      "range_shape"
+    ],
+    "labels_used_as_hints_only": true
+  }
+}

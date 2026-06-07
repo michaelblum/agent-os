@@ -61,8 +61,10 @@ markdown instructions.
 - `.docks/<dock>/.codex/hooks.json` declares provider hook entry points.
 - `.docks/<dock>/hooks/*.sh` are thin role-local wrappers.
 - `.docks/harness/dock-hook-runner.sh` is the shared dock hook harness.
-- `.docks/harness/*.sh` owns shared hook behavior such as build checkpoint
-  pauses, short-lived stop conditions, human-needed surfaces, and stop notices.
+- `.docks/harness/*.sh` owns shared hook behavior such as stop notices,
+  short-lived stop conditions, and provider input helpers. Per-tool hooks are
+  intentionally absent because they add latency to every tool result and no
+  longer enforce build or permission policy.
 - `.docks/<dock>/dock.json` and `.docks/dock-defaults.json` own dock metadata,
   capability envelopes, and voice policy.
 - `.docks/<dock>/inbound-contract.json` owns provider-specific entry syntax,

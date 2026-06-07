@@ -32,9 +32,10 @@ test('layout mode changes route through Wiki KB active layout state', () => {
 })
 
 test('Wiki KB layout semantics remain on mode buttons while embedded chrome stays on select', () => {
-  assert.match(source, /applyWikiKBSemanticTarget\(button, \{[\s\S]*id: `layout-mode-\$\{button\.dataset\.layoutMode\}`[\s\S]*action: 'set_layout_mode'[\s\S]*aosRef: wikiKBAosRef\('layout-mode', button\.dataset\.layoutMode\)[\s\S]*pressed: isActive/)
+  assert.match(source, /applyWikiKBSemanticTarget\(button, \{[\s\S]*id: `layout-mode-\$\{button\.dataset\.layoutMode\}`[\s\S]*action: 'set_layout_mode'[\s\S]*ref: wikiKBAosRef\('layout-mode', button\.dataset\.layoutMode\)[\s\S]*pressed: isActive/)
   assert.match(source, /const layoutModeSelectSlot = rootEl\.querySelector\('\[data-role="wiki-kb-layout-mode-select"\]'\)/)
   assert.match(source, /addClassNames\(dom\.layoutModeSelectEl, 'wiki-kb-layout-mode-select'\)/)
+  assert.match(source, /dom\.layoutModeSelectControl = layoutModeSelect/)
   assert.doesNotMatch(source, /dom\.layoutModeSelectEl[\s\S]{0,200}aosTabs/)
 })
 

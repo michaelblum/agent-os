@@ -9,6 +9,8 @@ STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$STATE_ROOT"
 export AOS_BYPASS_PERMISSIONS_SETUP=1
 export AOS_TEST_SKIP_READY_SERVICE_START=1
+export AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL=1
+export AOS_TEST_IGNORE_LAUNCHD=1
 
 SOCK="$STATE_ROOT/repo/sock"
 LOCK="$STATE_ROOT/repo/daemon.lock"
@@ -41,6 +43,65 @@ if ! [[ -S "$SOCK" ]]; then
   exit 1
 fi
 
+set +e
+UNMANAGED_OUT="$(./aos ready --json)"
+UNMANAGED_RC=$?
+set -e
+
+echo "$UNMANAGED_OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+runtime = d.get("runtime", {})
+verdict = d.get("runtime_verdict", {})
+tap = runtime.get("input_tap", {})
+blockers = d.get("blockers", [])
+ids = {b.get("id") for b in blockers}
+
+assert d.get("ready") is False, d
+assert d.get("status") == "degraded", d
+assert d.get("phase") == "runtime_blocked", d
+assert d.get("diagnosis") == "daemon_unmanaged", d
+assert runtime.get("socket_reachable") is True, runtime
+assert runtime.get("ownership_state") == "unmanaged", runtime
+assert runtime.get("ownership_kind") == "unmanaged", runtime
+assert runtime.get("owner_launchd_managed") is False, runtime
+assert runtime.get("owner_pid") == runtime.get("serving_pid"), runtime
+owner = runtime.get("owner_process", {})
+assert owner.get("pid") == runtime.get("serving_pid"), owner
+assert owner.get("command_line_status") in {"available", "unavailable"}, owner
+if owner.get("command_line_status") == "available":
+    assert isinstance(owner.get("command_line"), str) and owner.get("command_line"), owner
+else:
+    assert isinstance(owner.get("command_line_unavailable_reason"), str) and owner.get("command_line_unavailable_reason"), owner
+assert verdict.get("diagnosis") == "daemon_unmanaged", verdict
+assert verdict.get("ownership", {}).get("owner_process", {}).get("pid") == runtime.get("serving_pid"), verdict
+assert tap.get("owner_pid") == runtime.get("serving_pid"), tap
+assert tap.get("owner_kind") == "unmanaged", tap
+assert tap.get("launchd_managed") is False, tap
+assert tap.get("installed_mode_socket_reachable") is False, tap
+assert isinstance(tap.get("stale_input_tap_capable_daemons"), int), tap
+assert tap.get("duplicate_tcc_rows_observable") is False, tap
+assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap
+assert "daemon_unmanaged" in ids, blockers
+assert any(
+    a.get("command", "") == "./aos clean"
+    for a in d.get("next_actions", [])
+), d.get("next_actions", [])
+assert not any(
+    a.get("command", "").endswith("service restart --mode repo")
+    for a in d.get("next_actions", [])
+), d.get("next_actions", [])
+assert not any(
+    a.get("command", "").endswith("ready --repair")
+    for a in d.get("next_actions", [])
+), d.get("next_actions", [])
+'
+
+if [[ "$UNMANAGED_RC" -eq 0 ]]; then
+  echo "FAIL: ready exited 0 despite unmanaged active daemon"
+  exit 1
+fi
+
 python3 - "$LOCK" <<'PY'
 import json
 import pathlib
@@ -68,6 +129,7 @@ assert d.get("phase") == "runtime_blocked", d
 assert d.get("diagnosis") == "daemon_ownership_mismatch", d
 assert runtime.get("socket_reachable") is True, runtime
 assert runtime.get("ownership_state") == "mismatch", runtime
+assert runtime.get("ownership_kind") == "mismatch", runtime
 assert runtime.get("lock_owner_pid") == 99999, runtime
 assert "daemon_ownership_mismatch" in ids, blockers
 

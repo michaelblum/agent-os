@@ -141,6 +141,9 @@ func aosInputRegionRoutedInputPayload(
     gestureID: String?
 ) -> [String: Any] {
     let eventKind = (data["event_kind"] as? String) ?? aosInputRegionEventKind(event)
+    let sourceEvent: Any = (data["input_schema_version"] as? Int) == 2
+        ? data
+        : (sourceSequence ?? event)
     var routed: [String: Any] = [
         "event_kind": eventKind,
         "type": event,
@@ -150,7 +153,7 @@ func aosInputRegionRoutedInputPayload(
         "gesture_id": gestureID ?? sourceSequence ?? "\(event):\(route.region.id)",
         "coordinate_authority": "daemon",
         "source_origin": "daemon",
-        "source_event": sourceSequence ?? event,
+        "source_event": sourceEvent,
         "region_id": route.region.id,
         "owner_canvas_id": route.region.ownerCanvasID,
     ]

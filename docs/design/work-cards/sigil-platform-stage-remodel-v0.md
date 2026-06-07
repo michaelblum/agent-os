@@ -52,7 +52,6 @@ At minimum inspect:
 - `apps/sigil/codex-terminal/index.html`
 - `apps/sigil/radial-item-editor/`
 - `apps/sigil/radial-item-workbench/`
-- `apps/sigil/studio/`
 
 ## Required Direction
 

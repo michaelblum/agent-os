@@ -1,5 +1,10 @@
 # Configurable Avatar Size — Implementation Plan
 
+> **Archive status:** Historical Sigil avatar plan. It predates the accepted
+> `state.avatar.*` descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, descriptors, geometry update policy,
+> and resource evidence.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make avatar size configurable via `base`/`min`/`max` properties in `avatar-config.json`, with all sizing derived from a single canonical unit (logical pixels/points), and close the loop through Swift, renderer, and Studio.

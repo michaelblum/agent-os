@@ -62,7 +62,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest html-workbench-expression \
   --js 'typeof window.__htmlWorkbenchExpressionState === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 CONTENT_JSON="$(EXPRESSION_METADATA="$EXPRESSION_METADATA" ROOT="$ROOT" python3 -c '
 import json
@@ -95,7 +96,8 @@ print(json.dumps({
   --id "$CANVAS_ID" \
   --manifest html-workbench-expression \
   --js 'window.__htmlWorkbenchExpressionState?.last_result?.status === "opened" && window.__htmlWorkbenchExpressionState?.semantic_target_count > 0' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "HTML Workbench Expression launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"

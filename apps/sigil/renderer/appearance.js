@@ -7,12 +7,13 @@
 // `snapshotAppearance()` is the inverse — returns a blob that, fed back through
 // applyAppearance, produces an equivalent state (roundtrip-stable).
 //
-// Neither function touches the DOM. Studio's existing UI listeners continue to
-// write `state.x = value` directly on every input event (that flow is unchanged);
-// on load, Studio calls `applyAppearance(DEFAULT_APPEARANCE)` then
-// `syncUIFromState()` (ui.js) to mirror state back into DOM input values.
+// Neither function touches the DOM. The active configuration surface's UI
+// listeners continue to write `state.x = value` directly on every input event
+// (that flow is unchanged); on load, the surface calls
+// `applyAppearance(DEFAULT_APPEARANCE)` then `syncUIFromState()` (ui.js) to
+// mirror state back into DOM input values.
 
-import state from './state.js';
+import state, { syncAvatarAliasesFromGraph } from './state.js';
 import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
@@ -32,6 +33,100 @@ const REF_HEIGHT = 1080;
 
 function computeBaseScale(base) {
     return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
+}
+
+function avatarFromAppearanceBlob(blob) {
+    return {
+        shape: {
+            type: blob.shape,
+            size: { ...blob.size },
+            stellationFactor: blob.stellation,
+            tesseron: blob.tesseron,
+            params: {
+                box: { ...blob.shapeParams.box },
+                torus: { ...blob.shapeParams.torus },
+                cylinder: { ...blob.shapeParams.cylinder },
+                tetartoid: { ...blob.shapeParams.tetartoid },
+            },
+            zDepth: blob.zDepth,
+            baseScale: state.baseScale,
+        },
+        appearance: {
+            opacity: blob.opacity,
+            edgeOpacity: blob.edgeOpacity,
+            skin: blob.skin,
+            maskEnabled: blob.maskEnabled,
+            interiorEdges: blob.interiorEdges,
+            specular: blob.specular,
+            innerEdgePulseAmount: state.innerEdgePulseAmount,
+            innerEdgePulseRate: state.innerEdgePulseRate,
+            innerEdgeInsetScale: state.innerEdgeInsetScale,
+            innerEdgeHighlightInsetScale: state.innerEdgeHighlightInsetScale,
+            innerEdgePeakThreshold: state.innerEdgePeakThreshold,
+            innerEdgeFlickerAmount: state.innerEdgeFlickerAmount,
+            innerEdgeFlickerRate: state.innerEdgeFlickerRate,
+            colors: blob.colors,
+        },
+        effects: {
+            aura: {
+                ...blob.aura,
+                spike: state.auraSpike ?? 0,
+            },
+            phenomena: blob.phenomena,
+            turbulence: blob.turbulence,
+            lightning: blob.lightning,
+            magnetic: {
+                ...blob.magnetic,
+                fieldEnabled: state.isMagneticFieldEnabled ?? false,
+                fieldLineCount: state.magneticFieldLineCount ?? 20,
+                fieldRadius: state.magneticFieldRadius ?? 4,
+                fieldStrength: state.magneticFieldStrength ?? 1,
+            },
+            trail: {
+                enabled: blob.trails.enabled,
+                length: blob.trails.count,
+                opacity: blob.trails.opacity,
+                fadeMs: blob.trails.fadeMs,
+                style: blob.trails.style,
+            },
+            omega: {
+                enabled: blob.omega.enabled,
+                shape: {
+                    type: blob.omega.shape,
+                    stellationFactor: blob.omega.stellation,
+                    params: {
+                        box: { ...blob.shapeParams.box },
+                        torus: { ...blob.shapeParams.torus },
+                        cylinder: { ...blob.shapeParams.cylinder },
+                        tetartoid: { ...blob.shapeParams.tetartoid },
+                    },
+                    tesseron: blob.omega.tesseron,
+                },
+                scale: blob.omega.scale,
+                opacity: blob.omega.opacity,
+                edgeOpacity: blob.omega.edgeOpacity,
+                maskEnabled: blob.omega.maskEnabled,
+                interiorEdges: blob.omega.interiorEdges,
+                specular: blob.omega.specular,
+                skin: blob.omega.skin,
+                counterSpin: blob.omega.counterSpin,
+                lockPosition: blob.omega.lockPosition,
+                interDimensional: blob.omega.interDimensional,
+                ghostCount: blob.omega.ghostCount,
+                ghostMode: blob.omega.ghostMode,
+                ghostDuration: blob.omega.ghostDuration,
+                lagFactor: blob.omega.lagFactor,
+            },
+        },
+        transform: {
+            position: { x: state.currentPos?.x ?? 0, y: state.currentPos?.y ?? 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: state.appScale ?? 1,
+            idleSpin: blob.idleSpin,
+        },
+        interaction: blob.interaction,
+        windowing: blob.windowing,
+    };
 }
 
 // -----------------------------------------------------------------------------
@@ -572,6 +667,9 @@ export function applyAppearance(blob) {
     state.trailFadeMs = tr.fadeMs ?? D.trails.fadeMs;
     state.trailStyle = tr.style ?? D.trails.style;
 
+    state.avatar = avatarFromAppearanceBlob(snapshotAppearance());
+    syncAvatarAliasesFromGraph(state);
+
     if (window.liveJs) {
         window.liveJs.avatarHitRadius = state.avatarHitRadius;
         window.liveJs.dragThreshold = state.dragThreshold;
@@ -582,8 +680,9 @@ export function applyAppearance(blob) {
 
     // Trigger renderer update hooks that need mesh/material rebuilds.
     // Guarded: in headless/test contexts groups/materials may not exist yet,
-    // and in pre-init contexts (e.g. Studio applyAppearance(DEFAULT) called
-    // before scene.js initScene()) the Three.js groups aren't wired either.
+    // and in pre-init contexts (e.g. the active configuration surface calling
+    // `applyAppearance(DEFAULT)` before `scene.js` initScene()) the Three.js
+    // groups aren't wired either.
     // Errors surface at console.debug so real regressions are visible in
     // devtools without breaking the headless-safety behavior.
     try { updateGeometry(state.currentGeometryType); }

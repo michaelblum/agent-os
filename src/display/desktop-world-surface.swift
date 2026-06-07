@@ -19,6 +19,8 @@ protocol CanvasLike: AnyObject {
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
     var owner: CanvasOwnerInfo? { get set }
+    var placement: [String: JSONValue]? { get set }
+    var logicalSurfaceKey: String? { get set }
     var sourceURL: String? { get }
     var onMessage: ((Any) -> Void)? { get set }
     var onTTLExpired: (() -> Void)? { get set }
@@ -159,6 +161,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var cascadeFromParent: Bool = true
     var parent: String? = nil
     var owner: CanvasOwnerInfo? = nil
+    var placement: [String: JSONValue]? = nil
+    var logicalSurfaceKey: String? = nil
     var onTTLExpired: (() -> Void)?
     var onMessage: ((Any) -> Void)? {
         didSet {
@@ -298,6 +302,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             id: id,
             url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
+            requestedFrame: nil,
+            placement: nil,
             anchorWindow: nil,
             anchorChannel: nil,
             offset: nil,
@@ -313,7 +319,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             lifecycleState: lifecycleState,
             windowNumbers: windowNumbers,
             segments: segmentMetadata(),
-            owner: owner
+            owner: owner,
+            logicalSurfaceKey: logicalSurfaceKey
         )
     }
 

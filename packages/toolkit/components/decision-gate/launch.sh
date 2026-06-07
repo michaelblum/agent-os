@@ -63,6 +63,7 @@ NODE
   --id "$CANVAS_ID" \
   --manifest decision-gate \
   --js '!!document.querySelector(".aos-gate-submit") && document.body.innerText.includes("Local smoke decision")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Decision Gate local smoke prompt launched as ${CANVAS_ID}"

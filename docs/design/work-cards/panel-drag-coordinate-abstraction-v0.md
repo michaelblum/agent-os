@@ -1,5 +1,16 @@
 # Panel Drag Coordinate Abstraction V0
 
+## Routing Status
+
+Historical / do not route as-is.
+
+New Sigil live evidence showed duplicate Avatar/Sigil visible surfaces across
+displays, so panel drag should not be treated as a coordinate abstraction issue
+until AOS can audit visible native windows versus registered canvases. Route
+`docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md` first, then
+refresh toolkit placement/final-frame reporting and the active live-drag card
+against that accepted evidence.
+
 ## Tracker
 
 - Panel chrome drag controller:

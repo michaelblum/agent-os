@@ -34,20 +34,31 @@ OUT="$(./aos see capture --canvas "$CANVAS_ID" --xray --out "/tmp/${CANVAS_ID}.p
 echo "$OUT" | jq -e --arg canvas "$CANVAS_ID" '
   .semantic_targets
   | map(select(
-      .canvas_id == $canvas
-      and .id == "primary"
+      .provenance.canvas_id == $canvas
       and .ref == "contract.primary"
-      and .do_target == ("canvas:" + $canvas + "/contract.primary")
+      and .extension.dom_id == "primary"
+      and .provenance.do_target == ("canvas:" + $canvas + "/contract.primary")
       and .role == "button"
       and .name == "Primary Action"
-      and .action == "commit"
+      and (.actions | index("commit"))
       and .surface == "contract.surface"
-      and .parent_canvas == "contract-parent"
+      and .provenance.parent_canvas_id == "contract-parent"
       and .enabled == true
       and .state.pressed == true
-      and (.bounds.width | type == "number")
-      and .bounds.width > 0
-      and (.center.x | type == "number")
+      and (.provenance.bounds.width | type == "number")
+      and .provenance.bounds.width > 0
+      and (.provenance.frame.width | type == "number")
+      and (.provenance.center.x | type == "number")
+      and (has("id") | not)
+      and (has("canvas_id") | not)
+      and (has("do_target") | not)
+      and (has("action") | not)
+      and (has("parent_canvas") | not)
+      and (has("bounds") | not)
+      and (has("center") | not)
+      and (has("target_id") | not)
+      and (has("aos_ref") | not)
+      and (has("data_aos_ref") | not)
     ))
   | length == 1
 ' >/dev/null || {

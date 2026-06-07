@@ -40,11 +40,15 @@ export {
   resolveDesktopWorldHitRegionOwnerCanvasId,
 } from './desktop-world-hit-region.js'
 export {
-  aosRefForTarget,
+  actionList,
   applySemanticTargetAttributes,
+  compactObject,
   createSemanticTargetElement,
+  extensionSource,
+  normalizeAgentUiTarget,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
+  refForTarget,
   semanticTargetAttributeEntries,
   semanticTargetAttrString,
 } from './semantic-targets.js'
@@ -53,6 +57,13 @@ export {
   desktopWorldRangeValue,
   updateDesktopWorldRangeDrag,
 } from './range-drag.js'
+export {
+  GESTURE_FRAME_SCHEMA,
+  GESTURE_FRAME_SCHEMA_VERSION,
+  bindDomPointerGesture,
+  createGestureFrameHub,
+  createPointerGestureStream,
+} from './gesture-stream.js'
 export { createResourceScope } from './resource-scope.js'
 export {
   angleDegrees,

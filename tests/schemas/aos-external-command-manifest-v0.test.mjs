@@ -140,6 +140,24 @@ test('external command manifest executable targets exist', async () => {
   }
 });
 
+test('external help passthrough routes stay script-owned', async () => {
+  const manifest = await loadJson(manifestPath);
+  const passthroughRoutes = manifest.commands.filter((command) => command.help_passthrough === true);
+
+  assert.ok(
+    passthroughRoutes.some((command) => command.path.join(' ') === 'dev gh'),
+    'dev gh must declare script-owned help passthrough',
+  );
+
+  for (const command of passthroughRoutes) {
+    assert.notEqual(command.executable, '$AOS_PATH', `${command.path.join(' ')} help passthrough must not route to Swift`);
+    assert.ok(
+      (command.argv_prefix || []).some((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/')),
+      `${command.path.join(' ')} help passthrough must name an external script target`,
+    );
+  }
+});
+
 test('external command manifest placeholders are resolved by Swift dispatcher', async () => {
   const manifest = await loadJson(manifestPath);
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
@@ -155,10 +173,6 @@ test('external command manifest only routes bootstrap families to Swift', async 
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
     ['serve', ['__serve']],
-    ['status', ['__status']],
-    ['ready', ['__ready']],
-    ['doctor', ['__doctor']],
-    ['permissions', ['__permissions']],
   ]);
 
   for (const command of manifest.commands) {
@@ -177,10 +191,9 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
 
   const allowedCases = new Set([
     '__serve',
-    '__status',
-    '__ready',
-    '__doctor',
     '__permissions',
+    '__daemon',
+    '__runtime',
     '__render',
     '__see',
     '__say',
@@ -197,6 +210,56 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
   assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
 });
 
+test('ready public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const ready = manifest.commands.find((command) => command.path.join(' ') === 'ready');
+  assert.ok(ready, 'ready route missing');
+  assert.equal(ready.executable, '/usr/bin/env');
+  assert.deepEqual(ready.argv_prefix, ['node', 'scripts/aos-ready.mjs']);
+  assert.equal(ready.env.AOS_PATH, '$AOS_PATH');
+});
+
+test('status public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const status = manifest.commands.find((command) => command.path.join(' ') === 'status');
+  assert.ok(status, 'status route missing');
+  assert.equal(status.executable, '/usr/bin/env');
+  assert.deepEqual(status.argv_prefix, ['node', 'scripts/aos-status.mjs']);
+  assert.equal(status.env.AOS_PATH, '$AOS_PATH');
+});
+
+test('doctor public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const doctor = manifest.commands.find((command) => command.path.join(' ') === 'doctor');
+  assert.ok(doctor, 'doctor route missing');
+  assert.equal(doctor.executable, '/usr/bin/env');
+  assert.deepEqual(doctor.argv_prefix, ['node', 'scripts/aos-doctor.mjs']);
+  assert.equal(doctor.env.AOS_PATH, '$AOS_PATH');
+});
+
+test('permissions public workflow routes are externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  for (const subcommand of ['check', 'preflight', 'setup', 'reset-runtime']) {
+    const command = manifest.commands.find((item) => item.path.join(' ') === `permissions ${subcommand}`);
+    assert.ok(command, `permissions ${subcommand} route missing`);
+    assert.equal(command.executable, '/usr/bin/env');
+    assert.deepEqual(command.argv_prefix, ['node', 'scripts/aos-permissions.mjs', subcommand]);
+    assert.equal(command.env.AOS_PATH, '$AOS_PATH');
+    assert.equal(command.env.AOS_INVOCATION_DISPLAY_NAME, '$AOS_INVOCATION_DISPLAY_NAME');
+    assert.equal(command.env.AOS_RUNTIME_MODE, '$AOS_RUNTIME_MODE');
+    assert.equal(command.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
+  }
+
+  const fallback = manifest.commands.find((item) => item.path.join(' ') === 'permissions');
+  assert.ok(fallback, 'permissions catch-all route missing');
+  assert.equal(fallback.executable, '/usr/bin/env');
+  assert.deepEqual(fallback.argv_prefix, ['node', 'scripts/aos-permissions.mjs']);
+  assert.equal(fallback.env.AOS_PATH, '$AOS_PATH');
+  assert.equal(fallback.env.AOS_INVOCATION_DISPLAY_NAME, '$AOS_INVOCATION_DISPLAY_NAME');
+  assert.equal(fallback.env.AOS_RUNTIME_MODE, '$AOS_RUNTIME_MODE');
+  assert.equal(fallback.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
@@ -209,7 +272,7 @@ test('Swift external dispatcher does not consume flags as --repo values', async 
 
 test('ready ownership classifier accepts managed parent child daemon shape', async () => {
   const source = await fs.readFile(operatorSwiftPath, 'utf8');
-  const classifier = source.match(/private func currentOwnershipState\([\s\S]*?\n\}/);
+  const classifier = source.match(/private func currentOwnershipClassification\([\s\S]*?\n\}/);
   assert.ok(classifier, 'ready ownership classifier must stay visible');
   assert.ok(
     classifier[0].includes('parentProcessID(of: ownerPID) == servicePID'),
@@ -221,12 +284,11 @@ test('private Swift primitives are reachable only through expected external wrap
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([
     ['__serve', 'serve'],
-    ['__status', 'status'],
-    ['__ready', 'ready'],
-    ['__doctor', 'doctor'],
-    ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
+    ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
+    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
@@ -251,9 +313,13 @@ test('private Swift primitives are reachable only through expected external wrap
   }
 
   for (const [primitive, files] of expectedWrapperFiles) {
+    const sharedCompositionSource = await fs.readFile(path.join(repoRoot, 'scripts/lib/aos-facts.mjs'), 'utf8');
     for (const relativePath of files) {
       const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
-      assert.ok(source.includes(primitive), `${relativePath} must invoke ${primitive}`);
+      assert.ok(
+        `${source}\n${sharedCompositionSource}`.includes(primitive),
+        `${relativePath} must invoke ${primitive} directly or through scripts/lib/aos-facts.mjs`,
+      );
     }
   }
 
@@ -530,7 +596,7 @@ test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
   const externalPaths = new Set(manifest.commands.map((command) => command.path.join('\0')));
-  const bootstrapFamilies = new Set(['serve', 'status', 'ready', 'doctor', 'permissions']);
+  const bootstrapFamilies = new Set(['serve', 'ready', 'permissions']);
 
   for (const command of registry.commands) {
     for (const form of command.forms) {

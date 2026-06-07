@@ -156,7 +156,7 @@ The outcome must be either:
 - `AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh`
   passes from a clean repo daemon, or
 - the scenario reports a richer, actionable failure that proves a different
-  platform blocker and #305 remains open with that exact gap.
+  platform blocker and live #305 state records that exact gap.
 
 Also make the test harness improvement durable. Surface Inspector must be
 visible during these real-input surface tests from now on, and the reusable

@@ -27,6 +27,14 @@ struct CursorWindow: Encodable {
     let bounds: Bounds
 }
 
+struct AXAncestorJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let bounds: Bounds?
+}
+
 struct CursorElement: Encodable {
     let role: String
     let title: String?
@@ -35,8 +43,8 @@ struct CursorElement: Encodable {
     let enabled: Bool
     let bounds: Bounds?
     let action_names: [String]
-    let capabilities: [String]
-    let context_path: [String]
+    let settable_attributes: [String]
+    let ancestor_chain: [AXAncestorJSON]
 }
 
 // MARK: - Display Info
@@ -196,9 +204,9 @@ struct CursorElementJSON: Encodable {
     let value: String?
     let enabled: Bool
     let action_names: [String]
-    let capabilities: [String]
+    let settable_attributes: [String]
     let bounds: STBounds?
-    let context_path: [String]
+    let ancestor_chain: [AXAncestorJSON]
 }
 
 /// Capture pipeline's cursor response (distinct from the aos cursorCommand response).
@@ -242,29 +250,54 @@ struct AXElementJSON: Encodable {
 // MARK: - AOS-owned Canvas Semantic Target Output
 
 struct AOSSemanticTargetStateJSON: Codable {
+    let value: String?
     let current: String?
     let pressed: Bool?
     let selected: Bool?
     let checked: Bool?
     let expanded: Bool?
-    let disabled: Bool?
-    let value: String?
+    let values: [Double]?
+    let min: Double?
+    let max: Double?
+    let step: Double?
+    let orientation: String?
+    let thumb_count: Int?
+}
+
+struct AOSSemanticTargetExtensionSourceJSON: Codable {
+    let path: String?
+    let line_start: Int?
+    let line_end: Int?
+}
+
+struct AOSSemanticTargetExtensionJSON: Codable {
+    let dom_id: String?
+    let source: AOSSemanticTargetExtensionSourceJSON?
+}
+
+struct AOSSemanticTargetProvenanceJSON: Codable {
+    let canvas_id: String?
+    let do_target: String?
+    let parent_canvas_id: String?
+    let source_payload_id: String?
+    let bounds: BoundsJSON?
+    let frame: BoundsJSON?
+    let center: CursorJSON?
 }
 
 struct AOSSemanticTargetJSON: Codable {
-    let canvas_id: String?
-    let id: String?
-    let ref: String?
-    let do_target: String?
+    let ref: String
+    let surface: String?
     let role: String
     let name: String?
-    let action: String?
-    let surface: String?
-    let parent_canvas: String?
+    let kind: String
     let enabled: Bool
-    let bounds: BoundsJSON
-    let center: CursorJSON
     let state: AOSSemanticTargetStateJSON?
+    let actions: [String]
+    let `extension`: AOSSemanticTargetExtensionJSON
+    let provenance: AOSSemanticTargetProvenanceJSON
+    let geometry: JSONValue?
+    let metadata: JSONValue?
 }
 
 // MARK: - Annotation Output Model (annotation.schema.json v0.1.0)

@@ -115,6 +115,30 @@ if [[ "$READY_RC" -eq 0 ]]; then
   exit 1
 fi
 
+DOCTOR_JSON="$(./aos doctor --json)"
+STATUS_JSON="$(./aos status --json)"
+READY_JSON="$READY_JSON" DOCTOR_JSON="$DOCTOR_JSON" STATUS_JSON="$STATUS_JSON" STALE_PID="$STALE_PID" python3 - <<'PY'
+import json
+import os
+
+pid = int(os.environ["STALE_PID"])
+surfaces = {
+    "ready": json.loads(os.environ["READY_JSON"]),
+    "doctor": json.loads(os.environ["DOCTOR_JSON"]),
+    "status": json.loads(os.environ["STATUS_JSON"]),
+}
+
+for name, payload in surfaces.items():
+    verdict = payload.get("runtime_verdict", {})
+    cleanup = verdict.get("cleanup", {})
+    blockers = verdict.get("blockers", [])
+    assert verdict.get("ready") is False, (name, payload)
+    assert verdict.get("phase") == "runtime_blocked", (name, payload)
+    assert verdict.get("diagnosis") == "stale_daemons", (name, payload)
+    assert any(item.get("pid") == pid for item in cleanup.get("stale_daemons", [])), (name, payload)
+    assert any(item.get("id") == "stale_daemons" and str(pid) in item.get("message", "") for item in blockers), (name, payload)
+PY
+
 CLEANED="$(./aos clean --json)"
 CLEANED="$CLEANED" STALE_PID="$STALE_PID" python3 - <<'PY'
 import json

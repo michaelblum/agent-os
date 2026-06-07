@@ -3,8 +3,8 @@
 // Per the state-as-source-of-truth refactor (plan 2026-04-12-sigil-foundation):
 // presets are now partial appearance blobs. applyPreset(name) merges the named
 // patch onto the current snapshot and routes it through applyAppearance. UI
-// wiring (DOM input-value sync) is handled by Studio calling syncUIFromState()
-// after this returns.
+// wiring (DOM input-value sync) is handled by the active configuration surface
+// calling syncUIFromState() after this returns.
 
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from './appearance.js';
 
@@ -16,7 +16,7 @@ const PRESET_PATCHES = {
     default: (base) => ({
         ...base,
         shape: 6,
-        // maskEnabled: Studio's checkbox is "Show Faces" (inverted). Old
+        // maskEnabled: the legacy checkbox is "Show Faces" (inverted). Old
         // preset set UI checkbox=true → listener wrote state=!true → false.
         maskEnabled: false, interiorEdges: true, specular: true,
         opacity: 0.25, edgeOpacity: 1.0,
@@ -161,8 +161,8 @@ const PRESET_PATCHES = {
 
 /**
  * Apply a named preset. Legacy entry point — now funnels through appearance.js.
- * Studio should call syncUIFromState() after this returns to reflect the new
- * state in DOM input values.
+ * The active configuration surface should call syncUIFromState() after this
+ * returns to reflect the new state in DOM input values.
  */
 export function applyPreset(preset) {
     const builder = PRESET_PATCHES[preset] ?? PRESET_PATCHES.default;
@@ -173,5 +173,6 @@ export function applyPreset(preset) {
     applyAppearance(blob);
 }
 
-// Re-exported so Studio can keep a single import surface for appearance ops.
+// Re-exported so the active configuration surface can keep a single import
+// surface for appearance ops.
 export { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE };

@@ -14,11 +14,24 @@ CANVAS_ID="${AOS_SURFACE_INSPECTOR_ID:-surface-inspector}"
 PANEL_W="${AOS_SURFACE_INSPECTOR_W:-${AOS_CANVAS_INSPECTOR_W:-360}}"
 PANEL_H="${AOS_SURFACE_INSPECTOR_H:-${AOS_CANVAS_INSPECTOR_H:-520}}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
+ALLOW_START="false"
+
+for arg in "$@"; do
+  case "$arg" in
+    --allow-start) ALLOW_START="true" ;;
+    *) echo "Unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
 
-aos_ensure_content_roots_live "$AOS" \
-  "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
+if [[ "$ALLOW_START" == "true" ]]; then
+  aos_ensure_content_roots_live "$AOS" --allow-start \
+    "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
+else
+  aos_ensure_content_roots_live "$AOS" \
+    "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
+fi
 
 # Position flush bottom-right of the main display's visible bounds for operator
 # convenience. This panel placement does not define DesktopWorld.
@@ -47,13 +60,14 @@ $AOS show create --id "$CANVAS_ID" \
   --scope global \
   --url "aos://$TOOLKIT_CONTENT_ROOT/components/surface-inspector/index.html"
 
-$AOS show wait --id "$CANVAS_ID" --manifest surface-inspector --timeout 5s >/dev/null
+$AOS show wait --id "$CANVAS_ID" --manifest surface-inspector --timeout 5s --json >/dev/null
 
 $AOS show wait \
   --id "$CANVAS_ID" \
   --manifest surface-inspector \
   --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-  --timeout 10s >/dev/null
+  --timeout 10s \
+  --json >/dev/null
 
 echo "Surface Inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds for operator convenience only"
 echo "Live lifecycle + display geometry updates flow via in-canvas subscribe snapshots — no manual bootstrap needed."

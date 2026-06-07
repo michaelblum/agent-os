@@ -95,6 +95,9 @@ Rebuild with `./aos dev build` when both of these are true:
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
 
+GDI is not allowed to perform this rebuild; return native/binary work to
+Foreman instead.
+
 Use raw `bash build.sh` only when `./aos` is missing or the build command itself
 is being repaired.
 
@@ -126,7 +129,6 @@ Stay in the local package or Node loop when the work does not depend on a fresh
 
 Examples:
 
-- `node --test tests/studio/*.test.mjs` for sequestered Studio pure helpers only.
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
 - `cd packages/gateway && npm test`
@@ -254,12 +256,6 @@ Focused proof:
 bash tests/harness-composability-contracts.sh
 ```
 
-## Sequestered Studio Helper Tests
-
-Studio is defunct as a current Sigil product and launch surface. The
-`tests/studio/*.test.mjs` files remain only as pure-helper coverage for
-`apps/sigil/_sequestered/studio/...`; they are not Sigil MVP activation tests,
-status-item tests, radial-menu tests, or current product launch proof.
 
 ## Mixed Work
 

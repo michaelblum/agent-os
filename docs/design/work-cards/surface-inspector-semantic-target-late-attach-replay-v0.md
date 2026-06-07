@@ -1,5 +1,14 @@
 # Surface Inspector Semantic Target Late-Attach Replay V0
 
+## Historical Status
+
+This card is historical for target identity guidance. It predates the accepted
+#429 target descriptor contract and #432 drift cleanup. Replay/request behavior
+should preserve the current descriptor split in
+`shared/schemas/aos-semantic-targets.md`: state-scoped `ref`/`state_id`,
+durable `target.target_id` scoped by `target.owner_namespace`, current `state`,
+`actions`, `provenance`, and machine-first `reacquisition` hints.
+
 ## Tracker
 
 - Parent epic: https://github.com/michaelblum/agent-os/issues/295

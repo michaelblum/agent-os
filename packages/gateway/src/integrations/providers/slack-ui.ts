@@ -279,7 +279,7 @@ function onboardingBlocks() {
         '3. Use *Launch-ready workflows* when you want the system to start real work.',
         '',
         '*Common outcomes*',
-        '- Start an employer-brand workflow',
+        '- Launch a ready workflow',
         '- Explore what Sigil / agent-os knows',
         '- Report a bug or request a feature',
       ].join('\n')),

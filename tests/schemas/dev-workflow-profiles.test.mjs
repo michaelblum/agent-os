@@ -77,8 +77,9 @@ test('canonical profiles preserve the expected built-in examples', async () => {
   const manifest = JSON.parse(await fs.readFile(canonicalPath, 'utf8'));
   const profiles = new Map(manifest.profiles.map((profile) => [profile.id, profile]));
 
-  assert.equal(profiles.size, 4);
+  assert.equal(profiles.size, 5);
   assert.ok(profiles.has('agentic_relay'));
+  assert.ok(profiles.has('local_relay'));
   assert.ok(profiles.has('hybrid_trunk'));
   assert.ok(profiles.has('github_flow'));
   assert.ok(profiles.has('gitflow'));
@@ -88,6 +89,10 @@ test('canonical profiles preserve the expected built-in examples', async () => {
   assert.equal(profiles.get('agentic_relay')?.commit_strategy, 'scoped commits on a gdi/<slug> branch; push branch to origin at completion');
   assert.equal(profiles.get('agentic_relay')?.branch_naming_convention, 'gdi/<work-card-slug>');
   assert.equal(profiles.get('agentic_relay')?.gdi_push_authority, true);
+  assert.equal(profiles.get('local_relay')?.direct_main_default, false);
+  assert.equal(profiles.get('local_relay')?.pull_request_required, false);
+  assert.equal(profiles.get('local_relay')?.gdi_push_authority, false);
+  assert.ok(profiles.get('local_relay')?.branch_strategy.includes('never create linked git worktrees'));
   assert.equal(profiles.get('hybrid_trunk')?.direct_main_default, true);
   assert.equal(profiles.get('hybrid_trunk')?.pull_request_required, false);
   assert.equal(profiles.get('github_flow')?.pull_request_required, true);

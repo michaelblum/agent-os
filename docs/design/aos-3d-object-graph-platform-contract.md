@@ -1,6 +1,26 @@
 # AOS 3D Object Graph Platform Contract
 
-Status: V0 design note for follow-on implementation slices.
+Status: V0 design note for follow-on implementation slices. The accepted
+descriptor/update contract and Phase 6 resource-lifecycle closure now live in
+`docs/design/visual-object-descriptor-contract-v0.md` and
+`docs/dev/reports/aos-visual-object-architecture.md`. This note remains useful
+for object-graph subject boundaries and follow-on adapter direction, but its
+avatar inventory predates the accepted descriptor loop and should not override
+the current descriptor, controller, form-binding, and lifecycle contracts.
+
+2026-06-02 routing update: the repo now has an avatar object-control adapter and
+the accepted `21dc331d` detached Sigil avatar controls panel. New live evidence
+showed duplicate Avatar/Sigil surfaces visible across displays, so the next
+route is not drag correction by itself. First add AOS-first visible-surface /
+orphan-window observability, then make toolkit panel placement/final-frame
+policy explicit, then add Sigil-owned avatar avoidance only if the evidence
+requires it. After those gates, return to live panel drag correction and migrate
+the detached panel from private `sigil.avatar_panel.*` messages to the existing
+`visual_object_descriptors` / `canvas_object.*` resource contract. Treat the
+older follow-on cards named at the end of this note as historical until
+refreshed. Owned Sigil/toolkit callers should be migrated in-slice and stale
+private aliases should be deleted unless a named external boundary requires
+compatibility.
 
 This note turns the current Sigil "3D thing" direction into a platform
 contract. It does not replace the existing `canvas_object.*` work. It names the
@@ -93,6 +113,14 @@ colors, and transform-like size controls. Today these live in `state.js` and
 `DEFAULT_APPEARANCE`, are applied through `applyAppearance()`, and rebuild
 renderer objects through `updateGeometry()`, `applySkin()`, and
 `updateAllColors()`.
+
+Current descriptor-driven avatar edits are narrower than this inventory and
+should be read through the accepted descriptor contract. Primary stellation now
+routes through `updatePrimaryStellation()` for the positive-factor morph-target
+subset, primary tesseron proportion routes through
+`updatePrimaryTesseronProportion()`, and appearance edits can use
+`updatePrimaryAppearance()` where covered. Shape changes, omega geometry, and
+other structural changes may still use full geometry sync hooks.
 
 Tesseron controls are object graph geometry/material patches. Primary and omega
 tesserons include enabled, proportion, match-mother, edit target, and child
@@ -197,12 +225,20 @@ construction, validation, and persistence logic.
 
 ## Follow-On Slices
 
-Implementation should proceed through narrow cards:
+Historical follow-on cards from the original design note:
 
 - `docs/design/work-cards/sigil-avatar-object-graph-adapter-v0.md`
 - `docs/design/work-cards/sigil-context-menu-data-driven-controls-v0.md`
 - `docs/design/work-cards/sigil-3d-thing-editor-subjects-v0.md`
 
-No full rewrite is required for V0. The first useful implementation result is a
-read-only avatar object graph registry that proves the adapter boundary without
-changing context menu behavior.
+These cards are not current route targets without refresh. Current sequence:
+
+1. Accept `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
+   avatar avoidance only if the evidence requires it.
+3. Refresh and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+4. Route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+5. Refresh Wiki graph browser, 3D editor subject, and semantic target cleanup
+   work against the accepted resource migration head.

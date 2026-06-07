@@ -31,8 +31,8 @@ native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `defaults.css` provides the stock visual control pack for toolkit panels. It is
 optional and themeable through CSS custom properties. The first class set covers
 buttons, chip buttons, selects, text inputs, number fields, textareas,
-checkboxes, toggles, ranges, segmented controls, icon buttons, and selectable
-list rows.
+checkboxes, toggles, sliders, color fields, segmented controls, sectioned forms,
+icon buttons, and selectable list rows.
 
 ```html
 <link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
@@ -339,7 +339,8 @@ including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `test-console-v0:evidence:open:<ref>` refs. These refs are stamped through
 `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
 `data-semantic-target-id` so `aos see capture --canvas <id> --xray` can expose
-`semantic_targets[].do_target` for `aos do click`.
+canonical `semantic_targets[]` records whose `provenance.do_target` values are
+used for `aos do click`.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For
@@ -392,7 +393,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/step-descriptor-workbench/index.html` - Step Descriptor Workbench V0 shell that gates one saved-evidence browser Step Descriptor simulation and hands off the emitted Work Record read-only
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
-- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines
+- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as telemetry overlays and diagnostic markers
 
 ### Inline Canvas Stats
 
@@ -534,9 +535,8 @@ Consumer override:
 Graph `nodes[].type` is a wiki page kind for graph layout legends. It is
 intentionally separate from Workbench Subject `subject_type`.
 The V0 page-kind vocabulary is `page`, `concept`, `entity`, `workflow`, and
-`reference`; incoming compatibility payloads normalize legacy `agent` to
-`entity` and plugin reference pages to `reference` before deriving available
-types or legend entries.
+`reference`; plugin reference pages normalize to `reference` before deriving
+available types or legend entries.
 
 Incremental updates go to `wiki-kb/graph/update` and may include:
 
@@ -879,7 +879,7 @@ effect controls, and capabilities:
           {
             "id": "fractalPulse.intensity",
             "label": "Tree pulse",
-            "type": "range",
+            "type": "slider",
             "value": 1,
             "min": 0,
             "max": 3,

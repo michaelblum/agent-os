@@ -47,6 +47,49 @@
       ]
     },
     {
+      "id": "local_relay",
+      "name": "Local Relay",
+      "shorthand": "local_relay",
+      "intended_for": [
+        "single developer with tight Foreman-human-GDI loops",
+        "local GDI implementation reviewed by local Foreman or the human",
+        "workflows that need branches and stashes without linked git worktrees or automatic pushes"
+      ],
+      "default_work_surface": "single checkout at /Users/Michael/Code/agent-os on the current local branch",
+      "main_role": "stable integration target; Foreman decides when local branch work is merged or published",
+      "direct_main_default": false,
+      "pull_request_required": false,
+      "review_default": "local Foreman or human reviews local commits and verification before merge or push; Foreman may offer an explicitly approved short-lived PR when outsider review would be useful",
+      "commit_strategy": "small scoped local commits on the current branch or one local gdi/<slug> branch; no automatic push",
+      "branch_strategy": "use the single repo checkout; create or switch local branches only when Foreman or the work card names them; never create linked git worktrees",
+      "branch_required_for": [
+        "multi-file implementation slice",
+        "risky change",
+        "dirty baseline that must be preserved",
+        "work that needs a local review checkpoint before merge"
+      ],
+      "branch_optional_for": [
+        "docs-only change",
+        "tiny mechanical correction",
+        "validation-only round",
+        "Foreman-human direct loop on the current branch",
+        "outsider review checkpoint after local acceptance"
+      ],
+      "release_branching": false,
+      "environment_branches": [],
+      "relay_merge_authority": "local Foreman or the human using local branch state; GitHub publication is explicit, not automatic",
+      "branch_naming_convention": "gdi/<work-card-slug> or foreman/<slug> when Foreman owns the slice",
+      "gdi_push_authority": false,
+      "agent_guidance": [
+        "Work only in /Users/Michael/Code/agent-os; do not create linked git worktrees or put repo-mode binaries outside the main checkout.",
+        "Use branches, scoped commits, and named stashes to preserve unrelated work before switching context.",
+        "GDI may commit locally only when the work card says to produce a checkpoint; GDI does not push, open PRs, merge, or clean branches unless explicitly assigned.",
+        "Foreman reviews local branch state, verification, and stashes before deciding merge, push, PR, or cleanup.",
+        "At practical review points, Foreman may suggest publishing a small focused PR for a non-local reviewer, but only as an explicit human-approved review option; it is not automatic publication and should keep scope narrow.",
+        "The repo-mode ./aos binary is stable infrastructure at /Users/Michael/Code/agent-os/aos and should not be rebuilt except for explicitly accepted native changes."
+      ]
+    },
+    {
       "id": "hybrid_trunk",
       "name": "Hybrid Trunk",
       "shorthand": "hybrid_trunk",
@@ -67,7 +110,7 @@
         "experimental change",
         "multi-day change",
         "large half-finished change",
-        "dirty worktree isolation",
+        "dirty checkout isolation",
         "external collaboration requiring a pull request"
       ],
       "branch_optional_for": [
@@ -79,7 +122,7 @@
       "release_branching": false,
       "environment_branches": [],
       "agent_guidance": [
-        "Prefer staying on main when the worktree is clean and the task is small.",
+        "Prefer staying on main when the checkout is clean and the task is small.",
         "Keep main releasable by running focused verification before checkpointing.",
         "Use branches only when they reduce real risk or preserve unrelated work."
       ]

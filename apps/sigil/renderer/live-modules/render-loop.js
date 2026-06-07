@@ -7,10 +7,11 @@ export function renderLoopContinuationReasons(frame = {}) {
     if (frame.fastTravelActive) reasons.push('fast-travel');
     if (frame.radialActivationTransitionActive) reasons.push('radial-activation-transition');
     if (frame.radialGestureActive) reasons.push('radial-gesture');
-    if (frame.contextMenuOpen) reasons.push('context-menu');
+    if (frame.avatarControlsOpen) reasons.push('avatar-controls');
     if (frame.annotationReticleActive) reasons.push('annotation-reticle');
     if (frame.selectionModeActive) reasons.push('selection-mode');
     if (frame.selectionModeEffectActive) reasons.push('selection-mode-effect');
+    if (frame.selectionModePerimeterFillActive) reasons.push('selection-mode-perimeter-fill');
     if (frame.avatarMotionActive) reasons.push('avatar-motion');
     if (frame.currentState && frame.currentState !== 'IDLE') reasons.push('interaction-state');
     const hoverProgress = Number(frame.avatarHoverProgress);
@@ -35,23 +36,57 @@ export function classifyRenderLoopWork(frame = {}) {
         ? frame.continuationReasons
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
+    const selectionModeEffectStateChanged = !!frame.selectionModeEffectStateChanged;
     const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
-    const overlayOnlyReasons = new Set(['selection-mode-effect']);
-    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
+    const overlayOnlyReasons = new Set(['selection-mode-effect', 'selection-mode-perimeter-fill']);
+    // panel-ui-idle: panel UI is animating but no avatar geometry changed.
+    // Added in Phase 2: when the shared RAF scheduler drives a co-located
+    // document frame for panel-only updates (no avatar geometry dirty), the
+    // avatar render step registers this reason instead of avatar-controls.
+    // This allows publishState to be skipped on panel-only frames.
+    const panelUiIdleReasons = new Set(['panel-ui-idle']);
+    // avatar-controls: Phase 3 cheap-reason promotion.
+    // The canvas_lifecycle handler sets structuralFrameDirty=true when
+    // updatePanelFrame updates panel bounds (b8f2dc65). With that signal in
+    // place, avatar-controls can be a cheap reason — idle controls-open frames
+    // (no bounds change, no geometry event) produce structural=false, skipping
+    // both publishState and the structural ops block. Frames with an actual
+    // bounds change are structural via structuralFrameDirty=true.
+    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons, ...panelUiIdleReasons, 'avatar-controls']);
+    // trackingOnlyReasons retained as an empty set for forward-compatibility;
+    // the trackingFrame path is inactive now that avatar-controls moved to
+    // cheapFrameReasons. Remove both when the Phase 3 frame-tier documentation
+    // is updated.
+    const trackingOnlyReasons = new Set();
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
     const cheapFrame = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => cheapFrameReasons.has(reason));
+    // trackingFrame: currently inactive — no reasons in trackingOnlyReasons.
+    // Retained for forward-compatibility; remove with trackingOnlyReasons
+    // when the Phase 3 frame-tier documentation pass is done.
+    const trackingFrame = !structuralDirty
+        && !cheapFrame
+        && continuationReasons.length > 0
+        && continuationReasons.every((reason) => cheapFrameReasons.has(reason) || trackingOnlyReasons.has(reason))
+        && continuationReasons.some((reason) => trackingOnlyReasons.has(reason));
     const overlayOnly = cheapFrame
         && continuationReasons.some((reason) => overlayOnlyReasons.has(reason));
+    const publishSelectionEffectState = continuationReasons.includes('selection-mode-effect');
 
     return {
         continuationReasons,
         structural: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
-        overlay: structuralDirty || overlayOnly || (!cheapFrame && continuationReasons.length > 0),
-        publishState: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
+        overlay: structuralDirty
+            || selectionModeEffectStateChanged
+            || overlayOnly
+            || (!cheapFrame && continuationReasons.length > 0),
+        publishState: structuralDirty
+            || selectionModeEffectStateChanged
+            || publishSelectionEffectState
+            || (!cheapFrame && !trackingFrame && continuationReasons.length > 0),
         visualOnly,
     };
 }

@@ -1,5 +1,10 @@
 # Studio UI Reorganization Implementation Plan
 
+> **Archive status:** Historical Studio/Sigil planning material. It predates the
+> accepted visual-object descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, descriptors, stellation, and resource
+> guidance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Reshape the Avatar Studio from a celestial physics sandbox into a focused avatar character creator — removing irrelevant controls, surfacing missing sidebar controls, and adopting the FX tile grid pattern from Celestial v2.

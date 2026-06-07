@@ -14,7 +14,7 @@ export function applyWikiSubjectBrowserSemanticTarget(element, target = {}) {
   return applySemanticTargetAttributes(element, {
     role: 'AXGroup',
     surface: WIKI_SUBJECT_BROWSER_SURFACE,
-    aosRef: target.aosRef || wikiSubjectBrowserAosRef(target.id),
+    ref: target.ref || wikiSubjectBrowserAosRef(target.id),
     ...target,
   }, {
     idPrefix: null,

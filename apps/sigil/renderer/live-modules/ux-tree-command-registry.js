@@ -13,6 +13,16 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
         mode: 'selection_mode',
         gesture: 'key.enter',
     }),
+    snapshot: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'pointer.lineage.snapshot',
+    }),
+    record: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'pointer.lineage.record',
+    }),
     tabPreviousTarget: Object.freeze({
         nodeId: 'sigil.avatar.selection_mode',
         mode: 'selection_mode',
@@ -35,14 +45,14 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
     }),
 });
 
-export const SIGIL_CONTEXT_MENU_COMMAND_INPUTS = Object.freeze({
+export const SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS = Object.freeze({
     open: Object.freeze({
         nodeId: 'sigil.avatar.body',
         mode: 'idle',
         gesture: 'pointer.right.click',
     }),
     toggle: Object.freeze({
-        nodeId: 'sigil.avatar.context_menu',
+        nodeId: 'sigil.avatar.controls',
         mode: 'global',
         gesture: 'pointer.right.click',
     }),
@@ -64,11 +74,6 @@ export const SIGIL_AVATAR_COMMAND_INPUTS = Object.freeze({
         mode: 'press',
         gesture: 'pointer.left.drag_threshold',
     }),
-    selectionModeEnter: Object.freeze({
-        nodeId: 'sigil.avatar.body',
-        mode: 'goto',
-        gesture: 'pointer.left.double_click',
-    }),
 });
 
 export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
@@ -83,14 +88,15 @@ export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
 });
 
 export const SIGIL_UX_TREE_STATIC_COMMAND_INPUTS = Object.freeze([
-    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
-    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+    SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.open,
+    SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.toggle,
     SIGIL_AVATAR_COMMAND_INPUTS.pressBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.radialBegin,
-    SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.escape,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.snapshot,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.record,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.tabPreviousTarget,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowUpPreviousTarget,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowDownNextTarget,
@@ -224,24 +230,26 @@ export function createSigilUxTreeCommandRegistry({
     selectionModeEnter,
     selectionModeCancel,
     selectionModeCommit,
+    selectionModeSnapshot,
+    selectionModeRecord,
     selectionModeCycleTarget,
     selectionModeAcquire,
-    contextMenuOpen,
-    contextMenuToggle,
+    avatarControlsOpen,
+    avatarControlsToggle,
     annotationReticleEnter,
     annotationCameraCaptureBundle,
     wikiGraphOpen,
     agentTerminalOpen,
 } = {}) {
     const registry = {};
-    if (typeof contextMenuOpen === 'function') {
-        registry['sigil.context_menu.open'] = (payload = {}) => (
-            contextMenuOpen(payload.context?.pointer || null, payload)
+    if (typeof avatarControlsOpen === 'function') {
+        registry['sigil.avatar.controls.open'] = (payload = {}) => (
+            avatarControlsOpen(payload.context?.pointer || null, payload)
         );
     }
-    if (typeof contextMenuToggle === 'function') {
-        registry['sigil.context_menu.toggle'] = (payload = {}) => (
-            contextMenuToggle(payload.context?.pointer || null, payload)
+    if (typeof avatarControlsToggle === 'function') {
+        registry['sigil.avatar.controls.toggle'] = (payload = {}) => (
+            avatarControlsToggle(payload.context?.pointer || null, payload)
         );
     }
     if (typeof avatarPressBegin === 'function') {
@@ -264,6 +272,16 @@ export function createSigilUxTreeCommandRegistry({
     }
     if (typeof selectionModeCommit === 'function') {
         registry['sigil.selection_mode.commit'] = () => selectionModeCommit('enter');
+    }
+    if (typeof selectionModeSnapshot === 'function') {
+        registry['sigil.selection_mode.snapshot'] = (payload = {}) => selectionModeSnapshot(payload.context?.pointer || null, payload);
+    } else if (typeof annotationCameraCaptureBundle === 'function') {
+        registry['sigil.selection_mode.snapshot'] = (payload = {}) => annotationCameraCaptureBundle(payload.context?.reason || 'selection-mode-snapshot', payload);
+    }
+    if (typeof selectionModeRecord === 'function') {
+        registry['sigil.selection_mode.record'] = (payload = {}) => selectionModeRecord(payload.context?.pointer || null, payload);
+    } else if (typeof annotationCameraCaptureBundle === 'function') {
+        registry['sigil.selection_mode.record'] = (payload = {}) => annotationCameraCaptureBundle(payload.context?.reason || 'selection-mode-record', payload);
     }
     if (typeof selectionModeCycleTarget === 'function') {
         registry['sigil.selection_mode.cycle_target'] = ({ binding } = {}) => {
@@ -308,10 +326,27 @@ export function createSigilUxTreeCommandRunner({
 
     return Object.freeze({
         execute,
-        executeSelectionModeRoute(command = '', msg = {}, { pointer = null, source = 'handleSelectionModeInput' } = {}) {
+        executeSelectionModeRoute(command = '', msg = {}, {
+            pointer = null,
+            source = 'handleSelectionModeInput',
+            nodeId = null,
+            lineageItemId = null,
+            commentId = null,
+            lineageMenuItemId = null,
+            lineageMenuAction = null,
+        } = {}) {
             const input = selectionModeInputForRoute(command);
             if (!input) return null;
-            return execute(input, { source, msg, pointer });
+            return execute(input, {
+                source,
+                msg,
+                pointer,
+                nodeId,
+                lineageItemId,
+                commentId,
+                lineageMenuItemId,
+                lineageMenuAction,
+            });
         },
         routeCatalog() {
             return createSigilUxTreeCommandRouteCatalog(getTree());
@@ -327,9 +362,9 @@ export function createSigilUxTreeCommandRuntime({
     getRadialGestureMenu = () => null,
     fastTravel = null,
     clearGestureState = () => {},
+    clearRadialGestureDismissTimer = () => {},
     consumeAvatarDoubleClick = () => false,
     resetAvatarDoubleClick = () => {},
-    markSelectionModeEntryReleasePending = () => {},
     setInteractionState = () => {},
     applyRadialGestureMove = () => false,
     enterSelectionMode = () => null,
@@ -337,15 +372,15 @@ export function createSigilUxTreeCommandRuntime({
     acquireSelectionModeCandidates = () => null,
     cycleSelectionModeTarget = () => null,
     commitSelectionMode = () => null,
-    contextMenu = null,
+    avatarControls = null,
     cancelInteraction = () => {},
     wikiPath = '',
 } = {}) {
     const registry = createSigilUxTreeCommandRegistry({
         avatarPressBegin(pointer) {
             if (!pointer) return false;
-            liveState.mousedownPos = { x: pointer.x, y: pointer.y };
-            liveState.mousedownAvatarPos = { x: liveState.avatarPos.x, y: liveState.avatarPos.y };
+            liveState.mousedownPos = { x: pointer.x, y: pointer.y, valid: true };
+            liveState.mousedownAvatarPos = { x: liveState.avatarPos.x, y: liveState.avatarPos.y, valid: true };
             setInteractionState('PRESS', 'mousedown-on-avatar');
             return { state: liveState.currentState, pointer };
         },
@@ -359,6 +394,7 @@ export function createSigilUxTreeCommandRuntime({
         },
         radialBegin(pointer) {
             if (!pointer) return false;
+            clearRadialGestureDismissTimer();
             const radialGestureMenu = getRadialGestureMenu();
             liveState.radialGestureMenu = radialGestureMenu.start(
                 { ...liveState.avatarPos, valid: true },
@@ -371,20 +407,21 @@ export function createSigilUxTreeCommandRuntime({
             return { state: liveState.currentState, snapshot: liveState.radialGestureMenu };
         },
         radialReleaseItem: radialItemActionDispatcher?.commandHandlers?.radialReleaseItem,
-        selectionModeEnter(pointer) {
-            enterSelectionMode(pointer, 'avatar-double-click');
+        selectionModeEnter(pointer, payload = {}) {
+            enterSelectionMode(pointer, payload.context?.reason || 'radial-reticle');
             resetAvatarDoubleClick();
-            markSelectionModeEntryReleasePending();
             setInteractionState('IDLE', 'selection-mode-enter');
             return liveState.selectionMode;
         },
         selectionModeCancel: () => exitSelectionMode('escape'),
         selectionModeCommit: (reason) => commitSelectionMode(reason),
+        selectionModeSnapshot: (pointer, payload = {}) => selectionModeSnapshot(pointer, payload),
+        selectionModeRecord: (pointer, payload = {}) => selectionModeRecord(pointer, payload),
         selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
         selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
-        contextMenuOpen: radialItemActionDispatcher?.commandHandlers?.contextMenuOpen,
-        contextMenuToggle: () => {
-            contextMenu?.close?.('right-click-toggle');
+        avatarControlsOpen: radialItemActionDispatcher?.commandHandlers?.avatarControlsOpen,
+        avatarControlsToggle: () => {
+            avatarControls?.close?.('right-click-toggle');
             cancelInteraction('right-click-toggle');
             return true;
         },
@@ -405,6 +442,11 @@ export function createSigilUxTreeCommandRuntime({
             input: context.input || null,
             reason: context.reason || '',
             path: context.path || wikiPath,
+            nodeId: context.nodeId || null,
+            lineageItemId: context.lineageItemId || null,
+            commentId: context.commentId || null,
+            lineageMenuItemId: context.lineageMenuItemId || null,
+            lineageMenuAction: context.lineageMenuAction || null,
         });
     }
 
@@ -420,10 +462,7 @@ export function createSigilUxTreeCommandRuntime({
         executeAvatarRadialBegin(msg = {}, context = {}) {
             return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, msg, context);
         },
-        executeSelectionModeEnter(msg = {}, context = {}) {
-            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter, msg, context);
-        },
-        executeContextMenuRightClick(route = {}, msg = {}) {
+        executeAvatarControlsRightClick(route = {}, msg = {}) {
             return executeWithContext(route.input || {}, msg, {
                 source: 'handleInputEvent',
                 pointer: route.pointer || null,

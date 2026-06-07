@@ -11,8 +11,9 @@ trap 'rm -f "$CURRENT"' EXIT
 
 # Normalize array indices to `[]` so state-dependent array length
 # (e.g. `notes` with fewer entries on healthier hosts) does not look
-# like a schema regression.  We are asserting key shape, not cardinality.
-NORMALIZE='paths(scalars) | map(if type == "number" then "[]" else . end) | join(".")'
+# like a schema regression. Scalar array entries are cardinality, not
+# object-key shape, so ignore paths that end at an array index.
+NORMALIZE='paths(scalars) | select((.[-1] | type) != "number") | map(if type == "number" then "[]" else . end) | join(".")'
 BEFORE="$(jq -S "$NORMALIZE" "$REFERENCE" | sort -u)"
 AFTER="$(jq -S "$NORMALIZE" "$CURRENT" | sort -u)"
 

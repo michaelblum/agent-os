@@ -4,7 +4,7 @@ import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/live-modul
 import {
   AGENT_TERMINAL_MODEL_OBJECT_ID,
   AGENT_TERMINAL_SCREEN_OBJECT_ID,
-  CONTEXT_MENU_MODEL_OBJECT_ID,
+  AVATAR_CONTROLS_MODEL_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_OBJECT_ID,
   WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
@@ -100,7 +100,7 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
   const registry = buildRadialMenuObjectRegistry(radialConfig(), { canvasId: 'avatar-main' })
 
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
-    CONTEXT_MENU_MODEL_OBJECT_ID,
+    AVATAR_CONTROLS_MODEL_OBJECT_ID,
     AGENT_TERMINAL_MODEL_OBJECT_ID,
     AGENT_TERMINAL_SCREEN_OBJECT_ID,
     WIKI_BRAIN_GROUP_OBJECT_ID,

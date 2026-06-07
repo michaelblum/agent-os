@@ -223,14 +223,14 @@ AGENTS, daemon code should not introduce new product-named input branches, and
 toolkit/app code should not add private window chrome without a local boundary
 note.
 
-## Current Work Routing
+## Historical Work Routing
 
 1. Use `docs/design/aos-surface-stack-v0-integration-ledger.md` as the
    closure ledger for #304, #303, #122, #120, #123, #261, #305, #118, #119,
    and #45.
-2. Foreman reconciled GitHub issue scope on 2026-05-12: #304, #303, #122,
-   #120, #123, #261, #305, #118, and #119 are closed as accepted V0 or folded
-   V0; #45 remains open but parked.
+2. Foreman reconciled GitHub issue scope on 2026-05-12 for #304, #303, #122,
+   #120, #123, #261, #305, #118, #119, and #45. Query GitHub for current issue
+   titles, states, and labels before acting on those IDs.
 3. Keep the explicit WebView minimized-chip path as fallback only until
    confidence and telemetry justify retirement.
 4. Treat Sigil second-client implementation work as accepted and closed for V0.

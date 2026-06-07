@@ -265,7 +265,7 @@ export default function GraphView({ onSelectNode }) {
     return applyWikiKBSemanticTarget(element, {
       id,
       ...target,
-      aosRef: target.aosRef || wikiKBAosRef('graph', id),
+      ref: target.ref || wikiKBAosRef('graph', id),
     })
   }
 

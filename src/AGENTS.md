@@ -6,8 +6,12 @@
 contracts for the unified `aos` binary: perception, action, display, content,
 voice, communication, daemon routing, and service/runtime management.
 
-Keep this layer policy-light. Native code can expose the primitives a surface
-system needs, but product UI policy belongs above it:
+Keep this layer policy-light and aligned with
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md`. Before changing Swift,
+prove the change cannot be externalized through manifests, scripts, packages,
+recipes, schemas, or another composition layer. Native code may expose the
+privileged facts, privileged actions, and privileged streams a surface system
+needs, but public command policy and product UI policy belong above it:
 
 - canvas lifecycle, native frames, display topology, content serving, input
   streams, and lifecycle routing belong here;

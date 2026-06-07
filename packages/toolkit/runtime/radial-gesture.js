@@ -261,24 +261,25 @@ export function createRadialGestureModel(options = {}) {
     const m = metrics()
 
     if (config.orientation === 'trigger-vector') {
-      if (m.distance <= config.deadZoneRadiusPx) {
+      if (triggerLocked && m.distance <= config.deadZoneRadiusPx) {
         triggerLocked = false
-      } else if (!triggerLocked) {
+      } else if (!triggerLocked && m.distance > config.deadZoneRadiusPx) {
         triggerAngle = m.angle
         triggerLocked = true
         lastTransition = 'trigger_vector_lock'
       }
     }
 
-    if (phase === 'fastTravel') {
-      if (m.distance <= config.reentryRadiusPx) {
-        phase = 'radial'
-        lastTransition = 'reenter_radial'
-      }
-    } else if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
+    if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
       phase = 'fastTravel'
       activeItemId = null
       lastTransition = 'handoff_fast_travel'
+      return snapshot()
+    }
+
+    if (phase === 'fastTravel' && m.distance <= config.reentryRadiusPx) {
+      phase = 'radial'
+      lastTransition = 'reenter_radial'
     }
 
     activeItemId = phase === 'radial' ? hitItem(pointer)?.id || null : null
@@ -319,7 +320,8 @@ export function createRadialGestureModel(options = {}) {
         return snapshot()
       }
 
-      if (phase === 'fastTravel') {
+      const m = metrics()
+      if ((phase === 'radial' && m.distance >= config.handoffRadiusPx) || phase === 'fastTravel') {
         phase = 'committed'
         activeItemId = null
         committed = { type: 'fastTravel', origin: { ...origin }, destination: { ...pointer } }

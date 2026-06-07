@@ -32,7 +32,7 @@ final class WikiWatcher {
         let callback: FSEventStreamCallback = { _, info, numEvents, eventPaths, eventFlags, _ in
             guard let info = info else { return }
             let watcher = Unmanaged<WikiWatcher>.fromOpaque(info).takeUnretainedValue()
-            let pathsPtr = unsafeBitCast(eventPaths, to: UnsafePointer<UnsafePointer<CChar>>.self)
+            let pathsPtr = eventPaths.assumingMemoryBound(to: UnsafePointer<CChar>.self)
             for i in 0..<numEvents {
                 let p = String(cString: pathsPtr[i])
                 let f = eventFlags[i]

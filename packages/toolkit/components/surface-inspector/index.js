@@ -12,6 +12,7 @@ import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas, mutateSelf, spawnChild, writeClipboardText } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasGeometryCanvas, normalizeCanvasGeometry, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { createPointerGestureStream } from '../../runtime/gesture-stream.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { renderButtonHtml } from '../../controls/button.js'
@@ -70,6 +71,7 @@ import {
 } from '../../workbench/context-session.js'
 import {
   applyMouseEffectsInput,
+  applyMouseEffectsGestureFrame,
   clearMouseEffectsState,
   createMouseEffectsState,
   mouseEffectsNeedAnimationFrame,
@@ -230,7 +232,11 @@ export function projectAnnotationRectToMinimap(layout, rect, {
 }
 
 function semanticTargetIdentifier(target = {}) {
-  return String(target.id || target.target_id || target.semantic_target_id || target.ref || target.do_target || target.data_aos_ref || '').trim()
+  return String(
+    target.ref
+      || target.id
+      || '',
+  ).trim()
 }
 
 function isBrowserDomElementTarget(target = {}) {
@@ -253,19 +259,16 @@ export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
   const fallback = {
     adapter_id: pin.adapter_id,
     subject_id: pin.subject_id,
+    ref: sourceMetadata.ref || pin.subject_id,
     subject_path: Array.isArray(pin.subject_path) ? [...pin.subject_path] : [],
     root_id: pin.root_id,
     root_path: Array.isArray(pin.projection?.root_path) ? [...pin.projection.root_path] : [],
-    owner_canvas_id: pin.root_id || sourceMetadata.canvas_id || sourceMetadata.surface,
-    canvas_id: sourceMetadata.canvas_id || pin.root_id,
-    target_id: sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
-    semantic_target_id: sourceMetadata.semantic_target_id || sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
-    data_aos_ref: sourceMetadata.data_aos_ref || sourceMetadata.aos_ref,
-    aos_ref: sourceMetadata.aos_ref || sourceMetadata.data_aos_ref,
-    do_target: sourceMetadata.do_target,
-    selector: sourceMetadata.selector,
+    owner_canvas_id: pin.root_id || sourceMetadata.provenance?.canvas_id || sourceMetadata.canvas_id || sourceMetadata.surface,
+    canvas_id: sourceMetadata.provenance?.canvas_id || sourceMetadata.canvas_id || pin.root_id,
+    id: sourceMetadata.id,
+    selector: sourceMetadata.provenance?.selector || sourceMetadata.selector,
     selector_candidates: Array.isArray(sourceMetadata.selector_candidates) ? [...sourceMetadata.selector_candidates] : [],
-    source_path: sourceMetadata.source_path,
+    source_path: sourceMetadata.extension?.source?.path || sourceMetadata.source_path,
     source_url: sourceMetadata.source_url,
     source_tree_node_metadata: sourceMetadata,
     prior_projection: pin.projection,
@@ -894,16 +897,15 @@ function buildRevealTargetEvalScript(target = {}) {
         return JSON.stringify(window.aosSurfaceInspector.revealTarget(target) || { status: 'unsupported', completed_at: now })
       }
       const selector = [
+        target.selector || '',
+        target.source_tree_node_metadata?.provenance?.selector || '',
+        target.source_tree_node_metadata?.extension?.dom_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.extension.dom_id) + '"]' : '',
+        target.ref ? '[data-aos-ref="' + CSS.escape(target.ref) + '"]' : '',
         target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
         target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
-        target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
-        target.source_tree_node_metadata?.data_aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.data_aos_ref) + '"]' : '',
-        target.source_tree_node_metadata?.aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.aos_ref) + '"]' : '',
         target.source_tree_node_metadata?.selector || '',
         target.source_tree_node_metadata?.preferred_selector || '',
         ...(Array.isArray(target.source_tree_node_metadata?.selector_candidates) ? target.source_tree_node_metadata.selector_candidates : []),
-        target.do_target ? '[data-aos-ref="' + CSS.escape(target.do_target) + '"]' : '',
-        target.do_target ? '[data-aos-action="' + CSS.escape(target.do_target) + '"]' : '',
         target.subject_id ? '[data-aos-action="' + CSS.escape(target.subject_id) + '"]' : ''
       ].filter(Boolean).join(',')
       const element = selector ? document.querySelector(selector) : null
@@ -1045,6 +1047,23 @@ export default function CanvasInspector() {
     onChange: () => rerender(),
   })
   const mouseEffectsState = createMouseEffectsState()
+  const mouseGestureStream = createPointerGestureStream({
+    kind: 'drag',
+    source: {
+      origin: 'daemon',
+      rawEventSource: 'input_event',
+    },
+  })
+  let mouseGestureFrameChanged = false
+  let mouseGestureFrameNow = 0
+  mouseGestureStream.subscribe((frame) => {
+    mouseGestureFrameChanged = applyMouseEffectsGestureFrame(
+      mouseEffectsState,
+      frame,
+      frame.coordinates?.desktop_world || frame.current,
+      mouseGestureFrameNow || Date.now(),
+    ) || mouseGestureFrameChanged
+  })
   const annotationOverlayCanvasIds = new Set()
   const annotationOverlaySignatures = new Map()
   const annotationActionControlCanvasIds = new Set()
@@ -1568,15 +1587,20 @@ export default function CanvasInspector() {
   }
 
   function normalizeSemanticTargetsPayload(payload = {}) {
-    const canvasId = payload.canvas_id || payload.surface || payload.id
     const targets = Array.isArray(payload.semantic_targets)
       ? payload.semantic_targets
       : (Array.isArray(payload.targets) ? payload.targets : [])
+    const canvasId = payload.canvas_id
+      || payload.surface
+      || payload.id
+      || targets.find((target) => target?.provenance?.canvas_id)?.provenance?.canvas_id
     if (!canvasId) return
     semanticTargetsByCanvas.set(canvasId, targets.map((target) => ({
       ...target,
-      id: semanticTargetId(target) || target.id,
-      canvas_id: target.canvas_id || canvasId,
+      provenance: {
+        ...(target.provenance && typeof target.provenance === 'object' ? target.provenance : {}),
+        canvas_id: target.provenance?.canvas_id || canvasId,
+      },
     })))
   }
 
@@ -2027,7 +2051,7 @@ export default function CanvasInspector() {
       rerender()
       return
     }
-    const canvasId = pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface
+    const canvasId = pin.root_id || pin.source_tree_node_metadata?.provenance?.canvas_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface
     if (!canvasId || canvasId === SELF_ID) {
       annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
         status: 'unsupported',
@@ -3331,8 +3355,16 @@ export default function CanvasInspector() {
           scheduleAnnotationHoverRefresh('mouse_moved')
           changed = true
         }
-        if (mouseEventsEnabled && applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
-          changed = true
+        if (mouseEventsEnabled) {
+          mouseGestureFrameChanged = false
+          mouseGestureFrameNow = now
+          mouseGestureStream.handleCanvasInput(input, { desktopWorld: worldPoint, now })
+          mouseGestureFrameNow = 0
+          if (mouseGestureFrameChanged) {
+            changed = true
+          } else if (applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
+            changed = true
+          }
         }
         if (changed) {
           syncMinimapDynamicLayer(now)

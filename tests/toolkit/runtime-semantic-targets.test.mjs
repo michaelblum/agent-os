@@ -1,11 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  aosRefForTarget,
   applySemanticTargetAttributes,
   createSemanticTargetElement,
+  normalizeAgentUiTarget,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
+  refForTarget,
   semanticTargetAttributeEntries,
   semanticTargetAttrString,
 } from '../../packages/toolkit/runtime/semantic-targets.js'
@@ -67,7 +68,7 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     active: true,
   }, {
     surface: 'sigil-radial-menu',
-    parentCanvasId: 'avatar-main',
+    parent_canvas_id: 'avatar-main',
   })
 
   assert.deepEqual(target, {
@@ -75,6 +76,7 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     role: 'button',
     name: 'Wiki Graph',
     action: 'wikiGraph',
+    actions: [],
     enabled: true,
     current: true,
     pressed: null,
@@ -83,11 +85,17 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     expanded: null,
     value: null,
     surface: 'sigil-radial-menu',
-    parentCanvasId: 'avatar-main',
-    aosRef: 'sigil-radial-menu:wiki-graph',
+    parent_canvas_id: 'avatar-main',
+    ref: 'sigil-radial-menu:wiki-graph',
     metadata: {},
     frame: { x: 10, y: 21, width: 55, height: 45 },
   })
+})
+
+test('normalizeSemanticTarget maps form control AX aliases to canonical web roles', () => {
+  assert.equal(normalizeSemanticTarget({ id: 'mode', role: 'AXRadioGroup' }).role, 'radiogroup')
+  assert.equal(normalizeSemanticTarget({ id: 'toggles', role: 'AXCheckBoxGroup' }).role, 'group')
+  assert.equal(normalizeSemanticTarget({ id: 'shape', role: 'AXPopUpButton' }).role, 'combobox')
 })
 
 test('normalizeSemanticTargets rejects targets without stable ids', () => {
@@ -95,18 +103,76 @@ test('normalizeSemanticTargets rejects targets without stable ids', () => {
     () => normalizeSemanticTargets([{ label: '' }]),
     /semantic target requires id/
   )
+  assert.throws(
+    () => normalizeSemanticTarget({ ref: 'state-scoped-ref', name: 'State Scoped Ref' }),
+    /semantic target requires id/
+  )
 })
 
-test('aosRefForTarget uses explicit refs before generated surface refs', () => {
-  assert.equal(aosRefForTarget({ id: 'save', surface: 'toolbar' }), 'toolbar:save')
-  assert.equal(aosRefForTarget({ id: 'save', aosRef: 'custom-save' }, { surface: 'toolbar' }), 'custom-save')
+test('refForTarget uses explicit refs before generated surface refs', () => {
+  assert.equal(refForTarget({ id: 'save', surface: 'toolbar' }), 'toolbar:save')
+  assert.equal(refForTarget({ id: 'save', ref: 'custom-save' }, { surface: 'toolbar' }), 'custom-save')
 })
 
 test('normalizeSemanticTarget does not default action to identity', () => {
   const target = normalizeSemanticTarget({ id: 'plain-target', name: 'Plain Target' })
 
   assert.equal(target.action, '')
-  assert.equal(target.aosRef, 'plain-target')
+  assert.equal(target.ref, 'plain-target')
+})
+
+test('normalizeAgentUiTarget composes canonical producer records without alternate identity fields', () => {
+  const target = normalizeAgentUiTarget({
+    id: 'opacity',
+    role: 'AXSlider',
+    name: 'Opacity',
+    value: 0.55,
+    surface: 'toolkit.panel.form',
+    frame: { x: 10, y: 72, width: 160, height: 28 },
+    metadata: { aosFieldId: 'opacity' },
+  }, {
+    kind: 'slider',
+    actions: ['drag', 'set-value'],
+    extension: {
+      descriptor_id: 'avatar-opacity',
+      field_id: 'opacity',
+      options: [],
+      hidden: false,
+    },
+  })
+
+  assert.deepEqual(target, {
+    ref: 'toolkit.panel.form:opacity',
+    surface: 'toolkit.panel.form',
+    role: 'slider',
+    name: 'Opacity',
+    kind: 'slider',
+    enabled: true,
+    state: {
+      value: 0.55,
+      current: null,
+      pressed: null,
+      selected: null,
+      checked: null,
+      expanded: null,
+    },
+    actions: ['drag', 'set-value'],
+    extension: {
+      descriptor_id: 'avatar-opacity',
+      field_id: 'opacity',
+      options: [],
+      hidden: false,
+      source: { path: null, line_start: null, line_end: null },
+    },
+    provenance: {
+      source_payload_id: 'opacity',
+      metadata: { aosFieldId: 'opacity' },
+      frame: { x: 10, y: 72, width: 160, height: 28 },
+      parent_canvas_id: '',
+    },
+  })
+  assert.equal(Object.hasOwn(target, 'id'), false)
+  assert.equal(Object.hasOwn(target, 'aosRef'), false)
 })
 
 test('semanticTargetAttributeEntries serializes standard semantic target refs', () => {
@@ -115,8 +181,9 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     role: 'AXButton',
     name: 'Save',
     action: 'save_markdown',
+    actions: ['click'],
     surface: 'markdown-workbench',
-    parentCanvasId: 'avatar-main',
+    parent_canvas_id: 'avatar-main',
     pressed: false,
   }, {
     nativeRole: 'button',
@@ -129,7 +196,29 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     ['data-semantic-target-id', 'save'],
     ['data-aos-parent-canvas', 'avatar-main'],
     ['data-aos-action', 'save_markdown'],
+    ['data-aos-actions', 'click'],
     ['aria-pressed', 'false'],
+  ])
+})
+
+test('semantic target attributes serialize primitive actions and metadata separately from app action', () => {
+  const entries = semanticTargetAttributeEntries({
+    id: 'opacity',
+    role: 'slider',
+    name: 'Opacity',
+    action: 'edit_opacity',
+    actions: ['drag', 'set-value'],
+    surface: 'panel',
+    metadata: { descriptor_id: 'avatar-opacity' },
+    value: 0.5,
+  })
+
+  assert.deepEqual(entries.filter(([name]) => name.startsWith('data-aos')), [
+    ['data-aos-ref', 'panel:opacity'],
+    ['data-aos-surface', 'panel'],
+    ['data-aos-action', 'edit_opacity'],
+    ['data-aos-actions', 'drag set-value'],
+    ['data-aos-metadata', '{"descriptor_id":"avatar-opacity"}'],
   ])
 })
 
@@ -139,7 +228,7 @@ test('semanticTargetAttrString escapes attrs and supports custom order', () => {
     role: 'AXCheckBox',
     name: 'Hide "Tree" & children',
     action: 'toggle_visibility',
-    aosRef: 'object-transform-panel:visibility:avatar-main:<tree>',
+    ref: 'object-transform-panel:visibility:avatar-main:<tree>',
     surface: 'object-transform-panel',
     checked: 'mixed',
   }, {
@@ -167,6 +256,7 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
     role: 'AXButton',
     name: 'Context Menu',
     action: 'contextMenu',
+    actions: ['click'],
     frame: { x: 38, y: 38, w: 56, h: 56 },
     surface: 'sigil-radial-menu',
   })
@@ -178,6 +268,7 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
   assert.equal(element.getAttribute('id'), 'aos-semantic-target-context-menu')
   assert.equal(element.dataset.aosRef, 'sigil-radial-menu:context-menu')
   assert.equal(element.dataset.aosAction, 'contextMenu')
+  assert.equal(element.dataset.aosActions, 'click')
   assert.equal(element.dataset.aosSurface, 'sigil-radial-menu')
   assert.equal(element.dataset.semanticTargetId, 'context-menu')
   assert.equal(element.style.left, '38px')

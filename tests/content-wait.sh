@@ -18,7 +18,7 @@ trap cleanup EXIT
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
 
 JSON_PATH="$ROOT/content-wait.json"
-./aos content wait --root toolkit --auto-start --timeout 10s --json > "$JSON_PATH"
+./aos content wait --root toolkit --auto-start --allow-start --timeout 10s --json > "$JSON_PATH"
 
 aos_test_wait_for_socket "$ROOT" || { echo "FAIL: daemon socket did not become reachable"; exit 1; }
 

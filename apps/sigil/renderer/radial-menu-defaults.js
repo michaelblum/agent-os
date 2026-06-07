@@ -207,7 +207,7 @@ function itemGeometry(id) {
     return cloneConfig(DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === id)?.geometry || {});
 }
 
-export const CONTEXT_COG_MODEL = itemGeometry('context-menu');
+export const CONTEXT_COG_MODEL = itemGeometry('avatar-controls');
 export const WIKI_BRAIN_HOLOGRAM_MODEL = itemGeometry('wiki-graph');
 export const AGENT_TERMINAL_TABLET_MODEL = itemGeometry('agent-terminal');
 export const ANNOTATION_RETICLE_GEOMETRY = itemGeometry('annotation-mode');
@@ -261,6 +261,7 @@ export function normalizeSigilRadialGestureMenu(menu = {}) {
         role: RESOLVED_SIGIL_RADIAL_MENU.role,
         logical_items: cloneConfig(RESOLVED_SIGIL_RADIAL_MENU.logical_items),
         ...cloneConfig(source),
+        visuals: mergeConfig(RESOLVED_SIGIL_RADIAL_MENU.visuals || {}, source.visuals || {}),
         items: normalizeSigilRadialItems(source.items),
     };
 }

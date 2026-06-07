@@ -8,6 +8,7 @@ aos_test_cleanup_prefix "$PREFIX"
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
+export AOS_ALLOW_DAEMON_AUTOSTART=1
 
 cleanup() {
   aos_test_kill_root "$ROOT"

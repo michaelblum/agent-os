@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseAgentDoc, MINIMAL_DEFAULT } from '../../apps/sigil/renderer/agent-loader.js';
 
 const FM = `---
-type: agent
+type: entity
 id: test
 name: Test
 ---

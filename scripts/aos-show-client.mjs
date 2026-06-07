@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
 
 const ORIGINAL_PARENT_PID = process.ppid;
 const WINDOW_LEVELS = new Set(['automatic', 'floating', 'status_bar', 'screen_saver']);
@@ -12,6 +13,11 @@ const AUTO_PROJECT_MODES = new Set(['cursor_trail', 'highlight_focused', 'label_
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
+  process.exit(1);
+}
+
+function failure(payload) {
+  process.stderr.write(`${JSON.stringify(payload, null, 2)}\n`);
   process.exit(1);
 }
 
@@ -94,6 +100,10 @@ function autoStartDisabled() {
   return ['1', 'true', 'yes', 'on'].includes(process.env.AOS_DISABLE_DAEMON_AUTOSTART?.toLowerCase());
 }
 
+function autoStartAllowed() {
+  return process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1';
+}
+
 function connectOnce(timeoutMs = 1000) {
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath());
@@ -142,6 +152,10 @@ async function connectWithAutoStart(options = {}) {
   if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+    return null;
+  }
+  if (!options.allowStart && !autoStartAllowed()) {
+    process.stderr.write('ipc: daemon auto-start requires --allow-start or AOS_ALLOW_DAEMON_AUTOSTART=1\n');
     return null;
   }
   const daemon = startDaemon(options);
@@ -206,13 +220,19 @@ function ipcFailureMessage(action, data) {
   return `IPC failure while waiting for show.${action} response: ${JSON.stringify(data ?? {})}`;
 }
 
+function diagnosticVerdict(operationId, timeoutMs) {
+  if (timeoutMs < 1000) return null;
+  return guardedLiveOperation({ operationId, allowStart: false, mode: runtimeMode(), prefix: aosPath() }).preflight;
+}
+
 async function oneShot(action, data, {
   autoStart = false,
   emptyListOnNoDaemon = false,
   timeoutMs = 3000,
   retryNoResponse = 0,
+  allowStart = false,
 } = {}) {
-  const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+  const connection = autoStart ? await connectWithAutoStart({ allowStart }) : { socket: await connectOnce() };
   let socket = connection?.socket ?? null;
   if (!socket) {
     if (emptyListOnNoDaemon) {
@@ -400,6 +420,9 @@ function parseCanvasMutationOptions(args, kind) {
       case '--focus':
         options.focus = true;
         break;
+      case '--allow-start':
+        options.allowStart = true;
+        break;
       case '--no-focus':
         if (kind !== 'update') unknownArg(args[i]);
         options.focus = false;
@@ -528,6 +551,7 @@ async function mutationCommand(args, kind) {
   applyCanvasMutationOptions(options, request, kind);
   await oneShot(kind, request, {
     autoStart: kind === 'create',
+    allowStart: Boolean(options.allowStart),
     timeoutMs: kind === 'create' ? 10000 : 3000,
   });
 }
@@ -538,6 +562,7 @@ async function waitCommand(args) {
   let js;
   let timeoutMs = 5000;
   let autoStart = false;
+  let allowStart = false;
   let asJSON = false;
 
   for (let i = 0; i < args.length; i += 1) {
@@ -560,6 +585,9 @@ async function waitCommand(args) {
       case '--auto-start':
         autoStart = true;
         break;
+      case '--allow-start':
+        allowStart = true;
+        break;
       case '--json':
         asJSON = true;
         break;
@@ -575,11 +603,23 @@ async function waitCommand(args) {
   const evalJS = `(${condition}) ? 'ready' : 'wait'`;
 
   const deadline = Date.now() + timeoutMs;
+  const permitStart = Boolean(autoStart && (allowStart || autoStartAllowed()));
+  if (autoStart && !permitStart) {
+    failure(runtimeFailurePayload({
+      operationId: 'show.wait',
+      condition: { id, manifest, js_predicate: Boolean(js), auto_start_requested: true, allow_start: false },
+      timeoutMs,
+      verdict: diagnosticVerdict('show.wait', timeoutMs),
+      prefix: aosPath(),
+      code: 'LIVE_START_NOT_ALLOWED',
+      error: '--auto-start requires explicit --allow-start for show wait.',
+    }));
+  }
   let daemonStarted = false;
   const connectForWait = async () => {
     const budget = remainingMs(deadline);
     if (budget <= 0) return { socket: null };
-    if (autoStart && !daemonStarted) {
+    if (permitStart && !daemonStarted) {
       const socket = await connectOnce(Math.min(1000, budget));
       if (socket) return { socket };
       if (autoStartDisabled()) {
@@ -618,6 +658,17 @@ async function waitCommand(args) {
     await sleep(Math.min(100, remainingMs(deadline)));
   }
   socket?.end();
+  if (asJSON) {
+    failure(runtimeFailurePayload({
+      operationId: 'show.wait',
+      condition: { id, manifest, js_predicate: Boolean(js) },
+      timeoutMs,
+      verdict: diagnosticVerdict('show.wait', timeoutMs),
+      prefix: aosPath(),
+      code: 'CANVAS_WAIT_TIMEOUT',
+      error: `Canvas ${id} did not become ready before timeout`,
+    }));
+  }
   error(`Canvas ${id} did not become ready before timeout`, 'CANVAS_WAIT_TIMEOUT');
 }
 
@@ -650,7 +701,30 @@ async function postCommand(args) {
   if (id && event === undefined) error('post requires --event <json> when targeting a canvas', 'MISSING_ARG');
   if (!id && !channel) error('post requires --id <name> --event <json>', 'MISSING_ARG');
   if (id && channel) error('post accepts either canvas delivery (--id/--event) or legacy channel relay (--channel/--data), not both', 'INVALID_ARG');
-  await oneShot('post', id ? { id, data: event } : { channel, data }, { autoStart: true });
+    await oneShot('post', id ? { id, data: event } : { channel, data }, { autoStart: true });
+}
+
+async function auditCommand(args) {
+  const request = {};
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--json') {
+      continue;
+    }
+    if (args[i] === '--point') {
+      let value;
+      [value, i] = nextValue(args, i, '--point');
+      const parts = String(value).split(',').map((part) => Number(part));
+      if (parts.length !== 2 || parts.some((part) => !Number.isFinite(part))) {
+        error('--point must be x,y (comma-separated)', 'INVALID_ARG');
+      }
+      request.point = parts;
+      request.x = parts[0];
+      request.y = parts[1];
+      continue;
+    }
+    unknownArg(args[i]);
+  }
+  await oneShot('audit', request, { emptyListOnNoDaemon: false, retryNoResponse: 2 });
 }
 
 async function listenCommand(args) {
@@ -716,6 +790,9 @@ switch (command) {
   case 'list':
     if (args.some((arg) => arg !== '--json')) unknownArg(args.find((arg) => arg !== '--json'));
     await oneShot('list', {}, { emptyListOnNoDaemon: true, retryNoResponse: 2 });
+    break;
+  case 'audit':
+    await auditCommand(args);
     break;
   case 'ping':
     if (args.length > 0) unknownArg(args[0]);

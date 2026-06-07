@@ -1,0 +1,10 @@
+{
+  "schema": "aos.interaction-grammar.fixture-pack.v0",
+  "description": "Deterministic fixture pack for the AOS interaction grammar V0 contract.",
+  "contract_note": "../../aos-interaction-grammar-v0.md",
+  "fixtures": [
+    "toolkit-slider-sequence.json",
+    "stale-ref-replay-plan.json",
+    "ambiguous-same-label-reacquisition.json"
+  ]
+}

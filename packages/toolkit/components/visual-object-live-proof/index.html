@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Visual Object Live Proof</title>
+  <link rel="stylesheet" href="../../controls/defaults.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 16px;
+      font: 13px system-ui, sans-serif;
+      background: #f7f7f4;
+      color: #202124;
+    }
+    #root {
+      max-width: 360px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root" aria-label="Visual object live proof"></div>
+  <script type="module">
+    try {
+      await import('./index.js')
+    } catch (error) {
+      document.body.dataset.mountError = String(error?.message || error)
+      document.body.innerHTML = `<pre>${String(error?.stack || error)}</pre>`
+      throw error
+    }
+  </script>
+</body>
+</html>

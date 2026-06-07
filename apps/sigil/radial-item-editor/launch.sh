@@ -6,6 +6,11 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="${AOS:-$ROOT/aos}"
+ALLOW_START="false"
+if [[ "${1:-}" == "--allow-start" ]]; then
+  ALLOW_START="true"
+  shift
+fi
 
 if [[ ! -x "$AOS" ]] && command -v aos >/dev/null 2>&1; then
   AOS="$(command -v aos)"
@@ -66,12 +71,21 @@ sys.exit(0 if all(roots.get(name) == path for name, path in checks) else 1)
 }
 
 if ! content_roots_live; then
+  if [[ "$ALLOW_START" != "true" ]]; then
+    "$AOS" content wait --root "$CONTENT_ROOT" --root "$TOOLKIT_CONTENT_ROOT" --timeout 3s --json >/dev/null
+    exit $?
+  fi
   echo "Refreshing repo daemon so new content roots are live: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT" >&2
   "$AOS" service restart --mode repo >/dev/null
 fi
 
-"$AOS" content wait --root "$CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
-"$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
+if [[ "$ALLOW_START" == "true" ]]; then
+  "$AOS" content wait --root "$CONTENT_ROOT" --auto-start --allow-start --timeout 15s --json >/dev/null
+  "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --allow-start --timeout 15s --json >/dev/null
+else
+  "$AOS" content wait --root "$CONTENT_ROOT" --timeout 15s --json >/dev/null
+  "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --timeout 15s --json >/dev/null
+fi
 
 DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
 GEOMETRY="$(
@@ -103,30 +117,39 @@ read -r EDITOR_X EDITOR_Y RESOLVED_EDITOR_W RESOLVED_EDITOR_H PANEL_X PANEL_Y RE
 "$AOS" show remove --id "$EDITOR_ID" 2>/dev/null || true
 "$AOS" show remove --id "$PANEL_ID" 2>/dev/null || true
 
-"$AOS" show create \
-  --id "$EDITOR_ID" \
-  --at "$EDITOR_X,$EDITOR_Y,$RESOLVED_EDITOR_W,$RESOLVED_EDITOR_H" \
-  --interactive \
-  --scope global \
-  --url "aos://$CONTENT_ROOT/radial-item-editor/index.html?item=$ITEM_ID&controller-id=$PANEL_ID" >/dev/null
-
-"$AOS" show create \
-  --id "$PANEL_ID" \
-  --at "$PANEL_X,$PANEL_Y,$RESOLVED_PANEL_W,$RESOLVED_PANEL_H" \
-  --interactive \
-  --scope global \
-  --url "aos://$TOOLKIT_CONTENT_ROOT/components/object-transform-panel/index.html" >/dev/null
+EDITOR_CREATE_ARGS=(show create --id "$EDITOR_ID")
+PANEL_CREATE_ARGS=(show create --id "$PANEL_ID")
+if [[ "$ALLOW_START" == "true" ]]; then
+  EDITOR_CREATE_ARGS+=(--allow-start)
+  PANEL_CREATE_ARGS+=(--allow-start)
+fi
+EDITOR_CREATE_ARGS+=(
+  --at "$EDITOR_X,$EDITOR_Y,$RESOLVED_EDITOR_W,$RESOLVED_EDITOR_H"
+  --interactive
+  --scope global
+  --url "aos://$CONTENT_ROOT/radial-item-editor/index.html?item=$ITEM_ID&controller-id=$PANEL_ID"
+)
+PANEL_CREATE_ARGS+=(
+  --at "$PANEL_X,$PANEL_Y,$RESOLVED_PANEL_W,$RESOLVED_PANEL_H"
+  --interactive
+  --scope global
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/object-transform-panel/index.html"
+)
+"$AOS" "${EDITOR_CREATE_ARGS[@]}" >/dev/null
+"$AOS" "${PANEL_CREATE_ARGS[@]}" >/dev/null
 
 "$AOS" show wait \
   --id "$EDITOR_ID" \
   --js 'typeof window.__sigilRadialItemEditor === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 "$AOS" show wait \
   --id "$PANEL_ID" \
   --manifest object-transform-panel \
   --js 'typeof window.__objectTransformPanelState === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 "$AOS" show eval \
   --id "$EDITOR_ID" \
@@ -135,7 +158,8 @@ read -r EDITOR_X EDITOR_Y RESOLVED_EDITOR_W RESOLVED_EDITOR_H PANEL_X PANEL_Y RE
 "$AOS" show wait \
   --id "$PANEL_ID" \
   --js 'Array.isArray(window.__objectTransformPanelState?.objects) && window.__objectTransformPanelState.objects.length > 0' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Sigil radial item editor launched for $ITEM_ID"
 echo "Content roots: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT"

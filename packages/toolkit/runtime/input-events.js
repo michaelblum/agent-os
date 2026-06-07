@@ -1,9 +1,8 @@
 // input-events.js — normalize canvas input stream envelopes.
 //
-// The daemon-side canvas fanout currently delivers raw input event names like
-// `mouse_moved` and `left_mouse_down` directly to canvases, while some
-// synthetic/tests paths still post `{ type: 'input_event', payload: {...} }`.
-// Consumers should accept either form until the daemon contract is unified.
+// Canonical callers should provide raw input-event-v2 payloads or routed-v1
+// envelopes. Unversioned event names and wrappers remain only as explicit
+// bridges for native producer fanout and canvas-origin synthetic messages.
 
 const RAW_INPUT_EVENT_TYPES = new Set([
   'left_mouse_down',
@@ -45,6 +44,100 @@ const POINTER_PHASE_BY_TYPE = {
   mouse_cancel: 'cancel',
 }
 
+const RAW_REQUIRED_BY_KIND = {
+  pointer: ['phase', 'device', 'timestamp_monotonic_ms', 'sequence', 'native', 'display_id', 'topology_version', 'button', 'buttons', 'modifiers'],
+  scroll: ['phase', 'device', 'timestamp_monotonic_ms', 'sequence', 'native', 'display_id', 'topology_version', 'scroll', 'modifiers'],
+  key: ['timestamp_monotonic_ms', 'sequence', 'key', 'modifiers'],
+  cancel: ['phase', 'timestamp_monotonic_ms', 'sequence', 'cancel_reason'],
+}
+
+const ROUTED_REQUIRED_BY_KIND = {
+  pointer: ['phase', 'button', 'buttons'],
+  scroll: ['phase', 'scroll'],
+  key: ['key'],
+  cancel: ['phase', 'cancel_reason'],
+}
+
+const POINTER_ROUTED_PHASES = new Set(['down', 'move', 'drag', 'up', 'enter', 'hover', 'leave', 'hover_cancel'])
+const CANONICAL_CANCEL_REASONS = new Set([
+  'os_cancelled',
+  'surface_removed',
+  'surface_suspended',
+  'surface_disabled',
+  'owner_disconnected',
+  'topology_stale',
+  'capture_timeout',
+  'emergency_command',
+])
+
+const RAW_ALLOWED_COMMON_FIELDS = [
+  'input_schema_version',
+  'event_kind',
+  'type',
+  'timestamp_monotonic_ms',
+  'sequence',
+  'source_origin',
+  'source_canvas_id',
+  'gesture_id',
+  'x',
+  'y',
+  'native',
+  'display_id',
+  'topology_version',
+  'desktop_world',
+  'coordinate_authority',
+  'modifiers',
+  'flags',
+]
+
+const RAW_ALLOWED_FIELDS_BY_KIND = {
+  pointer: new Set([...RAW_ALLOWED_COMMON_FIELDS, 'phase', 'device', 'button', 'buttons', 'click_count']),
+  scroll: new Set([...RAW_ALLOWED_COMMON_FIELDS, 'phase', 'device', 'scroll']),
+  key: new Set([
+    'input_schema_version',
+    'event_kind',
+    'type',
+    'timestamp_monotonic_ms',
+    'sequence',
+    'source_origin',
+    'source_canvas_id',
+    'key',
+    'key_code',
+    'modifiers',
+    'flags',
+    'native',
+    'display_id',
+    'topology_version',
+    'desktop_world',
+    'coordinate_authority',
+  ]),
+  cancel: new Set([...RAW_ALLOWED_COMMON_FIELDS, 'phase', 'caused_by_sequence', 'cancel_reason', 'button', 'buttons']),
+}
+
+const ROUTED_ALLOWED_FIELDS = new Set([
+  'routed_schema_version',
+  'event_kind',
+  'type',
+  'delivery_role',
+  'sequence',
+  'gesture_id',
+  'desktop_world',
+  'coordinate_authority',
+  'source_origin',
+  'source_canvas_id',
+  'owner_canvas_id',
+  'source_sequence',
+  'source_event',
+  'phase',
+  'region_id',
+  'capture_id',
+  'cancel_reason',
+  'button',
+  'buttons',
+  'scroll',
+  'key',
+])
+
 export function isCanvasInputEventType(type) {
   return typeof type === 'string' && RAW_INPUT_EVENT_TYPES.has(type)
 }
@@ -66,6 +159,128 @@ function pickString(...values) {
     if (typeof value === 'string' && value.length > 0) return value
   }
   return null
+}
+
+function assertRequiredFields(event, fields, context) {
+  const missing = fields.filter((field) => event[field] === undefined || event[field] === null)
+  if (missing.length) {
+    throw new Error(`${context} missing required field(s): ${missing.join(', ')}`)
+  }
+}
+
+function assertAllowedFields(event, allowed, context) {
+  const unknown = Object.keys(event).filter((field) => !allowed.has(field))
+  if (unknown.length) {
+    throw new Error(`${context} has unsupported field(s): ${unknown.join(', ')}`)
+  }
+}
+
+function assertPoint(value, field, context) {
+  if (!value || typeof value !== 'object' || finiteNumber(value.x) === null || finiteNumber(value.y) === null) {
+    throw new Error(`${context} requires ${field}.x and ${field}.y`)
+  }
+}
+
+function assertSequence(value, field, context) {
+  if (!value || typeof value !== 'object' || value.source === undefined || value.value === undefined) {
+    throw new Error(`${context} requires ${field}.source and ${field}.value`)
+  }
+}
+
+function assertScroll(value, field, context) {
+  if (!value || typeof value !== 'object' || finiteNumber(value.dx) === null || finiteNumber(value.dy) === null || value.unit !== 'point') {
+    throw new Error(`${context} requires ${field}.dx, ${field}.dy, and ${field}.unit "point"`)
+  }
+}
+
+function assertButtons(value, field, context) {
+  if (!value || typeof value !== 'object' || typeof value.left !== 'boolean' || typeof value.right !== 'boolean' || typeof value.middle !== 'boolean' || !Array.isArray(value.other_pressed)) {
+    throw new Error(`${context} requires ${field} button-state booleans`)
+  }
+}
+
+function validateRawV2InputEvent(event) {
+  const context = 'input-event-v2 payload'
+  assertRequiredFields(event, ['input_schema_version', 'event_kind', 'type', 'timestamp_monotonic_ms', 'sequence'], context)
+  const required = RAW_REQUIRED_BY_KIND[event.event_kind]
+  if (!required) throw new Error(`${context} has unsupported event_kind: ${event.event_kind}`)
+  assertAllowedFields(event, RAW_ALLOWED_FIELDS_BY_KIND[event.event_kind], context)
+  assertRequiredFields(event, required, context)
+  assertSequence(event.sequence, 'sequence', context)
+  if (event.native) assertPoint(event.native, 'native', context)
+  if (event.desktop_world || event.coordinate_authority) {
+    assertPoint(event.desktop_world, 'desktop_world', context)
+    assertRequiredFields(event, ['coordinate_authority'], context)
+  }
+  if (event.event_kind === 'pointer' && !['down', 'move', 'drag', 'up'].includes(event.phase)) {
+    throw new Error(`${context} pointer phase is invalid: ${event.phase}`)
+  }
+  if (event.event_kind === 'scroll') {
+    if (event.phase !== 'scroll') throw new Error(`${context} scroll phase must be "scroll"`)
+    assertScroll(event.scroll, 'scroll', context)
+  }
+  if (event.event_kind === 'key' && event.phase !== undefined) {
+    throw new Error(`${context} key events must not include phase`)
+  }
+  if (event.event_kind === 'cancel') {
+    if (event.phase !== 'cancel') throw new Error(`${context} cancel phase must be "cancel"`)
+    if (!CANONICAL_CANCEL_REASONS.has(event.cancel_reason)) throw new Error(`${context} cancel_reason is invalid: ${event.cancel_reason}`)
+  }
+  if (event.buttons) assertButtons(event.buttons, 'buttons', context)
+}
+
+function validateRoutedV1InputEvent(event) {
+  const context = 'routed-v1 input payload'
+  assertRequiredFields(event, [
+    'routed_schema_version',
+    'event_kind',
+    'type',
+    'delivery_role',
+    'sequence',
+    'gesture_id',
+    'desktop_world',
+    'coordinate_authority',
+    'source_origin',
+    'source_event',
+  ], context)
+  const required = ROUTED_REQUIRED_BY_KIND[event.event_kind]
+  if (!required) throw new Error(`${context} has unsupported event_kind: ${event.event_kind}`)
+  assertAllowedFields(event, ROUTED_ALLOWED_FIELDS, context)
+  assertRequiredFields(event, required, context)
+  assertSequence(event.sequence, 'sequence', context)
+  assertPoint(event.desktop_world, 'desktop_world', context)
+  if (event.source_sequence) assertSequence(event.source_sequence, 'source_sequence', context)
+  if (event.delivery_role === 'owned' || event.delivery_role === 'captured') {
+    assertRequiredFields(event, ['region_id', 'owner_canvas_id'], context)
+  }
+  if (event.delivery_role === 'captured') {
+    assertRequiredFields(event, ['capture_id'], context)
+  }
+  if (!['observed', 'owned', 'captured'].includes(event.delivery_role)) {
+    throw new Error(`${context} delivery_role is invalid: ${event.delivery_role}`)
+  }
+  if (event.event_kind === 'pointer') {
+    if (!POINTER_ROUTED_PHASES.has(event.phase)) throw new Error(`${context} pointer phase is invalid: ${event.phase}`)
+    assertButtons(event.buttons, 'buttons', context)
+  }
+  if (event.event_kind === 'scroll') {
+    if (event.phase !== 'scroll') throw new Error(`${context} scroll phase must be "scroll"`)
+    assertScroll(event.scroll, 'scroll', context)
+  }
+  if (event.event_kind === 'cancel' && event.phase !== 'cancel') {
+    throw new Error(`${context} cancel phase must be "cancel"`)
+  }
+  if (event.source_event && typeof event.source_event === 'object') {
+    if (event.source_event.input_schema_version !== 2) {
+      throw new Error(`${context} source_event object must be a raw input-event-v2 payload`)
+    }
+    validateRawV2InputEvent(event.source_event)
+  }
+}
+
+function validateVersionedInputEvent(event) {
+  if (event.input_schema_version === 2) validateRawV2InputEvent(event)
+  if (event.routed_schema_version === 1) validateRoutedV1InputEvent(event)
 }
 
 function childLocalPoint(payload = {}, facts = {}) {
@@ -126,6 +341,13 @@ function inferButtons(button, phase) {
   }
 }
 
+function eventKindForType(type) {
+  if (type === 'scroll_wheel') return 'scroll'
+  if (type === 'pointer_cancel' || type === 'mouse_cancel') return 'cancel'
+  if (type === 'key_down' || type === 'key_up') return 'key'
+  return 'pointer'
+}
+
 export function createCanvasOriginInputEvent(message = {}, facts = {}) {
   const payload = (message?.payload && typeof message.payload === 'object') ? message.payload : message
   if (!payload || typeof payload !== 'object') return null
@@ -159,11 +381,17 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
     payload.parentCanvasId,
     payload.parent,
   )
+  const regionId = pickString(
+    facts.regionId,
+    facts.region_id,
+    payload.region_id,
+    payload.regionId,
+    sourceCanvasId,
+  )
   const pointerId = facts.pointerId ?? facts.pointer_id ?? payload.pointer_id ?? payload.pointerId ?? null
   const phase = facts.phase || payload.phase || POINTER_PHASE_BY_TYPE[type] || null
   const button = inferButton(type, payload)
   const desktopWorld = desktopWorldPoint(payload, facts)
-  const native = nativePoint(payload, facts)
   const childLocal = childLocalPoint(payload, facts)
   const sourceSequence = pickObject(facts.sourceSequence, facts.source_sequence, payload.source_sequence, payload.sourceSequence) || {
     source: 'toolkit',
@@ -188,10 +416,18 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
         unit: payload.scroll_unit || payload.scrollUnit || 'point',
       }
     : undefined
+  const eventKind = eventKindForType(type)
+  const cancelReason = pickString(
+    facts.cancelReason,
+    facts.cancel_reason,
+    payload.cancel_reason,
+    payload.cancelReason,
+    'surface_removed',
+  )
 
-  return {
+  const event = {
     routed_schema_version: 1,
-    event_kind: type === 'scroll_wheel' ? 'scroll' : 'pointer',
+    event_kind: eventKind,
     type,
     phase,
     delivery_role: payload.delivery_role || facts.deliveryRole || facts.delivery_role || 'owned',
@@ -199,31 +435,39 @@ export function createCanvasOriginInputEvent(message = {}, facts = {}) {
     gesture_id: gestureId,
     ...(captureId ? { capture_id: captureId } : {}),
     desktop_world: desktopWorld,
-    native,
     coordinate_authority: 'toolkit',
     source_origin: 'canvas',
     source_canvas_id: sourceCanvasId,
     owner_canvas_id: ownerCanvasId,
+    region_id: regionId,
     source_event: sourceEvent,
     source_sequence: sourceSequence,
-    button,
-    buttons: payload.buttons || inferButtons(button, phase),
-    ...(scroll ? { scroll, dx: scroll.dx, dy: scroll.dy } : {}),
+    ...(eventKind === 'pointer' ? {
+      button,
+      buttons: payload.buttons || inferButtons(button, phase),
+    } : {}),
+    ...(eventKind === 'scroll' ? { scroll } : {}),
+    ...(eventKind === 'cancel' ? { cancel_reason: cancelReason } : {}),
+  }
+  validateRoutedV1InputEvent(event)
+  return event
+}
+
+export function normalizeCanvasOriginInputMessage(message = {}, facts = {}) {
+  const event = createCanvasOriginInputEvent(message, facts)
+  if (!event) return null
+  const normalized = normalizeCanvasInputMessage(event)
+  const payload = (message?.payload && typeof message.payload === 'object') ? message.payload : message
+  const childLocal = childLocalPoint(payload, facts)
+  return {
+    ...normalized,
     ...(childLocal ? {
       child_local: childLocal,
       childLocal,
       offsetX: childLocal.x,
       offsetY: childLocal.y,
     } : {}),
-    ...(payload.screenX !== undefined ? { screenX: payload.screenX } : {}),
-    ...(payload.screenY !== undefined ? { screenY: payload.screenY } : {}),
-    source_payload: payload,
   }
-}
-
-export function normalizeCanvasOriginInputMessage(message = {}, facts = {}) {
-  const event = createCanvasOriginInputEvent(message, facts)
-  return event ? normalizeCanvasInputMessage(event) : null
 }
 
 function pointFromV2Event(event) {
@@ -236,6 +480,7 @@ function pointFromV2Event(event) {
 }
 
 function normalizeV2InputEvent(event, envelopeType = null) {
+  validateVersionedInputEvent(event)
   const point = pointFromV2Event(event)
   return {
     ...event,
@@ -276,8 +521,7 @@ function normalizeInputRegionEnvelope(msg) {
   const type = typeof sourceEvent === 'string' && isCanvasInputEventType(sourceEvent)
     ? sourceEvent
     : (payload.input_type || payload.event_type || payload.type || msg.type)
-  const synthesized = {
-    routed_schema_version: 1,
+  const compat = {
     event_kind: type === 'scroll_wheel' ? 'scroll' : 'pointer',
     type,
     phase: payload.phase ?? null,
@@ -295,13 +539,22 @@ function normalizeInputRegionEnvelope(msg) {
     button: payload.button || 'none',
     buttons: payload.buttons || { left: false, right: false, middle: false, other_pressed: [] },
   }
-  const normalized = normalizeV2InputEvent(synthesized, 'input_region.event')
   return {
     ...msg,
-    ...normalized,
+    ...compat,
+    ...pointFromV2Event(compat),
+    envelopeType: 'input_region.event',
+    eventKind: compat.event_kind,
+    gestureId: compat.gesture_id ?? null,
+    captureId: compat.capture_id ?? null,
+    deliveryRole: compat.delivery_role ?? null,
+    regionId: compat.region_id ?? null,
+    ownerCanvasId: compat.owner_canvas_id ?? null,
+    sourceOrigin: compat.source_origin ?? null,
+    sourceSequence: compat.source_sequence ?? compat.sequence ?? null,
+    sourceEvent: compat.source_event ?? null,
     native,
     inputRegionEventType: msg.type,
-    routedInput: synthesized,
   }
 }
 

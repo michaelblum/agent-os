@@ -57,8 +57,8 @@ harness choice with fewer fake fixtures that erase the variable under test.
 
 ## Residue And Migration Candidates
 
-- Sequestered Studio unit tests remain useful as pure helper coverage, but they
-  should not be promoted as current Sigil product activation proof.
+- Retired helper tests should stay out of current Sigil product activation
+  proof.
 - `legacy-workbench` Sigil tests remain tied to the explicit dev-only manifest
   entry. Delete or migrate them only with that manifest boundary.
 - Global status-item inventory remains diagnostic residue. Keep it bounded and

@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 import json
+import os
 
-from real_input_surface_primitives import AOS, wait_until
+from real_input_surface_primitives import AOS, radial_drag_point, wait_until
+from real_input_surface_primitives import (
+    aos_native_segmented_ready_js,
+    aos_native_slider_ready_js,
+    aos_native_tab_ready_js,
+)
 
 
 class SigilContextHarness:
@@ -33,10 +39,31 @@ class SigilContextHarness:
         self.aos.run("do", "click", f"{round(point['x'])},{round(point['y'])}", *extra)
 
     def scroll(self, point, dy):
-        self.aos.run("do", "scroll", f"{round(point['x'])},{round(point['y'])}", "--dy", str(dy))
+        return self.aos.run("do", "scroll", f"{round(point['x'])},{round(point['y'])}", "--dy", str(dy))
+
+    def drag(self, start, end, speed=None):
+        args = ["do", "drag", f"{round(start['x'])},{round(start['y'])}", f"{round(end['x'])},{round(end['y'])}"]
+        if speed is not None:
+            args.extend(["--speed", str(speed)])
+        return self.aos.run(*args)
 
     def key(self, key):
-        self.aos.run("do", "key", key)
+        if os.getenv("SIGIL_REAL_INPUT_ALLOW_KEYS") == "1":
+            self.aos.run("do", "key", key)
+            return
+        raise RuntimeError(
+            "Sigil real-input smokes must not send real keyboard input by default; "
+            "use renderer/debug dispatch helpers instead, or set "
+            "SIGIL_REAL_INPUT_ALLOW_KEYS=1 for an isolated safe environment."
+        )
+
+    def dispatch_escape(self):
+        return self.eval_json(
+            """(() => {
+              window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 })
+              return JSON.stringify(window.__sigilDebug.snapshot().avatarControls)
+            })()"""
+        )
 
     def native_point_for(self, selector, ratio=0.5):
         # Transitional canvas-DOM helper until AOS canvas perception exposes DOM refs.
@@ -81,7 +108,7 @@ class SigilContextHarness:
             }})()"""
         )
 
-    def open_context_menu_from_avatar(self, label="context menu open from real right click"):
+    def open_avatar_controls_from_avatar(self, label="avatar controls open from real right click"):
         initial = self.eval_json(
             """(() => {
               const snap = window.__sigilDebug.snapshot()
@@ -92,11 +119,104 @@ class SigilContextHarness:
         avatar_center = {"x": frame[0] + frame[2] / 2, "y": frame[1] + frame[3] / 2}
         self.click(avatar_center, "--right")
         return self.wait_until(
-            lambda: self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu)")
-            if self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.open)") is True
+            lambda: self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls)")
+            if self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls.open)") is True
             else None,
             label=label,
         )
+
+    def compact_surface_point(self):
+        return self.wait_until(
+            lambda: self.native_point_for('[data-sigil-avatar-control-surface]'),
+            label="compact avatar control surface rendered",
+        )
+
+    def scroll_compact_surface(self, dy):
+        point = self.compact_surface_point()
+        return {
+            "point": point,
+            "result": self.scroll(point, dy),
+        }
+
+    def scroll_until_selector_visible(self, selector, dy=-80, attempts=8):
+        last = None
+        for attempt in range(1, attempts + 1):
+            point = self.native_point_for(selector)
+            if point:
+                return {"attempt": attempt, "point": point, "lastScroll": last}
+            before = self.eval_json("JSON.stringify({ scrollTop: document.querySelector('[data-sigil-avatar-control-surface]')?.scrollTop ?? null })")
+            last = self.scroll_compact_surface(dy)
+            after = self.eval_json("JSON.stringify({ scrollTop: document.querySelector('[data-sigil-avatar-control-surface]')?.scrollTop ?? null })")
+            if after["scrollTop"] == before["scrollTop"]:
+                break
+        raise RuntimeError(f"selector did not become visible after bounded compact scroll: {selector}; last={last!r}")
+
+    def hit_canvas_id(self):
+        return self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().hitTargetId)")
+
+    def select_compact_tab(self, value):
+        ready = self.eval_json(aos_native_tab_ready_js(value))
+        if not ready.get("ok"):
+            raise RuntimeError(f"compact tab is not reachable: {ready}")
+        point = self.native_point_for(f'[data-aos-tabs-trigger][data-value="{value}"]')
+        if not point:
+            raise RuntimeError(f"compact tab has no native point: {ready}")
+        self.click(point)
+        return ready
+
+    def select_segmented_control(self, descriptor_id, value):
+        ready = self.eval_json(aos_native_segmented_ready_js(descriptor_id, value))
+        if not ready.get("ok"):
+            raise RuntimeError(f"segmented control is not reachable: {ready}")
+        point = self.native_point_for(
+            f'.aos-form-field[data-descriptor-id="{descriptor_id}"] .aos-segmented button[data-value="{value}"]'
+        )
+        if not point:
+            raise RuntimeError(f"segmented control has no native point: {ready}")
+        self.click(point)
+        return ready
+
+    def drag_slider_control(self, descriptor_id, start_ratio=0.15, end_ratio=0.85):
+        ready = self.eval_json(aos_native_slider_ready_js(descriptor_id))
+        if not ready.get("ok"):
+            raise RuntimeError(f"slider control is not reachable: {ready}")
+        selector = f'.aos-form-field[data-descriptor-id="{descriptor_id}"] [data-aos-slider-control]'
+        start = self.native_point_for(selector, start_ratio)
+        end = self.native_point_for(selector, end_ratio)
+        if not start or not end:
+            raise RuntimeError(f"slider control has no native drag points: {ready}")
+        self.drag(start, end)
+        return {**ready, "start": start, "end": end}
+
+    def radial_config(self):
+        return self.eval_json(
+            """(() => {
+              const snap = window.__sigilDebug.snapshot()
+              return JSON.stringify({
+                source: snap.radialGestureMenu ? 'snapshot.radialGestureMenu' : 'state.radialGestureMenu',
+                config: snap.radialGestureMenu || window.state.radialGestureMenu,
+                avatarPos: snap.avatarPos,
+              })
+            })()"""
+        )
+
+    def radial_drag_plan(self, phase="fastTravel", angle=0, epsilon=3):
+        data = self.radial_config()
+        origin = data["avatarPos"]
+        plan = radial_drag_point(
+            origin,
+            data["config"],
+            phase=phase,
+            angle=angle,
+            epsilon=epsilon,
+            source=data["source"],
+        )
+        return plan
+
+    def open_radial_with_drag(self, phase="radial"):
+        plan = self.radial_drag_plan(phase=phase)
+        self.drag(plan["origin"], plan["point"])
+        return plan
 
     def rects_overlap(self, a, b):
         return (
@@ -106,13 +226,13 @@ class SigilContextHarness:
             and a["y"] + a["h"] > b["y"]
         )
 
-    def assert_menu_clear_avatar(self, label):
+    def assert_avatar_controls_clear_avatar(self, label):
         state = self.eval_json(
             """(() => {
               const snap = window.__sigilDebug.snapshot()
               const radius = snap.avatarHitRadius || 40
               return JSON.stringify({
-                menu: snap.contextMenu.bounds,
+                controls: snap.avatarControls.bounds,
                 avatar: {
                   x: snap.avatarPos.x - radius,
                   y: snap.avatarPos.y - radius,
@@ -122,9 +242,8 @@ class SigilContextHarness:
               })
             })()"""
         )
-        if not state["menu"]:
-            raise SystemExit(f"FAIL: missing menu bounds for {label}")
-        if self.rects_overlap(state["menu"], state["avatar"]):
-            raise SystemExit(f"FAIL: context menu overlaps avatar for {label}: {state}")
+        if not state["controls"]:
+            raise SystemExit(f"FAIL: missing avatar controls bounds for {label}")
+        if self.rects_overlap(state["controls"], state["avatar"]):
+            raise SystemExit(f"FAIL: avatar controls overlaps avatar for {label}: {state}")
         return state
-

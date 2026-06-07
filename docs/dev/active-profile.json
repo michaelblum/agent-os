@@ -1,4 +1,4 @@
 {
   "$schema": "../../shared/schemas/dev-active-profile.schema.json",
-  "active_profile": "agentic_relay"
+  "active_profile": "local_relay"
 }

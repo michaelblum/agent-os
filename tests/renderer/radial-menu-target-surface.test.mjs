@@ -12,9 +12,9 @@ const radialSnapshot = {
   activeItemId: 'wiki-graph',
   items: [
     {
-      id: 'context-menu',
-      label: 'Context Menu',
-      action: 'contextMenu',
+      id: 'avatar-controls',
+      label: 'Avatar Controls',
+      action: 'avatarControls',
       center: { x: 100, y: 80 },
       hitRadius: 12,
       visualRadius: 10,
@@ -42,11 +42,11 @@ test('radial menu targets enforce AOS-sized hit surfaces', () => {
   const targets = radialMenuTargetsFromSnapshot(radialSnapshot, { targetMinSize: 56 })
 
   assert.equal(targets.length, 2)
-  assert.equal(targets[0].label, 'Context Menu')
-  assert.equal(targets[0].name, 'Context Menu')
-  assert.equal(targets[0].ariaLabel, 'Context Menu')
+  assert.equal(targets[0].label, 'Avatar Controls')
+  assert.equal(targets[0].name, 'Avatar Controls')
+  assert.equal(targets[0].ariaLabel, 'Avatar Controls')
   assert.equal(targets[0].role, 'AXButton')
-  assert.equal(targets[0].aosRef, 'sigil-radial-item-context-menu')
+  assert.equal(targets[0].ref, 'sigil-radial-item-avatar-controls')
   assert.equal(targets[0].size, 56)
   assert.equal(targets[1].active, true)
   assert.deepEqual(targets[1].logical, {
@@ -141,7 +141,7 @@ test('radial menu target surface creates an offscreen child and posts live item 
       name: item.name,
       action: item.action,
       ariaLabel: item.ariaLabel,
-      aosRef: item.aosRef,
+      ref: item.ref,
       active: item.active,
       x: item.x,
       y: item.y,
@@ -149,12 +149,12 @@ test('radial menu target surface creates an offscreen child and posts live item 
     })),
     [
       {
-        id: 'context-menu',
-        label: 'Context Menu',
-        name: 'Context Menu',
-        action: 'contextMenu',
-        ariaLabel: 'Context Menu',
-        aosRef: 'sigil-radial-item-context-menu',
+        id: 'avatar-controls',
+        label: 'Avatar Controls',
+        name: 'Avatar Controls',
+        action: 'avatarControls',
+        ariaLabel: 'Avatar Controls',
+        ref: 'sigil-radial-item-avatar-controls',
         active: false,
         x: 38,
         y: 38,
@@ -166,7 +166,7 @@ test('radial menu target surface creates an offscreen child and posts live item 
         name: 'Wiki Graph',
         action: 'wikiGraph',
         ariaLabel: 'Wiki Graph',
-        aosRef: 'sigil-radial-item-wiki-graph',
+        ref: 'sigil-radial-item-wiki-graph',
         active: true,
         x: 118,
         y: 38,

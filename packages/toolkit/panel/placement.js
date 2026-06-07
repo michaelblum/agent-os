@@ -117,6 +117,90 @@ export function clampFrameToWorkArea(frame, {
   return cloneFrame(next)
 }
 
+export const VIEWPORT_OVERFLOW_POLICIES = Object.freeze({
+  ALLOW: 'allow',
+  CLAMP: 'clamp',
+  SHIFT: 'shift',
+  FLIP: 'flip',
+})
+
+export function normalizeViewportOverflowPolicy(policy = VIEWPORT_OVERFLOW_POLICIES.CLAMP) {
+  const normalized = String(policy || VIEWPORT_OVERFLOW_POLICIES.CLAMP).trim().toLowerCase()
+  return Object.values(VIEWPORT_OVERFLOW_POLICIES).includes(normalized)
+    ? normalized
+    : VIEWPORT_OVERFLOW_POLICIES.CLAMP
+}
+
+function shiftFrameIntoWorkArea(frame, workArea = null) {
+  const next = cloneFrame(frame)
+  if (!workArea) return next
+  const area = cloneFrame(workArea)
+  const areaRight = area[0] + area[2]
+  const areaBottom = area[1] + area[3]
+  const right = next[0] + next[2]
+  const bottom = next[1] + next[3]
+  if (next[0] < area[0]) next[0] = area[0]
+  else if (right > areaRight) next[0] -= right - areaRight
+  if (next[1] < area[1]) next[1] = area[1]
+  else if (bottom > areaBottom) next[1] -= bottom - areaBottom
+  return cloneFrame(next)
+}
+
+function flipFrameIntoWorkArea(frame, {
+  workArea = null,
+  anchor = null,
+  gap = 0,
+} = {}) {
+  const next = cloneFrame(frame)
+  if (!workArea || !anchor) return shiftFrameIntoWorkArea(next, workArea)
+  const area = cloneFrame(workArea)
+  const anchorFrame = cloneFrame(anchor)
+  const areaRight = area[0] + area[2]
+  const areaBottom = area[1] + area[3]
+  const gapSize = finiteNumber(gap, 0)
+  if (next[0] + next[2] > areaRight) {
+    next[0] = anchorFrame[0] - next[2] - gapSize
+  } else if (next[0] < area[0]) {
+    next[0] = anchorFrame[0] + anchorFrame[2] + gapSize
+  }
+  if (next[1] + next[3] > areaBottom) {
+    next[1] = anchorFrame[1] - next[3] - gapSize
+  } else if (next[1] < area[1]) {
+    next[1] = anchorFrame[1] + anchorFrame[3] + gapSize
+  }
+  return shiftFrameIntoWorkArea(next, area)
+}
+
+export function createPlacementPlan({
+  requestedFrame,
+  workArea = null,
+  viewportOverflowPolicy = VIEWPORT_OVERFLOW_POLICIES.CLAMP,
+  anchorFrame = null,
+  gap = 0,
+  minVisibleWidth = 120,
+  minVisibleHeight = 44,
+  cause = 'placement.policy',
+} = {}) {
+  const requested = cloneFrame(requestedFrame)
+  const policy = normalizeViewportOverflowPolicy(viewportOverflowPolicy)
+  let adjusted = cloneFrame(requested)
+  if (policy === VIEWPORT_OVERFLOW_POLICIES.CLAMP) {
+    adjusted = clampFrameToWorkArea(requested, { workArea, minVisibleWidth, minVisibleHeight })
+  } else if (policy === VIEWPORT_OVERFLOW_POLICIES.SHIFT) {
+    adjusted = shiftFrameIntoWorkArea(requested, workArea)
+  } else if (policy === VIEWPORT_OVERFLOW_POLICIES.FLIP) {
+    adjusted = flipFrameIntoWorkArea(requested, { workArea, anchor: anchorFrame, gap })
+  }
+  const finalSettled = cloneFrame(adjusted)
+  return {
+    requested_frame: requested,
+    policy_adjusted_frame: adjusted,
+    final_settled_frame: finalSettled,
+    viewport_overflow_policy: policy,
+    cause,
+  }
+}
+
 export function resizeFrameFromTopLeft(frame, {
   width = null,
   height = null,

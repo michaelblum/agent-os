@@ -8,12 +8,11 @@ This report classifies the dirty surface-stack worktree and records the
 verification run used to prepare an integration checkpoint. It does not stage,
 commit, push, or close the parent #223 epic.
 
-## Tracker State
+## Related Tracker IDs
 
-- #223 remains open as the broad AOS Surface System epic.
-- #304, #303, #122, #120, #123, #261, #305, #118, and #119 are closed as
-  accepted V0 or folded V0.
-- #45 remains open but parked as historical/native chrome context.
+This report used #223, #304, #303, #122, #120, #123, #261, #305, #118, #119,
+and #45 as related tracker IDs at the time of writing. Query GitHub for current
+issue titles, states, and labels before acting on those IDs.
 
 ## Dirty Worktree Classification
 

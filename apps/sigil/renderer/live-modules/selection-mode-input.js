@@ -73,7 +73,8 @@ export function resolveSelectionModeInputRoute(msg = {}, {
     consumeSelectionModeEntryRelease = () => false,
     isOnAvatar = () => false,
     consumeAvatarDoubleClick = () => false,
-    hitTestBadge = () => null,
+    hitTestLineageItem = () => null,
+    hitTestLineageBar = () => null,
 } = {}) {
     if (msg.type === 'key_down') {
         const key = selectionModeKeyName(msg);
@@ -112,16 +113,52 @@ export function resolveSelectionModeInputRoute(msg = {}, {
             }
             return { handled: true, direct: 'avatar_click' };
         }
-        const badge = hitTestBadge(pointer);
-        if (badge?.nodeId) {
+        const lineageBar = hitTestLineageBar(pointer);
+        if (lineageBar?.kind === 'menu_item') {
             return {
                 handled: true,
-                command: 'selectBadge',
-                gesture: 'pointer.badge.click',
+                command: lineageBar.action === 'add_comment' ? 'openLineageCommentEditor' : (lineageBar.action || 'snapshot'),
+                gesture: `pointer.lineage.menu.${String(lineageBar.action || 'snapshot')}`,
                 pointer,
-                nodeId: badge.nodeId,
-                badgeId: badge.id || '',
+                nodeId: lineageBar.item?.anchorNodeId || lineageBar.item?.nodeId || lineageBar.nodeId || '',
+                lineageMenuItemId: lineageBar.id || '',
+                lineageMenuAction: lineageBar.action || '',
             };
+        }
+        if (lineageBar?.kind === 'comment') {
+            return {
+                handled: true,
+                command: 'openLineageCommentEditor',
+                gesture: 'pointer.lineage.comment',
+                pointer,
+                nodeId: lineageBar.nodeId || '',
+                commentId: lineageBar.commentId || '',
+                lineageItemId: lineageBar.item?.id || '',
+            };
+        }
+        const lineageItem = hitTestLineageItem(pointer);
+        if (lineageItem?.nodeId) {
+            return {
+                handled: true,
+                command: 'selectLineageNode',
+                gesture: 'pointer.lineage.click',
+                pointer,
+                nodeId: lineageItem.nodeId,
+                lineageItemId: lineageItem.id || '',
+            };
+        }
+        if (lineageBar?.kind === 'item') {
+            return {
+                handled: true,
+                command: 'selectLineageNode',
+                gesture: 'pointer.lineage.click',
+                pointer,
+                nodeId: lineageBar.nodeId || '',
+                lineageItemId: lineageBar.id || '',
+            };
+        }
+        if (lineageBar) {
+            return { handled: true, direct: 'lineage_bar_chrome' };
         }
         return {
             handled: true,
@@ -131,7 +168,24 @@ export function resolveSelectionModeInputRoute(msg = {}, {
         };
     }
 
-    if (['right_mouse_down', 'right_mouse_up', 'scroll_wheel'].includes(msg.type)) {
+    if (msg.type === 'right_mouse_down') {
+        const pointer = { x: msg.x, y: msg.y, valid: true };
+        const lineageBar = hitTestLineageBar(pointer);
+        if (lineageBar?.kind === 'item' || lineageBar?.kind === 'comment') {
+            return {
+                handled: true,
+                command: 'openLineageContextMenu',
+                gesture: 'pointer.lineage.context_menu',
+                pointer,
+                nodeId: lineageBar.nodeId || lineageBar.item?.nodeId || '',
+                lineageItemId: lineageBar.item?.id || '',
+                commentId: lineageBar.commentId || '',
+            };
+        }
+        return { handled: true, direct: 'consume_unrelated_pointer' };
+    }
+
+    if (['right_mouse_up', 'scroll_wheel'].includes(msg.type)) {
         return { handled: true, direct: 'consume_unrelated_pointer' };
     }
 

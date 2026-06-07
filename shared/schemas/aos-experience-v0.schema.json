@@ -15,11 +15,11 @@
     "default_activation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "status_item_first", "avatar_entry"],
+      "required": ["kind", "status_item_first", "primary_entry"],
       "properties": {
         "kind": { "enum": ["status_item"] },
         "status_item_first": { "const": true },
-        "avatar_entry": { "type": "string", "minLength": 1 }
+        "primary_entry": { "type": "string", "minLength": 1 }
       }
     },
     "vanilla_fallback": {
@@ -77,6 +77,17 @@
         "surface_title_prefix": { "type": "string", "minLength": 1 },
         "theme_ref": { "type": "string", "minLength": 1 },
         "about": { "type": "string", "minLength": 1 }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preserve_canvas_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
       }
     },
     "menu": {

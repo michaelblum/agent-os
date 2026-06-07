@@ -12,6 +12,14 @@ const SKIN_TYPE_MAP = {
     'solar': 4
 };
 
+function disposeResourceOnce(resource) {
+    if (!resource || typeof resource.dispose !== 'function') return;
+    resource.userData ??= {};
+    if (resource.userData.__sigilDisposed) return;
+    resource.userData.__sigilDisposed = true;
+    resource.dispose();
+}
+
 /** Create a 256x1 DataTexture interpolating between two hex colors */
 export function createColorRampTexture(hex1, hex2) {
     const data = new Uint8Array(256 * 4);
@@ -104,8 +112,8 @@ export function applySkin(skinName, isOmega) {
         // Revert to MeshPhongMaterial
         const oldMat = isOmega ? state.omegaSkinMaterial : state.skinMaterial;
         const oldRamp = isOmega ? state.omegaSkinColorRamp : state.skinColorRamp;
-        if (oldMat) oldMat.dispose();
-        if (oldRamp) oldRamp.dispose();
+        disposeResourceOnce(oldMat);
+        disposeResourceOnce(oldRamp);
 
         if (isOmega) {
             state.omegaSkinMaterial = null;
@@ -144,9 +152,9 @@ export function applySkin(skinName, isOmega) {
 
     // Dispose old material
     const oldMat = mesh.material;
-    if (oldMat) oldMat.dispose();
+    disposeResourceOnce(oldMat);
     const oldRamp = isOmega ? state.omegaSkinColorRamp : state.skinColorRamp;
-    if (oldRamp) oldRamp.dispose();
+    disposeResourceOnce(oldRamp);
 
     mesh.material = result.material;
 

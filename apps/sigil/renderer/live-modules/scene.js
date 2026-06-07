@@ -1,4 +1,8 @@
 import state from '../../js/state.js';
+import {
+    configureTransparentSigilRenderer,
+    transparentSigilRendererOptions,
+} from './webgl-renderer.js';
 
 export function initScene() {
     state.scene = new THREE.Scene();
@@ -8,10 +12,8 @@ export function initScene() {
     state.perspCamera.position.z = 7.5;
     state.camera = state.perspCamera;
 
-    state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    state.renderer.setSize(window.innerWidth, window.innerHeight);
-    state.renderer.setPixelRatio(window.devicePixelRatio);
-    state.renderer.setClearColor(0x000000, 0);
+    state.renderer = new THREE.WebGLRenderer(transparentSigilRendererOptions());
+    configureTransparentSigilRenderer(state.renderer);
     document.body.appendChild(state.renderer.domElement);
 
     // No skybox — transparent background
@@ -42,7 +44,7 @@ export function onWindowResize() {
     const aspect = window.innerWidth / window.innerHeight;
     state.perspCamera.aspect = aspect;
     state.perspCamera.updateProjectionMatrix();
-    state.renderer.setSize(window.innerWidth, window.innerHeight);
+    configureTransparentSigilRenderer(state.renderer, { updatePixelRatio: false });
     state.baseScale = computeBaseScale(state.avatarBase);
 }
 

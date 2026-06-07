@@ -214,8 +214,18 @@ describe('Sigil Agent Terminal bridge', () => {
   it('passes stable repo root to bridge server startup paths', () => {
     const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
     assert.match(launcher, /REPO_ROOT="\$\(cd "\$SCRIPT_DIR\/\.\.\/\.\.\/\.\." && pwd\)"/);
-    assert.match(launcher, /exec "\$REPO_ROOT\/aos" launch sigil agent-terminal/);
-    assert.doesNotMatch(launcher, new RegExp('SIGIL' + '_AGENT_REPO_ROOT'));
+    assert.match(launcher, /exec "\$REPO_ROOT\/aos" launch sigil agent-terminal "\$\{ARGS\[@\]\}"/);
+
+    const manifest = JSON.parse(fs.readFileSync('apps/sigil/aos-app.json', 'utf8'));
+    const bridgeHook = manifest.entries['agent-terminal'].hooks.find(
+      (hook) => hook.phase === 'before_surfaces',
+    );
+    assert.equal(bridgeHook?.script, 'apps/sigil/agent-terminal/bridge-launch.sh');
+
+    const bridgeLauncher = fs.readFileSync(bridgeHook.script, 'utf8');
+    assert.match(bridgeLauncher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
+    assert.match(bridgeLauncher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.doesNotMatch(launcher + bridgeLauncher, new RegExp('SIGIL' + '_AGENT_REPO_ROOT'));
   });
 
   it('supports explicit all-cwd provider catalog queries', async () => {

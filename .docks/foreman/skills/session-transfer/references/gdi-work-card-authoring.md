@@ -26,7 +26,7 @@ Name the durable workstream:
 State that GDI must not rely on parent-thread memory:
 
 ```md
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+GDI starts from a fresh context window. Do not assume branch, checkout, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 ```
@@ -59,10 +59,41 @@ Include commands when runtime or branch state matters:
 
 ```bash
 git status --short --branch
-git worktree list
-./aos ready
+git rev-parse --show-toplevel
+git branch --show-current
 ./aos dev recommend --json
 ```
+
+Add `./aos ready` only when live AOS readiness is actually required and the
+round is allowed to start/restart live AOS. If the task is deterministic-only,
+docs-only, pure Node tests, or explicitly says AOS is intentionally stopped,
+state that live readiness is skipped.
+
+For AOS-stopped or live-paused rounds, use passive classification instead of a
+live readiness gate:
+
+```bash
+./aos service status --mode repo --json
+ps -axo pid,ppid,stat,etime,command | rg '(/Users/Michael/Code/agent-os/aos|AOS\.app|aos serve|Agent-OS)' || true
+lsof -nP -U | rg '/Users/Michael/.config/aos/repo/sock|/Users/Michael/Code/agent-os/aos' || true
+```
+
+Do not tell GDI to stop merely because `pgrep` or `ps` finds
+`/Users/Michael/Code/agent-os/aos serve --idle-timeout none` or because PPID is
+1. A normal launchd-managed repo service has that shape. Require classification
+before blocking:
+
+- managed repo service: `./aos service status --mode repo --json` reports
+  `running:true`, `target_matches_expected:true`, and the service PID explains
+  the wrapper/child process; continue deterministic work without live readiness.
+- unmanaged owner: service/launchd facts do not explain the socket owner, or the
+  owner is a foreground/dev process outside the accepted mode; stop with
+  `human_needed` and report PID, PPID, command line, socket owner, and service
+  status evidence.
+
+Under `local_relay`, GDI must work from the single checkout at
+`/Users/Michael/Code/agent-os`. Do not tell GDI to create linked git worktrees;
+preserve unrelated work with named stashes, scoped commits, or local branches.
 
 Add focused commands only when relevant:
 
@@ -82,11 +113,11 @@ or inactive input-tap blockers, include the deterministic GDI stop branch:
 .docks/gdi/scripts/human-needed-tcc-reset
 ```
 
-The GDI helper prints the human-action command sequence, records a short-lived
-`tcc_permission_reset` stop condition for the Stop hook, and GDI must stop with
-`human_needed` instead of retrying live checks. After the human returns with
-`finished`, GDI runs `./aos ready --post-permission`. The human should keep
-using the same GDI session rather than starting a new goal.
+The GDI helper prints the human-needed TCC blocker and does not write hook
+markers, reset permissions, open Settings, or start AOS. GDI must stop with
+`human_needed` instead of retrying live checks or running permission setup
+commands. After the human returns with `finished`, GDI returns the blocker to
+Foreman for the next controlled step.
 
 ### Existing Code To Inspect
 
@@ -179,7 +210,7 @@ Require the information Foreman needs next:
 - draft evidence retained/amended/superseded/reverted;
 - remaining blockers or follow-up slices.
 
-For non-trivial work, especially in a dirty worktree, ask GDI for a lightweight
+For non-trivial work, especially in a dirty checkout, ask GDI for a lightweight
 path-scoped summary instead of a broad status dump. The report should name the
 changed paths that belong to the slice, exact verification commands with
 pass/fail results, live AOS readiness or the reason live checks were skipped,

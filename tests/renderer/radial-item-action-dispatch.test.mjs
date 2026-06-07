@@ -40,7 +40,7 @@ function createDispatcherHarness() {
       calls.push(['snapshot', reason])
       return { requested: true, reason }
     },
-    openContextMenuAt(x, y, options) {
+    openAvatarControlsAt(x, y, options) {
       calls.push(['context', x, y, options])
       return true
     },
@@ -56,20 +56,20 @@ function createDispatcherHarness() {
   return { calls, dispatcher }
 }
 
-test('radial item dispatcher shares context-menu item behavior between direct dispatch and command handlers', () => {
-  const item = { id: 'context-menu', action: 'contextMenu' }
+test('radial item dispatcher shares avatar-controls item behavior between direct dispatch and command handlers', () => {
+  const item = { id: 'avatar-controls', action: 'avatarControls' }
   const snapshot = { pointer: { x: 44, y: 55, valid: true } }
   const { calls, dispatcher } = createDispatcherHarness()
 
   assert.deepEqual(
     dispatcher.dispatch(item, snapshot, { input: { kind: 'gesture' } }),
-    { action: 'context_menu_opened', opened: true }
+    { action: 'avatar_controls_opened', opened: true }
   )
   assert.deepEqual(
-    dispatcher.commandHandlers.contextMenuOpen({ x: 1, y: 2, valid: true }, {
+    dispatcher.commandHandlers.avatarControlsOpen({ x: 1, y: 2, valid: true }, {
       context: { item, snapshot, input: { kind: 'click' } },
     }),
-    { action: 'context_menu_opened', opened: true }
+    { action: 'avatar_controls_opened', opened: true }
   )
 
   assert.equal(calls.filter((call) => call[0] === 'context').length, 2)

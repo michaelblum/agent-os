@@ -31,7 +31,7 @@ the active route.
   - `tests/toolkit/runtime-canvas.test.mjs`
   - `packages/toolkit/components/surface-inspector/index.js`
   - `apps/sigil/renderer/live-modules/main.js`
-  - `apps/sigil/studio/js/ui.js`
+  - `apps/sigil/diagnostics/interaction-trace/index.js`
   - `apps/sigil/chat/index.html`
   - `packages/toolkit/components/agent-terminal/index.html`
   - `packages/toolkit/components/agent-terminal/terminal-controller.js`
@@ -90,7 +90,7 @@ Run from `/Users/Michael/Code/agent-os`:
 git status --short --branch
 git rev-parse HEAD origin/main
 ./aos ready
-./aos dev recommend --json --paths src/daemon/unified.swift,docs/api/toolkit/runtime.md,packages/toolkit/runtime/canvas.js,tests/toolkit/runtime-canvas.test.mjs,packages/toolkit/components/surface-inspector/index.js,apps/sigil/renderer/live-modules/main.js,apps/sigil/studio/js/ui.js,apps/sigil/chat/index.html,packages/toolkit/components/agent-terminal/index.html,packages/toolkit/components/agent-terminal/terminal-controller.js
+./aos dev recommend --json --paths src/daemon/unified.swift,docs/api/toolkit/runtime.md,packages/toolkit/runtime/canvas.js,tests/toolkit/runtime-canvas.test.mjs,packages/toolkit/components/surface-inspector/index.js,apps/sigil/renderer/live-modules/main.js,apps/sigil/diagnostics/interaction-trace/index.js,apps/sigil/chat/index.html,packages/toolkit/components/agent-terminal/index.html,packages/toolkit/components/agent-terminal/terminal-controller.js
 ```
 
 If the worktree is dirty before you create your branch, stop and report the

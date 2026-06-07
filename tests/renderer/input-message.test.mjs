@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { normalizeMessage } from '../../apps/sigil/renderer/live-modules/input-message.js'
 
-test('normalizeMessage unwraps legacy input_event payload type and coordinates', () => {
+test('normalizeMessage delegates input_event payload unwrapping to toolkit normalization', () => {
   const msg = normalizeMessage({
     type: 'input_event',
     payload: {
@@ -17,6 +17,13 @@ test('normalizeMessage unwraps legacy input_event payload type and coordinates',
   assert.equal(msg.envelope_type, 'input_event')
   assert.equal(msg.x, 120)
   assert.equal(msg.y, 240)
+})
+
+test('Sigil input normalizer does not keep a duplicate input_event unwrap branch', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/input-message.js', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /msg\?\.type === 'input_event' && payload/)
+  assert.match(source, /normalizeCanvasInputMessage\(msg\)/)
 })
 
 test('normalizeMessage preserves non-input envelope type precedence', () => {
@@ -118,7 +125,7 @@ test('normalizeMessage delegates canvas-origin child input identity to toolkit n
 test('Sigil live child input path does not reintroduce private hit-target flags', async () => {
   const [main, menu] = await Promise.all([
     readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8'),
-    readFile(new URL('../../apps/sigil/context-menu/menu.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../apps/sigil/avatar-controls/surface.js', import.meta.url), 'utf8'),
   ])
 
   assert.match(main, /hitTarget\.ensureCreated\(\)\s*\n\s*\.then\(\(\) => \{\s*\n\s*syncHitTargetToAvatar\(\);/s)
@@ -127,11 +134,44 @@ test('Sigil live child input path does not reintroduce private hit-target flags'
   assert.doesNotMatch(menu, /assumeInside/)
 })
 
-test('Sigil treats coalesced press release travel as fast travel', async () => {
+test('Sigil treats coalesced off-avatar press release travel as fast travel', async () => {
   const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
 
   assert.match(main, /case 'PRESS':[\s\S]*distance\(x, y, liveJs\.mousedownPos\.x, liveJs\.mousedownPos\.y\) >= liveJs\.dragThreshold/)
+  assert.match(main, /case 'PRESS':[\s\S]*if \(isOnAvatar\(x, y\)\) \{[\s\S]*setInteractionState\('IDLE', 'press-release-on-avatar'\)/)
   assert.match(main, /case 'PRESS':[\s\S]*queueFastTravel\(x, y\);[\s\S]*setInteractionState\('IDLE', 'press-release-fast-travel'\)/)
+})
+
+test('Sigil opens radial menu only after a full avatar click', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+
+  assert.match(main, /case 'PRESS':[\s\S]*if \(!isOnAvatar\(x, y\)\) \{[\s\S]*setInteractionState\('IDLE', 'press-release-off-avatar'\)/)
+  assert.match(main, /case 'PRESS':[\s\S]*openRadialMenuFromClick\(x, y\);/)
+  assert.match(main, /function radialClickTriggerLockPointer\(origin\)/)
+  assert.match(main, /function openRadialMenuFromClick\(x, y[\s\S]*radialGestureMenu\.start\(origin, radialClickTriggerLockPointer\(origin\)\)/)
+  const openFromClick = main.match(/function openRadialMenuFromClick\(x, y[\s\S]*?\n\}/)?.[0] || ''
+  assert.doesNotMatch(openFromClick, /radialGestureMenu\.move\(origin\)/)
+})
+
+test('Sigil avatar drag releases on the avatar cancel fast travel', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+
+  assert.match(main, /case 'FAST_TRAVEL':[\s\S]*if \(isOnAvatar\(x, y\)\) \{[\s\S]*fastTravel\.clearGesture\('fast-travel-release-on-avatar'\)/)
+  assert.match(main, /function handleMouseMove\(x, y\)[\s\S]*setInteractionState\('FAST_TRAVEL', 'press-drag-fast-travel'\)/)
+  assert.doesNotMatch(main.match(/function handleMouseMove\(x, y\) \{[\s\S]*?\n\}/)?.[0] || '', /openRadialMenuFromClick/)
+})
+
+test('Sigil direct avatar drag feeds the fast-travel arrow overlay', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const overlay = await readFile(new URL('../../apps/sigil/renderer/live-modules/interaction-overlay.js', import.meta.url), 'utf8')
+
+  assert.match(main, /function projectDirectFastTravelGesture\(\)/)
+  assert.match(main, /function validDesktopWorldPoint\(point\)/)
+  assert.match(main, /liveJs\.pointerPos = \{ x: msg\.x, y: msg\.y, valid: true \}/)
+  assert.match(main, /fastTravelActive: !!liveJs\.travel \|\| liveJs\.currentState === 'FAST_TRAVEL'/)
+  assert.match(main, /fastTravelGesture: projectDirectFastTravelGesture\(\)/)
+  assert.match(overlay, /function fastTravelLineGesture\(snapshot = \{\}\)/)
+  assert.match(overlay, /snapshot\.fastTravelGesture\?\.phase === 'fastTravel'/)
 })
 
 test('Sigil avatar input hit testing does not depend on render scale', async () => {

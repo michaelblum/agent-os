@@ -11,8 +11,8 @@ Sigil is pure web — the renderer, configuration, diagnostics, and chat surface
 Sigil should be the first opinionated app built on the AOS platform, not a
 parallel platform living under `apps/sigil/`.
 
-Use this rule when touching renderer, hit targets, radial menus, terminal,
-studio, or diagnostics:
+Use this rule when touching renderer, hit targets, radial menus, terminal, or
+diagnostics:
 
 - Sigil owns avatar personality, product behavior, effects, agent-facing
   content, and special visual expression.
@@ -88,12 +88,12 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 |------|------|
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
-| `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar/context-menu region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
+| `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar and avatar-controls region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
-| `context-menu/` | Live avatar context menu implementation and agent playbook for menu diagnostics. |
+| `avatar-controls/` | Live avatar controls implementation and agent playbook for surface diagnostics. |
 | `agent-terminal/` | Canonical Sigil Agent Terminal entrypoint. Launch with `apps/sigil/agent-terminal/launch.sh`; the entrypoint wraps the toolkit-owned Agent Terminal surface at `packages/toolkit/components/agent-terminal/` with `surface=sigil` so Sigil can add avatar controls. |
 | `codex-terminal/` | Historical compatibility and bridge/server path for the Agent Terminal evolved from the Codex-only MVP. The rendered terminal surface now lives in toolkit; the remaining decomposition step is moving this bridge/server substrate out of Sigil when that slice is small enough. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
-| `_sequestered/studio/` | Decommissioned avatar configuration surface, retained for reference only. Do not launch it, route users to it, or use the old product name in new user-facing copy. |
+| legacy configuration surface | Decommissioned avatar configuration surface, retained for reference only. Do not launch it, route users to it, or use the old product name in new user-facing copy. |
 | `chat/` | Legacy conversational canvas prototype. Do not extend it as the product chat path; a future Sigil Chat 2 should be rebuilt from Agent Terminal/toolkit primitives instead. See Chat Canvas Legacy Notes below. |
 | `radial-item-editor/` | Focused 3D radial item editor. Window movement uses toolkit `createPanelWindowController`; Three.js object/orbit drag remains app-owned product behavior. |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
@@ -113,7 +113,7 @@ tests, or debug hooks.
 The renderer runs on a transparent passthrough canvas (typically launched with `--track union`). The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full display union with zero impact on user interaction until Sigil intentionally enables its child hit-target.
 
 - **Renderer**: `aos://sigil/renderer/index.html` — owns the interaction state machine, subscribes to `input_event`, `display_geometry`, `wiki_page_changed`, and `canvas_lifecycle`, and spawns the `avatar-hit` child canvas when needed.
-- **Configuration surface**: decommissioned and sequestered under `_sequestered/studio/`. Do not add it to launch flows or workbench tabs. Agent docs live at `sigil/agents/*.md` in the wiki and are read by the renderer through the content server's `/wiki` REST surface.
+- **Configuration surface**: decommissioned and retained only as historical reference. Do not add it to launch flows or workbench tabs. Agent docs live at `sigil/agents/*.md` in the wiki and are read by the renderer through the content server's `/wiki` REST surface.
 - **Config per agent**: the renderer loads `sigil/agents/<id>.md` via the content server's `/wiki` REST surface. Live-edits to that doc trigger a `wiki_page_changed` broadcast, which the renderer flushes on the next IDLE frame.
 
 Multi-display: the renderer clamps the avatar position to the union of `visible_bounds` reported by the daemon. Moving the avatar across displays is handled by the state machine's fast-travel animation, not by Swift-side window handoff.
@@ -128,7 +128,7 @@ removal gate.
 
 Sigil native input claims use generic daemon input regions registered by the
 renderer, not daemon product hooks. Do not add or revive daemon actions or state
-machines named for Sigil, avatar, chat, radial menu, or context menu; keep that
+machines named for Sigil, avatar, chat, radial menu, or avatar controls; keep that
 policy in Sigil and express native consumption through `input_region.*`.
 
 If a hit canvas forwards native DOM events, the renderer must immediately

@@ -103,6 +103,9 @@ fields are the V0 compatibility surface; `routed_input` is the canonical
 `delivery_role`, stable `capture_id` for captured drags, `region_id`,
 `owner_canvas_id`, `source_event`/`source_sequence`, `source_origin`,
 `desktop_world`, and `coordinate_authority`.
+`input_region.event` is the bridge message type. `routed_schema_version: 1` is
+the routed payload version and must validate for the declared routed event kind
+and delivery role.
 Canvases can subscribe to `input_region` with `snapshot:true` to receive
 `input_region.snapshot` plus live register/update/remove notifications.
 

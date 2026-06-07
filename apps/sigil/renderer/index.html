@@ -7,17 +7,27 @@
     html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
     canvas { display: block; }
 </style>
-<link rel="stylesheet" href="../context-menu/styles.css">
+<link rel="stylesheet" href="../avatar-controls/styles.css">
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.js"></script>
 </head>
 <body>
 <script type="module">
-    // Import the boot sequence from the new main module
-    import { boot } from './live-modules/main.js';
-    
-    // Module scripts are deferred by default (run after DOMContentLoaded)
-    boot();
+    window.__sigilBootError = null;
+    window.addEventListener('error', (event) => {
+        window.__sigilBootError = event.error || event.message || event;
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+        window.__sigilBootError = event.reason || event;
+    });
+
+    try {
+        const { boot } = await import('./live-modules/main.js');
+        await boot();
+    } catch (error) {
+        window.__sigilBootError = error;
+        throw error;
+    }
 </script>
 </body>
 </html>

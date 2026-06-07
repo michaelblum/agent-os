@@ -9,11 +9,13 @@ The profile manifest is not an AOS primitive contract. It is a development
 policy surface that agents can read before deciding whether to stay on `main`,
 create a branch, prepare a pull request, or use release branches.
 
-The canonical AOS example manifest currently ships exactly four built-in
+The canonical AOS example manifest currently ships exactly five built-in
 profiles:
 
 - `agentic_relay` for local GDI branches reviewed and merged by a designated
   Foreman-compatible relay authority through GitHub-visible branch state.
+- `local_relay` for one-checkout Foreman-human-GDI loops using local branches
+  and stashes, with no linked worktrees or automatic publication.
 - `hybrid_trunk` for single-developer or tiny-team direct-to-main work.
 - `github_flow` for short-lived feature branches and lightweight pull request
   review.

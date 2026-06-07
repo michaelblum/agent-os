@@ -32,7 +32,7 @@ mkdir -p "$STAGED_APP/Contents/Resources/agent-os"
 cp aos "$STAGED_APP/Contents/MacOS/aos"
 
 # ── 3. Copy web assets ─────────────────────────────────────────────
-# apps/sigil — HTML surfaces (renderer, studio, chat) + config JSON
+# apps/sigil — HTML surfaces (renderer, chat, diagnostics) + config JSON
 # Exclude: shell scripts, CLAUDE.md, DS_Store
 rsync -am \
     --include='*/' \

@@ -1,6 +1,6 @@
 # Cog Radial Asset
 
-Sigil's context-menu radial item loads this native Three.js glTF asset from:
+Sigil's avatar-controls radial item loads this native Three.js glTF asset from:
 
 ```text
 apps/sigil/renderer/assets/models/cog/scene.gltf

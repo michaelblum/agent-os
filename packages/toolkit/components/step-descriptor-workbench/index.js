@@ -100,7 +100,7 @@ function applyRef(element, { id, name, role = 'AXGroup', action = '', enabled = 
     action,
     enabled,
     value,
-    aosRef: stepDescriptorWorkbenchAosRef(id),
+    ref: stepDescriptorWorkbenchAosRef(id),
   });
   if (existingText) element.textContent = existingText;
   return normalized;

@@ -52,9 +52,54 @@ The intended boundary is:
   menu graphics, transfer outlines, spotlights, and telemetry. It is not the
   place for text inputs or normal window controls.
 
-## Current Implementation Slice
+## 2026-06-02 Observability Preconditions
 
-The current branch has a useful partial extraction:
+New Sigil live evidence showed two Avatar/Sigil control surfaces visible at the
+same time across displays: the new panel-backed Avatar controls surface and an
+older compact controls surface without panel chrome. This changes the immediate
+route. A panel that does not drag reliably may be suffering from coordinate
+drift, but it may also be losing input to a stale/orphan visible surface, a
+wrong content root, or an overlapping higher-level window.
+
+The required observability preconditions are now accepted:
+
+- `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md` covers
+  active daemon registry/native-window alignment and labels the runtime scope as
+  `runtime.native_window_scope = "current_daemon_process"`.
+- `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`
+  lists external visible AOS-owned native windows separately from current-daemon
+  registry rows and orphan windows, with bounded process provenance and explicit
+  unavailable reasons.
+- `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
+  exposes launchd/service ownership, input-tap ownership, stale input-tap
+  capable daemon counts, installed-mode socket reachability, and the explicit
+  fact that duplicate macOS TCC rows are human-observable rather than AOS
+  database-observable.
+
+The placement/final-frame slice is now accepted, so follow-on Sigil and drag
+work can build on `./aos show audit --json`, `./aos status --json`, and
+`./aos ready --json` instead of treating duplicate surfaces, stale worktrees,
+or input-tap ownership as unknown background noise.
+
+This audit is not layout policy. Daemon/kernel code owns native truth and
+diagnostics. Toolkit owns opt-in panel placement policy. Sigil owns whether the
+avatar should avoid its controls panel after the panel's final settled frame is
+known.
+
+## Accepted Placement Contract
+
+The accepted `gdi/toolkit-panel-placement-final-frame-contract-v0` slice added
+the public placement-reporting shape needed for follow-on work:
+
+- `requested_frame`: caller-requested native global CG frame.
+- `policy_adjusted_frame`: frame after toolkit viewport overflow policy.
+- `final_settled_frame`: frame the toolkit requests as settled placement.
+- `viewport_overflow_policy`: effective `allow`, `clamp`, `flip`, or `shift`
+  policy, defaulting to conservative `clamp`.
+- `actual_native_frame`: daemon/window-server native truth available through
+  visible-surface audit rows.
+
+The current branch also has a useful partial extraction:
 
 - `packages/toolkit/panel/chrome.js` provides shared panel chrome, drag, resize,
   minimize, maximize, restore, and close behavior.
@@ -112,6 +157,12 @@ AOS needs a small, explicit panel placement contract. It should define:
   coordinates;
 - panel rest policy: normal panels rest on one display, clamped to that
   display's visible work area unless a surface explicitly opts out;
+- viewport overflow policy: panel callers can opt into documented behavior such
+  as `allow`, `clamp`, `flip`, or `shift`, with a deterministic final settled
+  frame reported after policy is applied;
+- frame lifecycle reporting: requested frame, policy-adjusted frame, and actual
+  native frame are separately observable so clamping and stale bookkeeping are
+  diagnosable;
 - drag authority: active drag movement can remain direct/native. Toolkit policy
   decides transfer release and final clamping, then calls `updateFrame()` /
   emits `drag_end`; daemon `drag_end` finalization completes the native frame
@@ -130,6 +181,9 @@ AOS needs a small, explicit panel placement contract. It should define:
 The next implementable slice should be small and testable:
 
 - one public toolkit API for panel/window placement policy;
+- explicit requested-frame, policy-adjusted frame, final-settled frame, and
+  actual native-frame reporting;
+- opt-in viewport overflow behavior for panels;
 - stock panel chrome routes through `createPanelWindowController()`;
 - minimized chip restore routed through that API and backed by stage layers plus
   explicit input regions by default;

@@ -1,0 +1,419 @@
+/* Sigil compact avatar control surface theme.
+ *
+ * This is the old deck-card visual language expressed as a scoped theme for
+ * toolkit forms/tabs/controls. Apply it to Sigil-specific projections, not to
+ * the whole wiki browser shell.
+ */
+@import url("./sigil-tokens.css");
+
+.sigil-avatar-control-surface,
+[data-themed-surface="sigil.avatar-control-surface"] {
+    --aos-control-bg: var(--sigil-avatar-controls-surface-control-bg);
+    --aos-control-border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-control);
+    --aos-control-radius: var(--sigil-avatar-controls-radius-4);
+    --aos-control-height: var(--sigil-avatar-controls-space-24);
+    --aos-control-padding: var(--sigil-avatar-controls-space-3) var(--sigil-avatar-controls-space-8);
+    --aos-tab-strip-bg: var(--sigil-avatar-controls-color-transparent);
+    --aos-tab-border: var(--sigil-avatar-controls-border-color-divider);
+    --aos-tab-bg: var(--sigil-avatar-controls-color-transparent);
+    --aos-tab-bg-hover: var(--sigil-avatar-controls-surface-hover-bg);
+    --aos-tab-panel-bg: var(--sigil-avatar-controls-color-transparent);
+    --aos-tab-border-active: var(--sigil-avatar-controls-color-accent-strong);
+    --aos-tab-height: var(--sigil-avatar-controls-space-28);
+    --aos-tab-padding: var(--sigil-avatar-controls-space-4) var(--sigil-avatar-controls-space-8);
+    --aos-tab-radius: var(--sigil-avatar-controls-radius-6);
+    --text-primary: var(--sigil-avatar-controls-color-primary);
+    --text-secondary: var(--sigil-avatar-controls-color-accent-muted);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: var(--sigil-avatar-controls-card-width);
+    max-height: var(--sigil-avatar-controls-card-max-height);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: var(--sigil-avatar-controls-card-padding);
+    color: var(--sigil-avatar-controls-card-color);
+    background: var(--sigil-avatar-controls-card-bg);
+    border: var(--sigil-avatar-controls-card-border);
+    border-radius: var(--sigil-avatar-controls-card-border-radius);
+    box-shadow: var(--sigil-avatar-controls-card-shadow);
+    backdrop-filter: blur(var(--sigil-avatar-controls-card-blur));
+    font-family: var(--sigil-avatar-controls-font-family);
+    gap: var(--sigil-avatar-controls-space-8);
+}
+
+.sigil-avatar-control-surface *,
+.sigil-avatar-control-surface *::before,
+.sigil-avatar-control-surface *::after {
+    box-sizing: border-box;
+}
+
+.sigil-avatar-control-surface__header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sigil-avatar-controls-space-8);
+    padding-bottom: var(--sigil-avatar-controls-space-4);
+    border-bottom: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-color-accent-strong);
+}
+
+.sigil-avatar-control-surface__title,
+.sigil-avatar-control-surface .aos-form-section-title,
+.sigil-avatar-control-surface__projection-title {
+    color: var(--sigil-avatar-controls-color-primary);
+    font-size: var(--sigil-avatar-controls-type-heading-size);
+    font-weight: 700;
+    letter-spacing: var(--sigil-avatar-controls-heading-letter-spacing);
+    text-transform: uppercase;
+}
+
+.sigil-avatar-control-surface__meta {
+    min-width: 0;
+    color: var(--sigil-avatar-controls-color-accent-muted);
+    font: var(--sigil-avatar-controls-type-value);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sigil-avatar-control-surface__tabs {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    min-height: auto;
+}
+
+.sigil-avatar-control-surface__tab-list.aos-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--sigil-avatar-controls-space-44), 1fr));
+    gap: var(--sigil-avatar-controls-space-4);
+    padding: var(--sigil-avatar-controls-space-0) var(--sigil-avatar-controls-space-0) var(--sigil-avatar-controls-space-8);
+    margin: var(--sigil-avatar-controls-space-0);
+    border-bottom: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-divider);
+    background: var(--sigil-avatar-controls-color-transparent);
+}
+
+.sigil-avatar-control-surface__tab.aos-tab {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: var(--sigil-avatar-controls-space-24);
+    padding: var(--sigil-avatar-controls-space-4) var(--sigil-avatar-controls-space-3);
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-control-bg-strong);
+    border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-field);
+    border-radius: var(--sigil-avatar-controls-radius-4);
+    font-size: var(--sigil-avatar-controls-type-label-size);
+    font-weight: 700;
+    line-height: var(--sigil-avatar-controls-line-height-tight);
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.sigil-avatar-control-surface__tab.aos-tab[aria-selected="true"] {
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-active-bg);
+    border-color: var(--sigil-avatar-controls-color-accent-strong);
+}
+
+.sigil-avatar-control-surface__panels {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+.sigil-avatar-control-surface__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sigil-avatar-controls-space-8);
+    height: auto;
+    overflow: visible;
+}
+
+.sigil-avatar-control-surface__panel[hidden] {
+    display: none;
+}
+
+.sigil-avatar-control-surface__section,
+.sigil-avatar-control-surface__projection-tools {
+    flex: 0 0 auto;
+    padding: var(--sigil-avatar-controls-space-8);
+    background: var(--sigil-avatar-controls-surface-section-bg);
+    border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-section);
+    border-radius: var(--sigil-avatar-controls-radius-6);
+}
+
+.sigil-avatar-control-surface .aos-form {
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-8);
+}
+
+.sigil-avatar-control-surface .aos-form-section {
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-6);
+}
+
+.sigil-avatar-control-surface .aos-form-section.hidden,
+.sigil-avatar-control-surface .aos-form-field.hidden {
+    display: none;
+}
+
+.sigil-avatar-control-surface .aos-form-section-header {
+    padding-bottom: var(--sigil-avatar-controls-space-4);
+    border-bottom: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-subtle);
+}
+
+.sigil-avatar-control-surface .aos-form-section-fields {
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-6);
+}
+
+.sigil-avatar-control-surface .aos-form-field {
+    min-width: 0;
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-3);
+}
+
+.sigil-avatar-control-surface .aos-control-label,
+.sigil-avatar-control-surface .aos-slider-label {
+    color: var(--sigil-avatar-controls-color-accent);
+    font-size: var(--sigil-avatar-controls-type-label-size);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.sigil-avatar-control-surface .aos-select,
+.sigil-avatar-control-surface .aos-text-input,
+.sigil-avatar-control-surface .aos-number-field,
+.sigil-avatar-control-surface textarea {
+    appearance: none;
+    width: var(--sigil-avatar-controls-size-full);
+    min-height: var(--sigil-avatar-controls-space-24);
+    padding: var(--sigil-avatar-controls-space-3) var(--sigil-avatar-controls-space-6);
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-control-bg-select);
+    border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-field);
+    border-radius: var(--sigil-avatar-controls-radius-4);
+    font-size: var(--sigil-avatar-controls-type-control-size);
+}
+
+.sigil-avatar-control-surface .aos-select-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sigil-avatar-controls-space-8);
+    line-height: var(--sigil-avatar-controls-line-height-tight);
+    text-align: left;
+    cursor: pointer;
+}
+
+.sigil-avatar-control-surface .aos-select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sigil-avatar-control-surface .aos-select-indicator {
+    width: var(--sigil-avatar-controls-space-6);
+    height: var(--sigil-avatar-controls-space-6);
+    flex: 0 0 auto;
+    border-right: var(--sigil-avatar-controls-space-1) solid currentColor;
+    border-bottom: var(--sigil-avatar-controls-space-1) solid currentColor;
+    opacity: var(--sigil-avatar-controls-opacity-muted);
+    transform: translateY(-2px) rotate(45deg);
+}
+
+.sigil-avatar-control-surface .aos-select-trigger[data-state="open"] .aos-select-indicator {
+    transform: translateY(2px) rotate(225deg);
+}
+
+.sigil-avatar-control-surface .aos-select-content {
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-2);
+    max-height: min(320px, 72vh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--sigil-avatar-controls-space-4);
+    color: var(--sigil-avatar-controls-color-accent);
+    background: var(--sigil-avatar-controls-surface-listbox-bg);
+    border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-listbox);
+    border-radius: var(--sigil-avatar-controls-radius-5);
+    box-shadow: var(--sigil-avatar-controls-shadow-listbox-inset);
+}
+
+.sigil-avatar-control-surface .aos-select-content[hidden] {
+    display: none;
+}
+
+.sigil-avatar-control-surface .aos-select-item {
+    appearance: none;
+    width: var(--sigil-avatar-controls-size-full);
+    min-height: var(--sigil-avatar-controls-space-24);
+    padding: var(--sigil-avatar-controls-space-4) var(--sigil-avatar-controls-space-8);
+    color: var(--sigil-avatar-controls-color-accent);
+    background: var(--sigil-avatar-controls-color-transparent);
+    border: var(--sigil-avatar-controls-border-none);
+    border-radius: var(--sigil-avatar-controls-radius-4);
+    font-size: var(--sigil-avatar-controls-type-option-size);
+    text-align: left;
+    cursor: pointer;
+}
+
+.sigil-avatar-control-surface .aos-select-item:hover,
+.sigil-avatar-control-surface .aos-select-item.selected,
+.sigil-avatar-control-surface .aos-select-item[aria-selected="true"] {
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-option-active-bg);
+}
+
+.sigil-avatar-control-surface .aos-toggle {
+    min-height: var(--sigil-avatar-controls-space-22);
+    color: var(--sigil-avatar-controls-color-accent);
+    font-size: var(--sigil-avatar-controls-type-control-size);
+}
+
+.sigil-avatar-control-surface .aos-toggle input,
+.sigil-avatar-control-surface input[type="checkbox"] {
+    accent-color: var(--sigil-avatar-controls-color-accent-strong);
+}
+
+.sigil-avatar-control-surface .aos-segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border-color: var(--sigil-avatar-controls-border-color-muted);
+    border-style: solid;
+    border-width: var(--sigil-avatar-controls-space-1);
+    border-radius: var(--sigil-avatar-controls-radius-4);
+    background: var(--sigil-avatar-controls-surface-control-bg-strong);
+}
+
+.sigil-avatar-control-surface .aos-segmented button {
+    appearance: none;
+    min-height: var(--sigil-avatar-controls-space-22);
+    padding: var(--sigil-avatar-controls-space-4) var(--sigil-avatar-controls-space-3);
+    color: var(--sigil-avatar-controls-color-primary);
+    background: rgba(30, 15, 50, 0.92);
+    border: var(--sigil-avatar-controls-border-none);
+    border-right: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-muted);
+    border-bottom: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-muted);
+    border-color: var(--sigil-avatar-controls-border-color-muted);
+    font-size: var(--sigil-avatar-controls-type-label-size);
+    line-height: var(--sigil-avatar-controls-line-height-tight);
+    overflow-wrap: anywhere;
+    text-align: center;
+    cursor: pointer;
+}
+
+.sigil-avatar-control-surface .aos-segmented button:nth-child(2n) {
+    border-right: var(--sigil-avatar-controls-border-none);
+}
+
+.sigil-avatar-control-surface .aos-segmented button:nth-last-child(-n + 2) {
+    border-bottom: var(--sigil-avatar-controls-border-none);
+}
+
+.sigil-avatar-control-surface .aos-segmented button.active,
+.sigil-avatar-control-surface .aos-segmented button[aria-pressed="true"],
+.sigil-avatar-control-surface .aos-segmented button[aria-checked="true"] {
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-active-bg);
+}
+
+.sigil-avatar-control-surface .aos-slider {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(var(--sigil-avatar-controls-space-32), auto);
+    align-items: center;
+    gap: var(--sigil-avatar-controls-space-2) var(--sigil-avatar-controls-space-8);
+}
+
+.sigil-avatar-control-surface .aos-slider-control {
+    position: relative;
+    min-width: var(--sigil-avatar-controls-space-124);
+    min-height: var(--sigil-avatar-controls-space-22);
+    display: flex;
+    align-items: center;
+    touch-action: none;
+}
+
+.sigil-avatar-control-surface .aos-slider-track {
+    position: relative;
+    width: var(--sigil-avatar-controls-size-full);
+    height: var(--sigil-avatar-controls-space-5);
+    border-radius: var(--sigil-avatar-controls-radius-3);
+    background: rgba(30, 15, 50, 0.98);
+    box-shadow: inset 0 0 0 var(--sigil-avatar-controls-space-1) var(--sigil-avatar-controls-border-color-muted);
+}
+
+.sigil-avatar-control-surface .aos-slider-range {
+    position: absolute;
+    height: var(--sigil-avatar-controls-size-full);
+    background: var(--sigil-avatar-controls-color-accent-strong);
+    border-radius: inherit;
+}
+
+.sigil-avatar-control-surface .aos-slider-thumb {
+    position: absolute;
+    top: 50%;
+    width: var(--sigil-avatar-controls-space-12);
+    height: var(--sigil-avatar-controls-space-12);
+    border: var(--sigil-avatar-controls-space-2) solid var(--sigil-avatar-controls-color-primary);
+    border-radius: 999px;
+    background: var(--sigil-avatar-controls-color-accent-strong);
+    box-shadow: 0 0 0 var(--sigil-avatar-controls-space-3) rgba(188, 19, 254, 0.22);
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.sigil-avatar-control-surface .aos-slider-output {
+    color: var(--sigil-avatar-controls-color-secondary);
+    font: var(--sigil-avatar-controls-type-value);
+}
+
+.sigil-avatar-control-surface__projection-tools {
+    display: grid;
+    gap: var(--sigil-avatar-controls-space-8);
+}
+
+.sigil-avatar-control-surface__projection-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sigil-avatar-controls-space-6);
+}
+
+.sigil-avatar-control-surface__projection-action.aos-button {
+    min-height: var(--sigil-avatar-controls-space-24);
+    color: var(--sigil-avatar-controls-color-accent);
+    background: var(--sigil-avatar-controls-surface-control-bg-action);
+    border: var(--sigil-avatar-controls-space-1) solid var(--sigil-avatar-controls-border-color-field);
+    border-radius: var(--sigil-avatar-controls-radius-4);
+    font-size: var(--sigil-avatar-controls-type-action-text-size);
+}
+
+.sigil-avatar-control-surface__projection-action.aos-button:hover {
+    color: var(--sigil-avatar-controls-color-primary);
+    background: var(--sigil-avatar-controls-surface-hover-bg-strong);
+    border-color: var(--sigil-avatar-controls-color-accent-strong);
+}
+
+.sigil-avatar-control-surface::-webkit-scrollbar {
+    width: var(--sigil-avatar-controls-space-5);
+}
+
+.sigil-avatar-control-surface::-webkit-scrollbar-track {
+    background: var(--sigil-avatar-controls-color-transparent);
+}
+
+.sigil-avatar-control-surface::-webkit-scrollbar-thumb {
+    background: var(--sigil-avatar-controls-border-color-divider);
+    border-radius: var(--sigil-avatar-controls-radius-3);
+}

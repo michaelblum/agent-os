@@ -57,28 +57,31 @@ test('Tesseron config keeps child form values while matching mother by default',
 });
 
 test('Tesseron build suppresses stellation without erasing the stored value', async () => {
-  const { default: state } = await import('../../apps/sigil/renderer/state.js');
+  const { default: state, syncAvatarAliasesFromGraph } = await import('../../apps/sigil/renderer/state.js');
   const { updateGeometry, updateInnerEdgePulse } = await import('../../apps/sigil/renderer/geometry.js');
 
   state.polyGroup = new THREE.Group();
-  state.currentGeometryType = 4;
-  state.stellationFactor = 1.2;
-  state.tesseron = { enabled: true, proportion: 0.5, matchMother: true, child: {} };
-  state.currentOpacity = 0.25;
-  state.currentEdgeOpacity = 1;
-  state.isInteriorEdgesEnabled = false;
-  state.isMaskEnabled = true;
-  state.isSpecularEnabled = true;
-  state.currentSkin = 'none';
-  state.colors = {
-    ...state.colors,
+  state.avatar.shape.type = 4;
+  state.avatar.shape.stellationFactor = 1.2;
+  state.avatar.shape.tesseron = { enabled: true, proportion: 0.5, matchMother: true, child: {} };
+  state.avatar.appearance.opacity = 0.25;
+  state.avatar.appearance.edgeOpacity = 1;
+  state.avatar.appearance.interiorEdges = false;
+  state.avatar.appearance.maskEnabled = true;
+  state.avatar.appearance.specular = true;
+  state.avatar.appearance.skin = 'none';
+  state.avatar.appearance.colors = {
+    ...state.avatar.appearance.colors,
     face: ['#bc13fe', '#4a2b6e'],
     edge: ['#bc13fe', '#4a2b6e'],
   };
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+  syncAvatarAliasesFromGraph(state);
 
   updateGeometry(4);
 
   assert.equal(state.stellationFactor, 1.2);
+  assert.equal(state.avatar.shape.stellationFactor, 1.2);
   assert.ok(state.tesseronChildCoreMesh);
   assert.ok(state.tesseronChildWireframeMesh);
   assert.ok(state.innerWireframeMesh);

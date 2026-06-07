@@ -27,7 +27,7 @@ function actionForItem(item = {}) {
 export function createSigilRadialItemActionDispatcher({
     agentTerminalCanvasId = 'sigil-agent-terminal',
     wikiWorkbenchCanvasId = 'sigil-wiki-workbench',
-    wikiPath = 'aos/concepts/employer-brand-workflow-map.md',
+    wikiPath = 'aos/concepts/runtime-modes.md',
     annotationReticleItemId = 'annotation-mode',
     annotationCameraItemId = 'annotation-camera',
     getPointer = () => null,
@@ -39,8 +39,9 @@ export function createSigilRadialItemActionDispatcher({
     startActivationTransition = () => false,
     sendActivationUpdate = () => null,
     enterAnnotationReticle = () => null,
+    enterSelectionMode = () => null,
     requestAnnotationSnapshot = () => false,
-    openContextMenuAt = () => false,
+    openAvatarControlsAt = () => false,
     toggleUtilityCanvas = () => false,
     openWikiWorkbench = () => Promise.resolve(false),
 } = {}) {
@@ -72,14 +73,14 @@ export function createSigilRadialItemActionDispatcher({
         const action = actionForItem(item);
         if (action === 'annotationMode' || item?.id === annotationReticleItemId) {
             const pointer = context.pointer || point(snapshot?.pointer) || getPointer();
-            const nextSnapshot = enterAnnotationReticle(pointer, 'radial-item');
-            post('sigil.annotation_reticle.enter', {
+            const nextSnapshot = enterSelectionMode(pointer, 'radial-reticle');
+            post('sigil.selection_mode.enter', {
                 item_id: item?.id,
-                entry_source: nextSnapshot?.entry_source,
+                entry_source: 'radial-reticle',
                 input: context.input || null,
                 snapshot: nextSnapshot,
             });
-            return { action: 'annotation_reticle_entered', item_id: item?.id || null };
+            return { action: 'selection_mode_entered', item_id: item?.id || null };
         }
         if (action === 'annotationSnapshot' || item?.id === annotationCameraItemId) {
             const reason = context.reason === 'radial-camera-target-surface-recovery'
@@ -90,11 +91,11 @@ export function createSigilRadialItemActionDispatcher({
         }
 
         const activation = postActivationStart(item, snapshot, context);
-        if (action === 'contextMenu') {
+        if (action === 'avatarControls') {
             const avatarPos = getAvatarPos() || {};
-            const opened = openContextMenuAt(avatarPos.x, avatarPos.y, { force: true });
-            sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
-            return { action: 'context_menu_opened', opened };
+            const opened = openAvatarControlsAt(avatarPos.x, avatarPos.y, { force: true });
+            sendActivationUpdate(activation, 'completed', { result: { opened: 'avatar-controls' } });
+            return { action: 'avatar_controls_opened', opened };
         }
         if (action === 'agentTerminal' || action === 'codexTerminal') {
             const result = toggleUtilityCanvas('agent-terminal');
@@ -117,7 +118,7 @@ export function createSigilRadialItemActionDispatcher({
         return { action };
     }
 
-    function dispatchContextMenuOpen(pointer, payload = {}) {
+    function dispatchAvatarControlsOpen(pointer, payload = {}) {
         if (payload.context?.item) {
             return dispatch(payload.context.item, payload.context.snapshot, {
                 ...(payload.context || {}),
@@ -125,7 +126,7 @@ export function createSigilRadialItemActionDispatcher({
             });
         }
         return pointer && typeof pointer.x === 'number' && typeof pointer.y === 'number'
-            ? openContextMenuAt(pointer.x, pointer.y)
+            ? openAvatarControlsAt(pointer.x, pointer.y)
             : false;
     }
 
@@ -133,7 +134,7 @@ export function createSigilRadialItemActionDispatcher({
         radialReleaseItem: (item, payload = {}) => (
             dispatch(item, payload.context?.snapshot || null, payload.context || {})
         ),
-        contextMenuOpen: dispatchContextMenuOpen,
+        avatarControlsOpen: dispatchAvatarControlsOpen,
         annotationReticleEnter: (pointer, payload = {}) => (
             dispatch(payload.context?.item || { id: annotationReticleItemId, action: 'annotationMode' }, payload.context?.snapshot || null, {
                 ...(payload.context || {}),

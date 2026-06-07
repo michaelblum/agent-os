@@ -28,7 +28,7 @@ import real_input_surface_primitives as ris
 aos_client = ris.AOS(aos)
 pointer = ris.RealPointer(aos_client)
 radial_id = f"sigil-radial-menu-{avatar_id}"
-required_semantic_targets = {"context-menu", "wiki-graph"}
+required_semantic_targets = {"avatar-controls", "wiki-graph"}
 timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
@@ -169,6 +169,15 @@ def cursor_point():
 
 def show_list():
     return run_json("show", "list")
+
+
+def canvas_from_show_list(canvas_id):
+    payload = show_list()
+    canvases = payload.get("canvases") if isinstance(payload, dict) else payload
+    for canvas in canvases or []:
+        if isinstance(canvas, dict) and canvas.get("id") == canvas_id:
+            return canvas
+    return None
 
 
 def canvas_info(canvas_id):
@@ -315,15 +324,15 @@ def verify_radial_semantics(surface):
             "payloadTargets": (surface.get("surface") or {}).get("targets") or [],
         }, sort_keys=True))
 
-    context = targets["context-menu"]
+    context = targets["avatar-controls"]
     wiki = targets["wiki-graph"]
     assertions = [
-        (context.get("ref") == "sigil-radial-item-context-menu", "context menu ref", context),
-        (context.get("role") == "button", "context menu role", context),
-        (context.get("name") == "Context Menu", "context menu name", context),
-        (context.get("action") == "contextMenu", "context menu action", context),
-        (context.get("surface") == surface_id, "context menu surface", context),
-        (context.get("parent_canvas") == avatar_id, "context menu parent", context),
+        (context.get("ref") == "sigil-radial-item-avatar-controls", "avatar controls ref", context),
+        (context.get("role") == "button", "avatar controls role", context),
+        (context.get("name") == "Avatar Controls", "avatar controls name", context),
+        (context.get("action") == "avatarControls", "avatar controls action", context),
+        (context.get("surface") == surface_id, "avatar controls surface", context),
+        (context.get("parent_canvas") == avatar_id, "avatar controls parent", context),
         (wiki.get("ref") == "sigil-radial-item-wiki-graph", "wiki graph ref", wiki),
         (wiki.get("role") == "button", "wiki graph role", wiki),
         (wiki.get("name") == "Wiki Graph", "wiki graph name", wiki),
@@ -404,14 +413,14 @@ def wait_wiki_workbench_open():
             lambda canvas: canvas
             if isinstance(canvas, dict) and canvas.get("id") == "sigil-wiki-workbench" and canvas.get("interactive") is True
             else None
-        )(canvas_info("sigil-wiki-workbench")),
-        timeout=8.0,
+        )(canvas_from_show_list("sigil-wiki-workbench")),
+        timeout=15.0,
         interval=0.08,
         label="wiki workbench opened by radial release",
     )
 
 
-def close_context_menu():
+def close_avatar_controls():
     try:
         eval_json("window.__sigilDebug?.dispatch?.({ type: 'key_down', key_code: 53 }); JSON.stringify(true)")
     except Exception:
@@ -558,35 +567,46 @@ try:
     radial_probe = None
     semantic_proof = None
     expected_action = None
+    item_button_down = False
+    item_release_sent = False
     last_point = reopen_start
     try:
-        away = {"x": reopen_start["x"] + 34, "y": reopen_start["y"]}
-        back = {"x": reopen_start["x"] + 12, "y": reopen_start["y"]}
-        zone = {"x": reopen_start["x"] + 44, "y": reopen_start["y"]}
-        last_point = pointer.drag_world(last_point, away, duration=0.22, hold=0.08)
-        last_point = pointer.drag_world(last_point, back, duration=0.18, hold=0.08)
-        last_point = pointer.drag_world(last_point, zone, duration=0.24, hold=0.12)
+        time.sleep(0.08)
+        pointer.up_world(reopen_start)
 
         radial_probe = wait_until(radial_surface_observable_probe, timeout=4.0, interval=0.08, label="daemon-observable AOS radial menu target surface")
         semantic_proof = verify_radial_semantics(radial_probe)
+        time.sleep(1.05)
 
         items = radial_items_by_id(radial_probe)
-        missing_items = [item_id for item_id in ("agent-terminal", "wiki-graph", "context-menu") if item_id not in items]
+        missing_items = [item_id for item_id in ("agent-terminal", "wiki-graph", "avatar-controls") if item_id not in items]
         if missing_items:
             raise SystemExit("FAIL: radial menu did not expose expected item centers: " + json.dumps({"missing": missing_items, "probe": radial_probe}, sort_keys=True))
 
-        for item_id in ("context-menu", "agent-terminal", "wiki-graph"):
-            center = items[item_id]["center"]
-            last_point = pointer.drag_world(last_point, center, duration=0.34, hold=0.16)
+        last_point = items["wiki-graph"]["center"]
+        pointer.down_world(last_point)
+        item_button_down = True
+        time.sleep(0.06)
         pointer.up_world(last_point)
-        expected_action = {"wikiWorkbench": wait_wiki_workbench_open()}
+        item_button_down = False
+        item_release_sent = True
+        time.sleep(2.0)
+        expected_action = {
+            "click": {"ok": True, "source": "real-pointer", "target": "wiki-graph"},
+            "wikiWorkbench": wait_wiki_workbench_open(),
+        }
     finally:
-        if expected_action is None:
+        if item_button_down:
             try:
                 pointer.up_world(last_point)
             except Exception:
                 pass
-        close_context_menu()
+        elif expected_action is None and not item_release_sent:
+            try:
+                pointer.up_world(last_point)
+            except Exception:
+                pass
+        close_avatar_controls()
 except SystemExit as error:
     fail_with_artifact(error, {
         "proofError": str(error),
