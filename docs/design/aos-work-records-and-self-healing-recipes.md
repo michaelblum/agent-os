@@ -117,6 +117,13 @@ plans is defined in
 store that family in their intent, execution-map, evidence, health, and replay
 policy layers; they do not collapse it into raw input replay.
 
+Work Recording frame packs over that family are defined in
+[`aos-work-recording-frame-contract-v0.md`](aos-work-recording-frame-contract-v0.md).
+The recording layer owns baseline snapshots, compact delta frames, periodic
+keyframes, evidence refs, replay policy, and frame health. The interaction
+grammar still owns target descriptors, action intents, execution results,
+optional gesture frames, observed input evidence, and state patches.
+
 Coordinates can be recorded, but they are fallback material. When semantic
 targets exist, prefer the AOS target descriptor vocabulary: state-scoped `ref`
 and `state_id` for the immediate action, durable `target.target_id` scoped by
