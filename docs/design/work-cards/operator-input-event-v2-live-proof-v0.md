@@ -10,8 +10,9 @@ Operator run.
 
 ## Branch / Base
 
-- required_start_ref: local `main` containing this corrected work card and
-  `5f6445a4` (`feat(daemon): canonicalize input region source events`).
+- required_start_ref: local `main` containing this corrected work card plus
+  local #431 commits `490c8922`, `6095427b`, and `647ddfd2`.
+- published base: `origin/main` at `36c9b370` with PR #438 merged.
 - published review PR: #438
   https://github.com/michaelblum/agent-os/pull/438
 - tracker issue: #431
@@ -32,9 +33,10 @@ GDI work.
 ## Goal
 
 Collect bounded live evidence for #431 after the deterministic native-producer
-slice: active `input_event` and `input_region.event` consumers should receive
-and handle canonical daemon payloads, and any remaining dependence on top-level
-`input_region.event` compatibility fields must be reported precisely.
+and Sigil probe corrections: active `input_event` and `input_region.event`
+consumers should receive and handle canonical daemon payloads, and any remaining
+dependence on top-level `input_region.event` compatibility fields must be
+reported precisely.
 
 Michael approved this live proof run. Live readiness/control is allowed only for
 this bounded verification after Foreman/human clears the runtime state. Do not
@@ -158,10 +160,80 @@ fi
 ./aos show wait --id avatar-main --timeout 12s --json
 ```
 
-Do not remove or reload an existing `avatar-main` just to enable the probe. The
-Sigil renderer exposes `window.__sigilDebug.surfaceTransportProbe.enable()`
-without requiring the URL flag; preserving the status-item-owned canvas avoids
-the remove/recreate lifecycle path that blocked the prior rerun.
+Do not remove an existing `avatar-main` just to enable the probe. The Sigil
+renderer exposes `window.__sigilDebug.surfaceTransportProbe.enable()` without
+requiring the URL flag; preserving the status-item-owned canvas avoids the
+remove/recreate lifecycle path that blocked the prior rerun.
+
+Before preserving an existing `avatar-main`, verify that the live renderer was
+loaded after the required start ref. The prior rerun started from the right Git
+ref but reused an `avatar-main` renderer whose
+`window.__sigilDebug.snapshot().runtime.loadedAt` predated the accepted
+`647ddfd2` source correction, so the empty probe did not test the current code.
+
+```bash
+git show -s --format=%cI HEAD > /tmp/aos-input-event-v2-live-proof-v0-rerun/git-head-commit-time.txt
+./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.snapshot?.().runtime ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-before-probe.json
+```
+
+If `sigil-runtime-before-probe.json` is missing `loadedAt`, stop and report
+`blocked_sigil_runtime_freshness_unknown`. If `loadedAt` is older than the Git
+HEAD committer date, perform one non-destructive URL refresh of `avatar-main`
+using the existing canvas URL and a temporary `aos-live-proof-ref` cache-buster.
+Do not use `show remove`, `show remove-all`, service restart, content-root
+mutation, or status-item reactivation for this refresh.
+
+```bash
+python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+url = ((payload.get("canvas") or {}).get("url") or "").strip()
+if not url:
+    raise SystemExit("missing avatar-main url")
+print(url)
+PY
+
+python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-before-probe.json /tmp/aos-input-event-v2-live-proof-v0-rerun/git-head-commit-time.txt <<'PY'
+import json, sys
+from datetime import datetime
+runtime = json.loads(json.load(open(sys.argv[1])).get("result") or "null")
+loaded_at = (runtime or {}).get("loadedAt")
+head_at = open(sys.argv[2]).read().strip()
+if not loaded_at:
+    raise SystemExit(2)
+loaded = datetime.fromisoformat(loaded_at.replace("Z", "+00:00"))
+head = datetime.fromisoformat(head_at.replace("Z", "+00:00"))
+raise SystemExit(0 if loaded < head else 1)
+PY
+case "$?" in
+  0)
+    python3 - "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt)" "$(git rev-parse --short HEAD)" > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refresh-url.txt <<'PY'
+import sys
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+url, ref = sys.argv[1], sys.argv[2]
+parts = urlsplit(url)
+query = dict(parse_qsl(parts.query, keep_blank_values=True))
+query["aos-live-proof-ref"] = ref
+print(urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)))
+PY
+    ./aos show update --id avatar-main --url "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refresh-url.txt)" --track union
+    printf 'refreshed\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refreshed-by-run.txt
+    ./aos show wait --id avatar-main --timeout 12s --json \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-wait-after-refresh.json
+    ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.snapshot?.().runtime ?? null)' \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-after-refresh.json
+    ;;
+  1)
+    printf 'fresh\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-fresh-by-run.txt
+    ;;
+  2)
+    printf 'blocked_sigil_runtime_freshness_unknown\n' \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-freshness-blocker.txt
+    exit 1
+    ;;
+esac
+```
 
 Enable and reset the Sigil transport probe before interaction:
 
@@ -353,6 +425,8 @@ evidence:
 ./aos show remove --id surface-inspector 2>/dev/null || true
 if [[ -f /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-created-by-run.txt ]]; then
   ./aos show remove --id avatar-main 2>/dev/null || true
+elif [[ -f /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refreshed-by-run.txt ]]; then
+  ./aos show update --id avatar-main --url "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt)" --track union 2>/dev/null || true
 fi
 ./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-final.json
 ```
@@ -369,8 +443,10 @@ Report:
   mutated;
 - whether Sigil status-item drift was present and whether `./aos experience
   activate sigil` was needed or successful;
-- whether `avatar-main` was reused or created, and confirmation that an existing
-  status-item-owned `avatar-main` was not removed/reloaded for probe setup;
+- whether `avatar-main` was reused, created, or non-destructively URL-refreshed;
+  include `sigil-runtime-before-probe.json`, `git-head-commit-time.txt`, and
+  `sigil-runtime-after-refresh.json` when present, and confirm that an existing
+  status-item-owned `avatar-main` was not removed for probe setup;
 - surfaces launched and commands used;
 - raw `input_event` result for Surface Inspector, Spatial Telemetry, and Sigil;
 - routed `input_region.event` result for panel chrome/stage affordance;
