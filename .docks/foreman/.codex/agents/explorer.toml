@@ -23,6 +23,7 @@ name = "explorer"
 description = "Read-only codebase scanner. Maps surfaces, locates patterns, and returns raw findings. Makes no decisions and writes no files."
 model = "gpt-5.4-mini"
 model_reasoning_effort = "low"
+sandbox_mode = "read-only"
 
 developer_instructions = """
 You are Explorer, a read-only reconnaissance subagent spawned by Foreman.

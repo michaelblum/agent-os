@@ -8,21 +8,9 @@ goals = false
 status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
 terminal_title = ["current-dir", "activity", "git-branch", "model"]
 
-# Subagent definitions live inside .docks/foreman/ so they are owned by the
-# dock that spawns them. Each role points to a TOML config layer that defines
-# the subagent's model, effort, and developer_instructions.
-#
-# Foreman invokes these by name in natural language ("spawn gdi", "spawn explorer").
-# The Codex runtime resolves the name to the matching agents/*.toml file.
-#
-# Paths are relative to THIS config file's directory (.docks/foreman/.codex/).
-# Per docs: "relative paths resolve from the config file that declares the role."
-#
-# This is the normal Foreman-to-subagent-team routing path. The registered team
-# starts with GDI, Operator, and Explorer, but the roster is intentionally
-# extensible. Every agent adapter must declare its own model and
-# model_reasoning_effort so cheap read-only or validation work does not inherit
-# Foreman's gpt-5.5/xhigh coordination posture by default.
+[agents]
+max_threads = 6
+max_depth = 1
 
 [agents.gdi]
 config_file = "agents/gdi.toml"

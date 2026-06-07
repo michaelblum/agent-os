@@ -28,9 +28,11 @@ Equivalent:
 codex --cd .docks/foreman
 ```
 
-Codex discovers Foreman's `AGENTS.md`, `.codex/config.toml`,
-`.codex/hooks.json`, subagent definitions, and local hook scripts from that
-launch root. Source edits and tests still belong in
+Codex discovers Foreman's `AGENTS.md`, dock-local `.codex/config.toml`,
+`.codex/hooks.json`, and local hook scripts from that launch root. Native
+subagent adapters are dock-owned under `.docks/foreman/.codex/agents/`; repo-root
+`.codex/config.toml` also registers those adapters for sessions launched from
+the repo root. Source edits and tests still belong in
 `/Users/Michael/Code/agent-os` unless the task explicitly targets dock
 configuration or harness files.
 
@@ -150,9 +152,10 @@ or design note and reference it from the handoff.
 - `operator/` defines the Operator subagent role. It performs bounded supervised human-in-the-loop evidence collection
   and locator review. It does not own implementation or git/GitHub scope unless
   the transfer explicitly assigns that responsibility.
-- `foreman/.codex/agents/` defines the current native subagent roster. The
-  roster is extensible; each subagent adapter must declare its own model and
-  reasoning effort instead of inheriting Foreman's coordination posture.
+- `foreman/.codex/agents/` defines the dock-owned native subagent roster.
+  Repo-root `.codex/config.toml` registers the same adapters for repo-root
+  sessions. The roster is extensible; each adapter must declare its own model
+  and reasoning effort instead of inheriting Foreman's coordination posture.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
 `docs/design/work-cards/` plus a concise subagent instruction:
@@ -160,3 +163,6 @@ For non-trivial GDI work, Foreman should prefer a Markdown work card under
 ```text
 Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md
 ```
+
+Before broad fan-out, Foreman must smoke one spawned child and verify the
+visible role, voice label, model, and effort match the intended adapter.

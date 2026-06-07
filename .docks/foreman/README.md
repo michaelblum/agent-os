@@ -8,7 +8,9 @@ codex
 ```
 
 The dock is the Foreman team root. Codex discovers `AGENTS.md`,
-`.codex/hooks.json`, and `.codex/agents/*.toml` from this launch root. The
+`.codex/hooks.json`, and hook scripts from this launch root. Native subagent
+adapter files are dock-owned under `.docks/foreman/.codex/agents/`; repo-root
+`.codex/config.toml` registers those same adapters for repo-root sessions. The
 working repo remains `/Users/Michael/Code/agent-os`.
 
 Foreman is the default coordinator and git/GitHub steward: it routes work to

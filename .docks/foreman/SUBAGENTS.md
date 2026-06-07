@@ -12,17 +12,21 @@ the legacy terminal/AFK path is still acceptable.
   gdi/AGENTS.md                  ← GDI role contract
   operator/AGENTS.md             ← Operator role contract
 
-.docks/foreman/.codex/agents/    ← Codex provider-adapter layer
+.docks/foreman/.codex/agents/    ← dock-owned Codex provider adapters
   gdi.toml                       ← spawnable GDI subagent
   operator.toml                  ← spawnable Operator subagent
   explorer.toml                  ← spawnable Explorer utility subagent
 ```
 
 The `.docks/` tree is canonical. It owns role definitions, scripts, skills, and
-legacy terminal metadata. The `.codex/agents/` files are thin adapters: they set
+legacy terminal metadata. The `.docks/foreman/.codex/agents/` files are thin adapters: they set
 `model`, `model_reasoning_effort`, and brief `developer_instructions` that point
 back to the canonical dock AGENTS.md. If the dock contract changes, only the
 dock AGENTS.md changes; the adapter TOML references it by path.
+
+Repo-root `.codex/config.toml` registers those dock-owned adapters with
+`config_file = "../.docks/foreman/.codex/agents/<role>.toml"` so Foreman
+sessions launched from the repo root can resolve the same roles.
 
 ## Registered Subagent Catalog
 
@@ -79,8 +83,18 @@ decide follow-up work.
 
 ## How Foreman Spawns Subagents
 
-Foreman invokes subagents by name in natural language. Codex resolves the name
-to the matching `.docks/foreman/.codex/agents/*.toml` file.
+Foreman invokes subagents by name. Codex resolves custom agents from standalone
+TOML files or `config_file` registrations in the active project `.codex`
+configuration. In this repo, the role adapter files live under
+`.docks/foreman/.codex/agents/`, and repo-root `.codex/config.toml` registers
+them for repo-root sessions. The `name` field inside each adapter file is the
+runtime identity.
+
+Before broad fan-out, smoke one child. The visible spawn/status line and
+SubagentStart/SubagentStop voice labels must identify the intended role
+(`explorer`, `gdi`, or `operator`), not `default`, and the visible model/effort
+must match the adapter. If it says `default` or inherits Foreman's
+`gpt-5.5 / xhigh`, stop and fix adapter loading before continuing.
 
 ```
 "Spawn explorer: find all files under src/ that import from aos-gesture-frame
@@ -107,9 +121,13 @@ To add a new subagent:
 
 1. Create `.docks/foreman/.codex/agents/<name>.toml` with `name`, `description`,
    `developer_instructions`, `model`, and `model_reasoning_effort`.
-2. Add an `[agents.<name>]` entry with `config_file = "agents/<name>.toml"` in
-   `.docks/foreman/.codex/config.toml`.
-3. Document it in this file's catalog table.
+2. Register it from repo-root `.codex/config.toml` with
+   `config_file = "../.docks/foreman/.codex/agents/<name>.toml"`.
+3. Register it from `.docks/foreman/.codex/config.toml` with
+   `config_file = "agents/<name>.toml"`.
+4. Document it in this file's catalog table.
+5. Smoke one spawn and verify the runtime identity and model/effort before
+   using the role for fan-out.
 
 If the new subagent maps to an existing dock (e.g., a future `verifier` dock),
 write the canonical role contract in `.docks/verifier/AGENTS.md` first, then

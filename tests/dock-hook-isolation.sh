@@ -142,16 +142,30 @@ for script_name in ("stop.sh", "subagent-start.sh", "subagent-stop.sh"):
     if "exec " not in script:
         raise SystemExit(f"FAIL: Foreman {script_name} should exec the shared harness")
 
+root_codex_config = (root / ".codex" / "config.toml").read_text()
 foreman_config = (root / ".docks" / "foreman" / ".codex" / "config.toml").read_text()
+for label, text in (("repo Codex config", root_codex_config), ("Foreman Codex config", foreman_config)):
+    if "[agents]" not in text:
+        raise SystemExit(f"FAIL: {label} missing global [agents] limits")
+    for required in ("max_threads = 6", "max_depth = 1"):
+        if required not in text:
+            raise SystemExit(f"FAIL: {label} missing {required}")
+
+duplicate_root_agents_dir = root / ".codex" / "agents"
+if duplicate_root_agents_dir.exists():
+    raise SystemExit(f"FAIL: duplicate repo-root Codex agents dir still exists: {duplicate_root_agents_dir}")
+
 for role in ("gdi", "operator", "explorer"):
     role_header = f"[agents.{role}]"
-    config_line = f'config_file = "agents/{role}.toml"'
-    if role_header not in foreman_config:
-        raise SystemExit(f"FAIL: Foreman subagent config missing {role_header}")
-    if config_line not in foreman_config:
-        raise SystemExit(f"FAIL: Foreman subagent config missing {config_line}")
-    if f'{role} = "agents/{role}.toml"' in foreman_config or f'{role}      = "agents/{role}.toml"' in foreman_config:
-        raise SystemExit(f"FAIL: Foreman subagent config reintroduced string-map entry for {role}")
+    repo_config_line = f'config_file = "../.docks/foreman/.codex/agents/{role}.toml"'
+    foreman_config_line = f'config_file = "agents/{role}.toml"'
+    if role_header not in root_codex_config or repo_config_line not in root_codex_config:
+        raise SystemExit(f"FAIL: repo Codex config does not register dock-owned {role} adapter")
+    if role_header not in foreman_config or foreman_config_line not in foreman_config:
+        raise SystemExit(f"FAIL: Foreman Codex config does not register dock-owned {role} adapter")
+    for label, text in (("repo Codex config", root_codex_config), ("Foreman Codex config", foreman_config)):
+        if f'{role} = "agents/{role}.toml"' in text or f'{role}      = "agents/{role}.toml"' in text:
+            raise SystemExit(f"FAIL: {label} reintroduced string-map entry for {role}")
 
     agent_path = root / ".docks" / "foreman" / ".codex" / "agents" / f"{role}.toml"
     agent_text = agent_path.read_text()
@@ -171,6 +185,8 @@ for role in ("gdi", "operator", "explorer"):
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_subagents = (root / ".docks" / "foreman" / "SUBAGENTS.md").read_text()
+docks_readme = (root / ".docks" / "README.md").read_text()
+foreman_readme = (root / ".docks" / "foreman" / "README.md").read_text()
 gdi_agents = (root / ".docks" / "gdi" / "AGENTS.md").read_text()
 explorer_agent = (root / ".docks" / "foreman" / ".codex" / "agents" / "explorer.toml").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()
@@ -191,9 +207,31 @@ for required in (
     "known stale pools",
     "Design docs",
     "Explorer performs bounded read-only scans only",
+    "Repo-root `.codex/config.toml` registers those dock-owned adapters",
+    "not `default`",
 ):
     if required not in foreman_subagents:
         raise SystemExit(f"FAIL: Foreman SUBAGENTS missing context-firewall contract token {required!r}")
+
+for label, text in (("Docks README", docks_readme), ("Foreman README", foreman_readme)):
+    for required in (
+        ".docks/foreman/.codex/agents/",
+        "repo-root",
+        ".codex/config.toml",
+    ):
+        if required not in text:
+            raise SystemExit(f"FAIL: {label} missing active subagent adapter path token {required!r}")
+
+for required in (
+    "Before broad fan-out",
+    "smoke one spawned child",
+    "visible role",
+    "voice label",
+    "model",
+    "effort",
+):
+    if required not in docks_readme and required not in foreman_subagents:
+        raise SystemExit(f"FAIL: subagent smoke gate missing token {required!r}")
 
 for required in (
     "Foreman selects the read-first set",
