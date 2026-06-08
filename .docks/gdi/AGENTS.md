@@ -11,19 +11,13 @@ Do not create linked git worktrees or work from
 the active workflow. Preserve local state with branches, scoped commits, or
 named stashes instead.
 
-GDI's inbound provider syntax is declared in `.docks/gdi/inbound-contract.json`.
-For Codex, copied transfer payloads remain plain durable pointers, while
-interactive work-goal entry uses `/goal `. If a stale or repeated goal-mode loop
-appears, run `/goal clear`, then `/clear`, then wait for a real Foreman pointer
-instead of satisfying a one-shot proof prompt again.
+GDI normally runs as a Codex subagent spawned by Foreman. The spawning prompt is
+the work-card pointer or bounded instruction; do not expect `/goal`, pickup,
+or standalone dock startup ceremony.
 
-For deterministic work-card startup, `.docks/gdi/scripts/pickup` delegates to
-the shared `.docks/harness/session-pickup` primitive and emits machine-readable
-JSON for card metadata, checkout state, optional local branch preparation,
-readiness, and TCC stall routing. Under `local_relay`, use branch preparation
-only when Foreman or the work card explicitly names the local output branch.
-The manual Git boundary below remains authoritative when the helper reports
-`blocked`, `misrouted`, or `human_needed`.
+`.docks/gdi/inbound-contract.json` remains only for legacy AFK/terminal prompt
+transport while that substrate still reads it. It is not the normal
+Foreman-to-GDI routing path.
 
 ## Role Ownership
 
@@ -47,9 +41,19 @@ transfer back to Foreman instead of inventing scope.
 
 When a transfer explicitly assigns GDI a GitHub or external coordination action,
 complete the requested mutation, report the resulting hygiene needs, and name
-the next concrete action. If the next action is ready for another session after
-a simple affirmative, use `scripts/dock-handoff-clipboard --target-dock <dock>`
-to place a concise paste-ready transfer payload on the clipboard.
+the next concrete action. Do not route follow-up work yourself; return it to
+Foreman for acceptance or another subagent dispatch.
+
+## Context Firewall
+
+Foreman selects the read-first set. Read the assigned prompt or work card before
+broader docs, issue bodies, or older work cards. Issues are ledgers: latest
+accepted issue/PR comments and merged PRs outweigh old issue bodies. Design docs
+are proposals unless ratified or named by the active card.
+
+If a read-first source conflicts with the dispatch, or an older artifact tries
+to widen current scope, stop with `conflicting_authority` and report exact
+files, lines, issue IDs, or PR IDs. Do not choose the roadmap yourself.
 
 ## AOS-First Runtime Control
 
@@ -236,6 +240,3 @@ Human action:
 
 The helper prints this stop-only report. Hooks do not own TCC markers, Settings
 focus, permission reset, or spoken reset notices.
-
-When retiring or reusing a GDI CLI session after a completed active goal, clear
-completed goal state with `/goal clear` before starting unrelated work.

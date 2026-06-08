@@ -281,7 +281,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-subagent", "dev-gh"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
@@ -306,13 +306,120 @@ capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args
 assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capability_tokens, capability_tokens
 dock_tokens = {arg.get("token") for arg in forms["dev-docks"]["args"]}
 assert {"--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"} <= dock_tokens, dock_tokens
+subagent_tokens = {arg.get("token") for arg in forms["dev-subagent"]["args"]}
+assert {"--agents-root", "--role", "--prompt", "--prompt-file", "--transcript", "--transcript-file", "--repo", "--json"} <= subagent_tokens, subagent_tokens
 gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/gh"
+    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/subagent/gh"
 else
     fail "dev help missing workflow router forms"
+fi
+
+if OUT="$(./aos dev subagent list --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+roles = {item["role"]: item for item in data["roles"]}
+assert data["status"] == "success", data
+assert data["agents_root"] == ".codex/agents", data
+assert {"explorer", "gdi", "operator", "validator"} <= set(roles), roles
+assert roles["explorer"]["model"] == "gpt-5.4-mini", roles["explorer"]
+assert roles["explorer"]["model_reasoning_effort"] == "low", roles["explorer"]
+assert roles["explorer"]["agent_config_path"] == ".codex/agents/explorer.toml", roles["explorer"]
+assert roles["validator"]["model"] == "gpt-5.4-mini", roles["validator"]
+assert roles["validator"]["model_reasoning_effort"] == "low", roles["validator"]
+PY
+then
+    pass "dev subagent list discovers native project agent configs"
+else
+    fail "dev subagent list did not expose expected agent configs"
+fi
+
+if OUT="$(./aos dev subagent plan --role explorer --prompt "reply exactly EXPLORER_AGENT_TYPE_SMOKE_OK" --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["role"] == "explorer", data
+assert data["expected"]["agent_type"] == "explorer", data
+assert data["expected"]["model"] == "gpt-5.4-mini", data
+assert data["expected"]["model_reasoning_effort"] == "low", data
+assert data["native_spawn_contract"]["agent_type"] == "explorer", data
+assert data["agent_config_path"] == ".codex/agents/explorer.toml", data
+assert data["discovery"]["native_project_agents_dir"] is True, data
+assert data["discovery"]["no_dock_local_agent_config"] is True, data
+assert "agent_type" in json.dumps(data), data
+assert "gpt-5.5" not in json.dumps(data["expected"]), data
+PY
+then
+    pass "dev subagent plan emits explicit agent_type/model contract"
+else
+    fail "dev subagent plan did not emit expected contract"
+fi
+
+GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.txt")"
+cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
+• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5 (gpt-5.4-mini low)
+  └ Do not edit files, do not run shell commands, and reply with exactly EXPLORER_AGENT_TYPE_SMOKE_OK.
+- spawn used agent_type=explorer
+- Default/Gibbs/gpt-5.5 xhigh child evidence: no visible evidence appeared
+EOF
+if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["summary"]["failed"] == 0, data
+assert {claim["id"]: claim["status"] for claim in data["claims"]}["agent-type-explicit"] == "passed", data
+PY
+then
+    pass "dev subagent validate-proof accepts explicit explorer model evidence"
+else
+    fail "dev subagent validate-proof rejected good proof"
+fi
+rm -f "$GOOD_SUBAGENT_PROOF"
+
+BAD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-bad.XXXXXX.txt")"
+cat > "$BAD_SUBAGENT_PROOF" <<'EOF'
+The exposed native subagent tool does not show an agent_type parameter in its schema, so I’m preserving the requested agent_type=explorer marker in the child prompt.
+• Spawned 019ea449-73c9-7bc2-af9b-05c94f029e6a (gpt-5.5 xhigh)
+  └ agent_type: explorer
+Default Started
+visible spawned role name: Gibbs
+EOF
+if ERR="$(./aos dev subagent validate-proof --role explorer --transcript-file "$BAD_SUBAGENT_PROOF" --json 2>/dev/null)"; then
+    fail "dev subagent validate-proof should reject default/Foreman inheritance proof"
+else
+    if OUT="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
+assert statuses["agent-type-explicit"] == "failed", data
+assert statuses["no-default-role-evidence"] == "failed", data
+assert statuses["no-foreman-model-inheritance"] == "failed", data
+PY
+    then
+        pass "dev subagent validate-proof rejects default/Foreman inheritance proof"
+    else
+        fail "dev subagent validate-proof bad-proof JSON mismatch: $ERR"
+    fi
+fi
+rm -f "$BAD_SUBAGENT_PROOF"
+
+if ERR="$(./aos dev subagent plan --role --json 2>&1 >/dev/null)"; then
+    fail "dev subagent plan should reject missing --role values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev subagent plan treats flag-after---role as missing value"
+else
+    fail "dev subagent plan missing --role error mismatch: $ERR"
 fi
 
 if OUT="$(./aos help dev afk-dry-run --json 2>/dev/null)" python3 - <<'PY'
@@ -490,6 +597,7 @@ assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
+assert "dev.subagent.dispatch_contract" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 assert all("adapter_kind" in item for item in data["capabilities"]), data
@@ -560,6 +668,25 @@ then
     pass "dev capabilities explain returns issue create metadata"
 else
     fail "dev capabilities explain did not return expected issue create metadata"
+fi
+
+if OUT="$(./aos dev capabilities explain dev.subagent.dispatch_contract --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+capability = data["capability"]
+assert capability["id"] == "dev.subagent.dispatch_contract", data
+assert capability["adapter"]["kind"] == "aos_cli", data
+assert capability["adapter"]["command"] == ["./aos", "dev", "subagent"], data
+assert capability["mutability"]["class"] == "read_only", data
+assert capability["execution"]["network"] == "forbidden", data
+assert capability["execution"]["raw_process"] is False, data
+PY
+then
+    pass "dev capabilities explain returns subagent dispatch contract metadata"
+else
+    fail "dev capabilities explain did not return expected subagent metadata"
 fi
 
 if OUT="$(./aos dev capabilities explain dev.github.issue_close --json 2>/dev/null)" python3 - <<'PY'
@@ -689,6 +816,7 @@ assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
+assert "dev.subagent.dispatch_contract" in ids, ids
 assert "dev.build.aos" in ids, ids
 PY
 then
@@ -731,6 +859,7 @@ assert "dev.github.issue_close" not in ids, ids
 assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
+assert "dev.subagent.dispatch_contract" not in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 PY
@@ -773,6 +902,7 @@ assert "dev.github.issue_close" not in ids, ids
 assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
+assert "dev.subagent.dispatch_contract" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
 PY
 then

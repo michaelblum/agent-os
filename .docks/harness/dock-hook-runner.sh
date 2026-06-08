@@ -4,8 +4,8 @@ set -euo pipefail
 phase="${1:-}"
 dock="${2:-}"
 
-if [[ "$phase" != "stop" && "$phase" != "subagent-start" && "$phase" != "subagent-stop" ]]; then
-  echo "FAIL: usage: dock-hook-runner.sh stop|subagent-start|subagent-stop <dock>" >&2
+if [[ "$phase" != "stop" && "$phase" != "pre-tool-use" && "$phase" != "subagent-start" && "$phase" != "subagent-stop" ]]; then
+  echo "FAIL: usage: dock-hook-runner.sh stop|pre-tool-use|subagent-start|subagent-stop <dock>" >&2
   exit 2
 fi
 if [[ -z "$dock" ]]; then
@@ -107,6 +107,25 @@ elif isinstance(value, str):
 PY
 }
 
+hook_json_value() {
+  local field="$1" fallback="${2:-}"
+  python3 - "$HOOK_INPUT" "$field" "$fallback" <<'PY'
+import json
+import sys
+
+raw, field, fallback = sys.argv[1:]
+try:
+    payload = json.loads(raw) if raw.strip() else {}
+except json.JSONDecodeError:
+    print(fallback)
+    raise SystemExit(0)
+value = payload.get(field, fallback)
+if value is None:
+    value = fallback
+print(str(value))
+PY
+}
+
 # Read voice config for an arbitrary role from subagent-voices.json.
 # Usage: subagent_voice_field <role> <field> <fallback>
 subagent_voice_field() {
@@ -152,6 +171,165 @@ elif isinstance(val, str):
         item = item.strip()
         if item:
             print(item)
+PY
+}
+
+subagent_role_guard() {
+  local event="${1:-subagent-start}" fallback="${2:-}"
+  python3 - "$HOOK_INPUT" "$REPO_ROOT" "$event" "$fallback" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+raw, repo_root, event, fallback = sys.argv[1:]
+try:
+    payload = json.loads(raw) if raw.strip() else {}
+except json.JSONDecodeError:
+    payload = {}
+
+role = payload.get("agent_type") or fallback
+role = str(role or "").strip()
+role_key = role.lower()
+
+def emit(status, normalized_role, message):
+    sep = "\x1f"
+    label = normalized_role[:1].upper() + normalized_role[1:] if normalized_role else "Subagent"
+    print(sep.join([status, normalized_role, label, message]))
+
+prefix = "Blocked native subagent start" if event == "subagent-start" else "Suppressed native subagent stop voice"
+
+if not role_key:
+    emit("block", "", f"{prefix}: missing agent_type. Use the spawn tool argument agent_type=<role>; do not put agent_type text in the child prompt.")
+    raise SystemExit(0)
+
+if role_key in {"default", "foreman", "gibbs"}:
+    emit("block", role_key, f"{prefix}: prohibited role {role_key!r}. Use a registered repo-root .codex/agents/<role>.toml role instead.")
+    raise SystemExit(0)
+
+if not re.fullmatch(r"[a-z][a-z0-9_-]*", role_key):
+    emit("block", role_key, f"{prefix}: invalid agent_type {role!r}.")
+    raise SystemExit(0)
+
+agent_path = pathlib.Path(repo_root) / ".codex" / "agents" / f"{role_key}.toml"
+if not agent_path.is_file():
+    emit("block", role_key, f"{prefix}: no repo-root native agent config for agent_type={role_key!r}.")
+    raise SystemExit(0)
+
+try:
+    agent_text = agent_path.read_text(encoding="utf-8")
+except OSError as exc:
+    emit("block", role_key, f"{prefix}: could not read {agent_path}: {exc}.")
+    raise SystemExit(0)
+
+name_pattern = re.compile(rf'(?m)^name\s*=\s*"{re.escape(role_key)}"\s*$')
+if not name_pattern.search(agent_text):
+    emit("block", role_key, f"{prefix}: {agent_path} does not declare name = {role_key!r}.")
+    raise SystemExit(0)
+
+emit("ok", role_key, "")
+PY
+}
+
+pre_tool_use_spawn_guard() {
+  python3 - "$HOOK_INPUT" "$REPO_ROOT" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+raw, repo_root = sys.argv[1:]
+try:
+    payload = json.loads(raw) if raw.strip() else {}
+except json.JSONDecodeError:
+    payload = {}
+
+def first_string(*values):
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+def first_dict(*values):
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return {}
+
+tool_obj = payload.get("tool") if isinstance(payload.get("tool"), dict) else {}
+tool_name = first_string(
+    payload.get("tool_name"),
+    payload.get("toolName"),
+    payload.get("name"),
+    payload.get("recipient_name"),
+    payload.get("tool"),
+    tool_obj.get("name"),
+)
+tool_key = tool_name.lower()
+
+tool_input = first_dict(
+    payload.get("tool_input"),
+    payload.get("toolInput"),
+    payload.get("input"),
+    payload.get("arguments"),
+    payload.get("args"),
+    payload.get("parameters"),
+)
+if not tool_input:
+    tool_input = payload
+
+def nested_value(mapping, key):
+    if not isinstance(mapping, dict):
+        return None
+    if key in mapping:
+        return mapping.get(key)
+    for nested_key in ("tool_input", "toolInput", "input", "arguments", "args", "parameters", "kwargs"):
+        nested = mapping.get(nested_key)
+        if isinstance(nested, dict) and key in nested:
+            return nested.get(key)
+    return None
+
+looks_like_spawn = (
+    tool_key in {"task", "spawn_agent", "spawnagent", "subagent"}
+    or tool_key.endswith(".spawn_agent")
+    or ("spawn" in tool_key and "agent" in tool_key)
+    or ("subagent" in tool_key)
+)
+
+if not looks_like_spawn:
+    print("ok\t")
+    raise SystemExit(0)
+
+role = nested_value(tool_input, "agent_type")
+role = str(role or "").strip()
+role_key = role.lower()
+
+def block(message):
+    print(f"block\t{message}")
+
+if not role_key:
+    block("Blocked native subagent tool call: missing agent_type argument. Use a registered role such as explorer, validator, gdi, or operator; do not put agent_type text in the child prompt.")
+    raise SystemExit(0)
+
+if role_key in {"default", "foreman", "gibbs"}:
+    block(f"Blocked native subagent tool call: prohibited agent_type {role_key!r}.")
+    raise SystemExit(0)
+
+if not re.fullmatch(r"[a-z][a-z0-9_-]*", role_key):
+    block(f"Blocked native subagent tool call: invalid agent_type {role!r}.")
+    raise SystemExit(0)
+
+agent_path = pathlib.Path(repo_root) / ".codex" / "agents" / f"{role_key}.toml"
+if not agent_path.is_file():
+    block(f"Blocked native subagent tool call: no repo-root native agent config for agent_type={role_key!r}.")
+    raise SystemExit(0)
+
+agent_text = agent_path.read_text(encoding="utf-8")
+if not re.search(rf'(?m)^name\s*=\s*"{re.escape(role_key)}"\s*$', agent_text):
+    block(f"Blocked native subagent tool call: {agent_path} does not declare name = {role_key!r}.")
+    raise SystemExit(0)
+
+print("ok\t")
 PY
 }
 
@@ -201,9 +379,32 @@ HOOK_INPUT="$(cat || true)"
 hook_timeout="${AOS_DOCK_HOOK_TIMEOUT_SECONDS:-$(dock_json_value hook_timeout_seconds 3)}"
 name="$(dock_json_value name "$dock")"
 voice_enabled="$(dock_json_value voice.enabled true)"
+hook_continue="true"
+system_message=""
+
+if [[ "$phase" == "pre-tool-use" ]]; then
+  IFS=$'\t' read -r guard_status guard_message < <(pre_tool_use_spawn_guard)
+  if [[ "$guard_status" != "ok" ]]; then
+    python3 - "$guard_message" <<'PY'
+import json
+import sys
+
+message = sys.argv[1]
+print(json.dumps({
+    "systemMessage": message,
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": message,
+    },
+}))
+PY
+    exit 0
+  fi
+  exit 0
 
 # ─── STOP ──────────────────────────────────────────────────────────────────────
-if [[ "$phase" == "stop" ]]; then
+elif [[ "$phase" == "stop" ]]; then
   voice_language="$(dock_json_value voice.language en)"
   voice_gender="$(dock_json_value voice.gender "")"
   voice_slot="$(dock_json_value voice.voice_slot "")"
@@ -238,97 +439,95 @@ if [[ "$phase" == "stop" ]]; then
 
 # ─── SUBAGENT-START ────────────────────────────────────────────────────────────
 elif [[ "$phase" == "subagent-start" ]]; then
-  # Resolve subagent name from env. If fallback fires, stderr dump helps
-  # identify the correct var name on first run.
-  # VERIFY: if you hear "Subagent begin!" run: env | grep -iE '(codex|agent|subagent)' in the hook
-  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
-  if [[ -z "$subagent_name" ]]; then
-    subagent_name="subagent"
-    env | grep -i -E '(codex|agent|subagent)' >&2 || true
+  IFS=$'\037' read -r guard_status subagent_name subagent_label guard_message < <(subagent_role_guard subagent-start "${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}")
+
+  if [[ "$guard_status" != "ok" ]]; then
+    system_message="$guard_message Close the already-started subagent; SubagentStart cannot block startup in this Codex release."
+  else
+    # Foreman voice (from dock.json)
+    foreman_slot="$(dock_json_value voice.voice_slot "")"
+    foreman_gender="$(dock_json_value voice.gender "")"
+    foreman_language="$(dock_json_value voice.language en)"
+    foreman_tiers=()
+    while IFS= read -r tier; do
+      foreman_tiers+=("$tier")
+    done < <(dock_json_array voice.quality_tiers)
+
+    # Subagent voice (from subagent-voices.json)
+    sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
+    sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
+    sub_language="$(subagent_voice_field "$subagent_name" language en)"
+    sub_tiers=()
+    while IFS= read -r tier; do
+      sub_tiers+=("$tier")
+    done < <(subagent_voice_array "$subagent_name" quality_tiers)
+
+    # Dynamic overrides; fallbacks are imperative command + acknowledgment
+    foreman_cmd="${AOS_FOREMAN_CMD:-${subagent_label}, begin!}"
+    subagent_ack="${AOS_SUBAGENT_ACK:-${subagent_label} ready!}"
+
+    run_optional_hook "pre-subagent-start"
+
+    if [[ "$voice_enabled" == "true" ]]; then
+      [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_cmd"
+      [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_ack"
+    fi
+
+    run_optional_hook "post-subagent-start"
   fi
-  subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
-
-  # Foreman voice (from dock.json)
-  foreman_slot="$(dock_json_value voice.voice_slot "")"
-  foreman_gender="$(dock_json_value voice.gender "")"
-  foreman_language="$(dock_json_value voice.language en)"
-  foreman_tiers=()
-  while IFS= read -r tier; do
-    foreman_tiers+=("$tier")
-  done < <(dock_json_array voice.quality_tiers)
-
-  # Subagent voice (from subagent-voices.json)
-  sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
-  sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
-  sub_language="$(subagent_voice_field "$subagent_name" language en)"
-  sub_tiers=()
-  while IFS= read -r tier; do
-    sub_tiers+=("$tier")
-  done < <(subagent_voice_array "$subagent_name" quality_tiers)
-
-  # Dynamic overrides; fallbacks are imperative command + acknowledgment
-  foreman_cmd="${AOS_FOREMAN_CMD:-${subagent_label}, begin!}"
-  subagent_ack="${AOS_SUBAGENT_ACK:-${subagent_label} ready!}"
-
-  run_optional_hook "pre-subagent-start"
-
-  if [[ "$voice_enabled" == "true" ]]; then
-    [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_cmd"
-    [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_ack"
-  fi
-
-  run_optional_hook "post-subagent-start"
 
 # ─── SUBAGENT-STOP ─────────────────────────────────────────────────────────────
 elif [[ "$phase" == "subagent-stop" ]]; then
-  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
-  if [[ -z "$subagent_name" ]]; then
-    subagent_name="subagent"
-    env | grep -i -E '(codex|agent|subagent)' >&2 || true
+  IFS=$'\037' read -r guard_status subagent_name subagent_label guard_message < <(subagent_role_guard subagent-stop "${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}")
+
+  if [[ "$guard_status" != "ok" ]]; then
+    system_message="$guard_message"
+  else
+    # Subagent voice
+    sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
+    sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
+    sub_language="$(subagent_voice_field "$subagent_name" language en)"
+    sub_tiers=()
+    while IFS= read -r tier; do
+      sub_tiers+=("$tier")
+    done < <(subagent_voice_array "$subagent_name" quality_tiers)
+
+    # Foreman voice
+    foreman_slot="$(dock_json_value voice.voice_slot "")"
+    foreman_gender="$(dock_json_value voice.gender "")"
+    foreman_language="$(dock_json_value voice.language en)"
+    foreman_tiers=()
+    while IFS= read -r tier; do
+      foreman_tiers+=("$tier")
+    done < <(dock_json_array voice.quality_tiers)
+
+    # Dynamic overrides; fallbacks are stop announcement + acknowledgment
+    subagent_done="${AOS_SUBAGENT_DONE:-${subagent_label} stopped, returning to Foreman.}"
+    foreman_ack="${AOS_FOREMAN_ACK:-Acknowledged, ${subagent_label}!}"
+
+    run_optional_hook "pre-subagent-stop"
+
+    if [[ "$voice_enabled" == "true" ]]; then
+      [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_done"
+      [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_ack"
+    fi
+
+    run_optional_hook "post-subagent-stop"
   fi
-  subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
-
-  # Subagent voice
-  sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
-  sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
-  sub_language="$(subagent_voice_field "$subagent_name" language en)"
-  sub_tiers=()
-  while IFS= read -r tier; do
-    sub_tiers+=("$tier")
-  done < <(subagent_voice_array "$subagent_name" quality_tiers)
-
-  # Foreman voice
-  foreman_slot="$(dock_json_value voice.voice_slot "")"
-  foreman_gender="$(dock_json_value voice.gender "")"
-  foreman_language="$(dock_json_value voice.language en)"
-  foreman_tiers=()
-  while IFS= read -r tier; do
-    foreman_tiers+=("$tier")
-  done < <(dock_json_array voice.quality_tiers)
-
-  # Dynamic overrides; fallbacks are stop announcement + acknowledgment
-  subagent_done="${AOS_SUBAGENT_DONE:-${subagent_label} stopped, returning to Foreman.}"
-  foreman_ack="${AOS_FOREMAN_ACK:-Acknowledged, ${subagent_label}!}"
-
-  run_optional_hook "pre-subagent-stop"
-
-  if [[ "$voice_enabled" == "true" ]]; then
-    [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_done"
-    [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_ack"
-  fi
-
-  run_optional_hook "post-subagent-stop"
 
 fi
 
-system_message=""
-
-if [[ -n "$system_message" ]]; then
-  python3 - "$system_message" <<'PY'
+if [[ -n "$system_message" || "$hook_continue" != "true" ]]; then
+  python3 - "$hook_continue" "$system_message" <<'PY'
 import json
 import sys
 
-print(json.dumps({"continue": True, "systemMessage": sys.argv[1]}))
+hook_continue = sys.argv[1] == "true"
+message = sys.argv[2]
+payload = {"continue": hook_continue}
+if message:
+    payload["systemMessage"] = message
+print(json.dumps(payload))
 PY
 else
   printf '{"continue":true}\n'

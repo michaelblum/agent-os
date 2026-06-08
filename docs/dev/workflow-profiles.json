@@ -15,7 +15,7 @@
       "shorthand": "agentic_relay",
       "intended_for": [
         "single developer with an occasional remote Foreman-compatible relay",
-        "local GDI implementation agent coordinating with a GitHub-only review authority",
+        "local GDI implementation, whether native subagent or explicitly assigned terminal relay, coordinating with a GitHub-only review authority",
         "workflows where a pushed branch is the durable handoff artifact between local and remote sessions"
       ],
       "default_work_surface": "short-lived topic branch from main",
@@ -37,8 +37,8 @@
       "branch_naming_convention": "gdi/<work-card-slug>",
       "gdi_push_authority": true,
       "agent_guidance": [
-        "GDI creates a branch named gdi/<work-card-slug> from main before starting any implementation work.",
-        "GDI commits verified work to that branch and pushes it to origin at completion.",
+        "The assigned GDI executor creates a branch named gdi/<work-card-slug> from main before starting any implementation work.",
+        "The assigned GDI executor commits verified work to that branch and pushes it to origin at completion when the profile and dispatch explicitly authorize publication.",
         "GDI reports the branch name, HEAD SHA, verification, and local-only state in the completion report. GDI does not merge to main.",
         "The relay authority reads the remote branch, evaluates the work, and merges to main or requests changes.",
         "When the relay authority is remote, it performs the Foreman review/merge function through GitHub-visible evidence and may request local probes for facts it cannot observe.",
@@ -51,8 +51,8 @@
       "name": "Local Relay",
       "shorthand": "local_relay",
       "intended_for": [
-        "single developer with tight Foreman-human-GDI loops",
-        "local GDI implementation reviewed by local Foreman or the human",
+        "single developer with tight Foreman-human-dock-team loops",
+        "local GDI implementation subagent reviewed by local Foreman or the human",
         "workflows that need branches and stashes without linked git worktrees or automatic pushes"
       ],
       "default_work_surface": "single checkout at /Users/Michael/Code/agent-os on the current local branch",
@@ -85,6 +85,8 @@
         "Use branches, scoped commits, and named stashes to preserve unrelated work before switching context.",
         "GDI may commit locally only when the work card says to produce a checkpoint; GDI does not push, open PRs, merge, or clean branches unless explicitly assigned.",
         "Foreman reviews local branch state, verification, and stashes before deciding merge, push, PR, or cleanup.",
+        "After accepting a slice, Foreman should execute the next reversible local step instead of stopping at acceptance: run missing evidence, commit a scoped checkpoint, update the ledger, or route the next bounded subagent task.",
+        "When the next step is external publication, merge, branch cleanup, credentials, permissions, destructive cleanup, or product judgment, Foreman must stop with an actionable gate: blocked action, recommended default, exact human approval phrase, post-approval command path, and safe alternative.",
         "At practical review points, Foreman may suggest publishing a small focused PR for a non-local reviewer, but only as an explicit human-approved review option; it is not automatic publication and should keep scope narrow.",
         "The repo-mode ./aos binary is stable infrastructure at /Users/Michael/Code/agent-os/aos and should not be rebuilt except for explicitly accepted native changes."
       ]

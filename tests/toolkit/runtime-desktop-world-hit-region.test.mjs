@@ -140,6 +140,44 @@ test('DesktopWorldHitRegion disable moves offscreen and marks non-interactive', 
   assert.equal(controller.snapshot().interactive, false)
 })
 
+test('DesktopWorldHitRegion duplicate create reconciles stale daemon placement offscreen', async () => {
+  const calls = []
+  const runtime = {
+    canvasCreate(payload) {
+      calls.push(['create', payload])
+      return Promise.reject(new Error('DUPLICATE: exists'))
+    },
+    canvasUpdate(payload) {
+      calls.push(['update', payload])
+    },
+    canvasRemove(payload) {
+      calls.push(['remove', payload])
+      return Promise.resolve()
+    },
+    post(type, payload) {
+      calls.push(['post', type, payload])
+    },
+  }
+  const controller = createDesktopWorldHitRegionController({
+    runtime,
+    id: 'hit-region-duplicate',
+    url: 'aos://toolkit/hit-region.html',
+    fallbackOwnerCanvasId: 'owner-duplicate',
+    initialSize: [80, 80],
+  })
+
+  assert.equal(await controller.ensureCreated(), 'hit-region-duplicate')
+
+  assert.deepEqual(calls.at(-1), ['update', {
+    id: 'hit-region-duplicate',
+    frame: [-10000, -10000, 80, 80],
+    interactive: false,
+    window_level: 'screen_saver',
+  }])
+  assert.equal(controller.snapshot().interactive, false)
+  assert.deepEqual(controller.snapshot().frame, [-10000, -10000, 80, 80])
+})
+
 test('DesktopWorldHitRegion remove delegates to child surface and clears state', async () => {
   const calls = []
   const controller = createDesktopWorldHitRegionController({

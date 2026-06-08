@@ -35,15 +35,15 @@ Name the transfer kind before writing:
 - **Human-needed packet:** a stall transfer whose next actor is the human.
   State the exact blocker and the bounded recovery command path.
 
-For GDI dispatches, keep `/goal` lifecycle commands out of the copied payload;
-Michael may add `/goal` manually in the CLI. If a reused GDI CLI session has a
-completed active goal, remind the human to run `/goal clear` before retiring or
-starting unrelated work.
+For GDI, Operator, Explorer, and other specialist subagent dispatches, prefer
+native subagent spawning. Use clipboard payloads only for successor-Foreman
+handoffs or explicitly legacy terminal/AFK transport.
 
 ## Terms
 
 - **Transfer:** umbrella term for moving actionable context across sessions.
-- **Dispatch:** the short clipboard payload that starts a dock session.
+- **Dispatch:** the short instruction that starts a target actor, usually a
+  native subagent.
 - **Work card:** durable Markdown task contract for a GDI/correction/relay
   round; never a successor-Foreman handoff.
 - **Round:** one recipient session's attempt at one goal.
@@ -88,8 +88,9 @@ Use path and storage as part of the contract:
 | Transfer kind | Durable Markdown home | Clipboard/chat payload |
 | --- | --- | --- |
 | Successor handoff | Temporary `mktemp -t foreman-handoff-XXXXXX.md` file only, unless the user requests chat-only. Do not commit it. | Full compact handoff via `.docks/foreman/scripts/handoff --target-dock foreman` when another session should start from it. |
-| GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Thin dispatch: `follow the instructions in docs/design/work-cards/<card>.md`. |
-| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use chat/clipboard only for short self-contained checks. | Thin dispatch: `follow the instructions in docs/design/work-cards/operator-<card>.md`. |
+| GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Spawn tool argument `agent_type=gdi`; child prompt: `follow the instructions in docs/design/work-cards/<card>.md`. |
+| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use direct prompts only for short self-contained checks. | Spawn tool argument `agent_type=operator`; child prompt: `follow the instructions in docs/design/work-cards/operator-<card>.md`. |
+| Specialist subagent probe | Usually none; use a durable artifact only when the role needs reusable instructions or evidence capture. | Spawn tool argument for the specialist role, e.g. `agent_type=explorer`; child prompt: `find all references to <symbol> and report locations only`. |
 | Relay packet | GitHub-visible issue, PR, branch report, or explicitly named durable artifact. | The minimal pointer needed to start the relay. |
 | Human-needed packet | Usually chat and clipboard only. Durable docs only when the recovery path becomes reusable SOP. | Exact blocker and bounded recovery command path. |
 
@@ -100,11 +101,11 @@ card with a GDI round contract.
 
 ## Output Discipline
 
-Keep clipboard dispatches concise. Detailed instructions may be long, but they
-should live in the referenced work card, capture plan, issue, or another durable
-artifact. For any dispatch that approaches the observed 4,000-character CLI goal
-limit, move the instructions into a file and copy only `follow the instructions
-in <path>`. Put successor-Foreman state in the successor handoff, not in
+Keep dispatches concise. Detailed instructions may be long, but they should
+live in the referenced work card, capture plan, issue, or another durable
+artifact. For any dispatch that approaches provider prompt limits, move the
+instructions into a file and spawn/copy only `follow the instructions in
+<path>`. Put successor-Foreman state in the successor handoff, not in
 `docs/design/work-cards/`. Do not use successor handoff content to author
 recipient work without first reclassifying it as a GDI, Operator, relay,
 correction, or human-needed transfer. When a handoff tool prints a chat-visible

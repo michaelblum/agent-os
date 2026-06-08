@@ -10,8 +10,9 @@ Operator run.
 
 ## Branch / Base
 
-- required_start_ref: local `main` containing this corrected work card and
-  `5f6445a4` (`feat(daemon): canonicalize input region source events`).
+- required_start_ref: local `main` containing this corrected work card plus
+  local #431 commits `490c8922`, `6095427b`, and `647ddfd2`.
+- published base: `origin/main` at `36c9b370` with PR #438 merged.
 - published review PR: #438
   https://github.com/michaelblum/agent-os/pull/438
 - tracker issue: #431
@@ -32,9 +33,10 @@ GDI work.
 ## Goal
 
 Collect bounded live evidence for #431 after the deterministic native-producer
-slice: active `input_event` and `input_region.event` consumers should receive
-and handle canonical daemon payloads, and any remaining dependence on top-level
-`input_region.event` compatibility fields must be reported precisely.
+and Sigil probe corrections: active `input_event` and `input_region.event`
+consumers should receive and handle canonical daemon payloads, and any remaining
+dependence on top-level `input_region.event` compatibility fields must be
+reported precisely.
 
 Michael approved this live proof run. Live readiness/control is allowed only for
 this bounded verification after Foreman/human clears the runtime state. Do not
@@ -143,9 +145,111 @@ packages/toolkit/components/spatial-telemetry/launch.sh
 ./aos show wait --id spatial-telemetry --manifest spatial-telemetry --timeout 10s --json
 
 apps/sigil/sigilctl-seed.sh --mode repo
-./aos show remove --id avatar-main 2>/dev/null || true
-./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?aos-surface-transport-probe=1' --track union
+./aos show get --id avatar-main > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json
+if python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+raise SystemExit(0 if payload.get("exists") else 1)
+PY
+then
+  true
+else
+  ./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?toolkit-root=toolkit' --track union
+  printf 'created\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-created-by-run.txt
+fi
 ./aos show wait --id avatar-main --timeout 12s --json
+```
+
+Do not remove an existing `avatar-main` just to enable the probe. The Sigil
+renderer exposes `window.__sigilDebug.surfaceTransportProbe.enable()` without
+requiring the URL flag; preserving the status-item-owned canvas avoids the
+remove/recreate lifecycle path that blocked the prior rerun.
+
+Before preserving an existing `avatar-main`, verify that the live renderer was
+loaded after the required start ref. The prior rerun started from the right Git
+ref but reused an `avatar-main` renderer whose
+`window.__sigilDebug.snapshot().runtime.loadedAt` predated the accepted
+`647ddfd2` source correction, so the empty probe did not test the current code.
+
+```bash
+git show -s --format=%cI HEAD > /tmp/aos-input-event-v2-live-proof-v0-rerun/git-head-commit-time.txt
+./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.snapshot?.().runtime ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-before-probe.json
+```
+
+If `sigil-runtime-before-probe.json` is missing `loadedAt`, stop and report
+`blocked_sigil_runtime_freshness_unknown`. If `loadedAt` is older than the Git
+HEAD committer date, perform one non-destructive URL refresh of `avatar-main`
+using the existing canvas URL and a temporary `aos-live-proof-ref` cache-buster.
+Do not use `show remove`, `show remove-all`, service restart, content-root
+mutation, or status-item reactivation for this refresh.
+
+```bash
+python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+url = ((payload.get("canvas") or {}).get("url") or "").strip()
+if not url:
+    raise SystemExit("missing avatar-main url")
+print(url)
+PY
+
+python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-before-probe.json /tmp/aos-input-event-v2-live-proof-v0-rerun/git-head-commit-time.txt <<'PY'
+import json, sys
+from datetime import datetime
+runtime = json.loads(json.load(open(sys.argv[1])).get("result") or "null")
+loaded_at = (runtime or {}).get("loadedAt")
+head_at = open(sys.argv[2]).read().strip()
+if not loaded_at:
+    raise SystemExit(2)
+loaded = datetime.fromisoformat(loaded_at.replace("Z", "+00:00"))
+head = datetime.fromisoformat(head_at.replace("Z", "+00:00"))
+raise SystemExit(0 if loaded < head else 1)
+PY
+case "$?" in
+  0)
+    python3 - "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt)" "$(git rev-parse --short HEAD)" > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refresh-url.txt <<'PY'
+import sys
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+url, ref = sys.argv[1], sys.argv[2]
+parts = urlsplit(url)
+query = dict(parse_qsl(parts.query, keep_blank_values=True))
+query["aos-live-proof-ref"] = ref
+print(urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)))
+PY
+    ./aos show update --id avatar-main --url "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refresh-url.txt)" --track union
+    printf 'refreshed\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refreshed-by-run.txt
+    ./aos show wait --id avatar-main --timeout 12s --json \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-wait-after-refresh.json
+    ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.snapshot?.().runtime ?? null)' \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-runtime-after-refresh.json
+    ;;
+  1)
+    printf 'fresh\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-fresh-by-run.txt
+    ;;
+  2)
+    printf 'blocked_sigil_runtime_freshness_unknown\n' \
+      > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-freshness-blocker.txt
+    exit 1
+    ;;
+esac
+```
+
+After the stale-renderer freshness check and any URL refresh, explicitly put
+Sigil into the visible status-item state before enabling the probe or attempting
+real input. A fresh renderer can legitimately replay or preserve a hidden
+status-item state; hidden Sigil leaves the avatar hit target parked offscreen and
+cannot prove the handled child hit-surface path.
+
+```bash
+./aos show eval --id avatar-main --js 'window.__sigilDebug?.dispatch?.({ type: "status_item.show", source: "operator-live-proof" }); JSON.stringify(window.__sigilDebug?.snapshot?.() ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-status-item-show-post.json
+./aos show wait --id avatar-main \
+  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
+  --timeout 8s --json \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-visible-hit-target-wait.json
+./aos show eval --id avatar-main --js 'JSON.stringify({avatarVisible: window.__sigilDebug?.snapshot?.().avatarVisible ?? null, hitTargetFrame: window.__sigilDebug?.snapshot?.().hitTargetFrame ?? null, hitTargetInteractive: window.__sigilDebug?.snapshot?.().hitTargetInteractive ?? null, inputRegions: window.__sigilDebug?.snapshot?.().inputRegions ?? null})' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-visible-hit-target-before-probe.json
 ```
 
 Enable and reset the Sigil transport probe before interaction:
@@ -170,8 +274,11 @@ Required evidence:
   cursor state, and no visible error state after real pointer and scroll input.
 - Spatial Telemetry records recent `input_event` entries and updates cursor
   state after real pointer and scroll input.
-- Sigil's transport probe records input events after real pointer interaction
-  with `avatar-main`.
+- Sigil's transport probe records handled input after real pointer interaction
+  with `avatar-main`, including daemon-origin pointer input. Child hit-surface
+  canvas-origin evidence must come from a path that the parent renderer handles,
+  such as opening avatar controls with real input and then interacting with the
+  controls surface through the visible child hit target.
 
 Capture:
 
@@ -195,8 +302,14 @@ claiming payload-field proof.
 
 ### Routed `input_region.event` Active Consumers
 
-Use Surface Inspector's panel chrome and Sigil's input regions to prove routed
-delivery is live.
+Use Surface Inspector's panel chrome/stage affordances to prove routed delivery
+is live. For Sigil, the visible-avatar proof target is the child hit-surface
+canvas-origin path recorded by `window.__sigilDebug.surfaceTransportProbe`.
+Sigil intentionally removes the parent avatar input region while the
+higher-fidelity hit canvas is interactive:
+`avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking`.
+Do not fail the Sigil proof solely because the parent avatar region is
+unregistered during the visible-avatar path.
 
 Required evidence:
 
@@ -204,8 +317,12 @@ Required evidence:
   restore or close via real pointer interaction on the chip region.
 - Surface Inspector resource state shows stage layers/input regions/affordances
   during the minimized state and cleanup after restore/close.
-- Sigil registers input regions and receives routed/input-region activity during
-  real pointer interaction, or reports a precise blocker.
+- Sigil records canvas-origin handled input for a child hit-surface path during
+  real pointer interaction, or reports a precise blocker. Parent
+  `input_region.event` evidence is expected only for Sigil modes that actually
+  keep a parent region registered, such as avatar controls or selection mode.
+  A child hit-canvas trace entry ignored as `controls-closed` is useful
+  diagnostic evidence but is not handled canvas-origin proof.
 - No consumer-visible failure indicates dependence on top-level-only
   `input_region.event` fields instead of canonical `routed_input`.
 
@@ -235,6 +352,21 @@ After real pointer restore or close:
   > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-debug-after-input-region.json
 ```
 
+For Sigil child hit-surface proof, first use real pointer input to put Sigil in
+a mode whose child hit surface forwards handled input through the parent
+renderer. The expected path is:
+
+1. Real pointer hover/click on the visible avatar to prove daemon-origin input.
+2. Real right-click on the avatar to open avatar controls.
+3. Real left pointer interaction inside the opened controls so the child hit
+   surface forwards canvas-origin input through `handleInputEvent`.
+4. Capture the probe and debug snapshots below.
+
+```bash
+./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.surfaceTransportProbe?.snapshot?.({windowMs: 300000}) ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-probe-after-child-hit-input.json
+```
+
 Payload-field proof requirement: if a surface exposes the full
 `input_region.event.routed_input`, capture enough fields to show
 `routed_schema_version: 1`, `source_event` as a raw v2 object when available,
@@ -242,6 +374,14 @@ Payload-field proof requirement: if a surface exposes the full
 delivery, and DesktopWorld coordinates. If current surfaces only expose
 resource/counter evidence, report that payload-field visibility remains blocked
 without adding instrumentation.
+
+For Sigil child hit-surface proof, use the transport probe's compact
+`input_events` sample. It should distinguish canvas-origin identity with
+`routed_schema_version`, `event_kind`, `sequence`, `coordinate_authority`,
+`source_origin`, `source_canvas_id`, `owner_canvas_id`, and `region_id` when the
+renderer handles normalized child input. Scroll-only canvas-origin samples or
+child hit-canvas entries ignored as `controls-closed` are diagnostic evidence,
+not handled child hit-surface proof.
 
 ## Pass / Partial / Fail
 
@@ -251,8 +391,10 @@ Pass:
   active input tap;
 - Surface Inspector, Spatial Telemetry, and Sigil launch;
 - all three active raw `input_event` consumers show live input activity;
-- Surface Inspector/panel chrome and Sigil input-region paths show routed live
+- Surface Inspector/panel chrome/stage-affordance routed paths show live
   behavior with no visible compatibility failure;
+- Sigil's child hit-surface canvas-origin path records handled input in the
+  transport probe, including canonical identity fields when available;
 - full payload fields are captured, or the report clearly distinguishes the
   remaining payload-field observability gap.
 
@@ -267,7 +409,11 @@ Fail:
 - the daemon stops, becomes unreachable, or is reclassified unmanaged mid-run;
 - an active consumer fails to launch;
 - real pointer/scroll/key input does not reach an expected consumer;
-- routed input-region interaction fails;
+- routed input-region interaction fails for Surface Inspector/panel
+  chrome/stage affordances;
+- Sigil child hit-surface canvas-origin input is not recorded by the transport
+  probe after a handled child path such as avatar controls is opened and
+  interacted with using real pointer input;
 - a consumer visibly depends on top-level-only `input_region.event` fields.
 
 ## Hard Boundaries / Non-Goals
@@ -296,7 +442,11 @@ evidence:
 ```bash
 ./aos show remove --id spatial-telemetry 2>/dev/null || true
 ./aos show remove --id surface-inspector 2>/dev/null || true
-./aos show remove --id avatar-main 2>/dev/null || true
+if [[ -f /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-created-by-run.txt ]]; then
+  ./aos show remove --id avatar-main 2>/dev/null || true
+elif [[ -f /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-refreshed-by-run.txt ]]; then
+  ./aos show update --id avatar-main --url "$(cat /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-original-url.txt)" --track union 2>/dev/null || true
+fi
 ./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-final.json
 ```
 
@@ -312,9 +462,18 @@ Report:
   mutated;
 - whether Sigil status-item drift was present and whether `./aos experience
   activate sigil` was needed or successful;
+- whether `avatar-main` was reused, created, or non-destructively URL-refreshed;
+  include `sigil-runtime-before-probe.json`, `git-head-commit-time.txt`, and
+  `sigil-runtime-after-refresh.json` when present, and confirm that an existing
+  status-item-owned `avatar-main` was not removed for probe setup;
 - surfaces launched and commands used;
 - raw `input_event` result for Surface Inspector, Spatial Telemetry, and Sigil;
-- routed `input_region.event` result for panel chrome/stage affordance and Sigil;
+- routed `input_region.event` result for panel chrome/stage affordance;
+- Sigil child hit-surface canvas-origin result from
+  `sigil-probe-after-child-hit-input.json`, including whether parent avatar
+  `inputRegions.avatar.registered:false` was expected because the child hit
+  canvas was interactive, and whether any child hit-canvas messages were ignored
+  as `controls-closed` before the handled child path was opened;
 - whether full payload fields were captured, with artifact paths, or the exact
   observability gap that prevented payload-field proof;
 - pass/partial/fail classification;

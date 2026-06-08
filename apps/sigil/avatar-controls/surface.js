@@ -6,9 +6,13 @@ const TOOLKIT_RUNTIME_BASE = toolkitSpecifier('runtime', {
 const TOOLKIT_PANEL_DRAG_DROP = toolkitSpecifier('panel/drag-drop.js', {
     local: '../../../packages/toolkit/panel/drag-drop.js',
 });
+const TOOLKIT_PANEL_PLACEMENT = toolkitSpecifier('panel/placement.js', {
+    local: '../../../packages/toolkit/panel/placement.js',
+});
 
 const { createDesktopWorldInteractionRouter } = await import(`${TOOLKIT_RUNTIME_BASE}/interaction-region.js`);
 const { createDragDropController } = await import(TOOLKIT_PANEL_DRAG_DROP);
+const { createAnchoredPanelPlacementPlan } = await import(TOOLKIT_PANEL_PLACEMENT);
 import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     normalizeFastTravelEffect,
@@ -153,6 +157,13 @@ function rectCenter(rect) {
         x: rect.x + rect.w / 2,
         y: rect.y + rect.h / 2,
     };
+}
+
+function frameToBounds(frame) {
+    if (!Array.isArray(frame) || frame.length < 4) return null;
+    const [x, y, w, h] = frame.map(Number);
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+    return { x, y, w, h };
 }
 
 function clampCenterToViewport(center, size, viewport) {
@@ -432,6 +443,7 @@ export function createSigilAvatarControls({
     let surfaceState = {
         open: false,
         bounds: null,
+        placementPlan: null,
         activeSlider: null,
         activePanelDrag: null,
         snapshot: null,
@@ -447,6 +459,33 @@ export function createSigilAvatarControls({
             return true;
         },
     });
+
+    function positiveSize(value, fallback) {
+        const number = Number(value);
+        return Number.isFinite(number) && number > 0 ? number : fallback;
+    }
+
+    function plannedSurfaceSize() {
+        return {
+            w: positiveSize(panelWidth, PANEL_WIDTH),
+            h: positiveSize(panelHeight, PANEL_HEIGHT),
+        };
+    }
+
+    function setAnchorStyleProperty(name, value) {
+        if (typeof anchor.style?.setProperty === 'function') {
+            anchor.style.setProperty(name, value);
+        } else if (anchor.style) {
+            anchor.style[name] = value;
+        }
+    }
+
+    function syncEmbeddedAnchorSize() {
+        if (usesPanel) return;
+        const size = plannedSurfaceSize();
+        setAnchorStyleProperty('--sigil-avatar-controls-panel-width', `${size.w}px`);
+        setAnchorStyleProperty('--sigil-avatar-controls-panel-height', `${size.h}px`);
+    }
 
     function recordTrace(stage, data = {}) {
         trace?.record?.(`avatar-controls:${stage}`, data);
@@ -486,6 +525,24 @@ export function createSigilAvatarControls({
         anchor.setAttribute('aria-hidden', surfaceState.open ? 'false' : 'true');
         anchor.setAttribute('data-state', surfaceState.open ? 'open' : 'closed');
         if (liveJs) liveJs.avatarControls = snapshot();
+    }
+
+    function avatarAnchorRect(fallbackPoint = null) {
+        const point = liveJs?.avatarPos && Number.isFinite(liveJs.avatarPos.x) && Number.isFinite(liveJs.avatarPos.y)
+            ? liveJs.avatarPos
+            : fallbackPoint;
+        const radius = Math.max(
+            Number(liveJs?.avatarHitRadius) || 0,
+            Number(state?.avatarHitRadius) || 0,
+            40
+        );
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || radius <= 0) return null;
+        return {
+            x: point.x - radius,
+            y: point.y - radius,
+            w: radius * 2,
+            h: radius * 2,
+        };
     }
 
     function setControlValue(id, value, checked = null) {
@@ -768,9 +825,10 @@ export function createSigilAvatarControls({
     }
 
     function clampToVisible(point) {
+        const size = plannedSurfaceSize();
         return resolveAvatarControlsOrigin(point, {
-            width: usesPanel ? panelWidth : MENU_WIDTH,
-            height: usesPanel ? panelHeight : MENU_HEIGHT,
+            width: size.w,
+            height: size.h,
             displays: liveJs?.displays || [],
             visibleBounds: liveJs?.visibleBounds,
             avatar: {
@@ -784,8 +842,50 @@ export function createSigilAvatarControls({
         });
     }
 
+    function resolveInitialPlacementPlan(point) {
+        const { w: width, h: height } = plannedSurfaceSize();
+        const anchorRect = avatarAnchorRect(point);
+        if (anchorRect) {
+            const plan = createAnchoredPanelPlacementPlan({
+                anchorRect,
+                panelSize: { w: width, h: height },
+                displays: liveJs?.displays || [],
+                preferredPlacements: ['right', 'left'],
+                gap: MENU_OFFSET,
+                offset: { x: 0, y: 0 },
+                constrainTo: 'anchor-display',
+                viewportOverflowPolicy: 'flip-shift',
+                cause: 'sigil.avatar.controls.open',
+                workArea: (!Array.isArray(liveJs?.displays) || liveJs.displays.length === 0) && liveJs?.visibleBounds ? [
+                    liveJs.visibleBounds.x,
+                    liveJs.visibleBounds.y,
+                    liveJs.visibleBounds.w,
+                    liveJs.visibleBounds.h,
+                ] : null,
+            });
+            const bounds = frameToBounds(plan.final_settled_frame);
+            if (bounds) return { plan, bounds };
+        }
+        const origin = clampToVisible(point);
+        const bounds = { x: origin.x, y: origin.y, w: width, h: height };
+        return {
+            plan: {
+                requested_frame: [bounds.x, bounds.y, bounds.w, bounds.h],
+                policy_adjusted_frame: [bounds.x, bounds.y, bounds.w, bounds.h],
+                final_settled_frame: [bounds.x, bounds.y, bounds.w, bounds.h],
+                viewport_overflow_policy: 'fallback',
+                anchor_frame: anchorRect ? [anchorRect.x, anchorRect.y, anchorRect.w, anchorRect.h] : null,
+                anchor_display_id: null,
+                chosen_placement: 'fallback',
+                cause: 'sigil.avatar.controls.open',
+            },
+            bounds,
+        };
+    }
+
     function syncPosition() {
         if (usesPanel) return;
+        syncEmbeddedAnchorSize();
         if (!surfaceState.open || !surfaceState.bounds || typeof projectPoint !== 'function') return;
         const local = projectPoint(surfaceState.bounds);
         if (!local) {
@@ -816,16 +916,12 @@ export function createSigilAvatarControls({
     function openAt(point) {
         if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
         syncFromState();
-        const origin = clampToVisible(point);
+        const placement = resolveInitialPlacementPlan(point);
         surfaceState.open = true;
-        surfaceState.bounds = {
-            x: origin.x,
-            y: origin.y,
-            w: usesPanel ? panelWidth : MENU_WIDTH,
-            h: usesPanel ? panelHeight : MENU_HEIGHT,
-        };
+        surfaceState.bounds = placement.bounds;
+        surfaceState.placementPlan = placement.plan;
         if (state) state.isMenuOpen = true;
-        recordTrace('open', { point, origin, bounds: surfaceState.bounds });
+        recordTrace('open', { point, placement: placement.plan, bounds: surfaceState.bounds });
         syncPosition();
         if (usesPanel) {
             compactSurfaceSession.destroy();
@@ -841,16 +937,16 @@ export function createSigilAvatarControls({
             void dispatchPanelAction('panel.toggle', {
                 id: panelId,
                 url: panelUrl,
-                width: panelWidth,
-                height: panelHeight,
+                width: surfaceState.bounds.w,
+                height: surfaceState.bounds.h,
                 interactive: true,
                 focus: true,
                 window_level: 'floating',
                 toggle_behavior: 'reposition',
                 anchor: {
                     coordinate_space: 'desktop_world',
-                    x: origin.x,
-                    y: origin.y,
+                    x: surfaceState.bounds.x,
+                    y: surfaceState.bounds.y,
                     offset: { x: 0, y: 0 },
                 },
                 geometry_change: 'frame',
@@ -891,6 +987,7 @@ export function createSigilAvatarControls({
         const preservePanelSession = usesPanel && shouldSuspendPanelOnClose && !panelWasRemoved;
         surfaceState.open = false;
         surfaceState.bounds = null;
+        surfaceState.placementPlan = null;
         surfaceState.activeSlider = null;
         surfaceState.activePanelDrag = null;
         if (!preservePanelSession) panelReady = false;
@@ -923,6 +1020,7 @@ export function createSigilAvatarControls({
         const open = !!next.open;
         surfaceState.open = open;
         surfaceState.bounds = open && next.bounds ? { ...next.bounds } : null;
+        surfaceState.placementPlan = next.placementPlan ? { ...next.placementPlan } : null;
         surfaceState.activeSlider = null;
         surfaceState.activePanelDrag = null;
         interactionRouter.reset();
@@ -1048,6 +1146,7 @@ export function createSigilAvatarControls({
             w: Math.max(1, Number(frame[2])),
             h: Math.max(1, Number(frame[3])),
         };
+        surfaceState.placementPlan = null;
         syncPosition();
         syncSnapshot();
         onBoundsChange?.(snapshot());

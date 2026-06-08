@@ -841,6 +841,66 @@
       }
     },
     {
+      "id": "dev.subagent.dispatch_contract",
+      "label": "Subagent Dispatch Contract",
+      "summary": "Plan and validate fail-closed native Codex subagent role/model proof before Foreman fans out work.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "subagent"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "forbidden",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "role",
+          "summary": "Native subagent role name such as explorer, gdi, operator, or validator.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "prompt_or_transcript",
+          "summary": "Prompt text for plan, or captured native spawn transcript for validate-proof.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "subagent_contract_or_proof_json",
+          "summary": "Expected agent_type/model/effort contract and pass/fail proof claims.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.build.aos",
       "label": "AOS Developer Build",
       "summary": "Build the repo-mode ./aos binary through the signing-aware developer control surface.",

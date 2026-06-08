@@ -1,8 +1,8 @@
 # Operator Subagent
 # Spawned by Foreman for supervised/HITL inspection work.
 # .docks/operator/AGENTS.md is the canonical role contract; this file is the
-# Codex provider-adapter that lets Foreman spawn Operator as a native subagent
-# for bounded live-surface probes.
+# native Codex agent config that lets Foreman spawn Operator for bounded
+# live-surface probes.
 #
 # Model: gpt-5.4 — more capable than mini; needed for visual judgment and
 # complex page-state reading without requiring full xhigh reasoning.
@@ -10,17 +10,17 @@
 # classification; not the deep synthesis effort of Foreman.
 #
 # When to spawn:
-#   Foreman should spawn operator for bounded probes: a single live-surface
-#   inspect, URL reachability check, or element-clip acceptance decision.
-#   For multi-step HITL runs or capture-plan execution, prefer a separate
-#   Operator CLI session so the human can intervene at each step.
+#   Foreman should spawn operator for bounded probes, capture-plan checks, and
+#   supervised evidence collection that can stop cleanly on a named condition.
+#   Use a separate terminal path only when the human explicitly needs to drive a
+#   live session outside the native subagent workflow.
 
 name = "operator"
 description = "Supervised HITL inspector. Probes live surfaces, evaluates stop conditions, and returns concise evidence to Foreman."
 model = "gpt-5.4"
 model_reasoning_effort = "medium"
 
-prompt = """
+developer_instructions = """
 You are Operator. Read .docks/operator/AGENTS.md for your full role contract.
 
 Key constraints for subagent mode:

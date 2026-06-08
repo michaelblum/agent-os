@@ -15,6 +15,7 @@ import {
   chipFrameForPanelFrame,
   clampFrameToWorkArea as placementClampFrameToWorkArea,
   cloneFrame as placementCloneFrame,
+  createAnchoredPanelPlacementPlan,
   createPlacementPlan,
   finiteNumber,
   frameFromWindow as placementFrameFromWindow,
@@ -277,7 +278,7 @@ function nextGeometryTransactionId(prefix = 'geometry') {
 }
 
 export const clampFrameToWorkArea = placementClampFrameToWorkArea
-export { createPlacementPlan, normalizeViewportOverflowPolicy }
+export { createAnchoredPanelPlacementPlan, createPlacementPlan, normalizeViewportOverflowPolicy }
 export { createDragDropController, dragFrameFromPointer }
 
 function optionObject(value) {

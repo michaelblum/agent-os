@@ -137,11 +137,15 @@ a Workflow.
 _Avoid_: workflow, work record, successor handoff.
 
 **Dock**:
-A repo-local Codex session profile rooted under `.docks/`, used to isolate persona or work-role instructions, hooks, and config from the normal session entry point.
+A repo-local AOS team/session profile rooted under `.docks/`, used to isolate
+persona, work-role instructions, hooks, recovery helpers, and team entry
+behavior from the repo root. Docks are not the native Codex subagent config
+store; spawnable Codex agent configs live under root `.codex/agents/`.
 _Avoid_: workflow, workflow template, generated run, source workspace.
 
 **Docked Session**:
-One Codex session launched from a Dock so it adopts that Dock's local instructions, hooks, and config.
+One Codex session launched from a Dock so it adopts that Dock's local
+instructions, hooks, and team entry config.
 _Avoid_: workflow run, Workflow run, automation run.
 
 **Verifier Health**:
@@ -254,7 +258,11 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   origins use the current v0 `origin.kind` values (`ad_hoc | recipe |
   workflow`). Markdown Guides/SOPs that shaped a run without executing should
   be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
-- A **Dock** is adopted by launching Codex from that dock's directory, or with `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but the Dock is not the Workflow and does not create a parallel Workflow type.
+- A **Dock** is adopted by launching Codex from that dock's directory, or with
+  `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but
+  the Dock is not the Workflow and does not create a parallel Workflow type.
+  Native Codex subagent configs live in root `.codex/agents/`; dock launch
+  config may register those agents but should not own duplicate agent TOMLs.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.

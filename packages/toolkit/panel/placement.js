@@ -122,6 +122,7 @@ export const VIEWPORT_OVERFLOW_POLICIES = Object.freeze({
   CLAMP: 'clamp',
   SHIFT: 'shift',
   FLIP: 'flip',
+  FLIP_SHIFT: 'flip-shift',
 })
 
 export function normalizeViewportOverflowPolicy(policy = VIEWPORT_OVERFLOW_POLICIES.CLAMP) {
@@ -144,6 +145,31 @@ function shiftFrameIntoWorkArea(frame, workArea = null) {
   if (next[1] < area[1]) next[1] = area[1]
   else if (bottom > areaBottom) next[1] -= bottom - areaBottom
   return cloneFrame(next)
+}
+
+function frameRight(frame) {
+  return frame[0] + frame[2]
+}
+
+function frameBottom(frame) {
+  return frame[1] + frame[3]
+}
+
+function frameOverlapArea(lhs, rhs) {
+  if (!lhs || !rhs) return 0
+  const x = Math.max(0, Math.min(frameRight(lhs), frameRight(rhs)) - Math.max(lhs[0], rhs[0]))
+  const y = Math.max(0, Math.min(frameBottom(lhs), frameBottom(rhs)) - Math.max(lhs[1], rhs[1]))
+  return x * y
+}
+
+function frameInsideWorkArea(frame, workArea = null) {
+  if (!workArea) return false
+  const source = cloneFrame(frame)
+  const area = cloneFrame(workArea)
+  return source[0] >= area[0]
+    && source[1] >= area[1]
+    && frameRight(source) <= frameRight(area)
+    && frameBottom(source) <= frameBottom(area)
 }
 
 function flipFrameIntoWorkArea(frame, {
@@ -188,7 +214,7 @@ export function createPlacementPlan({
     adjusted = clampFrameToWorkArea(requested, { workArea, minVisibleWidth, minVisibleHeight })
   } else if (policy === VIEWPORT_OVERFLOW_POLICIES.SHIFT) {
     adjusted = shiftFrameIntoWorkArea(requested, workArea)
-  } else if (policy === VIEWPORT_OVERFLOW_POLICIES.FLIP) {
+  } else if (policy === VIEWPORT_OVERFLOW_POLICIES.FLIP || policy === VIEWPORT_OVERFLOW_POLICIES.FLIP_SHIFT) {
     adjusted = flipFrameIntoWorkArea(requested, { workArea, anchor: anchorFrame, gap })
   }
   const finalSettled = cloneFrame(adjusted)
@@ -197,6 +223,162 @@ export function createPlacementPlan({
     policy_adjusted_frame: adjusted,
     final_settled_frame: finalSettled,
     viewport_overflow_policy: policy,
+    cause,
+  }
+}
+
+function normalizePanelSize(size = {}) {
+  if (Array.isArray(size)) return [positiveNumber(size[0], 1), positiveNumber(size[1], 1)]
+  return [
+    positiveNumber(size.w ?? size.width, 1),
+    positiveNumber(size.h ?? size.height, 1),
+  ]
+}
+
+function displayWorkArea(display = null, fallback = null) {
+  if (display?.visibleBounds) return frameFromRect(display.visibleBounds)
+  if (display?.visible_bounds) return frameFromRect(display.visible_bounds)
+  if (display?.nativeVisibleBounds) return frameFromRect(display.nativeVisibleBounds)
+  if (display?.native_visible_bounds) return frameFromRect(display.native_visible_bounds)
+  if (display?.bounds) return frameFromRect(display.bounds)
+  return fallback ? cloneFrame(fallback) : null
+}
+
+function anchorDisplayForRect(anchorFrame, displays = [], {
+  rectKey = 'visibleBounds',
+  nearest = true,
+} = {}) {
+  const anchor = cloneFrame(anchorFrame)
+  const center = {
+    x: anchor[0] + (anchor[2] / 2),
+    y: anchor[1] + (anchor[3] / 2),
+  }
+  return displayOwnerForPoint(center, displays, { rectKey, nearest })
+}
+
+function anchoredCandidateFrame(placement, anchor, [width, height], gap, offset) {
+  const dx = finiteNumber(offset?.x, 0)
+  const dy = finiteNumber(offset?.y, 0)
+  const anchorCenterX = anchor[0] + (anchor[2] / 2)
+  const anchorCenterY = anchor[1] + (anchor[3] / 2)
+  if (placement === 'left') {
+    return [anchor[0] - width - gap + dx, anchorCenterY - (height / 2) + dy, width, height]
+  }
+  if (placement === 'above' || placement === 'top') {
+    return [anchorCenterX - (width / 2) + dx, anchor[1] - height - gap + dy, width, height]
+  }
+  if (placement === 'below' || placement === 'bottom') {
+    return [anchorCenterX - (width / 2) + dx, anchor[1] + anchor[3] + gap + dy, width, height]
+  }
+  return [anchor[0] + anchor[2] + gap + dx, anchorCenterY - (height / 2) + dy, width, height]
+}
+
+function normalizeAnchoredPlacements(placements = []) {
+  const source = Array.isArray(placements) && placements.length
+    ? placements
+    : ['right', 'left']
+  const normalized = []
+  for (const placement of source) {
+    const value = String(placement || '').trim().toLowerCase()
+    if (!value) continue
+    const canonical = value === 'top' ? 'above' : value === 'bottom' ? 'below' : value
+    if (['right', 'left', 'above', 'below'].includes(canonical) && !normalized.includes(canonical)) {
+      normalized.push(canonical)
+    }
+  }
+  for (const fallback of ['right', 'left', 'below', 'above']) {
+    if (!normalized.includes(fallback)) normalized.push(fallback)
+  }
+  return normalized
+}
+
+export function createAnchoredPanelPlacementPlan({
+  anchorRect,
+  anchorFrame = anchorRect,
+  panelSize,
+  displays = [],
+  preferredPlacements = ['right', 'left'],
+  gap = 12,
+  offset = { x: 0, y: 0 },
+  constrainTo = 'anchor-display',
+  viewportOverflowPolicy = VIEWPORT_OVERFLOW_POLICIES.FLIP_SHIFT,
+  cause = 'placement.anchor',
+  display = null,
+  workArea = null,
+  displayRectKey = 'visibleBounds',
+} = {}) {
+  const anchor = Array.isArray(anchorFrame) ? cloneFrame(anchorFrame) : frameFromRect(anchorFrame)
+  const size = normalizePanelSize(panelSize)
+  const policy = normalizeViewportOverflowPolicy(viewportOverflowPolicy)
+  const normalizedDisplays = normalizePanelDisplays(displays)
+  const owner = display
+    || (constrainTo === 'anchor-display'
+      ? anchorDisplayForRect(anchor, normalizedDisplays, { rectKey: displayRectKey, nearest: true })
+      : null)
+  const anchorWorkArea = workArea
+    ? cloneFrame(workArea)
+    : displayWorkArea(owner, null)
+  const placements = normalizeAnchoredPlacements(preferredPlacements)
+  const gapSize = finiteNumber(gap, 0)
+
+  const candidates = placements.map((placement, index) => {
+    const requested = cloneFrame(anchoredCandidateFrame(placement, anchor, size, gapSize, offset))
+    const plan = createPlacementPlan({
+      requestedFrame: requested,
+      workArea: anchorWorkArea,
+      viewportOverflowPolicy: policy === VIEWPORT_OVERFLOW_POLICIES.ALLOW ? policy : VIEWPORT_OVERFLOW_POLICIES.SHIFT,
+      anchorFrame: anchor,
+      gap: gapSize,
+      cause,
+    })
+    const adjusted = plan.final_settled_frame
+    const requestedInside = !anchorWorkArea || frameInsideWorkArea(requested, anchorWorkArea)
+    const adjustedInside = !anchorWorkArea || frameInsideWorkArea(adjusted, anchorWorkArea)
+    const overlap = frameOverlapArea(adjusted, anchor)
+    const requestedOverlap = frameOverlapArea(requested, anchor)
+    return {
+      index,
+      placement,
+      requested,
+      adjusted,
+      requestedInside,
+      adjustedInside,
+      overlap,
+      requestedOverlap,
+    }
+  })
+
+  const clean = candidates.filter((candidate) => candidate.adjustedInside && candidate.overlap === 0)
+  const cleanSide = clean.filter((candidate) => candidate.placement === 'right' || candidate.placement === 'left')
+  const requestedClean = clean.filter((candidate) => candidate.requestedInside && candidate.requestedOverlap === 0)
+  const requestedCleanSide = cleanSide.filter((candidate) => candidate.requestedInside && candidate.requestedOverlap === 0)
+  const pool = requestedCleanSide.length
+    ? requestedCleanSide
+    : cleanSide.length
+      ? cleanSide
+      : requestedClean.length
+        ? requestedClean
+        : clean.length
+          ? clean
+          : candidates
+  const best = [...pool].sort((a, b) => (
+    (a.overlap - b.overlap)
+    || (Number(!a.requestedInside) - Number(!b.requestedInside))
+    || (a.index - b.index)
+  ))[0] || candidates[0]
+
+  const requested = best?.requested || cloneFrame([anchor[0] + anchor[2] + gapSize, anchor[1], size[0], size[1]])
+  const adjusted = best?.adjusted || shiftFrameIntoWorkArea(requested, anchorWorkArea)
+  const finalSettled = cloneFrame(adjusted)
+  const displayId = owner?.id ?? owner?.display_id ?? null
+  return {
+    requested_frame: cloneFrame(requested),
+    policy_adjusted_frame: cloneFrame(adjusted),
+    final_settled_frame: finalSettled,
+    viewport_overflow_policy: policy,
+    anchor_frame: cloneFrame(anchor),
+    anchor_display_id: displayId == null ? null : String(displayId),
+    chosen_placement: best?.placement || placements[0] || 'right',
     cause,
   }
 }

@@ -340,6 +340,7 @@ const INPUT_POINTER_EVENT_TYPES = new Set([
     'mouse_moved',
     'scroll_wheel',
 ]);
+const INPUT_KEY_EVENT_TYPES = new Set(['key_down', 'key_up']);
 
 let sigilInputRegions = null;
 const selectionModeNativeFrameResolver = createSelectionModeNativeFrameResolver(() => {
@@ -4048,6 +4049,7 @@ function handleMouseMove(x, y) {
 }
 
 function handleInputEvent(msg) {
+    recordHandledInputProbeEvent(msg);
     if (
         msg?.type === 'right_mouse_down'
         || msg?.type === 'right_mouse_up'
@@ -4409,6 +4411,14 @@ function desktopWorldPointFromInputMessage(msg = {}) {
     return nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
 }
 
+function recordHandledInputProbeEvent(msg = {}) {
+    if (!INPUT_POINTER_EVENT_TYPES.has(msg?.type) && !INPUT_KEY_EVENT_TYPES.has(msg?.type)) return;
+    surfaceTransportProbe.recordInputEvent({
+        ...msg,
+        canvas_id: window.__aosCanvasId || window.__aosSurfaceCanvasId || 'avatar-main',
+    });
+}
+
 function publishSessionVitalitySnapshot() {
     const snapshot = sessionVitality.snapshot();
     liveJs.sessionVitality = snapshot;
@@ -4470,12 +4480,6 @@ function handleHostMessage(rawMsg) {
             source: msg?.source ?? rawMsg?.source ?? rawMsg?.payload?.source ?? null,
             primarySegment: isPrimarySurfaceSegment(),
         });
-        if (msg?.type === 'input_event' || msg?.envelope_type === 'input_event') {
-            surfaceTransportProbe.recordInputEvent({
-                ...msg,
-                canvas_id: window.__aosCanvasId || window.__aosSurfaceCanvasId || 'avatar-main',
-            });
-        }
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 

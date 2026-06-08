@@ -6734,6 +6734,104 @@
         {
           "args" : [
             {
+              "id" : "action",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Subagent contract action: list, plan, or validate-proof",
+              "value_type" : "string"
+            },
+            {
+              "default_value" : ".codex\/agents",
+              "id" : "agents-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Native Codex agents root",
+              "token" : "--agents-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "role",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Subagent role name such as explorer, gdi, operator, or validator",
+              "token" : "--role",
+              "value_type" : "string"
+            },
+            {
+              "id" : "prompt",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Native subagent prompt text for plan output",
+              "token" : "--prompt",
+              "value_type" : "string"
+            },
+            {
+              "id" : "prompt-file",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "File containing native subagent prompt text for plan output",
+              "token" : "--prompt-file",
+              "value_type" : "string"
+            },
+            {
+              "id" : "transcript",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Captured subagent spawn transcript text for proof validation",
+              "token" : "--transcript",
+              "value_type" : "string"
+            },
+            {
+              "id" : "transcript-file",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "File containing captured subagent spawn transcript text for proof validation",
+              "token" : "--transcript-file",
+              "value_type" : "string"
+            },
+            {
+              "id" : "repo",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repository root path",
+              "token" : "--repo",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable subagent contract or proof output",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos dev subagent list --json",
+            "aos dev subagent plan --role explorer --prompt \"return exact smoke token\" --json",
+            "aos dev subagent validate-proof --role explorer --transcript-file \/tmp\/subagent-smoke.txt --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "dev-subagent",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos dev subagent <list|plan|validate-proof> [--role <role>] [--prompt <text>|--prompt-file <path>] [--transcript <text>|--transcript-file <path>] [--agents-root <path>] [--repo <path>] [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "group",
               "kind" : "positional",
               "required" : true,

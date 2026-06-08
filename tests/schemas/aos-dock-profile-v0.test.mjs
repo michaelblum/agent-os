@@ -152,6 +152,9 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_merge'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_merge'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
 
   for (const profileName of ['foreman', 'gdi', 'operator']) {
     const allowed = profiles.get(profileName).allowed_capabilities;
@@ -166,6 +169,23 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.equal(profiles.get('operator').default_entry_path, 'agent_harness');
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('external_write'));
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('host_write'));
+
+  assert.equal(profiles.get('foreman').metadata.execution_topology, 'team_root');
+  assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
+  assert.equal(profiles.get('foreman').metadata.subagent_team.extensible, true);
+  assert.deepEqual(profiles.get('foreman').metadata.subagent_team.registered_agents, ['gdi', 'operator', 'explorer', 'validator']);
+  assert.equal(
+    profiles.get('foreman').metadata.subagent_team.model_policy,
+    'native_agent_config_declares_model_and_effort',
+  );
+  assert.equal(profiles.get('foreman').metadata.subagent_team.inherits_foreman_model, false);
+
+  for (const profileName of ['gdi', 'operator']) {
+    assert.equal(profiles.get(profileName).metadata.execution_topology, 'native_subagent');
+    assert.equal(profiles.get(profileName).metadata.normal_launch_root, false);
+    assert.equal(profiles.get(profileName).metadata.spawned_by, 'foreman');
+    assert.equal(profiles.get(profileName).metadata.legacy_terminal_transport, true);
+  }
 
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
   assert.ok(profiles.get('gdi').allowed_capabilities.includes('dev.test.schema_node'));
