@@ -88,9 +88,9 @@ Use path and storage as part of the contract:
 | Transfer kind | Durable Markdown home | Clipboard/chat payload |
 | --- | --- | --- |
 | Successor handoff | Temporary `mktemp -t foreman-handoff-XXXXXX.md` file only, unless the user requests chat-only. Do not commit it. | Full compact handoff via `.docks/foreman/scripts/handoff --target-dock foreman` when another session should start from it. |
-| GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Spawn tool argument `agent_type=gdi`; child prompt: `follow the instructions in docs/design/work-cards/<card>.md`. |
-| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use direct prompts only for short self-contained checks. | Spawn tool argument `agent_type=operator`; child prompt: `follow the instructions in docs/design/work-cards/operator-<card>.md`. |
-| Specialist subagent probe | Usually none; use a durable artifact only when the role needs reusable instructions or evidence capture. | Spawn tool argument for the specialist role, e.g. `agent_type=explorer`; child prompt: `find all references to <symbol> and report locations only`. |
+| GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Select `gdi` with `agent_type=gdi` when available, otherwise start with `Use the custom agent named gdi.`; child prompt points at the card. |
+| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use direct prompts only for short self-contained checks. | Select `operator` with `agent_type=operator` when available, otherwise start with `Use the custom agent named operator.`; child prompt points at the card or bounded probe. |
+| Specialist subagent probe | Usually none; use a durable artifact only when the role needs reusable instructions or evidence capture. | Select the specialist role with `agent_type=<role>` when available, otherwise start with `Use the custom agent named <role>.`; keep the rest of the prompt bounded. |
 | Relay packet | GitHub-visible issue, PR, branch report, or explicitly named durable artifact. | The minimal pointer needed to start the relay. |
 | Human-needed packet | Usually chat and clipboard only. Durable docs only when the recovery path becomes reusable SOP. | Exact blocker and bounded recovery command path. |
 

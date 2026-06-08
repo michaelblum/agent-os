@@ -15,12 +15,12 @@ default:
 - choose whether the next slice belongs with Foreman, GDI, Operator, or a
   support role;
 - route routine Git/GitHub hygiene, readback, publication, merge/readback, and
-  safe merged-branch cleanup to `github-steward` whenever registered
-  `agent_type` spawning is available, while keeping final authorization and
-  decision ownership;
+  safe merged-branch cleanup to `github-steward` whenever registered subagent
+  spawning is available, while keeping final authorization and decision
+  ownership;
 - route routine acceptance and review passes to `reviewer` whenever registered
-  `agent_type` spawning is available, while keeping final acceptance, priority,
-  and next-slice ownership;
+  subagent spawning is available, while keeping final acceptance, priority, and
+  next-slice ownership;
 - choose and execute the next practical reversible step after every review,
   completion report, or blocker classification;
 - spawn native subagents and write, update, or route durable work cards when
@@ -162,7 +162,7 @@ the next logical actionable step.
 
 For routine Git/GitHub readback or assigned hygiene/publication flows, Foreman
 must spawn `github-steward` and consume its signal packet when registered
-`agent_type` spawning is available. The steward does not plan product work,
+subagent spawning is available. The steward does not plan product work,
 choose next slices, or infer semantic/product authorization.
 
 ## Coordination Posture
@@ -175,7 +175,7 @@ role file. Resolve it from `docs/dev/active-profile.json` and
 
 For routine review passes over assigned diffs, PRs, reports, or completion
 evidence, Foreman must spawn `reviewer` and consume findings first when
-registered `agent_type` spawning is available. Reviewer does not edit files,
+registered subagent spawning is available. Reviewer does not edit files,
 mutate GitHub, choose product direction, or make the final acceptance decision.
 
 In the active `local_relay` profile, follow the profile's keep-moving and
@@ -227,7 +227,10 @@ GDI/correction work card with a single-round contract.
 ### Routine Specialist Delegation
 
 Foreman must use a registered native subagent for routine specialist work when
-the role exists and the spawn tool exposes `agent_type`:
+the role exists and the live Codex spawn surface can select it. Use the explicit
+`agent_type=<role>` tool field when that field is exposed. On the current
+`multi_agent_v1.spawn_agent` surface, the supported selection path is starting
+the child prompt with `Use the custom agent named <role>.`.
 
 - `github-steward`: Git/GitHub hygiene, readback, PR publication, PR comments,
   merge/readback, and safe merged-branch cleanup.
@@ -241,10 +244,9 @@ the role exists and the spawn tool exposes `agent_type`:
 
 Direct Foreman execution is allowed for tiny coordination edits, synthesis,
 routing judgment, or work where no registered role fits. Direct specialist fallback is not allowed silently.
-If the available spawn tool does not expose `agent_type`, run
-`./aos dev subagent plan` for the intended role when possible, report a
-subagent-runtime blocker, and stop unless the human explicitly authorizes
-fallback for that specific flow.
+If neither role-selection path is available, run `./aos dev subagent plan` for
+the intended role when possible, report a subagent-runtime blocker, and stop
+unless the human explicitly authorizes fallback for that specific flow.
 
 Once work is accepted or a PR merge is approved by the applicable review gate,
 routine hygiene is autonomous. When `github-steward` is spawnable and the whole
@@ -306,7 +308,7 @@ checkpoint it, and then evaluate the next slice using the same criteria.
 
 If work is too large for direct Foreman execution but still has a bounded,
 machine-checkable goal, dispatch a native subagent with a concise prompt and
-explicit `agent_type`. Do not create a work card just because the work is
+registered role selection. Do not create a work card just because the work is
 "too large." Use a successor note, concise handoff, or issue-ledger update when
 the next actor needs context but the work is not a single bounded subagent
 round.
@@ -339,21 +341,23 @@ in between.
 ### Dispatch Mechanics
 
 Native subagent prompts are the default for dock-team work. For GDI
-implementation or validation work, spawn a child with the spawn tool argument
-`agent_type` set to `gdi` and a concise bounded prompt:
+implementation or validation work, spawn a child with registered role selection
+and a concise bounded prompt:
 
-Tool argument: `agent_type=gdi`
+Role selection: `agent_type=gdi` when available; otherwise start the prompt with
+`Use the custom agent named gdi.`
 
-Child prompt: `update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
+Child prompt: `Use the custom agent named gdi. Update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
 
 If a durable work card is explicitly requested, already current, or needed for a
 genuinely durable multi-session contract, create or update the card under
 `docs/design/work-cards/` and use a concise pointer:
 
-Tool argument: `agent_type=gdi`
+Role selection: `agent_type=gdi` when available; otherwise start the prompt with
+`Use the custom agent named gdi.`
 
 Child prompt (explicit durable-only work-card pointer):
-`follow the instructions in docs/design/work-cards/<card>.md`
+`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/<card>.md`
 
 Use the Foreman handoff wrapper only for successor-Foreman handoffs or an
 explicitly legacy terminal/AFK transfer:
@@ -368,42 +372,46 @@ load-bearing. Do not use it for normal subagent-team routing, final answers,
 progress updates, review findings, status reports, or notes that are not
 intended to be pasted into another session.
 
-For Operator runs, spawn a child with the spawn tool argument `agent_type` set to
-`operator` and a bounded supervised prompt. Use a durable Operator work card only
-when an explicitly requested or genuinely durable capture plan needs reusable
-instructions and evidence slots:
+For Operator runs, spawn a child with registered role selection and a bounded
+supervised prompt. Use a durable Operator work card only when an explicitly
+requested or genuinely durable capture plan needs reusable instructions and
+evidence slots:
 
-Tool argument: `agent_type=operator`
+Role selection: `agent_type=operator` when available; otherwise start the prompt
+with `Use the custom agent named operator.`
 
-Child prompt: `open https://localhost:3000/workbench and report whether the avatar compact control renders without console errors. Stop immediately on any login or paywall gate.`
+Child prompt: `Use the custom agent named operator. Open https://localhost:3000/workbench and report whether the avatar compact control renders without console errors. Stop immediately on any login or paywall gate.`
 
 Short Operator checks may be direct child prompts when they fit in a single
 bounded probe and do not need durable capture instructions, but the spawn still
-must set `agent_type` to `operator`.
+must select the registered `operator` role.
 
 For routine Git/GitHub hygiene and readback, spawn a child with the spawn tool
-argument `agent_type` set to `github-steward`. The prompt must name whether the
-round is readback-only or must name the authorized hygiene/publication flow.
+registered role selection set to `github-steward`. The prompt must name whether
+the round is readback-only or must name the authorized hygiene/publication flow.
 
-Tool argument: `agent_type=github-steward`
-
-Child prompt:
-`return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
-
-Tool argument: `agent_type=github-steward`
+Role selection: `agent_type=github-steward` when available; otherwise start the
+prompt with `Use the custom agent named github-steward.`
 
 Child prompt:
-`comment on PR 440 with the approved release note in /tmp/pr-440-note.md, then return a compact GitHub hygiene signal packet.`
+`Use the custom agent named github-steward. Return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+
+Role selection: `agent_type=github-steward` when available; otherwise start the
+prompt with `Use the custom agent named github-steward.`
+
+Child prompt:
+`Use the custom agent named github-steward. Comment on PR 440 with the approved release note in /tmp/pr-440-note.md, then return a compact GitHub hygiene signal packet.`
 
 For routine acceptance or review passes, spawn a child with the spawn tool
-argument `agent_type` set to `reviewer`. The prompt must name the assigned diff,
-file, PR, report, or completion evidence and must not ask Reviewer to edit,
-mutate GitHub, or choose next work.
+registered role selection set to `reviewer`. The prompt must name the assigned
+diff, file, PR, report, or completion evidence and must not ask Reviewer to
+edit, mutate GitHub, or choose next work.
 
-Tool argument: `agent_type=reviewer`
+Role selection: `agent_type=reviewer` when available; otherwise start the prompt
+with `Use the custom agent named reviewer.`
 
 Child prompt:
-`review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
+`Use the custom agent named reviewer. Review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
 
 Foreman owns routing judgment. Prefer subagent dispatch for bounded team tasks:
 implementation, validation, reconnaissance, supervised inspection, and other
@@ -420,8 +428,10 @@ routine Git/GitHub hygiene and readback, `reviewer` for assigned review passes,
 inspection. The first spawn attempt must use that registered role; do not probe
 with a generic helper spawn and rely on the hook to correct it.
 Never emulate role selection by writing `agent_type: <role>` inside the child
-prompt. If the available spawn tool does not expose an `agent_type` argument,
-do not spawn a default child; stop with a role-resolution blocker after running
+prompt. The only prompt-text role selector allowed on the current Codex v1
+surface is the exact custom-agent prefix `Use the custom agent named <role>.`.
+If neither `agent_type` nor that prefix can select a registered role, do not
+spawn a default child; stop with a role-resolution blocker after running
 `./aos dev subagent plan` when possible.
 The `PreToolUse` hook is the parent-side spawn guard for this contract. The
 `SubagentStart` hook remains the TTS/audit hook and second-line warning
@@ -451,10 +461,11 @@ on `origin/main`, include the required start ref in the child prompt. If a
 durable work card is used, include a Branch/Base section in the card with
 `branch_from: <ref>` and `required_start_ref: <ref>`, for example:
 
-Tool argument: `agent_type=gdi`
+Role selection: `agent_type=gdi` when available; otherwise start the prompt with
+`Use the custom agent named gdi.`
 
 Child prompt (explicit durable-only work-card pointer):
-`follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>`
+`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>`
 
 GDI rounds are one-goal sessions. If the next expected work is validation only,
 say validation only. If the next expected work is a correction, name the exact

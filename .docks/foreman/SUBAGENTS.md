@@ -114,13 +114,14 @@ routine specialist chores. Use registered native subagent spawning when:
 - You need Reviewer to do a routine acceptance or review pass over assigned
   evidence while Foreman remains the final decision owner.
 
-If a registered role fits routine specialist work and the spawn tool exposes
-`agent_type`, Foreman must use that role. Direct Foreman execution is limited to
-tiny coordination edits, synthesis, routing judgment, or work where no
-registered role fits. If the spawn surface does not expose `agent_type`, do not
-spawn a default child or hide the fallback in the prompt; report a
-subagent-runtime blocker unless the human explicitly authorizes fallback for
-that specific flow.
+If a registered role fits routine specialist work, Foreman must use that role.
+Use `agent_type=<role>` when the spawn tool exposes that argument. On the
+current `multi_agent_v1.spawn_agent` surface, start the child prompt with
+`Use the custom agent named <role>.` Direct Foreman execution is limited to tiny
+coordination edits, synthesis, routing judgment, or work where no registered
+role fits. If neither role-selection path is available, do not spawn a default
+child; report a subagent-runtime blocker unless the human explicitly authorizes
+fallback for that specific flow.
 
 Use the legacy terminal/AFK path only when:
 
@@ -131,15 +132,16 @@ Use the legacy terminal/AFK path only when:
 
 ## How Foreman Spawns Subagents
 
-Foreman must select the role with the spawn tool's `agent_type` field. Codex
-resolves custom agents from native TOML configs under `.codex/agents/` and from
-explicit `config_file` registrations in the active project `.codex`
-configuration. The `name` field inside each agent config is the runtime
-identity.
+Foreman must select a registered role before spawning. Codex resolves custom
+agents from native TOML configs under `.codex/agents/` and from explicit
+`config_file` registrations in the active project `.codex` configuration. The
+`name` field inside each agent config is the runtime identity.
 
-Do not rely on naming a role inside the child prompt. If the spawn tool
-argument `agent_type` is omitted, Codex uses `default`, and the child can
-inherit Foreman's model/effort.
+Use the spawn tool's `agent_type` field when the live tool exposes it. If the
+tool does not expose `agent_type`, use the official custom-agent prompt prefix:
+`Use the custom agent named <role>.` Do not rely on arbitrary role prose inside
+the child prompt. A prompt that says `agent_type: <role>` is not role
+selection.
 
 There is no generic helper role. If a user asks for a helper, scanner, second
 set of eyes, or lightweight pass, Foreman must translate that request to a
@@ -151,18 +153,19 @@ inspection. The first spawn attempt must use the registered role; a blocked
 generic/default spawn is a routing mistake, even if Foreman recovers by retrying
 correctly.
 
-Before broad fan-out, smoke one child. The visible spawn/status line and
-SubagentStart/SubagentStop voice labels must identify the intended role
-(`explorer`, `validator`, `github-steward`, `reviewer`, `gdi`, or `operator`),
-not `default`, and the visible model/effort must match the native agent config.
-If it says `default`, `Gibbs`, or inherits Foreman's `gpt-5.5 / xhigh`, stop
-and fix role loading before continuing.
+Before broad fan-out, smoke one child. The proof must show registered role
+selection and either visible model/effort or developer-instruction identity
+evidence from the selected config. If the visible line or voice label says
+`default`, `Gibbs`, or the child inherits Foreman's `gpt-5.5 / xhigh`, stop and
+fix role loading before continuing.
 
 Foreman's `PreToolUse` hook blocks recognized spawn-tool calls that omit
-`agent_type`, use `default`, or name an unregistered role. `SubagentStart`
-cannot stop startup in current Codex; it is the second-line warning/TTS tripwire
-for missing `agent_type`, `default`, `foreman`, `gibbs`, and roles that do not
-map to a repo-root `.codex/agents/<role>.toml` file declaring the same `name`.
+registered role selection, use `default`, or name an unregistered role. It
+accepts explicit `agent_type=<role>` when available and the current v1 prompt
+prefix `Use the custom agent named <role>.` `SubagentStart` cannot stop startup
+in current Codex; it is the second-line warning/TTS tripwire for missing
+`agent_type`, `default`, `foreman`, `gibbs`, and roles that do not map to a
+repo-root `.codex/agents/<role>.toml` file declaring the same `name`.
 `SubagentStop` suppresses invalid-role voice lines so a bad child does not
 produce misleading "Default stopped" feedback.
 
@@ -200,42 +203,49 @@ GitHub Steward owns the routine mechanics under live readback:
   live readback;
 - do not touch local main unless explicitly assigned.
 
-Tool argument: `agent_type=explorer`
+Role selection: `agent_type=explorer` when available; otherwise start with
+`Use the custom agent named explorer.`
 
 Child prompt:
-`find all files under src/ that import from aos-gesture-frame and return paths, import forms, and counts only.`
+`Use the custom agent named explorer. Find all files under src/ that import from aos-gesture-frame and return paths, import forms, and counts only.`
 
-Tool argument: `agent_type=validator`
-
-Child prompt:
-`run bash tests/dock-hook-isolation.sh and report the pass/fail result and any exact failure line. Do not edit files.`
-
-Tool argument: `agent_type=github-steward`
+Role selection: `agent_type=validator` when available; otherwise start with
+`Use the custom agent named validator.`
 
 Child prompt:
-`return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+`Use the custom agent named validator. Run bash tests/dock-hook-isolation.sh and report the pass/fail result and any exact failure line. Do not edit files.`
 
-Tool argument: `agent_type=reviewer`
-
-Child prompt:
-`review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
-
-Tool argument: `agent_type=gdi`
+Role selection: `agent_type=github-steward` when available; otherwise start with
+`Use the custom agent named github-steward.`
 
 Child prompt:
-`update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
+`Use the custom agent named github-steward. Return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+
+Role selection: `agent_type=reviewer` when available; otherwise start with
+`Use the custom agent named reviewer.`
+
+Child prompt:
+`Use the custom agent named reviewer. Review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
+
+Role selection: `agent_type=gdi` when available; otherwise start with
+`Use the custom agent named gdi.`
+
+Child prompt:
+`Use the custom agent named gdi. Update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
 
 If an explicit durable work card is current, use a concise pointer instead:
 
-Tool argument: `agent_type=gdi`
+Role selection: `agent_type=gdi` when available; otherwise start with
+`Use the custom agent named gdi.`
 
 Child prompt (explicit durable-only work-card pointer):
-`follow the instructions in docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.`
+`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.`
 
-Tool argument: `agent_type=operator`
+Role selection: `agent_type=operator` when available; otherwise start with
+`Use the custom agent named operator.`
 
 Child prompt:
-`open https://localhost:3000/workbench and report whether the avatar compact control renders without error in the console. Stop immediately on any login or paywall gate.`
+`Use the custom agent named operator. Open https://localhost:3000/workbench and report whether the avatar compact control renders without error in the console. Stop immediately on any login or paywall gate.`
 
 ## What Subagents Inherit from Foreman
 

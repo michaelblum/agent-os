@@ -17,8 +17,13 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email "dev-situation@example.invalid"
 git -C "$REPO" config user.name "Dev Situation Test"
+mkdir -p "$REPO/.codex/agents" "$REPO/.docks/foreman"
+for role in explorer github-steward reviewer; do
+    printf 'name = "%s"\n' "$role" > "$REPO/.codex/agents/$role.toml"
+done
+printf '%s\n' '# Foreman Subagents' > "$REPO/.docks/foreman/SUBAGENTS.md"
 printf 'one\n' > "$REPO/file.txt"
-git -C "$REPO" add file.txt
+git -C "$REPO" add file.txt .codex .docks
 git -C "$REPO" commit -q -m "initial"
 git -C "$REPO" branch -M main
 git -C "$REPO" update-ref refs/remotes/origin/main HEAD
@@ -92,6 +97,28 @@ assert data["summary"]["runtime_ready"] is True, data
 assert "notes" not in data["summary"], data["summary"]
 assert data["successor_note"]["status"] == "missing", data["successor_note"]
 assert data["successor_note"]["note"] is None, data["successor_note"]
+delegation = data["subagent_delegation"]
+assert delegation["status"] == "active", delegation
+assert delegation["authority"] == "orientation_policy", delegation
+assert delegation["roles_dir"] == ".codex/agents", delegation
+assert delegation["team_doc"] == ".docks/foreman/SUBAGENTS.md", delegation
+assert delegation["registered_roles"] == ["explorer", "github-steward", "reviewer"], delegation
+assert delegation["routing_scope"] == [
+    "bounded_specialist_work",
+    "routine_git_github_hygiene",
+    "review",
+    "validation",
+    "reconnaissance",
+    "implementation",
+], delegation
+assert delegation["standing_authorization_intent"] is True, delegation
+assert delegation["ask_user_if_runtime_requires_turn_authorization"] is True, delegation
+assert delegation["fail_closed_without_registered_role"] is True, delegation
+assert delegation["fail_closed_without_session_authorization"] is True, delegation
+assert delegation["direct_specialist_fallback_allowed"] is False, delegation
+assert delegation["extra_mutation_authorized"] is False, delegation
+for removed_key in ["standing_user_intent", "runtime_gate", "fail_closed", "authorization_scope"]:
+    assert removed_key not in delegation, delegation
 assert "runtime" in data and "ready" in data["runtime"] and "status" in data["runtime"], data
 assert "ready" not in data["github"] and "status" not in data["github"], data["github"]
 for key, source_id in {
@@ -105,6 +132,15 @@ for key, source_id in {
     "summary.open_pr_count_limit_reached": "github_open_prs",
     "summary.stash_count": "git_stashes",
     "summary.runtime_ready": "aos_ready",
+    "subagent_delegation.status": "subagent_delegation_policy",
+    "subagent_delegation.registered_roles": "subagent_delegation_policy",
+    "subagent_delegation.routing_scope": "subagent_delegation_policy",
+    "subagent_delegation.standing_authorization_intent": "subagent_delegation_policy",
+    "subagent_delegation.ask_user_if_runtime_requires_turn_authorization": "subagent_delegation_policy",
+    "subagent_delegation.fail_closed_without_registered_role": "subagent_delegation_policy",
+    "subagent_delegation.fail_closed_without_session_authorization": "subagent_delegation_policy",
+    "subagent_delegation.direct_specialist_fallback_allowed": "subagent_delegation_policy",
+    "subagent_delegation.extra_mutation_authorized": "subagent_delegation_policy",
 }.items():
     assert source_id in data["source_trace"][key], (key, data["source_trace"].get(key))
 for source_id in [
@@ -122,6 +158,7 @@ for source_id in [
     "aos_ready",
     "aos_status",
     "successor_note",
+    "subagent_delegation_policy",
 ]:
     assert sources[source_id]["status"] == "success", sources[source_id]
 PY
@@ -129,6 +166,13 @@ then
     pass "dev situation emits sourced live-orientation packet"
 else
     fail "dev situation packet shape or summary drifted"
+fi
+
+if TEXT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 2>/dev/null)" \
+    && grep -q '^Subagent delegation: active (.codex/agents)$' <<< "$TEXT"; then
+    pass "dev situation text output names subagent delegation state"
+else
+    fail "dev situation text output omitted subagent delegation state"
 fi
 
 VALID_NOTE="$TMPDIR/valid-successor-note.json"

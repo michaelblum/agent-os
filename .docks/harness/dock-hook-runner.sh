@@ -4,8 +4,8 @@ set -euo pipefail
 phase="${1:-}"
 dock="${2:-}"
 
-if [[ "$phase" != "stop" && "$phase" != "pre-tool-use" && "$phase" != "subagent-start" && "$phase" != "subagent-stop" ]]; then
-  echo "FAIL: usage: dock-hook-runner.sh stop|pre-tool-use|subagent-start|subagent-stop <dock>" >&2
+if [[ "$phase" != "stop" && "$phase" != "user-prompt-submit" && "$phase" != "pre-tool-use" && "$phase" != "subagent-start" && "$phase" != "subagent-stop" ]]; then
+  echo "FAIL: usage: dock-hook-runner.sh stop|user-prompt-submit|pre-tool-use|subagent-start|subagent-stop <dock>" >&2
   exit 2
 fi
 if [[ -z "$dock" ]]; then
@@ -302,13 +302,26 @@ if not looks_like_spawn:
 
 role = nested_value(tool_input, "agent_type")
 role = str(role or "").strip()
+
+prompt_text = first_string(
+    nested_value(tool_input, "message"),
+    nested_value(tool_input, "prompt"),
+)
+if not role and prompt_text:
+    match = re.match(
+        r"(?is)^\s*(?:use|spawn)\s+(?:exactly\s+one\s+)?(?:the\s+)?custom\s+agent\s+named\s+([a-z][a-z0-9_-]*)\b",
+        prompt_text,
+    )
+    if match:
+        role = match.group(1)
+
 role_key = role.lower()
 
 def block(message):
     print(f"block\t{message}")
 
 if not role_key:
-    block("Blocked native subagent tool call: missing agent_type argument. Use a registered role such as explorer, validator, gdi, or operator; do not put agent_type text in the child prompt.")
+    block("Blocked native subagent tool call: missing registered subagent role. Use the spawn tool agent_type=<role> argument when available, or start the prompt with 'Use the custom agent named <role>' for the current Codex spawn surface.")
     raise SystemExit(0)
 
 if role_key in {"default", "foreman", "gibbs"}:
@@ -330,6 +343,91 @@ if not re.search(rf'(?m)^name\s*=\s*"{re.escape(role_key)}"\s*$', agent_text):
     raise SystemExit(0)
 
 print("ok\t")
+PY
+}
+
+user_prompt_submit_authorization_gate() {
+  python3 - "$HOOK_INPUT" "$REPO_ROOT" <<'PY'
+import hashlib
+import json
+import pathlib
+import re
+import sys
+from datetime import datetime, timezone
+
+raw, repo_root = sys.argv[1:]
+try:
+    payload = json.loads(raw) if raw.strip() else {}
+except json.JSONDecodeError:
+    payload = {}
+
+prompt = str(payload.get("prompt") or "")
+session_id = str(payload.get("session_id") or "").strip()
+transcript_path = str(payload.get("transcript_path") or "").strip()
+
+def session_key():
+    value = session_id or transcript_path
+    if not value:
+        return ""
+    if re.fullmatch(r"[A-Za-z0-9_.:-]{1,120}", value):
+        return value.replace("/", "_")
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
+
+key = session_key()
+state_dir = pathlib.Path(repo_root) / ".runtime" / "dev" / "foreman-subagent-authorization"
+state_file = state_dir / f"{key}.json" if key else None
+
+authorization_pattern = re.compile(
+    r"\bauthori[sz]e\s+registered\s+foreman\s+subagents\s+for\s+this\s+session\b",
+    re.IGNORECASE,
+)
+
+additional_context = (
+    "Foreman subagent session authorization is active. Use registered custom "
+    "subagents for bounded specialist work; do not fall back to direct "
+    "Foreman execution for routable specialist work."
+)
+
+if state_file and state_file.is_file():
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": additional_context,
+        },
+    }))
+    raise SystemExit(0)
+
+if authorization_pattern.search(prompt):
+    if state_file:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(json.dumps({
+            "status": "authorized",
+            "session_id": session_id or None,
+            "transcript_path": transcript_path or None,
+            "authorized_at": datetime.now(timezone.utc).isoformat(),
+            "scope": "registered_foreman_subagents",
+        }, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": additional_context,
+        },
+    }))
+    raise SystemExit(0)
+
+reason = (
+    "Foreman needs session-level authorization to use registered custom "
+    "subagents for bounded specialist work before continuing.\n\n"
+    "Reply with:\n"
+    "authorize registered Foreman subagents for this session\n\n"
+    "This does not authorize extra file edits, commits, pushes, PRs, merges, "
+    "branch deletion, or GitHub mutation beyond the current task and active "
+    "workflow profile."
+)
+print(json.dumps({
+    "decision": "block",
+    "reason": reason,
+}))
 PY
 }
 
@@ -382,7 +480,11 @@ voice_enabled="$(dock_json_value voice.enabled true)"
 hook_continue="true"
 system_message=""
 
-if [[ "$phase" == "pre-tool-use" ]]; then
+if [[ "$phase" == "user-prompt-submit" ]]; then
+  user_prompt_submit_authorization_gate
+  exit 0
+
+elif [[ "$phase" == "pre-tool-use" ]]; then
   IFS=$'\t' read -r guard_status guard_message < <(pre_tool_use_spawn_guard)
   if [[ "$guard_status" != "ok" ]]; then
     python3 - "$guard_message" <<'PY'

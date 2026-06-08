@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { readSuccessorNote, successorNoteRelativePath } from './aos-successor-note.mjs';
 
@@ -164,6 +165,50 @@ function setTrace(trace, key, ids) {
   trace[key] = ids.filter(Boolean);
 }
 
+function buildSubagentDelegationPolicy(repoRoot) {
+  const rolesDir = '.codex/agents';
+  const teamDoc = '.docks/foreman/SUBAGENTS.md';
+  const rolesPath = path.join(repoRoot, rolesDir);
+  let registeredRoles = [];
+  let rolesDirStatus = 'present';
+  try {
+    registeredRoles = fs.readdirSync(rolesPath)
+      .filter((entry) => entry.endsWith('.toml'))
+      .map((entry) => entry.replace(/\.toml$/, ''))
+      .sort();
+  } catch {
+    rolesDirStatus = 'missing';
+  }
+  const teamDocStatus = fs.existsSync(path.join(repoRoot, teamDoc)) ? 'present' : 'missing';
+  return {
+    status: rolesDirStatus === 'present' && teamDocStatus === 'present' && registeredRoles.length > 0
+      ? 'active'
+      : 'unavailable',
+    authority: 'orientation_policy',
+    roles_dir: rolesDir,
+    team_doc: teamDoc,
+    registered_roles: registeredRoles,
+    routing_scope: [
+      'bounded_specialist_work',
+      'routine_git_github_hygiene',
+      'review',
+      'validation',
+      'reconnaissance',
+      'implementation',
+    ],
+    standing_authorization_intent: true,
+    ask_user_if_runtime_requires_turn_authorization: true,
+    fail_closed_without_registered_role: true,
+    fail_closed_without_session_authorization: true,
+    direct_specialist_fallback_allowed: false,
+    extra_mutation_authorized: false,
+    source_status: {
+      roles_dir: rolesDirStatus,
+      team_doc: teamDocStatus,
+    },
+  };
+}
+
 function limitedCount(value, limit) {
   if (!Array.isArray(value)) {
     return {
@@ -245,6 +290,24 @@ function buildSituation(options) {
   setTrace(trace, 'successor_note.status', ['successor_note']);
   setTrace(trace, 'successor_note.note', successorNote.note ? ['successor_note'] : []);
 
+  const subagentDelegation = buildSubagentDelegationPolicy(repoRoot);
+  sources.push({
+    id: 'subagent_delegation_policy',
+    command: `read ${subagentDelegation.roles_dir} and ${subagentDelegation.team_doc}`,
+    status: subagentDelegation.status === 'active' ? 'success' : 'failed',
+    exit_code: subagentDelegation.status === 'active' ? 0 : 1,
+    note: subagentDelegation.status,
+  });
+  setTrace(trace, 'subagent_delegation.status', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.registered_roles', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.routing_scope', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.standing_authorization_intent', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.ask_user_if_runtime_requires_turn_authorization', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.fail_closed_without_registered_role', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.fail_closed_without_session_authorization', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.direct_specialist_fallback_allowed', ['subagent_delegation_policy']);
+  setTrace(trace, 'subagent_delegation.extra_mutation_authorized', ['subagent_delegation_policy']);
+
   const openIssueCount = limitedCount(openIssues, options.issueLimit);
   const openPRCount = limitedCount(openPRs, options.prLimit);
   const summary = {
@@ -293,6 +356,7 @@ function buildSituation(options) {
       status: statusJSON,
     },
     successor_note: successorNote,
+    subagent_delegation: subagentDelegation,
     summary,
   };
 }
@@ -308,6 +372,7 @@ function printText(payload) {
   process.stdout.write(`Open issues: ${limitedCountText(payload.summary.open_issue_count, payload.summary.open_issue_count_limit, payload.summary.open_issue_count_limit_reached)}\n`);
   process.stdout.write(`Stashes: ${payload.summary.stash_count ?? 'unknown'}\n`);
   process.stdout.write(`Runtime ready: ${payload.summary.runtime_ready ?? 'unknown'}\n`);
+  process.stdout.write(`Subagent delegation: ${payload.subagent_delegation?.status ?? 'unknown'} (${payload.subagent_delegation?.roles_dir ?? 'unknown'})\n`);
   if (payload.successor_note?.status && payload.successor_note.status !== 'missing') {
     process.stdout.write(`Successor note: ${payload.successor_note.status} (${payload.successor_note.path})\n`);
   }

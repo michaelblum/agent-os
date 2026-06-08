@@ -352,26 +352,29 @@ data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["role"] == "explorer", data
 assert data["expected"]["agent_type"] == "explorer", data
+assert data["expected"]["role_selection_prompt_prefix"] == "Use the custom agent named explorer.", data
 assert data["expected"]["model"] == "gpt-5.4-mini", data
 assert data["expected"]["model_reasoning_effort"] == "low", data
-assert data["native_spawn_contract"]["agent_type"] == "explorer", data
+assert data["native_spawn_contract"]["tool_argument"]["agent_type"] == "explorer", data
+assert data["native_spawn_contract"]["prompt_prefix"] == "Use the custom agent named explorer.", data
 assert data["agent_config_path"] == ".codex/agents/explorer.toml", data
 assert data["discovery"]["native_project_agents_dir"] is True, data
 assert data["discovery"]["no_dock_local_agent_config"] is True, data
 assert "agent_type" in json.dumps(data), data
+assert "Use the custom agent named explorer." in json.dumps(data), data
 assert "gpt-5.5" not in json.dumps(data["expected"]), data
 PY
 then
-    pass "dev subagent plan emits explicit agent_type/model contract"
+    pass "dev subagent plan emits explicit role/model contract"
 else
     fail "dev subagent plan did not emit expected contract"
 fi
 
 GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.txt")"
 cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
-• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5 (gpt-5.4-mini low)
-  └ Do not edit files, do not run shell commands, and reply with exactly EXPLORER_AGENT_TYPE_SMOKE_OK.
-- spawn used agent_type=explorer
+• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
+  └ Use the custom agent named explorer. Do not edit files, do not run shell commands.
+- child developer-instruction identity response: Read files, grep, list, count, and map. Do nothing else.
 - Default/Gibbs/gpt-5.5 xhigh child evidence: no visible evidence appeared
 EOF
 if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'
@@ -381,10 +384,12 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["summary"]["failed"] == 0, data
-assert {claim["id"]: claim["status"] for claim in data["claims"]}["agent-type-explicit"] == "passed", data
+statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
+assert statuses["registered-role-selection"] == "passed", data
+assert statuses["agent-config-identity"] == "passed", data
 PY
 then
-    pass "dev subagent validate-proof accepts explicit explorer model evidence"
+    pass "dev subagent validate-proof accepts custom-agent identity evidence"
 else
     fail "dev subagent validate-proof rejected good proof"
 fi
@@ -408,7 +413,7 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "failed", data
 statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
-assert statuses["agent-type-explicit"] == "failed", data
+assert statuses["registered-role-selection"] == "failed", data
 assert statuses["no-default-role-evidence"] == "failed", data
 assert statuses["no-foreman-model-inheritance"] == "failed", data
 PY

@@ -56,6 +56,8 @@ runner_text = runner.read_text()
 for required in (
     ".agents/hooks/session-common.sh",
     "aos_run_hook_command_bounded",
+    "user_prompt_submit_authorization_gate",
+    "authorize registered Foreman subagents for this session",
     "pre_tool_use_spawn_guard",
     "Blocked native subagent tool call",
     "run_optional_hook \"pre-stop\"",
@@ -103,10 +105,14 @@ for role in ("foreman", "gdi", "operator"):
     if dock_config.get("hook_timeout_seconds") != 8:
         raise SystemExit(f"FAIL: {role} dock.json should bound AOS calls to 8 seconds: {dock_config}")
 
+nested_git_markers = sorted(path.relative_to(root).as_posix() for path in (root / ".docks").glob("*/.git"))
+if nested_git_markers:
+    raise SystemExit(f"FAIL: docks are not project roots; remove nested Git markers: {nested_git_markers}")
+
 foreman_hooks_path = root / ".docks" / "foreman" / ".codex" / "hooks.json"
 payload = json.loads(foreman_hooks_path.read_text())
 hook_names = set(payload.get("hooks", {}).keys())
-expected_hook_names = {"PreToolUse", "Stop", "SubagentStart", "SubagentStop"}
+expected_hook_names = {"UserPromptSubmit", "PreToolUse", "Stop", "SubagentStart", "SubagentStop"}
 if hook_names != expected_hook_names:
     raise SystemExit(f"FAIL: Foreman hooks mismatch: got {sorted(hook_names)} expected {sorted(expected_hook_names)}")
 
@@ -117,6 +123,7 @@ commands = [
     for hook in matcher.get("hooks", [])
 ]
 for expected in (
+    ".docks/foreman/hooks/user-prompt-submit.sh",
     ".docks/foreman/hooks/pre-tool-use.sh",
     ".docks/foreman/hooks/stop.sh",
     ".docks/foreman/hooks/subagent-start.sh",
@@ -137,7 +144,7 @@ for matcher in payload.get("hooks", {}).values():
             if not isinstance(timeout, int) or timeout > max_timeout:
                 raise SystemExit(f"FAIL: Foreman hook timeout is not bounded tightly: {hook}")
 
-for script_name in ("pre-tool-use.sh", "stop.sh", "subagent-start.sh", "subagent-stop.sh"):
+for script_name in ("user-prompt-submit.sh", "pre-tool-use.sh", "stop.sh", "subagent-start.sh", "subagent-stop.sh"):
     script_path = root / ".docks" / "foreman" / "hooks" / script_name
     if not os.access(script_path, os.X_OK):
         raise SystemExit(f"FAIL: Foreman {script_name} is not executable")
@@ -230,8 +237,9 @@ for required in (
     "Root `.codex/agents/` is the native Codex roster",
     "registers those same root files",
     "agent_type",
-    "argument `agent_type` is omitted",
-    "not `default`",
+    "registered role selection",
+    "Use the custom agent named <role>",
+    "`default`",
     "./aos dev subagent plan",
     "./aos dev subagent validate-proof",
 ):
@@ -250,8 +258,8 @@ for label, text in (("Docks README", docks_readme), ("Foreman README", foreman_r
 for required in (
     "Before broad fan-out",
     "smoke one spawned child",
-    "visible role",
-    "voice label",
+    "registered role selection",
+    "developer-instruction identity",
     "model",
     "effort",
     "agent_type",
@@ -277,7 +285,7 @@ for required in (
     "There is no generic helper role",
     "spawn attempt must use",
     "PreToolUse",
-    "If the available spawn tool does not expose an `agent_type` argument",
+    "If neither `agent_type` nor that prefix",
     "./aos dev subagent plan",
 ):
     if required not in foreman_agents:
@@ -385,7 +393,11 @@ for required in (
 PY
 
 TMPDIR_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-dock-hook-isolation.XXXXXX")"
-trap 'rm -rf "$TMPDIR_ROOT"' EXIT
+auth_state_dir=".runtime/dev/foreman-subagent-authorization"
+auth_session_id="dock-hook-test-subagent-auth"
+auth_marker="$auth_state_dir/$auth_session_id.json"
+rm -f "$auth_marker"
+trap 'rm -rf "$TMPDIR_ROOT"; rm -f "$auth_marker"' EXIT
 
 fake_aos="$TMPDIR_ROOT/aos"
 log_file="$TMPDIR_ROOT/aos.log"
@@ -410,6 +422,57 @@ printf 'CLIPBOARD:%s:%s\n' "${AOS_FAKE_CLIPBOARD_ROLE:-unknown}" "$payload" >>"$
 SH
 chmod +x "$fake_bin/pbcopy"
 
+unauthorized_prompt_payload='{"session_id":"dock-hook-test-subagent-auth","hook_event_name":"UserPromptSubmit","prompt":"Check current branch and GitHub state."}'
+out="$(printf '%s' "$unauthorized_prompt_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/user-prompt-submit.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("decision") != "block":
+    raise SystemExit(f"FAIL: expected UserPromptSubmit subagent authorization block, got {payload}")
+reason = payload.get("reason", "")
+if "authorize registered Foreman subagents for this session" not in reason:
+    raise SystemExit(f"FAIL: expected exact authorization reminder, got {payload}")
+if "does not authorize extra file edits" not in reason:
+    raise SystemExit(f"FAIL: expected mutation-scope reminder, got {payload}")
+PY
+if [[ -e "$auth_marker" ]]; then
+  echo "FAIL: unauthorized UserPromptSubmit should not create auth marker" >&2
+  exit 1
+fi
+
+authorized_prompt_payload='{"session_id":"dock-hook-test-subagent-auth","hook_event_name":"UserPromptSubmit","prompt":"authorize registered Foreman subagents for this session"}'
+out="$(printf '%s' "$authorized_prompt_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/user-prompt-submit.sh")"
+python3 - "$out" "$auth_marker" <<'PY'
+import json
+import pathlib
+import sys
+payload = json.loads(sys.argv[1])
+marker = pathlib.Path(sys.argv[2])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "UserPromptSubmit":
+    raise SystemExit(f"FAIL: expected UserPromptSubmit additional context payload, got {payload}")
+if "Foreman subagent session authorization is active" not in hook_output.get("additionalContext", ""):
+    raise SystemExit(f"FAIL: expected active authorization context, got {payload}")
+stored = json.loads(marker.read_text())
+if stored.get("status") != "authorized" or stored.get("scope") != "registered_foreman_subagents":
+    raise SystemExit(f"FAIL: expected stored authorization marker, got {stored}")
+PY
+
+out="$(printf '%s' "$unauthorized_prompt_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/user-prompt-submit.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if payload.get("decision") == "block":
+    raise SystemExit(f"FAIL: authorized session should not block later prompts, got {payload}")
+if hook_output.get("hookEventName") != "UserPromptSubmit":
+    raise SystemExit(f"FAIL: expected later prompt additional context payload, got {payload}")
+if "direct Foreman execution" not in hook_output.get("additionalContext", ""):
+    raise SystemExit(f"FAIL: expected no-direct-fallback reminder context, got {payload}")
+PY
+
 non_spawn_payload='{"tool_name":"shell","tool_input":{"cmd":"git status --short"}}'
 out="$(printf '%s' "$non_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
 if [[ -n "$out" ]]; then
@@ -426,8 +489,8 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected PreToolUse deny payload, got {payload}")
-if "missing agent_type argument" not in hook_output.get("permissionDecisionReason", ""):
-    raise SystemExit(f"FAIL: expected missing-agent_type spawn blocker message, got {payload}")
+if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected missing-role spawn blocker message, got {payload}")
 PY
 
 namespaced_missing_agent_type_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Read-only helper task. Do not edit files."}}'
@@ -439,8 +502,41 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected namespaced PreToolUse deny payload, got {payload}")
-if "missing agent_type argument" not in hook_output.get("permissionDecisionReason", ""):
-    raise SystemExit(f"FAIL: expected namespaced missing-agent_type spawn blocker message, got {payload}")
+if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected namespaced missing-role spawn blocker message, got {payload}")
+PY
+
+namespaced_registered_prompt_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Use the custom agent named github-steward. Return GitHub hygiene facts only."}}'
+out="$(printf '%s' "$namespaced_registered_prompt_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+if [[ -n "$out" ]]; then
+  echo "FAIL: expected registered custom-agent prompt spawn PreToolUse payload to emit no JSON, got $out" >&2
+  exit 1
+fi
+
+namespaced_loose_role_prose_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Use agent named github-steward. Return GitHub hygiene facts only."}}'
+out="$(printf '%s' "$namespaced_loose_role_prose_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected loose role prose PreToolUse deny payload, got {payload}")
+if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected loose role prose missing-role blocker message, got {payload}")
+PY
+
+namespaced_default_prompt_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Use the custom agent named default. Return facts only."}}'
+out="$(printf '%s' "$namespaced_default_prompt_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected default prompt PreToolUse deny payload, got {payload}")
+if "prohibited agent_type" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected prohibited default prompt blocker message, got {payload}")
 PY
 
 default_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"default","prompt":"Read-only helper task."}}'

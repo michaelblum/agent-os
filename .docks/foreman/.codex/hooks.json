@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/user-prompt-submit.sh",
+            "statusMessage": "Checking Foreman subagent authorization",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "hooks": [
