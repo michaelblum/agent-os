@@ -1,0 +1,17 @@
+# reviewer — Codex provider manifest
+# Source of truth: ai-agents/agents/reviewer.md
+
+name        = "reviewer"
+description = "Code review, diff analysis, correctness checks, and PR feedback. Dispatched after Implementer finishes a slice."
+nickname_candidates = ["Reviewer", "Critic", "Code Reviewer"]
+
+[model]
+name   = "gpt-5.5"
+effort = "medium"
+
+[sandbox]
+mode = "read-only"
+
+[behavior]
+output_format  = "review-comment"
+no_code_writes = true

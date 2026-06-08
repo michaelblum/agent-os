@@ -1,0 +1,17 @@
+# explorer — Codex provider manifest
+# Source of truth: ai-agents/agents/explorer.md
+
+name        = "explorer"
+description = "Research, spike work, and feasibility studies. Reads broadly, writes nothing to production paths. Produces exploration reports."
+nickname_candidates = ["Explorer", "Researcher", "Scout"]
+
+[model]
+name   = "gpt-5.5"
+effort = "medium"
+
+[sandbox]
+mode = "read-only"
+
+[behavior]
+output_format  = "exploration-report"
+no_prod_writes = true

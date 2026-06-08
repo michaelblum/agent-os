@@ -8,7 +8,7 @@
 #   AGENT_OS_PATH=/path/to/agent-os ./scripts/agent-sync.sh
 #
 # Invokable as $agent-sync from the Codex CLI.
-# See skills/agent-sync/SKILL.md for full documentation.
+# See ai-agents/providers/codex/SKILL.md for full documentation.
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ if [[ -z "$AGENT_OS_PATH" ]]; then
   for candidate in \
     "$HOME/Documents/GitHub/agent-os" \
     "$HOME/Code/agent-os"; do
-    if [[ -d "$candidate/.codex/agents" ]]; then
+    if [[ -d "$candidate/ai-agents/providers/codex" ]]; then
       AGENT_OS_PATH="$candidate"
       break
     fi
@@ -40,7 +40,7 @@ if [[ -z "$AGENT_OS_PATH" ]]; then
 fi
 
 # Fallback: are we already inside agent-os?
-if [[ -z "$AGENT_OS_PATH" && -d ".codex/agents" ]]; then
+if [[ -z "$AGENT_OS_PATH" && -d "ai-agents/providers/codex" ]]; then
   AGENT_OS_PATH="$(pwd)"
 fi
 
@@ -52,7 +52,7 @@ fi
 
 echo "agent-sync: source = $AGENT_OS_PATH"
 
-AGENTS_DIR="$AGENT_OS_PATH/.codex/agents"
+AGENTS_DIR="$AGENT_OS_PATH/ai-agents/providers/codex"
 GLOBAL_CONFIG="$HOME/.codex/config.toml"
 
 # ── 2. Ensure global config exists ──────────────────────────────────────────

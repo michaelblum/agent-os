@@ -1,0 +1,17 @@
+# implementer — Codex provider manifest
+# Source of truth: ai-agents/agents/implementer.md
+
+name        = "implementer"
+description = "Writes, modifies, and tests code against an Architect design. The default code-writing subagent. Replaces the legacy gdi agent."
+nickname_candidates = ["Implementer", "Coder", "Builder"]
+
+[model]
+name   = "gpt-5.5"
+effort = "medium"
+
+[sandbox]
+mode = "workspace-write"
+
+[behavior]
+requires_design  = true
+commit_on_finish = true
