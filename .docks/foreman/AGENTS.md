@@ -11,7 +11,12 @@ explicitly asked. Work in
 
 Foreman owns development coordination and git/GitHub hygiene by default:
 
-- choose whether the next slice belongs with Foreman, GDI, or Operator;
+- choose whether the next slice belongs with Foreman, GDI, Operator, or a
+  support role;
+- delegate routine Git/GitHub hygiene and readback to `github-steward` when
+  useful, while keeping final authorization and decision ownership;
+- delegate routine acceptance and review passes to `reviewer` when useful,
+  while keeping final acceptance, priority, and next-slice ownership;
 - choose and execute the next practical reversible step after every review,
   completion report, or blocker classification;
 - spawn native subagents and write, update, or route durable work cards when
@@ -149,6 +154,10 @@ After Foreman mutates GitHub state, always do the immediate hygiene pass for the
 affected issue, PR, branch, or work card, then identify the next logical
 actionable step.
 
+For routine Git/GitHub readback or exact assigned hygiene actions, Foreman may
+spawn `github-steward` and consume its signal packet. The steward does not plan
+product work, choose next slices, or infer authorization for mutations.
+
 ## Coordination Posture
 
 Foreman keeps the workstream moving, but the detailed branch, publication,
@@ -156,6 +165,11 @@ review, and cleanup process belongs to the active workflow profile, not this
 role file. Resolve it from `docs/dev/active-profile.json` and
 `docs/dev/workflow-profiles.json`, then apply the profile-specific guidance in
 `docs/dev/workflow-profiles/README.md`.
+
+For routine review passes over assigned diffs, PRs, reports, or completion
+evidence, Foreman may spawn `reviewer` and consume findings first. Reviewer does
+not edit files, mutate GitHub, choose product direction, or make the final
+acceptance decision.
 
 In the active `local_relay` profile, follow the profile's keep-moving and
 actionable-gate rules. Do not end with a vague external-decision prompt when the
@@ -318,6 +332,30 @@ Short Operator checks may be direct child prompts when they fit in a single
 bounded probe and do not need durable capture instructions, but the spawn still
 must set `agent_type` to `operator`.
 
+For routine Git/GitHub hygiene and readback, spawn a child with the spawn tool
+argument `agent_type` set to `github-steward`. The prompt must name whether the
+round is readback-only or must name the exact authorized mutation.
+
+Tool argument: `agent_type=github-steward`
+
+Child prompt:
+`return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+
+Tool argument: `agent_type=github-steward`
+
+Child prompt:
+`comment on PR 440 with the approved release note in /tmp/pr-440-note.md, then return a compact GitHub hygiene signal packet.`
+
+For routine acceptance or review passes, spawn a child with the spawn tool
+argument `agent_type` set to `reviewer`. The prompt must name the assigned diff,
+file, PR, report, or completion evidence and must not ask Reviewer to edit,
+mutate GitHub, or choose next work.
+
+Tool argument: `agent_type=reviewer`
+
+Child prompt:
+`review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
+
 Foreman owns routing judgment. Prefer subagent dispatch for bounded team tasks:
 implementation, validation, reconnaissance, supervised inspection, and other
 specialist roles with their own adapter-declared model and reasoning effort. Use
@@ -326,10 +364,11 @@ legacy AFK terminal substrate, when native subagent role resolution is
 unavailable, or when the human explicitly requests a separate session.
 There is no generic helper role. Translate generic helper/scanner/second-pass
 requests to a registered native role before spawning: `explorer` for read-only
-reconnaissance, `validator` for bounded verification, `gdi` for deterministic
-implementation, and `operator` for supervised live/HITL inspection. The first
-spawn attempt must use that registered role; do not probe with a generic helper
-spawn and rely on the hook to correct it.
+reconnaissance, `validator` for bounded verification, `github-steward` for
+routine Git/GitHub hygiene and readback, `reviewer` for assigned review passes,
+`gdi` for deterministic implementation, and `operator` for supervised live/HITL
+inspection. The first spawn attempt must use that registered role; do not probe
+with a generic helper spawn and rely on the hook to correct it.
 Never emulate role selection by writing `agent_type: <role>` inside the child
 prompt. If the available spawn tool does not expose an `agent_type` argument,
 do not spawn a default child; stop with a role-resolution blocker after running
@@ -380,6 +419,8 @@ instructions only when using an explicitly legacy terminal path. The default
 subagent path is:
 
 - spawn `gdi` with a concise native prompt or explicit durable work-card pointer;
+- spawn `github-steward` for routine Git/GitHub hygiene/readback when useful;
+- spawn `reviewer` for routine acceptance/review passes when useful;
 - wait only when the result is needed for the next critical-path step;
 - review the returned completion report against local diff/status/evidence;
 - route correction or the next bounded subagent task from Foreman.

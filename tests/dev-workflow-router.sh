@@ -325,10 +325,16 @@ data = json.loads(os.environ["OUT"])
 roles = {item["role"]: item for item in data["roles"]}
 assert data["status"] == "success", data
 assert data["agents_root"] == ".codex/agents", data
-assert {"explorer", "gdi", "operator", "validator"} <= set(roles), roles
+assert {"explorer", "gdi", "github-steward", "operator", "reviewer", "validator"} <= set(roles), roles
 assert roles["explorer"]["model"] == "gpt-5.4-mini", roles["explorer"]
 assert roles["explorer"]["model_reasoning_effort"] == "low", roles["explorer"]
 assert roles["explorer"]["agent_config_path"] == ".codex/agents/explorer.toml", roles["explorer"]
+assert roles["github-steward"]["model"] == "gpt-5.4-mini", roles["github-steward"]
+assert roles["github-steward"]["model_reasoning_effort"] == "low", roles["github-steward"]
+assert roles["github-steward"]["agent_config_path"] == ".codex/agents/github-steward.toml", roles["github-steward"]
+assert roles["reviewer"]["model"] == "gpt-5.4", roles["reviewer"]
+assert roles["reviewer"]["model_reasoning_effort"] == "medium", roles["reviewer"]
+assert roles["reviewer"]["agent_config_path"] == ".codex/agents/reviewer.toml", roles["reviewer"]
 assert roles["validator"]["model"] == "gpt-5.4-mini", roles["validator"]
 assert roles["validator"]["model_reasoning_effort"] == "low", roles["validator"]
 PY

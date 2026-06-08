@@ -32,5 +32,13 @@ description = "Read-only codebase scanner. Maps surfaces, locates patterns, and 
 config_file = "agents/validator.toml"
 description = "Bounded verification worker. Runs named checks, inspects evidence, and reports pass/fail facts without editing files."
 
+[agents.github-steward]
+config_file = "agents/github-steward.toml"
+description = "Routine Git/GitHub hygiene worker. Reads branch/ref/PR facts, performs explicitly assigned narrow mutations, and returns a compact signal packet."
+
+[agents.reviewer]
+config_file = "agents/reviewer.toml"
+description = "Routine review worker. Reviews assigned diffs/files/PR evidence, returns findings first, and never edits files or mutates GitHub."
+
 [notice]
 hide_full_access_warning = true
