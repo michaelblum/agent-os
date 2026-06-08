@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/pre-tool-use.sh",
+            "statusMessage": "Checking native subagent spawn",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
     "SubagentStart": [
       {
         "hooks": [

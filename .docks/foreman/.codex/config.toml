@@ -2,6 +2,8 @@ model = "gpt-5.5"
 model_reasoning_effort = "xhigh"
 
 [features]
+hooks = true
+multi_agent = true
 goals = false
 
 [tui]
@@ -13,13 +15,17 @@ max_threads = 6
 max_depth = 1
 
 [agents.gdi]
-config_file = "agents/gdi.toml"
+config_file = "../../../.codex/agents/gdi.toml"
 description = "Deterministic implementation worker. Executes bounded work-card instructions, runs verification, and reports completion evidence to Foreman."
 
 [agents.operator]
-config_file = "agents/operator.toml"
+config_file = "../../../.codex/agents/operator.toml"
 description = "Supervised HITL inspector. Probes live surfaces, evaluates stop conditions, and returns concise evidence to Foreman."
 
 [agents.explorer]
-config_file = "agents/explorer.toml"
+config_file = "../../../.codex/agents/explorer.toml"
 description = "Read-only codebase scanner. Maps surfaces, locates patterns, and returns raw findings. Makes no decisions and writes no files."
+
+[agents.validator]
+config_file = "../../../.codex/agents/validator.toml"
+description = "Bounded verification worker. Runs named checks, inspects evidence, and reports pass/fail facts without editing files."

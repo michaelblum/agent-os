@@ -416,6 +416,244 @@ function parseDocksOptions(args) {
   });
 }
 
+function parseSubagentOptions(args) {
+  return parseCommon(args, {
+    '--repo': 'repo path',
+    '--role': 'role name',
+    '--agents-root': 'agents-root path',
+    '--prompt': 'prompt text',
+    '--prompt-file': 'prompt-file path',
+    '--transcript': 'transcript text',
+    '--transcript-file': 'transcript-file path',
+  }, 'reject');
+}
+
+function readTextFile(file, missingCode, label) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    error(`Missing ${label}: ${file}`, missingCode);
+  }
+}
+
+function tomlStringValue(text, key) {
+  const match = text.match(new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, 'm'));
+  return match ? match[1] : null;
+}
+
+function loadSubagentCatalog(options) {
+  const repoRoot = resolveRepoRoot(options.repo);
+  const agentsRoot = resolveUnderRepo(options.agents_root, repoRoot, '.codex/agents');
+  if (!fs.existsSync(agentsRoot) || !fs.statSync(agentsRoot).isDirectory()) {
+    error(`Missing native Codex agents root: ${agentsRoot}`, 'MISSING_SUBAGENT_ROOT');
+  }
+  const roles = fs.readdirSync(agentsRoot)
+    .filter((entry) => entry.endsWith('.toml'))
+    .sort()
+    .map((entry) => {
+      const agentConfigPath = path.join(agentsRoot, entry);
+      const text = readTextFile(agentConfigPath, 'MISSING_SUBAGENT_CONFIG', 'subagent config');
+      const role = tomlStringValue(text, 'name') || entry.replace(/\.toml$/, '');
+      return {
+        role,
+        agent_config_path: normalizeRepoRelative(agentConfigPath, repoRoot),
+        description: tomlStringValue(text, 'description'),
+        model: tomlStringValue(text, 'model'),
+        model_reasoning_effort: tomlStringValue(text, 'model_reasoning_effort'),
+        sandbox_mode: tomlStringValue(text, 'sandbox_mode'),
+      };
+    });
+  return { repoRoot, agentsRoot, agents_root: normalizeRepoRelative(agentsRoot, repoRoot), roles };
+}
+
+function loadSubagentRole(options) {
+  if (!options.role) error('dev subagent requires --role <name>', 'MISSING_ROLE');
+  const catalog = loadSubagentCatalog(options);
+  const role = catalog.roles.find((item) => item.role === options.role);
+  if (!role) error(`Unknown subagent role: ${options.role}`, 'UNKNOWN_SUBAGENT_ROLE');
+  const repoConfig = path.join(catalog.repoRoot, '.codex', 'config.toml');
+  const foremanConfig = path.join(catalog.repoRoot, '.docks', 'foreman', '.codex', 'config.toml');
+  const repoConfigText = fs.existsSync(repoConfig) ? fs.readFileSync(repoConfig, 'utf8') : '';
+  const foremanConfigText = fs.existsSync(foremanConfig) ? fs.readFileSync(foremanConfig, 'utf8') : '';
+  return {
+    ...catalog,
+    role,
+    discovery: {
+      native_project_agents_dir: role.agent_config_path === `.codex/agents/${role.role}.toml`,
+      repo_root_registration: repoConfigText.includes(`[agents.${role.role}]`) && repoConfigText.includes(`config_file = "agents/${role.role}.toml"`),
+      foreman_entrypoint_registration: foremanConfigText.includes(`[agents.${role.role}]`) && foremanConfigText.includes(`config_file = "../../../.codex/agents/${role.role}.toml"`),
+      no_dock_local_agent_config: !fs.existsSync(path.join(catalog.repoRoot, '.docks', 'foreman', '.codex', 'agents', `${role.role}.toml`)),
+    },
+  };
+}
+
+function resolveOptionalText(options, inlineKey, fileKey, label) {
+  const inlineValue = options[inlineKey];
+  const fileValue = options[fileKey];
+  if (inlineValue && fileValue) error(`Use either --${inlineKey.replaceAll('_', '-')} or --${fileKey.replaceAll('_', '-')}, not both`, 'CONFLICTING_INPUT');
+  if (inlineValue) return inlineValue;
+  if (fileValue) return readTextFile(path.resolve(fileValue), 'MISSING_INPUT_FILE', label);
+  return null;
+}
+
+function buildSubagentPlan(options) {
+  const loaded = loadSubagentRole(options);
+  const prompt = resolveOptionalText(options, 'prompt', 'prompt_file', 'subagent prompt');
+  if (!prompt || !prompt.trim()) error('dev subagent plan requires --prompt <text> or --prompt-file <path>', 'MISSING_PROMPT');
+  return {
+    status: 'success',
+    subject: 'subagent-dispatch-contract',
+    repo: loaded.repoRoot,
+    agents_root: loaded.agents_root,
+    role: loaded.role.role,
+    agent_config_path: loaded.role.agent_config_path,
+    expected: {
+      agent_type: loaded.role.role,
+      model: loaded.role.model,
+      model_reasoning_effort: loaded.role.model_reasoning_effort,
+      sandbox_mode: loaded.role.sandbox_mode,
+    },
+    native_spawn_contract: {
+      agent_type: loaded.role.role,
+      prompt,
+    },
+    discovery: loaded.discovery,
+    fail_closed_on: [
+      'missing agent_type',
+      'default role',
+      'Default Started/Stopped voice label',
+      'Foreman model/effort inheritance',
+      'unverified visible model/effort',
+    ],
+    next: `Spawn the native Codex subagent with agent_type=${loaded.role.role}, then run ./aos dev subagent validate-proof --role ${loaded.role.role} --transcript-file <captured-transcript> --json before broad fan-out.`,
+  };
+}
+
+function transcriptLines(text) {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function lineMatchesAny(lines, patterns) {
+  return lines.filter((line) => patterns.some((pattern) => pattern.test(line)));
+}
+
+function buildSubagentProof(options) {
+  const loaded = loadSubagentRole(options);
+  const transcript = resolveOptionalText(options, 'transcript', 'transcript_file', 'subagent proof transcript');
+  if (!transcript || !transcript.trim()) error('dev subagent validate-proof requires --transcript <text> or --transcript-file <path>', 'MISSING_TRANSCRIPT');
+  const lines = transcriptLines(transcript);
+  const role = loaded.role.role;
+  const model = loaded.role.model || '';
+  const effort = loaded.role.model_reasoning_effort || '';
+  const rolePatterns = [
+    new RegExp(`^\\s*(?:[-•]\\s*)?(?:spawn used|spawn requested with|requested)\\s+agent_type\\s*=\\s*["']?${role}["']?\\b`, 'i'),
+  ];
+  const modelPatterns = model ? [new RegExp(model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')] : [];
+  const effortPatterns = effort ? [new RegExp(`\\b${effort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')] : [];
+  const defaultPatterns = [
+    /\bDefault Started\b/i,
+    /\bDefault Stopped\b/i,
+    /\bAcknowledged Default\b/i,
+    /agent_type\s*[:=]\s*["']?default["']?/i,
+    /visible spawned role name:\s*(Default|Gibbs)\b/i,
+  ];
+  const foremanInheritancePatterns = [
+    /\bSpawned\b.*\(\s*gpt-5\.5\s+xhigh\s*\)/i,
+    /visible spawned model(?: and reasoning effort)?\s*:\s*gpt-5\.5\s*(?:\/|\s)\s*xhigh\b/i,
+  ];
+  const roleEvidence = lineMatchesAny(lines, rolePatterns);
+  const modelEvidence = lineMatchesAny(lines, modelPatterns);
+  const effortEvidence = lineMatchesAny(lines, effortPatterns);
+  const defaultEvidence = lineMatchesAny(lines, defaultPatterns);
+  const foremanEvidence = lineMatchesAny(lines, foremanInheritancePatterns);
+  const claims = [
+    {
+      id: 'agent-type-explicit',
+      status: roleEvidence.length ? 'passed' : 'failed',
+      expected: `agent_type=${role}`,
+      observed: roleEvidence[0] || 'missing',
+      evidence: roleEvidence.slice(0, 3),
+    },
+    {
+      id: 'expected-model-visible',
+      status: modelEvidence.length ? 'passed' : 'failed',
+      expected: model || 'declared model',
+      observed: modelEvidence[0] || 'missing',
+      evidence: modelEvidence.slice(0, 3),
+    },
+    {
+      id: 'expected-effort-visible',
+      status: effortEvidence.length ? 'passed' : 'failed',
+      expected: effort || 'declared effort',
+      observed: effortEvidence[0] || 'missing',
+      evidence: effortEvidence.slice(0, 3),
+    },
+    {
+      id: 'no-default-role-evidence',
+      status: defaultEvidence.length ? 'failed' : 'passed',
+      expected: 'no default-role or Gibbs evidence',
+      observed: defaultEvidence[0] || 'none',
+      evidence: defaultEvidence.slice(0, 3),
+    },
+    {
+      id: 'no-foreman-model-inheritance',
+      status: foremanEvidence.length ? 'failed' : 'passed',
+      expected: 'no gpt-5.5 xhigh spawned child evidence',
+      observed: foremanEvidence[0] || 'none',
+      evidence: foremanEvidence.slice(0, 3),
+    },
+  ];
+  const failed = claims.filter((item) => item.status === 'failed').length;
+  return {
+    status: failed ? 'failed' : 'success',
+    subject: 'subagent-proof',
+    repo: loaded.repoRoot,
+    role,
+    agent_config_path: loaded.role.agent_config_path,
+    expected: {
+      agent_type: role,
+      model,
+      model_reasoning_effort: effort,
+    },
+    claims,
+    summary: {
+      total: claims.length,
+      passed: claims.length - failed,
+      failed,
+    },
+    next: failed
+      ? `Do not fan out. Spawn again with agent_type=${role} and verify the visible model/effort before routing work.`
+      : 'Subagent role proof accepted for this session; broad fan-out may proceed for the proven role.',
+  };
+}
+
+function subagentCommand(action, args) {
+  const options = parseSubagentOptions(args);
+  if (action === 'list') {
+    const catalog = loadSubagentCatalog(options);
+    const payload = {
+      status: 'success',
+      repo: catalog.repoRoot,
+      agents_root: catalog.agents_root,
+      count: catalog.roles.length,
+      roles: catalog.roles,
+    };
+    options.json ? printJSON(payload) : printSubagentList(payload);
+    return;
+  }
+  if (action === 'plan') {
+    const payload = buildSubagentPlan(options);
+    options.json ? printJSON(payload) : printSubagentPlan(payload);
+    return;
+  }
+  if (action === 'validate-proof') {
+    const payload = buildSubagentProof(options);
+    options.json ? printJSON(payload) : printSubagentProof(payload);
+    process.exit(payload.status === 'success' ? 0 : 1);
+  }
+  error(`Unknown dev subagent subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
+}
+
 function loadDockProfiles(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const dockRoot = resolveUnderRepo(options.dock_root, repoRoot, docksDefaultRoot);
@@ -554,7 +792,7 @@ function auditRegistryClaims(repoRoot) {
     return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-gh'];
+  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-subagent', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
     claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
@@ -568,6 +806,7 @@ function auditRegistryClaims(repoRoot) {
     auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
     auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
     auditFormFlagClaim('dev-docks-help-flags', forms.get('dev-docks'), ['--dock-root', '--capabilities-manifest', '--entry-path', '--repo', '--json'], false),
+    auditFormFlagClaim('dev-subagent-help-flags', forms.get('dev-subagent'), ['--repo', '--agents-root', '--role', '--prompt', '--prompt-file', '--transcript', '--transcript-file', '--json'], false),
     auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
   ];
 }
@@ -575,7 +814,7 @@ function auditRegistryClaims(repoRoot) {
 function auditWorkflowManifestClaims(manifest) {
   const rule = (manifest.rules || []).find((item) => item.id === workflowRuleID);
   if (!rule) return [claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
-  const expectedPatterns = ['docs/dev/workflow-rules.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'manifests/commands/aos-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
+  const expectedPatterns = ['docs/dev/workflow-rules.json', 'docs/dev/agent-capabilities.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'manifests/commands/aos-commands.json', 'manifests/commands/aos-external-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
   const expectedCommands = ['node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh', 'bash tests/dev-situation.sh', 'bash tests/dev-drift-lint.sh'];
   const patterns = rule.patterns || [];
   const commands = (rule.commands || []).map((item) => item.command);
@@ -703,6 +942,33 @@ function printDockCapabilities(payload) {
   }
 }
 
+function printSubagentList(payload) {
+  process.stdout.write(`dev subagent roles: ${payload.count}\n`);
+  process.stdout.write(`Agents root: ${payload.agents_root}\n`);
+  for (const role of payload.roles) {
+    process.stdout.write(`- ${role.role}: model=${role.model || 'unknown'} effort=${role.model_reasoning_effort || 'unknown'} config=${role.agent_config_path}\n`);
+  }
+}
+
+function printSubagentPlan(payload) {
+  process.stdout.write(`dev subagent plan: ${payload.role}\n`);
+  process.stdout.write(`Agent config: ${payload.agent_config_path}\n`);
+  process.stdout.write(`Expected: agent_type=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
+  process.stdout.write('Native spawn contract:\n');
+  process.stdout.write(`agent_type: ${payload.native_spawn_contract.agent_type}\n`);
+  process.stdout.write(`prompt: ${payload.native_spawn_contract.prompt}\n`);
+  process.stdout.write(`Next: ${payload.next}\n`);
+}
+
+function printSubagentProof(payload) {
+  process.stdout.write(`dev subagent proof: ${payload.status}\n`);
+  for (const item of payload.claims) {
+    const marker = item.status === 'passed' ? 'PASS' : 'FAIL';
+    process.stdout.write(`${marker} ${item.id} expected=${item.expected} observed=${item.observed}\n`);
+  }
+  process.stdout.write(`Next: ${payload.next}\n`);
+}
+
 const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'classify') {
   const options = parseWorkflowOptions(rest);
@@ -722,6 +988,10 @@ if (subcommand === 'classify') {
   const [action, ...args] = rest;
   if (!action) error('dev docks requires a subcommand', 'MISSING_SUBCOMMAND');
   docksCommand(action, args);
+} else if (subcommand === 'subagent') {
+  const [action, ...args] = rest;
+  if (!action) error('dev subagent requires a subcommand', 'MISSING_SUBCOMMAND');
+  subagentCommand(action, args);
 } else {
   error(`Unknown dev workflow command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
 }

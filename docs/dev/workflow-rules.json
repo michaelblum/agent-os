@@ -231,6 +231,7 @@
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [
         "docs/dev/workflow-rules.json",
+        "docs/dev/agent-capabilities.json",
         "docs/dev/active-profile.json",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
@@ -238,6 +239,7 @@
         "scripts/aos-dev-situation.mjs",
         "scripts/aos-dev-drift-lint.mjs",
         "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
         "shared/schemas/dev-active-profile.schema.json",
@@ -362,6 +364,42 @@
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
           "reason": "Verify dock profile discovery remains exposed through the dev control surface."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "codex-subagent-team",
+      "summary": "Native Codex subagent roster or Foreman team launch config changed.",
+      "patterns": [
+        ".codex/config.toml",
+        ".codex/agents/**",
+        ".docks/foreman/.codex/config.toml",
+        ".docks/foreman/.codex/hooks.json",
+        ".docks/foreman/SUBAGENTS.md",
+        ".docks/foreman/README.md",
+        ".docks/foreman/subagent-voices.json",
+        "tests/dock-hook-isolation.sh"
+      ],
+      "classes": [
+        "codex_subagent",
+        "dock_harness"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "dock-hook-isolation-test",
+          "command": "bash tests/dock-hook-isolation.sh",
+          "reason": "Verify Foreman hooks, voice labels, native agent roster paths, and subagent firewall contracts."
+        },
+        {
+          "id": "dev-workflow-router-test",
+          "command": "bash tests/dev-workflow-router.sh",
+          "reason": "Verify the AOS subagent proof helper and help manifests expose the native roster contract."
         }
       ],
       "verification": []

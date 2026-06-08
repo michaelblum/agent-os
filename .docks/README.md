@@ -29,10 +29,10 @@ codex --cd .docks/foreman
 ```
 
 Codex discovers Foreman's `AGENTS.md`, dock-local `.codex/config.toml`,
-`.codex/hooks.json`, and local hook scripts from that launch root. Native
-subagent adapters are dock-owned under `.docks/foreman/.codex/agents/`; repo-root
-`.codex/config.toml` also registers those adapters for sessions launched from
-the repo root. Source edits and tests still belong in
+`.codex/hooks.json`, and local hook scripts from that launch root. The native
+subagent roster lives in repo-root `.codex/agents/`; repo-root
+`.codex/config.toml` and the Foreman launch config both register those same
+native agent files. Source edits and tests still belong in
 `/Users/Michael/Code/agent-os` unless the task explicitly targets dock
 configuration or harness files.
 
@@ -65,11 +65,15 @@ is safe for the current session.
 Hook mechanics are code-owned. Do not duplicate hook behavior as long-form
 markdown instructions.
 
-- `.docks/foreman/.codex/hooks.json` declares Foreman `Stop`,
+- `.docks/foreman/.codex/hooks.json` declares Foreman `PreToolUse`, `Stop`,
   `SubagentStart`, and `SubagentStop` hook entry points.
 - `.docks/foreman/hooks/*.sh` are thin Foreman-local wrappers.
 - `.docks/harness/dock-hook-runner.sh` is the Foreman hook harness for stop
-  notices and subagent voice routing.
+  notices, subagent voice routing, the `PreToolUse` spawn guard, and the
+  `SubagentStart` warning/TTS tripwire. Generic/default helper spawns are
+  blocked only at `PreToolUse`; `SubagentStart` can warn and suppress voice for
+  already-started bad children, but it cannot stop startup in current Codex.
+  Foreman must select a registered native `agent_type`.
 - `.docks/harness/provider-input-control.sh` and
   `.docks/harness/pty-input-control.sh` are legacy terminal-input helpers kept
   for AFK/live-provider substrates until that stack migrates off warm terminal
@@ -152,20 +156,23 @@ or design note and reference it from the handoff.
 - `operator/` defines the Operator subagent role. It performs bounded supervised human-in-the-loop evidence collection
   and locator review. It does not own implementation or git/GitHub scope unless
   the transfer explicitly assigns that responsibility.
-- `foreman/.codex/agents/` defines the dock-owned native subagent roster.
-  Repo-root `.codex/config.toml` registers the same adapters for repo-root
-  sessions. The roster is extensible; each adapter must declare its own model
-  and reasoning effort instead of inheriting Foreman's coordination posture.
+- Repo-root `.codex/agents/` defines the native subagent roster. The Foreman
+  dock remains the team/persona/hooks entrypoint and registers those root agent
+  configs for dock-launched sessions. The roster is extensible; each config
+  must declare its own model and reasoning effort instead of inheriting
+  Foreman's coordination posture.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
-`docs/design/work-cards/` plus a concise `gdi` child prompt:
+`docs/design/work-cards/`, a spawn tool argument of `agent_type=gdi`, and a
+concise child prompt:
 
 ```text
-agent_type: gdi
-prompt: follow the instructions in docs/design/work-cards/<card>.md
+follow the instructions in docs/design/work-cards/<card>.md
 ```
 
 Before broad fan-out, Foreman must smoke one spawned child and verify the
-visible role, voice label, model, and effort match the intended adapter.
-Writing `Spawn gdi:` in the child prompt is not role selection; the spawned
-agent must have `agent_type` set to `gdi`.
+visible role, voice label, model, and effort match the intended agent config.
+Use `./aos dev subagent plan` before the smoke and
+`./aos dev subagent validate-proof` on the captured transcript after it.
+Naming a role in child prompt prose is not role selection; the spawned agent
+must have the tool argument `agent_type=gdi`; failed proof blocks fan-out.

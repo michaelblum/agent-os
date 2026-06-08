@@ -616,6 +616,16 @@
       }
     },
     {
+      "path": ["dev", "subagent"],
+      "summary": "Plan and validate fail-closed native Codex subagent dispatch contracts.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "subagent"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["runtime"],
       "summary": "Validate runtime subcommand routing through the external subcommand router.",
       "executable": "/usr/bin/env",

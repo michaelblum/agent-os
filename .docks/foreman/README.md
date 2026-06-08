@@ -8,15 +8,22 @@ codex
 ```
 
 The dock is the Foreman team root. Codex discovers `AGENTS.md`,
-`.codex/hooks.json`, and hook scripts from this launch root. Native subagent
-adapter files are dock-owned under `.docks/foreman/.codex/agents/`; repo-root
-`.codex/config.toml` registers those same adapters for repo-root sessions. The
-working repo remains `/Users/Michael/Code/agent-os`.
+`.codex/hooks.json`, and hook scripts from this launch root. The native
+subagent roster lives in repo-root `.codex/agents/`; this Foreman launch
+`.codex/config.toml` registers those same root agent files for dock-launched
+sessions. The working repo remains `/Users/Michael/Code/agent-os`.
 
 Foreman is the default coordinator and git/GitHub steward: it routes work to
 the native subagent team, maintains work cards, reviews completion reports,
 keeps track of active/completed work, and decides when commits, pushes, PRs, or
 issue updates are appropriate.
+
+Generic helpers are not a role. Before broad native subagent fan-out, translate
+helper/scanner/second-pass requests to a registered role, use
+`./aos dev subagent plan` to produce the explicit `agent_type` contract, and
+use `./aos dev subagent validate-proof` to fail closed on `default` role,
+voice-label, or Foreman model/effort inheritance evidence. A blocked generic
+spawn followed by a correct retry is still a routing mistake to fix.
 
 Workflow mechanics belong to the active profile in `docs/dev/active-profile.json`
 and `docs/dev/workflow-profiles.json`. Foreman should follow that profile

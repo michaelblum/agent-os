@@ -1,8 +1,8 @@
 # Operator Subagent
 # Spawned by Foreman for supervised/HITL inspection work.
 # .docks/operator/AGENTS.md is the canonical role contract; this file is the
-# Codex provider-adapter that lets Foreman spawn Operator as a native subagent
-# for bounded live-surface probes.
+# native Codex agent config that lets Foreman spawn Operator for bounded
+# live-surface probes.
 #
 # Model: gpt-5.4 — more capable than mini; needed for visual judgment and
 # complex page-state reading without requiring full xhigh reasoning.

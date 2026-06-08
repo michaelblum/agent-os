@@ -152,6 +152,9 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_merge'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_merge'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
 
   for (const profileName of ['foreman', 'gdi', 'operator']) {
     const allowed = profiles.get(profileName).allowed_capabilities;
@@ -170,10 +173,10 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.equal(profiles.get('foreman').metadata.execution_topology, 'team_root');
   assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
   assert.equal(profiles.get('foreman').metadata.subagent_team.extensible, true);
-  assert.deepEqual(profiles.get('foreman').metadata.subagent_team.registered_agents, ['gdi', 'operator', 'explorer']);
+  assert.deepEqual(profiles.get('foreman').metadata.subagent_team.registered_agents, ['gdi', 'operator', 'explorer', 'validator']);
   assert.equal(
     profiles.get('foreman').metadata.subagent_team.model_policy,
-    'role_adapter_declares_model_and_effort',
+    'native_agent_config_declares_model_and_effort',
   );
   assert.equal(profiles.get('foreman').metadata.subagent_team.inherits_foreman_model, false);
 

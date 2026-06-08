@@ -262,11 +262,12 @@ between.
 
 For non-trivial GDI implementation or validation work, create or update a
 Markdown work card under `docs/design/work-cards/` and spawn a child with
-`agent_type` set to `gdi` and only a concise pointer in the child prompt:
+the spawn tool argument `agent_type` set to `gdi` and only a concise pointer in
+the child prompt:
 
-`agent_type: gdi`
+Tool argument: `agent_type=gdi`
 
-`prompt: follow the instructions in docs/design/work-cards/<card>.md`
+Child prompt: `follow the instructions in docs/design/work-cards/<card>.md`
 
 Use the Foreman handoff wrapper only for successor-Foreman handoffs or an
 explicitly legacy terminal/AFK transfer:
@@ -282,12 +283,13 @@ progress updates, review findings, status reports, or notes that are not
 intended to be pasted into another session.
 
 For non-trivial Operator runs, put the detailed live-run contract in a Markdown
-work card under `docs/design/work-cards/` and spawn a child with `agent_type`
-set to `operator` and a concise pointer in the child prompt:
+work card under `docs/design/work-cards/` and spawn a child with the spawn tool
+argument `agent_type` set to `operator` and a concise pointer in the child
+prompt:
 
-`agent_type: operator`
+Tool argument: `agent_type=operator`
 
-`prompt: follow the instructions in docs/design/work-cards/operator-<card>.md`
+Child prompt: `follow the instructions in docs/design/work-cards/operator-<card>.md`
 
 Short Operator checks may be direct child prompts when they fit in a single
 bounded probe and do not need durable capture instructions, but the spawn still
@@ -299,6 +301,21 @@ specialist roles with their own adapter-declared model and reasoning effort. Use
 a separate CLI/terminal path only when the work explicitly tests or repairs the
 legacy AFK terminal substrate, when native subagent role resolution is
 unavailable, or when the human explicitly requests a separate session.
+There is no generic helper role. Translate generic helper/scanner/second-pass
+requests to a registered native role before spawning: `explorer` for read-only
+reconnaissance, `validator` for bounded verification, `gdi` for deterministic
+implementation, and `operator` for supervised live/HITL inspection. The first
+spawn attempt must use that registered role; do not probe with a generic helper
+spawn and rely on the hook to correct it.
+Never emulate role selection by writing `agent_type: <role>` inside the child
+prompt. If the available spawn tool does not expose an `agent_type` argument,
+do not spawn a default child; stop with a role-resolution blocker after running
+`./aos dev subagent plan` when possible.
+The `PreToolUse` hook is the parent-side spawn guard for this contract. The
+`SubagentStart` hook remains the TTS/audit hook and second-line warning
+tripwire: it suppresses misleading voice lines for missing, `default`,
+`foreman`, or nickname-shaped role values, but cannot stop an already-started
+subagent in current Codex.
 Apply `.docks/foreman/SUBAGENTS.md#context-firewall` when routing subagents.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
@@ -317,12 +334,12 @@ retain, amend, supersede, or revert it.
 When the GDI work card, report, fixture, or prerequisite commit is not on
 `origin/main`, include a Branch/Base section in the card with
 `branch_from: <ref>` and `required_start_ref: <ref>`, and include the start ref
-in the subagent prompt, for example:
+in the child prompt, for example:
 
-```text
-agent_type: gdi
-prompt: follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
-```
+Tool argument: `agent_type=gdi`
+
+Child prompt:
+`follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>`
 
 GDI rounds are one-goal sessions. If the next expected work is validation only,
 say validation only. If the next expected work is a correction, name the exact

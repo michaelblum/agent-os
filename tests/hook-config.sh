@@ -30,7 +30,12 @@ def assert_claude_hooks(path):
         raise SystemExit(f"FAIL: claude missing Stop final-response hook: {stop_hooks}")
 
 def assert_dock_codex_hooks(root):
-    for role in ["foreman", "gdi", "operator"]:
+    for role in ["gdi", "operator"]:
+        path = Path(root) / ".docks" / role / ".codex" / "hooks.json"
+        if path.exists():
+            raise SystemExit(f"FAIL: retired standalone {role} Codex hooks still exist: {path}")
+
+    for role in ["foreman"]:
         path = Path(root) / ".docks" / role / ".codex" / "hooks.json"
         payload = json.load(open(path))
         _, session_start = flatten_commands(payload, "SessionStart")
@@ -46,8 +51,8 @@ def assert_dock_codex_hooks(root):
             raise SystemExit(f"FAIL: {role} Codex hooks missing role-local Stop hook: {stop_hooks}")
         if post_tool:
             raise SystemExit(f"FAIL: {role} Codex hooks should not declare PostToolUse: {post_tool}")
-        if pre_tool:
-            raise SystemExit(f"FAIL: {role} Codex hooks should not declare PreToolUse: {pre_tool}")
+        if not any(f".docks/{role}/hooks/pre-tool-use.sh" in command for command in pre_tool):
+            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local PreToolUse guard: {pre_tool}")
 
 assert_dock_codex_hooks(sys.argv[1])
 assert_claude_hooks(sys.argv[2])

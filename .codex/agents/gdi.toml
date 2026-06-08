@@ -1,8 +1,8 @@
 # GDI Subagent
 # Spawned by Foreman for deterministic implementation work.
 # .docks/gdi/AGENTS.md is the canonical role contract; this file is the
-# Codex provider-adapter that lets Foreman spawn GDI as a native subagent
-# without relying on old standalone dock startup.
+# native Codex agent config that lets Foreman spawn GDI without relying on old
+# standalone dock startup.
 #
 # Model: gpt-5.4-mini — fast, cheap, sufficient for bounded deterministic work.
 # Effort: low — GDI executes clear instructions; deep reasoning is Foreman's job.

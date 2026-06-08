@@ -56,11 +56,15 @@ runner_text = runner.read_text()
 for required in (
     ".agents/hooks/session-common.sh",
     "aos_run_hook_command_bounded",
+    "pre_tool_use_spawn_guard",
+    "Blocked native subagent tool call",
     "run_optional_hook \"pre-stop\"",
     "run_optional_hook \"post-stop\"",
+    "subagent_role_guard",
+    "Blocked native subagent start",
     "say --voice-slot",
     "subagent-voices.json",
-    "hook_json_value agent_type",
+    "payload.get(\"agent_type\")",
 ):
     if required not in runner_text:
         raise SystemExit(f"FAIL: Foreman hook runner missing {required!r}")
@@ -102,7 +106,7 @@ for role in ("foreman", "gdi", "operator"):
 foreman_hooks_path = root / ".docks" / "foreman" / ".codex" / "hooks.json"
 payload = json.loads(foreman_hooks_path.read_text())
 hook_names = set(payload.get("hooks", {}).keys())
-expected_hook_names = {"Stop", "SubagentStart", "SubagentStop"}
+expected_hook_names = {"PreToolUse", "Stop", "SubagentStart", "SubagentStop"}
 if hook_names != expected_hook_names:
     raise SystemExit(f"FAIL: Foreman hooks mismatch: got {sorted(hook_names)} expected {sorted(expected_hook_names)}")
 
@@ -113,14 +117,15 @@ commands = [
     for hook in matcher.get("hooks", [])
 ]
 for expected in (
+    ".docks/foreman/hooks/pre-tool-use.sh",
     ".docks/foreman/hooks/stop.sh",
     ".docks/foreman/hooks/subagent-start.sh",
     ".docks/foreman/hooks/subagent-stop.sh",
 ):
     if not any(expected in command for command in commands):
         raise SystemExit(f"FAIL: Foreman hooks do not use isolated script {expected}: {commands}")
-if any("pre-tool-use" in command or "post-tool-use" in command for command in commands):
-    raise SystemExit(f"FAIL: Foreman must not install per-tool hooks: {commands}")
+if any("post-tool-use" in command for command in commands):
+    raise SystemExit(f"FAIL: Foreman must not install post-tool hooks: {commands}")
 if any(".docks/hooks/" in command or "AOS_DOCK_ROLE=" in command for command in commands):
     raise SystemExit(f"FAIL: Foreman hooks still route through shared dock behavior: {commands}")
 for matcher in payload.get("hooks", {}).values():
@@ -132,7 +137,7 @@ for matcher in payload.get("hooks", {}).values():
             if not isinstance(timeout, int) or timeout > max_timeout:
                 raise SystemExit(f"FAIL: Foreman hook timeout is not bounded tightly: {hook}")
 
-for script_name in ("stop.sh", "subagent-start.sh", "subagent-stop.sh"):
+for script_name in ("pre-tool-use.sh", "stop.sh", "subagent-start.sh", "subagent-stop.sh"):
     script_path = root / ".docks" / "foreman" / "hooks" / script_name
     if not os.access(script_path, os.X_OK):
         raise SystemExit(f"FAIL: Foreman {script_name} is not executable")
@@ -150,24 +155,31 @@ for label, text in (("repo Codex config", root_codex_config), ("Foreman Codex co
     for required in ("max_threads = 6", "max_depth = 1"):
         if required not in text:
             raise SystemExit(f"FAIL: {label} missing {required}")
+for required in ("hooks = true", "multi_agent = true"):
+    if required not in foreman_config:
+        raise SystemExit(f"FAIL: Foreman Codex config missing explicit feature {required!r}")
 
-duplicate_root_agents_dir = root / ".codex" / "agents"
-if duplicate_root_agents_dir.exists():
-    raise SystemExit(f"FAIL: duplicate repo-root Codex agents dir still exists: {duplicate_root_agents_dir}")
+native_agents_dir = root / ".codex" / "agents"
+if not native_agents_dir.is_dir():
+    raise SystemExit(f"FAIL: missing native repo-root Codex agents dir: {native_agents_dir}")
 
-for role in ("gdi", "operator", "explorer"):
+dock_local_agents_dir = root / ".docks" / "foreman" / ".codex" / "agents"
+if dock_local_agents_dir.exists():
+    raise SystemExit(f"FAIL: Foreman dock must not own native agent configs: {dock_local_agents_dir}")
+
+for role in ("gdi", "operator", "explorer", "validator"):
     role_header = f"[agents.{role}]"
-    repo_config_line = f'config_file = "../.docks/foreman/.codex/agents/{role}.toml"'
-    foreman_config_line = f'config_file = "agents/{role}.toml"'
+    repo_config_line = f'config_file = "agents/{role}.toml"'
+    foreman_config_line = f'config_file = "../../../.codex/agents/{role}.toml"'
     if role_header not in root_codex_config or repo_config_line not in root_codex_config:
-        raise SystemExit(f"FAIL: repo Codex config does not register dock-owned {role} adapter")
+        raise SystemExit(f"FAIL: repo Codex config does not register native {role} agent config")
     if role_header not in foreman_config or foreman_config_line not in foreman_config:
-        raise SystemExit(f"FAIL: Foreman Codex config does not register dock-owned {role} adapter")
+        raise SystemExit(f"FAIL: Foreman Codex config does not register root native {role} agent config")
     for label, text in (("repo Codex config", root_codex_config), ("Foreman Codex config", foreman_config)):
-        if f'{role} = "agents/{role}.toml"' in text or f'{role}      = "agents/{role}.toml"' in text:
-            raise SystemExit(f"FAIL: {label} reintroduced string-map entry for {role}")
+        if f".docks/foreman/.codex/agents/{role}.toml" in text:
+            raise SystemExit(f"FAIL: {label} reintroduced dock-local native agent path for {role}")
 
-    agent_path = root / ".docks" / "foreman" / ".codex" / "agents" / f"{role}.toml"
+    agent_path = native_agents_dir / f"{role}.toml"
     agent_text = agent_path.read_text()
     for required in (
         f'name = "{role}"',
@@ -188,8 +200,12 @@ foreman_subagents = (root / ".docks" / "foreman" / "SUBAGENTS.md").read_text()
 docks_readme = (root / ".docks" / "README.md").read_text()
 foreman_readme = (root / ".docks" / "foreman" / "README.md").read_text()
 gdi_agents = (root / ".docks" / "gdi" / "AGENTS.md").read_text()
-explorer_agent = (root / ".docks" / "foreman" / ".codex" / "agents" / "explorer.toml").read_text()
+explorer_agent = (root / ".codex" / "agents" / "explorer.toml").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()
+foreman_transfer_refs = [
+    (path.name, path.read_text())
+    for path in sorted((root / ".docks" / "foreman" / "skills" / "session-transfer" / "references").glob("*.md"))
+]
 if "name: foreman-session-transfer" not in foreman_transfer_skill:
     raise SystemExit("FAIL: Foreman transfer skill uses the wrong name")
 for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman transfer skill", foreman_transfer_skill)):
@@ -207,22 +223,25 @@ for required in (
     "known stale pools",
     "Design docs",
     "Explorer performs bounded read-only scans only",
-    "Repo-root `.codex/config.toml` registers those dock-owned adapters",
+    "Root `.codex/agents/` is the native Codex roster",
+    "registers those same root files",
     "agent_type",
-    "If `agent_type` is omitted, Codex uses `default`",
+    "argument `agent_type` is omitted",
     "not `default`",
+    "./aos dev subagent plan",
+    "./aos dev subagent validate-proof",
 ):
     if required not in foreman_subagents:
         raise SystemExit(f"FAIL: Foreman SUBAGENTS missing context-firewall contract token {required!r}")
 
 for label, text in (("Docks README", docks_readme), ("Foreman README", foreman_readme)):
     for required in (
-        ".docks/foreman/.codex/agents/",
-        "repo-root",
+        ".codex/agents/",
+        "Foreman",
         ".codex/config.toml",
     ):
         if required not in text:
-            raise SystemExit(f"FAIL: {label} missing active subagent adapter path token {required!r}")
+            raise SystemExit(f"FAIL: {label} missing active subagent config token {required!r}")
 
 for required in (
     "Before broad fan-out",
@@ -238,10 +257,27 @@ for required in (
 
 for label, text in (
     ("Foreman AGENTS", foreman_agents),
+    ("Foreman SUBAGENTS", foreman_subagents),
+    ("Docks README", docks_readme),
     ("Foreman transfer skill", foreman_transfer_skill),
+    *[(f"Foreman transfer reference {name}", text) for name, text in foreman_transfer_refs],
 ):
     if "Spawn gdi:" in text or "Spawn operator:" in text or "Spawn explorer:" in text:
         raise SystemExit(f"FAIL: {label} still teaches prompt-text role selection")
+    for forbidden in ("agent_type: gdi", "agent_type: operator", "agent_type: explorer", "agent_type: validator"):
+        if forbidden in text:
+            raise SystemExit(f"FAIL: {label} still formats agent_type as prompt text: {forbidden}")
+
+for required in (
+    "Never emulate role selection",
+    "There is no generic helper role",
+    "spawn attempt must use",
+    "PreToolUse",
+    "If the available spawn tool does not expose an `agent_type` argument",
+    "./aos dev subagent plan",
+):
+    if required not in foreman_agents:
+        raise SystemExit(f"FAIL: Foreman AGENTS missing fail-closed native subagent routing token {required!r}")
 
 for required in (
     "Foreman selects the read-first set",
@@ -286,6 +322,59 @@ payload="$(cat || true)"
 printf 'CLIPBOARD:%s:%s\n' "${AOS_FAKE_CLIPBOARD_ROLE:-unknown}" "$payload" >>"$AOS_FAKE_CLIPBOARD_LOG"
 SH
 chmod +x "$fake_bin/pbcopy"
+
+non_spawn_payload='{"tool_name":"shell","tool_input":{"cmd":"git status --short"}}'
+out="$(printf '%s' "$non_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+if [[ -n "$out" ]]; then
+  echo "FAIL: expected non-spawn PreToolUse payload to emit no JSON, got $out" >&2
+  exit 1
+fi
+
+missing_agent_type_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"prompt":"Read-only helper task. Do not edit files."}}'
+out="$(printf '%s' "$missing_agent_type_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected PreToolUse deny payload, got {payload}")
+if "missing agent_type argument" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected missing-agent_type spawn blocker message, got {payload}")
+PY
+
+namespaced_missing_agent_type_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Read-only helper task. Do not edit files."}}'
+out="$(printf '%s' "$namespaced_missing_agent_type_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected namespaced PreToolUse deny payload, got {payload}")
+if "missing agent_type argument" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected namespaced missing-agent_type spawn blocker message, got {payload}")
+PY
+
+default_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"default","prompt":"Read-only helper task."}}'
+out="$(printf '%s' "$default_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected default PreToolUse deny payload, got {payload}")
+if "prohibited agent_type" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected prohibited default spawn blocker message, got {payload}")
+PY
+
+explorer_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"explorer","prompt":"Read-only helper task."}}'
+out="$(printf '%s' "$explorer_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+if [[ -n "$out" ]]; then
+  echo "FAIL: expected explicit explorer spawn PreToolUse payload to emit no JSON, got $out" >&2
+  exit 1
+fi
 
 payload='{"session_id":"019d99f3-0001-7000-b000-000000000001","last_assistant_message":"Do not speak this tail.\n\n(on clipboard)"}'
 out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_FAKE_CLIPBOARD_LOG="$clipboard_log" AOS_FAKE_CLIPBOARD_ROLE="foreman" bash ".docks/foreman/hooks/stop.sh")"
@@ -338,6 +427,64 @@ for expected in \
 done
 if grep -q 'Subagent begin\|Subagent ready\|Subagent stopped' "$log_file"; then
   echo "FAIL: Subagent hooks should use agent_type from hook JSON instead of fallback labels" >&2
+  cat "$log_file" >&2
+  exit 1
+fi
+
+: >"$log_file"
+blocked_start_payload='{"turn_id":"turn-1","agent_id":"agent-1","agent_type":"default","permission_mode":"danger-full-access"}'
+out="$(printf '%s' "$blocked_start_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/subagent-start.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected default subagent start warning to continue, got {payload}")
+if "prohibited role" not in payload.get("systemMessage", ""):
+    raise SystemExit(f"FAIL: expected prohibited-role blocker message, got {payload}")
+if "SubagentStart cannot block startup" not in payload.get("systemMessage", ""):
+    raise SystemExit(f"FAIL: expected SubagentStart limitation message, got {payload}")
+PY
+if [[ -s "$log_file" ]]; then
+  echo "FAIL: blocked default subagent start should not speak" >&2
+  cat "$log_file" >&2
+  exit 1
+fi
+
+: >"$log_file"
+missing_start_payload='{"turn_id":"turn-1","agent_id":"agent-1","permission_mode":"danger-full-access"}'
+out="$(printf '%s' "$missing_start_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/subagent-start.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected missing-agent_type subagent start warning to continue, got {payload}")
+if "missing agent_type" not in payload.get("systemMessage", ""):
+    raise SystemExit(f"FAIL: expected missing-agent_type blocker message, got {payload}")
+if "SubagentStart cannot block startup" not in payload.get("systemMessage", ""):
+    raise SystemExit(f"FAIL: expected SubagentStart limitation message, got {payload}")
+PY
+if [[ -s "$log_file" ]]; then
+  echo "FAIL: blocked missing-agent_type subagent start should not speak" >&2
+  cat "$log_file" >&2
+  exit 1
+fi
+
+: >"$log_file"
+out="$(printf '%s' "$blocked_start_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/subagent-stop.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected default subagent stop to continue while suppressing voice, got {payload}")
+message = payload.get("systemMessage", "")
+if "Suppressed native subagent stop voice" not in message or "prohibited role" not in message:
+    raise SystemExit(f"FAIL: expected prohibited-role stop suppression message, got {payload}")
+PY
+if [[ -s "$log_file" ]]; then
+  echo "FAIL: invalid subagent stop should not speak Default stopped lines" >&2
   cat "$log_file" >&2
   exit 1
 fi

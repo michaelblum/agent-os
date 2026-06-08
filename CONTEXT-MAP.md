@@ -67,8 +67,9 @@ source root. This file is a routing map, not a replacement for those sources.
 - Shared docked-session contract: `.docks/AGENTS.md`.
 - Role contracts: `.docks/foreman/AGENTS.md`, `.docks/gdi/AGENTS.md`, and
   `.docks/operator/AGENTS.md`.
-- Hook and harness sources: `.docks/<dock>/.codex/hooks.json`,
-  `.docks/<dock>/hooks/`, `.docks/harness/`, `.docks/<dock>/dock.json`, and
+- Native Codex subagent configs: `.codex/agents/`.
+- Hook and harness sources: `.docks/foreman/.codex/hooks.json`,
+  `.docks/foreman/hooks/`, `.docks/harness/`, `.docks/<dock>/dock.json`, and
   `.docks/<dock>/inbound-contract.json`.
 - Scripts and skills: `.docks/foreman/scripts/handoff`,
   `.docks/gdi/scripts/human-needed-tcc-reset`, and role-local skill directories

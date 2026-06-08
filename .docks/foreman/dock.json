@@ -39,6 +39,7 @@
     "dev.github.pr_merge",
     "dev.github.ci_inspect",
     "dev.github.review_comments",
+    "dev.subagent.dispatch_contract",
     "dev.build.aos",
     "dev.test.schema_node"
   ],
@@ -59,9 +60,10 @@
       "registered_agents": [
         "gdi",
         "operator",
-        "explorer"
+        "explorer",
+        "validator"
       ],
-      "model_policy": "role_adapter_declares_model_and_effort",
+      "model_policy": "native_agent_config_declares_model_and_effort",
       "inherits_foreman_model": false
     },
     "legacy_terminal_transport": false
