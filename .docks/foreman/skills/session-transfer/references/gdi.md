@@ -38,12 +38,12 @@ For the full flexible authoring shape, read
 in the subagent dispatch.
 
 When the card lives on a branch that is not `origin/main`, select the `gdi`
-subagent with `agent_type=gdi` when available, otherwise start the child prompt
-with `Use the custom agent named gdi.`, and mention the branch in the child
-prompt:
+subagent with structured `agent_type=gdi` when available and mention the
+branch in the child prompt. If structured `agent_type` is unavailable, stop
+with a subagent-runtime blocker instead of using prompt-prefix fallback.
 
 Child prompt:
-`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/<card>.md; start from <ref>`
+`Follow the instructions in docs/design/work-cards/<card>.md; start from <ref>`
 
 ## Branch/Base Rules
 
@@ -79,11 +79,10 @@ Keep the GDI dispatch plain. Do not add addressee ceremony. If the work is
 TCC-sensitive, put the TCC stop branch in the work card or append a plain
 suffix to the subagent prompt, for example:
 
-Role selection: `agent_type=gdi` when available; otherwise start with
-`Use the custom agent named gdi.`
+Role selection: structured spawn-tool field `agent_type=gdi`.
 
 Child prompt:
-`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed`
+`Follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed`
 
 The GDI helper is stop-only: it prints the human-needed blocker and does not
 write hook markers, reset permissions, open Settings, or start AOS.

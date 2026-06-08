@@ -123,14 +123,16 @@ commands = [
     for hook in matcher.get("hooks", [])
 ]
 for expected in (
-    ".docks/foreman/hooks/user-prompt-submit.sh",
-    ".docks/foreman/hooks/pre-tool-use.sh",
-    ".docks/foreman/hooks/stop.sh",
-    ".docks/foreman/hooks/subagent-start.sh",
-    ".docks/foreman/hooks/subagent-stop.sh",
+    "bash hooks/user-prompt-submit.sh",
+    "bash hooks/pre-tool-use.sh",
+    "bash hooks/stop.sh",
+    "bash hooks/subagent-start.sh",
+    "bash hooks/subagent-stop.sh",
 ):
     if not any(expected in command for command in commands):
         raise SystemExit(f"FAIL: Foreman hooks do not use isolated script {expected}: {commands}")
+if any(command.startswith("/") or "/Users/Michael/Code/agent-os" in command for command in commands):
+    raise SystemExit(f"FAIL: Foreman hook commands must not hardcode this checkout path: {commands}")
 if any("post-tool-use" in command for command in commands):
     raise SystemExit(f"FAIL: Foreman must not install post-tool hooks: {commands}")
 if any(".docks/hooks/" in command or "AOS_DOCK_ROLE=" in command for command in commands):
@@ -149,6 +151,10 @@ for script_name in ("user-prompt-submit.sh", "pre-tool-use.sh", "stop.sh", "suba
     if not os.access(script_path, os.X_OK):
         raise SystemExit(f"FAIL: Foreman {script_name} is not executable")
     script = script_path.read_text()
+    if "/Users/Michael/Code/agent-os" in script:
+        raise SystemExit(f"FAIL: Foreman {script_name} hardcodes this checkout path")
+    if "BASH_SOURCE[0]" not in script or "AOS_DOCK_REPO_ROOT:-" not in script:
+        raise SystemExit(f"FAIL: Foreman {script_name} should derive repo root portably with env override")
     if ".docks/harness/dock-hook-runner.sh" not in script:
         raise SystemExit(f"FAIL: Foreman {script_name} is not a shared harness wrapper")
     if "exec " not in script:
@@ -279,6 +285,22 @@ for label, text in (
     for forbidden in ("agent_type: gdi", "agent_type: operator", "agent_type: explorer", "agent_type: validator", "agent_type: github-steward", "agent_type: reviewer"):
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} still formats agent_type as prompt text: {forbidden}")
+    for forbidden in (
+        "otherwise start the child prompt with",
+        "otherwise start with `Use the custom agent named",
+        "when available or the exact prefix",
+        "`agent_type=<role>` when available or",
+    ):
+        if forbidden in text:
+            raise SystemExit(f"FAIL: {label} still teaches prompt-prefix fallback: {forbidden}")
+
+for label, text in (
+    ("Docks README", docks_readme),
+    ("Foreman transfer skill", foreman_transfer_skill),
+    *[(f"Foreman transfer reference {name}", text) for name, text in foreman_transfer_refs if name == "gdi.md"],
+):
+    if "subagent-runtime blocker" not in text:
+        raise SystemExit(f"FAIL: {label} does not name fail-closed subagent-runtime blocker behavior")
 
 for required in (
     "Never emulate role selection",
