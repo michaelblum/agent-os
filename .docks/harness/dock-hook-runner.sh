@@ -307,13 +307,14 @@ prompt_text = first_string(
     nested_value(tool_input, "message"),
     nested_value(tool_input, "prompt"),
 )
-if not role and prompt_text:
+prefix_role = ""
+if prompt_text:
     match = re.match(
         r"(?is)^\s*(?:use|spawn)\s+(?:exactly\s+one\s+)?(?:the\s+)?custom\s+agent\s+named\s+([a-z][a-z0-9_-]*)\b",
         prompt_text,
     )
     if match:
-        role = match.group(1)
+        prefix_role = match.group(1)
 
 role_key = role.lower()
 
@@ -321,7 +322,10 @@ def block(message):
     print(f"block\t{message}")
 
 if not role_key:
-    block("Blocked native subagent tool call: missing registered subagent role. Use the spawn tool agent_type=<role> argument when available, or start the prompt with 'Use the custom agent named <role>' for the current Codex spawn surface.")
+    if prefix_role:
+        block("Blocked: no confirmed agent_type binding for this spawn. Prompt-prefix custom-agent selection is unverified on multi_agent_v1. Use multi_agent_v2 + agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not spawn a default child.")
+        raise SystemExit(0)
+    block("Blocked native subagent tool call: missing confirmed agent_type binding. Use the spawn tool agent_type=<role> argument when the structured field is exposed, or surface a subagent-runtime-blocker to the human. Do not use prompt-prefix custom-agent selection.")
     raise SystemExit(0)
 
 if role_key in {"default", "foreman", "gibbs"}:

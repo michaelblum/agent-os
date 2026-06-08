@@ -115,13 +115,15 @@ routine specialist chores. Use registered native subagent spawning when:
   evidence while Foreman remains the final decision owner.
 
 If a registered role fits routine specialist work, Foreman must use that role.
-Use `agent_type=<role>` when the spawn tool exposes that argument. On the
-current `multi_agent_v1.spawn_agent` surface, start the child prompt with
-`Use the custom agent named <role>.` Direct Foreman execution is limited to tiny
-coordination edits, synthesis, routing judgment, or work where no registered
-role fits. If neither role-selection path is available, do not spawn a default
-child; report a subagent-runtime blocker unless the human explicitly authorizes
-fallback for that specific flow.
+Use `agent_type=<role>` only when the live spawn tool exposes that structured
+argument. Current `multi_agent_v1.spawn_agent` prompt-prefix spawning is not
+sufficient because it can inherit Foreman's model/effort. The prompt text
+`Use the custom agent named <role>.` is not a confirmed runtime binding and
+must not be used as fallback role selection. Direct Foreman execution is
+limited to tiny coordination edits, synthesis, routing judgment, or work where
+no registered role fits. If structured `agent_type` is unavailable, do not
+spawn a default child; report a subagent-runtime blocker unless the human
+explicitly authorizes a non-native fallback for that specific flow.
 
 Use the legacy terminal/AFK path only when:
 
@@ -137,11 +139,13 @@ agents from native TOML configs under `.codex/agents/` and from explicit
 `config_file` registrations in the active project `.codex` configuration. The
 `name` field inside each agent config is the runtime identity.
 
-Use the spawn tool's `agent_type` field when the live tool exposes it. If the
-tool does not expose `agent_type`, use the official custom-agent prompt prefix:
-`Use the custom agent named <role>.` Do not rely on arbitrary role prose inside
-the child prompt. A prompt that says `agent_type: <role>` is not role
-selection.
+Use the spawn tool's structured `agent_type` field when the live tool exposes
+it. If the tool does not expose `agent_type`, stop with a subagent-runtime
+blocker. Current `multi_agent_v1` prompt-prefix spawning is not sufficient
+because it can inherit Foreman's model/effort. The prefix
+`Use the custom agent named <role>.` and arbitrary role prose inside the child
+prompt are not role selection. A prompt that says `agent_type: <role>` is not
+role selection either.
 
 There is no generic helper role. If a user asks for a helper, scanner, second
 set of eyes, or lightweight pass, Foreman must translate that request to a
@@ -161,9 +165,10 @@ fix role loading before continuing.
 
 Foreman's `PreToolUse` hook blocks recognized spawn-tool calls that omit
 registered role selection, use `default`, or name an unregistered role. It
-accepts explicit `agent_type=<role>` when available and the current v1 prompt
-prefix `Use the custom agent named <role>.` `SubagentStart` cannot stop startup
-in current Codex; it is the second-line warning/TTS tripwire for missing
+accepts explicit structured `agent_type=<role>` only. It denies prefix-only
+spawn payloads on `multi_agent_v1` because they are not confirmed bindings and
+can inherit Foreman's `gpt-5.5 / xhigh` posture. `SubagentStart` cannot stop
+startup in current Codex; it is the second-line warning/TTS tripwire for missing
 `agent_type`, `default`, `foreman`, `gibbs`, and roles that do not map to a
 repo-root `.codex/agents/<role>.toml` file declaring the same `name`.
 `SubagentStop` suppresses invalid-role voice lines so a bad child does not
@@ -203,49 +208,42 @@ GitHub Steward owns the routine mechanics under live readback:
   live readback;
 - do not touch local main unless explicitly assigned.
 
-Role selection: `agent_type=explorer` when available; otherwise start with
-`Use the custom agent named explorer.`
+Role selection: `agent_type=explorer` through the structured spawn-tool field.
 
 Child prompt:
-`Use the custom agent named explorer. Find all files under src/ that import from aos-gesture-frame and return paths, import forms, and counts only.`
+`Find all files under src/ that import from aos-gesture-frame and return paths, import forms, and counts only.`
 
-Role selection: `agent_type=validator` when available; otherwise start with
-`Use the custom agent named validator.`
-
-Child prompt:
-`Use the custom agent named validator. Run bash tests/dock-hook-isolation.sh and report the pass/fail result and any exact failure line. Do not edit files.`
-
-Role selection: `agent_type=github-steward` when available; otherwise start with
-`Use the custom agent named github-steward.`
+Role selection: `agent_type=validator` through the structured spawn-tool field.
 
 Child prompt:
-`Use the custom agent named github-steward. Return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+`Run bash tests/dock-hook-isolation.sh and report the pass/fail result and any exact failure line. Do not edit files.`
 
-Role selection: `agent_type=reviewer` when available; otherwise start with
-`Use the custom agent named reviewer.`
-
-Child prompt:
-`Use the custom agent named reviewer. Review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
-
-Role selection: `agent_type=gdi` when available; otherwise start with
-`Use the custom agent named gdi.`
+Role selection: `agent_type=github-steward` through the structured spawn-tool field.
 
 Child prompt:
-`Use the custom agent named gdi. Update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
+`Return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+
+Role selection: `agent_type=reviewer` through the structured spawn-tool field.
+
+Child prompt:
+`Review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
+
+Role selection: `agent_type=gdi` through the structured spawn-tool field.
+
+Child prompt:
+`Update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
 
 If an explicit durable work card is current, use a concise pointer instead:
 
-Role selection: `agent_type=gdi` when available; otherwise start with
-`Use the custom agent named gdi.`
+Role selection: `agent_type=gdi` through the structured spawn-tool field.
 
 Child prompt (explicit durable-only work-card pointer):
-`Use the custom agent named gdi. Follow the instructions in docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.`
+`Follow the instructions in docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.`
 
-Role selection: `agent_type=operator` when available; otherwise start with
-`Use the custom agent named operator.`
+Role selection: `agent_type=operator` through the structured spawn-tool field.
 
 Child prompt:
-`Use the custom agent named operator. Open https://localhost:3000/workbench and report whether the avatar compact control renders without error in the console. Stop immediately on any login or paywall gate.`
+`Open https://localhost:3000/workbench and report whether the avatar compact control renders without error in the console. Stop immediately on any login or paywall gate.`
 
 ## What Subagents Inherit from Foreman
 

@@ -285,7 +285,8 @@ for required in (
     "There is no generic helper role",
     "spawn attempt must use",
     "PreToolUse",
-    "If neither `agent_type` nor that prefix",
+    "If structured `agent_type=<role>` is unavailable",
+    "prompt-prefix form `Use the custom agent named <role>.` is not",
     "./aos dev subagent plan",
 ):
     if required not in foreman_agents:
@@ -489,7 +490,7 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected PreToolUse deny payload, got {payload}")
-if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+if "missing confirmed agent_type binding" not in hook_output.get("permissionDecisionReason", ""):
     raise SystemExit(f"FAIL: expected missing-role spawn blocker message, got {payload}")
 PY
 
@@ -502,16 +503,22 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected namespaced PreToolUse deny payload, got {payload}")
-if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+if "missing confirmed agent_type binding" not in hook_output.get("permissionDecisionReason", ""):
     raise SystemExit(f"FAIL: expected namespaced missing-role spawn blocker message, got {payload}")
 PY
 
 namespaced_registered_prompt_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Use the custom agent named github-steward. Return GitHub hygiene facts only."}}'
 out="$(printf '%s' "$namespaced_registered_prompt_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
-if [[ -n "$out" ]]; then
-  echo "FAIL: expected registered custom-agent prompt spawn PreToolUse payload to emit no JSON, got $out" >&2
-  exit 1
-fi
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected prefix-only PreToolUse deny payload, got {payload}")
+if "no confirmed agent_type binding" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected prefix-only binding blocker message, got {payload}")
+PY
 
 namespaced_loose_role_prose_spawn_payload='{"recipient_name":"multi_agent_v1.spawn_agent","arguments":{"message":"Use agent named github-steward. Return GitHub hygiene facts only."}}'
 out="$(printf '%s' "$namespaced_loose_role_prose_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
@@ -522,7 +529,7 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected loose role prose PreToolUse deny payload, got {payload}")
-if "missing registered subagent role" not in hook_output.get("permissionDecisionReason", ""):
+if "missing confirmed agent_type binding" not in hook_output.get("permissionDecisionReason", ""):
     raise SystemExit(f"FAIL: expected loose role prose missing-role blocker message, got {payload}")
 PY
 
@@ -535,8 +542,8 @@ payload = json.loads(sys.argv[1])
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "PreToolUse" or hook_output.get("permissionDecision") != "deny":
     raise SystemExit(f"FAIL: expected default prompt PreToolUse deny payload, got {payload}")
-if "prohibited agent_type" not in hook_output.get("permissionDecisionReason", ""):
-    raise SystemExit(f"FAIL: expected prohibited default prompt blocker message, got {payload}")
+if "no confirmed agent_type binding" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected no-agent_type default prompt blocker message, got {payload}")
 PY
 
 default_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"default","prompt":"Read-only helper task."}}'
