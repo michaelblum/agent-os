@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 browser state, display topology, Sigil state, Comet state, or temp artifact
 availability. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -23,7 +23,7 @@ availability. Read and rediscover before editing. Work in
 - `branch_from: origin/main`
 - `required_start_ref: origin/main`
 - Expected output branch:
-  `gdi/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
+  `implementer/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
 - Stop and report instead of rebasing if `origin/main` is not at or after
   `a597e550b8dc2f5a0afd596d23c6fb729b8c30fd`.
 
@@ -152,10 +152,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or input
 tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and include the script output. After the human
+Then stop with `manual_intervention` and include the script output. After the human
 returns with `finished`, run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect

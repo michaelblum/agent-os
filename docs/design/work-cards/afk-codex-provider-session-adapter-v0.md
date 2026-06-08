@@ -34,19 +34,19 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI implementation round
+- Recipient: Implementer
+- Transfer kind: Implementer implementation round
 - Source artifact:
   `docs/design/notes/afk-codex-provider-session-adapter-contract-2026-05-22.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch named
-  `gdi/afk-codex-provider-session-adapter-v0` from the required start ref. Keep
+  `implementer/afk-codex-provider-session-adapter-v0` from the required start ref. Keep
   the checkpoint local; do not push, open a PR, mutate GitHub, or run live
   provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, local transcripts, skill internals, or prior
 implementation state. Read and rediscover before editing.
 
@@ -64,7 +64,7 @@ the implementation cannot be tested otherwise.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-codex-provider-session-adapter-contract-2026-05-22.md`
 - `docs/design/work-cards/afk-codex-provider-session-adapter-inventory-v0.md`
 - `docs/design/work-cards/afk-bridge-launch-visibility-fixture-v0.md`
@@ -99,7 +99,7 @@ becomes necessary, stop and explain why before running live checks.
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `5db132fcbb39767e650098d829bb89781f2d5056`
 - expected output branch:
-  `gdi/afk-codex-provider-session-adapter-v0`
+  `implementer/afk-codex-provider-session-adapter-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

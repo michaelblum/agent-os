@@ -1,7 +1,7 @@
 # Work Card: decision-contract-inventory-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -16,7 +16,7 @@ inventory and recommendation, not implement new schemas or command surfaces.
 
 Accepted evidence:
 
-- GDI branch: `gdi/decision-contract-inventory-v0`
+- Implementer branch: `implementer/decision-contract-inventory-v0`
 - Accepted commit: `057be101bc4697725e5dc6aa836c751566bb5b34`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -30,7 +30,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -47,10 +47,10 @@ as design vocabulary for now.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/recipes/README.md`
 - `docs/adr/0009-recipe-playbook-workflow-as-three-distinct-artifacts.md`
@@ -79,7 +79,7 @@ Do not reset to `origin/main`. A clean worktree on `main` is the wrong starting
 state for this round because it will not contain the design note or this card.
 
 If you create an output branch, use
-`gdi/decision-contract-inventory-v0` from the required start ref. Keep the
+`implementer/decision-contract-inventory-v0` from the required start ref. Keep the
 checkpoint local unless Foreman or Michael explicitly asks for a push or PR.
 
 ## Existing Files To Inspect
@@ -94,12 +94,12 @@ Start with these files, then search as needed:
 - `src/commands/dev.swift` - `./aos dev recommend` implementation surface.
 - `docs/recipes/context-doc-maintenance.md` - adopt/adapt/reject/defer
   classification example.
-- `.docks/README.md` and `.docks/AGENTS.md` - dock selection, transfer storage,
+- `.docks/AGENTS.md` and `.docks/AGENTS.md` - dock selection, transfer storage,
   and role-boundary rules.
 - `.docks/foreman/AGENTS.md` - Foreman routing/acceptance loop.
 - `.docks/foreman/skills/session-transfer/SKILL.md` - transfer classification
   rules.
-- `docs/recipes/agent-entry-paths-and-verification.md` - entry-path and
+- `docs/recipes/agent-tooling-contexts-and-verification.md` - tooling-context and
   verification classification.
 - `docs/recipes/aos-surface-interaction-decision-tree.md` - surface interaction
   routing decisions.
@@ -112,7 +112,7 @@ Start with these files, then search as needed:
 Use `rg` to find additional candidates. Useful terms include:
 
 ```bash
-rg -n "classify|classification|route|routing|decision|defer|adopt|adapt|reject|blocked|human_needed|human-needed|required_start_ref|trigger|result route|invalidation|recommend" AGENTS.md .docks docs packages src shared tests
+rg -n "classify|classification|route|routing|decision|defer|adopt|adapt|reject|blocked|manual_intervention|manual-intervention|required_start_ref|trigger|result route|invalidation|recommend" AGENTS.md .docks docs packages src shared tests
 ```
 
 ## Required Output

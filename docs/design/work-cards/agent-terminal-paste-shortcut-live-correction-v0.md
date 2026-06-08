@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -10,7 +10,7 @@ Correction round
 
 ## Tracker
 
-Correction after accepting `gdi/agent-terminal-input-ux-parity-v0`.
+Correction after accepting `implementer/agent-terminal-input-ux-parity-v0`.
 
 Accepted commit on `main`:
 
@@ -23,7 +23,7 @@ but keyboard shortcut paste still does not work in the live WebView.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider session, transcript state, or prior live proof state. Read and
 rediscover before editing.
 
@@ -40,7 +40,7 @@ Keep the already-working right-click paste and wheel scrollback behavior.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `b24923ebb33bf29bb042eb1f9a5cf9da6fdc5117` or later with this work card
-- output_branch: `gdi/agent-terminal-paste-shortcut-live-correction-v0`
+- output_branch: `implementer/agent-terminal-paste-shortcut-live-correction-v0`
 
 ## Read First
 
@@ -189,10 +189,10 @@ Then run a bounded live smoke if `./aos ready` reports ready:
 If live readiness is blocked by repo-mode TCC/input-tap permissions, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with a `human_needed` report instead of retrying live checks. After
+Then stop with a `manual_intervention` report instead of retrying live checks. After
 the human returns, run `./aos ready --post-permission`.
 
 ## Completion Report

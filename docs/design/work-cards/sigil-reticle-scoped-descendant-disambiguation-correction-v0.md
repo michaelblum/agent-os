@@ -5,9 +5,9 @@
 - Display-first annotation epic: https://github.com/michaelblum/agent-os/issues/295
 - Source correction card:
   `docs/design/work-cards/sigil-reticle-scoped-targeting-explainability-correction-v0.md`
-- Returned GDI branch under Foreman review:
-  `gdi/sigil-reticle-scoped-targeting-explainability-correction-v0`
-- Returned GDI commit:
+- Returned Implementer branch under Foreman review:
+  `implementer/sigil-reticle-scoped-targeting-explainability-correction-v0`
+- Returned Implementer commit:
   `8e83e336c11668b14a4d6491ae3dff7d58089fb9`
 
 Foreman deterministic review accepted the direction of the returned branch but
@@ -20,18 +20,18 @@ work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 issue state, display topology, VS Code state, browser state, or prior review
 context. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
 ## Branch / Base
 
-- `branch_from: origin/gdi/sigil-reticle-scoped-targeting-explainability-correction-v0`
-- `required_start_ref: origin/gdi/sigil-reticle-scoped-targeting-explainability-correction-v0`
+- `branch_from: origin/implementer/sigil-reticle-scoped-targeting-explainability-correction-v0`
+- `required_start_ref: origin/implementer/sigil-reticle-scoped-targeting-explainability-correction-v0`
 - Expected output branch: keep working on
-  `gdi/sigil-reticle-scoped-targeting-explainability-correction-v0`
-- Stop and report instead of rebasing if the current branch is not the GDI
+  `implementer/sigil-reticle-scoped-targeting-explainability-correction-v0`
+- Stop and report instead of rebasing if the current branch is not the Implementer
   branch above or if `packages/toolkit/workbench/annotation-candidates.js` lacks
   `explainAnnotationCandidateChoice`.
 
@@ -116,10 +116,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or input
 tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and include the script output. After the human
+Then stop with `manual_intervention` and include the script output. After the human
 returns with `finished`, run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect

@@ -52,8 +52,8 @@ All must pass before committing.
 
 ## Git
 
-1. Follow all preconditions in `.docks/gdi/AGENTS.md` (fetch, reset, branch)
-2. Branch: `gdi/gateway-mcp-tool`
+1. Follow all preconditions in the implementer native subagent instructions (fetch, reset, branch)
+2. Branch: `implementer/gateway-mcp-tool`
 3. Stage only the files listed in Deliverables above — explicit paths, no wildcards
 4. Commit, push, run `git show --stat HEAD`
 5. Report: branch name + HEAD SHA + `git show --stat HEAD` output + test results

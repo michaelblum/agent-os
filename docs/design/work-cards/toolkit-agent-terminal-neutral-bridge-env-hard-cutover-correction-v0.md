@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -13,7 +13,7 @@ Correction round
 - Superseded card:
   `docs/design/work-cards/toolkit-agent-terminal-neutral-bridge-env-aliases-v0.md`
 - Rejected implementation branch:
-  `origin/gdi/toolkit-agent-terminal-neutral-bridge-env-aliases-v0`
+  `origin/implementer/toolkit-agent-terminal-neutral-bridge-env-aliases-v0`
 - Rejected commit:
   `b17881f7a2d64f1eb625d769ced66721f3300f01`
 
@@ -22,7 +22,7 @@ but the final direction must follow this correction card.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -43,7 +43,7 @@ layers that future agents can confuse for active contract.
   `3a15150d2f5dfe2ed78d6eb58b7116eff06c1601` or later with this correction
   card
 - output_branch:
-  `gdi/toolkit-agent-terminal-neutral-bridge-env-hard-cutover-correction-v0`
+  `implementer/toolkit-agent-terminal-neutral-bridge-env-hard-cutover-correction-v0`
 
 ## Read First
 
@@ -63,9 +63,9 @@ layers that future agents can confuse for active contract.
 Then inspect the rejected implementation for awareness:
 
 ```bash
-git fetch origin gdi/toolkit-agent-terminal-neutral-bridge-env-aliases-v0
-git diff --stat origin/main..origin/gdi/toolkit-agent-terminal-neutral-bridge-env-aliases-v0
-git diff origin/main..origin/gdi/toolkit-agent-terminal-neutral-bridge-env-aliases-v0 -- \
+git fetch origin implementer/toolkit-agent-terminal-neutral-bridge-env-aliases-v0
+git diff --stat origin/main..origin/implementer/toolkit-agent-terminal-neutral-bridge-env-aliases-v0
+git diff origin/main..origin/implementer/toolkit-agent-terminal-neutral-bridge-env-aliases-v0 -- \
   packages/toolkit/components/agent-terminal/bridge-server.mjs \
   packages/toolkit/components/agent-terminal/pty-proxy.py \
   packages/toolkit/components/agent-terminal/launch.sh \

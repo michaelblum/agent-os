@@ -13,13 +13,13 @@
   `4efa800ffdf1a0734ca143206a77f8c4b48eade5`
   (`merge: integrate sigil radial menu branch`).
 - Related prior cards:
-  - `docs/design/work-cards/recent-ui-live-regression-closure-gdi-v0.md`;
+  - `docs/design/work-cards/recent-ui-live-regression-closure-implementer-v0.md`;
   - `docs/design/work-cards/sigil-context-menu-data-driven-controls-v0.md`;
   - `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Work in
+Implementer starts from a fresh context window. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`. Do not assume branch,
 worktree, daemon, canvas, display, evidence artifact, or prior implementation
 state. Read and rediscover before editing.
@@ -226,11 +226,11 @@ If `./aos ready` passes, run bounded live smoke:
 Then use real pointer input to right-click the avatar hit target. Capture:
 
 ```bash
-mkdir -p /tmp/aos-gdi-sigil-context-menu-visibility-repair-v0
+mkdir -p /tmp/aos-implementer-sigil-context-menu-visibility-repair-v0
 ./aos show list --json \
-  > /tmp/aos-gdi-sigil-context-menu-visibility-repair-v0/show-list-after-context-open.json
+  > /tmp/aos-implementer-sigil-context-menu-visibility-repair-v0/show-list-after-context-open.json
 ./aos show eval --id avatar-main --js 'JSON.stringify({debug: window.__sigilDebug?.snapshot?.() ?? null, menu: (() => { const el = document.querySelector("#sigil-context-menu"); const card = document.querySelector("#sigil-menu-root"); return { anchorClass: el?.className ?? null, ariaHidden: el?.getAttribute("aria-hidden"), state: el?.getAttribute("data-state"), anchorRect: el?.getBoundingClientRect?.() ?? null, cardRect: card?.getBoundingClientRect?.() ?? null }; })()})' \
-  > /tmp/aos-gdi-sigil-context-menu-visibility-repair-v0/context-menu-visible-state.json
+  > /tmp/aos-implementer-sigil-context-menu-visibility-repair-v0/context-menu-visible-state.json
 ```
 
 For live acceptance, prove:
@@ -259,7 +259,7 @@ Report:
 - deterministic tests run with exact pass/fail results;
 - exact `./aos ready` result;
 - live smoke result and artifact paths under
-  `/tmp/aos-gdi-sigil-context-menu-visibility-repair-v0/`;
+  `/tmp/aos-implementer-sigil-context-menu-visibility-repair-v0/`;
 - whether context menu controls have non-zero rects and are visibly readable;
 - whether radial real-input still passes;
 - whether `./aos show list --json` is clean after cleanup;

@@ -14,7 +14,7 @@ This audit compared top-level architecture and terminology claims in:
 - `CONTEXT.md`
 
 against the current codebase on branch
-`gdi/toolkit-panel-theme-consistency-audit-v0`.
+`implementer/toolkit-panel-theme-consistency-audit-v0`.
 
 The audit focused on claims that are concrete enough to verify against command
 registries, Swift implementations, toolkit helpers, schemas, and package
@@ -229,8 +229,8 @@ No live canvas or daemon readiness verification was needed for this first pass.
 
 ## Recommended Next Step
 
-Route a second-pass validation to GDI before changing `ARCHITECTURE.md` or
-`CONTEXT.md`. GDI should independently re-run focused evidence checks, validate
+Route a second-pass validation to Implementer before changing `ARCHITECTURE.md` or
+`CONTEXT.md`. Implementer should independently re-run focused evidence checks, validate
 or refute each finding, and amend this report with a short second-pass section
 or correction notes.
 

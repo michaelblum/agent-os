@@ -18,7 +18,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing. Work in `/Users/Michael/Code/agent-os`, not in
 `.docks/`.
@@ -178,7 +178,7 @@ projection evidence or if tests reveal a regression from the toolkit change.
 
 Likely ownership is toolkit workbench/session helpers plus the Surface Inspector
 component integration. Sigil is read-mostly regression territory. Daemon work is
-out of scope unless GDI finds a missing generic lifecycle or event primitive and
+out of scope unless Implementer finds a missing generic lifecycle or event primitive and
 reports it as a blocker instead of patching around it.
 
 ## Hard Boundaries / Non-Goals

@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -24,7 +24,7 @@ Relevant accepted context:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider session, transcript/catalog state, or prior live proof state.
 Read and rediscover before editing.
 
@@ -42,7 +42,7 @@ boundary that still emits stale legacy env names.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `6376e7a0407c109c3b6a98f4f510d7c9d59ae9eb` or later with this work card
-- output_branch: `gdi/afk-launch-attempt-canonical-env-correction-v0`
+- output_branch: `implementer/afk-launch-attempt-canonical-env-correction-v0`
 
 ## Read First
 

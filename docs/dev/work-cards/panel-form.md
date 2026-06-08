@@ -30,8 +30,8 @@ Run `tests/toolkit/panel-form.test.mjs` and confirm all tests pass before commit
 
 ## Git
 
-1. Follow all preconditions in `.docks/gdi/AGENTS.md` (fetch, reset, branch)
-2. Branch: `gdi/panel-form`
+1. Follow all preconditions in the implementer native subagent instructions (fetch, reset, branch)
+2. Branch: `implementer/panel-form`
 3. Stage only: `packages/toolkit/panel/form.js` and `tests/toolkit/panel-form.test.mjs`
 4. Commit, push, run `git show --stat HEAD`
 5. Report: branch name + HEAD SHA + `git show --stat HEAD` output + test results

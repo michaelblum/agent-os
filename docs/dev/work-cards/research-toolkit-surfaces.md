@@ -1,7 +1,7 @@
 # Work Card: Toolkit Surface Audit
 
-**Branch:** `gdi/research-toolkit-surfaces`  
-**Type:** Research — no code changes  
+**Branch:** `implementer/research-toolkit-surfaces`
+**Type:** Research — no code changes
 **Stage only:** `docs/dev/reports/toolkit-surface-audit.md`
 
 ---
@@ -12,14 +12,14 @@ Inventory every component in `packages/toolkit/components/` and classify how it 
 
 ---
 
-## Instructions for GDI
+## Instructions for Implementer
 
 ### Preconditions
 
 ```sh
 git fetch origin
 git reset --hard origin/main
-git checkout -b gdi/research-toolkit-surfaces
+git checkout -b implementer/research-toolkit-surfaces
 ```
 
 ### Step 1 — Inventory controls/index.js
@@ -56,7 +56,7 @@ Add a **Retrofit Candidates** section after the table listing components that co
 git add docs/dev/reports/toolkit-surface-audit.md
 git show --stat HEAD
 git commit -m "research(toolkit): surface audit report"
-git push origin gdi/research-toolkit-surfaces
+git push origin implementer/research-toolkit-surfaces
 ```
 
 Report back with: branch name, HEAD SHA, and `git show --stat HEAD` output.
@@ -65,7 +65,7 @@ Report back with: branch name, HEAD SHA, and `git show --stat HEAD` output.
 
 ## Acceptance Criteria
 
-- [ ] `docs/dev/reports/toolkit-surface-audit.md` exists on branch `gdi/research-toolkit-surfaces`
+- [ ] `docs/dev/reports/toolkit-surface-audit.md` exists on branch `implementer/research-toolkit-surfaces`
 - [ ] Table covers all components in `packages/toolkit/components/`
 - [ ] Retrofit Candidates section present
 - [ ] No source code files modified

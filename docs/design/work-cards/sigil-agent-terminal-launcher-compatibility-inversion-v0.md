@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -29,7 +29,7 @@ through the historical `codex-terminal` path.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `ed0a79e8a64b82cebdebe64bd1be058f5f83f37d` or later with this work card
-- output_branch: `gdi/sigil-agent-terminal-launcher-compatibility-inversion-v0`
+- output_branch: `implementer/sigil-agent-terminal-launcher-compatibility-inversion-v0`
 
 ## Read First
 

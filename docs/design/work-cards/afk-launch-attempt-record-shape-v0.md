@@ -21,7 +21,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, terminal bridge, catalog, telemetry, or prior implementation
 state. Read and rediscover before editing.
 
@@ -39,11 +39,11 @@ and evidence requirements before automated provider launch begins.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`
+- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-implementer-completed.md`
 - `docs/design/work-cards/afk-dry-run-launch-observability-fields-v0.md`
 - `docs/design/work-cards/afk-terminal-substrate-no-provider-validation-v0.md`
 - `tests/afk-terminal-substrate-no-provider.test.mjs`
@@ -60,7 +60,7 @@ git rev-parse --short docs/durable-agent-cognition-v0
 ./aos dev recommend --json
 ```
 
-This is docs-only unless GDI discovers a narrow source-test pointer is required.
+This is docs-only unless Implementer discovers a narrow source-test pointer is required.
 Do not run or launch a provider session.
 
 ## Branch / Base
@@ -68,7 +68,7 @@ Do not run or launch a provider session.
 - branch_from: `docs/durable-agent-cognition-v0`
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `ab23e597`
-- expected output branch: `gdi/afk-launch-attempt-record-shape-v0`
+- expected output branch: `implementer/afk-launch-attempt-record-shape-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -154,8 +154,8 @@ git diff --check
 ./aos dev recommend --json
 ```
 
-If GDI only changes docs and the router reports docs-only, no runtime
-verification is required. If GDI inspects tests or source for evidence, report
+If Implementer only changes docs and the router reports docs-only, no runtime
+verification is required. If Implementer inspects tests or source for evidence, report
 that as inspection unless actually run.
 
 ## Completion Report

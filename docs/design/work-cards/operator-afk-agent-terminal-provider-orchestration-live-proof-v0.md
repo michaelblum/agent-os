@@ -6,7 +6,7 @@
 
 - Classification: `pass`.
 - Foreman review: accepted. The run proved a proof-owned headed Agent Terminal
-  can launch real Codex from `.docks/gdi`, accept a provider prompt through the
+  can launch real Codex from `the implementer native subagent`, accept a provider prompt through the
   live terminal UI with `Cmd+V` plus `Enter`, complete bounded local work, expose
   bridge/session/provider metadata, and clean up proof-owned runtime state.
 - Branch/ref gates passed on `main` at
@@ -24,7 +24,7 @@
   - port `17794`;
   - session `operator-provider-proof-17794`;
   - bridge session `aos-agent-bridge-operator-provider-proof`;
-  - cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+  - cwd `/Users/Michael/Code/agent-os/the implementer native subagent`;
   - command `codex --no-alt-screen`.
 - Prompt submission used the headed Agent Terminal UI, not bridge `/input`:
   the terminal pane was clicked, `./aos do key cmd+v` pasted the prompt and
@@ -33,11 +33,11 @@
   proof token `agent-terminal-provider-proof-20260524032457` was observed; the
   provider reported branch `main...origin/main`, clean worktree, and
   `tests/renderer/agent-terminal-bridge-client.test.mjs` with 8/8 passing.
-- Bridge/session metadata: `/health` was ok with default cwd `.docks/gdi` and
-  driver `tmux`; `dock-terminal-session` reported dock `gdi`, provider
-  `codex`, cwd `.docks/gdi`, and PTY handle `operator-provider-proof-17794`.
+- Bridge/session metadata: `/health` was ok with default cwd `the implementer native subagent` and
+  driver `tmux`; `dock-terminal-session` reported dock `implementer`, provider
+  `codex`, cwd `the implementer native subagent`, and PTY handle `operator-provider-proof-17794`.
 - Provider metadata: Codex session
-  `019e58df-91c2-7362-b7c0-859194b9ace3` was visible with cwd `.docks/gdi`
+  `019e58df-91c2-7362-b7c0-859194b9ace3` was visible with cwd `the implementer native subagent`
   and branch `main`.
 - Cleanup verified by Operator and rechecked by Foreman: proof bridge port
   `17794` is no longer reachable, proof-owned tmux/process names are absent,
@@ -116,10 +116,10 @@ ready=true mode=repo daemon=reachable tap=active
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/operator/scripts/human-needed-tcc-reset
+report the supervised-runtime blocker to Foreman
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -136,7 +136,7 @@ export PORT=17794
 export CANVAS_ID=operator-agent-terminal-provider-proof
 export SESSION=operator-provider-proof-17794
 export BRIDGE_SESSION=aos-agent-bridge-operator-provider-proof
-export CWD_TARGET=/Users/Michael/Code/agent-os/.docks/gdi
+export CWD_TARGET=/Users/Michael/Code/agent-os/the implementer native subagent
 export AGENT_COMMAND='codex --no-alt-screen'
 export PROOF_TOKEN="agent-terminal-provider-proof-$(date +%Y%m%d%H%M%S)"
 ```
@@ -189,7 +189,7 @@ Confirm the bridge and surface:
 
 ```bash
 curl -fsS "http://127.0.0.1:${PORT}/health"
-curl -fsS "http://127.0.0.1:${PORT}/dock-terminal-session?session=${SESSION}&dock=gdi&cwd=${CWD_TARGET}&provider=codex"
+curl -fsS "http://127.0.0.1:${PORT}/dock-terminal-session?session=${SESSION}&dock=implementer&cwd=${CWD_TARGET}&provider=codex"
 ./aos show list --json
 ```
 
@@ -272,10 +272,10 @@ After execution completes or stalls, collect metadata-only evidence:
 
 ```bash
 curl -fsS "http://127.0.0.1:${PORT}/health"
-curl -fsS "http://127.0.0.1:${PORT}/dock-terminal-session?session=${SESSION}&dock=gdi&cwd=${CWD_TARGET}&provider=codex"
+curl -fsS "http://127.0.0.1:${PORT}/dock-terminal-session?session=${SESSION}&dock=implementer&cwd=${CWD_TARGET}&provider=codex"
 encoded_cwd="$(python3 - <<'PY'
 from urllib.parse import quote
-print(quote('/Users/Michael/Code/agent-os/.docks/gdi', safe=''))
+print(quote('/Users/Michael/Code/agent-os/the implementer native subagent', safe=''))
 PY
 )"
 curl -fsS "http://127.0.0.1:${PORT}/sessions?cwd=${encoded_cwd}&provider=codex"
@@ -297,7 +297,7 @@ PY
 ```
 
 If a concrete Codex session id is visible from `/sessions` or other bounded
-metadata, record the id and whether its cwd is `.docks/gdi`. Do not paste full
+metadata, record the id and whether its cwd is `the implementer native subagent`. Do not paste full
 transcript bodies. If no provider session id is visible but the terminal proof
 completed, classify metadata as `provider_metadata_unobserved` rather than
 failing the whole run.
@@ -350,7 +350,7 @@ Use one of these classifications in the report:
   concrete provider metadata/session id was visible.
 - `cleanup_unverified`: provider evidence was obtained, but proof-owned canvas,
   bridge, tmux, or process cleanup could not be verified.
-- `human_needed`: repo-mode TCC/input-tap or credential state needs the human.
+- `manual_intervention`: repo-mode TCC/input-tap or credential state needs the human.
 
 ## Completion Report Required
 

@@ -25,12 +25,12 @@
   - `./aos dev recommend --json`
 - Key fixture proofs:
   - Operator wrong-cwd case records provider session id
-    `019e4fdc-7236-7db0-9f77-29f8f4108b3f`, expected `.docks/gdi`, observed
-    `.docks/operator`, `catalog_provider_session_wrong_cwd`, and
+    `019e4fdc-7236-7db0-9f77-29f8f4108b3f`, expected `the implementer native subagent`, observed
+    `the operator native subagent`, `catalog_provider_session_wrong_cwd`, and
     `telemetry_not_attempted_wrong_cwd`.
   - Missing provider-session cwd keeps `provider_reported_cwd: not_observed`,
     does not emit wrong-cwd statuses or mismatches, and does not bind telemetry.
-  - Earlier stale-GDI current-launch absence behavior still passes.
+  - Earlier stale-Implementer current-launch absence behavior still passes.
 - Local-only boundary confirmed: no Codex, Claude, Gemini, or other provider
   was launched; no provider config, real provider transcript, gateway state,
   dock profile, hook, GitHub state, push, or PR changed.
@@ -71,7 +71,7 @@ Required correction:
 - do not bind telemetry from that session as current-launch telemetry unless
   the session is otherwise a valid current/matched session for the intended cwd;
 - add a focused deterministic test for this case;
-- preserve the accepted wrong-cwd fixture case and the stale-GDI current-launch
+- preserve the accepted wrong-cwd fixture case and the stale-Implementer current-launch
   absence case.
 
 ## Tracker
@@ -79,20 +79,20 @@ Required correction:
 - Workstream:
   `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - Source receipt:
-  `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-gdi-wrong-cwd.md`
+  `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-implementer-wrong-cwd.md`
 - Source accepted card:
   `docs/design/work-cards/afk-bridge-current-launch-observability-correction-v0.md`
 - Correction finding: the live bridge correlation smoke observed provider
   session id `019e4fdc-7236-7db0-9f77-29f8f4108b3f`, but that provider-owned
-  transcript recorded cwd `/Users/Michael/Code/agent-os/.docks/operator`
+  transcript recorded cwd `/Users/Michael/Code/agent-os/the operator native subagent`
   while the bridge launch intent requested
-  `/Users/Michael/Code/agent-os/.docks/gdi`. The current classifier correctly
-  refused stale GDI cwd matches, but it cannot yet classify an observed
+  `/Users/Michael/Code/agent-os/the implementer native subagent`. The current classifier correctly
+  refused stale Implementer cwd matches, but it cannot yet classify an observed
   provider-session cwd mismatch directly.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, receipt, or prior
 implementation state. Read and rediscover before editing.
 
@@ -103,12 +103,12 @@ mismatch as a structured `wrong_cwd`/provider-session mismatch instead of
 collapsing it into generic `catalog_current_launch_not_observed`.
 
 This is deterministic fixture-backed correction work. Do not launch Codex,
-Claude, Gemini, or another provider in this GDI round.
+Claude, Gemini, or another provider in this Implementer round.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-gdi-wrong-cwd.md`
+- the implementer native subagent instructions
+- `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-implementer-wrong-cwd.md`
 - `docs/design/work-cards/afk-bridge-current-launch-observability-correction-v0.md`
 - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
@@ -138,10 +138,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 live check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -150,7 +150,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `2329c725`
 - expected output branch:
-  `gdi/afk-provider-session-cwd-mismatch-classification-v0`
+  `implementer/afk-provider-session-cwd-mismatch-classification-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -203,7 +203,7 @@ Good status names may include:
 - `wrong_cwd`.
 
 Exact names can differ if they fit existing code better, but the difference
-between stale/absent GDI catalog evidence and observed wrong-cwd provider
+between stale/absent Implementer catalog evidence and observed wrong-cwd provider
 session evidence must be visible in JSON and tests.
 
 ## Fixture And Evidence Requirements
@@ -214,15 +214,15 @@ delete, or depend on real provider transcripts under the user's home directory.
 At least one test should model the Operator finding:
 
 - intended launch cwd:
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - observed provider session id:
   `019e4fdc-7236-7db0-9f77-29f8f4108b3f`;
 - catalog/session metadata cwd:
-  `/Users/Michael/Code/agent-os/.docks/operator`;
+  `/Users/Michael/Code/agent-os/the operator native subagent`;
 - result: structured wrong-cwd mismatch rather than
   `catalog_current_launch_not_observed`.
 
-Keep the earlier stale-GDI test intact: stale GDI cwd records with no observed
+Keep the earlier stale-Implementer test intact: stale Implementer cwd records with no observed
 provider session id should still classify as `catalog_current_launch_not_observed`.
 
 ## Hard Boundaries
@@ -262,7 +262,7 @@ Report:
 - whether any live provider session was launched, expected answer: no;
 - wrong-cwd classification state and mismatch fields implemented;
 - fixture/test cases added or changed, especially the Operator wrong-cwd case;
-- confirmation that stale-GDI current-launch absence still behaves as before;
+- confirmation that stale-Implementer current-launch absence still behaves as before;
 - exact verification commands and results;
 - confirmation that no provider config, real provider transcript, gateway
   state, dock profile, hook, GitHub state, push, or PR changed;

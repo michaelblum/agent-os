@@ -24,7 +24,7 @@
     "main.markdown-workbench"
   ],
   "note": "Keep the heading, but revise the following paragraph.",
-  "actor": { "role": "operator", "id": "gdi" },
+  "actor": { "role": "operator", "id": "implementer" },
   "status": "committed",
   "lifecycle": {
     "clearable": true,

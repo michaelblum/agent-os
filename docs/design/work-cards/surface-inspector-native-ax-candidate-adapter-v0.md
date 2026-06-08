@@ -15,7 +15,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -183,7 +183,7 @@ generic.
 
 ## Suggested Implementation Areas
 
-GDI should inspect first and then choose the smallest correct patch.
+Implementer should inspect first and then choose the smallest correct patch.
 
 Likely implementation:
 

@@ -22,7 +22,7 @@ is a cohesive V0 toolkit stack plus Sigil migration/proof.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -46,7 +46,7 @@ the reticle menu item face/glyph should keep facing the camera through resolved
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/api/toolkit/runtime.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/api/toolkit/components.md`
@@ -457,7 +457,7 @@ Return a path-scoped report with:
 - files changed, grouped by toolkit runtime, toolkit workbench/component,
   schemas/docs, Sigil renderer, Sigil editor/workbench, and tests;
 - final public contract names and export paths;
-- final radial menu subject/facet/resource shape, with one example entry path;
+- final radial menu subject/facet/resource shape, with one example tooling context;
 - how the implementation avoids wiki graph node pollution;
 - how Zag is used or intentionally not used;
 - how Sigil remains a leaf showcase consumer;

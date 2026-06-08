@@ -1,3 +1,3 @@
 $ ./aos status
-status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=gdi/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=2
+status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=implementer/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=2
 Next: ./aos help <command> | ./aos introspect review

@@ -4,12 +4,12 @@
 
 - Source inventory: `BROKE.md`
 - Prior correction: PR #394, merged to `main` at `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39425`
-- Transfer kind: GDI round, validation only
+- Transfer kind: Implementer round, validation only
 - Branch/base: `main`, tracking `origin/main`
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
 
 ## Goal
 

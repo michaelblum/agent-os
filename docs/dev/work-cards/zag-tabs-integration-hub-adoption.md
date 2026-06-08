@@ -12,15 +12,15 @@ the shared tabs adapter instead of hand-only tab wiring.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
 ## Tracker
 
 - Prior merged PR: #356, `feat(zag): add adapter horizon`
-- Prior horizon branch: `gdi/zag-adapter-horizon`
-- New implementation branch: `gdi/zag-tabs-integration-hub-adoption`
+- Prior horizon branch: `implementer/zag-adapter-horizon`
+- New implementation branch: `implementer/zag-tabs-integration-hub-adoption`
 - Work card: `docs/dev/work-cards/zag-tabs-integration-hub-adoption.md`
 
 ## Read First
@@ -38,7 +38,7 @@ editing.
 ```bash
 git status --short --branch
 git fetch origin
-git switch -c gdi/zag-tabs-integration-hub-adoption origin/main
+git switch -c implementer/zag-tabs-integration-hub-adoption origin/main
 ./aos dev recommend --json
 ```
 
@@ -141,13 +141,13 @@ The focused Integration Hub test must assert at least:
 
 ```text
 profile: agentic_relay
-branch: gdi/zag-tabs-integration-hub-adoption
+branch: implementer/zag-tabs-integration-hub-adoption
 branch_from: origin/main
 checkpoint_expectation: one scoped reversible implementation commit, or two
   commits if a tiny adapter correction is required before the consumer change
 ```
 
-GDI branches from current `origin/main`, implements, verifies, commits, pushes,
+Implementer branches from current `origin/main`, implements, verifies, commits, pushes,
 and reports back. Foreman reviews before merge.
 
 ## Completion Report Format
@@ -156,7 +156,7 @@ and reports back. Foreman reviews before merge.
 ## Completion Report
 - profile: agentic_relay
 - card: docs/dev/work-cards/zag-tabs-integration-hub-adoption.md
-- branch: gdi/zag-tabs-integration-hub-adoption
+- branch: implementer/zag-tabs-integration-hub-adoption
 - head_sha: <git rev-parse HEAD>
 - base_sha: <origin/main SHA at branch time>
 - files_changed: <n>

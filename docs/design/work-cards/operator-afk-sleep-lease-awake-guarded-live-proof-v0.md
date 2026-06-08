@@ -24,12 +24,12 @@
   - `scheduler.lease.status=accepted`;
   - `sleep_lease.status=accepted`;
   - `dispatch.provider_launch_allowed=true`;
-  - `dispatch.launch_root=.docks/gdi`;
+  - `dispatch.launch_root=the implementer native subagent`;
   - terminal substrate driver `process`, cwd
-    `/Users/Michael/Code/agent-os/.docks/gdi`, command
+    `/Users/Michael/Code/agent-os/the implementer native subagent`, command
     `codex --no-alt-screen`;
   - input submission used `provider_prompt_mode=codex_goal` with prefix
-    `"/goal "`;
+    `""`;
   - prompt ref/source artifact was
     `docs/design/work-cards/afk-sleep-lease-awake-guarded-live-provider-sentinel-v0.md`;
   - provider acceptance `provider_session_observed`;
@@ -69,7 +69,7 @@ Next source slice:
 
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
-- Single next goal: run one real Codex/GDI `./aos dev afk-session-trigger`
+- Single next goal: run one real Codex/Implementer `./aos dev afk-session-trigger`
   proof using an explicit sleep lease with the human-present supervised-live
   path, then report whether provider acceptance and cleanup complete.
 - Source artifacts:
@@ -98,14 +98,14 @@ proof state. Read and rediscover before acting.
 ## Goal
 
 Prove that the accepted source path can use an explicit local sleep lease for
-one awake, human-present Codex/GDI supervised live launch:
+one awake, human-present Codex/Implementer supervised live launch:
 
 ```bash
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --sleep-lease <temp-lease.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -140,10 +140,10 @@ ready=true mode=repo daemon=reachable tap=active
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/operator/scripts/human-needed-tcc-reset
+report the supervised-runtime blocker to Foreman
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -172,7 +172,7 @@ Packet fields:
   `operator-afk-sleep-lease-awake-guarded-live-proof-v0`
 - `source_artifact`:
   `docs/design/work-cards/afk-sleep-lease-awake-guarded-live-provider-sentinel-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `origin/main`
 - `provider_hint`: `codex`
@@ -192,7 +192,7 @@ Lease fields:
 - `provider_budget.status`: `not_enforceable_yet`
 - `provider_budget.declared_ceiling`:
   `one Codex launch for awake guarded sleep-lease proof`
-- `allowed_docks`: `["gdi"]`
+- `allowed_docks`: `["implementer"]`
 - `allowed_providers`: `["codex"]`
 - `allowed_work_refs`:
   `["docs/design/work-cards/afk-sleep-lease-awake-guarded-live-provider-sentinel-v0.md"]`
@@ -215,10 +215,10 @@ Passing evidence:
 - `scheduler.lease.status=accepted`;
 - `sleep_lease.status=accepted`;
 - `dispatch.provider_launch_allowed=true`;
-- `dispatch.launch_root=.docks/gdi`;
+- `dispatch.launch_root=the implementer native subagent`;
 - terminal substrate observed with driver, cwd, and command;
 - input submission used `provider_prompt_mode=codex_goal` and prefix
-  `"/goal "`;
+  `""`;
 - prompt ref/source artifact points to the provider sentinel work card;
 - provider acceptance observed with a concrete provider session id;
 - if metadata promotion closes acceptance, report the correlation status and
@@ -251,7 +251,7 @@ After the trigger exits:
 Return:
 
 - classification: pass, provider_acceptance_unobserved, cleanup_unverified,
-  sleep_lease_rejected, human_needed, or failed;
+  sleep_lease_rejected, manual_intervention, or failed;
 - branch/head before and after, and whether it matched `origin/main`;
 - readiness before and after;
 - preflight results;

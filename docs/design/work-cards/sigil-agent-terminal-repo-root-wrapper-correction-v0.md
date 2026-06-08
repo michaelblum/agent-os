@@ -3,13 +3,13 @@
 ## Tracker
 
 - Source inventory: `BROKE.md`
-- Prior inventory branch: `gdi/pr392-breakage-inventory-next-v0`
+- Prior inventory branch: `implementer/pr392-breakage-inventory-next-v0`
 - Current base: `main` at or after `fb7f1ddb`
-- Transfer kind: GDI correction round
+- Transfer kind: Implementer correction round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
 
 ## Goal
 

@@ -98,7 +98,7 @@ These fields or semantics should not be forced into the current router manifest:
 - Can one contract contain many rules, as `workflow-rules.json` does, or should
   each rule become a separately addressable contract?
 - What is the second candidate that can prove the shape is generic: transfer
-  routing, entry-path verification routing, context-doc maintenance, or surface
+  routing, tooling-context verification routing, context-doc maintenance, or surface
   interaction routing?
 
 ## Recommendation
@@ -109,7 +109,7 @@ next slice.
 The next best step is a docs vocabulary pass that defines Decision Contract
 beside recipe, playbook, workflow, work card, work record, and evidence record
 without changing executable artifacts. After that, map one second candidate
-outside `docs/dev/workflow-rules.json`; transfer routing or entry-path
+outside `docs/dev/workflow-rules.json`; transfer routing or tooling-context
 verification routing are the strongest options because they already combine
 inputs, evidence, stop conditions, and owner/action outputs.
 

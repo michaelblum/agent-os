@@ -4,7 +4,7 @@
 
 - Parent Surface Inspector epic: https://github.com/michaelblum/agent-os/issues/295
 - Existing branch to reconcile:
-  `gdi/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0`
+  `implementer/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0`
 - Current `main` already includes:
   `surface-inspector-annotate-pane-progressive-disclosure-v0`
 
@@ -22,17 +22,17 @@ the repository with one current branch or merged result.
 
 Foreman merged these previously orphaned branches into `main`:
 
-- Sigil reticle/radial work from `gdi/toolkit-3d-radial-menu-workbench-v0`
+- Sigil reticle/radial work from `implementer/toolkit-3d-radial-menu-workbench-v0`
 - Surface Inspector Annotate pane progressive disclosure from
-  `gdi/surface-inspector-annotate-pane-progressive-disclosure-v0`
+  `implementer/surface-inspector-annotate-pane-progressive-disclosure-v0`
 
 Foreman then pruned stale branches:
 
-- `gdi/toolkit-3d-radial-menu-workbench-v0`
-- `gdi/toolkit-subject-browser-facet-resource-drilldown-v0`
-- `gdi/toolkit-subject-browser-operator-final-acceptance-fix`
-- `gdi/surface-inspector-annotate-pane-progressive-disclosure-v0`
-- `gdi/toolkit-panel-minimized-chip-affordance-pointer-contract-v0`
+- `implementer/toolkit-3d-radial-menu-workbench-v0`
+- `implementer/toolkit-subject-browser-facet-resource-drilldown-v0`
+- `implementer/toolkit-subject-browser-operator-final-acceptance-fix`
+- `implementer/surface-inspector-annotate-pane-progressive-disclosure-v0`
+- `implementer/toolkit-panel-minimized-chip-affordance-pointer-contract-v0`
 
 The remaining tree-view branch is not disposable. It carries substantive work:
 
@@ -59,9 +59,9 @@ From current `main`:
 ```bash
 git status --short --branch
 git log --oneline --decorate --max-count 8
-git show origin/gdi/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0:docs/design/work-cards/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0.md
-git diff --name-status main...origin/gdi/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0
-git merge-tree --name-only main origin/gdi/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0
+git show origin/implementer/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0:docs/design/work-cards/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0.md
+git diff --name-status main...origin/implementer/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0
+git merge-tree --name-only main origin/implementer/toolkit-zag-tree-view-adapter-and-surface-inspector-adoption-v0
 ```
 
 Then inspect:
@@ -125,4 +125,4 @@ Report back with:
 - deterministic test results with pass/fail counts;
 - whether live Surface Inspector smoke ran;
 - local-only state;
-- final recommendation: accept, needs_gdi_fix, or needs_operator.
+- final recommendation: accept, needs_implementer_fix, or needs_operator.

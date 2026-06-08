@@ -7,7 +7,7 @@ Operator starts from a fresh context window. Work in
 permission, display, or prior verification state. Rediscover before testing.
 
 This is supervised live/HITL verification only. Do not implement fixes, commit,
-push, mutate GitHub state, or broaden into GDI work.
+push, mutate GitHub state, or broaden into Implementer work.
 
 ## Goal
 
@@ -56,7 +56,7 @@ report the concrete blocker.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- `the operator native subagent contract`
 - `packages/toolkit/CLAUDE.md`
 - `docs/api/toolkit/components.md`
 - `docs/api/toolkit/controls.md`
@@ -293,6 +293,6 @@ Report back to Foreman with:
   blocker;
 - whether stage-backed minimize cleanup left stale `aos-chip-*` canvases, stage
   layers, input regions, or affordances;
-- whether Sigil radial/context/status-item behavior needs a GDI repair slice;
-- next recommended dock: Foreman for routing, GDI for deterministic fix, or
+- whether Sigil radial/context/status-item behavior needs a Implementer repair slice;
+- next recommended dock: Foreman for routing, Implementer for deterministic fix, or
   Operator rerun only if the result was blocked by live environment state.

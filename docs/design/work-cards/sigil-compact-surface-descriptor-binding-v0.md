@@ -12,8 +12,8 @@ controls panel still communicates with `avatar-main` through private
 the existing descriptor/resource contracts and remove the private route.
 
 Before routing
-`docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`,
-accept `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`,
+`docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`,
+accept `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md`,
 refresh toolkit panel placement/final-frame reporting, add Sigil-owned avatar
 avoidance only if the evidence requires it, and refresh/accept live panel drag
 correction. Do not use this historical card to keep a second compact-surface
@@ -23,12 +23,12 @@ mutation path or compatibility layer.
 
 - Source prompt: user reported the compact surface was lost after the visual object descriptor refactor and asked for the clean reinstatement path.
 - Related inventory: `BROKE.md` PR #392 deterministic breakage inventory is closed.
-- Transfer kind: GDI round.
+- Transfer kind: Implementer round.
 - Branch/base: start from current `origin/main`.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon, canvas, issue, or prior implementation state. Read and rediscover before editing.
 
 ## Goal
 
@@ -143,7 +143,7 @@ If live AOS is available and `./aos ready` passes, run a bounded manual smoke:
 4. Change one canonical descriptor-backed control and confirm no console error is produced.
 5. Right-click again or click away and confirm the surface closes predictably.
 
-If `./aos ready` reports TCC/input-tap blockers, use `.docks/gdi/scripts/human-needed-tcc-reset` and stop with `human_needed` instead of retrying live checks.
+If `./aos ready` reports TCC/input-tap blockers, use the manual TCC blocker report path and stop with `manual_intervention` instead of retrying live checks.
 
 ## Completion Report
 

@@ -1,14 +1,14 @@
 # Work Card: afk-transfer-packet-result-route-shape-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/decision-contract-descriptor-and-afk-boundary-2026-05-21.md`
 - Single next goal: design a docs-only transfer packet and async result-route
@@ -26,7 +26,7 @@ records, and notification routes.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-transfer-packet-result-route-shape-v0`
+- Implementer branch: `implementer/afk-transfer-packet-result-route-shape-v0`
 - Accepted commit: `e762e76a4906b88c9a819e7019b3d06dba1020ca`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -42,7 +42,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -68,11 +68,11 @@ work/evidence records.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/decision-contract-descriptor-and-afk-boundary-2026-05-21.md`
 - `docs/design/aos-work-records-and-self-healing-recipes.md`
@@ -105,7 +105,7 @@ This card depends on local-only design notes and accepted work cards on the
 branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/afk-transfer-packet-result-route-shape-v0` from the required start ref.
+`implementer/afk-transfer-packet-result-route-shape-v0` from the required start ref.
 Keep the checkpoint local unless Foreman or Michael explicitly asks for a push
 or PR.
 
@@ -164,7 +164,7 @@ Use this shape:
    - selected Decision Contract id and selected outputs;
    - integration job linkage when present;
    - evidence requirements and stop conditions;
-   - timeout/lease and human-needed behavior;
+   - timeout/lease and manual-intervention behavior;
    - provider hint versus provider selection;
    - result-route reference.
 4. Async result-route sketch:

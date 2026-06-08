@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create the first reusable, toolkit-owned Agent Terminal path so Foreman/GDI/
+Create the first reusable, toolkit-owned Agent Terminal path so Foreman/Implementer/
 Operator dogfooding no longer depends on a Sigil-branded surface or Sigil avatar
 warmup.
 
@@ -13,7 +13,7 @@ the generic terminal substrate.
 ## Branch/Base
 
 - branch_from: `origin/main`
-- output_branch: `gdi/toolkit-agent-terminal-foundation-v0`
+- output_branch: `implementer/toolkit-agent-terminal-foundation-v0`
 
 ## Fresh Context
 

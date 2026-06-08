@@ -169,7 +169,7 @@ window.
 ### 7. Instrument The Fix Enough To Verify
 
 Expose lightweight debug state in `window.__canvasInspectorState` or tests so
-GDI/Operator can verify the scoped hit layer is not thrashing.
+Implementer/Operator can verify the scoped hit layer is not thrashing.
 
 Examples:
 

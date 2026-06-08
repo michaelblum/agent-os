@@ -2,8 +2,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI implementation/validation round.
+- Recipient: Implementer
+- Transfer kind: Implementer implementation/validation round.
 - Single next goal: make real-input click delivery timing useful for agents by
   either reducing safe `./aos do click` overhead or moving the focused
   status-item harness to a lower-latency, reusable real-input injection helper
@@ -13,23 +13,23 @@
   PR #378 status/radial live-proof work.
 - Branch/output expectation: start from
   `origin/feat/command-surface-extraction`, create or update
-  `gdi/aos-do-click-real-input-delivery-latency-v0`, and push it.
-- Stop conditions: complete, failed, human_needed, or blocker. Stop with
-  `human_needed` instead of looping if repo-mode AOS permissions/TCC block live
+  `implementer/aos-do-click-real-input-delivery-latency-v0`, and push it.
+- Stop conditions: complete, failed, manual_intervention, or blocker. Stop with
+  `manual_intervention` instead of looping if repo-mode AOS permissions/TCC block live
   verification.
 
 ## Branch / Base
 
 - branch_from: `origin/feat/command-surface-extraction`
 - required_start_ref: `origin/feat/command-surface-extraction`
-- expected output branch: `gdi/aos-do-click-real-input-delivery-latency-v0`
+- expected output branch: `implementer/aos-do-click-real-input-delivery-latency-v0`
 - current PR stack checkpoint when routed: `1d6d747c`
   (`Merge status item stale root recovery`)
 
 ## Tracker
 
 - Follow-up from `docs/design/work-cards/sigil-status-item-summon-latency-v0.md`.
-- Source completion report: `gdi/sigil-status-item-summon-latency-v0`.
+- Source completion report: `implementer/sigil-status-item-summon-latency-v0`.
 - Baseline evidence: status-item state synchronization is already correct, but
   a direct repo-mode measurement showed `./aos do click` command overhead of
   `2028.1ms` before the renderer became visible `165.8ms` later.
@@ -40,7 +40,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, daemon, runtime
+Implementer starts from a fresh context window. Do not assume branch, daemon, runtime
 readiness, command timing, or root cause. Rediscover before editing.
 
 ## Goal
@@ -92,10 +92,10 @@ If `./aos ready` reports a repo-mode TCC/input-tap blocker, do not loop on
 permission repair. Run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Stop with `human_needed`. After the human returns with `finished`, run exactly:
+Stop with `manual_intervention`. After the human returns with `finished`, run exactly:
 
 ```bash
 ./aos ready --post-permission
@@ -146,7 +146,7 @@ resource-consumption fix remains the idle/background render path work from
   harnesses.
 - Any lower-latency helper must stay reusable and foundational. Do not create a
   Sigil-private click trick when the same primitive should support status items,
-  radial targets, panels, and future Operator/GDI live checks.
+  radial targets, panels, and future Operator/Implementer live checks.
 
 ## Scope
 

@@ -1,17 +1,17 @@
 # Dock Handoff Chat Shape Correction V0
 
-**Status:** Routed 2026-05-22; amended before GDI start 2026-05-22
+**Status:** Routed 2026-05-22; amended before Implementer start 2026-05-22
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Source artifact: Foreman triage after a long Operator dispatch exceeded the
   CLI goal limit and the final chat response failed to preserve the standard
   handoff block shape.
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: reuse the current local work surface or create a
-  scoped GDI output branch from the required start ref. Keep the checkpoint
+  scoped Implementer output branch from the required start ref. Keep the checkpoint
   local; do not push, open a PR, mutate GitHub, or run live provider checks.
 
 ## Triage Findings
@@ -22,7 +22,7 @@ The repo already has centralized clipboard tooling:
   `scripts/dock-handoff-clipboard`.
 - `scripts/dock-handoff-clipboard` delegates to `scripts/agent-handoff`.
 - `scripts/agent-handoff` copies only the raw payload and prints a gated,
-  timestamped chat-visible block.
+  timestamped handoff block.
 
 The regression is not that gates or timestamps disappeared from the tool. The
 current tests prove they still exist:
@@ -51,7 +51,7 @@ The actual gaps are:
 
 Make cross-session transfer formatting tool-owned and test-backed:
 
-- Detailed transfer instructions for non-trivial GDI or Operator rounds live in
+- Detailed transfer instructions for non-trivial Implementer or Operator rounds live in
   Markdown files or equivalent durable artifacts.
 - The clipboard payload is a concise, goal-safe prompt pointing at that file.
 - The chat-visible output produced by `scripts/agent-handoff` includes the
@@ -62,7 +62,7 @@ Make cross-session transfer formatting tool-owned and test-backed:
 ## Read First
 
 - `.docks/AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
 - `.docks/foreman/skills/session-transfer/SKILL.md`
 - `.docks/foreman/skills/session-transfer/references/operator.md`
@@ -122,7 +122,7 @@ Clarify docs/SOP wording:
   durable artifact.
 - Say the copied clipboard prompt must be concise and stay under the CLI goal
   limit; use 4,000 characters as the observed upper bound.
-- Say final chat responses should include the exact chat-visible block printed
+- Say final chat responses should include the exact handoff block printed
   by the handoff tool, including recipient, gates, copy notice, and timestamp.
 
 ## Scope And Boundaries
@@ -131,7 +131,7 @@ Clarify docs/SOP wording:
   state, or live runtime state.
 - Do not alter clipboard payload semantics by adding recipient labels to the
   copied payload.
-- Do not remove the legacy `/goal ` prefix cleanup unless tests and docs make a
+- Do not remove the legacy  prefix cleanup unless tests and docs make a
   deliberate replacement contract.
 - Do not route or run the pending Operator live proof in this slice.
 - Do not merge `main` or copy the runtime substrate framing note into this

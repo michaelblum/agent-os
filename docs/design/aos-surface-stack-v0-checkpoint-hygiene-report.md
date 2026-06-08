@@ -60,7 +60,7 @@ These paths are documentation source-of-truth for the checkpoint:
 - `ARCHITECTURE.md`, `README.md`, `docs/api/`, `docs/adr/`, and
   `docs/design/aos-*`.
 - `docs/guides/aos-surface-interaction-decision-tree.md`,
-  `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`,
+  `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`,
   and related workflow references.
 - Surface-stack work cards under `docs/design/work-cards/`.
 
@@ -88,8 +88,8 @@ prepared:
 - `.vscode/settings.json` and `.vscode/tasks.json`: removed from the
   checkpoint branch as local editor convenience state.
 - `.docks/foreman/skills/retirement-handoff/SKILL.md` and
-  `.docks/gdi/skills/work-retrospective/SKILL.md`: kept in the PR as a
-  separate agent-tooling commit because they support the Foreman/GDI routing
+  the implementer work-retrospective skill: kept in the PR as a
+  separate agent-tooling commit because they support the Foreman/Implementer routing
   and retrospective workflow used by this checkpoint.
 - Pre-existing modified work cards for spatial-subject-tree and surface-zoom
   annotation work were reviewed through their own workstream commits before
@@ -136,7 +136,7 @@ Focused surface-stack checks:
 - `bash tests/surface-inspector-move-abs.sh` skipped with its built-in
   `requires at least two displays` guard in the isolated test context.
 
-GDI previously reported live real-input passes for:
+Implementer previously reported live real-input passes for:
 
 - `AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh`
 - `AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh`
@@ -166,7 +166,7 @@ Use scoped commits. Do not stage the whole tree blindly.
    follow-up queue, and this report.
 
 Keep `.vscode/` out. Dock-local skill files stay as a separate agent-tooling
-commit in this branch because they are part of the Foreman/GDI workflow used to
+commit in this branch because they are part of the Foreman/Implementer workflow used to
 produce and review the checkpoint.
 
 ## Next Work
@@ -175,4 +175,4 @@ The next Foreman action is to stage the chosen checkpoint groups and create
 intentional commits, then update or open PR state. Future feature work should
 wait until that checkpoint exists. After that, split
 `docs/design/work-cards/surface-stack-retrospective-followups-v0.md` into exact
-GDI cards, starting with the Surface Inspector mark contract.
+Implementer cards, starting with the Surface Inspector mark contract.

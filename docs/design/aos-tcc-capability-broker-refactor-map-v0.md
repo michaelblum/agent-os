@@ -2,7 +2,7 @@
 
 This map sequences follow-on work after
 `docs/adr/0015-aos-tcc-capability-broker-boundary.md`. It is a roadmap only;
-this tranche does not refactor source behavior.
+this slice does not refactor source behavior.
 
 ## 1. Inventory Remaining Swift Public And Runtime Policy
 
@@ -105,7 +105,7 @@ Likely files:
 
 - `src/commands/permissions.swift`
 - `src/commands/ready.swift`
-- `.docks/gdi/scripts/human-needed-tcc-reset`
+- the manual TCC blocker report path
 - scripts or packages that own permission workflow composition
 - manifests and help metadata
 

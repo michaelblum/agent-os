@@ -5,7 +5,7 @@
 ## Acceptance Result
 
 Accepted on `main` through merge commit
-`21788bfbcfe657dc7ce435b2ce798662926dc18e`, after the original GDI head
+`21788bfbcfe657dc7ce435b2ce798662926dc18e`, after the original Implementer head
 `f5f6a65bdf894fab4c0632427b3e2954d19fcfbb` was corrected by
 `3449c80b1a53497bbe86313f107c3e006ec1e294`.
 
@@ -46,18 +46,18 @@ Acceptance gates passed:
 
 Next routed proof:
 `docs/design/work-cards/operator-afk-sleep-lease-live-mode-proof-v0.md`.
-That proof is now accepted: Operator ran one real Codex/GDI
+That proof is now accepted: Operator ran one real Codex/Implementer
 `--sleep-lease-live-launch` without `--i-am-present`, observed provider
 acceptance through bounded Codex metadata, verified cleanup, completed the
 stdout result route, and kept branch push disabled.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add a distinct experimental sleep-lease live mode with
   deterministic start gates and receipt updates so a later Operator run can
-  attempt the first true overnight GDI work card without using
+  attempt the first true overnight Implementer work card without using
   `--i-am-present`.
 - Source artifacts:
   - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`
@@ -75,14 +75,14 @@ stdout result route, and kept branch push disabled.
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-sleep-lease-unattended-live-mode-v0` from `origin/main`. Commit and
-  push that GDI branch when verification passes. Do not open a PR, merge,
+  `implementer/afk-sleep-lease-unattended-live-mode-v0` from `origin/main`. Commit and
+  push that Implementer branch when verification passes. Do not open a PR, merge,
   mutate main, mutate GitHub issues/projects, start live providers, or route
   follow-up work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, provider state, current CLI behavior, or prior sleep-lease details.
 Read and rediscover before editing.
 
@@ -95,7 +95,7 @@ sleep lease because the authorization depends on a human-present guard.
 
 This source slice should create the next mode needed for a later first
 overnight Operator run. It must be deterministic and fixture-backed only in
-this GDI round.
+this Implementer round.
 
 ## Goal
 
@@ -143,7 +143,7 @@ The sleep lease is the authorization for this mode. Do not require or accept
    - current worktree is clean. For V0, reject any dirty or untracked paths
      instead of accepting a dirty baseline;
    - current `HEAD` equals the resolved `required_start_ref`;
-   - selected provider remains `codex` and selected dock remains `gdi`;
+   - selected provider remains `codex` and selected dock remains `implementer`;
    - result route must normalize to local stdout or a local artifact path
      supported by the existing classifier.
 
@@ -188,18 +188,18 @@ The sleep lease is the authorization for this mode. Do not require or accept
      must not relaunch unless `--replacement-for` is explicit and valid under
      existing replacement rules.
 
-6. Deterministic only in this GDI round:
+6. Deterministic only in this Implementer round:
 
    - Use fixture-backed launch evidence for tests.
    - Do not run a real Codex provider, bridge, tmux session, Agent Terminal
-     surface, or live scheduler in this GDI round.
+     surface, or live scheduler in this Implementer round.
    - The next Operator card will run the real first proof after Foreman accepts
      this branch.
 
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`
 - `docs/design/work-cards/operator-afk-sleep-lease-awake-guarded-live-proof-v0.md`
 - `docs/design/work-cards/afk-sleep-lease-awake-guarded-live-v0.md`
@@ -227,10 +227,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -290,4 +290,4 @@ Return:
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, external notifier, durable work/evidence
   record beyond temp/local `--out`, unattended live trigger, or follow-up
-  routing occurred beyond the expected GDI branch push.
+  routing occurred beyond the expected Implementer branch push.

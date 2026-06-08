@@ -11,8 +11,8 @@ instructions, executable recipe manifests, or provider skill registries. Put
 those elsewhere:
 
 - dock roles and persona contracts live under `.docks/`;
-- dock-local skills live under `.docks/<dock>/skills/<name>/SKILL.md`;
-- GDI work cards live under `docs/design/work-cards/`;
+- dock-local skills live under `the session root/skills/<name>/SKILL.md`;
+- Implementer work cards live under `docs/design/work-cards/`;
 - design plans and specs live under `docs/design/`;
 - cross-tool contracts live under `docs/api/`, `shared/schemas/`, or
   `ARCHITECTURE.md`.
@@ -53,8 +53,8 @@ status-item, lifecycle, visual, supervised, or cross-layer work, use
 Do not add or keep a Markdown Guide/SOP here when it is:
 
 - a successor Foreman handoff or session continuation memory;
-- GDI-specific prompt scaffolding better owned by Foreman transfer references;
-- GDI exit-interview or retrospective behavior better owned by GDI skills;
+- Implementer-specific prompt scaffolding better owned by Foreman transfer references;
+- Implementer exit-interview or retrospective behavior better owned by Implementer skills;
 - obsolete startup guidance superseded by dock-first cold-start docs;
 - a provider-managed global skill or local provider registry entry.
 
@@ -71,7 +71,7 @@ reliable:
   defer;
 - required authority surfaces to inspect before acting;
 - bounded commands or grep checks;
-- stop conditions for human-needed conflicts;
+- stop conditions for manual-intervention conflicts;
 - evidence the user or next agent should receive.
 
 This structure should clarify judgment. It should not turn every guide into a

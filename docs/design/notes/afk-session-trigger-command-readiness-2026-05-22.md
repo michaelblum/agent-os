@@ -19,7 +19,7 @@ session-control state.
 Recommended next source surface:
 
 ```bash
-./aos dev afk-session-trigger --packet <packet.json> --provider codex --dock gdi --dry-run --json
+./aos dev afk-session-trigger --packet <packet.json> --provider codex --dock implementer --dry-run --json
 ```
 
 This command is a dry-run trigger/dispatch contract probe. It is not final
@@ -31,7 +31,7 @@ The accepted live wrapper proof in
 `docs/design/work-cards/operator-afk-dev-launch-attempt-command-live-wrapper-v0.md`
 proved that:
 
-- the bridge can launch a supervised nested Codex process from `.docks/gdi`;
+- the bridge can launch a supervised nested Codex process from `the implementer native subagent`;
 - bounded PTY resize/input evidence can be captured through the process driver;
 - a separate Codex rollout can materialize with the expected dock cwd;
 - `./aos dev afk-launch-attempt` can consume live bridge evidence plus explicit
@@ -105,7 +105,7 @@ reuse field names and validation helpers from the launch-attempt prototype.
 | Lease and lifecycle state | Scheduler receipt only; no background lease enforcement yet. |
 | Provider-neutral dispatch attempt id | Dispatch-intent section of the new dev command. |
 | Selected action | Scheduler chooses `dry-run`; dispatch reports the received action. |
-| Dock launch-root resolution | Dispatch-intent logic, using `.docks/<dock>/dock.json` and launch root facts. |
+| Dock launch-root resolution | Dispatch-intent logic, using `session metadata` and launch root facts. |
 | Terminal substrate facts | `not_attempted` or `not_applicable: dry-run-only` in this slice. |
 | Provider catalog/Codex adapter correlation | Not attempted except optional read-only fixtures explicitly passed to the command. |
 | Result-route updates | Not delivered; receipt records `not_attempted` and configured route refs. |
@@ -164,9 +164,9 @@ The command should emit a single JSON receipt:
   "dispatch": {
     "dispatch_attempt_id": "dispatch-<stable-id>",
     "selected_provider": "codex",
-    "selected_dock": "gdi",
-    "dock_profile_ref": ".docks/gdi/dock.json",
-    "launch_root": ".docks/gdi",
+    "selected_dock": "implementer",
+    "dock_profile_ref": "implementer session metadata",
+    "launch_root": "the implementer native subagent",
     "action": "dry-run",
     "provider_launch_allowed": false
   },
@@ -262,7 +262,7 @@ Minimum deterministic verification:
 bash tests/dev-workflow-router.sh
 bash tests/help-contract.sh
 ./aos dev build --no-restart
-./aos dev afk-session-trigger --packet <temp-packet.json> --provider codex --dock gdi --dry-run --json
+./aos dev afk-session-trigger --packet <temp-packet.json> --provider codex --dock implementer --dry-run --json
 ./aos help dev --json
 ./aos help dev afk-session-trigger --json
 ./aos dev audit --json
@@ -282,7 +282,7 @@ The command-level smoke should prove:
 - `status=dry_run_ready`;
 - scheduler lifecycle is `accepted`;
 - selected action is `dry-run`;
-- selected provider/dock are `codex`/`gdi`;
+- selected provider/dock are `codex`/`implementer`;
 - dock profile and launch root are resolved;
 - terminal substrate is `not_attempted`;
 - `provider_launch_allowed=false`;
@@ -297,7 +297,7 @@ Stop conditions:
 - implementation needs to launch a provider to prove its contract;
 - packet validation needs a schema migration;
 - repo-mode TCC/input-tap blocks a required live check. This should not happen
-  for the dry-run slice, but if it does, use the GDI human-needed path rather
+  for the dry-run slice, but if it does, use the Implementer manual-intervention path rather
   than retrying.
 
 ## Recommended Next Work Card
@@ -311,7 +311,7 @@ AFK Dev Session Trigger Dry-Run Command V0
 One-paragraph goal:
 
 Add an experimental `./aos dev afk-session-trigger --packet <packet.json>
---provider codex --dock gdi --dry-run --json` command that validates a local
+--provider codex --dock implementer --dry-run --json` command that validates a local
 transfer packet, creates deterministic scheduler and dispatch intent ids,
 resolves the dock launch root, emits a no-schema dry-run trigger/dispatch
 receipt, and exposes registry/help/audit coverage without implementing final

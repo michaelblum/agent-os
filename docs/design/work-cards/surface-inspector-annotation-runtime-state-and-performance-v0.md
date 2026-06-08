@@ -50,7 +50,7 @@ adding bounded diagnostics and cleanup invariants.
 ### Foreman Spot Check — 2026-05-18
 
 Foreman rechecked the runtime after a report that mouse events felt slow and
-asked whether Operator/GDI handoffs might be leaving orphaned processes behind:
+asked whether Operator/Implementer handoffs might be leaving orphaned processes behind:
 
 - `./aos ready` reported `ready=true`, repo daemon reachable, and input tap
   active.
@@ -67,7 +67,7 @@ asked whether Operator/GDI handoffs might be leaving orphaned processes behind:
 - No duplicate `/Users/Michael/Code/agent-os/aos serve --idle-timeout none`
   process was present.
 
-Conclusion: lingering Operator/GDI/Codex sessions are possible and should be
+Conclusion: lingering Operator/Implementer/Codex sessions are possible and should be
 cleaned up operationally when known finished, but current evidence does not
 point to duplicate AOS daemons or stale canvas records as the primary mouse
 latency cause. Keep this slice focused on Surface Inspector input subscription,
@@ -135,7 +135,7 @@ Required behavior:
   behavior;
 - mode-off/clear/suspend/remove must release the subscription and child canvases.
 
-Add debug state fields or reuse existing ones so Operator/GDI can confirm
+Add debug state fields or reuse existing ones so Operator/Implementer can confirm
 whether high-frequency input handling is active.
 
 ### 4. Mouse-Move Work Must Be Idempotent And Bounded

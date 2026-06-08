@@ -1,14 +1,14 @@
 # Work Card: afk-provider-neutral-dispatch-shape-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
 - Single next goal: design a docs-only provider-neutral dispatch shape over the
@@ -27,7 +27,7 @@ permanent provider identity.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-provider-neutral-dispatch-shape-v0`
+- Implementer branch: `implementer/afk-provider-neutral-dispatch-shape-v0`
 - Accepted commit: `324ffe5c07ff9986437a15c39e8dbd22fc9752e2`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -44,7 +44,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -70,14 +70,14 @@ semantics, or dock role policy.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
-- `.docks/foreman/dock.json`
-- `.docks/gdi/dock.json`
-- `.docks/operator/dock.json`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
+- `.docks/foreman/session metadata`
+- implementer session metadata
+- operator session metadata
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -121,7 +121,7 @@ This card depends on local-only design notes and accepted work cards on the
 branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/afk-provider-neutral-dispatch-shape-v0` from the required start ref. Keep
+`implementer/afk-provider-neutral-dispatch-shape-v0` from the required start ref. Keep
 the checkpoint local unless Foreman or Michael explicitly asks for a push or PR.
 
 ## Existing Surfaces To Inspect
@@ -132,7 +132,7 @@ Start with:
   accepted scheduler boundary and lifecycle state machine.
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md` -
   accepted packet/result-route fields consumed by scheduler and dispatch.
-- `.docks/README.md` and `.docks/*/dock.json` - dock identity, default entry
+- `.docks/AGENTS.md` and `session metadata` - dock identity, default entry
   path, capability envelope, and launch-root convention.
 - `shared/schemas/aos-dock-profile-v0.*` - machine-readable dock profile
   vocabulary.
@@ -155,7 +155,7 @@ Start with:
 Search as needed for:
 
 ```bash
-rg -n "provider-neutral|dispatch|provider adapter|resume_command|codex|claude|gemini|tmux|process session|agent terminal|dock profile|default_entry_path|harness|session catalog|telemetry|statusline" AGENTS.md .docks docs shared packages apps .codex .claude CLAUDE.md GEMINI.md
+rg -n "provider-neutral|dispatch|provider adapter|resume_command|codex|claude|gemini|tmux|process session|agent terminal|dock profile|default_tooling_context|harness|session catalog|telemetry|statusline" AGENTS.md .docks docs shared packages apps .codex .claude CLAUDE.md GEMINI.md
 ```
 
 ## Required Output
@@ -206,7 +206,7 @@ Use this shape:
    - role instruction policy or Researcher synthesis behavior.
 6. Candidate command or API shape:
    - design-only examples such as
-     `aos session dispatch --provider codex --dock gdi --packet <ref>`;
+     `aos session dispatch --provider codex --dock implementer --packet <ref>`;
    - dry-run output;
    - start output;
    - resume output;

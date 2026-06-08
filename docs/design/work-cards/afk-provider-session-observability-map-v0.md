@@ -24,7 +24,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, catalog, telemetry, issue, or prior implementation state.
 Read and rediscover before editing.
 
@@ -35,14 +35,14 @@ provider-session smoke: the provider session id was human-visible, but provider
 catalog and telemetry references were `not_observed`.
 
 The output should explain what current repo surfaces can already observe for a
-docked Codex/GDI session, what they cannot observe yet, and the smallest next
+docked Codex/Implementer session, what they cannot observe yet, and the smallest next
 implementation or validation slice before automated provider launch.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`
+- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-implementer-completed.md`
 - `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
 - `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
 - `docs/recipes/workstream-checkpoint-continuation.md`
@@ -68,7 +68,7 @@ is required.
 - branch_from: `docs/durable-agent-cognition-v0`
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `ece28ec7`
-- expected output branch: `gdi/afk-provider-session-observability-map-v0`
+- expected output branch: `implementer/afk-provider-session-observability-map-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -100,7 +100,7 @@ Answer these in the output note:
 1. Which current surfaces can observe provider identity, provider session id,
    cwd, branch, launch root, terminal substrate, process/tmux handle, catalog
    record, and telemetry event for a Codex session?
-2. Which of those facts are available for a normal `.docks/gdi` Codex CLI
+2. Which of those facts are available for a normal `the implementer native subagent` Codex CLI
    session launched manually from the dock root?
 3. Which facts are only visible in human terminal/shutdown text today?
 4. Which facts require the Sigil agent-terminal/codex-terminal launcher rather
@@ -153,7 +153,7 @@ git diff --check
 ./aos dev recommend --json
 ```
 
-If the router reports docs-only, no runtime verification is required. If GDI
+If the router reports docs-only, no runtime verification is required. If Implementer
 chooses to inspect tests for understanding, report them as inspection only
 unless they are actually run.
 

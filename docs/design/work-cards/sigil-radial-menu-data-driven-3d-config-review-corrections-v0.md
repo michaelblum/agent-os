@@ -5,7 +5,7 @@
 - Parent card:
   `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`
 - Review target branch:
-  `gdi/sigil-radial-menu-data-driven-3d-config-v0`
+  `implementer/sigil-radial-menu-data-driven-3d-config-v0`
 - Reviewed heads:
   - `9b9850ac6166cb87cddcbffc273953f03b5eff8a`
   - `bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`
@@ -18,7 +18,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Continue from the existing review branch and preserve the Foreman
 work-card commits already under it.

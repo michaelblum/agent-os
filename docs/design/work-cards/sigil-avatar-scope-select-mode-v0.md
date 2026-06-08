@@ -14,7 +14,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -86,10 +86,10 @@ For live checks, start with:
 If `./aos ready` reports a repo-mode TCC/input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` unless the human returns with `finished`; after
+Then stop with `manual_intervention` unless the human returns with `finished`; after
 that run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect
@@ -246,7 +246,7 @@ router-selected native checks.
 
 ## Suggested Implementation Shape
 
-GDI should inspect before editing and choose the smallest correct patch.
+Implementer should inspect before editing and choose the smallest correct patch.
 
 Likely first V0 shape:
 

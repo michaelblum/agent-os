@@ -28,7 +28,7 @@ Receipt obligations come from these existing surfaces:
 | Source | Receipt obligation |
 | --- | --- |
 | `afk-transfer-packet-result-route-shape-2026-05-21.md` | Carry packet id/ref, source event/artifact, recipient dock, cwd/worktree, branch policy, required start ref, selected outputs, proof requirements, stop conditions, result route, final report fields, and integration-job status mapping. |
-| `afk-session-trigger-scheduler-shape-2026-05-21.md` | Record scheduler run id, intake validation, idempotence key, accepted/rejected action, lease/deadline, heartbeat expectation, lifecycle state, route attempts, duplicate/superseded/expired outcomes, and human-needed state. |
+| `afk-session-trigger-scheduler-shape-2026-05-21.md` | Record scheduler run id, intake validation, idempotence key, accepted/rejected action, lease/deadline, heartbeat expectation, lifecycle state, route attempts, duplicate/superseded/expired outcomes, and manual-intervention state. |
 | `afk-provider-neutral-dispatch-shape-2026-05-21.md` | Record dispatch attempt id, selected provider, dock launch root, provider command or dry-run command, terminal substrate, availability/auth checks, provider session facts, catalog references, telemetry references, and provider drift/mismatch facts. |
 | `afk-design-consolidation-readiness-2026-05-21.md` | Reuse the duplicate-field ownership map, minimum manual-trial receipt trail, and prototype-readiness questions. |
 | `aos-work-records-and-self-healing-recipes.md` | Reuse the durable work-record layers: intent, execution map, evidence, and health. |
@@ -57,7 +57,7 @@ honest.
 | Scheduler receipt | The run claim: scheduler run id, idempotence key, intake validation, start/resume/dry-run/reject decision, lease/deadline, heartbeat expectation, lifecycle state, duplicate/superseded/expired facts, and route attempts. | Provider-specific command construction or proof semantics. |
 | Dispatch receipt | One provider-neutral attempt: dispatch attempt id, selected provider, selected dock launch root, command or dry-run command, terminal driver, availability/auth facts, provider session/catalog/telemetry observations, and mismatch/rejection facts. | Packet validation, scheduler lifecycle policy, dock role policy, or final work status. |
 | Work receipt | What the worker attempted and concluded: goal, constraints, execution summary, changed paths/artifacts, checks run, route updates attempted, final status, blocker if any, local-only state, health, next owner, and follow-up recommendation. | Raw proof output or provider telemetry internals. |
-| Evidence receipt | Immutable or append-only proof: command output, check output, route responses, notification responses, catalog records, telemetry observations, trace paths, screenshots, human-needed packets, or human answers. | Run-level interpretation by itself. Evidence supports claims; it does not replace the work receipt. |
+| Evidence receipt | Immutable or append-only proof: command output, check output, route responses, notification responses, catalog records, telemetry observations, trace paths, screenshots, manual-intervention packets, or human answers. | Run-level interpretation by itself. Evidence supports claims; it does not replace the work receipt. |
 
 These receipts relate to future persisted records this way:
 
@@ -86,7 +86,7 @@ value is `not_applicable`, `not_observed`, or `missing_with_reason`.
 | Dock and provider/session facts | Dock, role kind if selected, provider or provider policy, provider session id when observed, terminal substrate, launch root, command or dry-run command, catalog record refs, telemetry event refs, auth/availability status, and mismatch facts. |
 | Lifecycle facts | Intake decision, selected scheduler action, lifecycle state transitions, lease/deadline, heartbeat expectation, heartbeat observations or absence, duplicate/superseded/expired facts, route-update attempts, and final status. |
 | Work and verification facts | Bounded goal, commands/checks run, pass/fail results, changed paths, artifacts created, artifacts deliberately not created, explicit deferrals preserved, local-only state, blocker class, next owner, and follow-up recommendation. |
-| Evidence facts | Evidence receipt ids or paths, proof summaries for every required claim, command output refs, workflow-router output ref, provider catalog/telemetry refs, route/notification response refs, human-needed refs, and missing-evidence explanations. |
+| Evidence facts | Evidence receipt ids or paths, proof summaries for every required claim, command output refs, workflow-router output ref, provider catalog/telemetry refs, route/notification response refs, manual-intervention refs, and missing-evidence explanations. |
 
 Minimum review rule: a final status is not proved unless each mandatory field is
 present or explicitly marked missing with a reason, and each required proof
@@ -111,8 +111,8 @@ docs/design/notes/manual-afk-receipts/<YYYY-MM-DD>-<packet-or-source-slug>-<dock
 Examples:
 
 ```text
-docs/design/notes/manual-afk-receipts/2026-05-21-afk-receipt-shape-gdi-completed.md
-docs/design/notes/manual-afk-receipts/2026-05-21-slack-kilos-researcher-human-needed.md
+docs/design/notes/manual-afk-receipts/2026-05-21-afk-receipt-shape-implementer-completed.md
+docs/design/notes/manual-afk-receipts/2026-05-21-slack-kilos-researcher-manual-intervention.md
 ```
 
 The receipt file should contain sections for transfer, scheduler, dispatch,
@@ -124,7 +124,7 @@ handoff files, and raw traces that were not explicitly approved for the repo.
 
 Do not commit successor-Foreman handoffs as work cards or manual receipts. A
 successor handoff belongs in chat, clipboard, or a temp file. Create a work
-card only when the artifact assigns a deterministic GDI/correction round.
+card only when the artifact assigns a deterministic Implementer/correction round.
 Create a manual AFK receipt only when it records a run result and evidence.
 
 ## Status Vocabulary
@@ -134,7 +134,7 @@ Use this run-level vocabulary in work receipts:
 | Status | Meaning | Route update | Next-owner recommendation |
 | --- | --- | --- | --- |
 | `no-op` | The packet/run was valid, but no mutation or execution was needed. | Send a terminal success-style local/work-record update; complete an integration job only when the route defines no-op as successful completion. | Usually `foreman` for review or `none` when no action remains. |
-| `blocked` | Progress stopped on an external or policy condition that can plausibly be resolved without replacing the packet. | Write human-needed or blocked metadata; notify requester only when route policy calls for it; keep an integration job queued/running if resumable. | `human`, `operator`, or `foreman`, depending on blocker class. |
+| `blocked` | Progress stopped on an external or policy condition that can plausibly be resolved without replacing the packet. | Write manual-intervention or blocked metadata; notify requester only when route policy calls for it; keep an integration job queued/running if resumable. | `human`, `operator`, or `foreman`, depending on blocker class. |
 | `failed` | A required validation, dispatch, execution, verification, or route operation reached terminal failure for this run. | Send failure route; map to integration job `failed` when the broker route is configured. | `foreman` for correction routing, or `human` if external recovery is required before retry. |
 | `partially-complete` | Some required work or proof finished, but one or more required items remain incomplete. | Send failure or blocked route unless a local work-record route supports partial terminal state; include completed and missing proof. | `foreman` for next-slice selection. |
 | `completed` | Every required proof passed, route attempts are recorded, and no required work remains. | Send terminal success route; map to integration job `succeeded` when the broker route is configured. | `foreman` for review/merge when a relay branch exists, or `none` when the route is self-contained. |
@@ -145,12 +145,12 @@ Scheduler-only statuses may appear in scheduler receipts:
 | --- | --- | --- | --- |
 | `duplicate` | The idempotence key is already owned by an active or terminal compatible run. | Record duplicate and point to owning run; do not launch a second provider session. | `foreman` only if duplicate ownership is ambiguous. |
 | `superseded` | A newer packet, route, or source artifact invalidated this run before completion. | Record superseding ref and stop dispatch; prevent stale terminal overwrite. | `foreman` for route cleanup or no action if supersession is expected. |
-| `expired` | Intake, launch, execution, or heartbeat lease expired before terminal worker result. | Record timeout/stale evidence; fail or mark stale according to route policy. | `foreman` for retry decision, or `human` if the expiry came from a human-needed stall. |
+| `expired` | Intake, launch, execution, or heartbeat lease expired before terminal worker result. | Record timeout/stale evidence; fail or mark stale according to route policy. | `foreman` for retry decision, or `human` if the expiry came from a manual-intervention stall. |
 
 Do not use `stalled` as a final work status in this note. Use `blocked` with a
 blocker class and next owner. A future scheduler lifecycle may still use
 `stalled` internally when it needs to distinguish resumable automation pause
-from human-needed.
+from manual-intervention.
 
 ## Evidence Link Rules
 
@@ -165,7 +165,7 @@ without reading an entire provider transcript.
 | Catalog observations | Cite provider, session id, cwd, branch, timestamps, source file, and resume command from a catalog record, or say no compatible catalog record was observed. |
 | Telemetry observations | Cite telemetry record type, observed timestamp, provider/session identity, metric/event/capability/mismatch code, and source precision. Do not claim telemetry proves completion unless it is paired with work/evidence proof. |
 | Route or notification response | Record route kind, target, request id when available, response status/body summary, retry status, and whether requester notification happened. |
-| Human-needed packet | Record blocker class, human action requested, route used, whether the run is resumable, and the exact evidence that automation cannot proceed. |
+| Manual-intervention packet | Record blocker class, human action requested, route used, whether the run is resumable, and the exact evidence that automation cannot proceed. |
 | Changed files or artifacts | Link to paths relative to repo root for committed/reviewable files. For generated or sensitive local-only artifacts, link to local path only if appropriate and mark `local_only`. |
 | Missing evidence | Use `missing_with_reason`, state the missing evidence kind, explain why it is unavailable, and describe whether that blocks completion or merely lowers confidence. |
 
@@ -179,9 +179,9 @@ Illustrative bundle for one docs-only AFK run, kept here as an example rather
 than a separate fixture:
 
 ```markdown
-# Manual AFK Receipt: afk-receipt-shape GDI completed
+# Manual AFK Receipt: afk-receipt-shape Implementer completed
 
-receipt_bundle_id: manual-afk-2026-05-21-afk-receipt-shape-gdi
+receipt_bundle_id: manual-afk-2026-05-21-afk-receipt-shape-implementer
 created_at: 2026-05-21T00:00:00Z
 final_status: completed
 
@@ -191,10 +191,10 @@ final_status: completed
   `docs/design/work-cards/afk-work-evidence-receipt-shape-v0.md`
 - source_artifact:
   `docs/design/notes/afk-design-consolidation-readiness-2026-05-21.md`
-- recipient: gdi
+- recipient: implementer
 - cwd: `/Users/Michael/Code/agent-os`
 - worktree: same as cwd
-- branch: `gdi/afk-work-evidence-receipt-shape-v0`
+- branch: `implementer/afk-work-evidence-receipt-shape-v0`
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - result_route_refs: local completion report to Foreman/human chat
 - external_publication_policy: no GitHub mutation; keep checkpoint local unless
@@ -202,11 +202,11 @@ final_status: completed
 
 ## Scheduler Receipt
 
-- scheduler_run_id: manual-gdi-round
+- scheduler_run_id: manual-implementer-round
 - idempotence_key: source_artifact + required_start_ref + branch
 - intake_decision: accepted
 - selected_action: dry-run-style manual execution, no provider launch
-- lease: current GDI goal turn
+- lease: current Implementer goal turn
 - heartbeat: chat/tool progress updates only
 - route_attempts: final local completion report
 

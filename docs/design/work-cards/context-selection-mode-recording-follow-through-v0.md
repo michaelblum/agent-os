@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
-Long-running multi-phase GDI implementation round.
+Long-running multi-phase Implementer implementation round.
 
 ## Single Goal
 
@@ -15,15 +15,15 @@ Mode, active context export, and recording primitives, while preserving the
 existing reticle, Surface Inspector, radial camera, and clipboard compatibility
 paths.
 
-This is one long GDI round with phase commits. Complete the phases in order
+This is one long Implementer round with phase commits. Complete the phases in order
 until the goal is done, a documented blocker is reached, or the boundaries below
 would be violated.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/context-keyframe-export-selection-recording-long-run-v0`
+- `branch_from`: `implementer/context-keyframe-export-selection-recording-long-run-v0`
 - `required_start_ref`: local branch at or after `3a2a446a57f85c458dc583a95b7ac77480471a23`
-- Expected output branch: `gdi/context-selection-mode-recording-follow-through-v0`
+- Expected output branch: `implementer/context-selection-mode-recording-follow-through-v0`
 - Do not push, open PRs, or mutate GitHub state unless explicitly reassigned.
 
 ## Source Artifacts
@@ -218,11 +218,11 @@ Use `./aos ready` before live checks. If readiness reports a repo-mode TCC or
 input-tap blocker, use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 
-If the blocker remains, stop with `human_needed` and do not route more
+If the blocker remains, stop with `manual_intervention` and do not route more
 live-dependent work.
 
 Commit this phase separately if it changes files.
@@ -326,7 +326,7 @@ Report:
 - recording helper/export names;
 - compatibility outputs preserved;
 - tests run with pass/fail/skip details;
-- live readiness result and any human-needed packet used;
+- live readiness result and any manual-intervention packet used;
 - conflict risk and open PRs on same files if checked;
 - final `git status --short --branch`;
 - first remaining follow-up, if any.

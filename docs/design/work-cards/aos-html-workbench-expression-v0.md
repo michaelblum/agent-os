@@ -184,7 +184,7 @@ Required:
   - no-op approval record.
 
 Do not mutate source Markdown automatically in V0. It is enough to emit a
-structured patch suggestion or decision record that a later Foreman/GDI step can
+structured patch suggestion or decision record that a later Foreman/Implementer step can
 apply.
 
 ## Work-Card Authoring Flow
@@ -196,7 +196,7 @@ After this slice, the intended Foreman flow should be possible:
 3. Human reviews the rendered expression, optionally annotates or edits through
    the checkpoint flow.
 4. Resume emits structured annotations/decisions/patch suggestions.
-5. Foreman finalizes the Markdown source and sends GDI the final work-card.
+5. Foreman finalizes the Markdown source and sends Implementer the final work-card.
 
 This work-card only needs to implement enough of the flow to prove it with a
 fixture work-card. It does not need to automate Foreman handoff.
@@ -225,7 +225,7 @@ Document the security model in `docs/api/toolkit.md` or the schema docs.
 - No Employer Brand-specific fields.
 - No Surface-Zoom dependency.
 - No live website capture or browser automation.
-- No GDI handoff clipboard changes.
+- No Implementer handoff clipboard changes.
 
 ## Deliverables
 

@@ -7,7 +7,7 @@
 - Classification: `pass`.
 - Foreman review: accepted for the headless scheduler/provider/cleanup gate.
   The run proved current `main` can complete a no-fixture
-  `./aos dev afk-session-trigger` Codex/GDI scheduler proof with provider
+  `./aos dev afk-session-trigger` Codex/Implementer scheduler proof with provider
   acceptance through Codex adapter metadata and verified cleanup.
 - Branch/ref gates passed on `main` at
   `d629afa5a40ce386b462775b32bfbec3016d1b4b`, matching `origin/main` before
@@ -28,20 +28,20 @@
   - `packet.validation_status=valid`;
   - `scheduler.lifecycle_state=completed`;
   - `dispatch.provider_launch_allowed=true`;
-  - `dispatch.launch_root=.docks/gdi`;
+  - `dispatch.launch_root=the implementer native subagent`;
   - terminal substrate `status=observed`, driver `process`, cwd
-    `/Users/Michael/Code/agent-os/.docks/gdi`, command
+    `/Users/Michael/Code/agent-os/the implementer native subagent`, command
     `codex --no-alt-screen`;
-  - prompt mode `codex_goal`, prefix `"/goal "`, transport `file_pointer`,
+  - prompt mode `codex_goal`, prefix `""`, transport `file_pointer`,
     and ref
     `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`;
-  - prompt preview included `/goal Your work card is at ...`;
+  - prompt preview included `Your work card is at ...`;
   - `provider_execution_observed=true`.
 - Provider acceptance closed:
   - `provider_acceptance.status=provider_session_observed`;
   - provider session id `019e58e9-54d8-7770-9be4-a88882c7e906`;
   - observation source `codex_adapter_metadata`;
-  - provider cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+  - provider cwd `/Users/Michael/Code/agent-os/the implementer native subagent`;
   - `codex_adapter.status=observed`;
   - `codex_adapter.correlation_status=matched_by_cwd_time_window`;
   - matched cwd basis `intended_launch_cwd`;
@@ -71,11 +71,11 @@
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: run one no-fixture `./aos dev afk-session-trigger`
-  Codex/GDI scheduler proof on current `main`, verify the headless receipt
+  Codex/Implementer scheduler proof on current `main`, verify the headless receipt
   closes with provider acceptance and cleanup, or classify the exact blocker.
 - Source artifacts:
   - `docs/design/work-cards/operator-afk-agent-terminal-provider-orchestration-live-proof-v0.md`
-  - `docs/design/work-cards/operator-afk-dev-session-trigger-goal-prefix-provider-acceptance-live-proof-v0.md`
+  - `docs/design/work-cards/operator-afk-dev-session-trigger-prompt-prefix-provider-acceptance-live-proof-v0.md`
   - `docs/design/work-cards/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.md`
   - `scripts/afk-session-trigger-prototype.mjs`
   - `scripts/afk-launch-attempt-prototype.mjs`
@@ -101,8 +101,8 @@ proof state. Read and rediscover before acting.
 
 The headed Agent Terminal provider proof passed on 2026-05-24, proving live UI
 input and real Codex execution after the paste/Enter fix. The previous
-supervised `afk-session-trigger` Codex/GDI proof also passed after the
-provider-native `/goal ` transport and metadata mismatch cleanup. This run now
+supervised `afk-session-trigger` Codex/Implementer proof also passed after the
+provider-native  transport and metadata mismatch cleanup. This run now
 checks the current `main` headless scheduler receipt path as the next narrow
 AFK milestone, without adding the broader warm-dock proof yet.
 
@@ -131,10 +131,10 @@ ready=true mode=repo daemon=reachable tap=active
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/operator/scripts/human-needed-tcc-reset
+report the supervised-runtime blocker to Foreman
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -176,7 +176,7 @@ use:
 - `packet_id`: `operator-afk-session-trigger-headless-scheduler-live-proof-v0`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `origin/main`
 - `provider_hint`: `codex`
@@ -190,7 +190,7 @@ Run exactly one no-fixture trigger attempt:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -247,15 +247,15 @@ Classify `pass` only if all are true:
 - `dispatch.provider_launch_allowed=true`;
 - `terminal_substrate.input_submission.status=submitted`;
 - `terminal_substrate.input_submission.provider_prompt_mode=codex_goal`;
-- `terminal_substrate.input_submission.provider_prompt_prefix="/goal "`;
-- prompt or bounded snapshot evidence shows a short `/goal Your work card is at ...` pointer;
+- `terminal_substrate.input_submission.provider_prompt_prefix=""`;
+- prompt or bounded snapshot evidence shows a short `Your work card is at ...` pointer;
 - `terminal_substrate.input_submission.provider_execution_observed=true`;
 - `provider_acceptance.status=provider_session_observed`;
 - `provider_acceptance.provider_session_id` is a concrete observed id;
 - if metadata promotion closes the gate,
   `provider_acceptance.observation_source=codex_adapter_metadata` and
   `codex_adapter.correlation_status=matched_by_cwd_time_window`;
-- provider cwd is `.docks/gdi` or otherwise matches the intended launch cwd;
+- provider cwd is `the implementer native subagent` or otherwise matches the intended launch cwd;
 - `cleanup.status=verified`;
 - no top-level or nested stale `provider_session_id_not_observed` mismatch
   remains in the completed receipt;
@@ -313,5 +313,5 @@ Return a concise Foreman report with:
 - explicit statement that no forbidden mutation or async result routing
   occurred;
 - remaining follow-up recommendation, especially whether the next slice should
-  be the warm-dock GDI reuse proof or Agent Terminal integration for persistent
+  be the warm-dock Implementer reuse proof or Agent Terminal integration for persistent
   AFK visibility.

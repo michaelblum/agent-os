@@ -174,7 +174,7 @@ This is exactly how the recent drift happened: `ARCHITECTURE.md` and
 `CONTEXT.md` were updated, but nearby docs still carry old claims.
 
 Validation 2026-05-20: confirmed. `docs/guides/` contains useful SOPs such as
-agent entry paths, accessibility surfaces, GDI exit interviews, and layered
+agent tooling contexts, accessibility surfaces, Implementer exit interviews, and layered
 subject expressions, but no context maintenance recipe. The root `AGENTS.md`
 "Durable lessons" paragraph names `AGENTS.md`, `tests/README.md`,
 `docs/guides/`, `docs/design/`, `shared/schemas/`, `docs/api/`, and

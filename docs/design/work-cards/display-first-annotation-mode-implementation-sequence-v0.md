@@ -12,7 +12,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -158,7 +158,7 @@ annotation database.
 
 ## Acceptance Gates Across The Sequence
 
-- All entry paths create or attach to the same annotation session type.
+- All tooling contexts create or attach to the same annotation session type.
 - Surface Inspector is not required to create the first anchor.
 - Display root defaults to the display under the avatar at mode entry.
 - If the avatar starts over a window, that window becomes the initial nested

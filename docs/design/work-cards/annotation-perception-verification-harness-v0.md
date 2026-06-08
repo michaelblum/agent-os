@@ -10,7 +10,7 @@ The annotation system has moved through these layers:
 - Spatial Subject Tree,
 - Surface-Zoom Annotation Inspector proof.
 
-The next bar is higher: GDI should be able to create an annotation, project it,
+The next bar is higher: Implementer should be able to create an annotation, project it,
 re-perceive the surface through structured AOS/surface-adapter data, and prove
 that the annotation is anchored to the intended thing without asking Operator to
 visually confirm the canvas and without doing pixel inspection.

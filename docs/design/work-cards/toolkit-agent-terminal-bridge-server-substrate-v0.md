@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -30,7 +30,7 @@ historical Sigil/Codex terminal path.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `87ac532bf2114f70086db4f1b0cda93932ac400b` or later with this work card
-- output_branch: `gdi/toolkit-agent-terminal-bridge-server-substrate-v0`
+- output_branch: `implementer/toolkit-agent-terminal-bridge-server-substrate-v0`
 
 ## Read First
 

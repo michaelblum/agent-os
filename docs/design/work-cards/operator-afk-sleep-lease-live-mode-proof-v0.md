@@ -21,12 +21,12 @@ the expected sleep-lease live receipt:
 - `sleep_lease.status="accepted"`;
 - `dispatch.provider_launch_allowed=true`;
 - `dispatch.human_supervision={ required: false, i_am_present: false }`;
-- `dispatch.launch_root=".docks/gdi"`;
+- `dispatch.launch_root="the implementer native subagent"`;
 - clean start gates, current head equal to required start SHA, and
   `allow_branch_push=false`;
-- terminal substrate observed with process driver, GDI cwd, and
+- terminal substrate observed with process driver, Implementer cwd, and
   `codex --no-alt-screen`;
-- provider prompt mode `codex_goal` with prefix `"/goal "`;
+- provider prompt mode `codex_goal` with prefix `""`;
 - provider acceptance observed through Codex adapter metadata with strong
   cwd/time-window correlation;
 - cleanup verified;
@@ -50,14 +50,14 @@ mutation occurred.
 
 Next external decision: choose and explicitly authorize the first real
 overnight work card. V0 sleep-lease live mode is now proven for one local-only
-Codex/GDI launch with branch push disabled; it is not an open-ended queue or a
+Codex/Implementer launch with branch push disabled; it is not an open-ended queue or a
 standing authorization.
 
 ## Transfer Classification
 
 - Recipient: Operator
 - Transfer kind: Operator run, live evidence collection
-- Single next goal: run one real Codex/GDI `./aos dev afk-session-trigger`
+- Single next goal: run one real Codex/Implementer `./aos dev afk-session-trigger`
   proof using `--sleep-lease-live-launch` without `--i-am-present`, then report
   whether provider acceptance and cleanup complete.
 - Source artifacts:
@@ -86,14 +86,14 @@ proof state. Read and rediscover before acting.
 ## Goal
 
 Prove that the accepted source path can launch one explicit sleep-lease live
-Codex/GDI run without using the human-present supervised guard:
+Codex/Implementer run without using the human-present supervised guard:
 
 ```bash
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --sleep-lease <temp-lease.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --sleep-lease-live-launch \
   --json \
   --timestamp <iso> \
@@ -128,10 +128,10 @@ ready=true mode=repo daemon=reachable tap=active
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/operator/scripts/human-needed-tcc-reset
+report the supervised-runtime blocker to Foreman
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -159,7 +159,7 @@ Packet fields:
 - `packet_id`: `operator-afk-sleep-lease-live-mode-proof-v0`
 - `source_artifact`:
   `docs/design/work-cards/afk-sleep-lease-live-mode-provider-sentinel-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `origin/main`
 - `provider_hint`: `codex`
@@ -179,7 +179,7 @@ Lease fields:
 - `provider_budget.status`: `not_enforceable_yet`
 - `provider_budget.declared_ceiling`:
   `one Codex launch for sleep-lease live mode proof`
-- `allowed_docks`: `["gdi"]`
+- `allowed_docks`: `["implementer"]`
 - `allowed_providers`: `["codex"]`
 - `allowed_work_refs`:
   `["docs/design/work-cards/afk-sleep-lease-live-mode-provider-sentinel-v0.md"]`
@@ -205,14 +205,14 @@ Passing evidence:
 - `sleep_lease.status=accepted`;
 - `dispatch.provider_launch_allowed=true`;
 - `dispatch.human_supervision={ required: false, i_am_present: false }`;
-- `dispatch.launch_root=.docks/gdi`;
+- `dispatch.launch_root=the implementer native subagent`;
 - `sleep_lease_live_start_gates.dirty_state.status=clean`;
 - `sleep_lease_live_start_gates.current_head` equals
   `sleep_lease_live_start_gates.required_start_sha`;
 - `sleep_lease_live_start_gates.branch_push_policy.allow_branch_push=false`;
 - terminal substrate observed with driver, cwd, and command;
 - input submission used `provider_prompt_mode=codex_goal` and prefix
-  `"/goal "`;
+  `""`;
 - prompt ref/source artifact points to the provider sentinel work card;
 - provider acceptance observed with a concrete provider session id;
 - if metadata promotion closes acceptance, report the correlation status and
@@ -245,7 +245,7 @@ After the trigger exits:
 Return:
 
 - classification: pass, provider_acceptance_unobserved, cleanup_unverified,
-  sleep_lease_rejected, human_needed, or failed;
+  sleep_lease_rejected, manual_intervention, or failed;
 - branch/head before and after, and whether it matched `origin/main`;
 - readiness before and after;
 - preflight results;

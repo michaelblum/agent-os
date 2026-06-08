@@ -62,16 +62,16 @@ There is no clean AOS command for targeted dock/provider terminal input.
 
 Today, hook code reaches the PTY path through:
 
-- `.docks/harness/provider-input-control.sh`
-- `.docks/harness/pty-input-control.sh`
-- `.docks/harness/goal-pause-control.sh`
+- `legacy provider input helper`
+- `legacy PTY input helper`
+- `legacy prompt pause helper`
 
 That helper can use the Agent Terminal bridge or tmux fallback, but it is still
 harness-owned plumbing. It is not exposed as a typed AOS surface like `aos tell`,
 `aos gate`, or `aos show`.
 
 This is why live orchestration feels like it leaks implementation details: AFK
-and hooks need "send this provider-native prompt to GDI", but the only direct
+and hooks need "send this provider-native prompt to Implementer", but the only direct
 tool is below the AOS control plane.
 
 ## Desired Direction
@@ -96,8 +96,8 @@ hook behavior through private PTY helpers.
 Possible spelling:
 
 ```bash
-./aos dock input --dock gdi --text "..." --submit
-./aos dock key --dock gdi Enter
+./aos dock input --dock implementer --text "..." --submit
+./aos dock key --dock implementer Enter
 ```
 
 or, if the session identity model is ready:
@@ -110,7 +110,7 @@ or, if the session identity model is ready:
 The command should consume the dock terminal session registry/receipt contract,
 delegate to the existing PTY input implementation internally, and emit a
 machine-readable input receipt. Hooks and AFK should call that AOS command
-instead of invoking `.docks/harness/pty-input-control.sh` directly.
+instead of invoking `legacy PTY input helper` directly.
 
 ## Source Pointers
 
@@ -118,6 +118,6 @@ instead of invoking `.docks/harness/pty-input-control.sh` directly.
 - `docs/design/dock-terminal-session-agent-terminal-contract-v0.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/api/aos.md`
-- `.docks/harness/pty-input-control.sh`
-- `.docks/harness/goal-pause-control.sh`
+- `legacy PTY input helper`
+- `legacy prompt pause helper`
 - `scripts/lib/dock-terminal-session-registry.mjs`

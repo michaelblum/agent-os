@@ -12,10 +12,10 @@ Contract candidate. It fits the same reusable judgment shape:
 given these inputs and this evidence, classify/choose/route this way
 ```
 
-The route decision takes a task's evidence need, changed behavior, entry path,
+The route decision takes a task's evidence need, changed behavior, tooling context,
 runtime readiness, TCC/input-tap state, and role boundary as inputs. It then
 chooses deterministic tests, AOS runtime checks, Operator-supervised live
-evidence, human-needed recovery, or an explicit skip when the task is docs-only.
+evidence, manual-intervention recovery, or an explicit skip when the task is docs-only.
 
 This third mapping proves the Decision Contract idea is not just the current
 dev workflow router and not just Foreman transfer policy. It also shows that a
@@ -34,7 +34,7 @@ state:
 - Task kind: docs-only, source change, schema/API contract change, toolkit/app
   UI change, display/visual change, input-routing change, live website/browser
   control, or human-in-the-loop review.
-- Active entry path: Agent harness, AOS developer, testing, visual diagnostics,
+- Active tooling context: Agent harness, AOS developer, testing, visual diagnostics,
   user-input diagnostics, or a narrower app-specific layer.
 - Changed files and changed behavior, including whether Swift, schemas, pure
   Node/TypeScript, toolkit/app DOM, daemon input, canvases, or display topology
@@ -47,8 +47,8 @@ state:
   ready, ownership mismatch, inactive input tap, stale/missing TCC grant, or a
   human-required recovery phase.
 - Human involvement: whether the human is explicitly the sensor, whether
-  Operator must collect supervised live evidence, or whether GDI must stop with
-  `human_needed`.
+  Operator must collect supervised live evidence, or whether Implementer must stop with
+  `manual_intervention`.
 - Workflow/router advice from `./aos dev recommend --json`, especially
   docs-only routing, rebuild guidance, TCC sensitivity, commands, verification,
   and notes.
@@ -57,19 +57,19 @@ state:
 
 The stable authority surfaces are docs and manifests:
 
-- `AGENTS.md` defines entry paths, AOS as the shell, readiness guidance,
+- `AGENTS.md` defines tooling contexts, AOS as the shell, readiness guidance,
   build/rebuild posture, visual verification, and human-as-sensor handling.
-- `.docks/AGENTS.md` separates dock role, entry path, and workflow profile, and
-  states that GDI handles deterministic implementation while Operator handles
+- `.docks/AGENTS.md` separates dock role, tooling context, and workflow profile, and
+  states that Implementer handles deterministic implementation while Operator handles
   supervised live or HITL evidence.
 - `.docks/foreman/AGENTS.md` gives Foreman the next-step ladder, including
   routing live verification to Operator or stopping on TCC/input-tap blockers.
-- `.docks/gdi/AGENTS.md` defines deterministic verification, completion
-  reporting, and the `human_needed` TCC stall path.
-- `.docks/operator/AGENTS.md` defines supervised runtime/HITL evidence
+- the implementer native subagent instructions defines deterministic verification, completion
+  reporting, and the `manual_intervention` TCC stall path.
+- `the operator native subagent contract` defines supervised runtime/HITL evidence
   collection and stop conditions.
-- `docs/guides/agent-entry-paths-and-verification.md` is the central
-  role-neutral recipe for selecting entry path and verification loop.
+- `docs/guides/agent-tooling-contexts-and-verification.md` is the central
+  role-neutral recipe for selecting tooling context and verification loop.
 - `docs/guides/aos-surface-interaction-decision-tree.md` routes surface work
   to DOM, toolkit, StageAffordance, passive stage, full WebView, private
   renderer, or daemon primitive.
@@ -103,17 +103,17 @@ The current-state side is volatile and must be inspected at decision time:
 Verification routing emits a composite route, not just one label:
 
 - Whether runtime verification is required, optional, or explicitly skipped.
-- Which entry path is active for the proof: AOS developer, testing, visual
+- Which tooling context is active for the proof: AOS developer, testing, visual
   diagnostics, user-input diagnostics, Operator-supervised live evidence, or
-  human-needed recovery.
+  manual-intervention recovery.
 - Which commands or checks to run: `git diff --check`, schema tests,
   package-local Node tests, `./aos dev build`, `./aos ready`, controlled smoke,
   `./aos see`, `./aos do`, or no extra command beyond docs review.
 - Whether a Swift rebuild is required before a command or test.
 - Whether a synthetic deterministic proof is sufficient or a real-input/live
   proof is required.
-- Whether GDI should stop with `human_needed` through
-  `.docks/gdi/scripts/human-needed-tcc-reset`.
+- Whether Implementer should stop with `manual_intervention` through
+  the manual TCC blocker report path.
 - Whether Foreman should route a bounded Operator dispatch for live/HITL
   evidence.
 - What the completion report must disclose: exact commands and pass/fail
@@ -124,14 +124,14 @@ Verification routing emits a composite route, not just one label:
 
 The consumers are active roles and future automation:
 
-- GDI consumes the route to choose deterministic checks, avoid unsupported live
+- Implementer consumes the route to choose deterministic checks, avoid unsupported live
   proof, and report blockers.
 - Foreman consumes the route to accept deterministic evidence, ask for Operator
   evidence, or apply the safe permission recovery path before live-dependent
   work continues.
 - Operator consumes supervised live/HITL dispatches when the route requires
   visual, browser, page interaction, or bounded human judgment.
-- Human users consume human-needed recovery packets and may act as the sensor
+- Human users consume manual-intervention recovery packets and may act as the sensor
   when they explicitly enter the verification loop.
 - Future session trigger, async result routing, work records, and evidence
   records could consume a structured version of this route.
@@ -140,7 +140,7 @@ The consumers are active roles and future automation:
 
 Recheck the mapping when any of these change:
 
-- New entry path, changed entry-path semantics, or changed host-shell boundary.
+- New tooling context, changed tooling-context semantics, or changed host-shell boundary.
 - Changed `./aos ready`, `ready --repair`, `ready --post-permission`, or
   permission-reset behavior.
 - Changed TCC/Input Monitoring/Accessibility recovery policy.
@@ -148,7 +148,7 @@ Recheck the mapping when any of these change:
   smoke requirement for a previously deterministic-only behavior.
 - Changes to `docs/dev/workflow-rules.json`, router schema, `./aos dev
   recommend --json`, or build/rebuild policy.
-- Changed Foreman, GDI, or Operator role boundaries or completion-report
+- Changed Foreman, Implementer, or Operator role boundaries or completion-report
   requirements.
 - New Surface Inspector, visual diagnostics, user-input diagnostics, or
   controlled browser smoke procedure.
@@ -212,10 +212,10 @@ Recheck the mapping when any of these change:
 - Transfer packet delivery, session trigger launch details, async result-route
   state, provider selection, or work-record lifecycle. Decision Contracts may
   feed those primitives later; they should not absorb them.
-- Human-needed recovery instructions as schema fields. They belong in role docs,
+- Manual-intervention recovery instructions as schema fields. They belong in role docs,
   transfer packets, or recovery recipes until a human-gate/evidence primitive
   exists.
-- Broad actor authority definitions. Foreman, GDI, and Operator contracts stay
+- Broad actor authority definitions. Foreman, Implementer, and Operator contracts stay
   in `.docks` docs unless session automation needs a source-backed capability
   manifest.
 
@@ -230,8 +230,8 @@ The three mapped candidates prove Decision Contract is a useful docs vocabulary:
 - Foreman transfer routing is a docs-backed policy cluster with composite
   route outputs;
 - live-versus-deterministic verification routing is a docs-backed and
-  current-state-sensitive route that crosses entry paths, runtime readiness,
-  Operator/HITL evidence, and human-needed recovery.
+  current-state-sensitive route that crosses tooling contexts, runtime readiness,
+  Operator/HITL evidence, and manual-intervention recovery.
 
 That is enough to stop doing one-note candidate mappings. It is not enough to
 commit a `shared/schemas/decision-contract` contract because two of the three

@@ -2,22 +2,22 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: address the concrete PR #377 review-blocking robustness and
   prototype-status findings without changing the accepted AFK runtime semantics.
 - Source artifact: PR #377, "Prototype AFK session trigger and cleanup proof".
 - Branch/Base:
-  - `branch_from: gdi/afk-dev-session-trigger-packet-validation-status-correction-v0`
-  - `required_start_ref: gdi/afk-dev-session-trigger-packet-validation-status-correction-v0`
+  - `branch_from: implementer/afk-dev-session-trigger-packet-validation-status-correction-v0`
+  - `required_start_ref: implementer/afk-dev-session-trigger-packet-validation-status-correction-v0`
 - Branch/output expectation: create or reuse a scoped local output branch from
   the required start ref. A suitable name is
-  `gdi/pr-377-afk-prototype-review-corrections-v0`. Keep the checkpoint local
+  `implementer/pr-377-afk-prototype-review-corrections-v0`. Keep the checkpoint local
   unless Foreman explicitly asks you to push or update the PR.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 PR, bridge process, provider session, transcript/catalog state, or Foreman's
 review details beyond this card. Read and rediscover before editing.
 
@@ -44,7 +44,7 @@ proof, but flagged these follow-up issues before merge:
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `apps/sigil/AGENTS.md`
 - `apps/sigil/codex-terminal/pty-proxy.py`
 - `apps/sigil/codex-terminal/server.mjs`
@@ -70,10 +70,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -129,7 +129,7 @@ Only continue if it reports ready.
   experimental-help correction requires a tiny local helper. The review called
   that duplication acceptable for the prototype.
 - Do not archive or reorganize the work-card fan-out in this round.
-- Do not rebase the PR branch in this GDI round. Report whether the branch still
+- Do not rebase the PR branch in this Implementer round. Report whether the branch still
   needs rebase after the corrections pass.
 
 ## Suggested Implementation Areas
@@ -194,7 +194,7 @@ Report:
 - PID marker overwrite behavior after the change;
 - how `./aos dev` help now communicates prototype/experimental status;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - whether PR #377 still needs rebase against `origin/main`;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,

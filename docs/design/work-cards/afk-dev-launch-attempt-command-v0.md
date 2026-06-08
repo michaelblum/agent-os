@@ -4,8 +4,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: expose the accepted AFK launch-attempt prototype through an
   experimental `./aos dev afk-launch-attempt` command without making it a final
   AFK runtime/session API or enabling unattended provider launch.
@@ -16,7 +16,7 @@
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-dev-launch-attempt-command-v0`. Keep the checkpoint local; do not
+  `implementer/afk-dev-launch-attempt-command-v0`. Keep the checkpoint local; do not
   push, open a PR, mutate GitHub, or publish externally.
 
 ## Tracker
@@ -30,7 +30,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, Codex transcript, catalog, telemetry,
 Operator report, built-binary freshness, or prior implementation state. Read
 and rediscover before editing.
@@ -40,7 +40,7 @@ and rediscover before editing.
 Add an experimental developer command:
 
 ```bash
-./aos dev afk-launch-attempt --packet <packet.json> --provider codex --dock gdi --json
+./aos dev afk-launch-attempt --packet <packet.json> --provider codex --dock implementer --json
 ```
 
 The command should delegate to `scripts/afk-launch-attempt-prototype.mjs` and
@@ -59,7 +59,7 @@ final `aos session` command spelling.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/work-cards/afk-dev-dry-run-command-v0.md`
@@ -88,7 +88,7 @@ live readiness check reports repo-mode TCC/input-tap blockers after rebuilding,
 use the repo-standard recovery path:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 After the human returns with `finished`, run:
@@ -103,7 +103,7 @@ After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `08930f878efe9570d869b5f0e9c0f1483c005249`
 - expected output branch:
-  `gdi/afk-dev-launch-attempt-command-v0`
+  `implementer/afk-dev-launch-attempt-command-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -210,7 +210,7 @@ bash tests/dev-workflow-router.sh
 After the build, run one provider-free command-level smoke with a temp packet:
 
 ```bash
-./aos dev afk-launch-attempt --packet <temp-packet.json> --provider codex --dock gdi --json
+./aos dev afk-launch-attempt --packet <temp-packet.json> --provider codex --dock implementer --json
 ```
 
 The smoke should prove:
@@ -218,7 +218,7 @@ The smoke should prove:
 - exit code 0 for a valid packet;
 - record type is `aos.afk_launch_attempt`;
 - `lifecycle_state` is `provider_acceptance_unobserved`;
-- selected provider/dock are `codex`/`gdi`;
+- selected provider/dock are `codex`/`implementer`;
 - terminal substrate driver is `process`;
 - `provider_acceptance.provider_session_id` remains
   `not_applicable: no-provider-launch`;
@@ -232,7 +232,7 @@ Codex-home fixture:
 ./aos dev afk-launch-attempt \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --timestamp <iso> \
   --launch-observed-at <iso> \
@@ -258,7 +258,7 @@ If `./aos dev recommend --json` recommends additional checks, run the smallest
 relevant check or explain why it is not applicable. If live readiness is the
 next meaningful proof after building, run `./aos ready` unless the repo-mode
 TCC/input-tap state is blocked; if blocked, use the helper and stop with
-`human_needed`.
+`manual_intervention`.
 
 ## Completion Report
 
@@ -280,7 +280,7 @@ Report:
 
 ## Foreman Acceptance
 
-Accepted on 2026-05-22 at GDI commit
+Accepted on 2026-05-22 at Implementer commit
 `340a1c15725eff53bc2fd8158fca7c96cf1b3f76`.
 
 Review summary:
@@ -297,7 +297,7 @@ Review summary:
 - Provider-free wrapper smoke returned `record_type=aos.afk_launch_attempt`,
   `lifecycle_state=provider_acceptance_unobserved`,
   `provider_session_id=not_applicable: no-provider-launch`, process-driver
-  terminal substrate, selected provider/dock `codex`/`gdi`, and
+  terminal substrate, selected provider/dock `codex`/`implementer`, and
   `provider_launch_performed=false`.
 - Fixture-backed wrapper smoke used only temporary packet, bridge, and
   Codex-home fixtures and returned `lifecycle_state=provider_session_observed`,

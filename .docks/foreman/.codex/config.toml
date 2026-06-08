@@ -9,7 +9,6 @@ hide_full_access_warning = true
 
 [features]
 hooks = true
-goals = true
 multi_agent = true
 js_repl = true
 guardian_approval = true
@@ -23,8 +22,8 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 max_threads = 6
 max_depth = 1
 
-[agents.gdi]
-config_file = "../../../.codex/agents/gdi.toml"
+[agents.implementer]
+config_file = "../../../.codex/agents/implementer.toml"
 description = "Deterministic implementation worker. Executes bounded work-card instructions, runs verification, and reports completion evidence to Foreman."
 
 [agents.operator]

@@ -14,7 +14,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing. The worktree is expected to be substantially dirty
 from the surface-stack workstream; do not revert unrelated changes.
@@ -157,7 +157,7 @@ node --test tests/toolkit/panel-public-api.test.mjs
 node --test tests/toolkit/stage-affordance.test.mjs
 ```
 
-If readiness is clean and GDI can safely launch the workbench without touching
+If readiness is clean and Implementer can safely launch the workbench without touching
 real mouse ownership, run a bounded `./aos show create` / `show eval` probe to
 confirm the controller state exists. Do not run real pointer smoke unless
 explicitly routed to Operator or the human has made input ownership available.

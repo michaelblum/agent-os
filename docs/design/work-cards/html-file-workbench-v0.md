@@ -2,16 +2,16 @@
 
 ## Transfer
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact: `docs/design/work-cards/html-file-workbench-v0.md`
 - Single next goal: add a simple file-backed HTML viewer/editor workbench for local standalone `.html` files.
-- Branch/base: start from the current `main` worktree containing this card; expected output branch pattern is `gdi/html-file-workbench-v0`.
-- Stop conditions: completed with evidence, failed with technical blocker, stalled/human_needed for repo-mode permission or product direction.
+- Branch/base: start from the current `main` worktree containing this card; expected output branch pattern is `implementer/html-file-workbench-v0`.
+- Stop conditions: completed with evidence, failed with technical blocker, stalled/manual_intervention for repo-mode permission or product direction.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window in `/Users/Michael/Code/agent-os`. Do not
+Implementer starts from a fresh context window in `/Users/Michael/Code/agent-os`. Do not
 work in `.docks/`. Do not assume branch, daemon, canvas, issue, prior chat, or
 implementation state. Read and rediscover before editing.
 
@@ -25,7 +25,7 @@ Workbench, but scoped to standalone local `.html` files like:
 ```
 
 The user asked whether we have an AOS viewer/editor for simple HTML demos, then
-asked Foreman to route GDI to make it.
+asked Foreman to route Implementer to make it.
 
 The new workbench should let a user open a local HTML file in an AOS panel,
 edit the source, see a live preview, save back to the file, and reload/revert
@@ -65,10 +65,10 @@ If `./aos ready` or a bounded live check reports repo-mode Accessibility, Input
 Monitoring, or inactive input-tap blockers, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and report the script output. After the human
+Then stop with `manual_intervention` and report the script output. After the human
 returns with "finished", run:
 
 ```bash
@@ -128,7 +128,7 @@ Default canvas id should be `html-file-workbench`, overrideable with
 
 ### Editing And Save
 
-GDI may choose either a helper-script save model like Markdown Workbench or a
+Implementer may choose either a helper-script save model like Markdown Workbench or a
 direct local save helper invoked by Foreman/agent, but the contract must be
 clear and deterministic.
 
@@ -143,7 +143,7 @@ Minimum acceptable save path:
 - successful save clears dirty state or records a save result that the panel can
   consume.
 
-If GDI can keep the implementation smaller with the exact Markdown Workbench
+If Implementer can keep the implementation smaller with the exact Markdown Workbench
 save-current pattern, prefer that.
 
 ### Preview
@@ -196,7 +196,7 @@ Likely paths:
 - `tests/toolkit/html-file-workbench.test.mjs`
 - `docs/api/toolkit/components.md` or another scoped toolkit API doc
 
-GDI may adjust paths after inspecting current toolkit conventions.
+Implementer may adjust paths after inspecting current toolkit conventions.
 
 ## Hard Boundaries / Non-Goals
 

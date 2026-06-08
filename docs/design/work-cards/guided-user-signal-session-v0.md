@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, permission state, prior implementation state, local gate records,
 or live UI state. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -130,7 +130,7 @@ Tests must not mutate canonical `~/.config/aos/repo` state.
 
 ### 1. Provider-Neutral Session Contract
 
-Add a documented Guided User Signal Session record. The final name is GDI's
+Add a documented Guided User Signal Session record. The final name is Implementer's
 choice after reading local schema conventions, but use a clear `aos.*.v1`
 contract and keep it provider-neutral.
 
@@ -256,7 +256,7 @@ completion.
 
 ## Foreman Review Correction - 2026-05-17
 
-The first GDI implementation on `gdi/guided-user-signal-session-v0` is close but
+The first Implementer implementation on `implementer/guided-user-signal-session-v0` is close but
 not accepted yet. It documents and defaults to redaction for guided-session
 prompt bodies, free text, and answer payloads, but
 `packages/toolkit/workbench/guided-user-signal-session.js` currently persists

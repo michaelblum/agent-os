@@ -10,14 +10,14 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 PR, or prior implementation state. Read this card, rediscover local and remote
 state, then work from evidence.
 
 ## Goal
 
 Own a broad PR-readiness pass for PR #378. This is intentionally a long-run,
-non-microscopic GDI round: audit the published command-surface branch, fix
+non-microscopic Implementer round: audit the published command-surface branch, fix
 obvious in-scope correctness or contract issues, commit durable checkpoints,
 push the updated PR branch, and return a merge-readiness report with remaining
 risks.
@@ -31,7 +31,7 @@ stop condition applies.
 - `branch_from: origin/feat/command-surface-extraction`
 - `required_start_ref: origin/feat/command-surface-extraction`
 - Work surface: `feat/command-surface-extraction`.
-- This card authorizes GDI to work directly on the PR branch for this long-run
+- This card authorizes Implementer to work directly on the PR branch for this long-run
   round.
 - Commit scoped checkpoints directly on `feat/command-surface-extraction`.
 - Push `feat/command-surface-extraction` to origin after verification passes.
@@ -42,10 +42,10 @@ stop condition applies.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
-- `docs/design/work-cards/command-surface-rearchitecture-long-goal-v0.md`
+- `docs/design/work-cards/command-surface-rearchitecture-long-prompt-v0.md`
 - `docs/design/work-cards/pr-378-command-surface-pr-readiness-long-run-v0.md`
 - PR #378 metadata and diff summary via `gh pr view 378 --repo michaelblum/agent-os`
 
@@ -66,10 +66,10 @@ If `./aos ready`, live AOS verification, Accessibility, Input Monitoring, or an
 inactive input-tap state blocks the assigned work, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -175,7 +175,7 @@ Stop and report when one of these is true:
 - the audit areas have been covered, in-scope fixes are committed, verification
   is green, and the branch has been pushed;
 - a merge blocker needs human/Foreman judgment;
-- live AOS/TCC readiness is blocked after the standard human-needed helper;
+- live AOS/TCC readiness is blocked after the standard manual-intervention helper;
 - continuing would require broad product direction, new feature work, PR
   splitting, or emergency permission reset.
 
@@ -199,7 +199,7 @@ Use this shape:
 - review_risks: <none/list>
 - suggested_split_strategy: <none/list, only if useful>
 - stale_residue_found: <none/list>
-- action_required: <foreman_review|human_needed|block>
+- action_required: <foreman_review|manual_intervention|block>
 ```
 
 Do not self-accept PR #378. Foreman reviews the report, branch diff, and test

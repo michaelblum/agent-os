@@ -6,7 +6,6 @@ sandbox_mode = "danger-full-access"
 
 [features]
 hooks = true
-goals = true
 multi_agent = true
 js_repl = true
 guardian_approval = true
@@ -16,8 +15,8 @@ prevent_idle_sleep = true
 max_threads = 6
 max_depth = 1
 
-[agents.gdi]
-config_file = "agents/gdi.toml"
+[agents.implementer]
+config_file = "agents/implementer.toml"
 description = "Deterministic implementation worker. Executes bounded work-card instructions, runs verification, and reports completion evidence to Foreman."
 
 [agents.operator]

@@ -7,19 +7,19 @@
 - Workstream:
   `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - Source receipt:
-  `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-gdi-partial.md`
+  `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-implementer-partial.md`
 - Source accepted card:
   `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
 - Correction finding: the live bridge smoke showed that
   `/sessions?provider=codex` is not an all-cwd query today. The bridge applies
   `defaultCwd` when `cwd` is omitted, so the response was the same
-  GDI-scoped catalog view as `/sessions?cwd=.docks/gdi&provider=codex`. This
-  forced Operator to guess an observed cwd and query `.docks/operator`
+  Implementer-scoped catalog view as `/sessions?cwd=the implementer native subagent&provider=codex`. This
+  forced Operator to guess an observed cwd and query `the operator native subagent`
   separately.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, receipt, or prior
 implementation state. Read and rediscover before editing.
 
@@ -35,12 +35,12 @@ The next live AFK proof needs to distinguish:
 - current provider session exists under another cwd;
 - no current provider session exists anywhere visible to the provider catalog.
 
-It should not require ad hoc guesses such as querying `.docks/operator`.
+It should not require ad hoc guesses such as querying `the operator native subagent`.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-gdi-partial.md`
+- the implementer native subagent instructions
+- `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-implementer-partial.md`
 - `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
 - `apps/sigil/codex-terminal/server.mjs`
 - `tests/sigil-agent-terminal-server.test.mjs`
@@ -68,10 +68,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 live check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -80,7 +80,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `134418ee`
 - expected output branch:
-  `gdi/afk-bridge-catalog-scope-correction-v0`
+  `implementer/afk-bridge-catalog-scope-correction-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

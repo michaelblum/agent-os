@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -47,14 +47,14 @@ catalog correlation, or shim retirement work.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `545a7972048d65c0c9b884a3ebe415a56fd17324` or later with this work card
-- output_branch: `gdi/agent-terminal-sigil-wrapper-health-fixture-v0`
+- output_branch: `implementer/agent-terminal-sigil-wrapper-health-fixture-v0`
 
 ## Read First
 
 - `AGENTS.md`
 - `docs/design/notes/agent-terminal-toolkit-roadmap-2026-05-23.md`
 - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`
+- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`
 - `docs/design/work-cards/afk-bridge-launch-visibility-fixture-v0.md`
 - `docs/design/work-cards/afk-launch-attempt-codex-adapter-integration-v0.md`
 - `docs/design/work-cards/afk-codex-workspace-root-correlation-correction-v0.md`
@@ -185,7 +185,7 @@ Also run any focused command recommended by:
 ```
 
 If live readiness becomes the only meaningful proof, stop and report the exact
-reason instead of driving providers or canvases in this GDI round.
+reason instead of driving providers or canvases in this Implementer round.
 
 ## Completion Report
 

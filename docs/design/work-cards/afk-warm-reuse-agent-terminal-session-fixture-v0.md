@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Tracker
 
@@ -16,12 +16,12 @@ terminal sessions.
 
 Accepted prerequisite:
 
-- `gdi/dock-terminal-session-cwd-correction-v0` at
+- `implementer/dock-terminal-session-cwd-correction-v0` at
   `164b0c7447b03f3c4f577f4c340027c28ca0a5fe`.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, provider, or prior implementation state. Read and rediscover
 before editing.
 
@@ -38,12 +38,12 @@ start async result routing.
 ## Branch / Base
 
 - card_branch: `foreman/afk-warm-reuse-agent-terminal-session-fixture-v0`
-- branch_from: `gdi/dock-terminal-session-cwd-correction-v0` at
+- branch_from: `implementer/dock-terminal-session-cwd-correction-v0` at
   `164b0c7447b03f3c4f577f4c340027c28ca0a5fe`
 - required_start_ref:
   `foreman/afk-warm-reuse-agent-terminal-session-fixture-v0`
 - expected_output_branch:
-  `gdi/afk-warm-reuse-agent-terminal-session-fixture-v0`
+  `implementer/afk-warm-reuse-agent-terminal-session-fixture-v0`
 
 Create or update the expected output branch from the required start ref. Do not
 reset to `origin/main`; this card and the prerequisite code are feature-branch
@@ -76,10 +76,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -127,8 +127,8 @@ Only continue if it reports ready.
   `human_observability_only` and `provider_acceptance.status="not_evidence"`;
   AFK provider acceptance must still come from Codex metadata/catalog/session
   facts or explicit deterministic fixtures.
-- Preserve GDI `/goal ` prompt shaping and Operator plain prompt shaping from
-  dock inbound contracts.
+- Preserve Implementer  prompt shaping and Operator plain prompt shaping from
+  dock native prompt contracts.
 - Keep the result deterministic. Do not call the live
   `/dock-terminal-session` endpoint in this slice unless it is behind an
   explicit test fixture seam and not exercised by default.

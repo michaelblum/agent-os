@@ -37,18 +37,18 @@
 - Workstream:
   `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - Source receipt:
-  `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`
+  `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`
 - Source accepted card:
   `docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md`
 - Correction finding: the supervised bridge-backed Codex launch was visible
-  through the process-driver bridge from `.docks/gdi`, but the current launch
+  through the process-driver bridge from `the implementer native subagent`, but the current launch
   was not bound to provider catalog or telemetry. The catalog endpoint returned
   a stale pre-existing Codex session for the same cwd/provider, and
   `/session-inspector` worked only for that stale visible id.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, receipt, or prior
 implementation state. Read and rediscover before editing.
 
@@ -60,12 +60,12 @@ the provider catalog only exposes stale or unrelated sessions.
 
 This is a correction/observability slice before supervised real-launch attempt
 integration. Prefer deterministic fixture-backed implementation and tests. Do
-not launch Codex, Claude, Gemini, or another provider in this GDI round.
+not launch Codex, Claude, Gemini, or another provider in this Implementer round.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`
+- the implementer native subagent instructions
+- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`
 - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
 - `docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md`
@@ -97,19 +97,19 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 live check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
 
-- branch_from: `gdi/afk-launch-attempt-prototype-no-provider-v0`
+- branch_from: `implementer/afk-launch-attempt-prototype-no-provider-v0`
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `1595e2ee`
 - expected output branch:
-  `gdi/afk-bridge-current-launch-observability-correction-v0`
+  `implementer/afk-bridge-current-launch-observability-correction-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

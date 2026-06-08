@@ -28,7 +28,7 @@ rediscover before observing.
 
 This is supervised live evidence collection only. Do not implement fixes,
 create commits, push branches, open/close issues, mutate PRs, or broaden into
-GDI work.
+Implementer work.
 
 ## Goal
 
@@ -65,10 +65,10 @@ new evidence under `/tmp/aos-input-event-v2-live-proof-v0-rerun/`.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- `the operator native subagent contract`
 - `apps/sigil/AGENTS.md`
 - `docs/design/input-event-v2-toolkit-cutover-v0.md`
-- `docs/design/work-cards/gdi-input-event-v2-native-producer-canonical-emission-v0.md`
+- `docs/design/work-cards/implementer-input-event-v2-native-producer-canonical-emission-v0.md`
 - `docs/adr/0015-aos-tcc-capability-broker-boundary.md`
 - PR #438 and issue #431.
 
@@ -480,6 +480,6 @@ Report:
 - artifact directory path;
 - cleanup result and any stale canvases, stage layers, input regions, or
   blockers;
-- next recommended dock: Foreman for acceptance/routing, GDI only if a
+- next recommended dock: Foreman for acceptance/routing, Implementer only if a
   deterministic fix is now implied, or Operator rerun only if the result was
   blocked by live environment state.

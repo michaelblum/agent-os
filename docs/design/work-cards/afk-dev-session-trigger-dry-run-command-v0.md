@@ -4,8 +4,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add an experimental dry-run-only
   `./aos dev afk-session-trigger` command that validates a local transfer
   packet, creates deterministic scheduler and dispatch intent ids, resolves the
@@ -18,7 +18,7 @@
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-dev-session-trigger-dry-run-command-v0`. Keep the checkpoint local;
+  `implementer/afk-dev-session-trigger-dry-run-command-v0`. Keep the checkpoint local;
   do not push, open a PR, mutate GitHub, or publish externally.
 
 ## Tracker
@@ -30,7 +30,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, Codex transcript, gateway state, built-binary
 freshness, or prior implementation state. Read and rediscover before editing.
 
@@ -42,7 +42,7 @@ Add this experimental developer command:
 ./aos dev afk-session-trigger \
   --packet <packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --dry-run \
   --json
 ```
@@ -56,7 +56,7 @@ terminals, gateway jobs, or route delivery.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`
 - `docs/design/work-cards/afk-dev-launch-attempt-command-v0.md`
 - `scripts/afk-dry-run-prototype.mjs`
@@ -83,7 +83,7 @@ It should not need live AOS input control. If a required build/readiness check
 reports repo-mode TCC/input-tap blockers, use the repo-standard recovery path:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 After the human returns with `finished`, run:
@@ -148,9 +148,9 @@ The command should:
   "dispatch": {
     "dispatch_attempt_id": "dispatch-<stable-id>",
     "selected_provider": "codex",
-    "selected_dock": "gdi",
-    "dock_profile_ref": ".docks/gdi/dock.json",
-    "launch_root": ".docks/gdi",
+    "selected_dock": "implementer",
+    "dock_profile_ref": "implementer session metadata",
+    "launch_root": "the implementer native subagent",
     "action": "dry-run",
     "provider_launch_allowed": false
   },
@@ -238,7 +238,7 @@ Run a provider-free command-level smoke with a temp packet:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --dry-run \
   --json
 ```
@@ -250,7 +250,7 @@ The smoke should prove:
 - `status=dry_run_ready`;
 - scheduler lifecycle is `accepted`;
 - selected action is `dry-run`;
-- selected provider/dock are `codex`/`gdi`;
+- selected provider/dock are `codex`/`implementer`;
 - dock profile and launch root are resolved;
 - terminal substrate is `not_attempted`;
 - `provider_launch_allowed=false`;
@@ -292,7 +292,7 @@ Report:
 
 ## Foreman Acceptance
 
-Accepted on 2026-05-22 at GDI commit
+Accepted on 2026-05-22 at Implementer commit
 `f7873d96a6430608f545ca4f9d14f59afb8f1b08`.
 
 Review summary:
@@ -311,7 +311,7 @@ Review summary:
 - Provider-free wrapper smoke produced
   `record_type=aos.afk_session_trigger_dry_run`, `status=dry_run_ready`,
   scheduler lifecycle `accepted`, selected action `dry-run`, selected
-  provider/dock `codex`/`gdi`, launch root `.docks/gdi`,
+  provider/dock `codex`/`implementer`, launch root `the implementer native subagent`,
   `provider_launch_allowed=false`, terminal substrate `not_attempted`, result
   route `not_attempted`, and zero mismatches.
 
@@ -328,10 +328,10 @@ node --test tests/schemas/dev-workflow-rules.test.mjs
 node --test tests/schemas/dev-active-profile.test.mjs
 node --test tests/schemas/dev-workflow-profiles.test.mjs
 bash tests/dev-audit.sh
-./aos dev afk-session-trigger --packet <temp-packet.json> --provider codex --dock gdi --dry-run --json --timestamp 2026-05-22T20:40:00.000Z --idempotence-salt foreman-smoke
+./aos dev afk-session-trigger --packet <temp-packet.json> --provider codex --dock implementer --dry-run --json --timestamp 2026-05-22T20:40:00.000Z --idempotence-salt foreman-smoke
 ./aos dev afk-session-trigger --packet
 ./aos dev afk-session-trigger --dry-run --json
-./aos dev afk-session-trigger --packet /tmp/nope.json --provider codex --dock gdi --json
+./aos dev afk-session-trigger --packet /tmp/nope.json --provider codex --dock implementer --json
 git diff --check c8b6c612c399099c1cbe5bbcebad09201e94d24b..HEAD
 ./aos dev recommend --json --paths src/commands/dev.swift,src/shared/command-registry-data.swift,tests/dev-workflow-router.sh,tests/help-contract.sh,scripts/afk-session-trigger-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs
 ```

@@ -27,20 +27,20 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Source artifact:
   `docs/design/work-cards/afk-codex-provider-session-adapter-v0.md`
 - Review finding source: Foreman review of
   `9797450d4ab0980134a3eefca5cc118796168e65`
-- Required start ref: `gdi/afk-codex-provider-session-adapter-v0`
+- Required start ref: `implementer/afk-codex-provider-session-adapter-v0`
 - Branch/output expectation: reuse the local branch
-  `gdi/afk-codex-provider-session-adapter-v0`. Keep the checkpoint local; do
+  `implementer/afk-codex-provider-session-adapter-v0`. Keep the checkpoint local; do
   not push, open a PR, mutate GitHub, or run live provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, local transcripts, skill internals, or prior
 review state. Read and rediscover before editing.
 
@@ -70,7 +70,7 @@ select an unrelated old Codex thread and must remain `not_observed`.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-codex-provider-session-adapter-v0.md`
 - `docs/design/notes/afk-codex-provider-session-adapter-contract-2026-05-22.md`
 - `packages/host/src/codex-thread-adapter.ts`
@@ -86,7 +86,7 @@ Run:
 ```bash
 git status --short --branch
 git rev-parse --short HEAD
-git rev-parse --short gdi/afk-codex-provider-session-adapter-v0
+git rev-parse --short implementer/afk-codex-provider-session-adapter-v0
 ./aos dev recommend --json
 ```
 
@@ -95,12 +95,12 @@ necessary, stop and explain why before running live checks.
 
 ## Branch / Base
 
-- branch_from: `gdi/afk-codex-provider-session-adapter-v0`
-- required_start_ref: `gdi/afk-codex-provider-session-adapter-v0`
+- branch_from: `implementer/afk-codex-provider-session-adapter-v0`
+- required_start_ref: `implementer/afk-codex-provider-session-adapter-v0`
 - rejected implementation commit:
   `9797450d4ab0980134a3eefca5cc118796168e65`
 - expected output branch:
-  `gdi/afk-codex-provider-session-adapter-v0`
+  `implementer/afk-codex-provider-session-adapter-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

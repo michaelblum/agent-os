@@ -27,7 +27,7 @@ Verification:
 
 ```text
 git status --short --branch
-## gdi/afk-dev-session-trigger-packet-validation-status-correction-v0
+## implementer/afk-dev-session-trigger-packet-validation-status-correction-v0
 
 ./aos ready
 ready=true mode=repo daemon=reachable tap=active
@@ -58,7 +58,7 @@ external publication happened during Foreman acceptance.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: correct the AFK session-trigger receipt so
   `packet.validation_status` reflects packet/current-state intake validation,
@@ -73,13 +73,13 @@ external publication happened during Foreman acceptance.
   - `required_start_ref: docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-dev-session-trigger-packet-validation-status-correction-v0`. Keep
+  `implementer/afk-dev-session-trigger-packet-validation-status-correction-v0`. Keep
   the checkpoint local; do not push, open a PR, mutate GitHub, or publish
   externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 bridge process, provider session, transcript/catalog state, Operator evidence,
 or Foreman's review details beyond this card. Read and rediscover before
 editing.
@@ -125,7 +125,7 @@ by a valid non-completed provider outcome.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`
 - `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-proof-v0.md`
@@ -147,10 +147,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -190,7 +190,7 @@ Only continue if it reports ready.
 
 - This is a deterministic source correction for receipt classification.
 - Do not run a live Codex, Claude, Gemini, tmux, provider terminal, or real
-  bridge session in this GDI round.
+  bridge session in this Implementer round.
 - Do not read real provider transcript bodies.
 - Do not mutate provider configs, provider session files, provider transcripts,
   provider catalogs, telemetry stores, gateway state, dock profiles, hooks,
@@ -227,7 +227,7 @@ bash tests/help-contract.sh
 ./aos dev build --no-restart
 ```
 
-Do not run live provider verification in this GDI round. If deterministic
+Do not run live provider verification in this Implementer round. If deterministic
 verification passes, report whether another Operator run is needed. Foreman's
 current expectation is that no second live cleanup proof is needed solely for
 this receipt-classification fix unless the implementation changes launch or
@@ -254,7 +254,7 @@ Report:
 - provider-timeout, cleanup-failure, invalid-packet, duplicate, and guard
   behavior after the change;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened;

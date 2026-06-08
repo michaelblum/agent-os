@@ -12,15 +12,15 @@ canonical names instead of preserving broad `SIGIL_AGENT_*` and
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -40,7 +40,7 @@ environment names.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `85ae19292b8a3fe127861b9425122bb77d6165fe` or later with this work card
-- output_branch: `gdi/toolkit-agent-terminal-neutral-bridge-env-aliases-v0`
+- output_branch: `implementer/toolkit-agent-terminal-neutral-bridge-env-aliases-v0`
 
 ## Read First
 

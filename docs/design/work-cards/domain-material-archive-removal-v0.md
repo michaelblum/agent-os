@@ -8,7 +8,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, checkout, daemon,
+Implementer starts from a fresh context window. Do not assume branch, checkout, daemon,
 issue, archive, or prior implementation state. Read and rediscover before
 editing.
 
@@ -20,7 +20,7 @@ references, and prove the install-independent static gates.
 
 ## Branch/Base
 
-- Profile: `local_relay`.
+- Profile: `local single-checkout workflow`.
 - Work surface: the single checkout at `/Users/Michael/Code/agent-os`.
 - Do not create a linked worktree.
 - `branch_from`: `ae262e7fca28a9c82974d61539842673a84f0c4a`
@@ -33,7 +33,7 @@ references, and prove the install-independent static gates.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `/Users/Michael/.claude/plans/structured-sleeping-diffie.md`
 - `CONTEXT.md`
 - `shared/schemas/browser-evidence-capture-v0.md`
@@ -55,10 +55,10 @@ If `./aos ready` or a bounded live check reports a repo-mode Accessibility,
 Input Monitoring, or inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and return the blocker to Foreman. This round can
+Then stop with `manual_intervention` and return the blocker to Foreman. This round can
 mostly be verified statically, so do not invent live checks unless the static
 gates need them.
 

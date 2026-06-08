@@ -38,7 +38,7 @@ ready=false phase=runtime_blocked diagnosis=input_tap_not_active mode=repo daemo
 After the readiness command's bounded restart/recheck, direct status returned:
 
 ```text
-status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=57 channels=0 stale_canvases=0 branch=gdi/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=0
+status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=57 channels=0 stale_canvases=0 branch=implementer/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=0
 ```
 
 End state after `./aos dev build` and one canonical readiness recheck:

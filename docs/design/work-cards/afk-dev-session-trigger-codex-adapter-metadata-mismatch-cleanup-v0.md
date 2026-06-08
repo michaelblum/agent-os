@@ -6,7 +6,7 @@
 
 - Foreman review: accepted.
 - Branch/ref gates passed on
-  `gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0` at
+  `implementer/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0` at
   `e4e029f406ae2c452ee61181d9286565d9740ae2`, based on
   `9541e5e8a402c95656bf0a0f66c626bed2d24873`.
 - Diff was scoped to:
@@ -31,36 +31,36 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: remove stale nested Codex adapter
   `provider_session_id_not_observed` mismatch evidence from completed
   metadata-promoted provider-acceptance receipts, without weakening failure
   reporting for genuinely unobserved or wrong-cwd adapter outcomes.
 - Source artifacts:
-  - `docs/design/work-cards/operator-afk-dev-session-trigger-goal-prefix-provider-acceptance-live-proof-v0.md`
-  - `docs/design/work-cards/afk-dev-session-trigger-codex-goal-prefix-transport-v0.md`
+  - `docs/design/work-cards/operator-afk-dev-session-trigger-prompt-prefix-provider-acceptance-live-proof-v0.md`
+  - `docs/design/work-cards/afk-dev-session-trigger-codex-prompt-prefix-transport-v0.md`
   - `scripts/afk-launch-attempt-prototype.mjs`
   - `tests/afk-launch-attempt-prototype.test.mjs`
   - `packages/host/src/codex-thread-adapter.ts`
   - `packages/host/test/codex-thread-adapter.test.ts`
 - Branch/Base:
-  - `branch_from: gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0`
-  - `required_start_ref: gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0`
+  - `branch_from: implementer/afk-dev-session-trigger-codex-prompt-prefix-transport-v0`
+  - `required_start_ref: implementer/afk-dev-session-trigger-codex-prompt-prefix-transport-v0`
   - Accepted live-proof route head:
     `09b84c86dda2753f278f9a4079db13b0066a0044`
   - Accepted implementation source head:
     `9b02689b52894fe8d2770606eeda5190ddde6869`
 - Branch/output expectation: create or reuse
-  `gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
-  from the required start ref. Commit and push that GDI branch when
+  `implementer/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
+  from the required start ref. Commit and push that Implementer branch when
   verification passes under the active `agentic_relay` profile. Do not open a
   PR, merge, mutate main, mutate GitHub issues/projects, or start async result
   routing.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, daemon state, live proof artifacts, or prior implementation state.
 Read and rediscover before editing.
 
@@ -73,8 +73,8 @@ Operator's supervised no-fixture live proof passed the provider-acceptance gate:
 - concrete Codex session id `019e562f-2fbd-74d3-8cf8-3dd61a1c7095`;
 - `provider_acceptance.observation_source=codex_adapter_metadata`;
 - `codex_adapter.correlation_status=matched_by_cwd_time_window`;
-- `/goal ` prompt transport recorded as `provider_prompt_mode=codex_goal` and
-  `provider_prompt_prefix="/goal "`;
+-  prompt transport recorded as `provider_prompt_mode=codex_goal` and
+  `provider_prompt_prefix=""`;
 - cleanup verified;
 - final readiness clean.
 
@@ -125,10 +125,10 @@ Current source already removes the corresponding top-level mismatch in
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
-- `docs/design/work-cards/operator-afk-dev-session-trigger-goal-prefix-provider-acceptance-live-proof-v0.md`
+- `docs/design/work-cards/operator-afk-dev-session-trigger-prompt-prefix-provider-acceptance-live-proof-v0.md`
 - `scripts/afk-launch-attempt-prototype.mjs`
 - `tests/afk-launch-attempt-prototype.test.mjs`
 - `packages/host/src/codex-thread-adapter.ts`
@@ -140,7 +140,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0 09b84c86dda2753f278f9a4079db13b0066a0044 9b02689b52894fe8d2770606eeda5190ddde6869
+git rev-parse HEAD implementer/afk-dev-session-trigger-codex-prompt-prefix-transport-v0 09b84c86dda2753f278f9a4079db13b0066a0044 9b02689b52894fe8d2770606eeda5190ddde6869
 ./aos ready
 ./aos dev recommend --json --paths scripts/afk-launch-attempt-prototype.mjs,tests/afk-launch-attempt-prototype.test.mjs,packages/host/src/codex-thread-adapter.ts,packages/host/test/codex-thread-adapter.test.ts
 ```
@@ -149,10 +149,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -176,7 +176,7 @@ Only continue if it reports ready.
 
 ## Hard Boundaries
 
-- Do not run a live Codex provider launch in this GDI round.
+- Do not run a live Codex provider launch in this Implementer round.
 - Do not read provider transcript bodies.
 - Do not mutate provider store, catalog, telemetry, gateway, dock runtime,
   GitHub issues, PRs, or main.
@@ -219,4 +219,4 @@ Return:
 - explicit statement that no live provider launch, transcript body read,
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, main merge, PR creation, or async result
-  routing occurred beyond the expected GDI branch push.
+  routing occurred beyond the expected Implementer branch push.

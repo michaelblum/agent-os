@@ -1,14 +1,14 @@
 # Work Card: afk-design-consolidation-readiness-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
 - Single next goal: consolidate the accepted AFK packet, scheduler, and
@@ -27,7 +27,7 @@ receipts without prematurely adding schemas or command behavior.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-design-consolidation-readiness-v0`
+- Implementer branch: `implementer/afk-design-consolidation-readiness-v0`
 - Accepted commit: `fd5063273360b9240417d3efdd527806ac8214d9`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -43,7 +43,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -68,11 +68,11 @@ The note should:
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -106,7 +106,7 @@ This card depends on local-only accepted design notes and accepted work cards
 on the branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/afk-design-consolidation-readiness-v0` from the required start ref. Keep
+`implementer/afk-design-consolidation-readiness-v0` from the required start ref. Keep
 the checkpoint local unless Foreman or Michael explicitly asks for a push or
 PR.
 
@@ -199,7 +199,7 @@ Use this shape:
    - terminal substrate;
    - work/evidence receipts;
    - integration broker/gateway;
-   - Foreman/GDI/Operator coordination.
+   - Foreman/Implementer/Operator coordination.
 9. Explicit deferrals:
    - no schema or command implementation;
    - no provider launch;

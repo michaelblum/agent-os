@@ -37,7 +37,7 @@ Acceptance gates passed:
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: tighten sleep-lease live result-route start gates so a
   local artifact route that cannot be delivered by the command's confirmed
@@ -47,26 +47,26 @@ Acceptance gates passed:
   - `scripts/afk-session-trigger-prototype.mjs`
   - `tests/afk-session-trigger-prototype.test.mjs`
 - Branch/Base:
-  - `branch_from: origin/gdi/afk-sleep-lease-unattended-live-mode-v0`
-  - `required_start_ref: origin/gdi/afk-sleep-lease-unattended-live-mode-v0`
+  - `branch_from: origin/implementer/afk-sleep-lease-unattended-live-mode-v0`
+  - `required_start_ref: origin/implementer/afk-sleep-lease-unattended-live-mode-v0`
   - rejected head under review:
     `f5f6a65bdf894fab4c0632427b3e2954d19fcfbb`
 - Branch/output expectation: update the existing
-  `gdi/afk-sleep-lease-unattended-live-mode-v0` branch or create a correction
+  `implementer/afk-sleep-lease-unattended-live-mode-v0` branch or create a correction
   branch from it. Commit and push when verification passes. Do not open a PR,
   merge, mutate main, mutate GitHub issues/projects, start live providers, or
   route follow-up work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, provider state, current CLI behavior, or prior sleep-lease details.
 Read and rediscover before editing.
 
 ## Foreman Review Finding
 
 Foreman did not accept
-`gdi/afk-sleep-lease-unattended-live-mode-v0` at
+`implementer/afk-sleep-lease-unattended-live-mode-v0` at
 `f5f6a65bdf894fab4c0632427b3e2954d19fcfbb`.
 
 The implementation adds the expected command shape and most start gates, but
@@ -144,7 +144,7 @@ created.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-sleep-lease-unattended-live-mode-v0.md`
 - `scripts/afk-session-trigger-prototype.mjs`
 - `tests/afk-session-trigger-prototype.test.mjs`
@@ -155,7 +155,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD origin/gdi/afk-sleep-lease-unattended-live-mode-v0 f5f6a65bdf894fab4c0632427b3e2954d19fcfbb
+git rev-parse HEAD origin/implementer/afk-sleep-lease-unattended-live-mode-v0 f5f6a65bdf894fab4c0632427b3e2954d19fcfbb
 ./aos ready
 ./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs,docs/design/work-cards/afk-sleep-lease-unattended-live-mode-v0.md
 ```
@@ -164,10 +164,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -221,4 +221,4 @@ Return:
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, external notifier, durable work/evidence
   record beyond temp/local `--out`, unattended live trigger, or follow-up
-  routing occurred beyond the expected GDI branch push.
+  routing occurred beyond the expected Implementer branch push.

@@ -4,8 +4,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: produce a docs-only command-readiness note that decides the
   first implementable session trigger/dispatch command contract after the live
   `./aos dev afk-launch-attempt` wrapper proof.
@@ -20,7 +20,7 @@
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-session-trigger-command-readiness-v0`. Keep the checkpoint local; do
+  `implementer/afk-session-trigger-command-readiness-v0`. Keep the checkpoint local; do
   not push, open a PR, mutate GitHub, or publish externally.
 
 ## Tracker
@@ -34,7 +34,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, Codex transcript, prior launch evidence, or
 final command spelling. Read and rediscover before editing.
 
@@ -55,7 +55,7 @@ packet, scheduler, dispatch, provider, result-route, and live-proof ownership.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -83,10 +83,10 @@ If a live readiness check is attempted and reports repo-mode TCC/input-tap
 blockers, use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` instead of retrying live checks.
+Then stop with `manual_intervention` instead of retrying live checks.
 
 ## Required Readiness Decisions
 
@@ -181,7 +181,7 @@ Report:
 
 ## Foreman Acceptance
 
-Accepted on 2026-05-22 at GDI commit
+Accepted on 2026-05-22 at Implementer commit
 `fe1cef33aab1e49480c5f3d2968de7a8efd6d115`.
 
 Review summary:

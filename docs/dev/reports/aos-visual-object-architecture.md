@@ -7,12 +7,12 @@ representative deterministic and live proofs, a profiler-backed primary
 stellation leak/resource window, and a primary stellation positive-factor
 morph-target subset. Remaining work is split into separate future tracks below
 rather than kept as active Phase 6 scope.
-**Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+**Branch**: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Current Routing Update: Detached Avatar Panel
 
 As of the accepted `21dc331d` checkpoint on
-`gdi/radial-compact-snapshot-extraction-integration-v0`, Sigil's avatar
+`implementer/radial-compact-snapshot-extraction-integration-v0`, Sigil's avatar
 controls can open as a separate toolkit panel through the AOS action bus. That
 panel is product-useful but still uses a temporary private
 `sigil.avatar_panel.*` message protocol between the panel and `avatar-main`.
@@ -20,22 +20,22 @@ panel is product-useful but still uses a temporary private
 Route order for the active Foreman workstream:
 
 1. Accepted: AOS-first visible-surface/orphan audit through
-   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+   `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md`.
 2. Accepted: cross-process visible AOS native-window audit through
-   `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
+   `docs/design/work-cards/implementer-aos-visible-surface-cross-process-audit-v0.md`.
 3. Accepted: runtime service/input-tap ownership observability through
-   `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`.
+   `docs/design/work-cards/implementer-aos-runtime-service-input-tap-observability-v0.md`.
 4. Accepted: toolkit panel placement/final-frame reporting through
-   `docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-placement-final-frame-contract-v0.md`.
 5. Next: use the final-frame and visible-surface audit contracts to prove
    whether the Sigil avatar overlaps or wins input over its controls panel; add
    Sigil-owned avatar avoidance only if that evidence requires it, through
-   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`.
+   `docs/design/work-cards/implementer-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`.
 6. Return to live toolkit/Sigil panel dragging through
-   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-live-drag-correction-v0.md`.
 7. Migrate the detached avatar controls panel to the existing
    `visual_object_descriptors` / `canvas_object.*` resource contract through
-   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+   `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`.
 8. Refresh Wiki graph browser, shared 3D editor subject, and semantic target
    cleanup work against that accepted resource migration head.
 
@@ -47,7 +47,7 @@ or explicit migration window requires compatibility.
 ## Implementation Status
 
 The original target architecture has now been implemented and accepted on
-`gdi/selection-mode-cursor-ancestor-ladder-v0`. This report is both the
+`implementer/selection-mode-cursor-ancestor-ladder-v0`. This report is both the
 architecture record and the current status record. Future-looking sections
 below are separate tracks, not an instruction to keep expanding Phase 6.
 Sections labeled as historical describe the pre-descriptor problem statement or

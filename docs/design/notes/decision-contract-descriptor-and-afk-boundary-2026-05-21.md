@@ -120,7 +120,7 @@ outputs:
 A future transfer packet would carry the chosen `recipient`, `source_artifact`,
 `required_start_ref`, `branch_policy`, `stop_conditions`,
 `evidence_requirements`, and `result_route`. It should not carry the full role
-docs or attempt to define Foreman/GDI/Operator authority itself.
+docs or attempt to define Foreman/Implementer/Operator authority itself.
 
 ### Verification Routing
 
@@ -132,7 +132,7 @@ records own the receipts:
 contract_id: verification-routing
 inputs:
   - task kind
-  - active entry path
+  - active tooling context
   - changed behavior
   - evidence need
   - runtime readiness requirement
@@ -144,7 +144,7 @@ outputs:
   - commands/checks to run
   - rebuild requirement
   - synthetic-vs-real-input requirement
-  - human_needed or Operator route
+  - manual_intervention or Operator route
   - completion-report disclosures
 ```
 

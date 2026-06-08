@@ -1,20 +1,20 @@
 # Work Card: afk-dry-run-prototype-cwd-validation-correction-v0
 
 **Status:** Accepted 2026-05-22
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Source artifact: review of
   `docs/design/work-cards/afk-dry-run-prototype-v0.md`
 - Single next goal: make invalid `cwd` and `worktree` packet values produce a
   structured failed receipt instead of an unstructured prototype error.
 
-Follow-up to GDI output:
+Follow-up to Implementer output:
 
 - Commit under review:
   `5c679dfca00995ad04bb1e598434e63b30c037e5`
@@ -24,7 +24,7 @@ Follow-up to GDI output:
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-dry-run-prototype-v0`
+- Implementer branch: `implementer/afk-dry-run-prototype-v0`
 - Accepted commit: `51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`
 - Corrected behavior: missing `cwd`/`worktree` values now emit the normal
   `aos.afk_dry_run_receipt_bundle.prototype` JSON receipt with
@@ -49,8 +49,8 @@ Observed Foreman probe:
 ```bash
 tmpdir=$(mktemp -d)
 packet="$tmpdir/packet.json"
-printf '%s\n' '{"packet_id":"bad-cwd","source_artifact":"docs/design/work-cards/afk-dry-run-prototype-v0.md","requested_recipient":"gdi","cwd":"/tmp/aos-afk-missing-cwd-never-exists","worktree":"/tmp/aos-afk-missing-cwd-never-exists","required_start_ref":"docs/durable-agent-cognition-v0","provider_hint":"codex"}' > "$packet"
-node scripts/afk-dry-run-prototype.mjs --packet "$packet" --provider codex --dock gdi --json
+printf '%s\n' '{"packet_id":"bad-cwd","source_artifact":"docs/design/work-cards/afk-dry-run-prototype-v0.md","requested_recipient":"implementer","cwd":"/tmp/aos-afk-missing-cwd-never-exists","worktree":"/tmp/aos-afk-missing-cwd-never-exists","required_start_ref":"docs/durable-agent-cognition-v0","provider_hint":"codex"}' > "$packet"
+node scripts/afk-dry-run-prototype.mjs --packet "$packet" --provider codex --dock implementer --json
 ```
 
 Observed output:
@@ -74,7 +74,7 @@ Likely sources:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -100,9 +100,9 @@ The corrected behavior should:
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
 - `.docks/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- `.docks/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-dry-run-prototype-v0.md`
 - `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
 - `scripts/afk-dry-run-prototype.mjs`
@@ -122,8 +122,8 @@ This is a local correction on the AFK dry-run prototype branch. Do not reset to
 
 ## Branch/Base
 
-branch_from: `gdi/afk-dry-run-prototype-v0`
-required_start_ref: `gdi/afk-dry-run-prototype-v0`
+branch_from: `implementer/afk-dry-run-prototype-v0`
+required_start_ref: `implementer/afk-dry-run-prototype-v0`
 
 This correction depends on the local-only dry-run prototype commit. Keep the
 checkpoint local unless Foreman or Michael explicitly asks for a push or PR.

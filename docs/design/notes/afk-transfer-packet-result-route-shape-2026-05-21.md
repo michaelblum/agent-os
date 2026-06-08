@@ -130,7 +130,7 @@ Candidate fields:
 | `created_at` | Packet creation timestamp. |
 | `source_event` | Inbound event or sibling completion that caused the transfer, such as Slack command, local workflow launch, Foreman dispatch, or session result. |
 | `source_artifact` | Work card, design note, issue, PR, integration job, or evidence record that contains the authoritative task context. |
-| `requested_recipient` | Target dock or actor, such as `gdi`, `foreman`, `operator`, `human`, or future configured role. |
+| `requested_recipient` | Target dock or actor, such as `implementer`, `foreman`, `operator`, `human`, or future configured role. |
 | `requested_role_kind` | Optional role-kind lens, such as Planner, Worker, Reviewer, Reporter, Human Gate, or Researcher-compatible behavior. |
 | `cwd` | Repository or project root where the session should run. |
 | `worktree` | Specific worktree root when different from `cwd`. |
@@ -142,7 +142,7 @@ Candidate fields:
 | `evidence_requirements` | Commands, reports, artifacts, current-state checks, or human confirmations that must prove completion. |
 | `stop_conditions` | Conditions that must stop the session instead of broadening scope, such as TCC blocker, login/paywall/CAPTCHA, ambiguous routing, dirty worktree conflict, or missing source artifact. |
 | `timeout_or_lease` | Wall-clock timeout, lease expiry, heartbeat expectation, and stale-session handling policy. |
-| `human_needed` | Bounded human-action packet or route when the worker cannot continue without a human decision or permission repair. |
+| `manual_intervention` | Bounded human-action packet or route when the worker cannot continue without a human decision or permission repair. |
 | `provider_hint` | Optional provider preference, such as Codex, Claude, or Gemini. This is advisory unless policy says it is an explicit provider requirement. |
 | `result_route` | Reference to one or more async result routes to update when the session starts, finishes, stalls, or fails. |
 
@@ -191,7 +191,7 @@ Status mapping from session result to integration job status:
 | Session accepted packet and started execution | `running` | Use start route only after the worker has actually taken ownership. |
 | Session completed every required proof and no blocker remains | `succeeded` | Complete with summary, final report fields, artifacts, and evidence links. |
 | Session could not complete because the task failed, source artifact was invalid, verification failed, or a stop condition is terminal for this route | `failed` | Fail with error text, summary, evidence links, and next-owner recommendation. |
-| Session needs human action but the job should remain resumable | keep `queued` or `running` | Record human-needed state in metadata/work record; notify only if route policy calls for it. |
+| Session needs human action but the job should remain resumable | keep `queued` or `running` | Record manual-intervention state in metadata/work record; notify only if route policy calls for it. |
 | Session lease expired or heartbeat was lost | `failed` or route-specific stale state | Until a scheduler exists, treat this as design-level policy, not a current job transition. |
 
 Final report fields that should be delivered:
@@ -200,7 +200,7 @@ Final report fields that should be delivered:
 - session id/provider when available;
 - source event and source artifact;
 - recipient dock and role kind;
-- final status: completed, failed, stalled, human-needed, timed-out, or
+- final status: completed, failed, stalled, manual-intervention, timed-out, or
   superseded;
 - concise summary;
 - files changed or artifacts created;
@@ -236,7 +236,7 @@ Design-level idempotence and retry expectations:
 | AOS session trigger/scheduler | Resolving a packet, applying lease/timeout policy, choosing when to start or resume a docked session, updating lifecycle result routes. | Provider-specific workflow UI, reusable route judgment, gateway job schema, or final proof content. |
 | Provider-neutral dispatch | Launching a docked session through a selected provider adapter with cwd, worktree, dock, packet, and result-route reference. | Permanent dock identity, Decision Contract source rules, gateway-owned session lifecycle, or app-specific synthesis logic. |
 | Docked provider session | Executing one bounded goal, honoring dock role instructions, preserving stop conditions, producing final report, writing or linking proof. | Choosing broad workstream scope, owning gateway job lifecycle policy, changing provider scheduler rules, or redefining the packet. |
-| Transfer packet | Minimal one-transfer launch context: recipient, source artifact, start ref, branch policy, selected outputs, evidence requirements, stop conditions, lease, human-needed route, result route. | Full role docs, session control record, transcripts, immutable proof, reusable decision rules, provider process state. |
+| Transfer packet | Minimal one-transfer launch context: recipient, source artifact, start ref, branch policy, selected outputs, evidence requirements, stop conditions, lease, manual-intervention route, result route. | Full role docs, session control record, transcripts, immutable proof, reusable decision rules, provider process state. |
 | Work record | Run intent, execution map, evidence links, route update attempts, health, summary, next-owner recommendation. | Reusable route policy, session scheduler, or provider notifier implementation. |
 | Evidence record | Immutable or append-only proof: command outputs, traces, screenshots, status receipts, citations, logs, Operator reports, human answers, job transition responses. | Policy interpretation, route selection, launch context, or session ownership. |
 | Decision Contract descriptor | Reusable judgment metadata, source-authority evidence, current-state evidence kinds, invalidation triggers, recompute procedure, selected packet/proof/result-route outputs. | One-off packet state, run receipts, provider process state, job transition delivery, or scheduler implementation. |
@@ -252,19 +252,19 @@ This flow can be simulated today without implementation:
 
 1. A provider or local operator creates a queued integration job through the
    existing broker workflow launch path.
-2. Foreman writes a GDI work card that includes the job id, branch/base,
+2. Foreman writes a Implementer work card that includes the job id, branch/base,
    recipient, stop conditions, required evidence, and expected completion
    report.
 3. A human or Foreman creates a local branch from the required start ref and
-   dispatches the work card to a docked GDI session.
-4. When GDI starts real work, a human or local operator can call
+   dispatches the work card to a docked Implementer session.
+4. When Implementer starts real work, a human or local operator can call
    `POST /api/integrations/jobs/:id/start` with worker metadata.
-5. GDI completes the bounded task, writes the requested docs/artifacts, runs
+5. Implementer completes the bounded task, writes the requested docs/artifacts, runs
    verification, and reports evidence.
 6. Foreman reviews the result and, when accepted, a human or local operator can
    call `POST /api/integrations/jobs/:id/complete` with a summary, report lines,
    artifact link, and evidence metadata.
-7. If GDI hits a terminal blocker or failed verification, the operator can call
+7. If Implementer hits a terminal blocker or failed verification, the operator can call
    `POST /api/integrations/jobs/:id/fail` with error text and evidence links.
 
 The future primitive would replace the human clipboard and manual broker update

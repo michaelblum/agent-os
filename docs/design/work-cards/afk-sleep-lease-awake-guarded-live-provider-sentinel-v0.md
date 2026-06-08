@@ -4,9 +4,9 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round through AFK session trigger only
-- Single next goal: prove that a live Codex/GDI provider launched through the
+- Recipient: Implementer
+- Transfer kind: Implementer round through AFK session trigger only
+- Single next goal: prove that a live Codex/Implementer provider launched through the
   awake guarded sleep-lease path accepted this work-card prompt and completed
   one harmless deterministic check.
 - Source artifact for:

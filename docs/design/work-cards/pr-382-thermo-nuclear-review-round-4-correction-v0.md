@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -10,7 +10,7 @@ Correction round.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, PR, or prior implementation state. Read and rediscover before editing.
 
 ## Single Goal
@@ -24,10 +24,10 @@ payloads.
 
 ## Branch / Base
 
-- `branch_from`: `origin/gdi/context-selection-mode-recording-follow-through-v0`
+- `branch_from`: `origin/implementer/context-selection-mode-recording-follow-through-v0`
 - `required_start_ref`: `4bc86ca9539ae7bd71c40fd8df9f138fef4b5f53`
 - Work surface / expected output branch:
-  `gdi/context-selection-mode-recording-follow-through-v0`
+  `implementer/context-selection-mode-recording-follow-through-v0`
 - PR under review: https://github.com/michaelblum/agent-os/pull/382
 - Base: `origin/main` at `4b649c7036050c35c117e843309108cd06a32522`
 - Commit the correction on the PR branch and push if credentials are available.
@@ -132,7 +132,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD origin/gdi/context-selection-mode-recording-follow-through-v0 origin/main
+git rev-parse HEAD origin/implementer/context-selection-mode-recording-follow-through-v0 origin/main
 ./aos ready
 ```
 
@@ -140,10 +140,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -190,5 +190,5 @@ Report:
 - the exact validation order change;
 - the colliding generated-key invalid-ref case added to tests;
 - exact tests/checks run and pass/fail/skip results;
-- live `./aos ready` result or the repo-standard human-needed blocker path used;
+- live `./aos ready` result or the repo-standard manual-intervention blocker path used;
 - unrelated dirty/untracked state observed at handoff completion.

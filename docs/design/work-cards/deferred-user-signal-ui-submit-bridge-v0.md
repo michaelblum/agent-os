@@ -11,7 +11,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, permission state, prior implementation state, local gate records,
 or live UI state. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -121,7 +121,7 @@ Tests must not mutate canonical `~/.config/aos/repo` state.
   `src/daemon/unified.swift` - rediscover the registered
   `WKScriptMessageHandler` name(s) and canvas-to-daemon relay path before
   writing bridge dispatch code. Current observation in this repo is `headsup`,
-  but GDI must verify the live symbols and report any discrepancy instead of
+  but Implementer must verify the live symbols and report any discrepancy instead of
   assuming bridge names.
 - `packages/toolkit/runtime/bridge.js` - exposes `emit(type, payload)` from
   canvas content to daemon.
@@ -165,7 +165,7 @@ The daemon must:
 
 Implementation note: if reusing the Node submit logic from Swift, use a
 hard-coded repo/bundled script path and `Process` with explicit args or a temp
-JSON file. Do not invoke a shell with user-controlled strings. If GDI finds a
+JSON file. Do not invoke a shell with user-controlled strings. If Implementer finds a
 small Swift-native storage helper is safer than spawning Node from the daemon,
 that is acceptable, but it must preserve the public schemas and tests.
 
@@ -218,7 +218,7 @@ The surface must:
 
 Add a CLI or documented launch path for a deferred continuation UI. Keep it
 under `./aos gate` if it is command-facing, or keep it as a toolkit component
-launch helper if GDI judges that narrower.
+launch helper if Implementer judges that narrower.
 
 Suggested command shape:
 

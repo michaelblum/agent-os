@@ -143,7 +143,7 @@ review.
 
 Surface Inspector now shows canvases, stage layers, affordances, input regions,
 owners, resource-scope metadata, and stale/incomplete resource hints. This is
-the V0 diagnostic baseline for Foreman, GDI, Operator, and users to see what
+the V0 diagnostic baseline for Foreman, Implementer, Operator, and users to see what
 the surface system is doing.
 
 ### Step 8: Handle Lifecycle Warming
@@ -164,7 +164,7 @@ platform path to migrate in V0: remaining private 3D renderer behavior is Sigil
 product expression, and remaining raw private windowing hits are parked legacy
 surfaces. Foreman reran the canonical real-input radial scenario and confirmed
 Surface Inspector visibility, avatar fast travel, radial semantic-target
-capture, final action selection, and cleanup. GDI then rebuilt the real-input
+capture, final action selection, and cleanup. Implementer then rebuilt the real-input
 surface scenarios on reusable AOS-derived test primitives and added
 topology-neutral DesktopWorld path radial coverage. Foreman closed #305 as an
 accepted V0 second-client checkpoint; future Sigil work should be opened as

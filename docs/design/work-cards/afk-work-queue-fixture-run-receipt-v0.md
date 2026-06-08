@@ -6,8 +6,8 @@
 
 Accepted on 2026-05-24.
 
-- GDI implementation branch: `gdi/afk-work-queue-fixture-run-receipt-v0`
-- GDI implementation commit: `53287f52e71ba06dfa6406329385bbffb876a4ad`
+- Implementer implementation branch: `implementer/afk-work-queue-fixture-run-receipt-v0`
+- Implementer implementation commit: `53287f52e71ba06dfa6406329385bbffb876a4ad`
 - Main merge commit: `4cd87e944787082ace17a78891a5a2385ee00907`
 
 Accepted behavior:
@@ -42,8 +42,8 @@ Foreman verification:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add a deterministic fixture-backed AFK work queue run
   receipt that proves ordered queue advancement and stop behavior without
   launching real providers.
@@ -52,10 +52,10 @@ Foreman verification:
 - Branch/Base:
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
-- Branch/output expectation: create `gdi/afk-work-queue-fixture-run-receipt-v0`
-  from `origin/main`. Commit and push that GDI branch when verification passes.
+- Branch/output expectation: create `implementer/afk-work-queue-fixture-run-receipt-v0`
+  from `origin/main`. Commit and push that Implementer branch when verification passes.
   Do not open a PR, merge, mutate main, mutate GitHub issues/projects, launch
-  real providers, or route follow-up work from inside the GDI round.
+  real providers, or route follow-up work from inside the Implementer round.
 
 ## Product Direction
 
@@ -172,10 +172,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -191,7 +191,7 @@ Only continue if it reports ready.
 - Do not mutate provider stores, catalogs, telemetry, gateway/dock runtime, or
   Codex configuration.
 - Do not create PRs, mutate GitHub issues/projects, merge to main, or route
-  another session from inside the GDI round.
+  another session from inside the Implementer round.
 
 ## Verification
 

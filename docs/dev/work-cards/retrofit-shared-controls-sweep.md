@@ -90,11 +90,11 @@ Work through these in order. Each is retrofit-only — no behavioral changes.
 
 ## Branch
 
-`gdi/retrofit-shared-controls-sweep`
+`implementer/retrofit-shared-controls-sweep`
 
 ## Relay Review Correction — 2026-05-15
 
-PR #324 is still open and branch `gdi/retrofit-shared-controls-sweep` is behind
+PR #324 is still open and branch `implementer/retrofit-shared-controls-sweep` is behind
 current `main`. The branch cannot be merged cleanly after the select adapter
 merge. Rebase or merge current `origin/main` into the branch and resolve the
 known conflicts in:
@@ -124,7 +124,7 @@ Completion report must include:
 ```text
 ## Completion Report
 - profile: agentic_relay
-- branch: gdi/retrofit-shared-controls-sweep
+- branch: implementer/retrofit-shared-controls-sweep
 - head_sha: <git rev-parse HEAD>
 - base_sha: <origin/main SHA used for final rebase/merge>
 - files_changed: <n>
@@ -136,7 +136,7 @@ Completion report must include:
 
 ## Active Workflow Profile
 
-`agentic_relay` — GDI branches `gdi/<slug>`, commits, pushes, reports branch +
+`agentic_relay` — Implementer branches `implementer/<slug>`, commits, pushes, reports branch +
 HEAD SHA + `git show --stat HEAD`. Relay partner merges via PR.
 
 ## References

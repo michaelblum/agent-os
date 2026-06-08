@@ -86,7 +86,7 @@
         "agent_guidance": { "$ref": "#/$defs/text_array" },
         "relay_merge_authority": { "type": "string", "minLength": 1 },
         "branch_naming_convention": { "type": "string", "minLength": 1 },
-        "gdi_push_authority": { "type": "boolean" }
+        "implementer_push_authority": { "type": "boolean" }
       }
     }
   }

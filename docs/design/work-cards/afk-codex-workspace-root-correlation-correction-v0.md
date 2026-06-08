@@ -33,7 +33,7 @@
   mismatch for observed provider id plus `workspaceRoot` only with a resolved
   thread outside that workspace.
 - Foreman temp-fixture smoke passed for the primary live shape: no observed
-  provider id, dock launch cwd `.docks/gdi`, workspace-root Codex metadata,
+  provider id, dock launch cwd `the implementer native subagent`, workspace-root Codex metadata,
   `codex_adapter.correlation_status=matched_by_cwd_time_window`,
   `matched_cwd_basis=workspace_root`, and both `codex://threads/<id>` plus
   `codex-thread:<id>` refs emitted.
@@ -47,7 +47,7 @@
 - Reviewed output commit:
   `64d52394449fb68eefd03718390b9112a029109a`
 - Branch:
-  `gdi/afk-codex-workspace-root-correlation-correction-v0`
+  `implementer/afk-codex-workspace-root-correlation-correction-v0`
 - Base:
   `287a76214b5d092868f1912fbcb22c1d2bff4f2e`
 - Local verification passed:
@@ -59,7 +59,7 @@
   - `git diff --check`
   - `./aos dev recommend --json`
 - Foreman temp-fixture smoke passed for the primary live shape: no observed
-  provider id, dock launch cwd `.docks/gdi`, workspace-root Codex metadata,
+  provider id, dock launch cwd `the implementer native subagent`, workspace-root Codex metadata,
   `codex_adapter.correlation_status=matched_by_cwd_time_window`,
   `matched_cwd_basis=workspace_root`, and both
   `codex://threads/<id>` plus `codex-thread:<id>` refs emitted.
@@ -102,7 +102,7 @@ the durable accepted base for this follow-up.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: make the Codex adapter/prototype correlation handle the
   observed live shape where Codex `session_meta.cwd` records the repo/workspace
@@ -114,19 +114,19 @@ the durable accepted base for this follow-up.
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-codex-workspace-root-correlation-correction-v0`. Keep the checkpoint
+  `implementer/afk-codex-workspace-root-correlation-correction-v0`. Keep the checkpoint
   local; do not push, open a PR, mutate GitHub, or run live provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, local transcripts, bridge state, or prior
 implementation state. Read and rediscover before editing.
 
 ## Goal
 
 Correct the deterministic Codex launch correlation path so a supervised launch
-from `.docks/gdi` can match Codex metadata that reports the repo/workspace root
+from `the implementer native subagent` can match Codex metadata that reports the repo/workspace root
 as `session_meta.cwd`, without allowing stale cwd-only binding.
 
 ## Triggering Evidence
@@ -134,7 +134,7 @@ as `session_meta.cwd`, without allowing stale cwd-only binding.
 Operator's supervised run on `2026-05-22` was a `partial_pass`:
 
 - bridge launched Codex from
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - no provider session id was independently visible in the bridge snapshot;
 - prototype `codex_adapter.correlation_status` was `not_observed`;
 - `codex_adapter.candidate_thread_ids` was `[]`;
@@ -145,7 +145,7 @@ Foreman then ran a read-only adapter count against explicit
 `/Users/Michael/.codex` for the same launch window. It found:
 
 - zero post-launch candidates for
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - one post-launch candidate for `/Users/Michael/Code/agent-os`, timestamp
   `2026-05-22T17:20:48.588Z`.
 
@@ -154,7 +154,7 @@ home in tests.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/operator-afk-codex-adapter-live-correlation-v0.md`
 - `docs/design/work-cards/afk-launch-attempt-codex-adapter-integration-v0.md`
 - `docs/design/work-cards/afk-codex-provider-session-adapter-v0.md`
@@ -185,7 +185,7 @@ becomes necessary, stop and explain why before running live checks.
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `dc0de0d8456e1360ed2e516f25df4bac4c87a4fe`
 - expected output branch:
-  `gdi/afk-codex-workspace-root-correlation-correction-v0`
+  `implementer/afk-codex-workspace-root-correlation-correction-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -216,7 +216,7 @@ becomes necessary, stop and explain why before running live checks.
   launch cwd and the explicit workspace/project root must remain `wrong_cwd` or
   `not_observed`, depending on whether a provider id was observed.
 - Make the accepted live partial shape deterministic in fixtures: no observed
-  provider session id, intended launch cwd `.docks/gdi`, worktree/repo root
+  provider session id, intended launch cwd `the implementer native subagent`, worktree/repo root
   `/Users/Michael/Code/agent-os`, and Codex `session_meta.cwd` equal to the
   worktree root within the launch window should produce a matched adapter
   result with a clear status/evidence shape.

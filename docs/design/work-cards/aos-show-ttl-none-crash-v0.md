@@ -6,8 +6,8 @@
 
 Accepted on 2026-05-24.
 
-- GDI implementation branch: `gdi/aos-show-ttl-none-crash-v0`
-- GDI implementation commit: `2be1997c26eb8e194a19852d0ce9a97d39bdddde`
+- Implementer implementation branch: `implementer/aos-show-ttl-none-crash-v0`
+- Implementer implementation commit: `2be1997c26eb8e194a19852d0ce9a97d39bdddde`
 - Main merge commit: `d0b81d86cbd777c48cfa4eb02e21017caa9a347b`
 
 Accepted behavior:
@@ -41,8 +41,8 @@ Foreman verification:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: fix `./aos show create --ttl none` so the documented
   no-expiry TTL value does not crash the CLI and has deterministic create/update
   behavior.
@@ -51,10 +51,10 @@ Foreman verification:
 - Branch/Base:
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
-- Branch/output expectation: create `gdi/aos-show-ttl-none-crash-v0` from
-  `origin/main`. Commit and push that GDI branch when verification passes. Do
+- Branch/output expectation: create `implementer/aos-show-ttl-none-crash-v0` from
+  `origin/main`. Commit and push that Implementer branch when verification passes. Do
   not open a PR, merge, mutate main, mutate GitHub issues/projects, or route
-  follow-up work from inside the GDI round.
+  follow-up work from inside the Implementer round.
 
 ## Foreman Observation
 
@@ -104,10 +104,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -161,7 +161,7 @@ Report the exact result and clean up any smoke canvas.
 - Do not read provider transcript bodies.
 - Do not drive live provider sessions.
 - Do not create PRs, mutate GitHub issues/projects, merge to main, or route
-  another session from inside the GDI round.
+  another session from inside the Implementer round.
 
 ## Completion Report Required
 

@@ -6,9 +6,9 @@
 
 Accepted on 2026-05-24.
 
-- GDI implementation branch:
-  `gdi/afk-work-queue-single-item-live-plumbing-v0`
-- GDI implementation commit:
+- Implementer implementation branch:
+  `implementer/afk-work-queue-single-item-live-plumbing-v0`
+- Implementer implementation commit:
   `1c2c80330841243367613c1792130c439894ecfe`
 - Main merge commit:
   `45eb96feebced1a4c3e6a18749014e95d4d781d3`
@@ -45,21 +45,21 @@ Foreman verification:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: bridge the AFK work queue path into the existing guarded
   live launch pipeline for exactly one queue item, without running a real
-  provider during the GDI round.
+  provider during the Implementer round.
 - Source artifact: accepted
   `docs/design/work-cards/afk-work-queue-fixture-run-receipt-v0.md`.
 - Branch/Base:
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-work-queue-single-item-live-plumbing-v0` from `origin/main`.
-  Commit and push that GDI branch when verification passes. Do not open a PR,
+  `implementer/afk-work-queue-single-item-live-plumbing-v0` from `origin/main`.
+  Commit and push that Implementer branch when verification passes. Do not open a PR,
   merge, mutate main, mutate GitHub issues/projects, launch real providers, or
-  route follow-up work from inside the GDI round.
+  route follow-up work from inside the Implementer round.
 
 ## Product Direction
 
@@ -87,7 +87,7 @@ Support this command shape for a queue with exactly one item:
 
 When the queue has exactly one valid item, adapt that item to the existing
 single-packet guarded live launch path. Use existing bridge/provider fixture
-options in tests. Do not perform a real provider launch in this GDI round.
+options in tests. Do not perform a real provider launch in this Implementer round.
 
 ## Required Behavior
 
@@ -148,10 +148,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -167,7 +167,7 @@ Only continue if it reports ready.
 - Do not mutate provider stores, catalogs, telemetry, gateway/dock runtime, or
   Codex configuration.
 - Do not create PRs, mutate GitHub issues/projects, merge to main, or route
-  another session from inside the GDI round.
+  another session from inside the Implementer round.
 
 ## Verification
 

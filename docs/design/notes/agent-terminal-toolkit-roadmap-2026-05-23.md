@@ -108,7 +108,7 @@ The main Agent Terminal decomposition has landed, but follow-ups remain:
 
 ### 1. Provider-Launch Acceptance Visibility Fixture
 
-Owner: GDI implementation, routed by Foreman.
+Owner: Implementer implementation, routed by Foreman.
 
 Goal: add a provider-free fixture or parser around bridge launch-side facts that
 emits selected provider, command, intended cwd, terminal driver/session handle,
@@ -128,7 +128,7 @@ collapsing several different cases into one ambiguous failure.
 
 ### 2. Catalog Correlation Enrichment
 
-Owner: GDI implementation after the launch-side fixture is accepted.
+Owner: Implementer implementation after the launch-side fixture is accepted.
 
 Goal: enrich a launch receipt with provider catalog records only when the record
 can be bound by provider session id or another accepted launch-side key, while
@@ -146,7 +146,7 @@ asked to create the launch identity that it later validates.
 
 ### 3. Wrapper Health Fixture Or Repair
 
-Owner: GDI implementation if Foreman prioritizes launch ergonomics after the
+Owner: Implementer implementation if Foreman prioritizes launch ergonomics after the
 acceptance shape is stable.
 
 Goal: isolate why the Sigil wrapper launch failed bridge health while direct
@@ -175,7 +175,7 @@ file-path shims only after all of these are true:
   behavior that active workflows need;
 - search of current, non-historical docs shows no preferred operational command
   still using the historical paths;
-- open work cards and active Operator/GDI dispatches no longer require the
+- open work cards and active Operator/Implementer dispatches no longer require the
   historical paths as the expected entrypoint;
 - Foreman accepts that any remaining references are historical evidence or old
   task contracts, not current usage.

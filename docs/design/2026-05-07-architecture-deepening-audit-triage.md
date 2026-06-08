@@ -28,7 +28,7 @@ The audit is directionally credible, but it overstates the readiness of some
 large refactors. The safest interpretation is:
 
 - Treat toolkit helper and semantic-ref consolidation as immediate platform
-  hygiene because current GDI work is already exercising that seam.
+  hygiene because current Implementer work is already exercising that seam.
 - Treat Capability-to-Control derivation as the next likely platform move after
   low-level helper consolidation.
 - Treat Subject Browser, Target Resolver, Work Record consolidation, and
@@ -45,7 +45,7 @@ large refactors. The safest interpretation is:
 
 The audit's Candidate 16 matches a live pain point: small helper functions and
 semantic-target wiring are duplicated across toolkit workbenches. This is already
-being handled as a narrow GDI slice. Keep it mechanical: shared helper module,
+being handled as a narrow Implementer slice. Keep it mechanical: shared helper module,
 two or three consumers, focused tests, no behavior change.
 
 2. Shared Markdown preview presentation.
@@ -109,7 +109,7 @@ Recipe/Playbook/Workflow registry.
 ### Subject Browser Deep Module
 
 Candidate 1 is probably true as an architectural direction, but too broad for a
-single GDI session now. Subject Browser should become a deep module only after
+single Implementer session now. Subject Browser should become a deep module only after
 smaller primitives are operational: Subject Entry Handle parsing, Capability to
 Control derivation, Facet/Host selection, and Navigation Trail state.
 
@@ -215,7 +215,7 @@ forward:
 
 ## Prompt Guidance
 
-When using this report in future GDI prompts, include only the one relevant
+When using this report in future Implementer prompts, include only the one relevant
 sentence for the active slice. Do not paste the whole audit into a goal prompt.
 
 Example:

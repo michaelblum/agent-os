@@ -2,7 +2,7 @@
 
 Date: 2026-06-05
 
-Branch: `gdi/aos-one-world-phase1-co-location-probe-v0`
+Branch: `implementer/aos-one-world-phase1-co-location-probe-v0`
 
 Start ref: `1e4d4fde2325ccd96f88fccbce5837d2f459bf1d`
 

@@ -23,7 +23,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -44,7 +44,7 @@ The first planned consumers to name in the report context are `InfoTag` in
 - `packages/toolkit/AGENTS.md`
 - `packages/toolkit/controls/AGENTS.md`
 - `packages/toolkit/panel/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `tests/toolkit/style-contracts.test.mjs`
 - `tests/toolkit/toolkit-api-docs-contract.test.mjs`
 

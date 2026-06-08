@@ -21,11 +21,11 @@ The toolkit surface audit (`docs/dev/reports/toolkit-surface-audit.md`) identifi
 
 ## Branch
 
-`gdi/shared-textarea-export`
+`implementer/shared-textarea-export`
 
 ## Active Workflow Profile
 
-`agentic_relay` — GDI branches `gdi/<slug>`, commits, pushes, reports branch + HEAD SHA + `git show --stat HEAD`. Relay partner merges via PR.
+`agentic_relay` — Implementer branches `implementer/<slug>`, commits, pushes, reports branch + HEAD SHA + `git show --stat HEAD`. Relay partner merges via PR.
 
 ## References
 

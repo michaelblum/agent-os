@@ -15,11 +15,11 @@
 
 - branch_from: `origin/feat/command-surface-extraction`
 - required_start_ref: `origin/feat/command-surface-extraction`
-- output_branch: `gdi/radial-wiki-toolkit-test-rehab-v0`
+- output_branch: `implementer/radial-wiki-toolkit-test-rehab-v0`
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, permission, issue, PR, or prior implementation state. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -99,10 +99,10 @@ If `./aos ready` reports a repo-mode TCC/input-tap blocker, do not retry in a
 loop. Run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -343,7 +343,7 @@ Then perform one bounded live path:
 7. Clean up only scenario-owned surfaces.
 
 If live input is unavailable, report the exact `./aos ready` diagnosis and the
-`.docks/gdi/scripts/human-needed-tcc-reset` result instead of claiming live
+the manual TCC blocker report path result instead of claiming live
 proof.
 
 Optional real-input scenarios when readiness and machine pressure allow:

@@ -37,16 +37,16 @@ dock role policy.
 
 ### Dock Profiles And Launch Roots
 
-`.docks/README.md` defines docks as repo-local session roots for durable roles,
-not workflows, task types, entry paths, or provider identities. A local Codex
-session can launch from `.docks/gdi`, while source edits and tests still happen
+`.docks/AGENTS.md` defines docks as repo-local session roots for durable roles,
+not workflows, task types, tooling contexts, or provider identities. A local Codex
+session can launch from `the implementer native subagent`, while source edits and tests still happen
 in `/Users/Michael/Code/agent-os`. Remote or undocked sessions must adopt the
 dock role explicitly by reading shared dock instructions and the role-local
 `AGENTS.md`.
 
-`.docks/<dock>/dock.json` is validated by
+`session metadata` is validated by
 `shared/schemas/aos-dock-profile-v0.schema.json`. The profile names the dock,
-role, harness, default entry path, allowed entry paths, capability manifest,
+role, harness, default tooling context, allowed tooling contexts, capability manifest,
 allowed capability classes, explicit-assignment requirements, stop notice, and
 handoff prefix behavior. It is descriptive. It does not grant permissions,
 execute commands, decide provider choice, or replace the human/model operating
@@ -54,7 +54,7 @@ contract in `AGENTS.md`.
 
 Provider-neutral dispatch should resolve the dock profile and launch root, then
 build a provider command that starts from the same dock/session contract. The
-dock identity remains `foreman`, `gdi`, or `operator`; the provider is an
+dock identity remains `foreman`, `implementer`, or `operator`; the provider is an
 adapter decision for this run.
 
 ### Provider Session Catalog And Resume Commands
@@ -199,7 +199,7 @@ reason instead of launching an unrelated second worker.
 Candidate start shape:
 
 ```bash
-cd .docks/gdi
+cd the implementer native subagent
 AOS_TRANSFER_PACKET_REF=<packet-ref> \
 AOS_RESULT_ROUTE_REF=<route-ref> \
 AOS_SCHEDULER_RUN_ID=<run-id> \
@@ -222,7 +222,7 @@ but should still treat transcript shapes as provider-local and drift-prone.
 Candidate start shape:
 
 ```bash
-cd .docks/gdi
+cd the implementer native subagent
 AOS_TRANSFER_PACKET_REF=<packet-ref> \
 AOS_RESULT_ROUTE_REF=<route-ref> \
 AOS_SCHEDULER_RUN_ID=<run-id> \
@@ -323,10 +323,10 @@ Provider-neutral dispatch should not own:
 Design-only command examples:
 
 ```bash
-aos session dispatch --provider codex --dock gdi --packet <ref>
-aos session dispatch --dock gdi --packet <ref> --provider-policy available
-aos session dispatch --dock gdi --packet <ref> --resume <session_id>
-aos session dispatch --dock gdi --packet <ref> --dry-run --json
+aos session dispatch --provider codex --dock implementer --packet <ref>
+aos session dispatch --dock implementer --packet <ref> --provider-policy available
+aos session dispatch --dock implementer --packet <ref> --resume <session_id>
+aos session dispatch --dock implementer --packet <ref> --dry-run --json
 ```
 
 Dry-run output:
@@ -337,8 +337,8 @@ Dry-run output:
   "scheduler_run_id": "afk-run-01",
   "action": "dry-run",
   "selected_provider": "codex",
-  "dock": "gdi",
-  "launch_root": ".docks/gdi",
+  "dock": "implementer",
+  "launch_root": "the implementer native subagent",
   "cwd": "/Users/Michael/Code/agent-os",
   "worktree": "/Users/Michael/Code/agent-os",
   "driver": "tmux",
@@ -486,7 +486,7 @@ should not change proof semantics.
 | Provider-neutral dispatch | Selected provider launch/resume/dry-run/reject attempt; dock profile and launch-root resolution; provider command construction; terminal/session driver selection; provider session facts returned to scheduler. | Packet validation, scheduler lifecycle authority, reusable route judgment, gateway job state, proof semantics, dock role policy. |
 | Session trigger/scheduler | Packet intake, current-state validation, start/resume decision, lease/timeout/heartbeat policy, lifecycle state, result-route updates. | Provider-specific CLI mechanics, terminal substrate, provider auth, work/evidence proof interpretation. |
 | Provider adapter | Provider executable checks, start/resume command shape, auth/availability checks, provider-local catalog and telemetry interpretation. | Permanent dock identity, scheduler lifecycle, gateway routes, role instructions. |
-| Dock profile | Durable role identity, default entry path, allowed entry paths, capability envelope, handoff profile seed. | Provider choice, execution grant, command launch, scheduler policy, proof requirements. |
+| Dock profile | Durable role identity, default tooling context, allowed tooling contexts, capability envelope, handoff profile seed. | Provider choice, execution grant, command launch, scheduler policy, proof requirements. |
 | Docked provider session | Execute one bounded goal under dock instructions; honor packet and stop conditions; emit final report, check-ins, and proof links. | Packet redefinition, provider selection policy, gateway session ownership, reusable route judgment. |
 | Provider session catalog | Read-only normalized provider session discovery and resume command facts. | Launch mutation, provider file writes, scheduler state, route updates, proof semantics. |
 | Telemetry/capability surface | Provider-neutral session metrics, lifecycle observations, supported actions, mismatch diagnostics. | Rendering policy, lifecycle decisions, provider fallback, terminal proof. |

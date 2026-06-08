@@ -14,7 +14,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -221,7 +221,7 @@ status actually changes.
 - no broad Surface Inspector redesign;
 - no new object transform controls for stage layers unless the stage layer is
   genuinely transformable;
-- no Swift changes unless GDI proves the existing `input_region` and
+- no Swift changes unless Implementer proves the existing `input_region` and
   `canvas_object.registry` routes cannot carry the needed observability state;
 - no live pointer smoke while repo-mode TCC is blocked;
 - no GitHub issue mutation from this slice unless Foreman amends the card.

@@ -4,8 +4,8 @@
 
 Agent sessions need a portable way to describe what operations are available
 without making raw Bash, Node, npm, Python, or provider-specific tools the
-default agent shell. Docks define durable role/profile boundaries. Entry paths
-define active capability layers. Neither should hardcode every command an agent
+default agent shell. Docks define durable role/profile boundaries. Tooling contexts
+define active tooling contexts. Neither should hardcode every command an agent
 might run.
 
 The missing layer is a small capability manifest: a runtime-neutral description
@@ -37,15 +37,15 @@ An agent instance is a runtime composition:
 
 ```text
 dock role/profile
-+ active entry path
++ active tooling context
 + assigned task
 + capability manifest
 + runtime adapter
 + evidence contract
 ```
 
-The dock answers "who is this agent and what may it decide?" The entry path
-answers "what capability layer is active?" The capability manifest answers
+The dock answers "who is this agent and what may it decide?" The tooling context
+answers "what tooling context is active?" The capability manifest answers
 "what operations exist and how risky are they?" The adapter answers "how does
 this runtime perform that operation?"
 
@@ -71,7 +71,7 @@ capability with narrow execution policy.
 The schema enforces the first hard boundary:
 
 - `execution.raw_process=true` cannot be used by the base `agent_harness`
-  entry path.
+  tooling context.
 - Raw process capabilities must be scoped to `aos_developer`, `testing`, or
   `break_glass`.
 - Raw process capabilities must require explicit assignment.
@@ -114,9 +114,9 @@ The first implementation is read-only:
 Execution can come later, once the schema and real capability inventory have
 settled.
 
-Dock profiles live in `.docks/<dock>/dock.json` and validate against
+Dock profiles live in `session metadata` and validate against
 [`shared/schemas/aos-dock-profile-v0.schema.json`](../../shared/schemas/aos-dock-profile-v0.schema.json).
-They resolve role, default entry path, allowed entry paths, and allowed
+They resolve role, default tooling context, allowed tooling contexts, and allowed
 capability classes against the capability manifest. This keeps the dock layer
 declarative and portable while avoiding duplicated role-specific command lists
 in every `AGENTS.md`.

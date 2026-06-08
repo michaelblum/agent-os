@@ -3,7 +3,7 @@
 ## Tracker
 
 - Epic: #223 AOS Surface System
-- Source retrospective: GDI work retrospective for radial menu real-input and
+- Source retrospective: Implementer work retrospective for radial menu real-input and
   inspector mini-map, generated 2026-05-12
 - Precondition: complete
   `docs/design/work-cards/surface-stack-integration-checkpoint-hygiene-v0.md`
@@ -11,7 +11,7 @@
 
 ## Fresh Context Contract
 
-This is a follow-up queue, not one implementation assignment. GDI starts from a
+This is a follow-up queue, not one implementation assignment. Implementer starts from a
 fresh context window for each future slice. Foreman should split this card into
 one exact work card per slice before handoff.
 
@@ -117,28 +117,28 @@ Likely files:
 
 ### 5. Path-Scoped Handoff And Diff Summaries
 
-Problem: broad dirty worktrees make narrow GDI slices hard to review.
+Problem: broad dirty worktrees make narrow Implementer slices hard to review.
 
 Smallest useful slice:
 
 - after checkpoint hygiene, add a lightweight convention for completion reports
   to include path-scoped touched files, verification commands, and known
   unrelated dirty state;
-- prefer clean topic worktrees for future GDI slices when possible;
+- prefer clean topic worktrees for future Implementer slices when possible;
 - avoid making this a mandatory bureaucratic form for tiny fixes.
 
 Likely files:
 
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
+- `docs/recipes/agent-tooling-contexts-and-verification.md`
 - `.docks/foreman/AGENTS.md` if Foreman-specific routing language needs to be
   sharpened.
 
 ## Priority Recommendation
 
 1. Finish integration checkpoint hygiene first.
-2. Route Surface Inspector mark contract as the first small GDI tooling slice.
-3. Route compact real-input output as the second small GDI tooling slice.
+2. Route Surface Inspector mark contract as the first small Implementer tooling slice.
+3. Route compact real-input output as the second small Implementer tooling slice.
 4. Route canvas reload workflow only after deciding whether the CLI already has
    an adequate primitive.
 5. Route subject-family cleanup after the checkpoint, because it crosses daemon,
@@ -147,7 +147,7 @@ Likely files:
 ## Hard Boundaries
 
 - Do not reopen #305 for these follow-ups.
-- Do not implement all five items as one GDI goal.
+- Do not implement all five items as one Implementer goal.
 - Do not move app-specific cleanup policy into the daemon.
 - Do not mutate the dirty worktree just to create a clean-looking report; first
   classify it under the checkpoint-hygiene card.

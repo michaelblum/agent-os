@@ -6,7 +6,7 @@
 
 - Foreman review: accepted.
 - Branch/ref gates passed on
-  `gdi/afk-session-trigger-result-route-override-normalization-v0` at
+  `implementer/afk-session-trigger-result-route-override-normalization-v0` at
   `8265ffc8dfe48f58b1f761657a01c1c9de030ed4`, based on
   `21a4fdde8ad21dd4edb6d134b375b24bc2a735f5`.
 - Diff was scoped to:
@@ -37,7 +37,7 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: normalize the existing `--result-route <ref>` CLI fallback
   into the same local `local_artifact_path` route shape used by packet routes,
@@ -50,19 +50,19 @@
   - `tests/afk-session-trigger-prototype.test.mjs`
   - `tests/afk-launch-attempt-prototype.test.mjs`
 - Branch/Base:
-  - `branch_from: gdi/afk-session-trigger-local-result-route-delivery-v0`
-  - `required_start_ref: gdi/afk-session-trigger-local-result-route-delivery-v0`
+  - `branch_from: implementer/afk-session-trigger-local-result-route-delivery-v0`
+  - `required_start_ref: implementer/afk-session-trigger-local-result-route-delivery-v0`
   - Accepted local route source head:
     `319e46db15fe6973dd0ead5784e0bd3e1ff64ab7`
 - Branch/output expectation: create or reuse
-  `gdi/afk-session-trigger-result-route-override-normalization-v0` from the
-  required start ref. Commit and push that GDI branch when verification passes
+  `implementer/afk-session-trigger-result-route-override-normalization-v0` from the
+  required start ref. Commit and push that Implementer branch when verification passes
   under the active `agentic_relay` profile. Do not open a PR, merge, mutate
   main, mutate GitHub issues/projects, or broaden into external publication.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, daemon state, or prior implementation state. Read and rediscover
 before editing.
 
@@ -75,7 +75,7 @@ routes correctly. It missed the existing command-surface fallback:
 node scripts/afk-session-trigger-prototype.mjs \
   --packet <packet-without-result-route.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --dry-run \
   --json \
   --result-route stdout
@@ -131,7 +131,7 @@ local route ref and should normalize to `kind=local_artifact_path`,
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/work-cards/afk-session-trigger-local-result-route-delivery-v0.md`
@@ -160,7 +160,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD gdi/afk-session-trigger-local-result-route-delivery-v0 319e46db15fe6973dd0ead5784e0bd3e1ff64ab7
+git rev-parse HEAD implementer/afk-session-trigger-local-result-route-delivery-v0 319e46db15fe6973dd0ead5784e0bd3e1ff64ab7
 ./aos ready
 ./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,scripts/afk-launch-attempt-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs,tests/afk-launch-attempt-prototype.test.mjs
 ```
@@ -169,10 +169,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -239,4 +239,4 @@ Return:
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, main merge, PR creation, external notifier,
   durable work/evidence record, unsupervised trigger, or non-local async routing
-  occurred beyond the expected GDI branch push.
+  occurred beyond the expected Implementer branch push.

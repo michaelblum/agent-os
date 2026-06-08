@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 Sigil runtime state, Surface Inspector runtime state, or prior conversation
 details. Read and rediscover before editing.
 
@@ -15,9 +15,9 @@ canonical context-session data alongside the existing reticle
 
 ## Branch / Base
 
-- `branch_from`: `gdi/surface-inspector-context-session-adapter-v0`
+- `branch_from`: `implementer/surface-inspector-context-session-adapter-v0`
 - `required_start_ref`: local branch
-  `gdi/surface-inspector-context-session-adapter-v0` at or after commit
+  `implementer/surface-inspector-context-session-adapter-v0` at or after commit
   `a5c9c5ae feat(toolkit): add surface inspector context adapter`, plus this
   work card
 - Expected output branch: continue from the current local branch or create a

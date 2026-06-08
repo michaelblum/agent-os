@@ -3,7 +3,7 @@
 ## Context
 
 Workbench Human Checkpoint V0 now supports a visible, read-only annotation badge
-layer in Markdown Workbench. GDI verified the deterministic API and helper path,
+layer in Markdown Workbench. Implementer verified the deterministic API and helper path,
 but Operator and the human should smoke-test the actual visible loop before
 using this on the Employer Brand alignment pack.
 
@@ -136,7 +136,7 @@ Report:
   and status,
 - whether the annotation appears in `resume.annotations`,
 - validation commands run and results,
-- any gap that requires a GDI refinement slice.
+- any gap that requires a Implementer refinement slice.
 
 ## Hard Boundaries
 

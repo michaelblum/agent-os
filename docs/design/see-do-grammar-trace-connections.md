@@ -112,7 +112,7 @@ This is not yet a proposal, but the idea points toward:
 
 - `ARCHITECTURE.md` for sensor, actuator, projection separation.
 - `docs/api/aos.md` for the current consumer-facing CLI contract.
-- `docs/guides/agent-entry-paths-and-verification.md` for real-input evidence
+- `docs/guides/agent-tooling-contexts-and-verification.md` for real-input evidence
   expectations.
 - `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md` for
   browser targets across `see`, `do`, and `show`.

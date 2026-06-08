@@ -18,7 +18,7 @@ take a point inside its selected-surface mini-map, run the Surface Hit-Test
 Inspect contract, show the candidate/selected-target result in structured
 state, and create an annotation draft from the selected candidate.
 
-This is deterministic GDI work. It should not depend on Operator visual
+This is deterministic Implementer work. It should not depend on Operator visual
 confirmation.
 
 ## Goal
@@ -86,7 +86,7 @@ Expected implementation shape:
   - the resulting annotation draft validates against `annotation.schema.json`,
   - the verification seed passes through Annotation Perception Verification V0,
   - the inspector snapshot exposes `last_inspect` or equivalent structured
-    state for GDI verification.
+    state for Implementer verification.
 - Docs update in `docs/api/toolkit.md` explaining that the Inspector now bridges
   Spatial Subject Tree mini-map points into Surface Hit-Test Inspect results.
 

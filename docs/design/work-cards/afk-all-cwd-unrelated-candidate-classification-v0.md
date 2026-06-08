@@ -13,10 +13,10 @@
 - Foreman review: accepted. The prototype now accepts separate
   `all_cwd_sessions` fixture evidence, records unrelated current all-cwd
   candidates under `catalog.unrelated_current_session_refs`, and keeps the
-  requested `.docks/gdi` launch classified as
+  requested `the implementer native subagent` launch classified as
   `catalog_current_launch_not_observed` when no requested-cwd current catalog
   record exists. Telemetry from the unrelated Operator session does not bind to
-  the bridge-launched GDI session.
+  the bridge-launched Implementer session.
 - True observed wrong-cwd behavior remains intact: when a provider session id is
   independently supplied and that catalog record reports the wrong cwd, the
   prototype still emits `provider_session_wrong_cwd`,
@@ -29,28 +29,28 @@
   - `./aos dev recommend --json`: pass
   - `./aos dev recommend --json --files docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md scripts/afk-launch-attempt-prototype.mjs tests/afk-launch-attempt-prototype.test.mjs`: pass; no additional slice-local commands
 - Local-only boundary confirmed: no Codex, Claude, Gemini, or other provider
-  session was launched by GDI; no provider config, real provider transcript,
+  session was launched by Implementer; no provider config, real provider transcript,
   gateway state, dock profile, hook, GitHub state, push, or PR changed.
 - Remaining gap: this resolves the Operator partial-pass semantics. The
   separate follow-up is bridge/provider launch visibility: a bridge-visible
-  `.docks/gdi` Codex process still did not create a current machine-visible
+  `the implementer native subagent` Codex process still did not create a current machine-visible
   provider catalog record or provider session id.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch named
-  `gdi/afk-all-cwd-unrelated-candidate-classification-v0` from the required
+  `implementer/afk-all-cwd-unrelated-candidate-classification-v0` from the required
   start ref. Keep the checkpoint local; do not push, open a PR, mutate GitHub,
   or run live provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, Operator report, or prior
 implementation state. Read and rediscover before editing.
 
@@ -62,10 +62,10 @@ bridge-launched provider session id.
 
 The defect shown by the Operator partial pass is:
 
-- bridge launched Codex visibly in `/Users/Michael/Code/agent-os/.docks/gdi`;
-- requested-cwd catalog did not show a current `.docks/gdi` Codex session;
+- bridge launched Codex visibly in `/Users/Michael/Code/agent-os/the implementer native subagent`;
+- requested-cwd catalog did not show a current `the implementer native subagent` Codex session;
 - all-cwd catalog did show one current Codex session, but it was the supervising
-  Operator session in `/Users/Michael/Code/agent-os/.docks/operator`;
+  Operator session in `/Users/Michael/Code/agent-os/the operator native subagent`;
 - the optional classifier was given that all-cwd candidate id as
   `--provider-session-id`, causing `provider_session_wrong_cwd`;
 - that overstates the evidence because the bridge launch did not independently
@@ -77,7 +77,7 @@ intended launch cwd.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`
 - `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
 - `docs/design/work-cards/afk-bridge-catalog-scope-correction-v0.md`
@@ -111,10 +111,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 live check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -123,7 +123,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `df00e8e33219371eb95ba33d501617d39622b77f`
 - expected output branch:
-  `gdi/afk-all-cwd-unrelated-candidate-classification-v0`
+  `implementer/afk-all-cwd-unrelated-candidate-classification-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -158,13 +158,13 @@ the Operator partial pass truthfully:
   field/status such as `all_cwd_current_unrelated`,
   `catalog_current_launch_not_observed`, `unrelated_current_session_refs`, or
   a better local name consistent with existing code.
-- The output should say the current `.docks/gdi` launch was not catalog-visible
+- The output should say the current `the implementer native subagent` launch was not catalog-visible
   while still preserving the all-cwd candidate id, cwd, and updated_at as
   reviewable context.
 - Telemetry from the unrelated Operator session must not become telemetry for
-  the bridge-launched `.docks/gdi` session.
+  the bridge-launched `the implementer native subagent` session.
 - Update adjacent instructions or docs only where needed to prevent future
-  Operator/GDI rounds from passing an all-cwd current candidate as
+  Operator/Implementer rounds from passing an all-cwd current candidate as
   `--provider-session-id` unless that id was independently observed from the
   launched provider session.
 
@@ -172,8 +172,8 @@ The prior accepted wrong-cwd fixture behavior must remain:
 
 - when `--provider-session-id <id>` is supplied because the launch observed that
   provider session id;
-- and the catalog record for `<id>` reports cwd `.docks/operator` instead of
-  `.docks/gdi`;
+- and the catalog record for `<id>` reports cwd `the operator native subagent` instead of
+  `the implementer native subagent`;
 - then the prototype may classify `provider_session_wrong_cwd` and
   `catalog_provider_session_wrong_cwd`.
 
@@ -185,19 +185,19 @@ delete, or depend on real provider transcripts under the user's home directory.
 Add or update fixture coverage for the Operator partial pass shape:
 
 - intended launch cwd:
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - launch observed at `2026-05-22T15:52:38Z`;
-- requested-cwd catalog has no current `.docks/gdi` Codex record after launch;
+- requested-cwd catalog has no current `the implementer native subagent` Codex record after launch;
 - all-cwd catalog contains exactly one current Codex candidate:
   `019e5062-42f2-7340-beda-e2295ebf7f41`;
-- that candidate cwd is `/Users/Michael/Code/agent-os/.docks/operator`;
+- that candidate cwd is `/Users/Michael/Code/agent-os/the operator native subagent`;
 - candidate updated_at is `2026-05-22T15:54:01.463Z`;
 - result must not overclaim `provider_session_wrong_cwd` unless the test also
   supplies that id through a deliberately observed-provider-session path.
 
 Keep existing coverage for:
 
-- stale `.docks/gdi` current-launch absence;
+- stale `the implementer native subagent` current-launch absence;
 - true observed provider-session wrong cwd;
 - observed provider session with missing cwd;
 - exact matched current launch;
@@ -206,7 +206,7 @@ Keep existing coverage for:
 ## Hard Boundaries
 
 - Do not launch Codex, Claude, Gemini, or another provider.
-- Do not run a supervised live bridge proof in this GDI round.
+- Do not run a supervised live bridge proof in this Implementer round.
 - Do not implement unattended provider launch, scheduler, gateway routes,
   broker integration, result-route delivery, or committed generated receipts.
 - Do not add a public `./aos` command unless a minimal test-only option/helper

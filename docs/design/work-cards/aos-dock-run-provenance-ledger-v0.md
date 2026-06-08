@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Tracker
 
@@ -23,12 +23,12 @@ Relevant accepted prerequisite on this branch:
 
 ## Branch / Base
 
-- branch_from: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- branch_from: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - required_start_ref: branch commit containing this card. Foreman dispatch must include the exact start commit.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon, provider transcript, dock state, or prior implementation state. Read and rediscover before editing.
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon, provider transcript, dock state, or prior implementation state. Read and rediscover before editing.
 
 ## Goal
 
@@ -46,12 +46,12 @@ The target outcome is not a full observability product. It is a V0 ledger that l
 
 - `AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/harness/dock-hook-runner.sh`
-- `.docks/*/hooks/stop.sh`
-- `.docks/dock-defaults.json`
-- `.docks/gdi/dock.json`
-- `.docks/operator/dock.json`
-- `.docks/foreman/dock.json`
+- `.docks/foreman/hooks/stop.sh`
+- `session hooks/stop.sh`
+- `.docks/session defaults`
+- implementer session metadata
+- operator session metadata
+- `.docks/foreman/session metadata`
 - `scripts/aos-dev-workflow.mjs`
 - `tests/dev-workflow-router.sh`
 - `tests/dev-audit.sh`
@@ -71,7 +71,7 @@ Run:
 git status --short --branch
 git worktree list --porcelain
 ./aos status --json
-./aos dev recommend --json --files .docks/harness/dock-hook-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
+./aos dev recommend --json --files .docks/foreman/hooks/stop.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
 ```
 
 If live readiness is not needed for the deterministic slice, do not spend time repairing live runtime state. This card is primarily hook, schema, and command-surface work.
@@ -85,7 +85,7 @@ If live readiness is not needed for the deterministic slice, do not spend time r
   `PostToolUse`/`PreToolUse` collection for this ledger; it adds latency to
   every tool call and conflicts with the current no-automatic-build-hook
   contract.
-- `.docks/harness/dock-hook-runner.sh` already receives stop payloads and is a bounded hook path.
+- `.docks/foreman/hooks/stop.sh` already receives stop payloads and is a bounded hook path.
 - `shared/schemas/aos-work-record-v0.schema.json` is a durable evidence/provenance shape, but it is too heavy for every hook event. Treat it as a later export target, not the V0 hot path.
 
 ## Required Behavior
@@ -251,13 +251,13 @@ Owned areas:
 
 ## Suggested Implementation Areas
 
-GDI should inspect first, then choose the narrow layer. Likely areas:
+Implementer should inspect first, then choose the narrow layer. Likely areas:
 
-- A small shared recorder module or script under `scripts/` or `.docks/harness/`.
+- A small shared recorder module or script under `scripts/` or `Foreman hook scripts`.
 - A schema under `shared/schemas/` for the compact event/summary shape.
 - Explicit command-side recording in `scripts/aos-dev-workflow.mjs` or another
   user-invoked command surface. Avoid provider per-tool hooks.
-- Optional bounded Stop-hook accounting in `.docks/harness/dock-hook-runner.sh`
+- Optional bounded Stop-hook accounting in `.docks/foreman/hooks/stop.sh`
   only if it does not inspect large payloads or affect stop latency.
 - A read-only AOS command branch in `scripts/aos-dev-workflow.mjs`, or the nearest canonical command surface if this file delegates elsewhere.
 - Focused tests with fixture hook payloads and fixture ledgers.
@@ -267,7 +267,7 @@ GDI should inspect first, then choose the narrow layer. Likely areas:
 Run the deterministic recommendation first and include it in the completion report:
 
 ```bash
-./aos dev recommend --json --files .docks/harness/dock-hook-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
+./aos dev recommend --json --files .docks/foreman/hooks/stop.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
 ```
 
 Expected focused verification should include the new tests plus existing command-surface tests, for example:
@@ -295,7 +295,7 @@ Add and run focused tests for:
 If live AOS readiness is unexpectedly required and `./aos ready` reports a repo-mode TCC/input-tap blocker, stop and use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 Then after the human returns with `finished`:

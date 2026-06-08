@@ -4,9 +4,9 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
-- Single next goal: make the guarded live Codex/GDI trigger path actually submit
+- Single next goal: make the guarded live Codex/Implementer trigger path actually submit
   the packet goal/prompt to the launched Codex terminal and observe a concrete
   provider session identity from live evidence, instead of only observing that
   the Codex UI started.
@@ -25,14 +25,14 @@
   - Latest Operator evidence checkpoint:
     `682a56ba5ceeeba1678fda6a35d5382fb845efc6`
 - Branch/output expectation: create
-  `gdi/afk-dev-session-trigger-live-prompt-submission-observation-v0` from the
-  required start ref. Commit and push that GDI branch when verification passes,
+  `implementer/afk-dev-session-trigger-live-prompt-submission-observation-v0` from the
+  required start ref. Commit and push that Implementer branch when verification passes,
   per the active `agentic_relay` profile. Do not open a PR, merge, close issues,
   mutate GitHub state beyond the branch push, or start async result routing.
 
 ## Foreman Review Result
 
-GDI completed this round at
+Implementer completed this round at
 `b8808a50e6b718a943bdcd1e8853a02a3f446b10`. Deterministic verification passed:
 
 ```bash
@@ -53,7 +53,7 @@ mismatch. Route the correction in
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 bridge process, provider session, transcript/catalog state, or prior
 implementation state. Read and rediscover before editing.
 
@@ -67,7 +67,7 @@ status=provider_acceptance_unobserved
 packet.validation_status=valid
 scheduler.lifecycle_state=rejected
 terminal_substrate.status=observed
-terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi
+terminal_substrate.cwd=/Users/Michael/Code/agent-os/the implementer native subagent
 terminal_substrate.command=codex --no-alt-screen
 terminal_substrate.snapshot_ref=inline:terminal_substrate.snapshot_summary
 provider_acceptance.status=provider_acceptance_unobserved
@@ -75,8 +75,8 @@ cleanup.status=verified
 mismatch_classes=provider_acceptance_unobserved
 ```
 
-The snapshot showed a live Codex UI from `.docks/gdi`, but no parseable provider
-session id. Bounded provider metadata showed no new `.docks/gdi` rollout; the
+The snapshot showed a live Codex UI from `the implementer native subagent`, but no parseable provider
+session id. Bounded provider metadata showed no new `the implementer native subagent` rollout; the
 only modified rollout in the window belonged to the Operator session cwd. That
 means the current live path has proven provider UI launch and cleanup, but not
 that the provider received and started executing the packet prompt.
@@ -86,7 +86,7 @@ Source reading points to the missing step: in
 starts the bridge and ensures the `codex --no-alt-screen` process, then polls
 `/snapshot`. It does not submit the packet goal/prompt through the bridge
 `/input` endpoint, nor does it observe a Codex rollout for the intended
-`.docks/gdi` launch cwd.
+`the implementer native subagent` launch cwd.
 
 This is not a regex-only correction. Do not mark provider acceptance observed
 just because the Codex UI is visible. Acceptance means the provider received the
@@ -96,7 +96,7 @@ snapshot text, Codex metadata, or another reviewable provider-session signal.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
@@ -128,10 +128,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -164,7 +164,7 @@ Only continue if it reports ready.
 
 ## Required Behavior
 
-- The accepted guarded live Codex/GDI branch must submit a bounded prompt to the
+- The accepted guarded live Codex/Implementer branch must submit a bounded prompt to the
   launched provider after the bridge session is ensured and the terminal is
   ready.
 - The submitted prompt should be derived from the transfer packet goal/source
@@ -197,7 +197,7 @@ Only continue if it reports ready.
 - Preserve duplicate suppression before any provider launch or prompt
   submission.
 - Preserve the current live launch guard. Do not remove or relax
-  `--i-am-present` in this GDI slice.
+  `--i-am-present` in this Implementer slice.
 
 ## Scope And Hard Boundaries
 
@@ -206,14 +206,14 @@ Only continue if it reports ready.
 - Do not start async result routing.
 - Do not remove, relax, rename, or bypass `--i-am-present`.
 - Do not add final `aos session ...` command spelling.
-- Do not broaden beyond the first Codex/GDI live path.
+- Do not broaden beyond the first Codex/Implementer live path.
 - Do not mark provider acceptance observed from UI presence alone.
 - Do not read provider transcript bodies outside bounded metadata needed for
   session identity.
 - Do not mutate provider configs, provider session stores, provider catalogs,
   telemetry stores, gateway state, dock profiles, hooks, GitHub issues, PRs, or
   main.
-- Do not run a live Codex provider launch in this GDI round. If deterministic
+- Do not run a live Codex provider launch in this Implementer round. If deterministic
   verification passes, report that a follow-up Operator live proof is required.
 
 ## Suggested Implementation Areas
@@ -266,7 +266,7 @@ bash tests/help-contract.sh
 ./aos dev build --no-restart
 ```
 
-Do not run live provider verification in this GDI round. If the implementation
+Do not run live provider verification in this Implementer round. If the implementation
 cannot be verified without a live Codex launch, stop and report the missing
 testability boundary.
 
@@ -274,8 +274,8 @@ testability boundary.
 
 Stop and report instead of broadening scope if:
 
-- repo-mode TCC/Input Monitoring readiness blocks and the GDI helper reports
-  `human_needed`;
+- repo-mode TCC/Input Monitoring readiness blocks and the Implementer helper reports
+  `manual_intervention`;
 - live provider launch appears necessary to finish implementation;
 - the implementation would require reading provider transcript bodies or
   mutating provider-owned stores;
@@ -292,14 +292,14 @@ Report:
 - branch and head SHA;
 - base ref/SHA used;
 - changed paths, path-scoped to this slice;
-- exact prompt submission behavior added to the live Codex/GDI path;
+- exact prompt submission behavior added to the live Codex/Implementer path;
 - exact provider-session identity source used after submission;
 - receipt/status behavior for submission success, observed provider session,
   unobserved provider session, and cleanup failure;
 - how deterministic tests cover prompt submission and provider-session
   observation without executing Codex;
 - exact tests/checks run with pass/fail results;
-- `./aos ready` result or exact `human_needed` blocker;
+- `./aos ready` result or exact `manual_intervention` blocker;
 - whether an Operator supervised live proof is still required before Foreman
   considers the provider-acceptance gate closed;
 - confirmation that no live provider launch, provider transcript body read,
@@ -307,5 +307,5 @@ Report:
   mutation, GitHub issue/PR mutation, main merge, or async result routing
   occurred.
 
-If this GDI session reused a completed goal, remind the human to run
-`/goal clear` before retiring or starting unrelated work.
+If this Implementer session reused a completed goal, remind the human to run
+clear the stale prompt state before retiring or starting unrelated work.

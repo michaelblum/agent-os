@@ -33,7 +33,7 @@
   `matched_cwd_basis=intended_launch_cwd`, terminal geometry `100x31`,
   accepted input and extra Enter, response marker observed, catalog and
   telemetry `not_observed`, and result route `not_attempted`.
-- Local-only boundary confirmed: no live provider was launched by GDI or
+- Local-only boundary confirmed: no live provider was launched by Implementer or
   Foreman for this deterministic acceptance; no provider config, real provider
   transcript, gateway state, generated committed receipt artifact, GitHub
   state, push, or PR changed.
@@ -42,11 +42,11 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: make the no-schema AFK launch-attempt prototype truthfully
   represent the accepted supervised live Codex bridge pass using deterministic
-  fixtures and tests, without launching a real provider in GDI.
+  fixtures and tests, without launching a real provider in Implementer.
 - Source artifacts:
   - `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-pty-rerun-v0.md`
   - `docs/design/work-cards/afk-bridge-codex-pty-observability-correction-v0.md`
@@ -56,7 +56,7 @@
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-launch-attempt-live-codex-record-v0`. Keep the checkpoint local; do
+  `implementer/afk-launch-attempt-live-codex-record-v0`. Keep the checkpoint local; do
   not push, open a PR, mutate GitHub, or publish externally.
 
 ## Tracker
@@ -70,7 +70,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, Codex transcript, catalog, telemetry,
 Operator report, or prior implementation state. Read and rediscover before
 editing.
@@ -82,7 +82,7 @@ bridge can launch `codex --no-alt-screen`, submit a bounded prompt, receive a
 response, materialize a separate rollout transcript, and correlate that rollout
 through the Codex adapter.
 
-This GDI round is fixture-backed implementation only. It should make the
+This Implementer round is fixture-backed implementation only. It should make the
 prototype able to ingest a supervised live-result fixture shaped like the
 accepted Operator pass and emit a record that no longer stays stuck at
 `provider_acceptance_unobserved` when provider/Codex-thread evidence was
@@ -93,7 +93,7 @@ actually observed.
 Accepted Operator pass:
 
 - bridge launched `codex --no-alt-screen` from
-  `/Users/Michael/Code/agent-os/.docks/gdi` through the process driver;
+  `/Users/Michael/Code/agent-os/the implementer native subagent` through the process driver;
 - `/health` reported terminal geometry `80x24`;
 - `/resize` to `100x31` returned `resize_accepted=true`;
 - `/input` accepted text and Enter, then one allowed `/key Enter` submitted the
@@ -102,7 +102,7 @@ Accepted Operator pass:
   `live-codex-transcript-materialization-pty-rerun`;
 - a separate Codex rollout appeared with provider session id
   `019e5107-5456-7f22-b08b-b977df1b35f4` and cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - the corrected prototype, when pointed at the real Codex home and provider
   session id, reported `codex_adapter.status=observed`,
   `correlation_status=matched_by_provider_session_id`, `confidence=exact`, and
@@ -110,7 +110,7 @@ Accepted Operator pass:
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
@@ -144,10 +144,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 live check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -156,7 +156,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `4814cdcfdd065ed107a20df656164ae89ae10440`
 - expected output branch:
-  `gdi/afk-launch-attempt-live-codex-record-v0`
+  `implementer/afk-launch-attempt-live-codex-record-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

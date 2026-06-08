@@ -16,9 +16,9 @@ Fix the direction of ownership:
 
 ## Branch/Base
 
-- branch_from: `origin/gdi/toolkit-agent-terminal-foundation-v0`
+- branch_from: `origin/implementer/toolkit-agent-terminal-foundation-v0`
 - required_start_ref: `500e92fb655a40bf07bc09bbaa9e7dd49d664d93`
-- output_branch: `gdi/toolkit-agent-terminal-foundation-v0`
+- output_branch: `implementer/toolkit-agent-terminal-foundation-v0`
 
 ## Review Finding
 

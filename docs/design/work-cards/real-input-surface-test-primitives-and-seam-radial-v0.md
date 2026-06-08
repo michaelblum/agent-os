@@ -17,7 +17,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -27,7 +27,7 @@ Make real-input surface tests use composable AOS-derived test primitives instead
 of scenario-local display math, and extend the Sigil radial real-input scenario
 with topology-neutral DesktopWorld path coverage.
 
-The user explicitly pushed back on the prior GDI report phrase "on secondary
+The user explicitly pushed back on the prior Implementer report phrase "on secondary
 displays": secondary-display bugs are red flags, and tests should not route
 around the DesktopWorld abstraction by reimplementing DPI/resolution conversion
 inside each Python harness. Consumer scenarios should express intent in

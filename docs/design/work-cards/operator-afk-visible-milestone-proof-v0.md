@@ -6,7 +6,7 @@
 
 Do not route this card as written. It still uses the old pointer-shaped
 warm-dock sentinel, which was superseded because the no-command boundary was
-not visible until GDI inspected a file.
+not visible until Implementer inspected a file.
 
 The same milestone evidence was split into smaller accepted proofs:
 
@@ -14,11 +14,11 @@ The same milestone evidence was split into smaller accepted proofs:
   `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`.
 - Stdout route-object compatibility correction:
   `docs/design/work-cards/afk-session-trigger-stdout-route-object-normalization-v0.md`.
-- Strict warm GDI terminal reuse proof with inline no-command sentinel:
+- Strict warm Implementer terminal reuse proof with inline no-command sentinel:
   `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v2.md`.
 
 If a future user-visible milestone packet is needed, draft a new V1 card using
-the inline payload from `.docks/gdi/inbound-contract.json`; do not revive this
+the inline payload from the implementer native prompt contract; do not revive this
 pointer-shaped warm sentinel flow.
 
 ## Transfer Classification
@@ -27,9 +27,9 @@ pointer-shaped warm sentinel flow.
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: produce a user-believable AFK milestone report on current
   `main` by checking both the no-fixture headless AFK receipt path and the
-  existing warm dock GDI terminal path, or classify the exact blocker.
+  existing warm dock Implementer terminal path, or classify the exact blocker.
 - Source artifacts:
-  - `docs/design/work-cards/operator-afk-dev-session-trigger-goal-prefix-provider-acceptance-live-proof-v0.md`
+  - `docs/design/work-cards/operator-afk-dev-session-trigger-prompt-prefix-provider-acceptance-live-proof-v0.md`
   - `docs/design/work-cards/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.md`
   - `docs/design/work-cards/afk-warm-dock-tui-reuse-contract-v0.md`
   - `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v0.md`
@@ -44,7 +44,7 @@ pointer-shaped warm sentinel flow.
 
 ## Why This Exists
 
-The prior no-fixture Codex/GDI proof passed as an Operator receipt, but it was
+The prior no-fixture Codex/Implementer proof passed as an Operator receipt, but it was
 not a visible product milestone for the user. The prior warm dock TUI proof was
 blocked by a loop-prone one-shot prompt shape, not by the warm-reuse contract
 itself.
@@ -53,7 +53,7 @@ This run is deliberately milestone-shaped:
 
 - headless AFK must prove itself with a real no-fixture receipt on current
   `main`;
-- the existing GDI terminal must prove a warm `/clear` plus `/goal` work-card
+- the existing Implementer terminal must prove a warm `/clear` plus `` work-card
   pointer path without launching a cold provider or bridge;
 - do not overclaim that the Sigil Agent Terminal UI shows AFK unless the same
   AFK attempt is actually visible there. Current source is expected to use a
@@ -81,7 +81,7 @@ git diff --check
 
 Stop if the worktree is dirty, `HEAD` is not on current `main`/`origin/main`,
 or readiness reports a repo-mode Accessibility, Input Monitoring, or inactive
-input-tap blocker. For readiness blockers, stop and report `human_needed` with
+input-tap blocker. For readiness blockers, stop and report `manual_intervention` with
 the exact blocker and the standard human action:
 
 ```text
@@ -89,20 +89,20 @@ Run ./aos permissions setup --once, grant the requested macOS permission if
 prompted, then return and run ./aos ready --post-permission.
 ```
 
-## Inbound Contract Check
+## Native Prompt Contract Check
 
-Validate the GDI sentinel payload before asking the human to send it:
+Validate the Implementer sentinel payload before asking the human to send it:
 
 ```bash
 payload='follow the instructions in docs/design/work-cards/afk-warm-dock-tui-reuse-live-sentinel-v0.md'
-printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock gdi --json
+printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock implementer --json
 ```
 
 Expected:
 
 - `ok=true`;
-- `provider_entry_prefix="/goal "`;
-- `provider_entry_preview` starts with `/goal follow the instructions in ...`;
+- `provider_entry_prefix=""`;
+- `provider_entry_preview` starts with `follow the instructions in ...`;
 - no error diagnostics;
 - no `reply exactly` or `proof only` warning.
 
@@ -110,13 +110,13 @@ Stop if the payload is rejected or warned as loop-prone.
 
 ## Headless AFK Proof
 
-Run exactly one no-fixture supervised Codex/GDI trigger attempt. Create a temp
+Run exactly one no-fixture supervised Codex/Implementer trigger attempt. Create a temp
 packet and temp output outside the repo. The packet should use:
 
 - `packet_id`: `operator-afk-visible-milestone-headless-v0`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-visible-milestone-proof-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `origin/main`
 - `provider_hint`: `codex`
@@ -130,7 +130,7 @@ Run:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -145,7 +145,7 @@ Passing headless evidence requires:
 - top-level `status=completed`;
 - `scheduler.lifecycle_state=completed`;
 - `terminal_substrate.input_submission.provider_prompt_mode=codex_goal`;
-- `terminal_substrate.input_submission.provider_prompt_prefix="/goal "`;
+- `terminal_substrate.input_submission.provider_prompt_prefix=""`;
 - `provider_acceptance.status=provider_session_observed`;
 - concrete `provider_acceptance.provider_session_id`;
 - `provider_acceptance.observation_source=codex_adapter_metadata` or another
@@ -157,40 +157,40 @@ If this fails, classify the milestone as `headless_afk_not_proven` and include
 the bounded receipt fields. Do not run a second attempt without returning to
 Foreman.
 
-## Warm Dock GDI Proof
+## Warm Dock Implementer Proof
 
-This proof uses the human's existing GDI Codex terminal. Do not start a new
+This proof uses the human's existing Implementer Codex terminal. Do not start a new
 Codex process, do not run `codex --no-alt-screen`, and do not start the Sigil
 Agent Terminal bridge for this warm proof.
 
-Before the human touches GDI, collect metadata-only baselines for the newest
-Codex `session_meta` records with cwd ending `.docks/gdi` and
-`.docks/operator`. Do not read or quote transcript bodies.
+Before the human touches Implementer, collect metadata-only baselines for the newest
+Codex `session_meta` records with cwd ending `the implementer native subagent` and
+`the operator native subagent`. Do not read or quote transcript bodies.
 
-Ask the human to perform exactly this in the existing GDI terminal:
+Ask the human to perform exactly this in the existing Implementer terminal:
 
 ```text
 /clear
-/goal follow the instructions in docs/design/work-cards/afk-warm-dock-tui-reuse-live-sentinel-v0.md
+follow the instructions in docs/design/work-cards/afk-warm-dock-tui-reuse-live-sentinel-v0.md
 ```
 
-After GDI reports back, collect metadata-only evidence for cwd `.docks/gdi`
+After Implementer reports back, collect metadata-only evidence for cwd `the implementer native subagent`
 again. Passing warm evidence requires:
 
-- the human confirms the existing GDI terminal was used;
-- the GDI inbound payload was the allowed work-card pointer shape;
-- metadata shows a post-dispatch Codex session for cwd `.docks/gdi`;
-- when a pre-dispatch `.docks/gdi` session id was visible, the post-dispatch id
+- the human confirms the existing Implementer terminal was used;
+- the Implementer inbound payload was the allowed work-card pointer shape;
+- metadata shows a post-dispatch Codex session for cwd `the implementer native subagent`;
+- when a pre-dispatch `the implementer native subagent` session id was visible, the post-dispatch id
   differs from it;
 - no proof-owned cold `codex --no-alt-screen`, `server.mjs`, or `pty-proxy.py`
   process was started for the warm proof;
-- GDI did not edit files, run commands, mutate provider state, or loop.
+- Implementer did not edit files, run commands, mutate provider state, or loop.
 
-If the GDI terminal loops or repeats completion, classify
+If the Implementer terminal loops or repeats completion, classify
 `warm_tui_reuse_blocked_stale_goal_loop` and tell the human to recover with
-`/goal clear`, then `/clear`.
+clear the stale prompt state, then `/clear`.
 
-If metadata cannot prove a new `.docks/gdi` session after `/clear`, classify
+If metadata cannot prove a new `the implementer native subagent` session after `/clear`, classify
 `warm_tui_metadata_unobserved`.
 
 ## Agent Terminal UI Classification
@@ -204,7 +204,7 @@ after the run, classify this explicitly as:
 agent_terminal_afk_visibility_not_integrated_yet
 ```
 
-That is an implementation gap for Foreman/GDI, not an Operator failure.
+That is an implementation gap for Foreman/Implementer, not an Operator failure.
 
 ## Final Checks
 
@@ -224,9 +224,9 @@ Return a concise Foreman report with:
 
 - branch/head and clean/dirty status;
 - preflight results;
-- inbound contract result for the GDI sentinel payload;
+- native subagent prompt contract result for the Implementer sentinel payload;
 - headless AFK classification and key receipt fields;
-- warm dock GDI classification and metadata-only before/after summary;
+- warm dock Implementer classification and metadata-only before/after summary;
 - Agent Terminal UI classification;
 - process comparison summary;
 - final readiness and git status;

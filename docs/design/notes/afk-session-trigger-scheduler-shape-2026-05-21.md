@@ -46,7 +46,7 @@ control record. Candidate packet fields include:
 - `decision_contract` and selected route outputs;
 - optional `integration_job` linkage;
 - `evidence_requirements` and `stop_conditions`;
-- `timeout_or_lease`, `human_needed`, optional `provider_hint`, and
+- `timeout_or_lease`, `manual_intervention`, optional `provider_hint`, and
   `result_route`.
 
 That same note defines async route kinds: `work_record`, `evidence_record`,
@@ -55,7 +55,7 @@ That same note defines async route kinds: `work_record`, `evidence_record`,
 configured `issue_or_pr_comment`. It also maps session outcomes to integration
 job transitions: accepted work can move a job to `running`; proved completion
 can move it to `succeeded`; terminal task failure can move it to `failed`;
-human-needed can remain resumable in queued or running state while metadata and
+manual-intervention can remain resumable in queued or running state while metadata and
 work records capture the stall.
 
 ### Provider Session Catalog And Telemetry
@@ -202,7 +202,7 @@ jobs:
 | `launching` | Provider-neutral dispatch has been requested but the provider session has not accepted ownership. |
 | `running` | A docked provider session accepted the packet and is heartbeating or otherwise observable. |
 | `stalled` | The run cannot progress automatically but may be recoverable without replacing the packet. |
-| `human-needed` | A bounded human action or decision is required before resume. |
+| `manual-intervention` | A bounded human action or decision is required before resume. |
 | `succeeded` | Required proof passed and terminal success routes were written or attempted with evidence. |
 | `failed` | Terminal task, validation, dispatch, or verification failure. |
 | `expired` | Lease or heartbeat policy ended the run before terminal worker result. |
@@ -219,7 +219,7 @@ The scheduler owns lifecycle route updates around dispatch:
 - on accepted: write or append scheduler claim metadata where configured;
 - on launch: update local lifecycle state and optionally mark an integration
   job `running` only after worker ownership is real;
-- on stall or human-needed: write work-record metadata, evidence link, and
+- on stall or manual-intervention: write work-record metadata, evidence link, and
   notifier text when route policy calls for requester visibility;
 - on succeeded: deliver final report, evidence links, route update attempts,
   and next-owner recommendation;
@@ -232,19 +232,19 @@ The scheduler owns lifecycle route updates around dispatch:
 Route update failures are evidence. They should not be hidden in a provider
 terminal transcript.
 
-### Human-Needed And TCC Blockers
+### Manual-Intervention And TCC Blockers
 
-The scheduler should treat human-needed as a first-class recoverable lifecycle,
-not as an unstructured failure. For repo-mode TCC/input-tap blockers, the GDI
+The scheduler should treat manual-intervention as a first-class recoverable lifecycle,
+not as an unstructured failure. For repo-mode TCC/input-tap blockers, the Implementer
 contract already names the bounded recovery path:
-`.docks/gdi/scripts/human-needed-tcc-reset`, followed by
+the manual TCC blocker report path, followed by
 `./aos ready --post-permission` after the human returns.
 
 A scheduler should record:
 
 - blocker class and exact remaining human action;
 - whether the provider session should remain resumable;
-- result routes that received the human-needed update;
+- result routes that received the manual-intervention update;
 - lease extension or pause policy;
 - resume precondition and maximum waiting window.
 
@@ -301,7 +301,7 @@ Design-only queue-entry shape:
   "result_route_ref": "route-01",
   "state": "accepted",
   "lease_expires_at": "2026-05-21T18:00:00Z",
-  "idempotence_key": "packet-01:route-01:gdi:/Users/Michael/Code/agent-os:0523416"
+  "idempotence_key": "packet-01:route-01:implementer:/Users/Michael/Code/agent-os:0523416"
 }
 ```
 
@@ -390,21 +390,21 @@ dispatch failure, provider rejection, terminal worker failure, failed
 verification, or terminal stop condition. The scheduler writes failure routes
 with evidence and retry eligibility.
 
-### Human-Needed Stall And Resume
+### Manual-Intervention Stall And Resume
 
 ```text
 queued
   -> accepted
   -> launching
   -> running
-  -> human-needed
+  -> manual-intervention
   -> running
   -> succeeded
 ```
 
-The human-needed state records the exact human action, pauses or extends the
+The manual-intervention state records the exact human action, pauses or extends the
 lease by policy, and resumes only after the named precondition is satisfied.
-If the human-needed window expires, the run moves to `expired` or `failed`
+If the manual-intervention window expires, the run moves to `expired` or `failed`
 according to route policy.
 
 ### Lease Expiry Or Lost Heartbeat
@@ -469,7 +469,7 @@ Supersession records the newer packet or route and stops stale result delivery.
 | --- | --- | --- |
 | Session trigger/scheduler | Packet intake, current-state validation, idempotence key, start/resume decision, lease/timeout/heartbeat policy, lifecycle state, route update attempts. | Reusable route judgment, provider-specific launch mechanics, gateway job schema/API, proof semantics, Researcher synthesis behavior. |
 | Provider-neutral dispatch | Adapter-level launch/resume request for a selected provider with dock, cwd/worktree, packet ref, lease, and route ref. | Packet validation policy, route selection, scheduler lifecycle authority, dock role semantics, terminal proof. |
-| Transfer packet | One transfer's launch context: recipient, source artifact, start ref, branch policy, proof requirements, stop conditions, lease, human-needed route, result route. | Session control record, transcripts, immutable proof, reusable route rules, provider process handles. |
+| Transfer packet | One transfer's launch context: recipient, source artifact, start ref, branch policy, proof requirements, stop conditions, lease, manual-intervention route, result route. | Session control record, transcripts, immutable proof, reusable route rules, provider process handles. |
 | Result route | Destination and policy for lifecycle and terminal updates, including work/evidence record, integration job, notifier, inbox, artifact path, or explicit external comment. | Scheduler state machine, reusable route judgment, provider launch, or proof interpretation. |
 | Work record | Intent, execution map, lifecycle summary, route update attempts, evidence links, health, next-owner recommendation. | Scheduler queue ownership, provider dispatch implementation, immutable proof payload. |
 | Evidence record | Append-only proof: command output, status receipts, traces, screenshots, citations, human answers, notification receipts. | Policy interpretation, launch context, route selection, session authority. |

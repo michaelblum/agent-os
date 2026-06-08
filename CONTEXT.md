@@ -131,7 +131,7 @@ _Avoid_: workflow as a synonym for plugin, recipe.
 
 **Work Card**:
 A durable Markdown coordination contract for an assigned work slice, most often
-a GDI implementation, validation, correction, or relay round. A Work Card may
+a Implementer implementation, validation, correction, or relay round. A Work Card may
 route work that creates or runs execution-model artifacts, but it is not itself
 a Workflow.
 _Avoid_: workflow, work record, successor handoff.

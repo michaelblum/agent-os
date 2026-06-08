@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -30,7 +30,7 @@ roadmap in this slice.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `a0171375018401cf2ed71182ae2aa6ffe07faa67` or later with this work card
-- output_branch: `gdi/agent-terminal-legacy-doc-cleanup-audit-v0`
+- output_branch: `implementer/agent-terminal-legacy-doc-cleanup-audit-v0`
 
 ## Read First
 

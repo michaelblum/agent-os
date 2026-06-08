@@ -5,9 +5,9 @@
 - Display-first annotation epic: https://github.com/michaelblum/agent-os/issues/295
 - Source follow-up card:
   `docs/design/work-cards/sigil-reticle-comet-browser-candidate-cache-v0.md`
-- Returned GDI branch under Foreman review:
-  `gdi/sigil-reticle-comet-browser-candidate-cache-v0`
-- Returned GDI commit:
+- Returned Implementer branch under Foreman review:
+  `implementer/sigil-reticle-comet-browser-candidate-cache-v0`
+- Returned Implementer commit:
   `3646b1a72a83eb67b2cf591cde82cc1f3c248360`
 
 Foreman rejected the returned slice for one blocking explainability gap. Do not
@@ -16,18 +16,18 @@ state direction from the returned commit.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 issue state, display topology, Comet state, browser state, Sigil state, or prior
 review context. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
 ## Branch / Base
 
-- `branch_from: origin/gdi/sigil-reticle-comet-browser-candidate-cache-v0`
-- `required_start_ref: origin/gdi/sigil-reticle-comet-browser-candidate-cache-v0`
+- `branch_from: origin/implementer/sigil-reticle-comet-browser-candidate-cache-v0`
+- `required_start_ref: origin/implementer/sigil-reticle-comet-browser-candidate-cache-v0`
 - Expected output branch: keep working on
-  `gdi/sigil-reticle-comet-browser-candidate-cache-v0`
-- Stop and report instead of rebasing if the current branch is not the GDI
+  `implementer/sigil-reticle-comet-browser-candidate-cache-v0`
+- Stop and report instead of rebasing if the current branch is not the Implementer
   branch above or if `apps/sigil/renderer/live-modules/main.js` lacks
   `annotationReticleBrowserDomBridge`.
 
@@ -120,10 +120,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or input
 tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and include the script output. After the human
+Then stop with `manual_intervention` and include the script output. After the human
 returns with `finished`, run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect

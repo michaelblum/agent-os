@@ -38,19 +38,19 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI implementation round
+- Recipient: Implementer
+- Transfer kind: Implementer implementation round
 - Source artifact:
   `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch named
-  `gdi/afk-bridge-launch-visibility-fixture-v0` from the required start ref.
+  `implementer/afk-bridge-launch-visibility-fixture-v0` from the required start ref.
   Keep the checkpoint local; do not push, open a PR, mutate GitHub, or run live
   provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, Operator report, or prior
 implementation state. Read and rediscover before editing.
 
@@ -75,7 +75,7 @@ classification surface that can say:
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
 - `docs/design/work-cards/afk-bridge-provider-launch-visibility-diagnosis-v0.md`
 - `docs/design/work-cards/afk-all-cwd-unrelated-candidate-classification-v0.md`
@@ -110,10 +110,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -122,7 +122,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `8cf12323bc909fc6cd78769f5561ca703c179bd7`
 - expected output branch:
-  `gdi/afk-bridge-launch-visibility-fixture-v0`
+  `implementer/afk-bridge-launch-visibility-fixture-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -176,7 +176,7 @@ Suggested shape, but inspect before choosing exact names:
   - telemetry from unrelated sessions does not bind to the launched provider.
 - Add a true-positive synthetic fixture where a snapshot/title includes a
   parseable provider session id and the requested-cwd catalog fixture contains
-  the same id with cwd `.docks/gdi`. This should prove a future catalog polling
+  the same id with cwd `the implementer native subagent`. This should prove a future catalog polling
   path can bind an observed provider id without launching a provider.
 
 Prefer a small helper function in `scripts/afk-launch-attempt-prototype.mjs`
@@ -191,10 +191,10 @@ provider transcripts under the user's home directory.
 At minimum cover:
 
 1. Bridge-visible provider-shaped command with no provider session id:
-   - health default cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+   - health default cwd `/Users/Michael/Code/agent-os/the implementer native subagent`;
    - ensure session `afk-bridge-all-cwd-proof`;
    - command `codex --no-alt-screen`;
-   - snapshot/title text contains cwd `.docks/gdi`, branch, model, version, and
+   - snapshot/title text contains cwd `the implementer native subagent`, branch, model, version, and
      head but no provider session id;
    - output has terminal substrate observed,
      `provider_acceptance.status: provider_acceptance_unobserved`,
@@ -202,7 +202,7 @@ At minimum cover:
      not observed, and unrelated all-cwd context retained.
 2. Bridge-visible provider-shaped command with a synthetic provider session id:
    - snapshot/title text includes a parseable session id;
-   - requested-cwd catalog fixture includes that same id with cwd `.docks/gdi`;
+   - requested-cwd catalog fixture includes that same id with cwd `the implementer native subagent`;
    - output binds the provider session id as a current matched catalog session
      without launching a provider.
 3. Existing tests for no-provider launch, stale catalog, unrelated all-cwd

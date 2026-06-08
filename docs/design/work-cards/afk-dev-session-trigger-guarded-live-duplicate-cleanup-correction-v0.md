@@ -38,7 +38,7 @@ profile/hook, GitHub state, push, PR, or external publication changed.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: correct the guarded live session-trigger source slice so it
   satisfies Foreman's duplicate-state and cleanup-classification acceptance
@@ -46,19 +46,19 @@ profile/hook, GitHub state, push, PR, or external publication changed.
 - Source artifact:
   `docs/design/work-cards/afk-dev-session-trigger-guarded-live-codex-launch-v0.md`
 - Reviewed output branch:
-  `gdi/afk-dev-session-trigger-guarded-live-codex-launch-v0`
+  `implementer/afk-dev-session-trigger-guarded-live-codex-launch-v0`
 - Reviewed output head:
   `9cf94336362a3e80f453462ad62b689ca0b015f5`
 - Reviewed base:
   `7ac982d181391cac8066d4074ba2d62e18249286`
 - Branch/output expectation: continue on
-  `gdi/afk-dev-session-trigger-guarded-live-codex-launch-v0` from this
+  `implementer/afk-dev-session-trigger-guarded-live-codex-launch-v0` from this
   correction card commit. Keep the checkpoint local; do not push, open a PR,
   mutate GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, transcript/catalog state, or Foreman's review
 details beyond this card. Read and rediscover before editing.
 
@@ -185,10 +185,10 @@ Add or update focused tests proving:
 If repo-mode TCC/Input Monitoring readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -203,7 +203,7 @@ Report:
 - exact duplicate states now treated as non-launching duplicates;
 - cleanup classification behavior and the exact status/mismatch used;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened.

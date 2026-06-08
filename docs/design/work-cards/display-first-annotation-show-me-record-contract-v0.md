@@ -17,7 +17,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 issue state, annotation runtime state, snapshot artifacts, schema conventions,
 or prior implementation state. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -29,7 +29,7 @@ contract-first foundation for Show Me records, not a recorder UI.
 
 - `branch_from: origin/main`
 - `required_start_ref: origin/main`
-- Expected output branch: `gdi/display-first-annotation-show-me-record-contract-v0`
+- Expected output branch: `implementer/display-first-annotation-show-me-record-contract-v0`
 - Stop and report instead of rebasing if the work card is not present on the
   start ref or if `origin/main` lacks the #296/#298 completion contracts.
 
@@ -250,5 +250,5 @@ Report:
 - final `git status --short --branch`;
 - recommended next #299 slice, if one is obvious after the contract lands.
 
-If this GDI CLI session already had a completed active goal, remind the human
-to run `/goal clear` before retiring it or starting unrelated work.
+If this Implementer CLI session already had a completed active goal, remind the human
+to run clear the stale prompt state before retiring it or starting unrelated work.

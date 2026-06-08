@@ -47,16 +47,16 @@ Create one `launch_attempt` record before or during provider launch:
   "selection": {
     "selected_provider": "codex",
     "provider_selection_source": "explicit|hint|policy|availability",
-    "selected_dock": "gdi",
-    "dock_role_kind": "gdi",
-    "dock_profile_ref": ".docks/gdi/dock.json",
-    "launch_root": ".docks/gdi"
+    "selected_dock": "implementer",
+    "dock_role_kind": "implementer",
+    "dock_profile_ref": "implementer session metadata",
+    "launch_root": "the implementer native subagent"
   },
   "launch_intent": {
     "action": "start|resume|dry-run|reject",
     "intended_worktree": "/Users/Michael/Code/agent-os",
-    "intended_launch_cwd": "/Users/Michael/Code/agent-os/.docks/gdi",
-    "intended_branch": "gdi/example",
+    "intended_launch_cwd": "/Users/Michael/Code/agent-os/the implementer native subagent",
+    "intended_branch": "implementer/example",
     "command_argv": ["codex", "--no-alt-screen"],
     "command_env_refs": ["AOS_TRANSFER_PACKET_REF", "AOS_RESULT_ROUTE_REF"],
     "deadline_or_lease": "<lease-ref>",
@@ -129,7 +129,7 @@ parser failure.
 | `transfer.packet_id_or_ref` | Transfer packet | Mandatory before launch | Stable |
 | `transfer.source_event_or_artifact` | Scheduler/transfer packet | Mandatory if known; otherwise `not_observed` | Scheduler |
 | `transfer.result_route_refs` | Transfer packet/scheduler | Mandatory before launch | Scheduler/result route |
-| `transfer.required_start_ref`, `start_ref_sha` | Transfer packet plus git validation | Mandatory for repo-bound GDI launch | Scheduler preflight |
+| `transfer.required_start_ref`, `start_ref_sha` | Transfer packet plus git validation | Mandatory for repo-bound Implementer launch | Scheduler preflight |
 | `transfer.external_publication_policy` | Transfer packet/workflow context | Mandatory before launch | Stable unless route policy rejects |
 | `selection.selected_provider` | Dispatch provider selection | Mandatory before launch | Stable unless rejected before launch |
 | `selection.provider_selection_source` | Dispatch | Mandatory before launch | Stable |
@@ -182,7 +182,7 @@ mirrored in the relevant field group. Suggested shape:
   "severity": "error|warn|info",
   "observed_at": "2026-05-22T00:00:00.000Z",
   "source": "dispatch|terminal_substrate|provider_acceptance|catalog|telemetry|result_route",
-  "expected": { "cwd": "/Users/Michael/Code/agent-os/.docks/gdi" },
+  "expected": { "cwd": "/Users/Michael/Code/agent-os/the implementer native subagent" },
   "observed": { "cwd": "/Users/Michael/Code/agent-os" },
   "effect": "rejected|failed|not_observed|requires_human|continue_with_warning",
   "evidence_ref": "<evidence-ref-or-not_observed>"
@@ -234,7 +234,7 @@ telemetry refs because those are unavailable until after launch.
 | Scheduler | Owns intake, lease/deadline, selected action, duplicate/superseded/expired decisions, and result-route expectations. The launch-attempt record reports lifecycle facts back to scheduler. |
 | Dispatch | Owns provider selection, dock launch root resolution, command construction, terminal substrate handoff, idempotence enforcement, and structured rejection/mismatch facts. |
 | Work receipt | Records what the worker did after launch. It can reference `launch_attempt_id` and provider session facts, but it should not replace the launch-attempt record. |
-| Evidence receipt | Records immutable proof such as command output, terminal snapshots, catalog records, telemetry events, route responses, or human-needed packets. The launch-attempt record should point to evidence refs. |
+| Evidence receipt | Records immutable proof such as command output, terminal snapshots, catalog records, telemetry events, route responses, or manual-intervention packets. The launch-attempt record should point to evidence refs. |
 | Provider session catalog | Supplies read-only post-launch session discovery: provider, session id, cwd, optional branch, timestamps, source file, and resume command. A missing catalog match is `not_observed` unless the slice requires catalog proof. |
 | Telemetry | Supplies parsed provider metrics, lifecycle events, capabilities, and telemetry mismatch diagnostics. Telemetry should stay `not_observed` until transcript/statusline parsing actually runs. |
 | Result route | Receives completion, failure, blocked, or expired status plus evidence refs. Route delivery has its own attempt/delivery/failure fields because provider launch can succeed while notification fails. |

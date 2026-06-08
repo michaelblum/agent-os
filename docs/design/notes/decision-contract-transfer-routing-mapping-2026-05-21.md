@@ -35,13 +35,13 @@ provider dispatch, or async result routing.
 Current transfer routing uses these bounded inputs:
 
 - Current user request, completion report, blocker, or coordination state.
-- Target actor or recipient dock: Foreman, GDI, Operator, human, or relay
+- Target actor or recipient dock: Foreman, Implementer, Operator, human, or relay
   authority.
 - Transfer purpose: successor continuity, deterministic implementation,
-  supervised live evidence, correction, relay, or human-needed recovery.
+  supervised live evidence, correction, relay, or manual-intervention recovery.
 - Source artifact path, issue, PR, commit, branch, or report.
 - Branch/base facts such as `branch_from`, `required_start_ref`, and whether a
-  `gdi/*` branch is an output branch or work surface.
+  `implementer/*` branch is an output branch or work surface.
 - Active workflow profile and whether external mutation, push, PR, GitHub issue
   work, or publication is explicitly assigned.
 - Runtime or permission blocker state, especially TCC/input-tap blockers for
@@ -54,9 +54,9 @@ Current transfer routing uses these bounded inputs:
 The authoritative evidence is currently Markdown and scripts rather than a
 machine-readable route manifest:
 
-- `AGENTS.md` for dock-first cold start, entry paths, AOS as shell, and
+- `AGENTS.md` for dock-first cold start, tooling contexts, AOS as shell, and
   repo-wide transfer boundaries.
-- `.docks/README.md` for dock launch, clipboard transfer tools, storage matrix,
+- `.docks/AGENTS.md` for dock launch, clipboard transfer tools, storage matrix,
   and canonical dock responsibilities.
 - `.docks/AGENTS.md` for shared transfer vocabulary, GitHub control-surface
   policy, storage rules, and momentum after external changes.
@@ -65,38 +65,38 @@ machine-readable route manifest:
 - `.docks/foreman/skills/session-transfer/SKILL.md` for transfer kinds,
   universal transfer header, placement matrix, bad assumption checks, and
   output discipline.
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
-  for GDI work-card slots, branch/base requirements, verification, TCC stall
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
+  for Implementer work-card slots, branch/base requirements, verification, TCC stall
   handling, and completion-report expectations.
 - `.docks/foreman/skills/session-transfer/references/operator.md` for
   supervised/HITL transfer slots and when to use Operator.
 - `.docks/foreman/skills/session-transfer/references/foreman.md` for successor
   handoff storage and contents.
-- `.docks/gdi/AGENTS.md` for GDI branch/base, commit/push authority,
-  human-needed stall handling, and completion-report shape.
-- `.docks/operator/AGENTS.md` for Operator supervised execution boundaries and
+- the implementer native subagent instructions for Implementer branch/base, commit/push authority,
+  manual-intervention stall handling, and completion-report shape.
+- `the operator native subagent contract` for Operator supervised execution boundaries and
   stop conditions.
 - Work cards under `docs/design/work-cards/` as live examples of branch/base,
-  stop-condition, verification, and completion-report contracts.
+  stop condition, verification, and completion-report contracts.
 
 ### Outputs And Decisions
 
 Transfer routing currently emits several coupled decisions:
 
-- Transfer kind: successor handoff, GDI round, Operator run, relay packet,
-  correction round, or human-needed packet.
-- Recipient/actor: Foreman, GDI, Operator, human, relay authority, or external
+- Transfer kind: successor handoff, Implementer round, Operator run, relay exchange,
+  correction round, or manual-intervention packet.
+- Recipient/actor: Foreman, Implementer, Operator, human, relay authority, or external
   provider-facing route when explicitly configured.
 - Storage location: temp/chat/clipboard for successor state, work card under
-  `docs/design/work-cards/` for non-trivial GDI or correction rounds, usually
-  chat/clipboard for Operator and human-needed packets, or GitHub-visible
-  surfaces for relay packets.
-- Dispatch shape: thin `follow the instructions in ...` payload for GDI work
+  `docs/design/work-cards/` for non-trivial Implementer or correction rounds, usually
+  chat/clipboard for Operator and manual-intervention packets, or GitHub-visible
+  surfaces for relay exchanges.
+- Dispatch shape: thin `follow the instructions in ...` payload for Implementer work
   cards, concrete supervised instructions for Operator, compact successor
-  state for Foreman, or exact recovery steps for human-needed packets.
+  state for Foreman, or exact recovery steps for manual-intervention packets.
 - Branch/output expectations: start ref, output branch, local checkpoint, push
   authority, PR/GitHub mutation boundary, and local-only state disclosure.
-- Stop conditions: done, failed, stalled, human-needed, misrouted, or blocked
+- Stop conditions: done, failed, stalled, manual-intervention, misrouted, or blocked
   by external credentials/permissions/product direction.
 - Required return evidence: changed files, verification results, live evidence,
   blocker details, branch/SHA, local-only state, and next-owner recommendation.
@@ -107,10 +107,10 @@ Current consumers are human and agent sessions:
 
 - Foreman consumes the routing rules to classify work and create/copy transfer
   artifacts.
-- GDI consumes work cards and dispatches to execute deterministic rounds.
+- Implementer consumes work cards and dispatches to execute deterministic rounds.
 - Operator consumes supervised transfer instructions to collect live or
   human-in-the-loop evidence.
-- Human users consume human-needed packets and clipboard dispatch payloads.
+- Human users consume manual-intervention packets and native dispatch payloads.
 - Future session trigger, transfer packet, and async result-routing primitives
   would consume a structured version of this routing decision if the docs-backed
   model is later promoted.
@@ -123,7 +123,7 @@ The mapping should be rechecked when any of these change:
 - New transfer kind, storage surface, or clipboard/handoff helper.
 - Changed Foreman acceptance ladder, next-step loop, or external mutation
   policy.
-- Changed GDI branch/base, commit, push, or completion-report contract.
+- Changed Implementer branch/base, commit, push, or completion-report contract.
 - Changed Operator supervised/HITL boundary or stop conditions.
 - Workflow profile changes that affect branch, push, PR, or relay authority.
 - Introduction of transfer packets, session trigger/scheduler, provider-neutral
@@ -136,15 +136,15 @@ The mapping should be rechecked when any of these change:
 
 | Decision Contract field | Current transfer routing docs |
 | --- | --- |
-| `id` | No single current id exists. Transfer kinds are named in `.docks/foreman/skills/session-transfer/SKILL.md`; work cards provide durable per-round file names. A future contract could use a handle such as `foreman-transfer-routing`, with subrule ids for `gdi-round`, `operator-run`, `successor-handoff`, `relay-packet`, `correction-round`, and `human-needed-packet`. |
-| `summary` | The summary is spread across `.docks/AGENTS.md` cross-session transfer vocabulary, `.docks/README.md` clipboard transfer storage, and `.docks/foreman/AGENTS.md` transfer-artifact/work-card routing sections. It decides how actionable state moves between dock sessions and actors. |
-| `inputs` | Current inputs are task shape, completion/blocker state, recipient, transfer kind, source artifact, branch/base facts, workflow profile, runtime blocker state, evidence need, and external publication boundary. They are documented in the universal transfer header, GDI work-card authoring slots, GDI git boundary, Operator reference, and successor handoff reference. |
-| `required_evidence` | Required evidence is docs-backed: dock contracts, transfer skill and references, work-card examples, `docs/dev/active-profile.json`, `docs/dev/workflow-profiles.json`, and helper scripts such as `scripts/agent-handoff`, `scripts/dock-handoff-clipboard`, `.docks/foreman/scripts/handoff`, and `.docks/gdi/scripts/human-needed-tcc-reset`. There is no current schema or recompute test that proves routing completeness. |
+| `id` | No single current id exists. Transfer kinds are named in `.docks/foreman/skills/session-transfer/SKILL.md`; work cards provide durable per-round file names. A future contract could use a handle such as `foreman-transfer-routing`, with subrule ids for `implementer-round`, `operator-run`, `successor-handoff`, `relay-packet`, `correction-round`, and `manual-intervention-packet`. |
+| `summary` | The summary is spread across `.docks/AGENTS.md` cross-session transfer vocabulary, `.docks/AGENTS.md` clipboard transfer storage, and `.docks/foreman/AGENTS.md` transfer-artifact/work-card routing sections. It decides how actionable state moves between dock sessions and actors. |
+| `inputs` | Current inputs are task shape, completion/blocker state, recipient, transfer kind, source artifact, branch/base facts, workflow profile, runtime blocker state, evidence need, and external publication boundary. They are documented in the universal transfer header, Implementer work-card authoring slots, Implementer git boundary, Operator reference, and successor handoff reference. |
+| `required_evidence` | Required evidence is docs-backed: dock contracts, transfer skill and references, work-card examples, `docs/dev/active-profile.json`, `docs/dev/workflow-profiles.json`, and helper scripts such as `scripts/agent-handoff`, `scripts/dock-handoff-clipboard`, `.docks/foreman/scripts/handoff`, and the manual TCC blocker report path. There is no current schema or recompute test that proves routing completeness. |
 | `decision_outputs` | Outputs are transfer kind, recipient, storage home, dispatch payload shape, branch/output expectations, stop conditions, and return-evidence requirements. Unlike the dev workflow router, these outputs are split across artifact creation, clipboard behavior, and recipient completion contracts. |
 | `confidence` | Medium. The model is coherent and actively used, and it is anchored by multiple role-local instruction files. It is lower than `docs/dev/workflow-rules.json` because it is not schema-backed, command-backed, or covered by dedicated route tests. |
 | `invalidation_triggers` | New dock roles, transfer kinds, storage homes, helper behavior, workflow-profile semantics, branch/push authority, TCC recovery policy, Operator stop conditions, GitHub relay policy, and future AFK primitives all require review. |
 | `recompute_command` | None today. Foreman recomputes by reading current docs and current state. `./aos dev recommend --json` helps choose verification/build posture for changed files, but it does not route transfers. |
-| `consumers` | Foreman, GDI, Operator, humans receiving recovery packets, relay authorities, and future transfer-packet/session-trigger/result-routing services. |
+| `consumers` | Foreman, Implementer, Operator, humans receiving recovery packets, relay authorities, and future transfer-packet/session-trigger/result-routing services. |
 | `last_validated_at` | This mapping was inspected on 2026-05-21 against the dock contracts, Foreman session-transfer skill, recipient references, decision-contract sketch, and durable-agent-cognition design note. |
 
 ## Field Strain
@@ -164,7 +164,7 @@ The mapping should be rechecked when any of these change:
   mechanically audited.
 - `recompute_command` must be optional. Transfer routing has no command today,
   and forcing one would encourage premature automation.
-- `consumers` needs room for actor and service consumers. Foreman/GDI/Operator
+- `consumers` needs room for actor and service consumers. Foreman/Implementer/Operator
   are not just passive readers; they each enforce part of the contract.
 - `last_validated_at` should probably be an evidence pointer in future machine
   forms. A timestamp alone does not show which role docs and examples were
@@ -198,7 +198,7 @@ work-card path.
 Transfer routing already requires return evidence and next-owner
 recommendations, but result delivery is manual. Async result routing would turn
 completion reports, work records, evidence records, GitHub-visible branch
-reports, or human-needed packets into durable result routes. The current docs
+reports, or manual-intervention packets into durable result routes. The current docs
 identify the needed result content; they do not provide the delivery primitive.
 
 ### Provider-Neutral Dispatch
@@ -226,8 +226,8 @@ Adjust the field sketch before schema work:
 
 Map one more candidate before preparing a schema sketch. The best next
 candidate is live-versus-deterministic verification routing because it crosses
-entry paths, runtime readiness, TCC blockers, GDI/Operator boundaries, and
-human-needed packets without being identical to transfer routing.
+tooling contexts, runtime readiness, TCC blockers, Implementer/Operator boundaries, and
+manual-intervention packets without being identical to transfer routing.
 
 Only after that should Foreman consider a thin generic Decision Contract schema
 or descriptor. If schema work begins, it should start as an adapter around

@@ -16,10 +16,10 @@
   `node --test tests/afk-launch-attempt-prototype.test.mjs` with 22/22
   passing, and `bash tests/dev-workflow-router.sh`.
 - Trigger receipt: exit code `1`,
-  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=the implementer native subagent`,
   `terminal_substrate.status=observed`,
   `terminal_substrate.driver=process`,
-  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/the implementer native subagent`,
   `terminal_substrate.command=codex --no-alt-screen`,
   `terminal_substrate.bridge_health.ok=true`,
   `provider_acceptance.status=provider_acceptance_unobserved`,
@@ -29,14 +29,14 @@
   classes `provider_acceptance_unobserved` and `cleanup_unverified`.
 - Process evidence: Operator saw the same baseline process set before and
   after the trigger run. Three node/native Codex pairs were pre-existing, one
-  already rooted in `.docks/gdi`; Operator did not kill pre-existing provider
+  already rooted in `the implementer native subagent`; Operator did not kill pre-existing provider
   sessions. No new `pty-proxy.py`, bridge server, or nested
   `codex --no-alt-screen` process remained after the trigger command returned.
 - Transcript evidence: no separate bridge-launched rollout transcript
   materialized. The only rollout modified after trigger time was the Operator
   session's own transcript, with session id
   `019e51e8-bf90-7881-9dc6-5e32f26a135e` and cwd
-  `/Users/Michael/Code/agent-os/.docks/operator`.
+  `/Users/Michael/Code/agent-os/the operator native subagent`.
 - Cleanup proof: Operator removed temporary packet/receipt files, left
   provider-owned Codex transcript/catalog files untouched, and final readiness
   passed.
@@ -51,7 +51,7 @@
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: run one bounded supervised live
-  `./aos dev afk-session-trigger` no-fixture Codex/GDI proof and report whether
+  `./aos dev afk-session-trigger` no-fixture Codex/Implementer proof and report whether
   the accepted source path starts the provider-shaped bridge command, returns a
   non-completed receipt when provider acceptance or cleanup is unproven, and can
   be cleaned up without mutating repo-owned or provider-owned state.
@@ -62,7 +62,7 @@
   - `scripts/afk-launch-attempt-prototype.mjs`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Expected branch/output: stay local on
-  `gdi/afk-dev-session-trigger-supervised-bridge-launch-v0` or the branch that
+  `implementer/afk-dev-session-trigger-supervised-bridge-launch-v0` or the branch that
   contains this card. Make no source, docs, config, provider config, gateway,
   dock profile, hook, GitHub, push, or PR changes. Return a Foreman chat report
   only.
@@ -86,7 +86,7 @@ the real supervised provider branch:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -97,7 +97,7 @@ the real supervised provider branch:
 This run is expected to be non-completed unless live provider acceptance and
 cleanup proof become observable in the bounded window. A valid proof for this
 Operator slice is not "completed"; it is evidence that the guarded command
-selects and attempts `codex --no-alt-screen` from `.docks/gdi`, reports a
+selects and attempts `codex --no-alt-screen` from `the implementer native subagent`, reports a
 structured non-completed state such as `provider_acceptance_unobserved` or
 `cleanup_unverified`, and leaves the runtime clean after Operator cleanup.
 
@@ -120,10 +120,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -152,7 +152,7 @@ Create temporary packet and output paths outside the repo. The packet should use
 - `packet_id`: `operator-afk-dev-session-trigger-supervised-bridge-live`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `docs/durable-agent-cognition-v0`
 - `provider_hint`: `codex`
@@ -166,7 +166,7 @@ Run exactly one no-fixture trigger attempt:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -202,7 +202,7 @@ Expected source-path evidence:
 
 - `dispatch.provider_launch_allowed=true`;
 - `terminal_substrate.command="codex --no-alt-screen"`;
-- launch cwd is `/Users/Michael/Code/agent-os/.docks/gdi`;
+- launch cwd is `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - provider acceptance is non-completed unless a concrete provider session is
   observed;
 - missing cleanup proof does not report `completed`.
@@ -246,7 +246,7 @@ Before reporting:
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the trigger command
   cannot start after one attempt, or Codex launch requires credential/auth
@@ -267,7 +267,7 @@ Before reporting:
 ## Evidence To Return
 
 - Classification: `pass`, `partial_pass:<reason>`, `blocked`, or
-  `human_needed`.
+  `manual_intervention`.
 - Branch, HEAD, durable alias SHA, and after-state
   `git status --short --branch`.
 - Exact commands run and pass/fail results.

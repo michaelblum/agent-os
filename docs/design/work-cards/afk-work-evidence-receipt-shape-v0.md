@@ -1,14 +1,14 @@
 # Work Card: afk-work-evidence-receipt-shape-v0
 
 **Status:** Accepted 2026-05-22
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/afk-design-consolidation-readiness-2026-05-21.md`
 - Single next goal: define a docs-only AFK work/evidence receipt shape for a
@@ -26,7 +26,7 @@ receipt shape before any source prototype.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-work-evidence-receipt-shape-v0`
+- Implementer branch: `implementer/afk-work-evidence-receipt-shape-v0`
 - Accepted commit: `6b6c344df21e4271bdde97c89fbabd33b9237aef`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -43,7 +43,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -62,18 +62,18 @@ The note should:
 - define status vocabulary for no-op, blocked, failed, partially complete, and
   completed outcomes;
 - explain how receipt links should reference packet, scheduler, dispatch,
-  provider catalog/telemetry, commands, route updates, and human-needed facts;
+  provider catalog/telemetry, commands, route updates, and manual-intervention facts;
 - recommend whether the next slice after this should be a deterministic dry-run
   prototype, a correction to the receipt shape, or another docs-only boundary.
 
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -107,7 +107,7 @@ This card depends on local-only accepted design notes and accepted work cards
 on the branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/afk-work-evidence-receipt-shape-v0` from the required start ref. Keep the
+`implementer/afk-work-evidence-receipt-shape-v0` from the required start ref. Keep the
 checkpoint local unless Foreman or Michael explicitly asks for a push or PR.
 
 ## Existing Surfaces To Inspect
@@ -134,7 +134,7 @@ Start with:
 Search as needed for:
 
 ```bash
-rg -n "work receipt|evidence receipt|work record|evidence record|final report|result route|status|blocked|human-needed|telemetry|catalog|proof|verification|artifact|route update" docs shared packages apps .docks AGENTS.md
+rg -n "work receipt|evidence receipt|work record|evidence record|final report|result route|status|blocked|manual-intervention|telemetry|catalog|proof|verification|artifact|route update" docs shared packages apps .docks AGENTS.md
 ```
 
 ## Required Output
@@ -192,7 +192,7 @@ Use this shape:
    - provider availability/auth facts;
    - catalog/telemetry observations;
    - route or notification response;
-   - human-needed packet;
+   - manual-intervention packet;
    - changed-file or artifact references;
    - how to cite missing evidence honestly.
 8. Manual trial example:

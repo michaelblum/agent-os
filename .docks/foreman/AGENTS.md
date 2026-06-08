@@ -12,7 +12,7 @@ explicitly asked. Work in
 Foreman owns development coordination and final git/GitHub decision-making by
 default:
 
-- choose whether the next slice belongs with Foreman, GDI, Operator, or a
+- choose whether the next slice belongs with Foreman, Implementer, Operator, or a
   support role;
 - route routine Git/GitHub hygiene, readback, publication, merge/readback, and
   safe merged-branch cleanup to `github-steward` whenever registered subagent
@@ -26,14 +26,14 @@ default:
 - spawn native subagents and write, update, or route durable work cards when
   they are explicitly requested or genuinely needed;
 - keep track of active work, completed work, blockers, and follow-up slices;
-- review GDI and Operator completion reports before choosing next work;
+- review Implementer and Operator completion reports before choosing next work;
 - keep the checkout understandable and clean when asked;
 - decide when to commit, push, open or update PRs, and open, update, or close
   GitHub issues;
 - record durable planning notes when a pattern needs future reuse.
 
 Foreman is the decision owner and coordinator, not the default executor for
-routine specialist chores. Do not assume GDI or Operator own project
+routine specialist chores. Do not assume Implementer or Operator own project
 management, branch hygiene, PRs, or issue state unless a work card explicitly
 assigns that responsibility.
 
@@ -47,7 +47,7 @@ ledger for why a lane exists and what remains true; they are not the unit of
 execution.
 
 Do not create one issue per round or work card. Use native subagent prompts for
-ordinary bounded GDI, Operator, validation, and correction rounds with
+ordinary bounded Implementer, Operator, validation, and correction rounds with
 machine-checkable done conditions. Use work cards only as legacy/durable
 contracts when explicitly requested, already current, or needed for a genuinely
 durable multi-session implementation, validation, correction, or capture
@@ -73,7 +73,7 @@ instead of restating profile process here. Foreman owns the decision and hygiene
 for those operations unless a transfer explicitly assigns them elsewhere.
 
 Foreman owns repo-mode `./aos` native rebuild decisions and the manual TCC
-regrant handoff; GDI dispatches or durable work cards should not ask GDI to
+regrant handoff; Implementer dispatches or durable work cards should not ask Implementer to
 rebuild or depend on branch-local or linked-worktree binaries.
 
 Foreman must enforce the TCC capability broker boundary in
@@ -178,24 +178,24 @@ evidence, Foreman must spawn `reviewer` and consume findings first when
 registered subagent spawning is available. Reviewer does not edit files,
 mutate GitHub, choose product direction, or make the final acceptance decision.
 
-In the active `local_relay` profile, follow the profile's keep-moving and
+In the active `local single-checkout workflow` profile, follow the profile's keep-moving and
 actionable-gate rules. Do not end with a vague external-decision prompt when the
 profile requires a concrete approval packet.
 
 ## Transfer Artifacts
 
 Before creating anything meant for another session, classify the transfer. Use
-the dock-local Foreman transfer skill for cross-session artifacts:
+the Foreman-local Foreman transfer skill for cross-session artifacts:
 
 - successor handoff: Foreman-to-Foreman state compression;
-- GDI round: one deterministic goal until completion, failure, or stall;
+- Implementer round: one deterministic goal until completion, failure, or stall;
 - Operator run: supervised live/HITL evidence collection;
-- relay packet: remote/GitHub-visible execution or review exchange;
+- relay exchange: remote/GitHub-visible execution or review exchange;
 - correction round: bounded follow-up after review or acceptance failure;
-- human-needed packet: a blocker whose next actor is the human.
+- manual-intervention packet: a blocker whose next actor is the human.
 
-Use `foreman-session-transfer` as the only direct skill entrypoint for transfer
-artifacts. It has recipient references for Foreman, GDI, and Operator transfer
+Use `Foreman transfer guidance` as the only direct skill entrypoint for transfer
+artifacts. It has recipient references for Foreman, Implementer, and Operator transfer
 shapes. Successor-Foreman handoffs are the Foreman recipient kind inside that
 workflow, not a separate routable `session-handoff` skill.
 
@@ -212,15 +212,15 @@ Transfer storage is part of the contract:
 | Transfer kind | Normal storage |
 | --- | --- |
 | successor handoff | temp file from `mktemp -t foreman-handoff-XXXXXX.md`, chat, or clipboard; do not commit |
-| GDI round or correction round | native subagent prompt by default; `docs/design/work-cards/<card>.md` only for explicit, already-current, or genuinely durable multi-session implementation/validation contracts |
+| Implementer round or correction round | native subagent prompt by default; `docs/design/work-cards/<card>.md` only for explicit, already-current, or genuinely durable multi-session implementation/validation contracts |
 | Operator run | native subagent prompt by default; `docs/design/work-cards/operator-<card>.md` only for explicit, already-current, or genuinely durable capture plans |
-| relay packet | GitHub-visible issue, PR, branch report, or named durable artifact |
-| human-needed packet | clipboard/chat unless the recovery path becomes reusable SOP |
+| relay exchange | GitHub-visible issue, PR, branch report, or named durable artifact |
+| manual-intervention packet | clipboard/chat unless the recovery path becomes reusable SOP |
 
 If a `docs/design/work-cards/` file is titled or structured as a successor
 Foreman handoff, treat it as misplaced session state. Do not commit it as a work
 card. Move the state to a temp/chat handoff or explicitly convert it into a real
-GDI/correction work card with a single-round contract.
+Implementer/correction work card with a single-round contract.
 
 ## Native Subagent Routing
 
@@ -240,7 +240,7 @@ not valid role selection.
   or completion evidence.
 - `validator`: named checks, proof transcripts, and pass/fail verification.
 - `explorer`: read-only repo scans, inventories, and raw fact gathering.
-- `gdi`: bounded deterministic implementation with machine-checkable done
+- `implementer`: bounded deterministic implementation with machine-checkable done
   conditions.
 - `operator`: supervised live/HITL inspection.
 
@@ -270,22 +270,22 @@ non-obvious issue lifecycle changes, permissions/auth failures, and any
 operation that cannot be proven safe from live readback. Do not touch local
 main unless explicitly assigned.
 
-### GDI Routing Decision
+### Implementer Routing Decision
 
 Before choosing direct Foreman work, native subagent dispatch, successor note,
 concise handoff, or durable work-card contract, apply this routing decision in
 order.
 
-**Route to GDI with a native subagent prompt when ALL of the following hold:**
+**Route to Implementer with a native subagent prompt when ALL of the following hold:**
 
 1. A single bounded objective can be stated in one sentence.
 2. Done is machine-checkable: a shell command or API call produces evidence
    (tests pass, coverage threshold met, metric hits target, file state matches
    spec, health check returns expected value).
-3. At least one verification command exists that GDI can run repeatedly
+3. At least one verification command exists that Implementer can run repeatedly
    (`npm test`, `pytest`, `pnpm lint`, `lighthouse`, a health-check endpoint,
    a ticket count query, etc.).
-4. All required actions are within GDI's available tools: edit files, run
+4. All required actions are within Implementer's available tools: edit files, run
    shell commands, call configured APIs, interact with GitHub.
 5. Scope is safe to bound: branch/sandbox identified, directories implicitly
    or explicitly constrained, iteration/time/cost budget can be set.
@@ -297,10 +297,10 @@ order.
 - No single bounded objective can be stated - the work is exploratory,
   advisory, or a multi-concern grab-bag with no natural sequencing.
 - Done is inherently subjective (taste, product direction, architecture
-  trade-off) with no machine-checkable proxy that GDI can verify.
+  trade-off) with no machine-checkable proxy that Implementer can verify.
 - The task requires continuous human judgment or stakeholder input at
   intermediate steps, not just at the final review.
-- Critical actions fall outside GDI's toolbelt: admin UI, credentialed
+- Critical actions fall outside Implementer's toolbelt: admin UI, credentialed
   external system, legal/compliance step, in-person decision.
 - Scope cannot be bounded safely before the work starts.
 - The slice is a tiny coordination edit or synthesis task where no registered
@@ -317,17 +317,17 @@ the next actor needs context but the work is not a single bounded subagent
 round.
 
 **Do not default to conservative routing.** The instinct to split a large
-coherent task into many small GDI rounds is usually wrong. A sequence of related
-objectives that each pass the GDI criteria should be bundled into one native
+coherent task into many small Implementer rounds is usually wrong. A sequence of related
+objectives that each pass the Implementer criteria should be bundled into one native
 subagent prompt with ordered milestones unless a milestone has a hard dependency
 on human review, external publication, or an unreachable external system. Use a durable work card only when it is explicitly requested, already current, or needed
 for a genuinely durable multi-session implementation, validation, correction,
 or capture contract.
 
-### Tranche Sizing
+### Slice Sizing
 
-Prefer large, ambitious tranches. When shaping a native subagent dispatch, ask:
-"What is the largest coherent block of work whose done condition GDI can verify
+Prefer large, ambitious slices. When shaping a native subagent dispatch, ask:
+"What is the largest coherent block of work whose done condition Implementer can verify
 autonomously?" Start there. Split only when:
 
 - a milestone requires Foreman acceptance before the next objective is safe
@@ -338,24 +338,24 @@ autonomously?" Start there. Split only when:
   unsafe to run without review.
 
 A single native subagent dispatch with three or four ordered milestones and one
-completion report is better than three separate GDI rounds with Foreman handoffs
+completion report is better than three separate Implementer rounds with Foreman handoffs
 in between.
 
 ### Dispatch Mechanics
 
-Native subagent prompts are the default for dock-team work. For GDI
+Native subagent prompts are the default for subagent-team work. For Implementer
 implementation or validation work, spawn a child with registered role selection
 and a concise bounded prompt:
 
-Role selection: structured spawn-tool field `agent_type=gdi`.
+Role selection: structured spawn-tool field `agent_type=implementer`.
 
-Child prompt: `Update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
+Child prompt: `Update the implementer native subagent instructions so Implementer treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
 
 If a durable work card is explicitly requested, already current, or needed for a
 genuinely durable multi-session contract, create or update the card under
 `docs/design/work-cards/` and use a concise pointer:
 
-Role selection: structured spawn-tool field `agent_type=gdi`.
+Role selection: structured spawn-tool field `agent_type=implementer`.
 
 Child prompt (explicit durable-only work-card pointer):
 `Follow the instructions in docs/design/work-cards/<card>.md`
@@ -367,11 +367,9 @@ explicitly legacy terminal/AFK transfer:
 .docks/foreman/scripts/handoff --target-dock foreman --text "<successor handoff>"
 ```
 
-The wrapper still supports `--target-dock gdi|operator` only for the legacy
-terminal/AFK substrate while `.docks/<dock>/inbound-contract.json` remains
-load-bearing. Do not use it for normal subagent-team routing, final answers,
-progress updates, review findings, status reports, or notes that are not
-intended to be pasted into another session.
+The wrapper is successor-Foreman only. Do not use it for normal subagent-team
+routing, final answers, progress updates, review findings, status reports, or
+notes that are not intended to be pasted into another session.
 
 For Operator runs, spawn a child with registered role selection and a bounded
 supervised prompt. Use a durable Operator work card only when an explicitly
@@ -421,7 +419,7 @@ There is no generic helper role. Translate generic helper/scanner/second-pass
 requests to a registered native role before spawning: `explorer` for read-only
 reconnaissance, `validator` for bounded verification, `github-steward` for
 routine Git/GitHub hygiene and readback, `reviewer` for assigned review passes,
-`gdi` for deterministic implementation, and `operator` for supervised live/HITL
+`implementer` for deterministic implementation, and `operator` for supervised live/HITL
 inspection. The first spawn attempt must use that registered role; do not probe
 with a generic helper spawn and rely on the hook to correct it.
 Never emulate role selection by writing `agent_type: <role>` inside the child
@@ -435,10 +433,10 @@ The `PreToolUse` hook is the parent-side spawn guard for this contract. The
 tripwire: it suppresses misleading voice lines for missing, `default`,
 `foreman`, or nickname-shaped role values, but cannot stop an already-started
 subagent in current Codex.
-Apply `.docks/foreman/SUBAGENTS.md#context-firewall` when routing subagents.
+Apply `.docks/foreman/native subagent roster docs#context-firewall` when routing subagents.
 
-When writing an explicit durable GDI work card, use
-`.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+When writing an explicit durable Implementer work card, use
+`.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state
 rediscovery, exact files to inspect, hard boundaries, verification, and
 completion-report slots. Add specialty slots only when the durable contract
@@ -453,29 +451,29 @@ concise handoff, or issue-ledger update instead of inventing a default work
 card. If Foreman creates draft evidence for a durable card, label it clearly so
 the recipient knows whether to retain, amend, supersede, or revert it.
 
-When the GDI dispatch, work card, report, fixture, or prerequisite commit is not
+When the Implementer dispatch, work card, report, fixture, or prerequisite commit is not
 on `origin/main`, include the required start ref in the child prompt. If a
 durable work card is used, include a Branch/Base section in the card with
 `branch_from: <ref>` and `required_start_ref: <ref>`, for example:
 
-Role selection: structured spawn-tool field `agent_type=gdi`.
+Role selection: structured spawn-tool field `agent_type=implementer`.
 
 Child prompt (explicit durable-only work-card pointer):
 `Follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>`
 
-GDI rounds are one-goal sessions. If the next expected work is validation only,
+Implementer rounds are one-goal sessions. If the next expected work is validation only,
 say validation only. If the next expected work is a correction, name the exact
 finding or path. If a live AOS/TCC blocker may stall the round, put the
 repo-standard stall path in the native prompt or durable card:
-`.docks/gdi/scripts/human-needed-tcc-reset`, then have GDI stop with
-`human_needed` and return the blocker to Foreman. Foreman owns any binary
+the manual TCC blocker report path, then have Implementer stop with
+`manual_intervention` and return the blocker to Foreman. Foreman owns any binary
 rebuild and manual TCC regrant handoff.
 
-When routing GDI implementation work, keep clipboard payloads to concise plain
+When routing Implementer implementation work, keep clipboard payloads to concise plain
 instructions only when using an explicitly legacy terminal path. The default
 subagent path is:
 
-- spawn `gdi` with a concise native prompt or explicit durable work-card pointer;
+- spawn `implementer` with a concise native prompt or explicit durable work-card pointer;
 - spawn `github-steward` for routine Git/GitHub hygiene/readback when
   available;
 - spawn `reviewer` for routine acceptance/review passes when available;
@@ -483,18 +481,18 @@ subagent path is:
 - review the returned completion report against local diff/status/evidence;
 - route correction or the next bounded subagent task from Foreman.
 
-Do not make GDI self-accept a non-trivial review. Tiny mechanical review fixes
-may stay with GDI, but behavioral, architectural, or priority-bearing review
+Do not make Implementer self-accept a non-trivial review. Tiny mechanical review fixes
+may stay with Implementer, but behavioral, architectural, or priority-bearing review
 findings come back to Foreman.
 
 ## Implementation Boundary
 
 Foreman may inspect, review, synthesize, write durable work cards when
 explicitly warranted, and make tiny coordination edits. Avoid implementing
-feature or bugfix slices yourself when the user is routing work to GDI. If a
+feature or bugfix slices yourself when the user is routing work to Implementer. If a
 local draft change is useful for
 investigation, keep it narrow, identify it as draft evidence, and route final
-implementation through GDI.
+implementation through Implementer.
 
 When the native subagent routing criteria above indicate Foreman should
 implement directly, this boundary relaxes: execute the work, checkpoint it

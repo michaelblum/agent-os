@@ -6,10 +6,10 @@
 
 - Result classification: `partial_pass`, structured `not_observed`.
 - Accepted evidence: Operator launched bridge-backed Codex from
-  `.docks/gdi`, verified cleanup, and the corrected prototype returned a
+  `the implementer native subagent`, verified cleanup, and the corrected prototype returned a
   structured `not_observed` result with no `wrong_cwd`.
 - Branch/ref evidence:
-  - branch: `gdi/afk-codex-workspace-root-correlation-correction-v0`
+  - branch: `implementer/afk-codex-workspace-root-correlation-correction-v0`
   - HEAD: `1a344b085bb8cdb8271cab8d711856fb3571f746`
   - `docs/durable-agent-cognition-v0`:
     `1a344b085bb8cdb8271cab8d711856fb3571f746`
@@ -22,12 +22,12 @@
   - port: `17866`
   - `launch_observed_at`: `2026-05-22T17:48:37Z`
   - `/health`: `ok=true`,
-    `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+    `defaultCwd=/Users/Michael/Code/agent-os/the implementer native subagent`,
     `driver=process`
   - `/ensure`: `ok=true`, `session=afk-codex-workspace-root-live`,
     `created=true`, `driver=process`
   - snapshot: live Codex TUI observed in
-    `/Users/Michael/Code/agent-os/.docks/gdi`
+    `/Users/Michael/Code/agent-os/the implementer native subagent`
   - provider session id independently observed: no
   - one allowed status prompt was sent, but no provider session id became
     visible
@@ -54,12 +54,12 @@
   - provider-owned Codex transcript/catalog files were not edited, deleted,
     moved, or cleaned
 - Foreman local follow-up check: read-only explicit `/Users/Michael/.codex`
-  inspection found no candidate under `.docks/gdi`, repo root, `.docks`, or
+  inspection found no candidate under `the implementer native subagent`, repo root, `.docks`, or
   adjacent dock roots after `2026-05-22T17:48:37Z`. The only rollout file
   touched during the live window that matched the work card was Operator's own
   session:
   `019e50cc-bd02-77b0-b6c1-51eb9409d240`, with
-  `session_meta.cwd=/Users/Michael/Code/agent-os/.docks/operator`. No separate
+  `session_meta.cwd=/Users/Michael/Code/agent-os/the operator native subagent`. No separate
   rollout for the bridge-launched Codex process was observed.
 - Next routed slice:
   `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-diagnosis-v0.md`.
@@ -68,7 +68,7 @@
 
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
-- Single next goal: rerun one supervised bridge-backed Codex launch from the GDI
+- Single next goal: rerun one supervised bridge-backed Codex launch from the Implementer
   dock root and confirm the corrected prototype reports a workspace-root Codex
   adapter match when live Codex metadata records the repo root.
 - Source artifacts:
@@ -101,10 +101,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -117,7 +117,7 @@ Start one bridge process with a free local port, preferring `17866`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17866 \
 SIGIL_AGENT_TMUX_SESSION=afk-codex-workspace-root-live \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -128,13 +128,13 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 
 Use `/ensure` for:
 
 - session: `afk-codex-workspace-root-live`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -154,7 +154,7 @@ Create a temporary packet JSON with:
 {
   "packet_id": "operator-afk-codex-workspace-root-live-correlation",
   "source_artifact": "docs/design/work-cards/operator-afk-codex-workspace-root-live-correlation-v0.md",
-  "requested_recipient": "gdi",
+  "requested_recipient": "implementer",
   "cwd": "/Users/Michael/Code/agent-os",
   "worktree": "/Users/Michael/Code/agent-os",
   "required_start_ref": "docs/durable-agent-cognition-v0",
@@ -181,7 +181,7 @@ Run:
 node scripts/afk-launch-attempt-prototype.mjs \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --timestamp <iso-now> \
   --launch-observed-at <launch_observed_at> \
@@ -217,7 +217,7 @@ If needed to explain `not_observed`, `multiple_candidates`, `wrong_cwd`, or a
 non-`workspace_root` match, query:
 
 ```text
-/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex
+/sessions?cwd=/Users/Michael/Code/agent-os/the implementer native subagent&provider=codex
 /sessions?cwd=/Users/Michael/Code/agent-os&provider=codex
 /sessions?provider=codex&all_cwd=true
 ```

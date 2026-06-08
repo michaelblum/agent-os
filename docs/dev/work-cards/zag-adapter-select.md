@@ -121,14 +121,14 @@ All checks must be green before pushing.
 
 ## Relay Review Correction
 
-An existing `gdi/zag-adapter-select` branch at `6cbf927` was reviewed on
+An existing `implementer/zag-adapter-select` branch at `6cbf927` was reviewed on
 2026-05-15 and is not merge-ready yet. The adapter tests pass, but the diff
 includes out-of-scope edits to `packages/toolkit/controls/_html.js` and
 `packages/toolkit/controls/button.js`. Rework the branch so those shared
 control changes are absent from this card. Keep package manifest or lockfile
 changes only if they are required for `@zag-js/select`.
 
-PR #324 (`gdi/retrofit-shared-controls-sweep`) touched
+PR #324 (`implementer/retrofit-shared-controls-sweep`) touched
 `packages/toolkit/controls/button.js` when this card was written. Query live PR
 state when reporting completion and list any current overlap in
 `open_prs_on_same_files`.
@@ -137,11 +137,11 @@ state when reporting completion and list any current overlap in
 
 ```
 profile: agentic_relay
-branch: gdi/zag-adapter-select
+branch: implementer/zag-adapter-select
 branch_from: main
 ```
 
-GDI branches `gdi/zag-adapter-select` from current `origin/main`, implements,
+Implementer branches `implementer/zag-adapter-select` from current `origin/main`, implements,
 verifies, commits, and pushes. Relay partner merges.
 
 ## Completion Report Format
@@ -149,7 +149,7 @@ verifies, commits, and pushes. Relay partner merges.
 ```
 ## Completion Report
 - profile: agentic_relay
-- branch: gdi/zag-adapter-select
+- branch: implementer/zag-adapter-select
 - head_sha: <git rev-parse HEAD>
 - base_sha: <origin/main SHA at branch time>
 - files_changed: <n>

@@ -15,7 +15,7 @@ future agents default to the correct boundary:
 - toolkit owns the default opt-in surface/windowing system;
 - apps own product expression and should not fork platform capabilities.
 
-Foreman has started this as a docs draft. GDI should review, tighten, and finish
+Foreman has started this as a docs draft. Implementer should review, tighten, and finish
 the propagation without turning it into implementation work.
 
 ## Files To Inspect

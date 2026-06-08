@@ -137,11 +137,11 @@ All checks must be green before pushing.
 
 ```text
 profile: agentic_relay
-branch: gdi/zag-adapter-combobox
+branch: implementer/zag-adapter-combobox
 branch_from: main
 ```
 
-GDI branches `gdi/zag-adapter-combobox` from current `origin/main`, implements,
+Implementer branches `implementer/zag-adapter-combobox` from current `origin/main`, implements,
 verifies, commits, and pushes. Relay authority merges.
 
 ## Completion Report Format
@@ -149,7 +149,7 @@ verifies, commits, and pushes. Relay authority merges.
 ```text
 ## Completion Report
 - profile: agentic_relay
-- branch: gdi/zag-adapter-combobox
+- branch: implementer/zag-adapter-combobox
 - head_sha: <git rev-parse HEAD>
 - base_sha: <origin/main SHA at branch time>
 - files_changed: <n>

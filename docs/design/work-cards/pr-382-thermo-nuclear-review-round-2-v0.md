@@ -1,7 +1,7 @@
 # PR 382 Thermo-Nuclear Review — Round 2
 
 Reviewer: Foreman (thermo-nuclear code-quality bar).
-PR: https://github.com/michaelblum/agent-os/pull/382 (`gdi/context-selection-mode-recording-follow-through-v0`).
+PR: https://github.com/michaelblum/agent-os/pull/382 (`implementer/context-selection-mode-recording-follow-through-v0`).
 Base: `main`. Scope reviewed: +15,074 / −143 across 98 files; deep structural read of the new Sigil renderer runtime, the UX-tree command adapter, the toolkit context-session/selection-mode shapers, the context-session schema, and the UX-tree readiness audit.
 
 ## Verdict

@@ -9,7 +9,7 @@ Accepted on `main` at
 
 Foreman accepted the branch after verifying that `--sleep-lease` can now be
 combined with `--supervised-live-launch --i-am-present --json` when the lease
-authorizes Codex/GDI and `max_provider_launches >= 1`. Dry-run sleep-lease
+authorizes Codex/Implementer and `max_provider_launches >= 1`. Dry-run sleep-lease
 behavior is preserved, warm dock reuse and provider-launch dry-run remain
 rejected, and `max_provider_launches: 0` rejects supervised live with
 `sleep_lease_provider_launches_exhausted`.
@@ -33,8 +33,8 @@ Next routed proof:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: allow the experimental AFK session trigger to combine a
   valid sleep lease with the existing human-present supervised-live launch path
   for one short awake proof, without enabling unattended or overnight behavior.
@@ -54,14 +54,14 @@ Next routed proof:
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-sleep-lease-awake-guarded-live-v0` from `origin/main`. Commit and
-  push that GDI branch when verification passes. Do not open a PR, merge,
+  `implementer/afk-sleep-lease-awake-guarded-live-v0` from `origin/main`. Commit and
+  push that Implementer branch when verification passes. Do not open a PR, merge,
   mutate main, mutate GitHub issues/projects, start live providers, or route
   follow-up work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, provider state, current CLI behavior, or prior sleep-lease details.
 Read and rediscover before editing.
 
@@ -82,7 +82,7 @@ short awake proof after Foreman accepts this branch.
 ## Goal
 
 Make this shape valid when the lease and packet authorize exactly the selected
-Codex/GDI supervised launch:
+Codex/Implementer supervised launch:
 
 ```bash
 ./aos dev afk-session-trigger \
@@ -154,14 +154,14 @@ unattended, background, warm-reuse, or overnight shortcut.
 
    - Use the existing fixture-backed supervised-live tests and launch-attempt
      prototype behavior. Do not start a real Codex provider, bridge, tmux
-     session, Agent Terminal surface, or live scheduler in this GDI round.
+     session, Agent Terminal surface, or live scheduler in this Implementer round.
    - The branch should make the later Operator live proof possible; it should
      not perform that proof itself.
 
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`
 - `docs/design/work-cards/afk-sleep-lease-safety-contract-v0.md`
 - `docs/design/work-cards/afk-sleep-lease-dry-run-validation-v0.md`
@@ -189,10 +189,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -256,4 +256,4 @@ Return:
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, external notifier, durable work/evidence
   record, unattended trigger, or follow-up routing occurred beyond the expected
-  GDI branch push.
+  Implementer branch push.

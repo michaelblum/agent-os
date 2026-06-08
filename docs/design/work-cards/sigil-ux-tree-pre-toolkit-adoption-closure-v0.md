@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -19,10 +19,10 @@ toolkit controls/components/panels to emit their own UX tree fragments.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/sigil-ux-tree-trigger-anchor-relations-v0`
-- `required_start_ref`: `origin/gdi/sigil-ux-tree-trigger-anchor-relations-v0`
+- `branch_from`: `implementer/sigil-ux-tree-trigger-anchor-relations-v0`
+- `required_start_ref`: `origin/implementer/sigil-ux-tree-trigger-anchor-relations-v0`
 - `implementation_base_sha`: `f84276ea9ada95ae1d181a2ddb904fbf61659ffc`
-- Expected output branch: `gdi/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
+- Expected output branch: `implementer/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
 - This is stacked on PR #387, which is stacked on #386, #385, #384, #383, and
   #382.
 - Commit the completed slice. Push the output branch for review if branch-push
@@ -358,7 +358,7 @@ Run `./aos ready`. If it reports a repo-mode TCC/input-tap blocker, stop and
 use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 Then rerun:

@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, prior implementation state, or local gate state. Read and
 rediscover before editing. Work in `/Users/Michael/Code/agent-os`, not in
 `.docks/`.
@@ -110,7 +110,7 @@ Suggested V0 path if no existing AOS-owned JS SQLite store is available:
 ~/.config/aos/{repo|installed}/gate/records.jsonl
 ```
 
-The design note mentions a future `gate_decisions` SQLite table. If GDI finds a
+The design note mentions a future `gate_decisions` SQLite table. If Implementer finds a
 clean AOS-owned SQLite store for gate records, use it. If the only available
 SQLite store is gateway-owned, prefer JSONL for V0 and document the reason in
 the completion report: gateway is an adapter, not the gate authority.
@@ -219,7 +219,7 @@ Treat these as starting points, not mandates:
   readback separate from `gate-ask.js`.
 - Keep write failures visible but do not let a record-write failure silently
   authorize a guarded action. Prefer a machine-coded operational error unless
-  GDI finds a strong reason to degrade readback only.
+  Implementer finds a strong reason to degrade readback only.
 
 ## Verification
 
@@ -248,7 +248,7 @@ mocked receptor where possible, and prove at least:
 8. canonical `~/.config/aos/repo` state is not mutated by tests.
 
 If Swift command routing or command registry changes, `./aos dev build` and
-`bash tests/help-contract.sh` are required. If GDI keeps the change purely in
+`bash tests/help-contract.sh` are required. If Implementer keeps the change purely in
 Node without discoverable command changes, explain why any Swift build was
 skipped.
 

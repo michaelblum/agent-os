@@ -12,9 +12,9 @@ present in the repo/workspace after the branch is checked out.
 
 ## Branch/Base
 
-- branch_from: `origin/gdi/toolkit-agent-terminal-foundation-v0`
+- branch_from: `origin/implementer/toolkit-agent-terminal-foundation-v0`
 - required_start_ref: `91b1c441356a12b543d30ccdd8a2de930281eec6`
-- output_branch: `gdi/toolkit-agent-terminal-foundation-v0`
+- output_branch: `implementer/toolkit-agent-terminal-foundation-v0`
 
 ## Review Finding
 

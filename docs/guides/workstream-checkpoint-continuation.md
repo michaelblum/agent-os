@@ -37,12 +37,12 @@ Inspect enough local state to make the choice:
 3. If acceptance state, synthesis docs, or work-card status is stale, update it
    in the same branch with a small docs checkpoint.
 4. If the accepted work exposes one concrete deterministic correction, route a
-   correction card to GDI.
+   correction card to Implementer.
 5. If the accepted work exposes one concrete implementation or docs follow-up
-   that does not need human-only state, route that next local GDI card.
+   that does not need human-only state, route that next local Implementer card.
 6. If the next meaningful proof is a supervised live run, route an Operator
    packet when readiness is available. If permissions, credentials, or a
-   human-operated external surface are missing, emit a human-needed packet with
+   human-operated external surface are missing, emit a manual-intervention packet with
    the exact recovery path.
 7. If no local correction, implementation, docs, or supervised proof step
    remains, classify the branch as publication-ready and state that external
@@ -50,7 +50,7 @@ Inspect enough local state to make the choice:
 
 ## Completion Report Review
 
-When a GDI or Operator completion report arrives, Foreman should use this
+When a Implementer or Operator completion report arrives, Foreman should use this
 procedural pass before accepting or routing follow-up work:
 
 1. Recompute local state with `git status --short --branch`, the relevant
@@ -67,7 +67,7 @@ procedural pass before accepting or routing follow-up work:
      external publication, runtime permissions, or product judgment.
 4. After acceptance, run the no-neutral-acceptance ladder in the Foreman dock
    contract. Acceptance must end in a local checkpoint, routed next slice,
-   Operator or human-needed packet, or named external gate.
+   Operator or manual-intervention packet, or named external gate.
 
 ## Local Integration Gate
 
@@ -102,11 +102,11 @@ Use publication as the next action only when at least one is true:
 - the human asked to push, open a PR, update an issue, or publish externally;
 - the workstream has reached its stated local exit criteria and all remaining
   next steps are external review, merge, or stakeholder decision;
-- a relay packet or result route explicitly allows and requires the external
+- a relay exchange or result route explicitly allows and requires the external
   mutation.
 
 When publication is blocked only by missing permission, stop with a concrete
-human-needed packet. Do not present publication versus continuation as a
+manual-intervention packet. Do not present publication versus continuation as a
 generic preference question.
 
 ## Branch Hygiene Gate
@@ -127,7 +127,7 @@ remaining external hygiene decision.
 End the coordinator turn with one of these states:
 
 - accepted checkpoint plus next work card or dispatch copied;
-- accepted checkpoint plus Operator packet or human-needed recovery path;
+- accepted checkpoint plus Operator packet or manual-intervention recovery path;
 - correction routed with the exact finding;
 - publication-ready checkpoint with the exact external gate named.
 

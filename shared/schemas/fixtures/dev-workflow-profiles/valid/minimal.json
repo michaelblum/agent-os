@@ -4,7 +4,7 @@
   "override_policy": "User instruction overrides the active profile unless unsafe.",
   "axes": {
     "dock": "Role boundary.",
-    "entry_path": "Capability layer.",
+    "entry_path": "Tooling context.",
     "workflow_profile": "Git and review posture."
   },
   "profiles": [

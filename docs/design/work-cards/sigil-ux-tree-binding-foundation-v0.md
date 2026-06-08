@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -20,11 +20,11 @@ viewed and later edited without hand-editing `main.js`.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/context-selection-mode-recording-follow-through-v0`
+- `branch_from`: `implementer/context-selection-mode-recording-follow-through-v0`
 - `required_start_ref`: `a9915c7b8f090a672c24c411ea55ed2fa56488a1`
-- Expected output branch: `gdi/sigil-ux-tree-binding-foundation-v0`
+- Expected output branch: `implementer/sigil-ux-tree-binding-foundation-v0`
 - Commit the completed slice. Push the output branch for review if the current
-  GDI runtime has branch-push credentials available. Do not open a PR unless
+  Implementer runtime has branch-push credentials available. Do not open a PR unless
   explicitly reassigned.
 
 ## Product Direction

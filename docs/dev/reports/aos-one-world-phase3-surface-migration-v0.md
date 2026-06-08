@@ -2,7 +2,7 @@
 
 Date: 2026-06-06
 
-Branch: `gdi/aos-one-world-phase3-surface-migration-v0`
+Branch: `implementer/aos-one-world-phase3-surface-migration-v0`
 
 Start ref: `678b92e57851c68decc1e3d5a0ad215ae8090ec8`
 
@@ -99,7 +99,7 @@ bounds. Frames with actual bounds changes still trigger structural ops via
 
 ### Live Probe Measurement — Task 1a
 
-**Measurement context:** `avatar-main` canvas live, avatar visible, `hitTargetFrame: [1220, 778, 80, 80]`. `surfaceTransportProbe` enabled and reset on `avatar-main`. Measurement captured 2026-06-06 on branch `gdi/aos-one-world-phase3-surface-migration-v0` at commit `b2bc21ec`.
+**Measurement context:** `avatar-main` canvas live, avatar visible, `hitTargetFrame: [1220, 778, 80, 80]`. `surfaceTransportProbe` enabled and reset on `avatar-main`. Measurement captured 2026-06-06 on branch `implementer/aos-one-world-phase3-surface-migration-v0` at commit `b2bc21ec`.
 
 **Avatar visible, controls CLOSED — 8.7 seconds (~60fps idle):**
 
@@ -279,7 +279,7 @@ See §Task 2 Discovery below for the full investigation that motivated Option A.
 
 ## Task 2 Discovery: The Embedded Path Already Exists
 
-During feasibility investigation, GDI traced the full cross-canvas traffic loop and
+During feasibility investigation, Implementer traced the full cross-canvas traffic loop and
 discovered that the migration is structurally simpler than Foreman's instruction
 anticipated.
 
@@ -307,7 +307,7 @@ avatar-main receives sigil.avatar_panel.control_change
   → publishSnapshot() (in-process: updates surfaceState.snapshot + liveJs.avatarControls)
 ```
 
-**GDI's earlier characterization in §Task 1b + Task 2 Blocker was incorrect:**
+**Implementer's earlier characterization in §Task 1b + Task 2 Blocker was incorrect:**
 `compact-surface-session.js:80` (`routeChangedControls → syncState + publishSnapshot`)
 runs in `avatar-main` as the owner-side geometry apply — it is in-process and not a
 cross-canvas IPC source. The actual cross-canvas traffic source is `panel.js:sendToOwner`.
@@ -413,7 +413,7 @@ wrap the session in a `co-located-panel.js`-style owner layer).
   store), Option B is more scope than "insert `createAvatarSignalStore`" — it implies
   designing a production-grade signal substrate first.
 
-**GDI's read:**
+**Implementer's read:**
 
 Option A satisfies the IPC gate. Option B as described (inserting the throwaway store)
 contradicts the Phase 1 disclaimer and produces a production surface backed by a
@@ -428,7 +428,7 @@ scaffolding artifact. The three-way choice is:
 The Phase 3 goal contract (§2.2) states "cross-canvas IPC → 0" — not "use signal-store
 substrate." Option A maps directly to that gate.
 
-**Recommended:** Foreman resolve the option, then GDI follows up with: embed path
+**Recommended:** Foreman resolve the option, then Implementer follows up with: embed path
 activation + test coverage for the untested path + live-canvas input-routing verification
 (the unverified crux).
 

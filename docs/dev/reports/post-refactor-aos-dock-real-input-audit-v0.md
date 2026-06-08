@@ -4,7 +4,7 @@
 
 Foreman audit on `main` at `77cdbdb1` after the visual-object architecture and
 command-surface extraction refactors. The audit started by reading the newest
-GDI work card, `docs/design/work-cards/gdi-sigil-avatar-hit-target-click-drag-correction-v0.md`.
+Implementer work card, `docs/design/work-cards/implementer-sigil-avatar-hit-target-click-drag-correction-v0.md`.
 
 ## Runtime State
 
@@ -111,33 +111,33 @@ Dock discovery and deterministic hook checks are healthy:
 
 ```bash
 ./aos dev docks explain foreman --json
-./aos dev docks explain gdi --json
+./aos dev docks explain implementer --json
 ./aos dev docks explain operator --json
 ./aos dev docks capabilities foreman --json
-./aos dev docks capabilities gdi --json
-./aos dev docks capabilities operator --entry-path aos_developer --json
+./aos dev docks capabilities implementer --json
+./aos dev docks capabilities operator --tooling-context aos_developer --json
 bash tests/dock-hook-isolation.sh
 ```
 
 The role contracts still say to use AOS first for readiness, runtime status,
 canvases, Agent Terminal surfaces, dock communication, and input routing.
-Provider PTY/tmux helpers still exist under `.docks/harness/`, but current tests
+Provider PTY/tmux helpers still exist under `Foreman hook scripts`, but current tests
 cover them as provider-control mechanics rather than as the first runtime
 control plane.
 
 The practical degradation is workflow-level: because repo-mode live readiness is
 blocked and the strongest real-input scenarios either fail early or are not in
-default verification loops, Foreman/GDI can complete large deterministic slices
+default verification loops, Foreman/Implementer can complete large deterministic slices
 without ever dogfooding `./aos do`/real pointer paths.
 
 ## Next Correction Slice
 
-Route one GDI round to repair the test/harness drift:
+Route one Implementer round to repair the test/harness drift:
 
 - update or replace stale Sigil shell smoke assertions with the current
   avatar/radial contract;
 - make live real-input scenarios skip before readiness work when
   `AOS_REAL_INPUT_OK` is absent;
 - add a safety gate around the low-latency native status-item click helper;
-- preserve the command-surface refactor and avoid Swift rebuilds unless GDI
+- preserve the command-surface refactor and avoid Swift rebuilds unless Implementer
   proves a native primitive bug.

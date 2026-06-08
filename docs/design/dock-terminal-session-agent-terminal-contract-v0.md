@@ -26,9 +26,9 @@ async routing, or define final product UI.
 ### Dock Terminal Session
 
 The dock terminal session is an AOS-owned resource keyed by dock identity, such
-as `foreman`, `gdi`, or `operator`. It owns:
+as `foreman`, `implementer`, or `operator`. It owns:
 
-- dock cwd, normally `.docks/<dock>`;
+- dock cwd, normally `the session root`;
 - provider command and argv, such as `codex --no-alt-screen`;
 - PTY handle and terminal geometry;
 - lifecycle state, including start, attach, detach, suspend, resume, and retire;
@@ -45,7 +45,7 @@ observations.
 Provider-specific reset commands define conversation boundaries inside a reused
 provider process. For Codex dock sessions, `/clear` starts a fresh provider
 conversation context while the dock terminal session and provider process remain
-warm. `/goal clear` is separate stale-goal recovery for GDI goal-mode state; it
+warm. clear the stale prompt state is separate stale-goal recovery for Implementer goal-mode state; it
 is not the normal conversation reset command.
 
 Conversation freshness is proven by provider metadata and correlated session
@@ -53,13 +53,13 @@ records, not by killing and relaunching the process.
 
 ### Dock Inbound Message Contract
 
-`.docks/<dock>/inbound-contract.json` remains the provider entry-shape source.
+`native subagent prompt contract` remains the provider entry-shape source.
 Senders and AFK tooling consume it to format provider input without hardcoding
 role syntax:
 
-- GDI/Codex interactive work entry uses provider prefix `/goal ` followed by
+- Implementer/Codex interactive work entry uses provider prefix  followed by
   the plain Foreman payload.
-- Operator/Codex receives the plain supervised payload with no `/goal` prefix.
+- Operator/Codex receives the plain supervised payload with no `` prefix.
 - Foreman/Codex receives plain successor handoff or coordination payloads.
 
 The copied transfer payload stays plain. The interactive provider entry shape is
@@ -75,7 +75,7 @@ terminal path, provider-specific store mutation path, or screen-control path.
 For warm Codex reuse, the intended input sequence is:
 
 1. submit the provider conversation reset command, such as `/clear`;
-2. submit the role-shaped provider entry built from the dock inbound contract;
+2. submit the role-shaped provider entry built from the dock native subagent prompt contract;
 3. record byte-level input receipt facts, terminal identity, and structured
    provider acceptance evidence.
 
@@ -99,9 +99,9 @@ the facts below are the V0 contract.
 ```json
 {
   "record_type": "aos.dock_terminal_session",
-  "dock": "gdi",
-  "session_id": "dock-terminal:gdi:<stable-id>",
-  "cwd": "/Users/Michael/Code/agent-os/.docks/gdi",
+  "dock": "implementer",
+  "session_id": "dock-terminal:implementer:<stable-id>",
+  "cwd": "/Users/Michael/Code/agent-os/the implementer native subagent",
   "provider": "codex",
   "provider_command": ["codex", "--no-alt-screen"],
   "pty": {
@@ -137,15 +137,15 @@ of claiming ownership of a fresh provider process in warm mode:
   },
   "terminal_substrate": {
     "owner": "aos.dock_terminal_session",
-    "dock_terminal_session_id": "dock-terminal:gdi:<stable-id>",
+    "dock_terminal_session_id": "dock-terminal:implementer:<stable-id>",
     "status": "warm_tui_reused",
-    "cwd": "/Users/Michael/Code/agent-os/.docks/gdi",
+    "cwd": "/Users/Michael/Code/agent-os/the implementer native subagent",
     "input_submission": {
       "context_reset_submitted": true,
       "context_reset_command": "/clear",
-      "provider_prompt_contract_path": ".docks/gdi/inbound-contract.json",
+      "provider_prompt_contract_path": "the implementer native prompt contract",
       "provider_prompt_mode": "codex_goal",
-      "provider_prompt_prefix": "/goal ",
+      "provider_prompt_prefix": "",
       "first_dispatch_character": "/"
     }
   },
@@ -153,7 +153,7 @@ of claiming ownership of a fresh provider process in warm mode:
     "status": "provider_session_observed",
     "observation_source": "codex_adapter_metadata",
     "provider_session_id": "<new session id>",
-    "provider_reported_cwd": "/Users/Michael/Code/agent-os/.docks/gdi",
+    "provider_reported_cwd": "/Users/Michael/Code/agent-os/the implementer native subagent",
     "evidence_refs": [
       "provider_catalog:codex:<session-id>",
       "provider_metadata:cwd-time-correlation"
@@ -174,7 +174,7 @@ Agent Terminal observability can use a companion receipt or view model:
 ```json
 {
   "record_type": "aos.agent_terminal_observation",
-  "dock_terminal_session_id": "dock-terminal:gdi:<stable-id>",
+  "dock_terminal_session_id": "dock-terminal:implementer:<stable-id>",
   "rendered_by": "agent_terminal",
   "attach_state": "attached",
   "geometry": { "cols": 100, "rows": 31 },
@@ -214,7 +214,7 @@ Warm reuse maps to lifecycle, not launch:
 - the dock terminal session remains running;
 - the provider process is reused;
 - `/clear` creates the provider conversation boundary;
-- the role-specific dispatch is formatted from the target dock inbound contract;
+- the role-specific dispatch is formatted from the target dock native subagent prompt contract;
 - AFK submits through the dock PTY input path;
 - cleanup returns the warm terminal lease to a named disposition rather than
   requiring child-process exit.
@@ -236,7 +236,7 @@ down from the Sigil bridge proof into an AOS dock terminal session primitive:
 3. make Agent Terminal attach to that registry instead of owning session
    lifecycle privately;
 4. make AFK warm reuse target the registry's PTY input endpoint and dock
-   inbound contract formatter;
+   native subagent prompt contract formatter;
 5. keep provider acceptance sourced from host/provider metadata adapters and
    cleanup/lease receipts.
 
@@ -247,7 +247,7 @@ provider driving:
 
 - add a schema or documented fixture for `aos.dock_terminal_session`;
 - add a local in-process registry/helper that can create a fixture-backed dock
-  terminal session receipt for `foreman`, `gdi`, and `operator`;
+  terminal session receipt for `foreman`, `implementer`, and `operator`;
 - expose a narrow bridge/read API that Agent Terminal can consume for session
   identity, cwd, command, PTY geometry, lifecycle, and lease disposition;
 - update AFK warm reuse receipt construction to reference
@@ -260,9 +260,9 @@ Expected tests for that slice:
 - Agent Terminal server/API test proving it reads dock terminal session identity
   and does not claim provider acceptance from visual state;
 - AFK launch/session trigger tests proving warm reuse references the dock
-  terminal session id, consumes `.docks/<dock>/inbound-contract.json`, preserves
-  GDI `/goal ` versus Operator plain input, and keeps `/clear` separate from
-  `/goal clear`;
+  terminal session id, consumes `native subagent prompt contract`, preserves
+  Implementer  versus Operator plain input, and keeps `/clear` separate from
+  clear the stale prompt state;
 - regression tests for cold bridge launch, PTY input, resize, and
   metadata-backed provider acceptance;
 - `git diff --check`.

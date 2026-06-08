@@ -18,7 +18,7 @@ surface and require an explicit human-supervised launch gate:
 ./aos dev afk-session-trigger \
   --packet <packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json
@@ -26,7 +26,7 @@ surface and require an explicit human-supervised launch gate:
 
 The command must reject ambiguous launch flags such as bare `--start`,
 `--live`, or `--launch-provider`. A provider process may start only after the
-command has validated packet/current-state facts, resolved `.docks/gdi`, proved
+command has validated packet/current-state facts, resolved `the implementer native subagent`, proved
 human-supervised intent from explicit flags, claimed the idempotence key, and
 created a pre-launch receipt that can prevent duplicate launches.
 
@@ -42,7 +42,7 @@ route `not_attempted`.
 
 The accepted live wrapper proof in
 `docs/design/work-cards/operator-afk-dev-launch-attempt-command-live-wrapper-v0.md`
-proves a supervised bridge launch can start nested Codex from `.docks/gdi`,
+proves a supervised bridge launch can start nested Codex from `the implementer native subagent`,
 capture PTY/input evidence, materialize a provider-owned Codex rollout, and
 feed read-only live evidence through `./aos dev afk-launch-attempt` as
 `provider_session_observed` with exact Codex adapter correlation. It also
@@ -77,11 +77,11 @@ The first live mode may launch a provider only when all gate checks pass:
 - `--json` is present.
 - `--provider codex` is selected explicitly or by a packet hint confirmed by
   `--provider codex`.
-- `--dock gdi` is selected explicitly or by a packet recipient confirmed by
-  `--dock gdi`.
+- `--dock implementer` is selected explicitly or by a packet recipient confirmed by
+  `--dock implementer`.
 - The packet source artifact exists, `required_start_ref` resolves, and the
   current repo/worktree facts match the accepted launch policy.
-- `.docks/gdi/dock.json` and `.docks/gdi` resolve.
+- implementer session metadata and `the implementer native subagent` resolve.
 - No in-process or receipt-backed duplicate launch exists for the idempotence
   key.
 - The receipt writer can persist or emit the pre-launch receipt before starting
@@ -97,12 +97,12 @@ not authorize background or unattended scheduling.
 
 ## Provider And Dock Scope
 
-The first live source slice should be Codex-only and GDI-only:
+The first live source slice should be Codex-only and Implementer-only:
 
 ```text
 provider: codex
-dock: gdi
-launch root: .docks/gdi
+dock: implementer
+launch root: the implementer native subagent
 terminal substrate: supervised local bridge or lower-level helper that exposes
   equivalent bridge health, session handle, PTY/input, and cleanup evidence
 ```
@@ -219,9 +219,9 @@ Sketch:
     "dispatch_attempt_id": "dispatch-<stable-id>",
     "launch_attempt_id": "launch-attempt-<stable-id>",
     "selected_provider": "codex",
-    "selected_dock": "gdi",
-    "dock_profile_ref": ".docks/gdi/dock.json",
-    "launch_root": ".docks/gdi",
+    "selected_dock": "implementer",
+    "dock_profile_ref": "implementer session metadata",
+    "launch_root": "the implementer native subagent",
     "action": "supervised-live-launch",
     "provider_launch_allowed": true,
     "human_supervision": {
@@ -239,7 +239,7 @@ Sketch:
   "provider_acceptance": {
     "status": "provider_session_observed|not_observed",
     "provider_session_id": "<id or not_observed>",
-    "provider_reported_cwd": ".docks/gdi or not_observed"
+    "provider_reported_cwd": "the implementer native subagent or not_observed"
   },
   "codex_adapter": {
     "status": "observed|not_observed",
@@ -317,7 +317,7 @@ Deterministic verification:
 
 Operator evidence:
 
-- run exactly one supervised Codex launch from `.docks/gdi`;
+- run exactly one supervised Codex launch from `the implementer native subagent`;
 - record `./aos ready` before launch;
 - capture bridge health, `/ensure`, resize/input or equivalent substrate
   evidence;
@@ -335,7 +335,7 @@ Stop conditions:
 - the command cannot write its pre-launch receipt;
 - duplicate idempotence cannot be checked before launch;
 - cleanup cannot be proven;
-- selected provider is not Codex or selected dock is not GDI.
+- selected provider is not Codex or selected dock is not Implementer.
 
 ## Recommended Next Work Card
 
@@ -352,7 +352,7 @@ Add a guarded, supervised-live Codex-only mode to experimental
 ./aos dev afk-session-trigger. The command must require
 --supervised-live-launch and --i-am-present, validate the packet/current-state
 facts proven by the dry-run command, prevent duplicate launches before starting
-any provider process, launch only Codex from .docks/gdi through the accepted
+any provider process, launch only Codex from the implementer native subagent through the accepted
 terminal substrate path, emit a no-schema supervised-live receipt that preserves
 scheduler/dispatch/terminal/provider/correlation/result-route ownership, and
 prove cleanup before reporting terminal success.
@@ -372,7 +372,7 @@ Likely files:
 Behavior:
 
 - preserve the accepted dry-run path unchanged;
-- add Codex/GDI-only supervised live launch behind explicit human-present
+- add Codex/Implementer-only supervised live launch behind explicit human-present
   flags;
 - return unavailable-provider receipts for Claude, Gemini, or other providers;
 - emit duplicate/idempotence, cleanup, provider acceptance, and Codex adapter

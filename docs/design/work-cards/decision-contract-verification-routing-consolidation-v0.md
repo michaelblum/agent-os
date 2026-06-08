@@ -1,7 +1,7 @@
 # Work Card: decision-contract-verification-routing-consolidation-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -16,11 +16,11 @@ Follow-up to:
 Foreman cadence note: prior slices intentionally stayed narrow while the term
 was unstable. That is now too fine-grained. This round should combine the next
 candidate mapping with consolidation so Foreman can decide the next workstream
-without another single-note GDI loop.
+without another single-note Implementer loop.
 
 Accepted evidence:
 
-- GDI branch: `gdi/decision-contract-verification-routing-consolidation-v0`
+- Implementer branch: `implementer/decision-contract-verification-routing-consolidation-v0`
 - Accepted commit: `bbc84ffc7a10ebe6c33e15a862174e4a508abad2`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -35,7 +35,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -55,19 +55,19 @@ whether it should remain docs-only while AFK/session primitives mature.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/decision-contract-inventory-2026-05-21.md`
 - `docs/design/notes/decision-contract-shape-sketch-2026-05-21.md`
 - `docs/design/notes/decision-contract-transfer-routing-mapping-2026-05-21.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
+- `docs/recipes/agent-tooling-contexts-and-verification.md`
 - `docs/recipes/aos-surface-interaction-decision-tree.md`
 - `docs/recipes/surface-inspector-controlled-browser-dom-smoke.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 
 ## Rediscover State
 
@@ -90,7 +90,7 @@ This card depends on local-only design notes and accepted work cards on the
 branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/decision-contract-verification-routing-consolidation-v0` from the
+`implementer/decision-contract-verification-routing-consolidation-v0` from the
 required start ref. Keep the checkpoint local unless Foreman or Michael
 explicitly asks for a push or PR.
 
@@ -98,15 +98,15 @@ explicitly asks for a push or PR.
 
 Start with:
 
-- `docs/recipes/agent-entry-paths-and-verification.md` - entry path and
+- `docs/recipes/agent-tooling-contexts-and-verification.md` - tooling context and
   verification routing.
 - `AGENTS.md` - repo-wide readiness, host-shell, AOS developer, and dev-router
   guidance.
 - `.docks/foreman/AGENTS.md` - live verification blocker handling and next-step
   ladder.
-- `.docks/gdi/AGENTS.md` - deterministic verification, live blocker, and
-  human-needed handling.
-- `.docks/operator/AGENTS.md` - supervised live/HITL evidence boundary.
+- the implementer native subagent instructions - deterministic verification, live blocker, and
+  manual-intervention handling.
+- `the operator native subagent contract` - supervised live/HITL evidence boundary.
 - `docs/dev/workflow-rules.json` - changed-file verification recommendations.
 - `docs/design/notes/decision-contract-shape-sketch-2026-05-21.md` - current
   field sketch.
@@ -116,7 +116,7 @@ Start with:
 Search as needed for:
 
 ```bash
-rg -n "live|deterministic|ready|TCC|Input Monitoring|Accessibility|human_needed|human-needed|Operator|verification|entry path|runtime evidence|docs-only|rebuild|smoke" AGENTS.md .docks docs
+rg -n "live|deterministic|ready|TCC|Input Monitoring|Accessibility|manual_intervention|manual-intervention|Operator|verification|tooling context|runtime evidence|docs-only|rebuild|smoke" AGENTS.md .docks docs
 ```
 
 ## Required Output

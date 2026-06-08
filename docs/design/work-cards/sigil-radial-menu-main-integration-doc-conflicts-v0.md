@@ -3,20 +3,20 @@
 ## Tracker
 
 - Source branch to integrate:
-  `origin/gdi/sigil-radial-menu-data-driven-3d-config-v0`
+  `origin/implementer/sigil-radial-menu-data-driven-3d-config-v0`
 - Source branch current head:
   `5afe7bd268c8531a38ab970f4f526dd889a9ea95`
 - Target base:
   `main` at or after `f60d5376a3702f0957dae3262b47b00c4e73abbb`
 - Foreman preflight on 2026-05-16:
-  `git merge-tree --write-tree main origin/gdi/sigil-radial-menu-data-driven-3d-config-v0`
+  `git merge-tree --write-tree main origin/implementer/sigil-radial-menu-data-driven-3d-config-v0`
   reports add/add conflicts only in:
   - `docs/design/work-cards/sigil-3d-thing-editor-subjects-v0.md`
   - `docs/design/work-cards/sigil-context-menu-data-driven-controls-v0.md`
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. This is an integration slice, not a rewrite of either workstream.
 
@@ -33,11 +33,11 @@ preserve both.
 
 ## Role Routing
 
-- GDI owns this work card: create the integration branch, merge the radial-menu
+- Implementer owns this work card: create the integration branch, merge the radial-menu
   branch, resolve the expected doc conflicts, run deterministic verification,
   push the integration branch, and report results.
 - Foreman owns review, acceptance, merge to `main`, branch deletion, and any
-  follow-on routing after GDI reports completion.
+  follow-on routing after Implementer reports completion.
 - Operator is not the owner for this slice. Use Operator only if Foreman later
   routes supervised/live verification because deterministic checks pass and the
   next meaningful proof needs real input or human observation.
@@ -64,10 +64,10 @@ Run:
 
 ```bash
 git status --short --branch
-git fetch origin main gdi/sigil-radial-menu-data-driven-3d-config-v0
-git rev-parse main origin/main origin/gdi/sigil-radial-menu-data-driven-3d-config-v0
-git log --oneline --left-right --cherry-pick main...origin/gdi/sigil-radial-menu-data-driven-3d-config-v0
-git merge-tree --write-tree main origin/gdi/sigil-radial-menu-data-driven-3d-config-v0
+git fetch origin main implementer/sigil-radial-menu-data-driven-3d-config-v0
+git rev-parse main origin/main origin/implementer/sigil-radial-menu-data-driven-3d-config-v0
+git log --oneline --left-right --cherry-pick main...origin/implementer/sigil-radial-menu-data-driven-3d-config-v0
+git merge-tree --write-tree main origin/implementer/sigil-radial-menu-data-driven-3d-config-v0
 ./aos dev recommend --json
 ```
 
@@ -82,8 +82,8 @@ Create a new integration branch from current `main`, for example:
 ```bash
 git switch main
 git pull --ff-only origin main
-git switch -c gdi/sigil-radial-main-integration-v0
-git merge --no-ff origin/gdi/sigil-radial-menu-data-driven-3d-config-v0
+git switch -c implementer/sigil-radial-main-integration-v0
+git merge --no-ff origin/implementer/sigil-radial-menu-data-driven-3d-config-v0
 ```
 
 Resolve the two expected doc conflicts and complete the merge. Do not push

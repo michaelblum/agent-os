@@ -3,7 +3,7 @@
 Durable report for analyst review.
 
 Prepared from repo state around
-`gdi/sigil-context-menu-compact-surface-lifecycle-extraction-v0` at
+`implementer/sigil-context-menu-compact-surface-lifecycle-extraction-v0` at
 `f38768bd62e45245fe83e9881ca0d5b81da76c75`, with the PR #397 stack already
 accepted through the pure snapshot projection correction.
 
@@ -116,7 +116,7 @@ accepted through the pure snapshot projection correction.
   target model can make a complex rendered UI more agent-readable without
   giving agents arbitrary DOM spelunking as the primary contract.
 - Evidence quality: strong; compact records and snapshot payloads are covered
-  by deterministic tests and recent Foreman/GDI verification.
+  by deterministic tests and recent Foreman/Implementer verification.
 
 ### Material E: Surface Inspector and annotation projection consumers
 
@@ -271,7 +271,7 @@ accepted through the pure snapshot projection correction.
 
 ### Next (1-2 Weeks)
 
-- Action: Route a GDI audit card to produce a mapping table and JSON fixtures
+- Action: Route a Implementer audit card to produce a mapping table and JSON fixtures
   for five current producers/consumers:
   `normalizeSemanticTarget`, toolkit form records, Sigil compact records,
   Surface Inspector adapter candidates, and workbench semantic targets.

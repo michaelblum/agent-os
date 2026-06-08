@@ -2,7 +2,7 @@
 
 ## Goal
 
-Fix the aggregate review findings on `gdi/zag-adapter-horizon` without
+Fix the aggregate review findings on `implementer/zag-adapter-horizon` without
 rewriting the existing per-adapter checkpoint commits.
 
 This is a forward correction card. Add one or more new correction commits after
@@ -16,7 +16,7 @@ Foreman reviewed the completed Zag adapter horizon at:
 ```text
 head_sha: 3c00784a3d4bc13492d53a105bf41097a4c42c86
 base_sha: b1514c13d6ca954a95d40c3b53b1c6e0bb05653e
-branch: gdi/zag-adapter-horizon
+branch: implementer/zag-adapter-horizon
 ```
 
 Deterministic verification:
@@ -144,7 +144,7 @@ generated untracked directory before reporting completion.
 - profile: agentic_relay
 - horizon: zag-adapter-horizon
 - correction_card: docs/dev/work-cards/zag-adapter-horizon-review-corrections.md
-- branch: gdi/zag-adapter-horizon
+- branch: implementer/zag-adapter-horizon
 - prior_reviewed_head: 3c00784a3d4bc13492d53a105bf41097a4c42c86
 - new_head_sha: <git rev-parse HEAD>
 - correction_commits: <list sha + subject>

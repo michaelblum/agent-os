@@ -20,14 +20,14 @@
 - Trigger receipt: exit code `1`, top-level
   `status=provider_acceptance_unobserved`,
   `packet.validation_status=valid`, `scheduler.lifecycle_state=rejected`,
-  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=the implementer native subagent`,
   `terminal_substrate.status=observed`, driver `process`, cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`, command
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, command
   `codex --no-alt-screen`,
   `terminal_substrate.snapshot_ref=inline:terminal_substrate.snapshot_summary`,
   `provider_acceptance.status=provider_acceptance_unobserved`, and mismatch
   class `provider_acceptance_unobserved`.
-- Snapshot evidence: bounded snapshot showed live Codex UI from `.docks/gdi`
+- Snapshot evidence: bounded snapshot showed live Codex UI from `the implementer native subagent`
   (`OpenAI Codex v0.133.0`, model loading / `gpt-5.5 low`), but did not expose
   a parseable provider session id. The model field parser captured the
   ANSI-styled loading text, which is not a session identity.
@@ -43,7 +43,7 @@
 - Bounded provider metadata: the only modified rollout file in the window was
   `/Users/Michael/.codex/sessions/2026/05/23/rollout-2026-05-23T01-43-46-019e535c-6c78-7d83-a95e-c00fe13e7aef.jsonl`,
   with `session_meta.payload.cwd` equal to
-  `/Users/Michael/Code/agent-os/.docks/operator`. No `.docks/gdi` rollout was
+  `/Users/Michael/Code/agent-os/the operator native subagent`. No `the implementer native subagent` rollout was
   observed, and no transcript bodies were copied.
 - Final `./aos ready` reported
   `ready=true mode=repo daemon=reachable tap=active`; final git status was
@@ -64,7 +64,7 @@
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: run one bounded no-fixture supervised live
-  `./aos dev afk-session-trigger` Codex/GDI proof and report whether the real
+  `./aos dev afk-session-trigger` Codex/Implementer proof and report whether the real
   trigger path now observes provider acceptance from live terminal snapshot
   output, while preserving verified cleanup.
 - Source artifacts:
@@ -103,7 +103,7 @@ observe provider acceptance from the live terminal snapshot:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -149,10 +149,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -183,7 +183,7 @@ use:
 - `packet_id`: `operator-afk-dev-session-trigger-provider-acceptance-live-proof`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `foreman/afk-provider-acceptance-live-proof-v0`
 - `provider_hint`: `codex`
@@ -197,7 +197,7 @@ Run exactly one no-fixture trigger attempt:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -319,5 +319,5 @@ Report:
   happened;
 - classification: `pass`,
   `provider_acceptance_unobserved_still_open`, `cleanup_unverified`,
-  `human_needed`, or `blocked`, plus the smallest next follow-up if one is
+  `manual_intervention`, or `blocked`, plus the smallest next follow-up if one is
   obvious.

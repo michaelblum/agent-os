@@ -11,7 +11,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. The repo should be mostly clean except for local editor state such as
 `.vscode/`; do not stage or mutate unrelated local files.
@@ -161,7 +161,7 @@ If Sigil mark production changes, also run:
 node --test tests/renderer/radial-menu-target-surface.test.mjs tests/renderer/hit-target.test.mjs
 ```
 
-Live AOS smoke is optional for this slice. If `./aos ready` is clean and GDI
+Live AOS smoke is optional for this slice. If `./aos ready` is clean and Implementer
 wants a runtime proof, prefer a focused Surface Inspector mark smoke over
 running radial real-input scenarios.
 

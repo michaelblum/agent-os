@@ -4,7 +4,7 @@
 
 ## Foreman Acceptance
 
-Accepted GDI output commit:
+Accepted Implementer output commit:
 `1f5fa5733ed152d4990d885cb6d5a2dab82c6b7e`
 (`docs(afk): decide guarded live trigger readiness`).
 
@@ -19,12 +19,12 @@ Accepted output:
 
 Foreman review:
 
-- branch/base verified: `gdi/afk-session-trigger-guarded-live-mode-readiness-v0`
+- branch/base verified: `implementer/afk-session-trigger-guarded-live-mode-readiness-v0`
   was one docs-only commit ahead of `docs/durable-agent-cognition-v0`;
 - diff reviewed against
   `7d53fb287005b670f389589775f395dc910dfcf7`;
 - readiness note explicitly answers the command surface, human-supervised guard,
-  Codex/GDI scope, duplicate/idempotence, cleanup, transcript/catalog boundary,
+  Codex/Implementer scope, duplicate/idempotence, cleanup, transcript/catalog boundary,
   receipt-extension, helper-reuse, verification, Operator evidence, and next
   source-slice decisions required by this card.
 
@@ -46,8 +46,8 @@ Next routed source slice:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: produce a docs-only readiness note that decides whether and
   how `./aos dev afk-session-trigger` may gain a supervised live provider
   launch mode after the accepted dry-run command.
@@ -61,7 +61,7 @@ Next routed source slice:
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-session-trigger-guarded-live-mode-readiness-v0`. Keep the
+  `implementer/afk-session-trigger-guarded-live-mode-readiness-v0`. Keep the
   checkpoint local; do not push, open a PR, mutate GitHub, or publish
   externally.
 
@@ -76,7 +76,7 @@ Next routed source slice:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, Codex transcript, gateway state, readiness,
 or final live-mode spelling. Read and rediscover before editing.
 
@@ -97,7 +97,7 @@ contract is still insufficient.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -130,10 +130,10 @@ Foreman needs readiness state for routing.
 If repo-mode TCC/input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -149,7 +149,7 @@ The note must make these decisions explicit:
 2. The exact live-mode flag shape and guard. The decision must avoid ambiguous
    flags such as bare `--start` and should require explicit human-supervised
    intent.
-3. Whether the first live mode may launch only Codex from `.docks/gdi`, or
+3. Whether the first live mode may launch only Codex from `the implementer native subagent`, or
    should stay provider-neutral with unavailable-provider results for Claude,
    Gemini, or other providers.
 4. How the command proves human approval and prevents unattended launch.

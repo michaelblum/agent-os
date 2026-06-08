@@ -23,7 +23,7 @@ The same principle applies in two common cases:
    human. That cost can be worthwhile, but the learned entry assumptions,
    human gates, target landmarks, timing, failure modes, recovery moves, and
    evidence should not die with the session.
-2. A relay workstream such as Foreman -> GDI -> Foreman -> GDI should not force
+2. A relay workstream such as Foreman -> Implementer -> Foreman -> Implementer should not force
    every fresh worker to rediscover stable repo facts or previous synthesis.
    It also should not overload each transfer with a complete history. Each
    session should receive the smallest salient packet plus deterministic entry
@@ -34,8 +34,8 @@ The same principle applies in two common cases:
 The repo already has most of the artifact vocabulary:
 
 - Docks are role/persona session roots, not workflows
-  (`.docks/README.md`).
-- GDI work cards are bounded execution contracts for worker rounds
+  (`.docks/AGENTS.md`).
+- Implementer work cards are bounded execution contracts for worker rounds
   (`docs/design/work-cards/`).
 - Recipes are role-neutral repeated procedures, with Markdown SOPs under
   `docs/guides/` and source-backed executable manifests under `recipes/*.json`
@@ -116,7 +116,7 @@ judgment artifact. It answers:
 given these inputs and this evidence, classify/choose/route this way
 ```
 
-It is durable judgment that can be reused by Foreman, GDI, Operator, a future
+It is durable judgment that can be reused by Foreman, Implementer, Operator, a future
 Researcher, or an unattended scheduler. It remains docs-only vocabulary for
 now. The inventory, shape sketch, transfer routing mapping, and verification
 routing consolidation show the concept is useful across one machine-readable
@@ -169,9 +169,9 @@ Existing hidden examples:
 
 - `docs/dev/workflow-rules.json`: changed files in, recommended verification
   and routing out.
-- Dock selection: task shape in, Foreman/GDI/Operator role out.
+- Dock selection: task shape in, Foreman/Implementer/Operator role out.
 - Live versus deterministic verification: evidence need plus TCC/readiness
-  state in, GDI/Operator/human-needed route out.
+  state in, Implementer/Operator/manual-intervention route out.
 - Recipe recommendation: changed files and task kind in, relevant SOPs out.
 - `docs/guides/context-doc-maintenance.md`: proposed context change in,
   adopt/adapt/reject/defer out.
@@ -317,11 +317,11 @@ The external "AI system engineering" loop is useful as a role-kind lens:
 - Reporter: observes runtime state and preserves telemetry/evidence.
 - Human Gate: collects bounded human decisions.
 
-Do not rename Foreman, GDI, and Operator yet. Instead, layer role kinds over the
+Do not rename Foreman, Implementer, and Operator yet. Instead, layer role kinds over the
 current docks:
 
 - Foreman is Planner-compatible, with Reviewer and Git/GitHub hygiene duties.
-- GDI is Worker-compatible.
+- Implementer is Worker-compatible.
 - Operator is Reporter/Human-Gate-compatible.
 - Researcher should begin as configuration or a dock mode before becoming a
   first-class dock.
@@ -340,7 +340,7 @@ human-supervision posture.
 5. Sketch a docs-only Decision Contract descriptor and its boundaries with
    transfer packets, work records, evidence records, and AFK/session
    primitives.
-6. Add role-kind vocabulary over Foreman, GDI, and Operator without renaming.
+6. Add role-kind vocabulary over Foreman, Implementer, and Operator without renaming.
 7. Design the AFK transfer packet/result-route shape between integration jobs,
    docked provider sessions, work/evidence records, and notifier completion.
 8. Design the session trigger/scheduler primitive.
@@ -453,7 +453,7 @@ The next slices should stay reversible:
    `tests/afk-dry-run-prototype.test.mjs`.
 7. Expose the dry-run prototype through the governed repo-development surface.
    The experimental command is now
-   `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock gdi --json`;
+   `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock implementer --json`;
    it delegates to the no-provider prototype and keeps AFK runtime/session
    command spelling deferred.
 8. Use the dev dry-run command to decide whether the next implementation path
@@ -462,8 +462,8 @@ The next slices should stay reversible:
    `docs/guides/workstream-checkpoint-continuation.md` so this is a Foreman
    routing decision, not a human-managed preference choice.
    A supervised Operator smoke now has a manual receipt at
-   `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`;
-   it validated dry-run preflight plus one Codex GDI launch and exposed
+   `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-implementer-completed.md`;
+   it validated dry-run preflight plus one Codex Implementer launch and exposed
    provider catalog and telemetry as the next observability gap.
 9. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
@@ -493,8 +493,8 @@ The next slices should stay reversible:
    process-driver command, and enforces idempotence without starting a provider;
    a supervised bridge-backed provider launch smoke now has a partial manual
    receipt at
-   `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`.
-   It validated visible Codex launch through the bridge from `.docks/gdi` with
+   `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`.
+   It validated visible Codex launch through the bridge from `the implementer native subagent` with
    no mutations, but the current launch was not matched in the provider catalog
    or telemetry path; the next local slice is current-launch observability
    correction via
@@ -505,19 +505,19 @@ The next slices should stay reversible:
    states, and prevents stale telemetry from binding to the current launch. The
    supervised live bridge-backed correlation smoke now has a wrong-cwd receipt
    at
-   `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-gdi-wrong-cwd.md`.
-   It proved the GDI cwd-filter classifier refused stale matches, but the
-   provider-owned transcript for the current launch recorded `.docks/operator`
-   instead of requested `.docks/gdi`; the next local slice is explicit
+   `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-current-launch-correlation-implementer-wrong-cwd.md`.
+   It proved the Implementer cwd-filter classifier refused stale matches, but the
+   provider-owned transcript for the current launch recorded `the operator native subagent`
+   instead of requested `the implementer native subagent`; the next local slice is explicit
    provider-session cwd mismatch classification via
    `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
    before another live correlation proof.
-   That correction is now accepted: observed wrong cwd, missing cwd, stale GDI
+   That correction is now accepted: observed wrong cwd, missing cwd, stale Implementer
    catalog absence, exact match, and ambiguous current candidates are distinct
    fixture-backed states. The next proof is another supervised live
    bridge-backed correlation smoke using the corrected classifier.
    That live smoke now has a partial receipt at
-   `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-gdi-partial.md`;
+   `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-implementer-partial.md`;
    it exercised the corrected wrong-cwd classifier against live catalog data and
    exposed that bridge `/sessions?provider=codex` is still cwd-scoped by
    default. The next local slice is a read-only bridge catalog-scope correction
@@ -529,7 +529,7 @@ The next slices should stay reversible:
    scoped to the bridge default cwd. The next proof is a supervised live
    bridge-backed correlation smoke using that explicit all-cwd query.
    The latest supervised bridge run now proves the corrected process-driver PTY
-   can launch nested `codex --no-alt-screen` from `.docks/gdi`, submit a
+   can launch nested `codex --no-alt-screen` from `the implementer native subagent`, submit a
    bounded prompt with one extra Enter when needed, materialize a separate
    Codex rollout, and feed that live evidence into the stabilized
    launch-attempt prototype as `provider_session_observed` with exact Codex
@@ -542,7 +542,7 @@ The next slices should stay reversible:
    provider-free plus fixture-backed command-level smoke coverage in
    `docs/design/work-cards/afk-dev-launch-attempt-command-v0.md`.
    A supervised live wrapper proof now also passes: the bridge launched nested
-   Codex from `.docks/gdi`, materialized a separate Codex rollout, and the
+   Codex from `the implementer native subagent`, materialized a separate Codex rollout, and the
    `./aos dev afk-launch-attempt` wrapper emitted
    `provider_session_observed` with exact Codex adapter correlation. The
    accepted evidence lives in
@@ -556,7 +556,7 @@ The next slices should stay reversible:
    launch behind a later explicit work card. The next routed source slice is
    `docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md`.
    That dry-run command is now accepted: it validates a local transfer packet,
-   models scheduler intake and dispatch intent, resolves `.docks/gdi`, and
+   models scheduler intake and dispatch intent, resolves `the implementer native subagent`, and
    emits `aos.afk_session_trigger_dry_run` with
    `provider_launch_allowed=false`, terminal substrate `not_attempted`, and
    result route `not_attempted`. Repo-mode AOS readiness was restored after the
@@ -570,14 +570,14 @@ The next slices should stay reversible:
    it keeps the first live provider launch under experimental
    `./aos dev afk-session-trigger`, requires explicit
    `--supervised-live-launch` plus `--i-am-present` human-supervision flags,
-   limits the first source slice to Codex from `.docks/gdi`, and preserves
+   limits the first source slice to Codex from `the implementer native subagent`, and preserves
    duplicate prevention, cleanup proof, and provider-owned transcript/catalog
    boundaries before any final session command spelling. The next routed source
    slice is
    `docs/design/work-cards/afk-dev-session-trigger-guarded-live-codex-launch-v0.md`;
    it now implements deterministic guarded-live behavior without running the
    supervised live Codex proof. The accepted source behavior preserves dry-run
-   output, adds the explicit supervised live guard, keeps live intent Codex/GDI
+   output, adds the explicit supervised live guard, keeps live intent Codex/Implementer
    scoped, suppresses duplicate accepted/live receipt states before launch, and
    classifies cleanup proof failure as `cleanup_unverified`. Because this
    accepted slice is still a guarded launch-intent path rather than a
@@ -585,16 +585,16 @@ The next slices should stay reversible:
    `docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`.
    That supervised bridge source slice is now accepted after a provider-command
    correction: the guarded no-fixture path still requires
-   `--supervised-live-launch --i-am-present --json --provider codex --dock gdi`,
+   `--supervised-live-launch --i-am-present --json --provider codex --dock implementer`,
    suppresses duplicates before launch, keeps fixture-backed tests
-   provider-free, and now selects `codex --no-alt-screen` from `.docks/gdi`
+   provider-free, and now selects `codex --no-alt-screen` from `the implementer native subagent`
    instead of the old harmless marker command. The next reversible proof is a
    supervised Operator run at
    `docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`
    to observe the live command path and cleanup boundary before further source
    promotion.
    That Operator run produced an accepted partial pass: the real trigger path
-   selected `codex --no-alt-screen`, launched from `.docks/gdi`, returned
+   selected `codex --no-alt-screen`, launched from `the implementer native subagent`, returned
    `provider_acceptance_unobserved` plus `cleanup_unverified`, left no new
    bridge/provider process behind, and did not mutate source or provider-owned
    state. Because cleanup was externally verified while the receipt still
@@ -646,9 +646,9 @@ The next slices should stay reversible:
    allowed docks/providers, pre-approved work refs, branch/output policy, local
    receipts, stop conditions, and a wake-up report. The deterministic
    validation, dry-run receipts, awake guarded-live proof, and one real
-   Codex/GDI AFK live launch proof without `--i-am-present` are now accepted.
+   Codex/Implementer AFK live launch proof without `--i-am-present` are now accepted.
    The next external decision is the first real overnight work card and AFK authorization:
-   it should be one pre-approved GDI work ref, local-only by default, with
+   it should be one pre-approved Implementer work ref, local-only by default, with
    branch push disabled unless a later source slice deliberately broadens that
    policy.
 11. Trial a Researcher-compatible role only after the session trigger and async

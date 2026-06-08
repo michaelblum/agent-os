@@ -15,7 +15,7 @@ structured owner validation diagnostics before they can be inspected through
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 

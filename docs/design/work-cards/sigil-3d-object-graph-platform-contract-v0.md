@@ -11,17 +11,17 @@ Sigil avatar controls panel. Its follow-on sequence is stale.
 Current routing sequence:
 
 1. Accept
-   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+   `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md`.
 2. Accepted: toolkit panel placement/final-frame reporting through
-   `docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-placement-final-frame-contract-v0.md`.
 3. Next: route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
+   `docs/design/work-cards/implementer-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
    to add Sigil-owned avatar avoidance only if final-frame/input-winner evidence
    requires it.
 4. Refresh and accept
-   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-live-drag-correction-v0.md`.
 5. Route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+   `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`.
 6. Refresh any remaining Wiki graph browser, 3D thing editor, or semantic
    target cleanup card against the accepted resource migration head.
 
@@ -33,7 +33,7 @@ window with an explicit removal gate.
 ## Historical Tracker
 
 - Historical branch, do not use:
-  `gdi/sigil-radial-menu-data-driven-3d-config-v0`
+  `implementer/sigil-radial-menu-data-driven-3d-config-v0`
 - Historical prerequisite head:
   `7bc5605e92b8123f7518dd5d301ff229b719ca8b`
 - Product/platform direction from Michael:
@@ -52,7 +52,7 @@ window with an explicit removal gate.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Continue from the current radial-menu branch unless Foreman or the
 human explicitly routes this work elsewhere.
@@ -244,7 +244,7 @@ Three.js creation/update logic.
 ## Follow-On Work Cards To Create
 
 Create at least these follow-on cards under `docs/design/work-cards/`. Keep
-them narrow enough that GDI can execute them independently.
+them narrow enough that Implementer can execute them independently.
 
 1. `sigil-avatar-object-graph-adapter-v0.md` - expose the Sigil avatar as an
    object graph/`canvas_object` subject without changing context menu behavior.

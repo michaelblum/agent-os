@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -15,9 +15,9 @@ own registered handler properties, never inherited object prototype functions.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/sigil-ux-tree-command-adapter-cutover-v0`
+- `branch_from`: `implementer/sigil-ux-tree-command-adapter-cutover-v0`
 - `required_start_ref`: `c34a246231bc716fea794f181b2b4596cbf05af4`
-- Expected output branch: `gdi/sigil-ux-tree-command-adapter-cutover-v0`
+- Expected output branch: `implementer/sigil-ux-tree-command-adapter-cutover-v0`
 - This is a correction on the existing cutover branch. Commit and push the
   corrected branch. Do not open a PR.
 

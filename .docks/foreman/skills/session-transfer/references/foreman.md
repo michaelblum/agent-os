@@ -7,7 +7,7 @@ successor Foreman session.
 
 A successor handoff is state compression for Foreman continuity. It helps the
 next Foreman choose and execute the next reversible coordination step. It is
-not a GDI work card, Operator run, relay packet, or durable design artifact.
+not a Implementer work card, Operator run, relay exchange, or durable design artifact.
 
 Use successor handoffs for:
 
@@ -16,7 +16,7 @@ Use successor handoffs for:
 - Foreman-to-Foreman continuity after review, GitHub, or branch hygiene work;
 - preserving ephemeral state that cannot be rediscovered cheaply.
 
-Do not use successor handoffs to assign implementation to GDI, supervised checks
+Do not use successor handoffs to assign implementation to Implementer, supervised checks
 to Operator, or external relay work. Reclassify those as separate transfer kinds.
 
 ## Storage And Dispatch
@@ -32,7 +32,7 @@ Successor handoffs are ephemeral by default:
 - do not commit successor handoff temp files or chat recovery copies.
 
 If a durable note is needed, create the durable artifact explicitly as a design
-note, issue, PR comment, or GDI work card, then reference it from the successor
+note, issue, PR comment, or Implementer work card, then reference it from the successor
 handoff. Do not make the handoff itself durable by changing its path.
 
 ## Required Slots
@@ -57,8 +57,8 @@ Include only what the next Foreman needs to continue:
   PRs, commits, diffs, or test artifacts. Reference those artifacts instead.
 - Do not summarize a work card into the successor handoff when a path reference
   is enough.
-- Do not decide GDI branch bases or verification contracts from a successor
-  handoff. Put those facts in a GDI work card.
+- Do not decide Implementer branch bases or verification contracts from a successor
+  handoff. Put those facts in a Implementer work card.
 - Do not call a successor handoff a work card.
 - If the title says "Successor Foreman Handoff" and the path is
   `docs/design/work-cards/`, stop and fix the classification before committing.

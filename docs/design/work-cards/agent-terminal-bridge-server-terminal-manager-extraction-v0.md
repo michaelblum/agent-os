@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -44,7 +44,7 @@ terminal command, and shutdown easier to reason about.
 - required_start_ref: `origin/main` at
   `1948c9c36b07d10ee6a027e80019a4a2806f1211` or later with this work card
 - output_branch:
-  `gdi/agent-terminal-bridge-server-terminal-manager-extraction-v0`
+  `implementer/agent-terminal-bridge-server-terminal-manager-extraction-v0`
 
 ## Read First
 

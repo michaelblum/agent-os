@@ -13,14 +13,14 @@
   nested `codex --no-alt-screen`, `pty-proxy.py`, or bridge server process
   remaining.
 - Bridge evidence: process-driver bridge ran on port `17866` with
-  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`, `driver=process`, and
+  `defaultCwd=/Users/Michael/Code/agent-os/the implementer native subagent`, `driver=process`, and
   terminal geometry `80x24`; `/ensure` created process session
   `afk-dev-launch-attempt-command-live-wrapper`; `launch_observed_at` was
   `2026-05-22T20:08:55Z`.
 - Process evidence: nested process tree was observed as bridge server,
   `pty-proxy.py`, `node codex --no-alt-screen`, and vendor
   `codex --no-alt-screen`, all rooted at
-  `/Users/Michael/Code/agent-os/.docks/gdi`.
+  `/Users/Michael/Code/agent-os/the implementer native subagent`.
 - PTY/input evidence: `/resize` to `100x31` was accepted; `/input` accepted
   text and Enter; one extra Enter was needed and accepted; the response marker
   `live-codex-dev-launch-attempt-command-wrapper` was observed in the
@@ -31,7 +31,7 @@
   `2026-05-22T20:09:46.737Z`, session id
   `019e514e-2824-7331-9efc-76e0fbede5a2`, timestamp
   `2026-05-22T20:08:57.161Z`, cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`, and marker presence. Full
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, and marker presence. Full
   transcript content was not pasted or mutated.
 - Wrapper evidence: `./aos dev afk-launch-attempt` consumed the live bridge
   fixture plus read-only `/Users/Michael/.codex` correlation and emitted
@@ -70,7 +70,7 @@
   - `scripts/afk-launch-attempt-prototype.mjs`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Expected branch/output: stay local on
-  `gdi/afk-dev-launch-attempt-command-v0` or the branch that contains this
+  `implementer/afk-dev-launch-attempt-command-v0` or the branch that contains this
   card. Make no source, docs, config, provider config, gateway, dock profile,
   hook, GitHub, push, or PR changes. Return a Foreman chat report only.
 
@@ -88,7 +88,7 @@ live supervised bridge evidence and emit the same happy-path
 ./aos dev afk-launch-attempt \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --timestamp <post-response-iso> \
   --launch-observed-at <launch-observed-at> \
@@ -118,10 +118,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -150,7 +150,7 @@ Start one bridge process with a free local port, preferring `17866`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17866 \
 SIGIL_AGENT_TMUX_SESSION=afk-dev-launch-attempt-command-live-wrapper \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -161,7 +161,7 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 - `terminal`: process-driver default geometry, expected `80x24` unless
   environment overrides are present
@@ -169,7 +169,7 @@ Verify `/health` reports:
 Use `/ensure` for:
 
 - session: `afk-dev-launch-attempt-command-live-wrapper`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -277,7 +277,7 @@ Run the wrapper, not the Node script directly:
 ./aos dev afk-launch-attempt \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --timestamp <post-response-iso> \
   --launch-observed-at <launch_observed_at> \
@@ -326,7 +326,7 @@ Expected happy path:
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the bridge cannot
   start after one port retry, Codex launch requires credentials/auth repair, or
@@ -357,7 +357,7 @@ Before reporting:
 ## Evidence To Return
 
 - Classification: `pass`, `partial_pass:<reason>`, `blocked`, or
-  `human_needed`.
+  `manual_intervention`.
 - Branch, HEAD, durable alias SHA, and after-state
   `git status --short --branch`.
 - Exact commands run and pass/fail results.

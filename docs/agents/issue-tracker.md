@@ -16,7 +16,7 @@ in scope.
 
 Do not open or update issues or PRs unless the assigned goal or handoff
 explicitly includes that mutation. When a skill says to publish to the issue
-tracker, first check whether the active role owns GitHub coordination; GDI only
+tracker, first check whether the active role owns GitHub coordination; Implementer only
 does so when the work card assigns it.
 
 ## Issue Hygiene

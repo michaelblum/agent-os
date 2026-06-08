@@ -233,12 +233,12 @@ Historical follow-on cards from the original design note:
 
 These cards are not current route targets without refresh. Current sequence:
 
-1. Accept `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+1. Accept `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md`.
 2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
    avatar avoidance only if the evidence requires it.
 3. Refresh and accept
-   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-live-drag-correction-v0.md`.
 4. Route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+   `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`.
 5. Refresh Wiki graph browser, 3D editor subject, and semantic target cleanup
    work against the accepted resource migration head.

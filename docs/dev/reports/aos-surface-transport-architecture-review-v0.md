@@ -231,7 +231,7 @@ the existing evidence (a passing hit-test unit test) speaks to none of them.
    - *Discriminates:* Is Loop 1 real, and is it daemon-thread-bound or
      content-process-bound?
    - *Cheapest precursor:* just log the **subscriber count**. The parked work
-     card `gdi-sigil-avatar-panel-resource-contract-migration-v0.md` already cites
+     card `implementer-sigil-avatar-panel-resource-contract-migration-v0.md` already cites
      "duplicate Avatar/Sigil surfaces across displays." If N is *wrong* (phantom
      or duplicated subscribers), the first fix is subscriber-set correctness, not
      fan-out coalescing. **Verify the cost model's inputs before redesigning the

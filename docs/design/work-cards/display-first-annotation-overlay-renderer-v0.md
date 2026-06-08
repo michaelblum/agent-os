@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -29,7 +29,7 @@ plans for display surfaces.
 
 This slice should make display overlays consume session concepts instead of
 Surface Inspector-only pin/list state, while keeping Surface Inspector as a
-support entry path for now. It should not implement the full Sigil reticle,
+support tooling context for now. It should not implement the full Sigil reticle,
 full drag routing, or Surface Inspector UI demotion.
 
 ## Read First

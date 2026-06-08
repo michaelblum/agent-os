@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -171,5 +171,5 @@ it. The accepted cleanup model is:
 - cleanup is idempotent and exposes inspector-friendly state.
 
 Live smoke remains blocked by repo-mode `daemon_tcc_grant_stale_or_missing`.
-The next GDI slice should document and lightly enforce the surface interaction
+The next Implementer slice should document and lightly enforce the surface interaction
 decision tree before Sigil migration.

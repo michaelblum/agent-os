@@ -8,7 +8,7 @@
 - Prior broad live sweep:
   `docs/design/work-cards/operator-recent-ui-regression-live-sweep-v0.md`.
 - Deterministic repair card for the prior blockers:
-  `docs/design/work-cards/recent-ui-live-regression-closure-gdi-v0.md`.
+  `docs/design/work-cards/recent-ui-live-regression-closure-implementer-v0.md`.
 - Recent repair commits to validate live:
   - `d5eeae17e29f98e0bea257f77b343f5a925103a8`
     (`fix(toolkit): polish recent ui live regressions`);
@@ -25,7 +25,7 @@ permission, display, Git, or prior verification state. Rediscover before
 testing.
 
 This is supervised live/HITL verification only. Do not implement fixes, commit,
-push, mutate GitHub state, or broaden into GDI work.
+push, mutate GitHub state, or broaden into Implementer work.
 
 ## Goal
 
@@ -39,14 +39,14 @@ surfaces as out of scope unless they are needed to prove a repaired path.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- `the operator native subagent contract`
 - `apps/sigil/AGENTS.md`
 - `packages/toolkit/CLAUDE.md`
 - `docs/api/toolkit/components.md`
 - `docs/api/toolkit/panel-window.md`
 - `docs/api/toolkit/runtime.md`
 - `docs/design/work-cards/operator-recent-ui-regression-live-sweep-v0.md`
-- `docs/design/work-cards/recent-ui-live-regression-closure-gdi-v0.md`
+- `docs/design/work-cards/recent-ui-live-regression-closure-implementer-v0.md`
 - `docs/design/aos-3d-object-graph-platform-contract.md`
 - `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`
 - `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-review-corrections-v0.md`
@@ -258,7 +258,7 @@ Report back to Foreman with:
   layers, input regions, or affordances;
 - whether Markdown Workbench real-click source mode was fixed in live use;
 - whether Sigil hit/radial surfaces left parked frames under real input;
-- whether the Sigil radial/3D object graph stack needs a GDI repair slice, and
+- whether the Sigil radial/3D object graph stack needs a Implementer repair slice, and
   the smallest proposed boundary if it does;
 - any local-only state, runtime blocker, content-root issue, display caveat, or
   generated artifact path Foreman needs before acceptance.

@@ -54,7 +54,7 @@ Canonical terms:
 | Transfer packet | Minimal launch-context artifact for one transfer into a fresh or resumed docked session. |
 | Result route | Configured destination and policy for lifecycle and terminal updates. |
 | Scheduler run | One scheduler claim over a packet/result-route/work-surface idempotence key. |
-| Lease | Time-bounded authority for intake, launch, execution, heartbeat absence, or human-needed pause. |
+| Lease | Time-bounded authority for intake, launch, execution, heartbeat absence, or manual-intervention pause. |
 | Heartbeat | Lightweight lifecycle receipt that a docked provider session still owns the run. |
 | Dispatch attempt | One provider-neutral start, resume, dry-run, or reject attempt requested by scheduler. |
 | Provider adapter | Provider-specific command, availability, auth, catalog, and telemetry interpreter. |
@@ -93,7 +93,7 @@ Avoid these phrases unless the sentence immediately narrows ownership:
 | Capability facts | Provider adapter, catalog, and telemetry surfaces own observed capabilities. | Dispatch reports availability/capabilities; scheduler decides policy response; receipts cite what was observed. |
 | Verification status | Work receipt owns run-level pass/fail summary; evidence receipts own proof outputs. | Scheduler routes terminal state; packet requests proof; integration job receives coarse result when configured. |
 | External publication policy | Transfer packet and work card/profile context own allowed publication. | Scheduler and dispatch preserve policy; work receipt reports whether external routes were attempted. |
-| Follow-up route | Result route owns configured destination; work receipt owns next-owner recommendation. | Scheduler delivers configured update; Foreman/GDI/Operator coordination decides subsequent human/agent work. |
+| Follow-up route | Result route owns configured destination; work receipt owns next-owner recommendation. | Scheduler delivers configured update; Foreman/Implementer/Operator coordination decides subsequent human/agent work. |
 
 The rule is: one surface owns the authoritative value, adjacent surfaces carry
 references, observations, or summaries. They should not copy a repeated fact
@@ -143,7 +143,7 @@ reviewable receipt trail. The smallest useful trail is:
    next-owner recommendation.
 5. Evidence receipts: command output, `git diff --check`, workflow-router
    output, provider availability facts, route HTTP response, notification
-   response, human-needed packet, or any other immutable proof needed for the
+   response, manual-intervention packet, or any other immutable proof needed for the
    run's claims.
 
 Work receipt versus evidence receipt:
@@ -158,7 +158,7 @@ Outcome representation without schemas:
 | Outcome | Manual representation |
 | --- | --- |
 | No-op | Work receipt says no mutation was needed, why the packet was still valid, which checks proved it, and which routes were updated or skipped. |
-| Blocked | Work receipt says blocker class and next owner; evidence receipt stores the concrete failure or human-needed packet. |
+| Blocked | Work receipt says blocker class and next owner; evidence receipt stores the concrete failure or manual-intervention packet. |
 | Failed | Work receipt says terminal failure and retry eligibility; evidence receipt stores failed check/output/route response. |
 | Partially complete | Work receipt lists completed and incomplete required items, preserved deferrals, and follow-up route; evidence links prove each completed claim. |
 | Completed | Work receipt states all required proof passed and no required work remains; evidence receipts include every check and route update needed to prove that. |
@@ -228,7 +228,7 @@ committing to session launch behavior.
 | Terminal substrate | Tmux/process handle, attachability, capture, input/output buffer, health, process lifetime. | Dock identity, packet validation, provider policy, result-route delivery. |
 | Work/evidence receipts | Work receipt owns run summary and evidence links; evidence receipts own immutable proof. | Route selection, scheduler queue, provider launch mechanics, reusable judgment. |
 | Integration broker/gateway | Provider ingress, workflow catalog, persisted job history, start/complete/fail transitions, notifier delivery. | AOS session authority, dock semantics, scheduler leases, provider-neutral dispatch, proof semantics. |
-| Foreman/GDI/Operator coordination | Human/agent role authority, work-card routing, deterministic execution, supervised evidence, and next-owner recommendation. | Hidden session engine behavior, provider launch policy unless explicitly assigned, schema ownership by convention. |
+| Foreman/Implementer/Operator coordination | Human/agent role authority, work-card routing, deterministic execution, supervised evidence, and next-owner recommendation. | Hidden session engine behavior, provider launch policy unless explicitly assigned, schema ownership by convention. |
 
 ## Explicit Deferrals
 

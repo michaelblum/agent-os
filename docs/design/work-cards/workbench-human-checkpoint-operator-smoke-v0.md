@@ -13,7 +13,7 @@ fixture. The purpose is to prove the loop:
 5. Operator resumes, snapshots, diffs, optionally saves, and reports the
    outcome.
 
-This is an Operator/HITL validation pass, not a GDI implementation slice.
+This is an Operator/HITL validation pass, not a Implementer implementation slice.
 
 ## Target
 
@@ -99,6 +99,6 @@ Report:
 - Do not use the Employer Brand alignment pack in this smoke test.
 - Do not run live browser/capture work.
 - Do not modify capture artifacts.
-- Do not start GDI work.
+- Do not start Implementer work.
 - Do not implement new checkpoint features during the smoke; report gaps for a
-  later GDI refinement slice.
+  later Implementer refinement slice.

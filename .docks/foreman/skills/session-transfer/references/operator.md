@@ -37,7 +37,7 @@ Prefer Operator when:
 - the proof depends on a real live AOS canvas or real input;
 - a human has explicitly put themselves in the verification loop;
 - the task is observation or annotation, not deterministic implementation;
-- GDI would otherwise burn context trying to recover a runtime blocker.
+- Implementer would otherwise burn context trying to recover a runtime blocker.
 
 Do not route deterministic Node tests, static docs audits, or simple grep-based
 validation to Operator.

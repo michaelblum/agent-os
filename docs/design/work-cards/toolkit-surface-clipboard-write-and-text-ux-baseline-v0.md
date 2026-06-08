@@ -6,9 +6,9 @@
 
 Accepted on 2026-05-24.
 
-- GDI implementation branch:
-  `gdi/toolkit-surface-clipboard-write-and-text-ux-baseline-v0`
-- GDI implementation commit:
+- Implementer implementation branch:
+  `implementer/toolkit-surface-clipboard-write-and-text-ux-baseline-v0`
+- Implementer implementation commit:
   `ce01df26821e7213a0fa337435eb8a15791c19c1`
 - Foreman correction commit:
   `60a94b82 test(toolkit): update surface inspector copy contract`
@@ -71,8 +71,8 @@ clarification.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add native-backed text clipboard write support for
   user-initiated AOS surface copy actions and establish a baseline text
   selection/shortcut audit for toolkit and Sigil surfaces.
@@ -91,8 +91,8 @@ clarification.
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/toolkit-surface-clipboard-write-and-text-ux-baseline-v0` from
-  `origin/main`. Commit and push that GDI branch when verification passes. Do
+  `implementer/toolkit-surface-clipboard-write-and-text-ux-baseline-v0` from
+  `origin/main`. Commit and push that Implementer branch when verification passes. Do
   not open a PR, merge, mutate main, mutate GitHub issues/projects, or broaden
   into `./aos ready` command redesign.
 
@@ -210,10 +210,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -257,7 +257,7 @@ against a throwaway surface or existing low-risk surface:
   Codex configuration.
 - Do not drive live provider sessions.
 - Do not create PRs, mutate GitHub issues/projects, merge to main, or route an
-  Operator run from inside the GDI round.
+  Operator run from inside the Implementer round.
 
 ## Completion Report Required
 

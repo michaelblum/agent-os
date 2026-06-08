@@ -130,7 +130,7 @@
     },
     "caller": {
       "kind": "agent",
-      "id": "gdi-fixture",
+      "id": "implementer-fixture",
       "provenance": "docs/design/fixtures/aos-interaction-grammar-v0/toolkit-slider-sequence.json"
     }
   },

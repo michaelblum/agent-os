@@ -38,7 +38,7 @@ work is blocked until the permission reset path is completed.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: fix sleep-lease result-route compatibility so unsupported
   or external result-route objects cannot produce an accepted sleep-lease dry
@@ -49,12 +49,12 @@ work is blocked until the permission reset path is completed.
   - `scripts/afk-session-trigger-prototype.mjs`
   - `tests/afk-session-trigger-prototype.test.mjs`
 - Branch/Base:
-  - `branch_from: origin/gdi/afk-sleep-lease-dry-run-validation-v0`
-  - `required_start_ref: origin/gdi/afk-sleep-lease-dry-run-validation-v0`
+  - `branch_from: origin/implementer/afk-sleep-lease-dry-run-validation-v0`
+  - `required_start_ref: origin/implementer/afk-sleep-lease-dry-run-validation-v0`
   - rejected head under review:
     `d22bb3e7afef0bc1878d03424ea1649dba7551f8`
 - Branch/output expectation: update the existing
-  `gdi/afk-sleep-lease-dry-run-validation-v0` branch or create a correction
+  `implementer/afk-sleep-lease-dry-run-validation-v0` branch or create a correction
   branch from it. Commit and push when verification passes. Do not open a PR,
   merge, mutate main, mutate GitHub issues/projects, start live providers, or
   route follow-up work.
@@ -62,7 +62,7 @@ work is blocked until the permission reset path is completed.
 ## Foreman Review Finding
 
 Foreman did not accept
-`gdi/afk-sleep-lease-dry-run-validation-v0` at
+`implementer/afk-sleep-lease-dry-run-validation-v0` at
 `d22bb3e7afef0bc1878d03424ea1649dba7551f8`.
 
 The implementation correctly adds dry-run lease validation and keeps provider
@@ -131,7 +131,7 @@ that the AFK result-route classifier can treat as local and compatible.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-sleep-lease-dry-run-validation-v0.md`
 - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`
 - `docs/design/work-cards/afk-session-trigger-stdout-route-object-normalization-v0.md`
@@ -144,7 +144,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD origin/gdi/afk-sleep-lease-dry-run-validation-v0 d22bb3e7afef0bc1878d03424ea1649dba7551f8
+git rev-parse HEAD origin/implementer/afk-sleep-lease-dry-run-validation-v0 d22bb3e7afef0bc1878d03424ea1649dba7551f8
 ./aos ready
 ./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs,docs/design/work-cards/afk-sleep-lease-dry-run-validation-v0.md,docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md
 ```
@@ -153,10 +153,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -198,5 +198,5 @@ Return:
   durable receipt, provider launch, transcript body read, provider
   store/catalog/telemetry mutation, gateway/dock runtime mutation, GitHub
   issue/PR/main mutation, external notifier, durable work/evidence record,
-  unattended trigger, or follow-up routing occurred beyond the expected GDI
+  unattended trigger, or follow-up routing occurred beyond the expected Implementer
   branch push.

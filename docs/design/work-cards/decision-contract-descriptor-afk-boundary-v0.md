@@ -1,7 +1,7 @@
 # Work Card: decision-contract-descriptor-afk-boundary-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -21,7 +21,7 @@ transfer packets, work records, evidence records, and AFK/session primitives.
 
 Accepted evidence:
 
-- GDI branch: `gdi/decision-contract-descriptor-afk-boundary-v0`
+- Implementer branch: `implementer/decision-contract-descriptor-afk-boundary-v0`
 - Accepted commit: `56adbf9bc6baa7c7c924ad44e638e754611f8d7e`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -37,7 +37,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -53,11 +53,11 @@ what belongs in future session trigger / async result routing primitives.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/decision-contract-inventory-2026-05-21.md`
 - `docs/design/notes/decision-contract-shape-sketch-2026-05-21.md`
@@ -91,7 +91,7 @@ This card depends on local-only design notes and accepted work cards on the
 branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/decision-contract-descriptor-afk-boundary-v0` from the required start ref.
+`implementer/decision-contract-descriptor-afk-boundary-v0` from the required start ref.
 Keep the checkpoint local unless Foreman or Michael explicitly asks for a push
 or PR.
 

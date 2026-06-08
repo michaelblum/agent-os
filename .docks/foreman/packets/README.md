@@ -39,7 +39,7 @@ Detailed implementation or live-run instructions still belong in
 Clipboard prompts should stay short and pointer-only, for example:
 
 ```text
-follow the transfer packet in .docks/foreman/packets/to-gdi-<slug>.json; start from <ref>
+follow the transfer packet in .docks/foreman/packets/to-implementer-<slug>.json; start from <ref>
 ```
 
 Do not paste large work cards or transfer payloads directly into the clipboard

@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Goal
 
@@ -20,11 +20,11 @@ This is the first implementation step after
 ## Branch / Base
 
 - branch_from: current local
-  `gdi/dock-terminal-session-agent-terminal-contract-v0` routing head
+  `implementer/dock-terminal-session-agent-terminal-contract-v0` routing head
 - required_start_ref: current local
-  `gdi/dock-terminal-session-agent-terminal-contract-v0` routing head
+  `implementer/dock-terminal-session-agent-terminal-contract-v0` routing head
 - accepted_source_head: `0f50360c4e779deae2d10bb13243df31b62e26d7`
-- expected_output_branch: `gdi/dock-terminal-session-registry-v0`
+- expected_output_branch: `implementer/dock-terminal-session-registry-v0`
 
 ## Read First
 
@@ -35,9 +35,9 @@ This is the first implementation step after
 - `scripts/afk-session-trigger-prototype.mjs`
 - `tests/afk-launch-attempt-prototype.test.mjs`
 - `tests/afk-session-trigger-prototype.test.mjs`
-- `.docks/foreman/inbound-contract.json`
-- `.docks/gdi/inbound-contract.json`
-- `.docks/operator/inbound-contract.json`
+- `.docks/foreman/native subagent prompt contract`
+- the implementer native prompt contract
+- the operator native prompt contract
 
 ## Required Behavior
 
@@ -49,12 +49,12 @@ Requirements:
 - Add a schema/docs artifact or equivalent first-class contract for
   `aos.dock_terminal_session`.
 - Add a deterministic helper/module that can build fixture-backed dock terminal
-  session receipts for `foreman`, `gdi`, and `operator`.
+  session receipts for `foreman`, `implementer`, and `operator`.
 - The receipt must include at least:
   - `record_type: "aos.dock_terminal_session"`;
   - dock id;
   - stable `dock_terminal_session_id`;
-  - cwd under `.docks/<dock>`;
+  - cwd under `the session root`;
   - provider and provider command/argv;
   - PTY driver/handle/geometry;
   - lifecycle state and timestamps when supplied by fixtures;
@@ -80,15 +80,15 @@ decision rather than implementing it in this slice.
 
 Add or update deterministic tests for:
 
-- fixture-backed `aos.dock_terminal_session` receipts for `foreman`, `gdi`, and
+- fixture-backed `aos.dock_terminal_session` receipts for `foreman`, `implementer`, and
   `operator`;
 - Agent Terminal server/API or helper output includes dock terminal session
   identity and does not report provider acceptance from visual state;
 - AFK launch/session warm reuse receipts reference
   `owner: "aos.dock_terminal_session"` and a stable
   `dock_terminal_session_id`;
-- GDI `/goal ` and Operator plain prompt behavior remain sourced from the dock
-  inbound contract;
+- Implementer  and Operator plain prompt behavior remain sourced from the dock
+  native subagent prompt contract;
 - provider metadata acceptance and cleanup/lease disposition behavior remain
   unchanged;
 - cold bridge PTY input/resize regressions still pass.
@@ -103,11 +103,11 @@ node --test tests/afk-session-trigger-prototype.test.mjs
 git diff --check
 ```
 
-If `./aos ready` reports a repo-mode permission blocker, use the standard GDI
-human-needed path and stop instead of routing around it:
+If `./aos ready` reports a repo-mode permission blocker, use the standard Implementer
+manual-intervention path and stop instead of routing around it:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 

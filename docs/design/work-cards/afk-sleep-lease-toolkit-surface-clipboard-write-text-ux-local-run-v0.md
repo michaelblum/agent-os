@@ -5,9 +5,9 @@
 ## Result
 
 The local away-run attempt stopped at startup with `classification:
-human_needed` before branch creation or edits because the provider saw AOS
+manual_intervention` before branch creation or edits because the provider saw AOS
 readiness blockers. After the human returned, Foreman verified
-`./aos ready --post-permission` was green and routed the normal GDI work card:
+`./aos ready --post-permission` was green and routed the normal Implementer work card:
 
 `docs/design/work-cards/toolkit-surface-clipboard-write-and-text-ux-baseline-v0.md`
 
@@ -16,8 +16,8 @@ the active route.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round through a sleep-lease provider run
+- Recipient: Implementer
+- Transfer kind: Implementer round through a sleep-lease provider run
 - Single next goal: implement the native-backed AOS surface clipboard write and
   text-selection baseline from
   `docs/design/work-cards/toolkit-surface-clipboard-write-and-text-ux-baseline-v0.md`
@@ -39,7 +39,7 @@ the active route.
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create local branch
-  `gdi/toolkit-surface-clipboard-write-and-text-ux-baseline-v0` from
+  `implementer/toolkit-surface-clipboard-write-and-text-ux-baseline-v0` from
   `origin/main`. Commit verified work locally on that branch. Do not push the
   branch, open a PR, merge, mutate GitHub issues/projects, or route follow-up
   work.
@@ -53,7 +53,7 @@ Boundaries:
 
 - max provider launches: 1;
 - max wall clock: 120 minutes;
-- allowed dock: GDI;
+- allowed dock: Implementer;
 - allowed provider: Codex;
 - allowed work ref: this work card only;
 - external publication policy: none;
@@ -101,10 +101,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. The human is not present for this sleep run, so
+Then stop with `manual_intervention`. The human is not present for this sleep run, so
 do not spin on permission recovery.
 
 ## Git Instructions
@@ -113,7 +113,7 @@ After startup passes:
 
 ```bash
 git switch -C main origin/main
-git checkout -b gdi/toolkit-surface-clipboard-write-and-text-ux-baseline-v0
+git checkout -b implementer/toolkit-surface-clipboard-write-and-text-ux-baseline-v0
 ```
 
 If that local branch already exists, stop and report the ambiguity instead of
@@ -161,7 +161,7 @@ skip it and state the exact remaining manual check.
 
 Return:
 
-- classification: complete, partial, human_needed, or blocked;
+- classification: complete, partial, manual_intervention, or blocked;
 - branch and head SHA;
 - base/start SHA;
 - files changed;

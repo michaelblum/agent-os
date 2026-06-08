@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, PR, prior implementation state, or Foreman thread context. Read
 and rediscover before editing. Work in `/Users/Michael/Code/agent-os`, not in
 `.docks/`.
@@ -48,7 +48,7 @@ After this slice:
 
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/design/work-cards/annotation-candidate-helper-neutralization-v0.md`
 - `docs/design/work-cards/annotation-projection-reveal-normalization-v0.md`
@@ -83,7 +83,7 @@ rg -n "surfaceInspectorPinToAnnotationAnchor|surfaceInspectorAnnotationStateToSe
 
 If `./aos ready` reports a repo-mode TCC/input-tap blocker, report the exact
 blocker and continue deterministic checks only. This slice should not require
-live input verification unless GDI changes runtime behavior beyond imports and
+live input verification unless Implementer changes runtime behavior beyond imports and
 module ownership.
 
 ## Existing Code To Inspect
@@ -187,7 +187,7 @@ Update `docs/api/toolkit/workbench.md` so:
 - Annotation Overlay Renderer docs describe only session-to-render-plan
   behavior;
 - Surface Inspector support docs own the compatibility adapter import/example;
-- the text remains clear that future entry paths should produce the shared
+- the text remains clear that future tooling contexts should produce the shared
   session model directly.
 
 ## Scope
@@ -273,7 +273,7 @@ help contract, run:
 bash tests/help-contract.sh
 ```
 
-No live AOS smoke is required for pure module-boundary cleanup. If GDI changes
+No live AOS smoke is required for pure module-boundary cleanup. If Implementer changes
 runtime behavior or Surface Inspector UI output, run one bounded live smoke
 after `./aos ready` passes and report the exact steps and results.
 
@@ -296,4 +296,4 @@ Report back with:
 - `./aos ready` result or exact readiness blocker;
 - local-only state such as dirty files, untracked files, generated artifacts,
   local config, permissions, daemon state, or runtime blockers;
-- any follow-up slice GDI recommends.
+- any follow-up slice Implementer recommends.

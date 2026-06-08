@@ -63,14 +63,14 @@ wrong content root, or an overlapping higher-level window.
 
 The required observability preconditions are now accepted:
 
-- `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md` covers
+- `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md` covers
   active daemon registry/native-window alignment and labels the runtime scope as
   `runtime.native_window_scope = "current_daemon_process"`.
-- `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`
+- `docs/design/work-cards/implementer-aos-visible-surface-cross-process-audit-v0.md`
   lists external visible AOS-owned native windows separately from current-daemon
   registry rows and orphan windows, with bounded process provenance and explicit
   unavailable reasons.
-- `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
+- `docs/design/work-cards/implementer-aos-runtime-service-input-tap-observability-v0.md`
   exposes launchd/service ownership, input-tap ownership, stale input-tap
   capable daemon counts, installed-mode socket reachability, and the explicit
   fact that duplicate macOS TCC rows are human-observable rather than AOS
@@ -88,7 +88,7 @@ known.
 
 ## Accepted Placement Contract
 
-The accepted `gdi/toolkit-panel-placement-final-frame-contract-v0` slice added
+The accepted `implementer/toolkit-panel-placement-final-frame-contract-v0` slice added
 the public placement-reporting shape needed for follow-on work:
 
 - `requested_frame`: caller-requested native global CG frame.

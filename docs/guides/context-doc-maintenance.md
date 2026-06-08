@@ -71,7 +71,7 @@ the canonical namespace for ADRs and durable architecture decisions.
 Update root `AGENTS.md` only for repo-wide signage, hard invariants, and
 authority-routing pointers. Do not put hook mechanics, role policy, operational
 SOPs, work-card templates, or provider syntax there. Update `.docks/` when the
-rule is about dock roles, launch behavior, hooks, inbound contracts, or
+rule is about dock roles, launch behavior, hooks, native prompt contracts, or
 cross-session transfers. Update the nearest subtree `AGENTS.md` when the rule
 is local to a package, app, daemon area, or test harness. Keep historical
 `CLAUDE.md` files as compatibility pointers unless the active task explicitly

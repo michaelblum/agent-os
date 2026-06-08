@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, PR, prior implementation state, or Foreman thread context. Read
 and rediscover before editing. Work in `/Users/Michael/Code/agent-os`, not in
 `.docks/`.
@@ -43,7 +43,7 @@ helpers may remain in `surface-inspector-annotations.js`.
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/api/toolkit/workbench.md`
 - `packages/toolkit/workbench/annotation-candidates.js`
 - `packages/toolkit/workbench/annotation-projection.js`
@@ -160,7 +160,7 @@ Do not add repo-internal compatibility aliases such as:
 - `buildNativeWindowSurfaceInspectorCandidate`
 - `buildNativeAxElementSurfaceInspectorCandidate`
 
-unless GDI identifies a concrete non-updatable consumer and adds a clear removal
+unless Implementer identifies a concrete non-updatable consumer and adds a clear removal
 gate in the code and completion report. "Existing repo tests/callers" is not a
 valid reason for compatibility aliases; this repo owns them and should update
 them.
@@ -230,7 +230,7 @@ deterministic tests expose a gap that cannot be checked otherwise.
   payload compatibility in this slice.
 - Do not rename `surface_inspector_annotation_snapshot`,
   `canvas_inspector.annotation_open`, or `canvas_inspector.annotation_state`.
-- Do not add repo-internal compatibility aliases for owned callers. If GDI
+- Do not add repo-internal compatibility aliases for owned callers. If Implementer
   discovers a non-updatable consumer, name it and include a removal gate.
 - Do not move Surface Inspector state/pin/comment/session behavior into
   `annotation-candidates.js`.
@@ -303,8 +303,8 @@ If no `tests/toolkit/annotation-candidates.test.mjs` exists before this slice,
 create it and run it directly. If the implementation chooses a neutral sibling
 module, add the corresponding `node --check` command.
 
-Live AOS verification is not required unless GDI changes runtime behavior
-beyond imports and helper ownership. If `./aos ready` passes and GDI wants a
+Live AOS verification is not required unless Implementer changes runtime behavior
+beyond imports and helper ownership. If `./aos ready` passes and Implementer wants a
 bounded smoke, use it only as supplemental evidence; deterministic tests remain
 the acceptance gate.
 
@@ -323,7 +323,7 @@ Report back with:
 - `./aos ready` result or exact readiness blocker;
 - local-only state such as dirty files, untracked files, generated artifacts,
   local config, permissions, daemon state, or runtime blockers;
-- any follow-up slice GDI recommends, especially around old snapshot/event
+- any follow-up slice Implementer recommends, especially around old snapshot/event
   vocabulary that was intentionally left untouched.
 
 For this card, include a short path-scoped summary of the final ownership:

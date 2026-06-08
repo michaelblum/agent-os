@@ -2,7 +2,7 @@
 
 Inventory taken on 2026-06-01 from `main` at `/Users/Michael/Code/agent-os`.
 Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39425`.
-Final deterministic top-level refresh after `gdi/sigil-agent-terminal-repo-root-wrapper-correction-v0` from clean branch worktree at `e7fa75b8d4bcf304d5417b9b6bfb1c61d5e8e1bb`.
+Final deterministic top-level refresh after `implementer/sigil-agent-terminal-repo-root-wrapper-correction-v0` from clean branch worktree at `e7fa75b8d4bcf304d5417b9b6bfb1c61d5e8e1bb`.
 
 ## Current Test Inventory
 
@@ -29,8 +29,8 @@ Final deterministic top-level refresh after `gdi/sigil-agent-terminal-repo-root-
 
 ### Resolved Renderer Inventory
 
-- `node --test tests/renderer/*.test.mjs` - 449/455 pass, 6 fail before `gdi/pr392-renderer-breakage-correction-v0`.
-- `gdi/pr392-renderer-breakage-correction-v0` at `c61ea4c02472283193bb44eb4d3854aa47dba343` fixes the renderer inventory.
+- `node --test tests/renderer/*.test.mjs` - 449/455 pass, 6 fail before `implementer/pr392-renderer-breakage-correction-v0`.
+- `implementer/pr392-renderer-breakage-correction-v0` at `c61ea4c02472283193bb44eb4d3854aa47dba343` fixes the renderer inventory.
 - `node --test tests/renderer/interaction-overlay-lineage-layer.test.mjs` - 1/1 pass.
 - `node --test tests/renderer/radial-gesture-menu.test.mjs` - 18/18 pass.
 - `node --test tests/renderer/sigil-selection-mode-runtime.test.mjs` - 37/37 pass.

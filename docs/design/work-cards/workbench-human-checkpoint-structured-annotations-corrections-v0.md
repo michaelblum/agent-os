@@ -2,7 +2,7 @@
 
 ## Context
 
-GDI completed the structured annotation checkpoint slice. Foreman reviewed the
+Implementer completed the structured annotation checkpoint slice. Foreman reviewed the
 actual implementation and found the core direction correct:
 
 - structured annotation records have explicit ordinals,

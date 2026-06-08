@@ -252,7 +252,7 @@ The review's separate directions become facets of one idea:
 avatar renderer becoming entities in the World rather than a private full
 canvas — is *not* folded into this proposal. It already has a parked work card
 with observability/placement prerequisites
-(`docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`)
+(`docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`)
 and should be sequenced on its own, after the §10 probes.
 
 ---

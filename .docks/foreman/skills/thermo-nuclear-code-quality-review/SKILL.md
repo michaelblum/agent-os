@@ -260,4 +260,4 @@ Use this priority order:
 If there are no findings, say that explicitly and name any residual risk or
 evidence gap. If the slice should not be accepted, route the next reversible
 Foreman action: a correction work card, bounded verification, issue/PR comment,
-or human-needed blocker packet as appropriate.
+or manual-intervention blocker packet as appropriate.

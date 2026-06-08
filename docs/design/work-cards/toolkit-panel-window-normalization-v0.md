@@ -15,7 +15,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -25,7 +25,7 @@ Make #261 materially real: converge ordinary AOS panel/window behavior onto one
 public toolkit policy path, then migrate or explicitly park the remaining
 private drag/chrome paths that are still pulling in a different direction.
 
-This should be wider than a tiny fix. GDI is allowed to make a coherent
+This should be wider than a tiny fix. Implementer is allowed to make a coherent
 implementation slice across toolkit code, Sigil panel-like surfaces, tests, and
 docs. Keep the shape bounded:
 

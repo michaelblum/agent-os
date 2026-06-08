@@ -9,7 +9,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Work in `/Users/Michael/Code/agent-os`.
+Implementer starts from a fresh context window. Work in `/Users/Michael/Code/agent-os`.
 Do not revert the current native AX candidate adapter changes. Treat them as
 the draft implementation to amend.
 

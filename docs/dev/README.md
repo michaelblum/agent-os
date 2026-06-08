@@ -8,9 +8,9 @@ encode app-specific playbooks here.
 `workflow-profiles.json` is the source of truth for built-in example development
 workflow profiles: branch, commit, review, PR, merge-authority, and release
 postures for repo work without treating that posture as an immutable AOS
-primitive. `local_relay` is the single-checkout local branch/stash procedure for
+primitive. `local single-checkout workflow` is the single-checkout local branch/stash procedure for
 tight Foreman-human-dock-team loops with no linked git worktrees or automatic
-pushes. `agentic_relay` is the GitHub-branch relay procedure for local GDI
+pushes. `agentic_relay` is the GitHub-branch relay procedure for local Implementer
 implementation, whether run as a native subagent or explicitly assigned
 terminal relay, reviewed by a designated Foreman-compatible relay authority; it
 does not create a separate product role.
@@ -21,7 +21,7 @@ the agent-relay readiness state, read
 inferring active work from old work cards, stashes, or branch names.
 
 `agent-capabilities.json` is the source of truth for typed developer
-capabilities exposed through `./aos dev capabilities`. `.docks/*/dock.json`
+capabilities exposed through `./aos dev capabilities`. `session metadata`
 profiles resolve against that manifest through `./aos dev docks`, so dock
 identity and capability envelopes stay declarative instead of being repeated in
 role instructions.

@@ -158,7 +158,7 @@ external/test producers.
 - Local deterministic router bridge:
   `packages/toolkit/runtime/interaction-region.js`. Missing fact: this helper
   still routes raw event names such as `left_mouse_down`, `mouse_moved`,
-  `scroll_wheel`, `pointer_cancel`, and `mouse_cancel`. Next owner: GDI only
+  `scroll_wheel`, `pointer_cancel`, and `mouse_cancel`. Next owner: Implementer only
   after Foreman accepts a canonical routed-v1 producer/input contract for this
   helper. Live AOS restart: no. Smallest verification:
   `node --test tests/toolkit/runtime-interaction-region.test.mjs` with canonical
@@ -200,7 +200,7 @@ external/test producers.
   `apps/sigil/renderer/live-modules/main.js`. Missing fact: identity-only
   child messages from Sigil hit/radial surfaces lack parent-resolved
   DesktopWorld coordinates, so toolkit intentionally leaves them unresolved
-  until the parent supplies `desktop_world`. Next owner: GDI for the
+  until the parent supplies `desktop_world`. Next owner: Implementer for the
   parent-coordinate adapter once Foreman routes that slice. Live AOS restart:
   no for deterministic adapter tests; yes only for final real-input proof.
   Smallest verification:

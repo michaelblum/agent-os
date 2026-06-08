@@ -12,7 +12,7 @@
   `provider_acceptance_unobserved_before_catalog_match` with medium-high
   confidence. It distinguishes the accepted all-cwd scope behavior from the
   remaining provider-launch visibility problem and recommends a provider-free
-  bridge launch-visibility fixture as the next GDI implementation slice.
+  bridge launch-visibility fixture as the next Implementer implementation slice.
 - Foreman verification:
   - Spot-checked `packages/host/src/session-catalog.ts`; Codex catalog records
     require discoverable `rollout-*.jsonl` files with `session_meta`, cwd, an
@@ -28,20 +28,20 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI validation/classification round
+- Recipient: Implementer
+- Transfer kind: Implementer validation/classification round
 - Source artifacts:
   - `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`
   - `docs/design/work-cards/afk-all-cwd-unrelated-candidate-classification-v0.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch named
-  `gdi/afk-bridge-provider-launch-visibility-diagnosis-v0` from the required
+  `implementer/afk-bridge-provider-launch-visibility-diagnosis-v0` from the required
   start ref. Keep the checkpoint local; do not push, open a PR, mutate GitHub,
   or run live provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, catalog, telemetry, Operator report, or prior
 implementation state. Read and rediscover before editing.
 
@@ -57,8 +57,8 @@ The accepted state is:
 - The AFK launch-attempt prototype no longer treats unrelated all-cwd current
   sessions as launched-provider session ids.
 - A supervised bridge-launched Codex process in
-  `/Users/Michael/Code/agent-os/.docks/gdi` still did not create a current
-  provider catalog record for `.docks/gdi` or an independently machine-observed
+  `/Users/Michael/Code/agent-os/the implementer native subagent` still did not create a current
+  provider catalog record for `the implementer native subagent` or an independently machine-observed
   provider session id.
 
 This round should answer what surface must carry provider-launch visibility
@@ -67,11 +67,11 @@ health, provider transcript discovery, or an explicit launch-side receipt field.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`
 - `docs/design/work-cards/afk-all-cwd-unrelated-candidate-classification-v0.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`
-- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`
+- `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-implementer-completed.md`
+- `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
 - `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
 - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
@@ -105,10 +105,10 @@ If repo-mode Accessibility, Input Monitoring, or input-tap readiness blocks a
 check, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -117,7 +117,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `5eb3706cd751009f4f2d99e68861b47828a9eb48`
 - expected output branch:
-  `gdi/afk-bridge-provider-launch-visibility-diagnosis-v0`
+  `implementer/afk-bridge-provider-launch-visibility-diagnosis-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -127,7 +127,7 @@ Answer these from code and existing receipts only:
 
 1. What exact event causes a Codex session to become visible in
    `packages/host/src/session-catalog.ts`?
-2. Given the Operator reports, is the absence of a current `.docks/gdi` catalog
+2. Given the Operator reports, is the absence of a current `the implementer native subagent` catalog
    record more likely:
    - expected catalog latency or provider metadata timing;
    - the process-driver bridge not creating a provider transcript with

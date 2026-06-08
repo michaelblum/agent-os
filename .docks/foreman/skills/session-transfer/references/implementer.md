@@ -1,0 +1,98 @@
+# Implementer Round Transfers
+
+Use this reference when Foreman routes work to Implementer.
+
+## Round Contract
+
+A Implementer round has exactly one goal. It ends in one of four states:
+
+- **completed:** implementation/validation finished and evidence is reported;
+- **failed:** Implementer attempted the goal and found a blocking technical failure;
+- **stalled:** the next step needs human input, permissions, credentials, or
+  product direction;
+- **misrouted:** the goal is coordination, prioritization, or human judgment and
+  should return to Foreman or Operator.
+
+Do not ask Implementer to select the next workstream. Implementer may recommend a follow-up, but
+Foreman owns acceptance and routing.
+
+## Required Work Card Slots
+
+For non-trivial Implementer work, create or update a work card with:
+
+- Fresh Context Contract.
+- Goal: one outcome.
+- Read First.
+- Rediscover State.
+- Branch/Base: include `branch_from: <ref>` and `required_start_ref: <ref>`
+  when the work card, report, fixtures, or prerequisite commits are not on
+  `origin/main`.
+- Existing Code To Inspect.
+- Required Behavior or Validation Questions.
+- Scope and Hard Boundaries.
+- Verification.
+- Completion Report.
+
+For the full flexible authoring shape, read
+`references/implementer-work-card-authoring.md`. Keep that detail in the work card, not
+in the subagent dispatch.
+
+When the card lives on a branch that is not `origin/main`, select the `implementer`
+subagent with structured `agent_type=implementer` when available and mention the
+branch in the child prompt. If structured `agent_type` is unavailable, stop
+with a subagent-runtime blocker instead of using prompt-prefix fallback.
+
+Child prompt:
+`Follow the instructions in docs/design/work-cards/<card>.md; start from <ref>`
+
+## Branch/Base Rules
+
+Foreman must not assume Implementer will infer the base correctly.
+
+- If the work card exists on `origin/main`, omit `branch_from` only when
+  `origin/main` is truly the correct base.
+- If the work card exists only on a feature branch, set `branch_from` to that
+  branch or commit and say whether Implementer should create an output branch from it.
+- If Implementer should validate a Foreman branch in place, say "work surface" instead
+  of "output branch".
+- If Implementer should produce a new branch, name the output branch pattern.
+- If a branch already exists, say whether to reuse, reset, rebase, or stop and
+  report.
+
+## TCC/Input Monitoring Stall
+
+For live AOS verification, add this stop condition:
+
+If `./aos ready` or a bounded live check reports a repo-mode Accessibility,
+Input Monitoring, or inactive input-tap blocker, Implementer must stop looping on the
+goal and run:
+
+```bash
+the manual TCC blocker report path
+```
+
+Then Implementer reports `manual_intervention` with the script output and waits for the human.
+After the human returns with "finished", return the exact blocker to Foreman.
+Foreman owns any binary rebuild and manual TCC regrant handoff.
+
+Keep the Implementer dispatch plain. Do not add addressee ceremony. If the work is
+TCC-sensitive, put the TCC stop branch in the work card or append a plain
+suffix to the subagent prompt, for example:
+
+Role selection: structured spawn-tool field `agent_type=implementer`.
+
+Child prompt:
+`Follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run the manual TCC blocker report path and stop with manual_intervention`
+
+The Implementer helper is stop-only: it prints the manual-intervention blocker and does not
+write hook markers, reset permissions, open Settings, or start AOS.
+
+## Bad Assumptions To Prevent
+
+- Do not read router changed-file counts as dirty checkout state.
+- Do not reset to `origin/main` before reading a work card that may only exist
+  on a feature branch.
+- Do not use a successor-Foreman handoff as a work card.
+- Do not let a validation card become a doc rewrite unless explicitly assigned.
+- Do not self-accept architecture or product-priority findings; report them to
+  Foreman.

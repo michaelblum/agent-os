@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -21,10 +21,10 @@ pattern.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/sigil-ux-tree-context-menu-bindings-cutover-v0`
-- `required_start_ref`: `origin/gdi/sigil-ux-tree-context-menu-bindings-cutover-v0`
+- `branch_from`: `implementer/sigil-ux-tree-context-menu-bindings-cutover-v0`
+- `required_start_ref`: `origin/implementer/sigil-ux-tree-context-menu-bindings-cutover-v0`
 - `implementation_base_sha`: `780d46aadeb167098953c00ff9a6c1218895318f`
-- Expected output branch: `gdi/sigil-ux-tree-trigger-anchor-relations-v0`
+- Expected output branch: `implementer/sigil-ux-tree-trigger-anchor-relations-v0`
 - This is stacked on PR #386, which is stacked on #385, #384, #383, and #382.
 - Commit the completed slice. Push the output branch for review if branch-push
   credentials are available. Do not open a PR unless explicitly reassigned.
@@ -278,7 +278,7 @@ Run `./aos ready` if it is cheap. If it reports a repo-mode TCC/input-tap
 blocker, stop and use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 Then rerun:

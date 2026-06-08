@@ -1,7 +1,7 @@
 # ADR Namespace Audit
 
 Date: 2026-05-20
-Owner: GDI
+Owner: Implementer
 Work card: `docs/design/work-cards/adr-namespace-audit-v0.md`
 
 Implementation status: resolved on this branch by moving

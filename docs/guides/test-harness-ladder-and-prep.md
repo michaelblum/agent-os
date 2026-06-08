@@ -96,7 +96,7 @@ generic file.
 ## Reporting Hooks
 
 For runtime, canvas, input, status, lifecycle, visual, supervised, or
-cross-layer slices, include the relevant fields in the GDI completion report or
+cross-layer slices, include the relevant fields in the Implementer completion report or
 work-card-specific report:
 
 - `harness_selection`: harness used, level chosen, and why it preserved the
@@ -108,6 +108,6 @@ work-card-specific report:
 - `why_no_harness_prep_needed`: short explanation for tiny docs/parser/schema
   changes or cases where the existing manifest-backed recommendation is enough.
 
-Do not force every tiny GDI task to carry these fields. They are required when
+Do not force every tiny Implementer task to carry these fields. They are required when
 the slice crosses runtime/canvas/input/status/lifecycle boundaries and optional
 otherwise.

@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, display layout, annotation state, or prior live Surface Inspector state.
 Read and rediscover before editing. Work in `/Users/Michael/Code/agent-os`, not
 in `.docks/`.
@@ -42,7 +42,7 @@ the annotation model.
 - `docs/api/toolkit/controls.md`
 - `docs/api/toolkit/panel-window.md`
 - `docs/design/work-cards/operator-recent-ui-regression-live-sweep-v0.md`
-- `docs/design/work-cards/recent-ui-live-regression-gdi-repairs-v0.md`
+- `docs/design/work-cards/recent-ui-live-regression-implementer-repairs-v0.md`
 - `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/components/surface-inspector/styles.css`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
@@ -77,7 +77,7 @@ on May 18, 2026. The lower pane showed:
 - annotation mode active, but annotation work was not visually dominant;
 - dense mono text and many small controls in one continuous list.
 
-GDI does not need that exact temp file. Reproduce locally with:
+Implementer does not need that exact temp file. Reproduce locally with:
 
 ```bash
 packages/toolkit/components/surface-inspector/launch.sh

@@ -19,7 +19,7 @@
   `status=provider_acceptance_unobserved`;
   `scheduler.lifecycle_state=rejected`;
   `terminal_substrate.status=observed`; `terminal_substrate.driver=process`;
-  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi`;
+  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/the implementer native subagent`;
   `terminal_substrate.command=codex --no-alt-screen`;
   `provider_acceptance.status=provider_acceptance_unobserved`;
   `cleanup.status=verified`; `cleanup.reason=null`; mismatch classes:
@@ -54,7 +54,7 @@
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: run one bounded no-fixture supervised live
-  `./aos dev afk-session-trigger` Codex/GDI proof and report whether the real
+  `./aos dev afk-session-trigger` Codex/Implementer proof and report whether the real
   command path now records verified source-owned cleanup proof without leaving
   helper-owned bridge, PTY, or provider command processes behind.
 - Source artifacts:
@@ -90,7 +90,7 @@ substrate:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -123,10 +123,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -154,7 +154,7 @@ use:
 - `packet_id`: `operator-afk-dev-session-trigger-cleanup-proof-live`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `docs/durable-agent-cognition-v0`
 - `provider_hint`: `codex`
@@ -168,7 +168,7 @@ Run exactly one no-fixture trigger attempt:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -254,5 +254,5 @@ Report:
   dock profile/hook, GitHub state, push, PR, external publication, or provider
   transcript body read/mutation happened;
 - classification: `pass`, `partial_pass`, `cleanup_unverified`,
-  `human_needed`, or `blocked`, plus the smallest next follow-up if one is
+  `manual_intervention`, or `blocked`, plus the smallest next follow-up if one is
   obvious.

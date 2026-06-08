@@ -20,15 +20,15 @@
 - Trigger receipt: exit code `1`, top-level
   `status=provider_acceptance_unobserved`,
   `packet.validation_status=valid`, `scheduler.lifecycle_state=rejected`,
-  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=the implementer native subagent`,
   `terminal_substrate.status=observed`, driver `process`, cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`, command
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, command
   `codex --no-alt-screen`, and
   `terminal_substrate.snapshot_ref=inline:terminal_substrate.snapshot_summary`.
 - Input submission evidence: `status=submitted`, `text_accepted=true`,
   `enter_sent=true`, `enter_accepted=true`, and
   `submitted_observed=true`.
-- Snapshot evidence: bounded excerpt showed the AOS GDI transfer prompt with
+- Snapshot evidence: bounded excerpt showed the AOS Implementer transfer prompt with
   the expected goal, packet id, source artifact, and required start ref. That
   proves bridge byte delivery into the terminal, but not provider prompt
   execution.
@@ -45,7 +45,7 @@
   was
   `/Users/Michael/.codex/sessions/2026/05/23/rollout-2026-05-23T11-52-21-019e5589-992e-71b2-85ee-6695b2d1bb8a.jsonl`,
   with `session_meta.payload.cwd` equal to
-  `/Users/Michael/Code/agent-os/.docks/operator`. No `.docks/gdi` rollout was
+  `/Users/Michael/Code/agent-os/the operator native subagent`. No `the implementer native subagent` rollout was
   observed, and no transcript bodies were copied.
 - Cleanup proof passed: `cleanup.status=verified`, with
   `owned_bridge_process_exit`,
@@ -72,7 +72,7 @@
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
 - Single next goal: run one bounded no-fixture supervised live
-  `./aos dev afk-session-trigger` Codex/GDI proof from the accepted metadata
+  `./aos dev afk-session-trigger` Codex/Implementer proof from the accepted metadata
   promotion source and report whether provider acceptance now closes in the
   real live path with verified cleanup.
 - Source artifacts:
@@ -88,7 +88,7 @@
   - `branch_from: foreman/afk-provider-acceptance-live-proof-v1`
   - `required_start_ref: foreman/afk-provider-acceptance-live-proof-v1`
   - Accepted source branch:
-    `gdi/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0`
+    `implementer/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0`
   - Accepted source head:
     `f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223`
 - Expected branch/output: stay local on the required start ref. Make no source,
@@ -108,10 +108,10 @@ proof state. Read and rediscover before acting.
 
 ## Prior Evidence
 
-- V0 live proof launched the Codex UI from `.docks/gdi` and verified cleanup,
-  but no prompt was submitted and no `.docks/gdi` Codex metadata thread appeared.
-- GDI then added live prompt submission through bridge `/input`.
-- GDI then added metadata-backed promotion so a strong
+- V0 live proof launched the Codex UI from `the implementer native subagent` and verified cleanup,
+  but no prompt was submitted and no `the implementer native subagent` Codex metadata thread appeared.
+- Implementer then added live prompt submission through bridge `/input`.
+- Implementer then added metadata-backed promotion so a strong
   `matched_by_cwd_time_window` Codex adapter match after successful prompt
   submission promotes `provider_acceptance.status` to
   `provider_session_observed`.
@@ -125,7 +125,7 @@ submit the packet prompt and observe provider acceptance from live evidence:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -178,10 +178,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/operator/scripts/human-needed-tcc-reset
+report the supervised-runtime blocker to Foreman
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -212,7 +212,7 @@ use:
 - `packet_id`: `operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1`
 - `source_artifact`:
   `docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: `foreman/afk-provider-acceptance-live-proof-v1`
 - `provider_hint`: `codex`
@@ -226,7 +226,7 @@ Run exactly one no-fixture trigger attempt:
 ./aos dev afk-session-trigger \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json \
@@ -320,7 +320,7 @@ delete provider-owned Codex files.
 - Do not mutate source, docs, provider config/session/catalog, telemetry,
   gateway, dock profiles, hooks, GitHub state, PRs, main, or provider transcript
   bodies.
-- Do not route the result to GDI or merge anything.
+- Do not route the result to Implementer or merge anything.
 
 ## Completion Report Required
 
@@ -334,7 +334,7 @@ Return a concise Foreman report with:
   - `provider_acceptance_live_proof_passed`;
   - `provider_acceptance_unobserved_still_open`;
   - `cleanup_unverified`;
-  - `human_needed`;
+  - `manual_intervention`;
   - or another precise blocker class;
 - bounded provider metadata summary;
 - cleanup proof and post-run process comparison;

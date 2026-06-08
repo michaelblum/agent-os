@@ -27,7 +27,7 @@ Verification:
 
 ```text
 git status --short --branch
-## gdi/afk-dev-session-trigger-supervised-bridge-launch-v0
+## implementer/afk-dev-session-trigger-supervised-bridge-launch-v0
 
 ./aos ready
 ready=true mode=repo daemon=reachable tap=active
@@ -66,35 +66,35 @@ external publication happened during Foreman acceptance.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: correct the supervised bridge launch slice so the no-fixture
-  guarded trigger path is provider-capable and will start Codex from `.docks/gdi`
+  guarded trigger path is provider-capable and will start Codex from `the implementer native subagent`
   during a supervised Operator run, instead of starting only the old harmless
   no-provider marker command.
 - Source artifact:
   `docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`
 - Reviewed output branch:
-  `gdi/afk-dev-session-trigger-supervised-bridge-launch-v0`
+  `implementer/afk-dev-session-trigger-supervised-bridge-launch-v0`
 - Reviewed output head:
   `f501072779344a22222f45cf49e94cbed5dbe7aa`
 - Reviewed base:
   `a38d0da68f9e2a68ade269e19d1bd651575de516`
 - Branch/output expectation: continue on
-  `gdi/afk-dev-session-trigger-supervised-bridge-launch-v0` from this
+  `implementer/afk-dev-session-trigger-supervised-bridge-launch-v0` from this
   correction card commit. Keep the checkpoint local; do not push, open a PR,
   mutate GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, transcript/catalog state, or Foreman's review
 details beyond this card. Read and rediscover before editing.
 
 ## Foreman Review Finding
 
 The routed card required the guarded trigger to start the supervised local
-bridge/provider launch substrate for Codex from `.docks/gdi` when all guards
+bridge/provider launch substrate for Codex from `the implementer native subagent` when all guards
 pass. The current implementation reuses `createLaunchAttempt`, but that helper
 still constructs and enforces a no-provider marker command:
 
@@ -130,15 +130,15 @@ but the real Operator path still would not launch Codex.
 
 ## Required Behavior
 
-Fix the source behavior without broadening beyond the supervised Codex/GDI path:
+Fix the source behavior without broadening beyond the supervised Codex/Implementer path:
 
 - when all accepted trigger guards pass and no bridge/provider fixture is being
-  used, the trigger path must be capable of starting Codex from `.docks/gdi`
+  used, the trigger path must be capable of starting Codex from `the implementer native subagent`
   through the supervised local bridge substrate;
 - the terminal command for that path must be provider-shaped, for example
   `codex --no-alt-screen` or the repo-approved equivalent;
 - provider launch must remain impossible unless `--supervised-live-launch`,
-  `--i-am-present`, `--json`, `--provider codex`, and `--dock gdi` all pass;
+  `--i-am-present`, `--json`, `--provider codex`, and `--dock implementer` all pass;
 - duplicate suppression must still run before bridge/provider start;
 - fixture-backed deterministic tests must still avoid live provider launch;
 - no-provider marker behavior may remain available for
@@ -152,7 +152,7 @@ Fix the source behavior without broadening beyond the supervised Codex/GDI path:
 ## Hard Boundaries
 
 - Do not run a live Codex, Claude, Gemini, tmux, provider terminal, or real
-  bridge session in this GDI correction round.
+  bridge session in this Implementer correction round.
 - Do not read real `~/.codex` transcript bodies.
 - Do not mutate provider configs, provider session files, provider transcripts,
   provider catalogs, telemetry stores, gateway jobs, dock profiles, hooks,
@@ -174,7 +174,7 @@ Fix the source behavior without broadening beyond the supervised Codex/GDI path:
 One likely shape is to add an explicit internal/provider-launch mode to the
 launch-attempt helper that is only reachable from the guarded trigger path, then
 use deterministic fixtures/tests to assert the provider command shape without
-actually executing it in GDI. Choose the smallest implementation that preserves
+actually executing it in Implementer. Choose the smallest implementation that preserves
 the existing no-provider diagnostics and keeps provider launch behind the
 trigger's human-supervised gates.
 
@@ -212,10 +212,10 @@ Add or update focused tests proving:
 If repo-mode TCC/Input Monitoring readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -233,7 +233,7 @@ Report:
   shape;
 - guard, duplicate, provider-acceptance, and cleanup behavior;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened.

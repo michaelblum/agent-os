@@ -18,7 +18,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing.
 

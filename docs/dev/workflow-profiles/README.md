@@ -1,10 +1,10 @@
 # Dev Workflow Profiles
 
 Development workflow profiles describe branch, commit, review, pull request, and
-release posture. They are deliberately separate from AOS docks and entry paths:
+release posture. They are deliberately separate from AOS docks and tooling contexts:
 
 - A dock defines who the agent is for the session.
-- An entry path defines the active capability layer for the task.
+- An tooling context defines the active tooling context for the task.
 - A workflow profile defines how development work flows through git and review.
 
 The machine-readable source is `docs/dev/workflow-profiles.json`. The built-in
@@ -23,19 +23,19 @@ publish externally, or perform a destructive operation.
 
 ### Agentic Relay (`agentic_relay`)
 
-Use this when local GDI implementation, whether a native subagent or an
+Use this when local Implementer implementation, whether a native subagent or an
 explicitly assigned terminal relay, works in tandem with a designated relay
 authority that owns review and merge. The relay authority performs the Foreman
 merge/review function, but it may be running remotely with GitHub access and no
 local checkout, local hooks, `./aos`, or local dirty-state visibility.
 
-- The assigned GDI executor creates a `gdi/<work-card-slug>` branch from `main`
+- The assigned Implementer executor creates a `implementer/<work-card-slug>` branch from `main`
   before starting work.
-- The assigned GDI executor commits verified work to that branch and pushes it
+- The assigned Implementer executor commits verified work to that branch and pushes it
   to origin at completion when the profile and dispatch explicitly authorize
   publication.
-- GDI reports the branch name, HEAD SHA, verification, and local-only state in
-  its completion report. GDI does not merge to main.
+- Implementer reports the branch name, HEAD SHA, verification, and local-only state in
+  its completion report. Implementer does not merge to main.
 - The pushed branch is the remote-visible relay artifact. The relay authority
   reads it through GitHub, evaluates the work, and merges to main or requests
   changes.
@@ -48,7 +48,7 @@ local checkout, local hooks, `./aos`, or local dirty-state visibility.
 - Rollback, fix-forward, and revert are clean because main is never touched
   until the relay authority explicitly merges.
 
-### Local Relay (`local_relay`)
+### Local Relay (`local single-checkout workflow`)
 
 Use this when Foreman, the human, and the dock team are sharing one local
 checkout and the branch or stash is the local safety boundary.
@@ -57,8 +57,8 @@ checkout and the branch or stash is the local safety boundary.
   worktrees for this workflow.
 - Use local branches, scoped commits, and named stashes to preserve unrelated
   work before switching context.
-- GDI may produce local commits when the work card asks for a checkpoint, but
-  GDI does not push, open pull requests, merge, or clean branches unless that
+- Implementer may produce local commits when the work card asks for a checkpoint, but
+  Implementer does not push, open pull requests, merge, or clean branches unless that
   is explicitly assigned.
 - Foreman or the human reviews local branch state and verification before
   deciding whether to merge, publish to GitHub, or ask for a correction.
@@ -114,13 +114,13 @@ Use this for projects with multiple environments or formal release cycles.
 
 Prefer `agentic_relay` when:
 
-- local GDI does bounded implementation work and a remote partner (human or
+- local Implementer does bounded implementation work and a remote partner (human or
   agent) owns the merge gate through GitHub-visible branch state;
 - you want rollback/fix-forward safety without mandatory pull requests;
 - the remote partner can evaluate and merge via GitHub API without a local
   checkout, and can request local probes when local-only evidence matters.
 
-Prefer `local_relay` when:
+Prefer `local single-checkout workflow` when:
 
 - Foreman, the human, and the dock team need a nimble local loop in one
   checkout;

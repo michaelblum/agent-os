@@ -31,7 +31,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 
 Agent sessions normally launch through docks under [.docks/](.docks/). Start
 with [AGENTS.md](AGENTS.md) only as repo-wide signage, then use
-[.docks/README.md](.docks/README.md) and the role-local dock contract.
+.docks/AGENTS.md and .docks/foreman/AGENTS.md.
 
 ## Consumer Docs
 

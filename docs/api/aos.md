@@ -277,7 +277,7 @@ are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 `build` wraps the repo `build.sh`, forces `--no-restart` unless the caller has
 already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
 in JSON mode. Dock hooks do not automate post-build TCC handling: they do not
-reset permissions, open System Settings, show a human-needed surface, write
+reset permissions, open System Settings, show a manual-intervention surface, write
 completed-build markers, or inject provider input. Repo-mode binary rebuilds
 are Foreman-owned and intentionally rare.
 
@@ -287,10 +287,10 @@ capabilities, including whether a capability uses a typed AOS surface or an
 explicit raw-process adapter. It does not execute capabilities or grant
 permissions.
 
-`docks` is read-only discovery over `.docks/*/dock.json`. It lists or explains
+`docks` is read-only discovery over `session metadata`. It lists or explains
 dock profiles and can resolve a dock's profile against
-`docs/dev/agent-capabilities.json` for the active entry path. This keeps dock
-identity, entry-path defaults, and allowed capability classes explicit without
+`docs/dev/agent-capabilities.json` for the active tooling context. This keeps dock
+identity, tooling-context defaults, and allowed capability classes explicit without
 turning the profile into a rigid executor.
 
 `dev gh` is the repo GitHub control surface. It deliberately uses the real
@@ -300,7 +300,7 @@ Direct operations such as `issue list`, `issue view`, `issue comment`,
 `issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
 `pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
 behavior. List operations expose the repo-safe inventory filters Foreman and
-GDI need most often: issue and PR lists support `--state`, `--limit`,
+Implementer need most often: issue and PR lists support `--state`, `--limit`,
 `--label`, `--author`, `--assignee`, and `--search`, plus issue-specific
 `--milestone` and PR-specific `--base`, `--head`, and `--draft`; label lists
 support `--limit`, `--search`, `--sort`, and `--order`. Write operations are
@@ -950,7 +950,7 @@ Direct routing should prefer canonical session ids. Human-readable names remain 
 Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
 
 Docked role sessions are ordinary registered sessions. Supervisors should
-register each role before launch with stable ids such as `<run-id>:gdi`,
+register each role before launch with stable ids such as `<run-id>:implementer`,
 include role and harness metadata, and unregister the session after that role
 completes. This keeps `aos tell --who`, `aos voice assignments`, and docked
 session status aligned around the same role session identity.

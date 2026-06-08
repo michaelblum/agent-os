@@ -46,9 +46,9 @@ supervised no-fixture Operator proof. Next routed proof:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI implementation round
-- Single next goal: make the guarded live Codex/GDI trigger path observe
+- Recipient: Implementer
+- Transfer kind: Implementer implementation round
+- Single next goal: make the guarded live Codex/Implementer trigger path observe
   provider acceptance from the live terminal snapshot, so a launch that exposes
   the same snapshot text already covered by fixtures promotes
   `provider_acceptance.status` to `provider_session_observed` without human
@@ -65,14 +65,14 @@ supervised no-fixture Operator proof. Next routed proof:
     the packet under `packets/`. Do not reset it to `origin/main` before reading
     the card.
 - Branch/output expectation: create
-  `gdi/afk-dev-session-trigger-provider-acceptance-observation-v0` from the
-  required start ref. Commit and push that GDI branch when verification passes,
+  `implementer/afk-dev-session-trigger-provider-acceptance-observation-v0` from the
+  required start ref. Commit and push that Implementer branch when verification passes,
   per the active `agentic_relay` profile. Do not open a PR, merge, close issues,
   mutate GitHub state beyond the branch push, or start async result routing.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 bridge process, provider session, transcript/catalog state, PR state, or prior
 implementation state. Read and rediscover before editing.
 
@@ -92,8 +92,8 @@ The fixture-backed trigger test already captures the desired snapshot shape.
 ```text
 Codex CLI 0.133.0
 provider_session_id: <uuid>
-cwd /Users/Michael/Code/agent-os/.docks/gdi
-branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0
+cwd /Users/Michael/Code/agent-os/the implementer native subagent
+branch implementer/afk-dev-session-trigger-supervised-bridge-launch-v0
 model gpt-5.5
 head a38d0da6
 live-codex-session-trigger-supervised-bridge-launch
@@ -109,7 +109,7 @@ snapshot text.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
@@ -136,10 +136,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -171,7 +171,7 @@ Only continue if it reports ready.
 
 ## Required Behavior
 
-- In the guarded no-fixture live Codex/GDI path, after the provider command is
+- In the guarded no-fixture live Codex/Implementer path, after the provider command is
   started, poll the bridge `/snapshot` output for a bounded window and parse the
   same text patterns currently parsed by fixture-backed bridge visibility.
 - When a live snapshot contains a parseable provider session id, set:
@@ -193,7 +193,7 @@ Only continue if it reports ready.
 - Preserve cleanup proof requirements. Provider acceptance alone must not report
   `completed` unless cleanup is verified.
 - Preserve the current live launch guard. Do not remove `--i-am-present` in this
-  GDI slice; closing provider observation is the prerequisite for a later
+  Implementer slice; closing provider observation is the prerequisite for a later
   Foreman decision about unsupervised triggers.
 
 ## Scope And Hard Boundaries
@@ -203,13 +203,13 @@ Only continue if it reports ready.
 - Do not start async result routing.
 - Do not remove, relax, rename, or bypass `--i-am-present`.
 - Do not add final `aos session ...` command spelling.
-- Do not broaden beyond the first Codex/GDI live path.
+- Do not broaden beyond the first Codex/Implementer live path.
 - Do not read provider transcript bodies outside the bounded bridge snapshot
   already produced by the terminal substrate.
 - Do not mutate provider configs, provider session stores, provider catalogs,
   telemetry stores, gateway state, dock profiles, hooks, GitHub issues, PRs, or
   main.
-- Do not run a live Codex provider launch in this GDI round. If deterministic
+- Do not run a live Codex provider launch in this Implementer round. If deterministic
   verification passes, report whether an Operator supervised live proof is the
   next required evidence.
 
@@ -252,7 +252,7 @@ bash tests/help-contract.sh
 ./aos dev build --no-restart
 ```
 
-Do not run live provider verification in this GDI round. If the implementation
+Do not run live provider verification in this Implementer round. If the implementation
 changes the real bridge/session APIs enough that deterministic tests cannot
 prove the intended behavior, stop and report the missing testability boundary
 instead of launching a provider.
@@ -261,8 +261,8 @@ instead of launching a provider.
 
 Stop and report instead of broadening scope if:
 
-- repo-mode TCC/Input Monitoring readiness blocks and the GDI helper reports
-  `human_needed`;
+- repo-mode TCC/Input Monitoring readiness blocks and the Implementer helper reports
+  `manual_intervention`;
 - live provider launch appears necessary to finish implementation;
 - the only way to observe provider acceptance would require reading provider
   transcript bodies or mutating provider-owned stores;
@@ -285,7 +285,7 @@ Report:
   Codex;
 - exact receipt/status changes for observed and unobserved provider acceptance;
 - exact tests/checks run with pass/fail results;
-- `./aos ready` result or exact `human_needed` blocker;
+- `./aos ready` result or exact `manual_intervention` blocker;
 - whether an Operator supervised live proof is still required before Foreman
   considers the provider-acceptance gate closed;
 - confirmation that no live provider launch, provider transcript body read,
@@ -293,5 +293,5 @@ Report:
   mutation, GitHub issue/PR mutation, main merge, or async result routing
   occurred.
 
-If this GDI session reused a completed goal, remind the human to run
-`/goal clear` before retiring or starting unrelated work.
+If this Implementer session reused a completed goal, remind the human to run
+clear the stale prompt state before retiring or starting unrelated work.

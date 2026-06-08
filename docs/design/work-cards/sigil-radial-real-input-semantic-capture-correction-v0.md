@@ -24,7 +24,7 @@ context for this correction, not active routing instructions.
 
 ## Fresh Context Reset
 
-Historical pre-fix context: GDI reported the second-client inventory and semantic
+Historical pre-fix context: Implementer reported the second-client inventory and semantic
 target replay slice passed real-input smoke, but Foreman reran the canonical
 scenario and it failed. Deterministic tests are green; the blocker is live
 semantic capture reliability for the radial child surface.

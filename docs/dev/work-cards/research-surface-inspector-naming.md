@@ -1,6 +1,6 @@
 # Work Card: surface-inspector Naming Investigation
 
-**Branch:** `gdi/research-surface-inspector-naming`
+**Branch:** `implementer/research-surface-inspector-naming`
 **Type:** Research — no code changes
 **Stage only:** `docs/dev/reports/surface-inspector-naming.md`
 
@@ -17,14 +17,14 @@ There is a belief that `surface-inspector` was renamed to `surface-inspector` at
 
 ---
 
-## Instructions for GDI
+## Instructions for Implementer
 
 ### Preconditions
 
 ```sh
 git fetch origin
 git reset --hard origin/main
-git checkout -b gdi/research-surface-inspector-naming
+git checkout -b implementer/research-surface-inspector-naming
 ```
 
 ### Step 1 — Search commit history for surface-inspector references
@@ -84,7 +84,7 @@ Write findings to `docs/dev/reports/surface-inspector-naming.md` covering:
 git add docs/dev/reports/surface-inspector-naming.md
 git show --stat HEAD
 git commit -m "research(toolkit): surface-inspector naming investigation"
-git push origin gdi/research-surface-inspector-naming
+git push origin implementer/research-surface-inspector-naming
 ```
 
 Report back with: branch name, HEAD SHA, and `git show --stat HEAD` output.
@@ -93,7 +93,7 @@ Report back with: branch name, HEAD SHA, and `git show --stat HEAD` output.
 
 ## Acceptance Criteria
 
-- [ ] `docs/dev/reports/surface-inspector-naming.md` exists on `gdi/research-surface-inspector-naming`
+- [ ] `docs/dev/reports/surface-inspector-naming.md` exists on `implementer/research-surface-inspector-naming`
 - [ ] Commit history examined via `--follow` for both component paths
 - [ ] Codebase grep for `surface-inspector` completed
 - [ ] Sigil and gateway registration status documented

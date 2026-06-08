@@ -1,6 +1,6 @@
 {
   "captured_at": "2026-05-20T01:56:56.217Z",
-  "status": "status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=gdi/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=6\nNext: ./aos help <command> | ./aos introspect review",
+  "status": "status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=implementer/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=6\nNext: ./aos help <command> | ./aos introspect review",
   "canvas_summary": {
     "total": 7,
     "active": 4,

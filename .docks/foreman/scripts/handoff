@@ -4,10 +4,10 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman> [--text <payload>]
-  printf '%s' "$payload" | .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman>
+  .docks/foreman/scripts/handoff --target-dock foreman [--text <payload>]
+  printf '%s' "$payload" | .docks/foreman/scripts/handoff --target-dock foreman
 
-Foreman-only compatibility wrapper for cross-session transfer payloads. It
+Foreman-only compatibility wrapper for successor-session transfer payloads. It
 delegates clipboard writes and chat demarcation to the repo-level handoff tool
 through scripts/dock-handoff-clipboard.
 EOF
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$target_dock" in
-  gdi|operator|foreman) ;;
+  foreman) ;;
   "")
     echo "FAIL: --target-dock is required" >&2
     usage >&2

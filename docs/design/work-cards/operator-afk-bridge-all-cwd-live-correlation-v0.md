@@ -6,7 +6,7 @@
 
 - Result accepted as `partial_pass`.
 - Operator branch/head:
-  `gdi/dock-handoff-chat-shape-correction-v0` at
+  `implementer/dock-handoff-chat-shape-correction-v0` at
   `df00e8e33219371eb95ba33d501617d39622b77f`.
 - `docs/durable-agent-cognition-v0` matched HEAD at run start.
 - Worktree before and after was clean.
@@ -17,23 +17,23 @@
   - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
 - Bridge run:
   - port: `17865`
-  - default cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+  - default cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
   - driver: `process`
   - ensure result: `{"ok":true,"session":"afk-bridge-all-cwd-proof","created":true,"driver":"process"}`
   - `launch_observed_at`: `2026-05-22T15:52:38Z`
 - Catalog result:
-  - requested cwd `/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex`
+  - requested cwd `/sessions?cwd=/Users/Michael/Code/agent-os/the implementer native subagent&provider=codex`
     returned 310 records, newest
     `019e5058-3743-79c1-bf67-476fcbf0fd72` updated
     `2026-05-22T15:44:25.259Z`; no current record relative to launch.
   - all-cwd `/sessions?provider=codex&all_cwd=true` returned 1557 records and
-    found one current candidate outside `.docks/gdi`:
+    found one current candidate outside `the implementer native subagent`:
     `019e5062-42f2-7340-beda-e2295ebf7f41` at
-    `/Users/Michael/Code/agent-os/.docks/operator`, updated
+    `/Users/Michael/Code/agent-os/the operator native subagent`, updated
     `2026-05-22T15:54:01.463Z`.
   - `/session-inspector` for that current all-cwd candidate reported cwd
-    `/Users/Michael/Code/agent-os/.docks/operator`, branch
-    `gdi/dock-handoff-chat-shape-correction-v0`, model `gpt-5.5`,
+    `/Users/Michael/Code/agent-os/the operator native subagent`, branch
+    `implementer/dock-handoff-chat-shape-correction-v0`, model `gpt-5.5`,
     diagnostics `[]`, and telemetry present.
 - Cleanup succeeded: bridge stopped, port 17865 was no longer reachable, temp
   classifier fixture was removed, and no leftover bridge or
@@ -45,7 +45,7 @@
 ## Foreman Follow-Up
 
 The all-cwd endpoint behavior is accepted. The remaining gap is not another
-all-cwd scope fix: the bridge-launched `.docks/gdi` Codex process did not create
+all-cwd scope fix: the bridge-launched `the implementer native subagent` Codex process did not create
 a current visible provider catalog record.
 
 The optional classifier result from this Operator run is treated as a caveat,
@@ -53,7 +53,7 @@ not final truth. It passed the all-cwd Operator candidate id as
 `--provider-session-id`, which makes the current prototype classify
 `provider_session_wrong_cwd`. That status is correct only when the launched
 provider session id was independently observed from the launch. In this run the
-current all-cwd candidate was the supervising Operator session, so the next GDI
+current all-cwd candidate was the supervising Operator session, so the next Implementer
 slice should prevent unrelated current all-cwd candidates from being promoted
 into bridge-observed provider session ids.
 
@@ -64,7 +64,7 @@ into bridge-observed provider session ids.
 - Single next goal: run one supervised live Sigil bridge correlation smoke on
   the accepted all-cwd catalog-scope checkpoint, proving whether
   `/sessions?provider=codex&all_cwd=true` can find the current Codex provider
-  session without guessing `.docks/operator`.
+  session without guessing `the operator native subagent`.
 - Source artifact:
   `docs/design/work-cards/afk-bridge-catalog-scope-correction-v0.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
@@ -95,10 +95,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -118,7 +118,7 @@ Start one bridge process with a free local port, preferring `17865`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17865 \
 SIGIL_AGENT_TMUX_SESSION=afk-bridge-all-cwd-proof \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -129,13 +129,13 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 
 Use `/ensure` for:
 
 - session: `afk-bridge-all-cwd-proof`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -149,7 +149,7 @@ to edit files.
 Query the requested-cwd catalog:
 
 ```text
-/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex
+/sessions?cwd=/Users/Michael/Code/agent-os/the implementer native subagent&provider=codex
 ```
 
 Report `scope`, `cwd_filter`, record count, newest record id, newest
@@ -164,7 +164,7 @@ Query the explicit all-cwd catalog:
 
 Report `scope`, `cwd_filter`, record count, current candidate ids with cwd and
 `updated_at`, and whether it found a current provider session outside
-`.docks/gdi`.
+`the implementer native subagent`.
 
 If one current all-cwd candidate is selected, call:
 
@@ -181,7 +181,7 @@ built from the all-cwd payload. Use a temp packet with:
 
 ```json
 {
-  "dock": "gdi",
+  "dock": "implementer",
   "provider_hint": "codex",
   "cwd": "/Users/Michael/Code/agent-os",
   "source_artifact": "docs/design/work-cards/afk-bridge-catalog-scope-correction-v0.md",
@@ -199,7 +199,7 @@ and mismatch codes.
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the bridge cannot
   start after one port retry, or Codex launch requires credentials or

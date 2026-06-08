@@ -2,16 +2,16 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: apply the code-quality corrections from Foreman review to
   the profiler-backed visual-object proof without changing the accepted
   bootstrap behavior.
 - Source artifact: Thermo-nuclear review of
-  `gdi/selection-mode-cursor-ancestor-ladder-v0` at `ff53130a` over
+  `implementer/selection-mode-cursor-ancestor-ladder-v0` at `ff53130a` over
   `2716f5e4`.
 - Branch/base: continue from current branch
-  `gdi/selection-mode-cursor-ancestor-ladder-v0` at or after `ff53130a`.
+  `implementer/selection-mode-cursor-ancestor-ladder-v0` at or after `ff53130a`.
 - Branch/output expectation: one focused correction commit on the same branch.
 - Stop conditions: complete, failed, or blocker if live AOS readiness is needed
   and `./aos ready --json` reports a repo-mode TCC/input blocker.

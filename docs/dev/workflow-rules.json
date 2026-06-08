@@ -335,9 +335,9 @@
       "id": "dock-profiles",
       "summary": "Dock profile metadata, schema, docs, or tests changed.",
       "patterns": [
-        ".docks/*/dock.json",
-        ".docks/dock-defaults.json",
-        ".docks/README.md",
+        "session metadata",
+        ".docks/session defaults",
+        ".docks/AGENTS.md",
         ".docks/AGENTS.md",
         "shared/schemas/aos-dock-profile-v0.md",
         "shared/schemas/aos-dock-profile-v0.schema.json",
@@ -376,9 +376,9 @@
         ".codex/agents/**",
         ".docks/foreman/.codex/config.toml",
         ".docks/foreman/.codex/hooks.json",
-        ".docks/foreman/SUBAGENTS.md",
+        ".docks/foreman/native subagent roster docs",
         ".docks/foreman/README.md",
-        ".docks/foreman/subagent-voices.json",
+        ".docks/foreman/subagent voice policy",
         "tests/dock-hook-isolation.sh"
       ],
       "classes": [

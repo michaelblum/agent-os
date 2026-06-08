@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -10,7 +10,7 @@ Correction round.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, screenshot, or prior implementation state. Read and rediscover before
 editing.
 
@@ -42,9 +42,9 @@ weakening the intended Selection Mode behavior:
 
 ## Branch / Base
 
-- `branch_from`: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- `branch_from`: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - `required_start_ref`: `0ad72ead315d0052a1154fbb09e58e7c3893e672`
-- Work surface/output branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Work surface/output branch: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - Commit the correction locally on that branch.
 - Do not push, open or update PRs, close issues, or mutate GitHub state unless
   Foreman explicitly reassigns that responsibility.
@@ -78,7 +78,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD origin/main origin/gdi/selection-mode-cursor-ancestor-ladder-v0
+git rev-parse HEAD origin/main origin/implementer/selection-mode-cursor-ancestor-ladder-v0
 ./aos ready --json
 ```
 
@@ -86,10 +86,10 @@ If live readiness reports repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blockers and live evidence is needed, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`.
+Then stop with `manual_intervention`.
 
 ## Blocker 1: Selection Overlay Projection Is In The Wrong Coordinate Contract
 
@@ -211,7 +211,7 @@ bash tests/daemon-input-surface-ownership.sh
 Add or update the narrow deterministic tests described in both blocker
 sections. Include exact test names in the completion report.
 
-Live proof is required after GDI completes. Do not self-accept this round on
+Live proof is required after Implementer completes. Do not self-accept this round on
 deterministic tests alone; Foreman will route Operator for another bounded
 Selection Mode smoke.
 
@@ -225,6 +225,6 @@ Return:
 - whether any product claim was narrowed instead of implementing real model
   rendering;
 - tests run and exact pass/fail result;
-- any live-readiness blocker and whether `.docks/gdi/scripts/human-needed-tcc-reset`
+- any live-readiness blocker and whether the manual TCC blocker report path
   was used;
 - residual risks or follow-up slices.

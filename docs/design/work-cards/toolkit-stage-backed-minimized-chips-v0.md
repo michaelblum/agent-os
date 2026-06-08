@@ -12,7 +12,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -61,7 +61,7 @@ chip failure until the safe macOS TCC reset has happened.
 
 ## Foreman Review Status
 
-Foreman accepts the current GDI implementation as a V0 proof for #304. The diff
+Foreman accepts the current Implementer implementation as a V0 proof for #304. The diff
 has been reviewed deterministically: the default path creates a DesktopWorld
 stage chip plus restore, close, and body input regions, while retaining the old
 WebView chip as an explicit fallback.

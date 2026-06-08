@@ -1,14 +1,13 @@
 # agent-os Agent Entry Signage
 
-This root file is intentionally small. Normal agent sessions in this repo should
-launch through a dock under `.docks/<dock>` so role instructions, hooks, inbound
-message contracts, and stop behavior are applied by the dock harness.
+This root file is intentionally small. Normal coordination sessions in this
+repo should launch from `.docks/foreman/` so Foreman instructions and hooks are
+applied by the session harness.
 
 Remote or undocked agents are the exception. If you reached only this file, use
-it as signage: read `.docks/README.md`, `.docks/AGENTS.md`, and then the
-role-local `.docks/<dock>/AGENTS.md` that matches the request. If no role is
-named and the task is coordination, review, routing, or git/GitHub hygiene,
-adopt Foreman.
+it as signage: read `.docks/AGENTS.md` and `.docks/foreman/AGENTS.md`. If no
+role is named and the task is coordination, review, routing, or git/GitHub
+hygiene, adopt Foreman.
 
 ## Change Control
 
@@ -19,8 +18,8 @@ or role-specific policy here.
 Change root `AGENTS.md` only when a repo-wide invariant or routing pointer has
 changed. Prefer the narrower owner:
 
-- `.docks/` for dock roles, launch model, hooks, inbound contracts, transfer
-  vocabulary, and stop behavior.
+- `.docks/` for Foreman launch model, hooks, transfer vocabulary, and stop
+  behavior.
 - Nearest subtree `AGENTS.md` for package, app, daemon, toolkit, or test-local
   operating contracts.
 - `docs/guides/` for repeatable procedures and checklists.
@@ -40,11 +39,10 @@ inline instructions with a pointer to the owning surface.
 - `CONTEXT.md` defines shared vocabulary and resolved terminology.
 - `CONTEXT-MAP.md` routes work to the right source roots, contracts, schemas,
   recipes, and domain docs.
-- `.docks/README.md` explains dock launch, hook/config ownership, and canonical
-  dock roles.
-- `.docks/AGENTS.md` is the shared docked-session contract.
-- `.docks/foreman/AGENTS.md`, `.docks/gdi/AGENTS.md`, and
-  `.docks/operator/AGENTS.md` define role-local authority and stop conditions.
+- `.docks/AGENTS.md` is the shared session contract.
+- `.docks/foreman/AGENTS.md` defines Foreman authority and stop conditions.
+- `.codex/agents/` defines native subagent instructions for implementer,
+  reviewer, explorer, validator, operator, and steward roles.
 
 Historical `CLAUDE.md` files are compatibility pointers for tools that still
 discover that filename. Keep live detail in the owned source above.
@@ -94,7 +92,7 @@ surface is missing, broken, or the task is explicitly testing that lower-level
 adapter. When you must bypass `./aos`, state why and keep the bypass scoped as a
 last-resort diagnostic.
 
-Use `docs/guides/agent-entry-paths-and-verification.md` for entry-path,
+Use `docs/guides/agent-tooling-contexts-and-verification.md` for tooling-context,
 verification, host-shell, and readiness guidance. Use `docs/dev/README.md` and
 `docs/dev/workflow-profiles/README.md` for development workflow routing and
 branch/review posture. Use `.docks/` contracts for role authority and harness

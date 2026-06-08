@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -69,7 +69,7 @@ rg -n "normalize.*Projection|normalize.*Reveal|ProjectionStatus|ProjectionEviden
 
 If `./aos ready` reports a repo-mode TCC/input-tap blocker, report the exact
 blocker and continue deterministic tests only. This slice should not require
-live input verification unless GDI changes runtime behavior beyond pure
+live input verification unless Implementer changes runtime behavior beyond pure
 normalization.
 
 Before editing, verify that no owned in-repo caller still imports the old
@@ -164,7 +164,7 @@ projection evidence into their own subject/session shapes, but they should not
 own separate status semantics when the shared projection contract already
 covers them.
 
-If GDI finds that session projection evidence is intentionally narrower than
+If Implementer finds that session projection evidence is intentionally narrower than
 adapter projection results, preserve the narrower shape but route common status,
 rect, blocker, and timestamp normalization through the canonical helper.
 
@@ -247,11 +247,11 @@ git diff --check
 ```
 
 Add or update tests for the canonical normalizers so projection/reveal status
-semantics are covered outside a Surface Inspector-only test. If GDI changes
+semantics are covered outside a Surface Inspector-only test. If Implementer changes
 barrel exports in `packages/toolkit/workbench/index.js`, add a small import
 probe or test assertion that the intended canonical exports are available.
 
-No live smoke is required for pure normalization. If GDI changes runtime target
+No live smoke is required for pure normalization. If Implementer changes runtime target
 resolution, reveal dispatch behavior, or Surface Inspector interaction wiring,
 run one bounded live smoke after `./aos ready` passes and report exact
 steps/results.

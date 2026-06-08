@@ -12,7 +12,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, PR, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -190,8 +190,8 @@ node --test tests/toolkit/zag-adapter-tabs.test.mjs
 git diff --check
 ```
 
-If GDI touches only select, still run combobox/menu tests to prove shared-helper
-compatibility. If GDI touches combobox, run select/menu tests for the same
+If Implementer touches only select, still run combobox/menu tests to prove shared-helper
+compatibility. If Implementer touches combobox, run select/menu tests for the same
 reason. No live smoke is required for this pure toolkit adapter cleanup.
 
 ## Completion Report

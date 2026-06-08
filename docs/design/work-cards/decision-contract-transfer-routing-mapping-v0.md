@@ -1,7 +1,7 @@
 # Work Card: decision-contract-transfer-routing-mapping-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -19,7 +19,7 @@ launch.
 
 Accepted evidence:
 
-- GDI branch: `gdi/decision-contract-transfer-routing-mapping-v0`
+- Implementer branch: `implementer/decision-contract-transfer-routing-mapping-v0`
 - Accepted commit: `163a48605b810d304bf731fc984c6cdf7d756470`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -28,12 +28,12 @@ Accepted evidence:
   `git diff --check 2abf72ea5720cb72662cb1f6eecf59926bbcedfa..163a48605b810d304bf731fc984c6cdf7d756470`
   and `./aos dev recommend --json`.
 - Recommendation accepted with cadence adjustment: transfer routing is a
-  credible second docs-backed candidate, but the next GDI slice should be
+  credible second docs-backed candidate, but the next Implementer slice should be
   broader than another single-note mapping.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -47,13 +47,13 @@ strengthens or weakens the case for a future generic Decision Contract schema.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `.docks/foreman/skills/session-transfer/SKILL.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `.docks/foreman/skills/session-transfer/references/operator.md`
 - `.docks/foreman/skills/session-transfer/references/foreman.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
@@ -80,7 +80,7 @@ This work card depends on local-only design notes and accepted work cards on
 the branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/decision-contract-transfer-routing-mapping-v0` from the required start
+`implementer/decision-contract-transfer-routing-mapping-v0` from the required start
 ref. Keep the checkpoint local unless Foreman or Michael explicitly asks for a
 push or PR.
 
@@ -92,17 +92,17 @@ Start with:
   matrix, and universal transfer header.
 - `.docks/foreman/AGENTS.md` - Foreman next-step loop, acceptance ladder, and
   transfer-routing responsibilities.
-- `.docks/README.md` - repo-wide transfer storage and dock contract.
+- `.docks/AGENTS.md` - repo-wide transfer storage and dock contract.
 - `.docks/AGENTS.md` - shared transfer vocabulary and storage rules.
-- `.docks/gdi/AGENTS.md` - GDI branch/base and completion report contract.
-- `.docks/operator/AGENTS.md` - Operator supervised/HITL transfer boundary.
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
-  - GDI-specific transfer fields.
+- the implementer native subagent instructions - Implementer branch/base and completion report contract.
+- `the operator native subagent contract` - Operator supervised/HITL transfer boundary.
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
+  - Implementer-specific transfer fields.
 
 Search as needed for:
 
 ```bash
-rg -n "Transfer|handoff|dispatch|work card|successor|human-needed|relay|correction|operator|required_start_ref|branch_from|result route|clipboard" .docks docs/design/work-cards
+rg -n "Transfer|handoff|dispatch|work card|successor|manual-intervention|relay|correction|operator|required_start_ref|branch_from|result route|clipboard" .docks docs/design/work-cards
 ```
 
 ## Required Output

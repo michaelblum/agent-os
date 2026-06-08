@@ -11,7 +11,7 @@
   clean, `./aos ready` passed, and Operator reported all required focused tests
   passing.
 - Bridge evidence: process-driver bridge ran on port `17866` with
-  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`, `driver=process`, and
+  `defaultCwd=/Users/Michael/Code/agent-os/the implementer native subagent`, `driver=process`, and
   terminal geometry `80x24`; `/ensure` created session
   `afk-codex-transcript-materialization-pty-rerun` for
   `codex --no-alt-screen`; `launch_observed_at=2026-05-22T18:51:34Z`.
@@ -30,7 +30,7 @@
   Foreman corroborated the file metadata and `session_meta` fields:
   `id=019e5107-5456-7f22-b08b-b977df1b35f4`,
   `timestamp=2026-05-22T18:51:35.420Z`, and
-  `cwd=/Users/Michael/Code/agent-os/.docks/gdi`; a bounded grep found the
+  `cwd=/Users/Michael/Code/agent-os/the implementer native subagent`; a bounded grep found the
   submitted marker.
 - Prototype evidence: the corrected launch-attempt prototype, run with
   `--codex-home /Users/Michael/.codex`, `--launch-observed-at
@@ -95,10 +95,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -125,7 +125,7 @@ Start one bridge process with a free local port, preferring `17866`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17866 \
 SIGIL_AGENT_TMUX_SESSION=afk-codex-transcript-materialization-pty-rerun \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -136,7 +136,7 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 - `terminal`: the process-driver default geometry, expected `80x24` unless
   environment overrides are present
@@ -144,7 +144,7 @@ Verify `/health` reports:
 Use `/ensure` for:
 
 - session: `afk-codex-transcript-materialization-pty-rerun`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -241,7 +241,7 @@ most specific partial result from the stop conditions below.
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the bridge cannot
   start after one port retry, Codex launch requires credentials/auth repair, or

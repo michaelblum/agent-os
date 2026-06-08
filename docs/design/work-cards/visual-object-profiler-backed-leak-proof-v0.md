@@ -4,14 +4,14 @@
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`
 - Contract doc: `docs/design/visual-object-descriptor-contract-v0.md`
-- Closure baseline: `origin/gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Closure baseline: `origin/implementer/selection-mode-cursor-ancestor-ladder-v0`
 - Related historical proof card:
-  `docs/design/work-cards/gdi-visual-object-phase6-runtime-duration-leak-proof-v0.md`
-- Branch/base: start from `origin/gdi/selection-mode-cursor-ancestor-ladder-v0`
+  `docs/design/work-cards/implementer-visual-object-phase6-runtime-duration-leak-proof-v0.md`
+- Branch/base: start from `origin/implementer/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -36,8 +36,8 @@ bounded live counters.
 - `packages/toolkit/AGENTS.md`
 - `docs/dev/reports/aos-visual-object-architecture.md`
 - `docs/design/visual-object-descriptor-contract-v0.md`
-- `docs/design/work-cards/gdi-visual-object-phase6-runtime-duration-leak-proof-v0.md`
-- `docs/design/work-cards/gdi-visual-object-phase6-observe-snapshot-boundary-live-proof-v0.md`
+- `docs/design/work-cards/implementer-visual-object-phase6-runtime-duration-leak-proof-v0.md`
+- `docs/design/work-cards/implementer-visual-object-phase6-observe-snapshot-boundary-live-proof-v0.md`
 - `packages/toolkit/workbench/visual-object-resource-lifecycle.js`
 - `packages/toolkit/workbench/visual-object-contract.js`
 - `packages/toolkit/workbench/visual-object-controller.js`
@@ -53,7 +53,7 @@ bounded live counters.
 ```bash
 git status --short --branch
 git rev-parse HEAD
-git rev-parse origin/gdi/selection-mode-cursor-ancestor-ladder-v0
+git rev-parse origin/implementer/selection-mode-cursor-ancestor-ladder-v0
 ./aos dev recommend --json
 ./aos ready --json
 rg -n "visual_object.resource_lifecycle|proof_window|duration|profiler|memory|leak|temporary_resource|disposed_resource|retained_resource|identity_stable" apps/sigil packages/toolkit tests docs/dev/reports/aos-visual-object-architecture.md docs/design/visual-object-descriptor-contract-v0.md
@@ -106,7 +106,7 @@ rg -n "visual_object.resource_lifecycle|proof_window|duration|profiler|memory|le
   live-dependent work and run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 

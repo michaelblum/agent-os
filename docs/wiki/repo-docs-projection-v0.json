@@ -7,8 +7,8 @@
       "slug": "repo-doc-agents",
       "type": "repo_doc",
       "name": "Repo Agent Contract",
-      "description": "Repo-wide agent contract, entry paths, primitive ownership, and development methods.",
-      "tags": ["repo-docs", "agents", "entry-paths", "runtime-wiki"],
+      "description": "Repo-wide agent contract, tooling contexts, primitive ownership, and development methods.",
+      "tags": ["repo-docs", "agents", "tooling-contexts", "runtime-wiki"],
       "concepts": ["runtime wiki", "daemon", "toolkit", "Sigil"],
       "source_type": "markdown"
     },

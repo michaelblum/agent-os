@@ -32,8 +32,8 @@ and `docs/dev/workflow-profiles.json`. Foreman should follow that profile
 instead of growing this dock README with branch, publication, or cleanup
 procedure.
 
-For transfer artifacts, classify through the dock-local `foreman-session-transfer`
-skill first. Use its Foreman, GDI, Operator, and specialist-subagent references
+For transfer artifacts, classify through the Foreman-local `Foreman transfer guidance`
+skill first. Use its Foreman, Implementer, Operator, and specialist-subagent references
 or patterns to keep successor handoffs, durable work cards, and supervised run
 packets separate.
 

@@ -1,7 +1,7 @@
 # Work Card: Rename canvas-inspector → surface-inspector
 
-**Branch:** `gdi/rename-canvas-inspector`  
-**Type:** Refactor — no behavior changes  
+**Branch:** `implementer/rename-canvas-inspector`
+**Type:** Refactor — no behavior changes
 **Scope:** Hard cutover. No compatibility aliases.
 
 ---
@@ -16,14 +16,14 @@ See research: `docs/dev/reports/canvas-inspector-naming.md`
 
 ---
 
-## Instructions for GDI
+## Instructions for Implementer
 
 ### Preconditions
 
 ```sh
 git fetch origin
 git reset --hard origin/main
-git checkout -b gdi/rename-canvas-inspector
+git checkout -b implementer/rename-canvas-inspector
 ```
 
 ### Step 1 — Rename the component directory
@@ -109,7 +109,7 @@ git add shared/schemas/
 # add any other explicit paths touched
 git show --stat HEAD
 git commit -m "refactor(toolkit): rename canvas-inspector to surface-inspector (hard cutover)"
-git push origin gdi/rename-canvas-inspector
+git push origin implementer/rename-canvas-inspector
 ```
 
 Report back with: branch name, HEAD SHA, `git show --stat HEAD` output, and test results.

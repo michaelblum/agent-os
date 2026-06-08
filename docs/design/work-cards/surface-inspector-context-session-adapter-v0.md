@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 Surface Inspector runtime state, Sigil runtime state, or prior conversation
 details. Read and rediscover before editing.
 
@@ -14,9 +14,9 @@ context session family.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/context-artifact-keyframe-foundation-v0`
+- `branch_from`: `implementer/context-artifact-keyframe-foundation-v0`
 - `required_start_ref`: local branch
-  `gdi/context-artifact-keyframe-foundation-v0` at or after commit
+  `implementer/context-artifact-keyframe-foundation-v0` at or after commit
   `345ad202 feat(toolkit): add context session foundation`, plus this work card
 - Expected output branch: continue from the current local branch or create a
   focused successor branch if useful

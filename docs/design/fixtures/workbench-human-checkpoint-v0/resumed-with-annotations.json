@@ -39,7 +39,7 @@
   "resume": {
     "behavior": "draft",
     "resumed_at": "2026-05-09T12:10:00.000Z",
-    "resumed_by": "gdi",
+    "resumed_by": "implementer",
     "current_content_hash": "sha256:69e367a6583318a743ee3f61c77558d85caa4dc91625be637db52cae825a5da8",
     "current_diagnostics": {
       "line_count": 7,
@@ -164,7 +164,7 @@
     }
   ],
   "created_at": "2026-05-09T12:00:00.000Z",
-  "created_by": "gdi",
+  "created_by": "implementer",
   "metadata": {
     "adapter": "markdown-workbench",
     "initial_hash": "sha256:4a43f835b5e935348c4a2bb648c28ec187fd70d9322884a661d5f4fcf43e01f4"

@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Tracker
 
@@ -25,7 +25,7 @@ input behavior must be wired explicitly in the toolkit component.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider session, transcript state, or prior live proof state. Read and
 rediscover before editing.
 
@@ -44,7 +44,7 @@ terminal lifecycle changes.
 - branch_from: `origin/main`
 - required_start_ref: `origin/main` at
   `4e2c829035c82ba05ff6d1483f0cdb589ca9ccd0` or later with this work card
-- output_branch: `gdi/agent-terminal-input-ux-parity-v0`
+- output_branch: `implementer/agent-terminal-input-ux-parity-v0`
 
 ## Read First
 
@@ -186,10 +186,10 @@ Optional live smoke, only after deterministic tests pass and only if
 If live readiness is blocked by repo-mode TCC/input-tap permissions, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with a `human_needed` report instead of retrying live checks. After
+Then stop with a `manual_intervention` report instead of retrying live checks. After
 the human returns, run `./aos ready --post-permission`.
 
 ## Completion Report

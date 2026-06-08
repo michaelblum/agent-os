@@ -2,20 +2,20 @@
 
 ## Goal
 
-Implement the agentic_relay profile hook system so that both GDI and the relay
+Implement the agentic_relay profile hook system so that both Implementer and the relay
 partner boot into sessions with automatically injected relay context, and so
 the active workflow profile is a single machine-readable configured value rather
 than prose scattered across multiple files.
 
 ## Problem
 
-The `agentic_relay` profile name was hardcoded in `.docks/gdi/AGENTS.md` prose.
+The `agentic_relay` profile name was hardcoded in the implementer native subagent instructions prose.
 Neither session had a structured context block at startup telling them the
 current relay state (open branches, conflict risk, main SHA). The relay partner
 had no dock contract at all. This caused:
 
 - Relay partner operating from inferred context rather than declared contract
-- GDI completion reports lacking conflict risk signal
+- Implementer completion reports lacking conflict risk signal
 - PR rebase conflicts discovered at merge time rather than at branch time
 - No sequencing mechanism for dependent work cards
 
@@ -27,9 +27,9 @@ as a proof-of-concept of the relay workflow itself.
 ### New files
 
 - `docs/dev/active-profile.json` — single source of truth for active profile
-- `.docks/gdi/hooks/profile/agentic_relay-session-start.sh` — GDI git context
+- `the implementer profile-start hook` — Implementer git context
   block hook: emits open branches, conflict risk, main SHA at session start
-- `.docks/relay/dock.json` — relay dock profile
+- `.docks/relay/session metadata` — relay dock profile
 - `.docks/relay/AGENTS.md` — relay partner role contract, session start
   protocol, pre-merge checklist, work card authorship rules
 - `.docks/relay/hooks/profile/agentic_relay-session-start.sh` — relay
@@ -38,15 +38,15 @@ as a proof-of-concept of the relay workflow itself.
 
 ### Modified files
 
-- `.docks/harness/dock-hook-runner.sh` — reads `docs/dev/active-profile.json`,
+- `.docks/foreman/hooks/stop.sh` — reads `docs/dev/active-profile.json`,
   exports `AOS_ACTIVE_WORKFLOW_PROFILE`, fires per-dock profile hooks at
   `hooks/profile/<profile>-<phase>.sh`
-- `.docks/gdi/AGENTS.md` — removed hardcoded profile sections; GDI now reads
+- the implementer native subagent instructions — removed hardcoded profile sections; Implementer now reads
   injected relay context block; structured completion report format added
 
 ## Verification
 
-GDI should verify:
+Implementer should verify:
 
 ```bash
 # 1. Schema/lint: active-profile.json is valid JSON
@@ -64,18 +64,18 @@ PY
 '
 
 # 3. Profile hook scripts are executable
-[ -x .docks/gdi/hooks/profile/agentic_relay-session-start.sh ] && echo "gdi hook: executable" || echo "gdi hook: NOT executable"
+[ -x the implementer profile-start hook ] && echo "implementer hook: executable" || echo "implementer hook: NOT executable"
 [ -x .docks/relay/hooks/profile/agentic_relay-session-start.sh ] && echo "relay hook: executable" || echo "relay hook: NOT executable"
 
-# 4. GDI hook emits expected section headers
-bash .docks/gdi/hooks/profile/agentic_relay-session-start.sh 2>/dev/null | grep -q 'Relay Context' && echo "gdi hook output: ok" || echo "gdi hook output: missing section"
+# 4. Implementer hook emits expected section headers
+bash the implementer profile-start hook 2>/dev/null | grep -q 'Relay Context' && echo "implementer hook output: ok" || echo "implementer hook output: missing section"
 
-# 5. dock-hook-runner.sh resolves profile (smoke test — does not require running daemon)
+# 5. Foreman hook runner.sh resolves profile (smoke test — does not require running daemon)
 bash -c '
   source .agents/hooks/session-common.sh 2>/dev/null || true
-  grep -q "resolve_active_profile" .docks/harness/dock-hook-runner.sh && echo "hook-runner: resolve_active_profile present"
-  grep -q "AOS_ACTIVE_WORKFLOW_PROFILE" .docks/harness/dock-hook-runner.sh && echo "hook-runner: export present"
-  grep -q "run_optional_profile_hook" .docks/harness/dock-hook-runner.sh && echo "hook-runner: profile hook dispatch present"
+  grep -q "resolve_active_profile" .docks/foreman/hooks/stop.sh && echo "hook-runner: resolve_active_profile present"
+  grep -q "AOS_ACTIVE_WORKFLOW_PROFILE" .docks/foreman/hooks/stop.sh && echo "hook-runner: export present"
+  grep -q "run_optional_profile_hook" .docks/foreman/hooks/stop.sh && echo "hook-runner: profile hook dispatch present"
 '
 ```
 
@@ -83,11 +83,11 @@ bash -c '
 
 ```
 profile: agentic_relay
-branch: gdi/agentic-relay-profile-hooks
+branch: implementer/agentic-relay-profile-hooks
 branch_from: main
 ```
 
-This work card was authored and implemented by the relay partner. GDI's role
+This work card was authored and implemented by the relay partner. Implementer's role
 is verification and any fixups, then push back to the same branch.
 
 ## Completion Report Format
@@ -95,7 +95,7 @@ is verification and any fixups, then push back to the same branch.
 ```
 ## Completion Report
 - profile: agentic_relay
-- branch: gdi/agentic-relay-profile-hooks
+- branch: implementer/agentic-relay-profile-hooks
 - head_sha: <git rev-parse HEAD>
 - base_sha: <origin/main SHA at branch time>
 - files_changed: <n>

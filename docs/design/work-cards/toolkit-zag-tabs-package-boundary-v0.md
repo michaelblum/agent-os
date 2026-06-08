@@ -3,17 +3,17 @@
 ## Tracker
 
 This follows the deterministic annotation/display-first cleanup stream after
-`gdi/toolkit-zag-adapter-consolidation-v0` landed on `main` at `897adb9`.
+`implementer/toolkit-zag-adapter-consolidation-v0` landed on `main` at `897adb9`.
 
 Adjacent context:
 
 - `docs/design/work-cards/toolkit-zag-adapter-consolidation-v0.md`
 - `docs/design/work-cards/recent-ui-tabs-keyboard-focus-correction-v0.md`
-- `docs/design/work-cards/recent-ui-live-regression-gdi-repairs-v0.md`
+- `docs/design/work-cards/recent-ui-live-regression-implementer-repairs-v0.md`
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 

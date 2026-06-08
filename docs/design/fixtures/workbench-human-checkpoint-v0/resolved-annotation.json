@@ -17,7 +17,7 @@
   "label": "Resolved copy note",
   "ancestor_chain": [],
   "note": "This note was addressed during resume.",
-  "actor": { "role": "agent", "id": "gdi" },
+  "actor": { "role": "agent", "id": "implementer" },
   "status": "resolved",
   "lifecycle": {
     "clearable": true,

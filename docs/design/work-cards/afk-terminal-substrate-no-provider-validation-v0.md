@@ -27,7 +27,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge state, tmux state, or prior implementation state. Read
 and rediscover before editing.
 
@@ -44,7 +44,7 @@ launch; it must not launch Codex, Claude, Gemini, or any provider.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
 - `docs/design/work-cards/afk-dry-run-launch-observability-fields-v0.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
@@ -69,7 +69,7 @@ git rev-parse --short docs/durable-agent-cognition-v0
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `6a422a2c`
 - expected output branch:
-  `gdi/afk-terminal-substrate-no-provider-validation-v0`
+  `implementer/afk-terminal-substrate-no-provider-validation-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -144,7 +144,7 @@ git diff --check
 ```
 
 If the exact new test filename differs, run the actual focused AFK substrate
-test and name it in the completion report. If GDI changes only docs, explain
+test and name it in the completion report. If Implementer changes only docs, explain
 why the existing test already covers the required behavior and run the existing
 bridge test.
 

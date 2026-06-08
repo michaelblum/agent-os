@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -10,7 +10,7 @@ Correction round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -18,7 +18,7 @@ before editing.
 
 Foreman reviewed:
 
-- branch: `gdi/agent-terminal-bridge-server-terminal-manager-extraction-v0`
+- branch: `implementer/agent-terminal-bridge-server-terminal-manager-extraction-v0`
 - reviewed head: `332106d15c8cfafa8ca00a8e45006f116a84eee0`
 - original work card:
   `docs/design/work-cards/agent-terminal-bridge-server-terminal-manager-extraction-v0.md`
@@ -47,10 +47,10 @@ into a `404`.
 - required_start_sha: `332106d15c8cfafa8ca00a8e45006f116a84eee0` plus this
   correction card
 - output_branch:
-  `gdi/agent-terminal-bridge-server-terminal-manager-extraction-correction-v0`
+  `implementer/agent-terminal-bridge-server-terminal-manager-extraction-correction-v0`
 
 Do not reset to `origin/main`; this correction must apply on top of the reviewed
-GDI extraction branch.
+Implementer extraction branch.
 
 ## Read First
 

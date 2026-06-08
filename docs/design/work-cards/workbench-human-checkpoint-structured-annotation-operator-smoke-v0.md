@@ -125,4 +125,4 @@ Report:
 - Do not run live browser/capture work.
 - Do not modify capture artifacts.
 - Do not implement new checkpoint features during the smoke; report gaps for a
-  later GDI refinement slice.
+  later Implementer refinement slice.

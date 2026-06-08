@@ -26,7 +26,7 @@ open GitHub issues, or broaden into implementation work.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- `the operator native subagent contract`
 - `tests/README.md`, section "Manual Disruptive TCC Recovery Test"
 - `tests/manual/tcc-reset-agent-user-path.sh`
 

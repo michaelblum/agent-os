@@ -54,11 +54,11 @@ eligible:
 | `max_wall_clock_minutes` | Maximum duration from first accepted scheduler run, capped by policy even if `expires_at` is later. |
 | `max_provider_launches` | Hard count across all work items. `0` is valid for deterministic-only dry runs. |
 | `provider_budget` | Token or spend budget when a provider exposes enforceable limits. Until provider enforcement exists, store `not_enforceable_yet` plus the user-declared ceiling and treat lack of enforcement as a wake-up disclosure. |
-| `allowed_docks` | Explicit list. Near-term default: `["gdi"]`; `operator` is denied unless the lease names a supervised capture plan that does not require live human judgment. |
+| `allowed_docks` | Explicit list. Near-term default: `["implementer"]`; `operator` is denied unless the lease names a supervised capture plan that does not require live human judgment. |
 | `allowed_providers` | Explicit list. Near-term default: `["codex"]` only after provider-auth checks pass. |
 | `allowed_work_refs` | One work card ref or a small ordered queue of refs. No broad "any work" authorization. |
 | `allowed_branch_policy` | Branch creation, commit, push, and local-only constraints. No merge to `main`. |
-| `allow_branch_push` | Explicit boolean. Default `false`; if `true`, only named `gdi/*` branches may be pushed and the wake-up report must list pushed refs. |
+| `allow_branch_push` | Explicit boolean. Default `false`; if `true`, only named `implementer/*` branches may be pushed and the wake-up report must list pushed refs. |
 | `external_publication_policy` | Default `none`: no GitHub issue/PR mutation, Slack/gateway notification, external notifier, or public route. |
 | `result_route` | Local route for receipts and wake-up report, required before launch. |
 | `stop_conditions` | Lease-wide stop conditions in addition to work-card stop conditions. |
@@ -77,10 +77,10 @@ its own required start ref, expected branch/output behavior, verification
 commands, stop conditions, and result route.
 
 Foreman may not choose a new card while the human is asleep unless that exact
-choice is already represented in the lease queue. GDI may continue after a test
+choice is already represented in the lease queue. Implementer may continue after a test
 failure only for one bounded correction attempt named by policy, such as "fix
 the immediate failure and rerun the same verification once." After that, the
-run stops as `human_needed` or `failed`.
+run stops as `manual_intervention` or `failed`.
 
 Operator and human-in-the-loop work are forbidden by default during a sleep
 lease. Any task that asks for visual judgment, login, CAPTCHA, consent, account
@@ -123,7 +123,7 @@ selected gates pass:
 
 If any start gate fails, no provider, bridge, terminal, tmux session, gateway
 job, result route, external notifier, or transcript/catalog scan should start.
-The receipt records `rejected`, `blocked`, or `human_needed` with the exact
+The receipt records `rejected`, `blocked`, or `manual_intervention` with the exact
 gate.
 
 ## Runtime Guardrails
@@ -190,7 +190,7 @@ The run stops immediately when any of these conditions appears:
 - The scheduler cannot write or update the receipt.
 
 Stop outcomes should use existing receipt vocabulary where possible:
-`blocked`, `failed`, `expired`, `human_needed`, or `partially-complete`.
+`blocked`, `failed`, `expired`, `manual_intervention`, or `partially-complete`.
 Do not claim `completed` when evidence is missing or indirect.
 
 ## Wake-Up Report
@@ -226,7 +226,7 @@ stores, or unreviewed generated artifacts into chat.
 1. Add deterministic AFK authorization packet validation with no provider launch.
    Validate required authorization fields, expiry, duration, provider launch
    count, allowed docks/providers, work refs, branch policy, result route,
-   duplicate key, and stop-condition vocabulary.
+   duplicate key, and stop condition vocabulary.
 2. Emit dry-run receipts for both accepted and rejected AFK authorizations. The
    receipt should prove why authorization would or would not be eligible without
    launching providers, changing branches, pushing, or writing generated
@@ -236,7 +236,7 @@ stores, or unreviewed generated artifacts into chat.
    `--i-am-present` semantics for the supervised proof, launch only the
    approved provider/dock/work ref, and stop on the first policy mismatch.
 4. Only after the dry-run and awake guarded-live gates pass, attempt the first
-   true overnight run. That run should be one pre-approved GDI work card,
+   true overnight run. That run should be one pre-approved Implementer work card,
    local-only by default, with branch push disabled unless explicitly granted,
    and with a wake-up report as the primary result.
 

@@ -21,7 +21,7 @@
 
 ## Boundary
 
-This is a real provider launch. It is approved for exactly one Codex/GDI
+This is a real provider launch. It is approved for exactly one Codex/Implementer
 provider launch through the one-item AFK work queue path.
 
 Do not use bridge/provider/cleanup fixtures. Do not pass `--i-am-present`.
@@ -55,7 +55,7 @@ The packet must include:
 - `packet_id`: stable unique proof id for this run;
 - `source_artifact`:
   `docs/design/work-cards/afk-work-queue-single-item-live-provider-sentinel-v0.md`
-- `requested_recipient`: `gdi`
+- `requested_recipient`: `implementer`
 - `cwd` and `worktree`: `/Users/Michael/Code/agent-os`
 - `required_start_ref`: the exact SHA from `git rev-parse HEAD`
 - `provider_hint`: `codex`
@@ -80,7 +80,7 @@ The queue must be:
 The AFK authorization must allow exactly this one local run:
 
 - `max_provider_launches`: `1`
-- `allowed_docks`: `["gdi"]`
+- `allowed_docks`: `["implementer"]`
 - `allowed_providers`: `["codex"]`
 - `allowed_work_refs`:
   `["docs/design/work-cards/afk-work-queue-single-item-live-provider-sentinel-v0.md"]`
@@ -100,7 +100,7 @@ Run exactly one live queue command, with no fixtures:
   --afk-authorization "$AUTHORIZATION_JSON" \
   --afk-live-launch \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --out "$OUTPUT_JSON"
 ```

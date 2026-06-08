@@ -2,7 +2,7 @@
 
 ## Tracker
 
-- Continue from branch: `gdi/sigil-avatar-object-graph-adapter-v0`
+- Continue from branch: `implementer/sigil-avatar-object-graph-adapter-v0`
 - Review target head:
   `cc63cf794c70c2ea8c51c4ff9fdaa486157074c2`
 - Parent card:
@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Continue from the existing branch and preserve the accepted adapter and
 context-menu descriptor work already under it.

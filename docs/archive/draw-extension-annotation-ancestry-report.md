@@ -154,7 +154,7 @@ overlays.
 
 AOS translation:
 
-- Avoid creating separate annotation control systems per entry path.
+- Avoid creating separate annotation control systems per tooling context.
 - Status menu, hotkey, Surface Inspector, and Sigil radial reticle should all
   enter the same annotation session model.
 - Surface Inspector can inspect and debug the session, but should not own a
@@ -172,7 +172,7 @@ Carry forward:
 - commentless frame anchor as a first-class annotation;
 - optional comment text attached to anchors;
 - transient hover candidates kept out of durable annotation rows;
-- one canonical annotation session shared by all entry paths;
+- one canonical annotation session shared by all tooling contexts;
 - hide/simplify during motion, then reproject after settle;
 - explicit snapshot/shutter for durable evidence;
 - adapter capability/blocker evidence when projection is unsupported.

@@ -2,11 +2,11 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Goal
 
@@ -27,11 +27,11 @@ async result routing.
 ## Branch / Base
 
 - branch_from: current local
-  `gdi/afk-dock-inbound-contract-missing-provider-correction-v0` routing head
+  `implementer/afk-dock-native subagent prompt contract-missing-provider-correction-v0` routing head
 - required_start_ref: current local
-  `gdi/afk-dock-inbound-contract-missing-provider-correction-v0` routing head
+  `implementer/afk-dock-native subagent prompt contract-missing-provider-correction-v0` routing head
 - accepted_source_head: `76e341c93bad31461cdbe786b176b8013e5bd7aa`
-- expected_output_branch: `gdi/dock-terminal-session-agent-terminal-contract-v0`
+- expected_output_branch: `implementer/dock-terminal-session-agent-terminal-contract-v0`
 
 ## Read First
 
@@ -44,10 +44,10 @@ async result routing.
 - `scripts/afk-launch-attempt-prototype.mjs`
 - `scripts/afk-session-trigger-prototype.mjs`
 - `shared/schemas/aos-dock-inbound-message-contract-v0.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/work-cards/afk-warm-dock-tui-reuse-contract-v0.md`
 
 ## Required Design Boundary
@@ -60,8 +60,8 @@ Define a V0 contract that separates these concerns:
 - **Provider conversation boundary:** provider-specific reset commands such as
   `/clear` define conversation boundaries inside a reused provider process.
   They do not imply process restart.
-- **Inbound message formatting:** `.docks/<dock>/inbound-contract.json` remains
-  the source of provider entry shape, such as GDI Codex `/goal ` versus
+- **Inbound message formatting:** `native subagent prompt contract` remains
+  the source of provider entry shape, such as Implementer Codex  versus
   Operator plain input.
 - **Input path:** human input and AFK input go through the same dock-owned PTY
   path. AFK must not create a competing Terminal.app, VSCode terminal, or screen
@@ -88,7 +88,7 @@ It should include:
 - named components and ownership boundaries;
 - proposed receipt/schema fields for dock terminal sessions and Agent Terminal
   observability;
-- how AFK prompt/input routing consumes the existing dock inbound contract;
+- how AFK prompt/input routing consumes the existing dock native subagent prompt contract;
 - how warm TUI reuse maps onto dock terminal session lifecycle;
 - what Agent Terminal must render and what it must not infer;
 - migration notes from cold `codex --no-alt-screen` bridge proof toward
@@ -113,11 +113,11 @@ node --test tests/afk-session-trigger-prototype.test.mjs
 git diff --check
 ```
 
-If `./aos ready` reports a repo-mode permission blocker, use the standard GDI
-human-needed path and stop instead of routing around it:
+If `./aos ready` reports a repo-mode permission blocker, use the standard Implementer
+manual-intervention path and stop instead of routing around it:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 

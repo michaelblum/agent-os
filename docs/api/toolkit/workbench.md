@@ -335,7 +335,7 @@ snapshots use it to embed the session-derived root, committed and preview
 scopes, hover candidate, anchors, comments, projection states, stale/blocker
 evidence, and `snapshot_count` in the public `annotation-snapshot.json`
 artifact without making the snapshot artifact the source of truth for future
-live annotations. Future entry paths should produce the shared session model
+live annotations. Future tooling contexts should produce the shared session model
 directly instead of adding more product-specific adapters to the neutral
 session or renderer modules.
 
@@ -471,7 +471,7 @@ creates a normal `aos.workbench_human_checkpoint` record whose subject type is
 `html_workbench_expression`. `buildHtmlWorkbenchExpressionResumePayload` can
 return `annotation_sidecar`, `decision_sidecar`, `proposed_markdown_patch`, or
 `noop_approval` payloads. V0 never mutates the Markdown source automatically;
-later Foreman/GDI steps decide whether to apply a proposed patch.
+later Foreman/Implementer steps decide whether to apply a proposed patch.
 
 Security defaults are conservative: source-authored HTML is escaped by the
 shared Markdown renderer, unsafe links are stripped, Mermaid source is preserved

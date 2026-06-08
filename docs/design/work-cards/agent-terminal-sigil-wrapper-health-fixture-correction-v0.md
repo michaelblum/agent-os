@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -10,7 +10,7 @@ Correction round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -18,7 +18,7 @@ before editing.
 
 Foreman reviewed:
 
-- branch: `gdi/agent-terminal-sigil-wrapper-health-fixture-v0`
+- branch: `implementer/agent-terminal-sigil-wrapper-health-fixture-v0`
 - reviewed head: `d6904e1f35d01b6d772e400d62e8f5a30d89de4d`
 - original work card:
   `docs/design/work-cards/agent-terminal-sigil-wrapper-health-fixture-v0.md`
@@ -43,10 +43,10 @@ launcher only report bridge startup success when `/health` matches the requested
 - required_start_sha: `d6904e1f35d01b6d772e400d62e8f5a30d89de4d` plus this
   correction card
 - output_branch:
-  `gdi/agent-terminal-sigil-wrapper-health-fixture-correction-v0`
+  `implementer/agent-terminal-sigil-wrapper-health-fixture-correction-v0`
 
 Do not reset to `origin/main`; the correction must apply on top of the reviewed
-GDI branch.
+Implementer branch.
 
 ## Read First
 

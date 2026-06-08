@@ -2,16 +2,16 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: repair the profiler-backed visual-object live proof so the
   Sigil renderer boots in AOS and exposes `window.__sigilDebug.stellationResourceSmoke()`.
 - Source artifact: Foreman live review of
   `docs/design/work-cards/visual-object-profiler-backed-leak-proof-v0.md`.
 - Branch/base: continue from the current working tree on
-  `gdi/selection-mode-cursor-ancestor-ladder-v0`; do not discard existing dirty
+  `implementer/selection-mode-cursor-ancestor-ladder-v0`; do not discard existing dirty
   implementation changes.
-- Stop conditions: complete, failed, or human_needed only if live status-item
+- Stop conditions: complete, failed, or manual_intervention only if live status-item
   discovery still cannot find a menu item after the renderer bootstrap is fixed.
 
 ## Fresh Context

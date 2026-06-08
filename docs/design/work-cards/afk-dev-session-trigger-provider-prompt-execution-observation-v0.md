@@ -4,7 +4,7 @@
 
 ## Foreman Review Result
 
-GDI completed this correction at
+Implementer completed this correction at
 `47647c316d6d78a98ce525641ecb4aa05c7fc72e` from base
 `9e80f6de66bbeb419840ce3b1c438fcfb24df2ef`.
 
@@ -28,16 +28,16 @@ git diff --check 9e80f6de66bbeb419840ce3b1c438fcfb24df2ef..47647c316d6d78a98ce52
 ```
 
 Foreman is not routing Operator live proof yet. A narrower follow-up is needed
-first because AFK Codex/GDI transport should use the provider-native `/goal`
-prefix. The older "do not add `/goal`" rule is scoped to Foreman/human
-clipboard dispatches, not AFK PTY automation. Route the correction in
-`docs/design/work-cards/afk-dev-session-trigger-codex-goal-prefix-transport-v0.md`.
+first because AFK Codex/Implementer transport should use the provider-native ``
+prefix. The older "do not add ``" rule is scoped to Foreman/human
+native dispatches, not AFK PTY automation. Route the correction in
+`docs/design/work-cards/afk-dev-session-trigger-codex-prompt-prefix-transport-v0.md`.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
-- Single next goal: change live Codex/GDI prompt submission to use a
+- Single next goal: change live Codex/Implementer prompt submission to use a
   file-backed pointer prompt, centralized input timing, character-by-character
   typing, startup settle, and an isolated submit key, while still proving
   provider acceptance only from snapshot identity or Codex metadata.
@@ -60,14 +60,14 @@ clipboard dispatches, not AFK PTY automation. Route the correction in
   - Latest Operator evidence checkpoint:
     `746c18a032c438d0e9b236d6672e7ddddab18885`
 - Branch/output expectation: create
-  `gdi/afk-dev-session-trigger-provider-prompt-execution-observation-v0` from
-  the required start ref. Commit and push that GDI branch when verification
+  `implementer/afk-dev-session-trigger-provider-prompt-execution-observation-v0` from
+  the required start ref. Commit and push that Implementer branch when verification
   passes, per the active `agentic_relay` profile. Do not open a PR, merge,
   mutate GitHub state beyond the branch push, or start async result routing.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Rediscover branch, worktree, readiness,
+Implementer starts from a fresh context window. Rediscover branch, worktree, readiness,
 current source, tests, and the Operator v1 evidence before editing.
 
 ## Foreman Review Finding
@@ -81,7 +81,7 @@ text_accepted=true
 enter_sent=true
 enter_accepted=true
 submitted_observed=true
-snapshot excerpt showed the AOS GDI transfer prompt
+snapshot excerpt showed the AOS Implementer transfer prompt
 ```
 
 But provider acceptance still did not close:
@@ -95,7 +95,7 @@ cleanup.status=verified
 ```
 
 The only modified Codex rollout in the trigger window belonged to
-`.docks/operator`, not `.docks/gdi`. That means the bridge successfully wrote
+`the operator native subagent`, not `the implementer native subagent`. That means the bridge successfully wrote
 bytes to the PTY, but the live Codex provider did not accept/execute the prompt
 in a way that created a provider session identity.
 
@@ -123,10 +123,10 @@ The likely root cause is submit timing/semantics, not provider config:
 - Codex interprets the final carriage return as part of paste/composer input,
   or otherwise fails to treat it as a standalone submit key.
 - The symptom matches Operator v1: the snapshot showed the transfer prompt in
-  the UI, but no `.docks/gdi` Codex rollout was created.
+  the UI, but no `the implementer native subagent` Codex rollout was created.
 
 Lead with the smallest reversible input-layer correction. Do not mutate Codex
-provider config or keymaps in this GDI round. If the revised pointer-prompt and
+provider config or keymaps in this Implementer round. If the revised pointer-prompt and
 timed character input proof still fails, a separate follow-up can investigate a
 Codex config/keymap path such as `ctrl-enter`.
 
@@ -174,7 +174,7 @@ Your work card is at docs/design/work-cards/<slug>.md. Read it first, then begin
 
 - Distinguish bridge byte delivery from provider prompt execution in the live
   record.
-- Live Codex/GDI prompt submission should use the file-backed pointer prompt
+- Live Codex/Implementer prompt submission should use the file-backed pointer prompt
   and the centralized timing profile:
   1. wait `startupSettleMs` after the terminal ready signal;
   2. type the pointer prompt with `typeCharacters()` and `charDelayMs`;
@@ -193,12 +193,12 @@ Your work card is at docs/design/work-cards/<slug>.md. Read it first, then begin
   - `key_accepted=true` when `/key Enter` is accepted.
 - Provider acceptance must remain gated on snapshot identity or Codex metadata,
   not on typing completion or key acceptance alone.
-- Make the live Codex/GDI submission path robust enough that the next
+- Make the live Codex/Implementer submission path robust enough that the next
   no-fixture Operator run can submit the prompt to Codex, not merely leave the
   prompt text visible in the composer.
 - After provider-level submission, observe one of:
   - a parseable provider session id from live snapshot text; or
-  - a metadata-backed Codex adapter match for `.docks/gdi` in the launch window,
+  - a metadata-backed Codex adapter match for `the implementer native subagent` in the launch window,
     promoted to `provider_acceptance.status=provider_session_observed`.
 - A passing live proof should be able to produce:
   - `terminal_substrate.input_submission.status=submitted`;
@@ -219,7 +219,7 @@ Your work card is at docs/design/work-cards/<slug>.md. Read it first, then begin
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.md`
@@ -250,10 +250,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -278,7 +278,7 @@ areas to check:
 - Snapshot polling: a post-submit snapshot should detect whether the prompt is
   still sitting in the composer versus a response/session has started.
 - Metadata timing: after provider-level submission, the bounded adapter window
-  should find a `.docks/gdi` Codex thread if the provider accepted the prompt.
+  should find a `the implementer native subagent` Codex thread if the provider accepted the prompt.
 
 Prefer a deterministic fixture or fake TUI test that models "text accepted but
 not executed until the correct final submit action" before changing live logic.
@@ -298,7 +298,7 @@ not executed until the correct final submit action" before changing live logic.
 - Keep Codex metadata access bounded to session metadata and refs. Do not read
   or copy transcript bodies.
 - Do not mutate Codex config, keymaps, provider settings, or global provider
-  state in this GDI round.
+  state in this Implementer round.
 
 ## Deterministic Tests To Add Or Update
 
@@ -321,7 +321,7 @@ not executed until the correct final submit action" before changing live logic.
   after text delivery.
 - Preserve the existing metadata promotion tests and ensure promotion only
   happens after provider-level prompt execution is observed or after the
-  metadata thread appears for the intended `.docks/gdi` launch.
+  metadata thread appears for the intended `the implementer native subagent` launch.
 - Preserve the unobserved, wrong-cwd, multiple-candidate, no-window, cleanup,
   and duplicate-suppression behavior.
 
@@ -339,12 +339,12 @@ cd packages/host && npm test
 git diff --check
 ```
 
-Do not run a live Codex provider launch in this GDI round. Foreman will route
+Do not run a live Codex provider launch in this Implementer round. Foreman will route
 the next Operator supervised proof after accepting the deterministic correction.
 
 ## Stop Conditions
 
-- Repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper.
+- Repo-mode TCC/Input Monitoring readiness blocks after the standard Implementer helper.
 - The correction requires a live Codex launch.
 - The correction requires provider transcript body reads or provider-owned store
   mutation.

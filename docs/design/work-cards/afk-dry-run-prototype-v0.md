@@ -1,14 +1,14 @@
 # Work Card: afk-dry-run-prototype-v0
 
 **Status:** Accepted 2026-05-22
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
 - Single next goal: build a deterministic local AFK dry-run prototype that
@@ -26,7 +26,7 @@ treats command names as experimental.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-dry-run-prototype-v0`
+- Implementer branch: `implementer/afk-dry-run-prototype-v0`
 - Prototype commit: `5c679dfca00995ad04bb1e598434e63b30c037e5`
 - Accepted correction commit:
   `51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`
@@ -50,7 +50,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -73,9 +73,9 @@ the public `./aos` CLI or imply final command spelling.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
 - `.docks/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- `.docks/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -84,9 +84,9 @@ the public `./aos` CLI or imply final command spelling.
 - `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
 - `shared/schemas/aos-dock-profile-v0.md`
 - `shared/schemas/aos-dock-profile-v0.schema.json`
-- `.docks/gdi/dock.json`
-- `.docks/foreman/dock.json`
-- `.docks/operator/dock.json`
+- implementer session metadata
+- `.docks/foreman/session metadata`
+- operator session metadata
 - `docs/dev/workflow-rules.json`
 - `tests/dev-workflow-router.sh`
 
@@ -101,7 +101,7 @@ git status --short --branch
 ```
 
 The prototype is expected to touch an experimental script and one focused test.
-The script path may classify as `unclassified`; that is acceptable if GDI
+The script path may classify as `unclassified`; that is acceptable if Implementer
 inspects the nearest contracts and runs the focused test named below. Do not run
 `./aos ready` unless you discover a live-runtime dependency, which is not
 expected.
@@ -114,7 +114,7 @@ required_start_ref: `docs/durable-agent-cognition-v0`
 This card depends on local-only accepted design notes and accepted work cards
 on the branch above. Do not reset to `origin/main`.
 
-If you create an output branch, use `gdi/afk-dry-run-prototype-v0` from the
+If you create an output branch, use `implementer/afk-dry-run-prototype-v0` from the
 required start ref. Keep the checkpoint local unless Foreman or Michael
 explicitly asks for a push or PR.
 
@@ -144,7 +144,7 @@ The prototype should:
    node scripts/afk-dry-run-prototype.mjs \
      --packet /tmp/manual-afk-packet.json \
      --provider codex \
-     --dock gdi \
+     --dock implementer \
      --json
    ```
 
@@ -153,12 +153,12 @@ The prototype should:
    - source artifact path exists when it is a repo path;
    - cwd/worktree resolves to the repo root or an explicitly supplied path;
    - required start ref resolves to a commit;
-   - selected dock has a `.docks/<dock>/dock.json` profile;
+   - selected dock has a `session metadata` profile;
    - no provider launch is requested.
 3. Resolve dock profile facts needed for review:
    - dock name;
    - role;
-   - default entry path or allowed entry paths when present;
+   - default tooling context or allowed tooling contexts when present;
    - launch root.
 4. Select provider only as a dry-run fact:
    - use explicit `--provider` or packet provider hint;

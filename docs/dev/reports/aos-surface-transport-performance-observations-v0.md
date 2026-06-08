@@ -2,7 +2,7 @@
 
 Date: 2026-06-05
 
-Context: review discussion around commit `8f9fafc8` (`Fix avatar compact panel UX`) on branch `gdi/avatar-compact-surface-ux-v0`.
+Context: review discussion around commit `8f9fafc8` (`Fix avatar compact panel UX`) on branch `implementer/avatar-compact-surface-ux-v0`.
 
 This report is descriptive. It is intended to give an outside reviewer enough context to inspect the relevant code paths without rediscovering the current surface, transport, and performance concerns from scratch. It intentionally avoids prescribing a specific implementation.
 
@@ -97,7 +97,7 @@ The current detached avatar panel also uses standard AOS transport (`canvas.send
 | `packages/toolkit/panel/chrome.js` | Toolkit panel chrome and drag handling. Active drag paths call move/update logic from pointer/global input events. |
 | `packages/toolkit/components/surface-inspector/index.js` | Surface Inspector component. Subscribes to lifecycle/input/resource streams, normalizes input, updates minimap/debug/annotation state. |
 | `packages/toolkit/components/surface-inspector/index.html` | Surface Inspector panel mount. Uses standard `mountPanel`. |
-| `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md` | Existing parked work card describing migration away from `sigil.avatar_panel.*` toward visual object/resource contracts. |
+| `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md` | Existing parked work card describing migration away from `sigil.avatar_panel.*` toward visual object/resource contracts. |
 
 ## Current Surface Inspector Mouse/Event Flow
 
@@ -262,7 +262,7 @@ There are two separate facts that should not be conflated:
 1. The detached avatar panel uses standard AOS transport: `canvas.send`, `canvas.suspend`, and owner `aos.action` requests.
 2. The detached avatar panel still uses a private Sigil message vocabulary: `sigil.avatar_panel.*`.
 
-The existing parked work card `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md` already records a possible future lane to migrate away from that private vocabulary toward existing resource/editor contracts. This report does not assume that card is ready to route; it is listed because it is directly relevant background.
+The existing parked work card `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md` already records a possible future lane to migrate away from that private vocabulary toward existing resource/editor contracts. This report does not assume that card is ready to route; it is listed because it is directly relevant background.
 
 ## Two-Way Binding Discussion Framed As Current Requirements
 

@@ -136,7 +136,7 @@ cross-display / Browser-Host sync.
   under One-World).
 - **Sigil-as-content migration** (separate, larger track): avatar renderer becomes
   entities in the World; has a parked work card with observability/placement
-  prerequisites — `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+  prerequisites — `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`.
 - **Focus model implementation** (proposal §4): focus-group manager, two Tab loops
   (intra-panel trap + panel-switch gesture), per-panel focus memory,
   passthrough-drives-key-window seam, agent-non-stealing-by-default.

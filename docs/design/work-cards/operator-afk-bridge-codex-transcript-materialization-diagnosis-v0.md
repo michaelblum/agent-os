@@ -11,20 +11,20 @@
   clean, `./aos ready` passed, and the two required deterministic test commands
   passed.
 - Bridge evidence: process driver bridge ran on port `17866` with
-  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`; `/ensure` created
+  `defaultCwd=/Users/Michael/Code/agent-os/the implementer native subagent`; `/ensure` created
   session `afk-codex-transcript-materialization` for
   `codex --no-alt-screen`; `launch_observed_at=2026-05-22T18:12:16Z`.
 - Process evidence: the bridge launched `pty-proxy.py`, `node .../bin/codex
   --no-alt-screen`, and the native Codex binary, all with cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`.
+  `/Users/Michael/Code/agent-os/the implementer native subagent`.
 - Input evidence: `/input` returned HTTP 200 `{"ok":true}` and the one allowed
   `/key Enter` returned HTTP 200 `{"ok":true}`, but snapshots continued to show
   only Codex startup/TUI tip output. The bounded prompt was not observed as
   typed, submitted, or answered.
 - Transcript evidence: the only new or modified rollout after launch was the
-  current Operator session under `.docks/operator`; the submitted marker was
+  current Operator session under `the operator native subagent`; the submitted marker was
   present there because Operator issued the probe. No separate bridge-launched
-  `.docks/gdi` Codex rollout materialized, so the prototype probe was skipped
+  `the implementer native subagent` Codex rollout materialized, so the prototype probe was skipped
   per this card.
 - Cleanup proof: bridge stopped, port `17866` was no longer reachable, no
   listener remained, no matching `codex --no-alt-screen` or `pty-proxy.py`
@@ -76,10 +76,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -106,7 +106,7 @@ Start one bridge process with a free local port, preferring `17866`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17866 \
 SIGIL_AGENT_TMUX_SESSION=afk-codex-transcript-materialization \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -117,13 +117,13 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 
 Use `/ensure` for:
 
 - session: `afk-codex-transcript-materialization`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -198,7 +198,7 @@ If no separate rollout materializes, skip the prototype and classify as
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the bridge cannot
   start after one port retry, or Codex launch requires credentials/auth repair.

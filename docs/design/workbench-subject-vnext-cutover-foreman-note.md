@@ -7,7 +7,7 @@
 
 This note captures the recommended steering context for a Foreman session that
 will write the next Goal-Driven Implementation prompt. It is intentionally not a
-GDI implementation plan. The Foreman should rediscover live repo, issue, branch,
+Implementer implementation plan. The Foreman should rediscover live repo, issue, branch,
 and daemon state before turning this into an executable prompt.
 
 ## Recommendation
@@ -41,7 +41,7 @@ blanket cutover.
   source files remain authoritative; wiki and graph surfaces are first-class
   runtime knowledge substrates, not dumping grounds or hidden sources of truth.
 
-## Impact On Interrupted GDI Work
+## Impact On Interrupted Implementer Work
 
 The interrupted dirty files appear to be a narrow #281 slice:
 
@@ -52,7 +52,7 @@ The interrupted dirty files appear to be a narrow #281 slice:
 - `tests/toolkit/browser-step-descriptor-prototype.test.mjs`
 - `tests/toolkit/work-record-workbench-model.test.mjs`
 
-Foreman should not assume these are disposable. It should require GDI to
+Foreman should not assume these are disposable. It should require Implementer to
 rediscover the diff, confirm the edits are only interrupted #281 edits, and
 discard only those tracked edits if that confirmation holds. Any unrelated user
 edits must be preserved.
@@ -67,13 +67,13 @@ Foreman should produce:
 
 1. A recommendation: continue #281, supersede #281, or use a hybrid.
 2. A short rationale grounded in live repo evidence.
-3. A preparation prompt for GDI that handles issue/branch/handoff cleanup.
-4. A follow-up long-run GDI prompt for the bounded v-next cutover.
+3. A preparation prompt for Implementer that handles issue/branch/handoff cleanup.
+4. A follow-up long-run Implementer prompt for the bounded v-next cutover.
 
-The GDI prompt should stay bounded. It should not add new public `aos` command
+The Implementer prompt should stay bounded. It should not add new public `aos` command
 surface, replay/repair, macro playback, or live browser execution.
 
-## Candidate GDI Steering Points
+## Candidate Implementer Steering Points
 
 Use these as inputs, not as mandatory wording:
 
@@ -96,10 +96,10 @@ Use these as inputs, not as mandatory wording:
 ## Durable Docs For Foreman Study
 
 - `AGENTS.md`
-- `docs/guides/agent-entry-paths-and-verification.md`
+- `docs/guides/agent-tooling-contexts-and-verification.md`
 - `docs/guides/layered-subject-expressions.md`
 - `docs/design/aos-grand-unification-plan.md`
-- `docs/design/aos-grand-unification-next-session-goal.md`
+- `docs/design/aos-grand-unification-next-session-prompt.md`
 - `docs/design/aos-subject-model-compatibility-audit.md`
 - `docs/design/aos-work-records-and-self-healing-recipes.md`
 - `shared/schemas/aos-workbench-subject.schema.json`

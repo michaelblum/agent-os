@@ -1,7 +1,7 @@
 # Work Card: decision-contract-shape-sketch-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -18,7 +18,7 @@ command behavior.
 
 Accepted evidence:
 
-- GDI branch: `gdi/decision-contract-shape-sketch-v0`
+- Implementer branch: `implementer/decision-contract-shape-sketch-v0`
 - Accepted commit: `3b73e803715a7e489dcdbb561e72379e6caad424`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -33,7 +33,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -47,10 +47,10 @@ is warranted, while preserving the current router manifest unchanged.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/decision-contract-inventory-2026-05-21.md`
 - `docs/design/work-cards/decision-contract-inventory-v0.md`
@@ -78,7 +78,7 @@ This work card depends on local-only design and inventory notes on the branch
 above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/decision-contract-shape-sketch-v0` from the required start ref. Keep the
+`implementer/decision-contract-shape-sketch-v0` from the required start ref. Keep the
 checkpoint local unless Foreman or Michael explicitly asks for a push or PR.
 
 ## Existing Files To Inspect

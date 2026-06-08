@@ -25,11 +25,11 @@ Remaining 8 candidates from the audit are lower priority and can follow in a sub
 
 ## Branch
 
-`gdi/retrofit-shared-controls`
+`implementer/retrofit-shared-controls`
 
 ## Active Workflow Profile
 
-`agentic_relay` — GDI branches `gdi/<slug>`, commits, pushes, reports branch + HEAD SHA + `git show --stat HEAD`. Relay partner merges via PR.
+`agentic_relay` — Implementer branches `implementer/<slug>`, commits, pushes, reports branch + HEAD SHA + `git show --stat HEAD`. Relay partner merges via PR.
 
 ## References
 

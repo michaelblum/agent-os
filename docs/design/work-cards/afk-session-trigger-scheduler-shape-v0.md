@@ -1,14 +1,14 @@
 # Work Card: afk-session-trigger-scheduler-shape-v0
 
 **Status:** Accepted 2026-05-21
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
 - Single next goal: design a docs-only session trigger/scheduler shape for
@@ -26,7 +26,7 @@ updates without making the gateway or provider adapter the session authority?
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-session-trigger-scheduler-shape-v0`
+- Implementer branch: `implementer/afk-session-trigger-scheduler-shape-v0`
 - Accepted commit: `5c2bfbcd2183123d7aa9bc139c32eb2cde206dae`
 - Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
 - Output note:
@@ -41,7 +41,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -66,11 +66,11 @@ timeout, packet intake, or result-route lifecycle semantics.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/decision-contract-descriptor-and-afk-boundary-2026-05-21.md`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
@@ -108,7 +108,7 @@ This card depends on local-only design notes and accepted work cards on the
 branch above. Do not reset to `origin/main`.
 
 If you create an output branch, use
-`gdi/afk-session-trigger-scheduler-shape-v0` from the required start ref. Keep
+`implementer/afk-session-trigger-scheduler-shape-v0` from the required start ref. Keep
 the checkpoint local unless Foreman or Michael explicitly asks for a push or PR.
 
 ## Existing Surfaces To Inspect
@@ -164,9 +164,9 @@ Use this shape:
    - lease/timeout and heartbeat expectations;
    - session start versus session resume;
    - lifecycle states such as queued, accepted, launching, running, stalled,
-     human-needed, succeeded, failed, expired, superseded;
+     manual-intervention, succeeded, failed, expired, superseded;
    - result-route updates on start, stall, completion, failure, and expiry;
-   - human-needed/TCC blocker handling;
+   - manual-intervention/TCC blocker handling;
    - audit/work-record/evidence-record hooks.
 4. Non-responsibilities:
    - reusable route judgment;
@@ -184,7 +184,7 @@ Use this shape:
 6. Lifecycle state machine:
    - normal success path;
    - terminal failure;
-   - human-needed stall and resume;
+   - manual-intervention stall and resume;
    - lease expiry or lost heartbeat;
    - superseded packet or duplicate trigger.
 7. Boundary matrix:

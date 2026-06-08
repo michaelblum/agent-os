@@ -11,7 +11,7 @@
 - Foreman review: accepted. The note defines a repo-owned Codex
   provider-session adapter contract, keeps `codex-thread-workbench` as a seed
   rather than a dependency to promote wholesale, states privacy/local-state
-  boundaries, names fixture-only tests, and recommends the next GDI
+  boundaries, names fixture-only tests, and recommends the next Implementer
   implementation slice.
 - Foreman verification:
   - `git diff --check a4f30cf0aea951e4081d7ed2f2baeaf971c61493..5db132fcbb39767e650098d829bb89781f2d5056`: pass
@@ -25,8 +25,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI inventory/design round
+- Recipient: Implementer
+- Transfer kind: Implementer inventory/design round
 - Source artifacts:
   - `docs/design/work-cards/afk-bridge-launch-visibility-fixture-v0.md`
   - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
@@ -34,13 +34,13 @@
     `/Users/Michael/.codex/skills/codex-thread-workbench/SKILL.md`
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch named
-  `gdi/afk-codex-provider-session-adapter-inventory-v0` from the required start
+  `implementer/afk-codex-provider-session-adapter-inventory-v0` from the required start
   ref. Keep the checkpoint local; do not push, open a PR, mutate GitHub, or run
   live provider checks.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, skill internals, local transcript state, or
 prior implementation state. Read and rediscover before editing.
 
@@ -66,7 +66,7 @@ into `agent-os` without a contract.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-bridge-launch-visibility-fixture-v0.md`
 - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
@@ -109,7 +109,7 @@ actions in this round.
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `ee786994b02aeb62e9492c742f5ff38338d49427`
 - expected output branch:
-  `gdi/afk-codex-provider-session-adapter-inventory-v0`
+  `implementer/afk-codex-provider-session-adapter-inventory-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -135,7 +135,7 @@ The note must include:
 - deterministic fixture/test strategy that does not depend on real user
   transcripts;
 - explicit non-goals and later Claude Code generalization notes;
-- a recommended next GDI implementation slice if the contract is clear.
+- a recommended next Implementer implementation slice if the contract is clear.
 
 ## Hard Boundaries
 
@@ -175,7 +175,7 @@ Report:
 - files changed;
 - skill commands/source inspected;
 - proposed adapter methods and output evidence refs;
-- recommended next GDI slice;
+- recommended next Implementer slice;
 - whether any real Codex sessions/transcripts were read, expected answer: no
   unless explicitly justified;
 - exact verification commands and results;

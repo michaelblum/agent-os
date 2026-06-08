@@ -11,8 +11,8 @@ Codex sessions outside the requested cwd, and the launch-attempt prototype now
 keeps unrelated all-cwd current sessions as context instead of binding them as
 the bridge-launched provider session id.
 
-The bridge-backed `.docks/gdi` Codex launch still lacked a machine-observed
-provider session id and lacked a current `.docks/gdi` provider catalog record.
+The bridge-backed `the implementer native subagent` Codex launch still lacked a machine-observed
+provider session id and lacked a current `the implementer native subagent` provider catalog record.
 Current evidence points to a missing launch-side acceptance/correlation surface:
 the bridge can observe terminal substrate facts before the catalog appears, but
 the provider catalog only becomes visible after provider-owned transcript
@@ -21,23 +21,23 @@ metadata exists and is readable.
 ## Accepted Facts
 
 From
-`docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`:
+`docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-implementer-partial.md`:
 
 - `apps/sigil/agent-terminal/launch.sh --new-codex --restart` did not produce a
   reachable health endpoint for the requested wrapper command; the Operator saw
   `curl: (52) Empty reply from server` and then `/health` failed to connect.
 - The fallback `apps/sigil/codex-terminal/server.mjs` process-driver bridge was
   healthy on port `17862` with `defaultCwd`
-  `/Users/Michael/Code/agent-os/.docks/gdi`.
+  `/Users/Michael/Code/agent-os/the implementer native subagent`.
 - `/ensure` created session `afk-provider-smoke` using driver `process`.
-- Codex launched visibly from `.docks/gdi`; terminal-visible facts included
-  Codex CLI `0.133.0`, cwd `.docks/gdi`, branch
-  `gdi/afk-launch-attempt-protot...`, model `gpt-5.5`, repo head `81af5f0e`,
+- Codex launched visibly from `the implementer native subagent`; terminal-visible facts included
+  Codex CLI `0.133.0`, cwd `the implementer native subagent`, branch
+  `implementer/afk-launch-attempt-protot...`, model `gpt-5.5`, repo head `81af5f0e`,
   and clean git status.
 - The provider session id was not machine-observed for that launch.
 - `/input` accepted a no-op prompt, but `/snapshot` showed terminal repaint/tip
   text rather than a readable submitted prompt or provider response.
-- `/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex`
+- `/sessions?cwd=/Users/Michael/Code/agent-os/the implementer native subagent&provider=codex`
   returned only stale pre-existing evidence; newest observed stale id
   `019e4e49-9d18-7531-9859-3b834f034d14` was updated
   `2026-05-22T06:11:41Z`, before the current run around `2026-05-22T12:58Z`.
@@ -48,29 +48,29 @@ From
 `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`:
 
 - The later supervised bridge run on port `17865` had `defaultCwd`
-  `/Users/Michael/Code/agent-os/.docks/gdi`, driver `process`, and `/ensure`
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, driver `process`, and `/ensure`
   result `{"ok":true,"session":"afk-bridge-all-cwd-proof","created":true,"driver":"process"}`.
-- Requested-cwd catalog query returned records for `.docks/gdi`, but none were
+- Requested-cwd catalog query returned records for `the implementer native subagent`, but none were
   current relative to launch time `2026-05-22T15:52:38Z`; newest was
   `019e5058-3743-79c1-bf67-476fcbf0fd72` updated
   `2026-05-22T15:44:25.259Z`.
 - Explicit all-cwd catalog query returned a current Codex candidate outside
-  `.docks/gdi`: id `019e5062-42f2-7340-beda-e2295ebf7f41`, cwd
-  `/Users/Michael/Code/agent-os/.docks/operator`, updated
+  `the implementer native subagent`: id `019e5062-42f2-7340-beda-e2295ebf7f41`, cwd
+  `/Users/Michael/Code/agent-os/the operator native subagent`, updated
   `2026-05-22T15:54:01.463Z`.
 - `/session-inspector` for that all-cwd candidate reported cwd
-  `/Users/Michael/Code/agent-os/.docks/operator`, branch
-  `gdi/dock-handoff-chat-shape-correction-v0`, model `gpt-5.5`, diagnostics
+  `/Users/Michael/Code/agent-os/the operator native subagent`, branch
+  `implementer/dock-handoff-chat-shape-correction-v0`, model `gpt-5.5`, diagnostics
   `[]`, and telemetry present.
 - That all-cwd candidate is accepted as the supervising Operator session, not as
-  the bridge-launched `.docks/gdi` provider session.
+  the bridge-launched `the implementer native subagent` provider session.
 
 From
 `docs/design/work-cards/afk-all-cwd-unrelated-candidate-classification-v0.md`:
 
 - The prototype now records unrelated current all-cwd candidates under
   `catalog.unrelated_current_session_refs`.
-- Without an independently observed provider session id, the `.docks/gdi`
+- Without an independently observed provider session id, the `the implementer native subagent`
   launch remains classified as `catalog_current_launch_not_observed`.
 - True wrong-cwd behavior remains reserved for an independently supplied
   provider session id whose catalog record reports a different cwd.
@@ -129,7 +129,7 @@ startup worked.
 
 That makes wrapper health a real defect to investigate, but it is not enough to
 explain the catalog gap because the fallback bridge did start Codex visibly and
-still did not observe a current `.docks/gdi` catalog record or provider
+still did not observe a current `the implementer native subagent` catalog record or provider
 session id.
 
 ### Session Inspector And Telemetry
@@ -158,14 +158,14 @@ Classification: `provider_acceptance_unobserved_before_catalog_match`.
 
 Confidence: medium-high.
 
-The absence of a current `.docks/gdi` catalog record is most likely not a wrong
+The absence of a current `the implementer native subagent` catalog record is most likely not a wrong
 cwd/provider filter and not expected all-cwd endpoint behavior. The accepted
 all-cwd run proves the all-cwd endpoint can find a current Codex session, and
 the current all-cwd candidate was correctly identified as unrelated Operator
 session evidence.
 
 The absence is also not proven to be simple catalog latency. The requested-cwd
-catalog had stale `.docks/gdi` records but no current one across the Operator
+catalog had stale `the implementer native subagent` records but no current one across the Operator
 observation window, and no independently observed provider session id existed
 to poll or match.
 
@@ -219,7 +219,7 @@ version, head, and clean status, but they are not yet AOS-owned evidence.
 
 ## Recommended Next Slice
 
-Owner: GDI implementation, routed and reviewed by Foreman.
+Owner: Implementer implementation, routed and reviewed by Foreman.
 
 Implement a provider-free bridge launch-visibility fixture around explicit
 launch-side acceptance fields, using the bridge terminal surface as the input
@@ -261,7 +261,7 @@ Suggested fixture bundle:
     "health": {
       "ok": true,
       "defaultSession": "afk-bridge-all-cwd-proof",
-      "defaultCwd": "/Users/Michael/Code/agent-os/.docks/gdi",
+      "defaultCwd": "/Users/Michael/Code/agent-os/the implementer native subagent",
       "driver": "process"
     },
     "ensure": {
@@ -275,7 +275,7 @@ Suggested fixture bundle:
       "session": "afk-bridge-all-cwd-proof",
       "driver": "process",
       "command": "process",
-      "text": "Codex CLI 0.133.0\\ncwd .docks/gdi\\nbranch gdi/example\\nmodel gpt-5.5\\n"
+      "text": "Codex CLI 0.133.0\\ncwd the implementer native subagent\\nbranch implementer/example\\nmodel gpt-5.5\\n"
     }
   },
   "catalog": {
@@ -284,7 +284,7 @@ Suggested fixture bundle:
       {
         "provider": "codex",
         "session_id": "019e5062-42f2-7340-beda-e2295ebf7f41",
-        "cwd": "/Users/Michael/Code/agent-os/.docks/operator",
+        "cwd": "/Users/Michael/Code/agent-os/the operator native subagent",
         "updated_at": "2026-05-22T15:54:01.463Z"
       }
     ],
@@ -295,14 +295,14 @@ Suggested fixture bundle:
     "provider_acceptance.status": "provider_acceptance_unobserved",
     "provider_acceptance.provider_session_id": "not_observed",
     "catalog.status": "catalog_current_launch_not_observed",
-    "catalog.unrelated_current_session_refs[0].cwd": "/Users/Michael/Code/agent-os/.docks/operator"
+    "catalog.unrelated_current_session_refs[0].cwd": "/Users/Michael/Code/agent-os/the operator native subagent"
   }
 }
 ```
 
 Add a companion true-positive fixture where a synthetic snapshot/title includes
 a parseable provider session id, and the requested-cwd catalog fixture contains
-that same id with cwd `.docks/gdi`. That fixture should prove the later catalog
+that same id with cwd `the implementer native subagent`. That fixture should prove the later catalog
 polling path can bind an observed provider id without launching a provider.
 
 ## Non-Goals

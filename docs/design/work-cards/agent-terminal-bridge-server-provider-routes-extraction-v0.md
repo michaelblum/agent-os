@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -42,7 +42,7 @@ catalog query details or inspector record lookup details inline.
 - required_start_ref: `origin/main` at
   `b20f8533c0cb288a5c71a2c5c57356315ea6e4f6` or later with this work card
 - output_branch:
-  `gdi/agent-terminal-bridge-server-provider-routes-extraction-v0`
+  `implementer/agent-terminal-bridge-server-provider-routes-extraction-v0`
 
 ## Read First
 

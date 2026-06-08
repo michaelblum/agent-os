@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI.
+Implementer.
 
 ## Transfer Kind
 
@@ -10,13 +10,13 @@ Deterministic implementation round for shared test harness / SOP primitives.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, daemon state,
+Implementer starts from a fresh context window. Do not assume branch, daemon state,
 canvas state, content roots, or prior Foreman discussion. Rediscover from the
 repo.
 
 ## Source Artifact
 
-- Branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Branch: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - Required start ref:
   `e4beb770bd5dafe813d4a93792c37896ea460105`
 - Triggering concern: the prior Sigil trail correction card carried
@@ -35,9 +35,9 @@ preflight. Do not continue the trail fix in this round.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- `branch_from`: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - `required_start_ref`: `e4beb770bd5dafe813d4a93792c37896ea460105`
-- Work surface/output branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Work surface/output branch: `implementer/selection-mode-cursor-ancestor-ladder-v0`
 - Use the single repo worktree at `/Users/Michael/Code/agent-os`.
 - Commit the harness/SOP/test changes locally on that branch.
 - Do not push, open/update PRs, close issues, or mutate GitHub state.

@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 wiki state, artifact paths, issue state, local runtime records, or prior
 implementation state. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -51,7 +51,7 @@ runtime records versus generated projections.
 - `docs/design/evidence-workflow-block-abstraction-tracker.md`
 - `docs/design/user-signal-surface.md`
 - `docs/recipes/layered-subject-expressions.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/api/aos.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/wiki/repo-docs-projection-v0.json`
@@ -77,7 +77,7 @@ git worktree list
 ```
 
 If `./aos ready` is blocked, report the exact blocker. This slice should be
-verifiable deterministically unless GDI chooses to add a small runtime wiki
+verifiable deterministically unless Implementer chooses to add a small runtime wiki
 smoke with isolated `AOS_STATE_ROOT`.
 
 ## Existing Code And Artifacts To Inspect
@@ -252,7 +252,7 @@ bash tests/dev-audit.sh
 git diff --check
 ```
 
-Report `./aos ready` state, but skip live AOS verification unless GDI adds a
+Report `./aos ready` state, but skip live AOS verification unless Implementer adds a
 specific runtime wiki or workbench smoke and readiness is green.
 
 ## Completion Report

@@ -6,11 +6,11 @@
 
 - Result classification: `partial_pass`.
 - Accepted evidence: Operator launched one supervised bridge-backed Codex
-  process from `.docks/gdi`, verified bridge health and cleanup, then exercised
+  process from `the implementer native subagent`, verified bridge health and cleanup, then exercised
   the accepted prototype correlation path against explicit read-only
   `/Users/Michael/.codex` metadata.
 - Branch/ref evidence:
-  - branch: `gdi/afk-launch-attempt-codex-adapter-integration-v0`
+  - branch: `implementer/afk-launch-attempt-codex-adapter-integration-v0`
   - HEAD: `dc0de0d8456e1360ed2e516f25df4bac4c87a4fe`
   - `docs/durable-agent-cognition-v0`:
     `dc0de0d8456e1360ed2e516f25df4bac4c87a4fe`
@@ -22,7 +22,7 @@
 - Live bridge evidence:
   - port: `17866`
   - `launch_observed_at`: `2026-05-22T17:18:38Z`
-  - `/health`: `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+  - `/health`: `defaultCwd=/Users/Michael/Code/agent-os/the implementer native subagent`,
     `driver=process`
   - `/ensure`: `session=afk-codex-adapter-live`, `created=true`,
     `driver=process`
@@ -51,7 +51,7 @@
     moved, or cleaned
 - Foreman local follow-up check: read-only adapter listing against explicit
   `/Users/Michael/.codex` found no post-launch candidates for
-  `/Users/Michael/Code/agent-os/.docks/gdi`, but found one post-launch Codex
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, but found one post-launch Codex
   thread for `/Users/Michael/Code/agent-os` at `2026-05-22T17:20:48.588Z`.
   This indicates the live Codex metadata may record the workspace/repo root
   instead of the dock launch cwd.
@@ -62,7 +62,7 @@
 
 - Recipient: Operator
 - Transfer kind: Operator run, supervised live/HITL evidence collection
-- Single next goal: run one supervised bridge-backed Codex launch from the GDI
+- Single next goal: run one supervised bridge-backed Codex launch from the Implementer
   dock root, then exercise the accepted launch-attempt Codex adapter
   correlation path against live bridge evidence and explicit read-only Codex
   metadata.
@@ -96,10 +96,10 @@ Stop if the worktree is dirty or if `HEAD` and
 If repo-mode TCC or input-tap readiness blocks, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 
 ```bash
 ./aos ready --post-permission
@@ -112,7 +112,7 @@ Start one bridge process with a free local port, preferring `17866`:
 ```bash
 SIGIL_AGENT_TERMINAL_PORT=17866 \
 SIGIL_AGENT_TMUX_SESSION=afk-codex-adapter-live \
-SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi \
+SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/the implementer native subagent \
 SIGIL_AGENT_COMMAND='codex --no-alt-screen' \
 SIGIL_AGENT_TERMINAL_DRIVER=process \
 node apps/sigil/codex-terminal/server.mjs
@@ -123,13 +123,13 @@ than once for non-port failures.
 
 Verify `/health` reports:
 
-- `defaultCwd`: `/Users/Michael/Code/agent-os/.docks/gdi`
+- `defaultCwd`: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - `driver`: `process`
 
 Use `/ensure` for:
 
 - session: `afk-codex-adapter-live`
-- cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+- cwd: `/Users/Michael/Code/agent-os/the implementer native subagent`
 - command: `codex --no-alt-screen`
 - force: `true`
 
@@ -149,7 +149,7 @@ Create a temporary packet JSON with:
 {
   "packet_id": "operator-afk-codex-adapter-live-correlation",
   "source_artifact": "docs/design/work-cards/operator-afk-codex-adapter-live-correlation-v0.md",
-  "requested_recipient": "gdi",
+  "requested_recipient": "implementer",
   "cwd": "/Users/Michael/Code/agent-os",
   "worktree": "/Users/Michael/Code/agent-os",
   "required_start_ref": "docs/durable-agent-cognition-v0",
@@ -176,7 +176,7 @@ Run:
 node scripts/afk-launch-attempt-prototype.mjs \
   --packet <temp-packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --json \
   --timestamp <iso-now> \
   --launch-observed-at <launch_observed_at> \
@@ -194,7 +194,7 @@ If needed to explain a `not_observed`, `multiple_candidates`, or `wrong_cwd`
 result, query:
 
 ```text
-/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex
+/sessions?cwd=/Users/Michael/Code/agent-os/the implementer native subagent&provider=codex
 /sessions?provider=codex&all_cwd=true
 ```
 
@@ -203,7 +203,7 @@ candidates as context; do not promote them into provider session ids.
 
 ## Stop Conditions
 
-- Stop as `human_needed` on TCC/input-tap readiness blockers after running the
+- Stop as `manual_intervention` on TCC/input-tap readiness blockers after running the
   reset helper.
 - Stop as `blocked` if the accepted ref is not checked out, the bridge cannot
   start after one port retry, or Codex launch requires credentials or auth.

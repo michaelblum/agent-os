@@ -151,7 +151,7 @@ Both runs passed, with Surface Inspector visible/active during the scenario,
 avatar fast travel confirmed, radial semantic targets captured, and Wiki
 Workbench opened by the final radial release. The clean post-run state was
 `__log__`, `aos-desktop-world-stage`, and active `surface-inspector`.
-That is accepted as canonical-path evidence. GDI then rebuilt the real-input
+That is accepted as canonical-path evidence. Implementer then rebuilt the real-input
 harness around shared DesktopWorld path primitives. The follow-up scenario is no
 longer display-seam-specific: it computes the visible DesktopWorld union,
 insets it by radial-menu-safe padding, fast-travels the avatar through a
@@ -171,5 +171,5 @@ starting new implementation. The checkpoint hygiene run is recorded in
 
 After checkpoint hygiene, route retrospective tooling and primitive follow-ups
 through `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`.
-Split that queue into exact GDI cards before implementation; do not reopen #305
+Split that queue into exact Implementer cards before implementation; do not reopen #305
 or revive a broad Sigil remodel umbrella for those items.

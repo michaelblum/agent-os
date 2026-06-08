@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -19,11 +19,11 @@ acceptance.
 
 ## Branch / Base
 
-- branch_from: `gdi/dock-terminal-session-registry-v0`
+- branch_from: `implementer/dock-terminal-session-registry-v0`
 - required_start_ref:
-  `gdi/dock-terminal-session-registry-v0` at
+  `implementer/dock-terminal-session-registry-v0` at
   `b5341c34f9dcb7f43fe91ae717e0f8257b1e3fef`
-- expected_output_branch: `gdi/dock-terminal-session-cwd-correction-v0`
+- expected_output_branch: `implementer/dock-terminal-session-cwd-correction-v0`
 
 ## Review Finding
 
@@ -35,13 +35,13 @@ cwd: url.searchParams.get('cwd') || process.env.SIGIL_AGENT_DOCK_CWD || undefine
 ```
 
 When neither value is supplied, `createDockTerminalSessionReceipt()` defaults
-to `repoRoot/.docks/<dock>`. That can differ from the actual PTY/default session
+to `repoRoot/the session root`. That can differ from the actual PTY/default session
 cwd, which is available through `terminalCwdForSession(session)` and ultimately
 from `SIGIL_AGENT_CWD` or `sessionCommands`.
 
 The current server test illustrates the risk: it starts the process-driver
 terminal with a fixture `SIGIL_AGENT_CWD`, but the new endpoint asserts
-`.docks/gdi` instead of the actual terminal cwd. A dock terminal session
+`the implementer native subagent` instead of the actual terminal cwd. A dock terminal session
 observation should not claim a cwd that is not the active substrate.
 
 ## Required Behavior
@@ -51,7 +51,7 @@ observation should not claim a cwd that is not the active substrate.
 - An explicit `cwd` query param or intentionally named override may still be
   accepted when the caller is deliberately describing a dock cwd, but the test
   must make that distinction clear.
-- The endpoint must not silently claim `.docks/<dock>` when the active PTY cwd is
+- The endpoint must not silently claim `the session root` when the active PTY cwd is
   different.
 - `apps/sigil/codex-terminal/launch.sh` should pass a stable repo root to
   `server.mjs` for both tmux and non-tmux startup paths, for example
@@ -66,11 +66,11 @@ observation should not claim a cwd that is not the active substrate.
 Add or update focused tests proving:
 
 - Agent Terminal `/dock-terminal-session` default cwd equals the active session
-  cwd/default bridge cwd, not inferred `.docks/<dock>`.
+  cwd/default bridge cwd, not inferred `the session root`.
 - Explicit dock cwd override still works when supplied.
 - Launcher text or behavior passes stable repo root to `server.mjs` in both
   tmux and non-tmux paths, if changed.
-- Existing fixture-backed dock terminal session receipts for `foreman`, `gdi`,
+- Existing fixture-backed dock terminal session receipts for `foreman`, `implementer`,
   and `operator` still validate.
 - AFK warm reuse receipts still include `owner: "aos.dock_terminal_session"` and
   stable `dock_terminal_session_id`.
@@ -86,11 +86,11 @@ node --test tests/afk-session-trigger-prototype.test.mjs
 git diff --check
 ```
 
-If `./aos ready` reports a repo-mode permission blocker, use the standard GDI
-human-needed path and stop instead of routing around it:
+If `./aos ready` reports a repo-mode permission blocker, use the standard Implementer
+manual-intervention path and stop instead of routing around it:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 

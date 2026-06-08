@@ -4,7 +4,7 @@
 
 ## Foreman Review Result
 
-GDI completed this correction at
+Implementer completed this correction at
 `f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223` from base
 `28282bdfcc11097117a9dcd0d4eb42900b670583`.
 
@@ -32,9 +32,9 @@ The next gate is a supervised Operator live proof, routed in
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
-- Single next goal: when the guarded live Codex/GDI path submits the packet
+- Single next goal: when the guarded live Codex/Implementer path submits the packet
   prompt and then finds exactly one metadata-backed Codex thread for the
   intended launch cwd/time window, promote that concrete thread identity into
   `provider_acceptance.status=provider_session_observed` and the launch
@@ -55,14 +55,14 @@ The next gate is a supervised Operator live proof, routed in
   - Prompt-submission base:
     `a3930e8f5197a9a50beb729310a74717e79496de`
 - Branch/output expectation: create
-  `gdi/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0` from
-  the required start ref. Commit and push that GDI branch when verification
+  `implementer/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0` from
+  the required start ref. Commit and push that Implementer branch when verification
   passes, per the active `agentic_relay` profile. Do not open a PR, merge,
   mutate GitHub state beyond the branch push, or start async result routing.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Rediscover branch, worktree, readiness,
+Implementer starts from a fresh context window. Rediscover branch, worktree, readiness,
 current source, tests, and the prior Foreman review before editing.
 
 ## Foreman Review Finding
@@ -83,7 +83,7 @@ Relevant current behavior:
   `matched_by_cwd_time_window` while still expecting the
   `provider_session_id_not_observed` mismatch.
 
-That means a live Codex/GDI run can submit the packet prompt and find exactly
+That means a live Codex/Implementer run can submit the packet prompt and find exactly
 one concrete Codex thread for the intended launch cwd/time window, but still
 return `provider_acceptance_unobserved`. This preserves the original blocker
 even after successful metadata correlation.
@@ -119,7 +119,7 @@ even after successful metadata correlation.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/work-cards/afk-dev-session-trigger-live-prompt-submission-observation-v0.md`
@@ -147,10 +147,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -175,7 +175,7 @@ Only continue if it reports ready.
   - there is no snapshot/provider session id;
   - bridge input submission is successful or fixture-equivalent;
   - Codex fixture metadata has exactly one thread in the intended
-    `.docks/gdi` cwd/time window;
+    `the implementer native subagent` cwd/time window;
   - the output has `provider_acceptance.status=provider_session_observed`;
   - `provider_acceptance.provider_session_id` equals the matched thread id;
   - lifecycle is `provider_session_observed`;
@@ -199,12 +199,12 @@ node --test tests/sigil-agent-terminal-server.test.mjs
 git diff --check
 ```
 
-Do not run a live Codex provider launch in this GDI round. Foreman will route
+Do not run a live Codex provider launch in this Implementer round. Foreman will route
 the next Operator supervised proof after accepting the deterministic correction.
 
 ## Stop Conditions
 
-- Repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper.
+- Repo-mode TCC/Input Monitoring readiness blocks after the standard Implementer helper.
 - The correction requires a live Codex launch.
 - The correction requires provider transcript body reads or provider-owned store
   mutation.

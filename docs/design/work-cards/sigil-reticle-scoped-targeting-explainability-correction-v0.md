@@ -17,7 +17,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 issue state, display topology, VS Code state, Comet/Chrome state, candidate
 cache state, or prior live evidence. Read and rediscover before editing. Work
 in `/Users/Michael/Code/agent-os`, not in `.docks/`.
@@ -31,7 +31,7 @@ implemented. Preserve the wins and fix the inconsistent scoped targeting.
 - `branch_from: origin/main`
 - `required_start_ref: origin/main`
 - Expected output branch:
-  `gdi/sigil-reticle-scoped-targeting-explainability-correction-v0`
+  `implementer/sigil-reticle-scoped-targeting-explainability-correction-v0`
 - Stop and report instead of rebasing if the work card is not present on
   `origin/main` or if the current tree lacks
   `packages/toolkit/workbench/annotation-candidates.js`.
@@ -112,10 +112,10 @@ If `./aos ready` or a bounded live check reports a repo-mode Accessibility,
 Input Monitoring, or inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and include the script output. After the human
+Then stop with `manual_intervention` and include the script output. After the human
 returns with "finished", run:
 
 ```bash
@@ -322,7 +322,7 @@ If `./aos ready` passes, run a bounded live smoke:
 8. Clean up canvases and report final `./aos ready` plus
    `git status --short --branch`.
 
-If Comet is not locally available to GDI, use the available Chromium-family
+If Comet is not locally available to Implementer, use the available Chromium-family
 browser for live smoke and report Comet as an Operator follow-up.
 
 ## Completion Report
@@ -343,5 +343,5 @@ Report:
 - recommended follow-up if deeper browser frame/shadow DOM, scroll/resize
   settle, or comment UI still needs separate work.
 
-If this GDI CLI session already had a completed active goal, remind the human
-to run `/goal clear` before retiring it or starting unrelated work.
+If this Implementer CLI session already had a completed active goal, remind the human
+to run clear the stale prompt state before retiring it or starting unrelated work.

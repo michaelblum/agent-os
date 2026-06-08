@@ -5,7 +5,7 @@
 ## Result
 
 - Foreman review: accepted.
-- Branch/ref gates passed on `gdi/afk-sleep-lease-safety-contract-v0` at
+- Branch/ref gates passed on `implementer/afk-sleep-lease-safety-contract-v0` at
   `68fdd1fe8fbced8c7ae57428a3463ba412fa41fb`, based on
   `bd708c64e530a9ecbf1365b6b4779a02adfce44e`.
 - Diff was scoped to:
@@ -27,7 +27,7 @@
   body read, provider store/catalog/telemetry mutation, gateway/dock runtime
   mutation, GitHub issue/PR/main mutation, external notifier, durable
   work/evidence record, unattended trigger, or follow-up routing occurred
-  during the GDI round beyond the expected branch push.
+  during the Implementer round beyond the expected branch push.
 
 ## Foreman Triage
 
@@ -47,8 +47,8 @@ Do not start an unattended live provider run in this slice.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: define the AFK sleep-lease safety contract and near-term
   implementation sequence for allowing bounded work to continue while the human
   is asleep.
@@ -68,14 +68,14 @@ Do not start an unattended live provider run in this slice.
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-sleep-lease-safety-contract-v0` from `origin/main`. Commit and push
-  that GDI branch when verification passes. Do not open a PR, merge, mutate
+  `implementer/afk-sleep-lease-safety-contract-v0` from `origin/main`. Commit and push
+  that Implementer branch when verification passes. Do not open a PR, merge, mutate
   main, mutate GitHub issues/projects, start live providers, or route follow-up
   work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 readiness, provider auth, provider process state, prior live proof state, or
 current AFK prototype behavior. Read and rediscover before editing.
 
@@ -125,7 +125,7 @@ sequence.
 
    - one pre-approved work card versus a small queue;
    - whether Foreman may choose the next card while the human is asleep;
-   - whether GDI may continue after tests fail;
+   - whether Implementer may continue after tests fail;
    - whether Operator/HITL work is forbidden by default while the human sleeps;
    - how to represent work that needs human judgment.
 
@@ -188,10 +188,10 @@ sequence.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
 - `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
@@ -262,4 +262,4 @@ Return:
   provider launch, transcript body read, provider store/catalog/telemetry
   mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation,
   external notifier, durable work/evidence record, unattended trigger, or
-  follow-up routing occurred beyond the expected GDI branch push.
+  follow-up routing occurred beyond the expected Implementer branch push.

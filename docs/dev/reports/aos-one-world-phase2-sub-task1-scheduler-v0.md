@@ -2,7 +2,7 @@
 
 Date: 2026-06-05
 
-Branch: `gdi/aos-one-world-phase2-world-substrate-v0`
+Branch: `implementer/aos-one-world-phase2-world-substrate-v0`
 
 Start ref: `e48a526d9f01f7579182004d5fd6c82dcc66fdee`
 

@@ -10,14 +10,14 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume parent-thread memory,
+Implementer starts from a fresh context window. Do not assume parent-thread memory,
 branch state, daemon state, or prior audit coverage. Rediscover state before
 editing.
 
 ## Goal
 
 Run a broad source-contract audit of PR #378 and fix high-confidence problems.
-This is deliberately a long-run GDI round. The previous pass found stale
+This is deliberately a long-run Implementer round. The previous pass found stale
 work-card TCC wording and stopped quickly; this round must go deeper into the
 command surface source contracts before declaring no blockers.
 
@@ -38,10 +38,10 @@ review risks?"
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/pr-378-command-surface-pr-readiness-long-run-v0.md`
 - `docs/design/work-cards/pr-378-command-surface-source-contract-audit-long-run-v0.md`
-- `docs/design/work-cards/command-surface-rearchitecture-long-goal-v0.md`
+- `docs/design/work-cards/command-surface-rearchitecture-long-prompt-v0.md`
 - `src/commands/operator.swift`
 - `src/shared/external-command-dispatch.swift`
 - `config/aos/external-commands.json`
@@ -63,10 +63,10 @@ gh pr view 378 --repo michaelblum/agent-os --json number,title,state,isDraft,url
 If live AOS readiness blocks the round, use the standard path:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -123,7 +123,7 @@ manual-only.
 
 ### 4. Residue And Governance Audit
 
-Search for stale references that would mislead future GDI/Operator runs:
+Search for stale references that would mislead future Implementer/Operator runs:
 
 - old "human returns with ready" TCC relay language;
 - old Swift command-source assumptions;
@@ -203,7 +203,7 @@ Use this shape:
 - fixes_made: <none/list>
 - merge_blockers: <none/list with files and evidence>
 - review_risks: <none/list>
-- action_required: <foreman_review|human_needed|block>
+- action_required: <foreman_review|manual_intervention|block>
 ```
 
 Do not self-accept PR #378. Foreman owns final acceptance and PR state.

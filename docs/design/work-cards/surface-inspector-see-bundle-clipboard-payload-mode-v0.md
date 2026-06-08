@@ -13,7 +13,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 permissions, config state, clipboard contents, bundle paths, live annotation
 state, or prior implementation state. Read and rediscover before editing. Work
 in `/Users/Michael/Code/agent-os`, not in `.docks/`.

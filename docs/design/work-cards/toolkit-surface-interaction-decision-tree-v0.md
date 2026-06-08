@@ -12,7 +12,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -46,7 +46,7 @@ coherent deliverable:
 - `packages/toolkit/runtime/AGENTS.md`
 - `packages/toolkit/panel/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/design/work-cards/toolkit-surface-resource-scope-v0.md`
 
 ## Rediscover State
@@ -142,7 +142,7 @@ For each surface, record:
 - the next practical slice if action is needed.
 
 Do not over-audit unrelated app code. The point is to make surface architecture
-debt visible enough for Foreman to route the next GDI or Operator slice.
+debt visible enough for Foreman to route the next Implementer or Operator slice.
 
 ## Enforcement Expectations
 
@@ -203,7 +203,7 @@ naming or export doc correction needed to keep the contract coherent.
   checks for key decision-tree anchors rather than brittle prose matching.
 - Add a short "what changed since the StageAffordance/ResourceScope slices"
   paragraph to the chosen design note so a fresh agent can connect the current
-  audit to the accepted GDI work.
+  audit to the accepted Implementer work.
 
 ## Verification
 

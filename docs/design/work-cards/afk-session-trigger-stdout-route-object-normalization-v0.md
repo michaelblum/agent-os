@@ -6,7 +6,7 @@
 
 - Foreman review: accepted.
 - Branch/ref gates passed on
-  `gdi/afk-session-trigger-stdout-route-object-normalization-v0` at
+  `implementer/afk-session-trigger-stdout-route-object-normalization-v0` at
   `198117a63f1af7040c7b22f4c660ede922c28586`, based on
   `fe12b509d95e33044b3761671dd2fa1278fe6e24`.
 - Diff was scoped to:
@@ -32,14 +32,14 @@
 - No live provider launch, transcript body read, provider store/catalog/telemetry
   mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation, main
   merge, PR creation, external notifier, durable work/evidence record,
-  unsupervised trigger, or non-local async routing occurred during this GDI
+  unsupervised trigger, or non-local async routing occurred during this Implementer
   round.
 - Follow-up routed:
   `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v1.md`.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: make stdout result-route object shorthand deterministic for
   the AFK prototypes, so a local stdout route object is either normalized to the
@@ -59,14 +59,14 @@
   - accepted live proof head:
     `d629afa5a40ce386b462775b32bfbec3016d1b4b`
 - Branch/output expectation: create
-  `gdi/afk-session-trigger-stdout-route-object-normalization-v0` from
-  `origin/main`. Commit and push that GDI branch when verification passes. Do
+  `implementer/afk-session-trigger-stdout-route-object-normalization-v0` from
+  `origin/main`. Commit and push that Implementer branch when verification passes. Do
   not open a PR, merge, mutate main, mutate GitHub issues/projects, or broaden
   into external publication.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, daemon state, live proof artifacts, or prior implementation state.
 Read and rediscover before editing.
 
@@ -122,7 +122,7 @@ Choose this specific policy unless source reading proves it is unsafe:
   exact stdout ref remain unsupported;
 - external/object routes such as `gateway_notifier` remain unsupported.
 
-If GDI finds a stronger reason to keep stdout route objects unsupported, do not
+If Implementer finds a stronger reason to keep stdout route objects unsupported, do not
 implement a behavior change. Instead, update the packet/work-card wording and
 tests so the failure diagnostic says the exact allowed shape:
 
@@ -136,7 +136,7 @@ the ambiguity.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`
@@ -162,10 +162,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -249,9 +249,9 @@ Return:
 - exact stdout route-object behavior chosen;
 - receipt examples for accepted stdout shorthand objects;
 - proof unsupported/external route objects remain non-completed;
-- remaining next slice recommendation, expected: warm-dock GDI reuse proof;
+- remaining next slice recommendation, expected: warm-dock Implementer reuse proof;
 - explicit statement that no live provider launch, transcript body read,
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, main merge, PR creation, external notifier,
   durable work/evidence record, unsupervised trigger, or non-local async routing
-  occurred beyond the expected GDI branch push.
+  occurred beyond the expected Implementer branch push.

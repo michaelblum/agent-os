@@ -2,7 +2,7 @@
 
 ## Context
 
-Annotation Perception Verification V0 proved that GDI can create annotation
+Annotation Perception Verification V0 proved that Implementer can create annotation
 intent from structured targets, project/render it, re-perceive the surface
 through structured state, and assert identity/bounds/decorator/layer matches
 without Operator visual confirmation or screenshot pixel checks.

@@ -37,7 +37,7 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: make bridge-driven prompt submission into a
   process-driver Codex TUI observable and reliable enough for the next Operator
@@ -50,12 +50,12 @@
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-bridge-codex-input-submission-correction-v0`. Keep the checkpoint
+  `implementer/afk-bridge-codex-input-submission-correction-v0`. Keep the checkpoint
   local; do not push, open a PR, mutate GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, bridge state, terminal dimensions, TUI state,
 or prior implementation state. Read and rediscover before editing.
 
@@ -74,7 +74,7 @@ distinguish these cases:
 
 This is a bridge/input submission correction before another live Operator proof.
 Do not launch real Codex, Claude, Gemini, Sigil, gateway, or other providers in
-this GDI round.
+this Implementer round.
 
 ## Triggering Evidence
 
@@ -84,14 +84,14 @@ Operator ran the transcript-materialization diagnostic on 2026-05-22:
   `cacc51733c9ff146e9d1381be47f4c45f665e021`;
 - `./aos ready` passed with `ready=true mode=repo daemon=reachable tap=active`;
 - process driver bridge on port `17866` launched `codex --no-alt-screen` from
-  `/Users/Michael/Code/agent-os/.docks/gdi`;
+  `/Users/Michael/Code/agent-os/the implementer native subagent`;
 - process evidence showed `pty-proxy.py`, `node .../bin/codex --no-alt-screen`,
-  and the native Codex binary all running under `.docks/gdi`;
+  and the native Codex binary all running under `the implementer native subagent`;
 - `/input` returned HTTP 200 `{"ok":true}`;
 - one `/key Enter` returned HTTP 200 `{"ok":true}`;
 - snapshots before and after input still showed only startup/TUI tip output,
   not the prompt or a model response;
-- no separate bridge-launched `.docks/gdi` Codex rollout transcript
+- no separate bridge-launched `the implementer native subagent` Codex rollout transcript
   materialized.
 
 Foreman then ran a provider-free bridge smoke using the same process driver and
@@ -102,7 +102,7 @@ readiness/submission behavior or the bridge's ability to observe it.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-diagnosis-v0.md`
 - `docs/design/work-cards/operator-afk-codex-workspace-root-live-correlation-v0.md`
 - `docs/design/work-cards/afk-codex-workspace-root-correlation-correction-v0.md`
@@ -132,10 +132,10 @@ If a later bounded live check is explicitly routed and repo-mode TCC or
 input-tap readiness blocks, use:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns, run:
+Then stop with `manual_intervention`. After the human returns, run:
 `./aos ready --post-permission`.
 
 ## Branch / Base
@@ -144,7 +144,7 @@ Then stop with `human_needed`. After the human returns, run:
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `cacc51733c9ff146e9d1381be47f4c45f665e021`
 - expected output branch:
-  `gdi/afk-bridge-codex-input-submission-correction-v0`
+  `implementer/afk-bridge-codex-input-submission-correction-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 

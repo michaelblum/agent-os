@@ -11,7 +11,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing. The worktree is expected to be substantially dirty
 from the surface-stack workstream; do not revert unrelated changes.
@@ -142,7 +142,7 @@ Completion report must say one of:
 - close #118 but keep #119 open with one exact remaining epic-level gap;
 - keep both open with exact gaps and the next narrow card.
 
-Do not close GitHub issues from GDI. Foreman owns issue writes.
+Do not close GitHub issues from Implementer. Foreman owns issue writes.
 
 ## Verification
 

@@ -21,12 +21,12 @@
   - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
   - `git diff --check da3477c79eb5c34cd0c4ed100d6e11a252823eac..ea94a44f2f40790741a88d2f6ba4524925bd50e0`
   - `./aos dev recommend --json`
-  - manual `node scripts/afk-launch-attempt-prototype.mjs --packet <temp-packet.json> --provider codex --dock gdi --json --timestamp 2026-05-22T02:15:00.000Z --out <temp-output.json>`
+  - manual `node scripts/afk-launch-attempt-prototype.mjs --packet <temp-packet.json> --provider codex --dock implementer --json --timestamp 2026-05-22T02:15:00.000Z --out <temp-output.json>`
 - Manual smoke result: lifecycle `provider_acceptance_unobserved`,
   idempotence key `116d82a253495a1d21d0b1f8cf77a4ab`, selected provider/dock
-  `codex`/`gdi`, terminal driver `process`, terminal session
+  `codex`/`implementer`, terminal driver `process`, terminal session
   `afk-launch-116d82a25349`, terminal cwd
-  `/Users/Michael/Code/agent-os/.docks/gdi`, provider acceptance
+  `/Users/Michael/Code/agent-os/the implementer native subagent`, provider acceptance
   `not_applicable: no-provider-launch`, catalog `not_observed`, telemetry
   `not_observed`, route `not_attempted`, provider launch performed `false`,
   eight validations passed.
@@ -36,7 +36,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge state, catalog, telemetry, or prior implementation
 state. Read and rediscover before editing.
 
@@ -53,7 +53,7 @@ emit honest `not_observed` catalog/telemetry/provider-acceptance fields.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
 - `docs/design/work-cards/afk-terminal-substrate-no-provider-validation-v0.md`
@@ -80,7 +80,7 @@ git rev-parse --short docs/durable-agent-cognition-v0
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `5c74c1de`
 - expected output branch:
-  `gdi/afk-launch-attempt-prototype-no-provider-v0`
+  `implementer/afk-launch-attempt-prototype-no-provider-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
@@ -160,7 +160,7 @@ git diff --check
 ./aos dev recommend --json
 ```
 
-If GDI changes shared bridge behavior, also run:
+If Implementer changes shared bridge behavior, also run:
 
 ```bash
 node --test tests/sigil-agent-terminal-server.test.mjs

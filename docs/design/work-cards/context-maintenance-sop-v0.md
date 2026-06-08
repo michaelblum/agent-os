@@ -32,7 +32,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -53,8 +53,8 @@ This is a governance/SOP slice, not a stale-doc implementation sweep.
 - `ARCHITECTURE.md`
 - `docs/agents/domain.md`
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `docs/recipes/agent-tooling-contexts-and-verification.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/design/work-cards/context-live-doc-stale-sweep-v0.md`
 - `/Users/Michael/Code/mattpocock-skills/skills/engineering/grill-with-docs/SKILL.md`
 - `/Users/Michael/Code/mattpocock-skills/skills/engineering/grill-with-docs/CONTEXT-FORMAT.md`
@@ -84,8 +84,8 @@ branch_from: `origin/main`
 required_start_ref: `origin/main`
 
 This work card is present on `origin/main` after PR #368 merged. Start from
-`origin/main` for this slice. Use `gdi/context-maintenance-sop-v0` as the
-output branch if creating a separate GDI branch.
+`origin/main` for this slice. Use `implementer/context-maintenance-sop-v0` as the
+output branch if creating a separate Implementer branch.
 
 ## Required Behavior
 

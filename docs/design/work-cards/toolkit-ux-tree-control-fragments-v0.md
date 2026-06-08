@@ -2,14 +2,14 @@
 
 ## Transfer
 
-- Recipient: GDI
-- Transfer kind: GDI round
-- Source branch: `origin/gdi/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
-- Output branch: `gdi/toolkit-ux-tree-control-fragments-v0`
-- Base stack: PR #388, `gdi/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
+- Recipient: Implementer
+- Transfer kind: Implementer round
+- Source branch: `origin/implementer/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
+- Output branch: `implementer/toolkit-ux-tree-control-fragments-v0`
+- Base stack: PR #388, `implementer/sigil-ux-tree-pre-toolkit-adoption-closure-v0`
 - Goal owner: toolkit controls
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing.
 
@@ -47,7 +47,7 @@ execution or persistence yet.
 ```bash
 git status --short --branch
 git fetch origin
-git switch -c gdi/toolkit-ux-tree-control-fragments-v0 origin/gdi/sigil-ux-tree-pre-toolkit-adoption-closure-v0
+git switch -c implementer/toolkit-ux-tree-control-fragments-v0 origin/implementer/sigil-ux-tree-pre-toolkit-adoption-closure-v0
 ./aos dev recommend --json --files packages/toolkit/controls docs/api/toolkit/components.md docs/api/toolkit/workbench.md shared/schemas/aos-ux-tree-v0.schema.json
 ```
 
@@ -77,7 +77,7 @@ Add a small toolkit-controls UX tree fragment layer.
 
 The preferred shape is a new module such as
 `packages/toolkit/controls/ux-tree.js` that exports focused helpers for basic
-controls. GDI may adjust names after inspecting the code, but keep the public
+controls. Implementer may adjust names after inspecting the code, but keep the public
 surface small and explicit.
 
 At minimum cover these control families:

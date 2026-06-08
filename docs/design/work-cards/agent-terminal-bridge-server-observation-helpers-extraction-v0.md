@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, provider, issue, or prior implementation state. Read and rediscover
 before editing.
 
@@ -44,7 +44,7 @@ runtime behavior.
 - required_start_ref: `origin/main` at
   `f5064031ddcabdcfa26cbdb8b1fc89c29e9e4f76` or later with this work card
 - output_branch:
-  `gdi/agent-terminal-bridge-server-observation-helpers-extraction-v0`
+  `implementer/agent-terminal-bridge-server-observation-helpers-extraction-v0`
 
 ## Read First
 
@@ -112,7 +112,7 @@ process-driver fixtures.
 
    - `/health` JSON fields and values;
    - `/dock-terminal-session` JSON shape;
-   - default dock value `gdi`;
+   - default dock value `implementer`;
    - explicit `dock`, `session`, `cwd`, `provider`, `provider_session_id`,
      `lease_holder`, `lease_purpose`, and `lease_disposition` query behavior;
    - pty driver naming for process and tmux fixtures;

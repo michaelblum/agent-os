@@ -11,7 +11,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, daemon, canvas,
+Implementer starts from a fresh context window. Do not assume branch, daemon, canvas,
 runtime readiness, or root cause. Rediscover before editing.
 
 ## Goal
@@ -62,13 +62,13 @@ Before the idle render fix, Foreman measured:
 - a repeated cycle behaved the same: first click timed out after `5000ms`,
   second click summoned in `1417.1ms`.
 
-After the older idle render fix, GDI measured:
+After the older idle render fix, Implementer measured:
 
 - status-item hidden-to-visible summon remained slow at `20508.7ms`;
 - idle render loop was no longer hot, so this is likely no longer render-loop
   scheduling.
 
-After the corrected `11df6de` idle render performance slice, GDI measured:
+After the corrected `11df6de` idle render performance slice, Implementer measured:
 
 - idle visible avatar stayed animated with `work.visualOnly=true`;
 - pure avatar-motion frames had `structural=false`, `overlay=false`, and
@@ -82,7 +82,7 @@ After the corrected `11df6de` idle render performance slice, GDI measured:
 Treat the status path as independent from idle avatar render-loop cost unless
 new evidence proves otherwise.
 
-GDI verification on `gdi/sigil-status-item-summon-latency-v0` found no code
+Implementer verification on `implementer/sigil-status-item-summon-latency-v0` found no code
 change was needed after reset to `origin/main` at `e8d9c31`:
 
 - the base already contains the generic `status_item.state` bridge from target

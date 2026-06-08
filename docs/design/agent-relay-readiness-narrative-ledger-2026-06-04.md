@@ -28,7 +28,7 @@ That stress test exposed several deeper weaknesses:
   UX-tree architecture;
 - readiness, input-tap ownership, stale daemon ownership, and TCC recovery
   needed stricter broker boundaries;
-- Foreman/GDI coordination was producing branches, stashes, work cards, and
+- Foreman/Implementer coordination was producing branches, stashes, work cards, and
   GitHub issue comments faster than durable memory could keep up.
 
 The repo was not random at the time of writing, but the artifact trail was noisy
@@ -118,7 +118,7 @@ At the handoff that preceded this note, live checks observed:
   reachable, launchd-managed ownership, active input tap, and granted
   permissions.
 - #409 and #410 settled the TCC/readiness broker work that was safe to land in
-  that tranche.
+  that slice.
 - #412 settled the immediate Foreman-owned `./aos dev gh` control-surface gap:
   issue create, issue close, label list, and guarded PR merge are available.
 - #411 was created as a separate readiness diagnosis/remediation spec. Query
@@ -126,14 +126,14 @@ At the handoff that preceded this note, live checks observed:
 
 The status-item target drift reported by `./aos status` at that time was narrow:
 Sigil's status item target pointed at an older
-`gdi_toolkit_panel_live_drag_correction_v1` URL. Query `./aos status --json`
+`implementer_toolkit_panel_live_drag_correction_v1` URL. Query `./aos status --json`
 before assuming that drift is still present.
 
 ## Follow-Up Threads Recorded At Write Time
 
 ### Provenance/accounting lane
 
-The branch named `gdi/aos-dock-run-provenance-ledger-v0` was observed as a real
+The branch named `implementer/aos-dock-run-provenance-ledger-v0` was observed as a real
 provenance/accounting lane, not generic scratch. Its live existence, ahead/behind
 state, and relevance must be checked with Git before acting on it.
 
@@ -173,7 +173,7 @@ another agent to reason from leftover files, branches, issues, or stashes.
 | `docs/design/agent-ui-affordance-synthesis-v0*.md` | Durable synthesis and review notes restored from the cleanup stash | Treat as design memory for agent-visible target architecture, not an automatic implementation dispatch. |
 | #407 | Governance/control-surface history | Query GitHub for state and labels. Do not infer current lane status from this note. |
 | #411 | Readiness diagnosis/remediation spec reference | Query GitHub for state and labels. Do not infer active work from this note. |
-| `gdi/aos-dock-run-provenance-ledger-v0` | Provenance/accounting branch reference | Query Git for existence and ahead/behind state before deciding promote/rebase/park/retire. |
+| `implementer/aos-dock-run-provenance-ledger-v0` | Provenance/accounting branch reference | Query Git for existence and ahead/behind state before deciding promote/rebase/park/retire. |
 | merged local branches | Cleanup candidates observed during the original cleanup | Recompute with `git branch --merged` before deleting anything. |
 | Former `stash@{0}` from 2026-06-04 11:20 | Restored and dropped during cleanup | Durable markdown/config material was restored into repo-local docs; generated `tests/lib/__pycache__/` bytecode and a blank-line-only skill edit were discarded. |
 | Former `stash@{1}` from 2026-06-03 12:54 | Dropped after explicit approval | Superseded dev-gh inventory/control-surface draft after #412. |
@@ -182,7 +182,7 @@ another agent to reason from leftover files, branches, issues, or stashes.
 
 True-up note from 2026-06-04: a later live `git stash list` showed six stash
 entries. Two newest entries were labeled as live-drag diagnostics. Four older
-entries, labeled `preserve-gdi-dock-config`, `wormhole transitions WIP
+entries, labeled `preserve-implementer-dock-config`, `wormhole transitions WIP
 isolation`, `probe-revert-working-tree-canvas-swift`, and `codex: stash dirty
 files 2026-04-19`, had no durable pointer in this note and require live triage
 before use or cleanup.
@@ -190,7 +190,7 @@ before use or cleanup.
 ## How To Read The Markdown Wake
 
 Most work cards are not standing instructions. They are bounded transfer
-contracts created for one GDI, Operator, correction, or validation round. Once
+contracts created for one Implementer, Operator, correction, or validation round. Once
 that round landed, was superseded, or became parked, the card remains useful as
 provenance but not as a command to continue.
 
@@ -233,8 +233,8 @@ Do not rebuild `./aos`, reset TCC, or route native Swift work unless the work
 card provides a native-boundary justification and Foreman/human availability is
 explicit.
 
-Do not create linked worktrees for Foreman/GDI loops under the default
-`local_relay` workflow.
+Do not create linked worktrees for Foreman/Implementer loops under the default
+`local single-checkout workflow` workflow.
 
 Do not treat stale markdown, generated proof artifacts, or old branch names as
 truth without comparing them to live Git, GitHub, and AOS state.

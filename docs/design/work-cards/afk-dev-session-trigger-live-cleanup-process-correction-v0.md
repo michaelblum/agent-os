@@ -28,7 +28,7 @@ Verification:
 
 ```text
 git status --short --branch
-## gdi/afk-dev-session-trigger-live-cleanup-proof-v0
+## implementer/afk-dev-session-trigger-live-cleanup-proof-v0
 
 ./aos ready
 ready=true mode=repo daemon=reachable tap=active
@@ -68,7 +68,7 @@ run at
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: correct the live cleanup-proof slice so
   `cleanup.status=verified` is reported only after the helper-owned
@@ -77,19 +77,19 @@ run at
 - Source artifact:
   `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-proof-v0.md`
 - Reviewed output branch:
-  `gdi/afk-dev-session-trigger-live-cleanup-proof-v0`
+  `implementer/afk-dev-session-trigger-live-cleanup-proof-v0`
 - Reviewed output head:
   `e7645ff38ee266cd04a0e0794066d157c6a4cac2`
 - Reviewed base:
   `7fcdae5d1d760ea0af35d803a68eaa8325f298e5`
 - Branch/output expectation: continue on
-  `gdi/afk-dev-session-trigger-live-cleanup-proof-v0` from this correction
+  `implementer/afk-dev-session-trigger-live-cleanup-proof-v0` from this correction
   card commit. Keep the checkpoint local; do not push, open a PR, mutate
   GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 bridge process, provider session, transcript/catalog state, Foreman's fake
 provider smoke details, or implementation shape beyond this card. Read and
 rediscover before editing.
@@ -148,7 +148,7 @@ Fix the cleanup proof without broadening the AFK trigger scope:
 ## Hard Boundaries
 
 - Do not run a live Codex, Claude, Gemini, tmux, provider terminal, or real
-  bridge session in this GDI correction round.
+  bridge session in this Implementer correction round.
 - A temporary fake `codex` binary that does not invoke a provider is acceptable
   for deterministic cleanup testing.
 - Do not read real `~/.codex` transcript bodies.
@@ -209,7 +209,7 @@ bash tests/help-contract.sh
 ./aos dev build --no-restart
 ```
 
-Do not run live Codex in this GDI correction round. If deterministic
+Do not run live Codex in this Implementer correction round. If deterministic
 verification passes, report the exact fake-provider cleanup smoke result and the
 next Operator supervised live scenario Foreman should route.
 
@@ -235,7 +235,7 @@ Report:
 - fake-provider cleanup-retention test/smoke result;
 - provider-timeout, cleanup-failure, completed, guard, and duplicate behavior;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened;

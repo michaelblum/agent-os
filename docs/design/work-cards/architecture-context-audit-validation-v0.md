@@ -1,7 +1,7 @@
 # Work Card: architecture-context-audit-validation-v0
 
 **Status:** Accepted 2026-05-20
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
@@ -10,9 +10,9 @@ Second-pass validation for
 
 Accepted evidence:
 
-- Validation branch: `gdi/architecture-context-audit-validation-v0`.
+- Validation branch: `implementer/architecture-context-audit-validation-v0`.
 - Accepted commit: `0c9a6222c84e36babd2007688ab0d82674e44498`.
-- Merged into `gdi/toolkit-panel-theme-consistency-audit-v0` by fast-forward.
+- Merged into `implementer/toolkit-panel-theme-consistency-audit-v0` by fast-forward.
 - Validation branch pruned after acceptance.
 
 This card is validation-only. It should produce a corrected audit record and a
@@ -21,7 +21,7 @@ clear recommendation for later doc edits, not directly rewrite
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -38,7 +38,7 @@ slice.
 - `ARCHITECTURE.md`
 - `CONTEXT.md`
 - `docs/design/notes/architecture-context-codebase-audit-2026-05-20.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - `docs/api/aos.md`
 - `docs/api/toolkit/components.md`
 - `packages/toolkit/AGENTS.md`
@@ -60,15 +60,15 @@ dry-runs.
 
 ## Branch/Base
 
-branch_from: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
-required_start_ref: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
+branch_from: `origin/implementer/toolkit-panel-theme-consistency-audit-v0`
+required_start_ref: `origin/implementer/toolkit-panel-theme-consistency-audit-v0`
 
 This validation card and the first-pass audit report live on the branch above,
 not on `origin/main`. Do not reset to `origin/main` for this validation. A clean
 worktree on the source branch is acceptable; router changed-file counts are
 branch-diff context, not dirty local state.
 
-Use `gdi/architecture-context-audit-validation-v0` as the validation output
+Use `implementer/architecture-context-audit-validation-v0` as the validation output
 branch if you need a separate branch. Start it from the required start ref.
 
 ## Existing Code To Inspect

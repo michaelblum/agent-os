@@ -9,11 +9,11 @@
 - Preceding follow-up:
   `docs/design/work-cards/compact-real-input-scenario-output-v0.md`
 - Draft evidence to classify:
-  `.docks/gdi/skills/work-retrospective/SKILL.md`
+  the implementer work-retrospective skill
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 issue, or prior implementation state. Read and rediscover before editing. The
 branch is expected to still have unrelated local state such as `.vscode/` and a
 dock-local retrospective skill edit. Classify that state; do not stage it unless
@@ -21,22 +21,22 @@ this slice intentionally retains or amends it.
 
 ## Goal
 
-Make narrow GDI completion reports and Foreman handoffs easier to review in a
+Make narrow Implementer completion reports and Foreman handoffs easier to review in a
 dirty worktree by documenting a lightweight path-scoped summary convention.
 
 This is a small docs/governance slice, not a new harness. The convention should
-help GDI report exactly what changed, what was verified, and what unrelated
+help Implementer report exactly what changed, what was verified, and what unrelated
 dirty state remains without turning every small fix into a heavy template.
 
 ## Read First
 
 - `AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
+- `docs/recipes/agent-tooling-contexts-and-verification.md`
 - `docs/design/work-cards/surface-stack-integration-checkpoint-hygiene-v0.md`
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
-- `.docks/gdi/skills/work-retrospective/SKILL.md`
+- the implementer work-retrospective skill
 
 ## Rediscover State
 
@@ -45,9 +45,9 @@ Run:
 ```bash
 git status --short --branch
 git diff --stat
-git diff -- .docks/gdi/skills/work-retrospective/SKILL.md
+git diff -- the implementer work-retrospective skill
 ./aos dev recommend --json
-rg -n "Completion Report|path-scoped|dirty|unrelated|worktree|verification|handoff|diff summary|retrospective" AGENTS.md .docks/foreman/AGENTS.md docs/recipes docs/design/work-cards .docks/gdi/skills/work-retrospective/SKILL.md
+rg -n "Completion Report|path-scoped|dirty|unrelated|worktree|verification|handoff|diff summary|retrospective" AGENTS.md .docks/foreman/AGENTS.md docs/recipes docs/design/work-cards the implementer work-retrospective skill
 ```
 
 This slice does not need `./aos ready` unless the chosen verification path or
@@ -58,8 +58,8 @@ runtime checks, follow it.
 
 ### 1. Classify Existing Draft Evidence
 
-The dirty `.docks/gdi/skills/work-retrospective/SKILL.md` appears to add a temp
-artifact path/readback convention for GDI retrospectives. Decide whether that is
+The dirty the implementer work-retrospective skill appears to add a temp
+artifact path/readback convention for Implementer retrospectives. Decide whether that is
 part of this slice:
 
 - retain or amend it if the dock skill is the correct local contract for
@@ -73,7 +73,7 @@ Do not silently commit dock-local skill edits just to clean the tree.
 
 ### 2. Document The Lightweight Convention
 
-Add or amend repo docs so a completion report for non-trivial GDI work includes:
+Add or amend repo docs so a completion report for non-trivial Implementer work includes:
 
 - path-scoped changed files;
 - exact verification commands and pass/fail results;
@@ -103,10 +103,10 @@ smallest clear way to prevent stale "next follow-up" recommendations.
 
 This is docs/governance and dock-local workflow hygiene. Likely files are:
 
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
+- `docs/recipes/agent-tooling-contexts-and-verification.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/skills/work-retrospective/SKILL.md`
+- the implementer work-retrospective skill
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
 
 Choose the smallest write set after inspection.

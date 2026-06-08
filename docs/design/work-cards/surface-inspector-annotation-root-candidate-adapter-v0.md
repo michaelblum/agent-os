@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -277,7 +277,7 @@ This is platform work. Do not make it Sigil-specific or Employer Brand-specific.
 
 ## Suggested Implementation Areas
 
-GDI should inspect first and then choose the narrowest implementation.
+Implementer should inspect first and then choose the narrowest implementation.
 
 Likely first pass:
 

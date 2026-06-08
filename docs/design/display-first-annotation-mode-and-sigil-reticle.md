@@ -31,7 +31,7 @@ Future work should correct that direction:
 - The pin icon is not a core user-facing concept. Internal names may still use
   `pin` if renaming creates unnecessary churn, but product docs and new UI
   should prefer `frame`, `anchor`, `annotation`, or `scope`.
-- Surface Inspector remains useful as an entry path, snapshot shutter, current
+- Surface Inspector remains useful as an tooling context, snapshot shutter, current
   path display, debug tree, adapter evidence viewer, and implementation
   diagnostic. It should not require the user to manage annotations from an
   inspector list.
@@ -98,9 +98,9 @@ DevTools path, stable attributes, nearby text, and viewport projection evidence.
 The browser boundary remains a separate adapter boundary; it should not block
 the display-first interaction model for native AX and AOS-owned surfaces.
 
-## Entry Paths
+## Tooling Contexts
 
-Multiple entry paths should open the same underlying annotation session:
+Multiple tooling contexts should open the same underlying annotation session:
 
 - status menu icon;
 - global hotkey;
@@ -299,7 +299,7 @@ Responsibilities to avoid:
 
 ## Acceptance Checks For Future Cards
 
-- All entry paths create the same annotation session type.
+- All tooling contexts create the same annotation session type.
 - Surface Inspector is not required to create the first annotation.
 - The display root defaults to the display under the avatar at mode entry.
 - If the avatar starts over a window, that window is the initial nested frame.

@@ -26,7 +26,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -78,8 +78,8 @@ branch_from: `origin/main`
 required_start_ref: `origin/main`
 
 This work card is present on `origin/main` after PR #368 merged. Start from
-`origin/main` for this slice. Use `gdi/matt-context-setup-scaffold-v0` as the
-output branch if creating a separate GDI branch.
+`origin/main` for this slice. Use `implementer/matt-context-setup-scaffold-v0` as the
+output branch if creating a separate Implementer branch.
 
 ## Conflict Handling Rubric
 

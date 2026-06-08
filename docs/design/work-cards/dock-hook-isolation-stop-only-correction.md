@@ -2,13 +2,13 @@
 
 ## Transfer Contract
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Source artifact: `tests/dock-hook-isolation.sh` failure on `main`
 - Single next goal: make the dock hook isolation test and adjacent verification
   docs match the current Stop-only dock harness model.
 - Branch/base: `branch_from: main`; `required_start_ref: main`
-- Output expectation: create a scoped GDI branch if edits are needed; do not
+- Output expectation: create a scoped Implementer branch if edits are needed; do not
   mutate GitHub issues or PRs.
 - Stop conditions: complete with evidence, fail with the technical blocker,
   stall only for permissions/credentials/product direction, or report misroute
@@ -16,7 +16,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 or prior implementation state. Read and rediscover before editing.
 
 ## Observed Failure
@@ -30,10 +30,10 @@ FAIL: shared dock runner missing 'aos_resolve_session_id'
 Foreman inspection found this is not caused by the transfer-skill cleanup. The
 current accepted dock model on `main` is Stop-only:
 
-- `.docks/{foreman,gdi,operator}/.codex/hooks.json` only declares `Stop`.
-- `.docks/{foreman,gdi,operator}/hooks/` only contains `stop.sh`.
-- `.docks/harness/dock-hook-runner.sh` only accepts `stop <dock>`.
-- `.docks/README.md` says not to add startup hooks for git posture, session
+- `.docks/{foreman,implementer,operator}/.codex/hooks.json` only declares `Stop`.
+- `.docks/{foreman,implementer,operator}/hooks/` only contains `stop.sh`.
+- `.docks/foreman/hooks/stop.sh` only accepts `stop <dock>`.
+- `.docks/AGENTS.md` says not to add startup hooks for git posture, session
   registration, or context snapshots.
 
 The failing test and old work-card verification still assert the previous
@@ -44,13 +44,13 @@ resurrecting startup registration.
 
 - `AGENTS.md`
 - `.docks/AGENTS.md`
-- `.docks/README.md`
-- `.docks/harness/dock-hook-runner.sh`
-- `.docks/{foreman,gdi,operator}/.codex/hooks.json`
-- `.docks/{foreman,gdi,operator}/hooks/stop.sh`
+- `.docks/AGENTS.md`
+- `.docks/foreman/hooks/stop.sh`
+- `.docks/{foreman,implementer,operator}/.codex/hooks.json`
+- `.docks/{foreman,implementer,operator}/hooks/stop.sh`
 - `tests/dock-hook-isolation.sh`
 - `docs/design/work-cards/dock-shared-harness-v0.md`
-- `.docks/README.md`
+- `.docks/AGENTS.md`
 
 ## Rediscover State
 
@@ -61,7 +61,7 @@ git status --short --branch
 bash tests/dock-hook-isolation.sh
 ```
 
-Use `git show --stat --oneline cfac95c -- .docks/harness/dock-hook-runner.sh .docks/*/hooks tests/dock-hook-isolation.sh docs/design/work-cards/dock-shared-harness-v0.md`
+Use `git show --stat --oneline cfac95c -- .docks/foreman/hooks/stop.sh session hooks tests/dock-hook-isolation.sh docs/design/work-cards/dock-shared-harness-v0.md`
 only as historical context for the simplification. Do not revert the commit.
 
 ## Required Behavior
@@ -69,11 +69,11 @@ only as historical context for the simplification. Do not revert the commit.
 `tests/dock-hook-isolation.sh` should verify the model that is actually
 documented and present on `main`:
 
-- shared `.docks/harness/dock-hook-runner.sh` exists and remains executable;
+- shared `.docks/foreman/hooks/stop.sh` exists and remains executable;
 - the runner sources `.agents/hooks/session-common.sh` only for bounded command
   helpers that the Stop path still uses;
 - the runner invokes bounded `aos say --voice-slot ...` Stop notices using
-  merged dock defaults and dock-local `dock.json` metadata;
+  merged dock defaults and dock-local `session metadata` metadata;
 - no Stop path calls `aos voice bind`, `aos voice final-response`, derives
   clipboard content from final chat text, or requires a resolved session id;
 - dock-local hooks only route through isolated `stop.sh` wrappers;
@@ -89,7 +89,7 @@ historical design notes historical; do not expand this into a broad docs rewrite
 ## Scope And Hard Boundaries
 
 - Own test/doc drift around the dock hook harness only.
-- Do not restore `.docks/*/hooks/session-start.sh`.
+- Do not restore `session hooks/session-start.sh`.
 - Do not reintroduce `aos_resolve_session_id` requirements to the shared
   runner.
 - Do not change transfer-skill routing or resurrect

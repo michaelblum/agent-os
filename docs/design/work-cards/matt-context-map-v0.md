@@ -28,7 +28,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -48,8 +48,8 @@ This is a map/scaffold slice, not a rewrite of the mapped docs.
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
 - `.docks/AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
-- `.docks/operator/AGENTS.md`
+- the implementer native subagent instructions
+- `the operator native subagent contract`
 - `src/AGENTS.md`
 - `src/daemon/AGENTS.md`
 - `packages/toolkit/AGENTS.md`
@@ -76,8 +76,8 @@ branch_from: `origin/main`
 required_start_ref: `origin/main`
 
 This work card is present on `origin/main` after PR #368 merged. Start from
-`origin/main` for this slice. Use `gdi/matt-context-map-v0` as the output
-branch if creating a separate GDI branch.
+`origin/main` for this slice. Use `implementer/matt-context-map-v0` as the output
+branch if creating a separate Implementer branch.
 
 ## Required Behavior
 

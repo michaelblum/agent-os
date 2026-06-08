@@ -6,9 +6,9 @@
 
 Accepted on 2026-05-24.
 
-- GDI implementation branch:
-  `gdi/afk-authorization-language-simplification-v0`
-- GDI implementation commit:
+- Implementer implementation branch:
+  `implementer/afk-authorization-language-simplification-v0`
+- Implementer implementation commit:
   `66eb6a3abbe6dd2cf30b8239ac3843578ef1221e`
 - Foreman correction commit:
   `4c3e96cc fix(afk): use authorization wording in diagnostics`
@@ -48,8 +48,8 @@ Foreman verification:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: simplify the user-facing AFK run language by making the
   primary CLI/help/docs terms `AFK authorization` and `AFK live launch`, while
   preserving compatibility with the existing implementation.
@@ -59,10 +59,10 @@ Foreman verification:
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-authorization-language-simplification-v0` from `origin/main`.
-  Commit and push that GDI branch when verification passes. Do not open a PR,
+  `implementer/afk-authorization-language-simplification-v0` from `origin/main`.
+  Commit and push that Implementer branch when verification passes. Do not open a PR,
   merge, mutate main, mutate GitHub issues/projects, launch providers, or route
-  follow-up work from inside the GDI round.
+  follow-up work from inside the Implementer round.
 
 ## Product Direction
 
@@ -126,10 +126,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -178,7 +178,7 @@ Only continue if it reports ready.
 - Do not mutate provider stores, catalogs, telemetry, gateway/dock runtime, or
   Codex configuration.
 - Do not create PRs, mutate GitHub issues/projects, merge to main, or route
-  another session from inside the GDI round.
+  another session from inside the Implementer round.
 
 ## Verification
 

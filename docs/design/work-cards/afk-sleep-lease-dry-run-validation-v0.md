@@ -5,7 +5,7 @@
 ## Acceptance Result
 
 Accepted on `main` through merge commit
-`eda618f6bd1f98659297cb1e3592d132ac89d7ed`, after the original GDI head
+`eda618f6bd1f98659297cb1e3592d132ac89d7ed`, after the original Implementer head
 `d22bb3e7afef0bc1878d03424ea1649dba7551f8` was corrected by
 `f6e02c3e15d8023456a5636499050fd4a2a45179`.
 
@@ -35,8 +35,8 @@ work is blocked until the permission reset path is completed.
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add deterministic sleep-lease packet validation and
   accepted/rejected dry-run receipt output, with no provider launch or
   unattended behavior.
@@ -56,14 +56,14 @@ work is blocked until the permission reset path is completed.
   - `branch_from: origin/main`
   - `required_start_ref: origin/main` with this work card present
 - Branch/output expectation: create
-  `gdi/afk-sleep-lease-dry-run-validation-v0` from `origin/main`. Commit and
-  push that GDI branch when verification passes. Do not open a PR, merge,
+  `implementer/afk-sleep-lease-dry-run-validation-v0` from `origin/main`. Commit and
+  push that Implementer branch when verification passes. Do not open a PR, merge,
   mutate main, mutate GitHub issues/projects, start live providers, or route
   follow-up work.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, provider state, current CLI behavior, or prior sleep-lease note
 details. Read and rediscover before editing.
 
@@ -111,14 +111,14 @@ Use a plain local JSON object. This is not a schema yet:
     "status": "not_enforceable_yet",
     "declared_ceiling": "0 live launches in dry-run"
   },
-  "allowed_docks": ["gdi"],
+  "allowed_docks": ["implementer"],
   "allowed_providers": ["codex"],
   "allowed_work_refs": [
     "docs/design/work-cards/example-v0.md"
   ],
   "allowed_branch_policy": {
     "create_branch": true,
-    "branch_prefix": "gdi/",
+    "branch_prefix": "implementer/",
     "allow_main_mutation": false
   },
   "allow_branch_push": false,
@@ -213,7 +213,7 @@ avoid promoting a durable JSON schema in this slice.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/work-cards/afk-sleep-lease-safety-contract-v0.md`
@@ -241,10 +241,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -308,5 +308,5 @@ Return:
   durable receipt, provider launch, transcript body read, provider
   store/catalog/telemetry mutation, gateway/dock runtime mutation, GitHub
   issue/PR/main mutation, external notifier, durable work/evidence record,
-  unattended trigger, or follow-up routing occurred beyond the expected GDI
+  unattended trigger, or follow-up routing occurred beyond the expected Implementer
   branch push.

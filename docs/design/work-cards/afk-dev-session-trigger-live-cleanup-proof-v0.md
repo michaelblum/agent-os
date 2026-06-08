@@ -11,7 +11,7 @@ Accepted correction commit:
 `dd7ce32f5d39e16d226a7a97ffcea9ce57758f3e`
 (`fix(afk): require helper child cleanup proof`).
 
-The accepted source behavior keeps the guarded live trigger Codex/GDI scoped,
+The accepted source behavior keeps the guarded live trigger Codex/Implementer scoped,
 selects `codex --no-alt-screen` only after the supervised-live gates pass, and
 now reports source-owned cleanup proof only after the helper-owned bridge,
 process-driver child, and provider command child/process group are proven gone.
@@ -24,7 +24,7 @@ Next routed proof:
 
 ## Foreman Review Finding
 
-First GDI output:
+First Implementer output:
 `e7645ff38ee266cd04a0e0794066d157c6a4cac2`
 (`fix(afk): record supervised bridge cleanup proof`).
 
@@ -75,8 +75,8 @@ Next correction:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: make the no-fixture supervised
   `./aos dev afk-session-trigger` provider branch record source-owned cleanup
   proof after it tears down its bridge/provider launch substrate, so an
@@ -91,12 +91,12 @@ Next correction:
   - `required_start_ref: docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-dev-session-trigger-live-cleanup-proof-v0`. Keep the checkpoint
+  `implementer/afk-dev-session-trigger-live-cleanup-proof-v0`. Keep the checkpoint
   local; do not push, open a PR, mutate GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 bridge process, provider session, transcript/catalog state, Operator report
 details, or implementation shape beyond this card. Read and rediscover before
 editing.
@@ -104,13 +104,13 @@ editing.
 ## Foreman Review Finding
 
 The accepted Operator run proved the real no-fixture supervised trigger branch
-selects the provider-shaped command and launches from `.docks/gdi`, but the
+selects the provider-shaped command and launches from `the implementer native subagent`, but the
 receipt still reports cleanup as unchecked:
 
 ```text
 dispatch.provider_launch_allowed=true
 terminal_substrate.command=codex --no-alt-screen
-terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi
+terminal_substrate.cwd=/Users/Michael/Code/agent-os/the implementer native subagent
 provider_acceptance.status=provider_acceptance_unobserved
 cleanup.status=cleanup_unverified
 mismatch classes=provider_acceptance_unobserved, cleanup_unverified
@@ -142,7 +142,7 @@ Add source-owned cleanup proof for the no-fixture supervised provider branch:
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`
 - `docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`
@@ -167,10 +167,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -194,7 +194,7 @@ Only continue if it reports ready.
 
 - Do not change the guarded live gates: provider launch remains impossible
   unless `--supervised-live-launch`, `--i-am-present`, `--json`,
-  `--provider codex`, and `--dock gdi` all pass.
+  `--provider codex`, and `--dock implementer` all pass.
 - Do not change duplicate suppression before bridge/provider start.
 - Preserve fixture-backed behavior. If a cleanup fixture is supplied, it should
   still be honored for deterministic tests and Operator-mode evidence shaping.
@@ -217,7 +217,7 @@ Only continue if it reports ready.
 ## Hard Boundaries
 
 - Do not run a live Codex, Claude, Gemini, tmux, provider terminal, or real
-  bridge session in this GDI round.
+  bridge session in this Implementer round.
 - Do not read real `~/.codex` transcript bodies.
 - Do not mutate provider configs, provider session files, provider transcripts,
   provider catalogs, telemetry stores, gateway jobs, dock profiles, hooks,
@@ -271,7 +271,7 @@ bash tests/help-contract.sh
 ./aos dev build --no-restart
 ```
 
-Do not run live Codex in this GDI round. If deterministic verification passes,
+Do not run live Codex in this Implementer round. If deterministic verification passes,
 report the exact Operator scenario Foreman should route for the next live proof.
 
 ## Stop Conditions
@@ -295,7 +295,7 @@ Report:
 - exact cleanup proof fields and status behavior added;
 - provider-timeout, cleanup-failure, completed, guard, and duplicate behavior;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or exact human-needed blocker;
+- `./aos ready` result or exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened;

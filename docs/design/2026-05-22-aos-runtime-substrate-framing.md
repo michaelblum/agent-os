@@ -43,7 +43,7 @@ The routing layer addresses multiple participant kinds symmetrically:
 |---|---|---|
 | `human` | `aos gate ask` / canvas / deferred continuation | Blocking gate or async resume |
 | `foreman` | `agent-handoff` + clipboard | Transfer packet handoff |
-| `gdi` | `agent-handoff` + clipboard | Transfer packet handoff |
+| `implementer` | `agent-handoff` + clipboard | Transfer packet handoff |
 | `operator` | `agent-handoff` + clipboard | Transfer packet handoff |
 | External (Slack) | Gateway `InboundIntegrationMessage` | Workflow invocation |
 
@@ -68,11 +68,11 @@ The AFK bridge work (May 2026) is the clearest example of this distinction.
 The goal is not "launch Codex" — a script can do that. The goal is "launch
 Codex *and* verify that the launched session landed in the intended dock, on
 the intended branch, with the intended provider." The catalog scope bug
-classified on `gdi/afk-provider-session-cwd-mismatch-classification-v0`
+classified on `implementer/afk-provider-session-cwd-mismatch-classification-v0`
 (`provider_session_wrong_cwd`) is a runtime observability failure: the bridge
 launched the session correctly but could not confirm it because the catalog
-query returned the parent Operator session instead of the child GDI session.
-The fix branch (`gdi/afk-bridge-catalog-scope-correction-v0`) corrects that
+query returned the parent Operator session instead of the child Implementer session.
+The fix branch (`implementer/afk-bridge-catalog-scope-correction-v0`) corrects that
 scope.
 
 ### Healable, Recoverable Workflows
@@ -100,7 +100,7 @@ The three-layer handoff stack as of May 2026:
 ```
 .docks/foreman/scripts/handoff        ← foreman-specific wrapper, hardcoded dock allow-list
          ↓ delegates to
-scripts/dock-handoff-clipboard        ← strips legacy /goal prefix, bakes options_json
+scripts/dock-handoff-clipboard        ← strips legacy prefix, bakes options_json
          ↓ delegates to
 scripts/agent-handoff                 ← the real primitive: clipboard + chat block, --options-json
 ```

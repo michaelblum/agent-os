@@ -5,11 +5,11 @@
 - Parent issue: #366, "Epic: Toolkit Subject Browser facet/resource drilldown".
 - Depends on merged Phase 1 Zag primitives:
   `75aacaa1caa58980abd57c61bc901cc790f08a04`.
-- Expected owner: GDI.
+- Expected owner: Implementer.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, PR, issue, or prior implementation state. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
@@ -20,10 +20,10 @@ already built in the current Subject Browser branch.
 
 ## Restart Guidance After Interrupted Draft
 
-An interrupted GDI attempt left draft work in:
+An interrupted Implementer attempt left draft work in:
 
 ```text
-/Users/Michael/Code/agent-os-gdi-zag-disclosure
+/Users/Michael/Code/agent-os-implementer-zag-disclosure
 ```
 
 That worktree contains uncommitted edits to:
@@ -56,8 +56,8 @@ Execution order:
 
 ## Foreman Review Correction
 
-GDI completed an implementation branch at
-`gdi/toolkit-subject-browser-zag-disclosure-revamp-v0`
+Implementer completed an implementation branch at
+`implementer/toolkit-subject-browser-zag-disclosure-revamp-v0`
 (`c064a3da48807e7155b577778164ed5e51c7e1b8`). Foreman review found two narrow
 blockers before Operator acceptance. Do not restart the revamp and do not broaden
 the UI design.
@@ -98,7 +98,7 @@ The remaining failing browser component imports were:
 ## Operator Clear Failure Correction
 
 Operator acceptance on branch head
-`1920bd23744d3e4358695864927e2fca0cfac515` reported `needs_gdi_fix`.
+`1920bd23744d3e4358695864927e2fca0cfac515` reported `needs_implementer_fix`.
 The import gate and inspector launch sanity passed, but native activation of a
 visible `Clear` control did not reset the browser. After the click, observation
 still showed the Markdown path, focused Work Record details, and Markdown content

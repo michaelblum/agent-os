@@ -4,7 +4,7 @@
 
 This report inventories the current foundational AOS test harness ecosystem
 after `origin/feat/command-surface-extraction` and records where the new ladder
-and prep recipe should guide future Foreman/GDI/Operator choices.
+and prep recipe should guide future Foreman/Implementer/Operator choices.
 
 The target is not a mandatory design phase for every task. The target is faster
 harness choice with fewer fake fixtures that erase the variable under test.
@@ -89,7 +89,7 @@ harness choice with fewer fake fixtures that erase the variable under test.
 - No machine-readable registry of test helpers exists yet. A registry may be
   useful later, but the current docs layer is lighter and adequate for this
   governance slice.
-- Future GDI reports for runtime/canvas/input/status/lifecycle/cross-layer work
+- Future Implementer reports for runtime/canvas/input/status/lifecycle/cross-layer work
   should include `harness_selection`, `fixture_blind_spots`,
   `new_test_artifact_candidates`, or `why_no_harness_prep_needed` when relevant
   so Foreman can decide whether to promote, keep local, or delete artifacts.

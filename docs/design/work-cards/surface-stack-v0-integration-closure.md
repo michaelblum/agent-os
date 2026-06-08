@@ -10,7 +10,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, GitHub issue, or runtime readiness state. Read and rediscover before
 editing. The worktree is expected to be substantially dirty from the surface
 stack workstream; do not revert unrelated changes.
@@ -126,13 +126,13 @@ At minimum:
   hit-region controller, avatar/radial physical lifecycle migration, and child
   source identity cleanup;
 - Current Work Routing should point to issue/PR closure and Sigil second-client
-  planning, not old already-completed GDI slices.
+  planning, not old already-completed Implementer slices.
 
 ### 3. Add A Surface Stack V0 Integration Ledger
 
 Create `docs/design/aos-surface-stack-v0-integration-ledger.md`.
 
-The ledger should be concise and useful to a fresh Foreman/GDI/Operator
+The ledger should be concise and useful to a fresh Foreman/Implementer/Operator
 session. Include:
 
 - completed slices by tracker issue and work card;
@@ -179,7 +179,7 @@ of truth match the work that already landed.
 
 If GitHub access is available and cheap, inspect issue titles/bodies/comments
 for #304, #303, #122, #120, #123, #261, #305, #118, #119, and #45. Do not close
-or edit issues from GDI unless Foreman explicitly asks. Instead, include exact
+or edit issues from Implementer unless Foreman explicitly asks. Instead, include exact
 recommended issue actions in the completion report.
 
 ## Verification

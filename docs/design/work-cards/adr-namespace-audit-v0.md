@@ -30,7 +30,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -50,7 +50,7 @@ namespace change in this slice.
 - `docs/agents/domain.md`
 - `docs/recipes/context-doc-maintenance.md`
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
-- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/implementer-work-card-authoring.md`
 - every file under `docs/adr/`
 - every file under `docs/decisions/`
 
@@ -74,8 +74,8 @@ branch_from: `origin/main`
 required_start_ref: `origin/main`
 
 This work card is present on `origin/main` after PR #368 merged. Start from
-`origin/main` for this slice. Use `gdi/adr-namespace-audit-v0` as the output
-branch if creating a separate GDI branch.
+`origin/main` for this slice. Use `implementer/adr-namespace-audit-v0` as the output
+branch if creating a separate Implementer branch.
 
 ## Required Output
 

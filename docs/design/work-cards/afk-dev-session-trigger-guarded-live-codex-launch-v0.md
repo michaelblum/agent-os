@@ -17,7 +17,7 @@ Accepted behavior:
 - adds experimental supervised live launch intent under
   `./aos dev afk-session-trigger --supervised-live-launch --i-am-present
   --json`;
-- limits the guarded live path to Codex/GDI before any launch can be allowed;
+- limits the guarded live path to Codex/Implementer before any launch can be allowed;
 - rejects missing human presence, missing JSON output, unsupported provider,
   wrong dock, ambiguous launch aliases, and conflicting action flags before
   side effects;
@@ -82,8 +82,8 @@ Next routed step:
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: add the deterministic source behavior for a guarded,
   supervised-live Codex-only launch mode under experimental
   `./aos dev afk-session-trigger`, without running a live provider session.
@@ -94,7 +94,7 @@ Next routed step:
   - `required_start_ref: docs/durable-agent-cognition-v0`
 - Branch/output expectation: create a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-dev-session-trigger-guarded-live-codex-launch-v0`. Keep the
+  `implementer/afk-dev-session-trigger-guarded-live-codex-launch-v0`. Keep the
   checkpoint local; do not push, open a PR, mutate GitHub, or publish
   externally.
 
@@ -111,7 +111,7 @@ Next routed step:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider session, bridge process, transcript/catalog state, or launch-mode
 spelling. Read and rediscover before editing.
 
@@ -124,7 +124,7 @@ intent:
 ./aos dev afk-session-trigger \
   --packet <packet.json> \
   --provider codex \
-  --dock gdi \
+  --dock implementer \
   --supervised-live-launch \
   --i-am-present \
   --json
@@ -133,13 +133,13 @@ intent:
 This slice should implement the source behavior and deterministic verification
 for the guard, receipt shape, duplicate prevention, unsupported-provider
 classification, and cleanup classification. Do not perform the live Codex run in
-GDI; Foreman will route a separate Operator run for supervised live evidence
+Implementer; Foreman will route a separate Operator run for supervised live evidence
 after reviewing this source slice.
 
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/notes/afk-session-trigger-guarded-live-mode-readiness-2026-05-22.md`
 - `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`
@@ -170,10 +170,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -215,12 +215,12 @@ Only continue if it reports ready.
 
 ### Provider And Dock Scope
 
-- Allow live launch behavior only for `--provider codex --dock gdi` with
-  `.docks/gdi` resolved as launch root.
+- Allow live launch behavior only for `--provider codex --dock implementer` with
+  `the implementer native subagent` resolved as launch root.
 - For Claude, Gemini, or other providers, return
   `provider_unsupported_for_supervised_live` or an equivalent unavailable
   provider receipt without launching anything.
-- If dock is not `gdi`, reject before launch with a named mismatch and no side
+- If dock is not `implementer`, reject before launch with a named mismatch and no side
   effects.
 
 ### Duplicate Prevention And Idempotence
@@ -272,7 +272,7 @@ Only continue if it reports ready.
 ## Hard Boundaries
 
 - Do not run a live Codex, Claude, Gemini, tmux, provider terminal, or real
-  bridge session in this GDI round.
+  bridge session in this Implementer round.
 - Do not read real `~/.codex` transcript bodies.
 - Do not mutate provider configs, provider session files, provider transcripts,
   provider catalogs, telemetry stores, gateway jobs, dock profiles, hooks,
@@ -336,7 +336,7 @@ git diff --check
 ./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,scripts/afk-launch-attempt-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs,tests/afk-launch-attempt-prototype.test.mjs,src/commands/dev.swift,src/shared/command-registry-data.swift,tests/dev-workflow-router.sh,tests/help-contract.sh
 ```
 
-Do not run the supervised live Codex launch in this GDI round. If the source
+Do not run the supervised live Codex launch in this Implementer round. If the source
 implementation and deterministic checks pass, report the exact Operator command
 or scenario Foreman should route for live evidence.
 
@@ -364,7 +364,7 @@ Report:
 - duplicate/idempotence and cleanup classification behavior;
 - provider/dock scope behavior;
 - tests/checks run with exact pass/fail results;
-- `./aos ready` result or the exact human-needed blocker;
+- `./aos ready` result or the exact manual-intervention blocker;
 - confirmation that no live provider launch, real transcript read, provider
   config/session/catalog mutation, gateway state, dock profile/hook mutation,
   GitHub state, push, PR, or external publication happened;

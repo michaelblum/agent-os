@@ -2,15 +2,15 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
-GDI round
+Implementer round
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 
@@ -30,7 +30,7 @@ bridge-client pieces without changing live provider behavior.
 - branch_from: local `main`
 - required_start_ref: local `main` at
   `e44315a1568757b2b5634423abdd7d5c612538eb`
-- output_branch: `gdi/toolkit-agent-terminal-terminal-controller-v0`
+- output_branch: `implementer/toolkit-agent-terminal-terminal-controller-v0`
 
 The work card exists on local `main`, which is ahead of `origin/main` because
 the accepted Agent Terminal foundation and decomposition slices have not been

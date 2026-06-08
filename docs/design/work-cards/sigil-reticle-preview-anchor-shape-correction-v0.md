@@ -5,9 +5,9 @@
 - Display-first annotation epic: https://github.com/michaelblum/agent-os/issues/295
 - Source correction card:
   `docs/design/work-cards/sigil-reticle-comet-preview-anchor-bridge-correction-v0.md`
-- Returned GDI branch under Foreman review:
-  `gdi/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
-- Returned GDI commit:
+- Returned Implementer branch under Foreman review:
+  `implementer/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
+- Returned Implementer commit:
   `eeec4c59582a81691dd05724966225feccec8c98`
 
 Foreman rejected the returned slice for one blocking shape mismatch. Do not
@@ -15,18 +15,18 @@ restart the broader browser targeting work or undo the preview-anchor direction.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 browser state, display topology, Sigil state, Comet state, or temp artifact
 availability. Read and rediscover before editing. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
 ## Branch / Base
 
-- `branch_from: origin/gdi/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
-- `required_start_ref: origin/gdi/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
+- `branch_from: origin/implementer/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
+- `required_start_ref: origin/implementer/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
 - Expected output branch: keep working on
-  `gdi/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
-- Stop and report instead of rebasing if the current branch is not the GDI
+  `implementer/sigil-reticle-comet-preview-anchor-bridge-correction-v0`
+- Stop and report instead of rebasing if the current branch is not the Implementer
   branch above or if `apps/sigil/renderer/live-modules/main.js` lacks
   `annotationReticleNativeBrowserWindowAnchor`.
 
@@ -124,10 +124,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or input
 tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed` and include the script output. After the human
+Then stop with `manual_intervention` and include the script output. After the human
 returns with `finished`, run `./aos ready --post-permission`.
 
 ## Required Behavior
@@ -189,7 +189,7 @@ fall through to `browser_native_window_scope_required`.
 
 If deterministic checks pass and `./aos ready` is green, report whether live
 smoke was run. Foreman can route Operator for the full Comet reticle smoke after
-acceptance if GDI does not take over the desktop.
+acceptance if Implementer does not take over the desktop.
 
 ## Completion Report
 

@@ -1,6 +1,6 @@
 # Work Cards
 
-This directory stores durable transfer contracts for GDI, Operator, correction,
+This directory stores durable transfer contracts for Implementer, Operator, correction,
 validation, and related Foreman-routed rounds.
 
 A file existing here is not active work by itself. Treat a work card as active

@@ -2,7 +2,7 @@
 
 ## Tracker
 
-- User report: after GDI or Foreman sessions leave AOS canvases on display,
+- User report: after Implementer or Foreman sessions leave AOS canvases on display,
   interacting with them becomes progressively janky over time.
 - Clarification: the user does not think canvas count alone explains it.
   Resource drain appears to accumulate even when there are not more canvases.
@@ -14,7 +14,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, runtime readiness, or prior implementation state. Read and
 rediscover before editing.
 
@@ -37,7 +37,7 @@ accumulating jank. No cleanup, restart, or kill was performed.
 `./aos status`:
 
 ```text
-status=ok mode=repo daemon=reachable pid=48452 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=gdi/canvas-geometry-lifecycle-render-contract-v0 ahead=11 dirty=0
+status=ok mode=repo daemon=reachable pid=48452 tap=active focused_app=Code displays=2 windows=58 channels=0 stale_canvases=0 branch=implementer/canvas-geometry-lifecycle-render-contract-v0 ahead=11 dirty=0
 ```
 
 `./aos show list --json` showed 7 canvases, 5 active, 2 suspended, 9 native
@@ -180,7 +180,7 @@ Answer:
 
 If `./aos ready` passes and the human approves live interaction, collect one
 bounded real-input run. Prefer the human as the sensor for perceived jank, while
-GDI collects telemetry around it.
+Implementer collects telemetry around it.
 
 Suggested sequence:
 

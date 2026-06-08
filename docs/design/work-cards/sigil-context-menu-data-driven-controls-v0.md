@@ -14,13 +14,13 @@ for the active workstream because it can preserve the private
 Current sequence:
 
 1. Accept
-   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+   `docs/design/work-cards/implementer-aos-visible-surface-orphan-audit-v0.md`.
 2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
    avatar avoidance only if the evidence requires it.
 3. Refresh and accept
-   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+   `docs/design/work-cards/implementer-toolkit-panel-live-drag-correction-v0.md`.
 4. Route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+   `docs/design/work-cards/implementer-sigil-avatar-panel-resource-contract-migration-v0.md`.
 5. Only after that, refresh any remaining context-menu data-driven-control work
    against the strict resource contract.
 
@@ -33,7 +33,7 @@ real external consumer or release boundary is named.
 ## Historical Tracker
 
 - Historical branch, do not use:
-  `gdi/sigil-avatar-object-graph-adapter-v0`
+  `implementer/sigil-avatar-object-graph-adapter-v0`
 - Historical prerequisite adapter head:
   `1e4c44c9d34de3ae8d84481c0fe1a88a127c105f`
 - This card follows the read-only avatar object graph adapter. Keep that
@@ -51,7 +51,7 @@ not redesign the product surface.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 

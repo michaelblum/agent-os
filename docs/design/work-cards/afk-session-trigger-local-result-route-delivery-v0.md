@@ -6,7 +6,7 @@
 
 - Foreman review: accepted for object-shaped local result routes.
 - Branch/ref gates passed on
-  `gdi/afk-session-trigger-local-result-route-delivery-v0` at
+  `implementer/afk-session-trigger-local-result-route-delivery-v0` at
   `319e46db15fe6973dd0ead5784e0bd3e1ff64ab7`, based on
   `c6e31b77a13c02d9282d53fb3041abdd3153d436`.
 - Diff was scoped to:
@@ -39,8 +39,8 @@
 
 ## Transfer Classification
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Single next goal: implement the first bounded async result-route slice for the
   AFK prototypes by delivering/accounting for local-only `local_artifact_path`
   routes, without adding gateway, Slack/GitHub, durable work-record, or
@@ -49,15 +49,15 @@
   - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
   - `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
   - `docs/design/notes/afk-session-trigger-guarded-live-mode-readiness-2026-05-22.md`
-  - `docs/design/work-cards/operator-afk-dev-session-trigger-goal-prefix-provider-acceptance-live-proof-v0.md`
+  - `docs/design/work-cards/operator-afk-dev-session-trigger-prompt-prefix-provider-acceptance-live-proof-v0.md`
   - `docs/design/work-cards/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.md`
   - `scripts/afk-session-trigger-prototype.mjs`
   - `scripts/afk-launch-attempt-prototype.mjs`
   - `tests/afk-session-trigger-prototype.test.mjs`
   - `tests/afk-launch-attempt-prototype.test.mjs`
 - Branch/Base:
-  - `branch_from: gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
-  - `required_start_ref: gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
+  - `branch_from: implementer/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
+  - `required_start_ref: implementer/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0`
   - Accepted provider-acceptance live gate route head:
     `09b84c86dda2753f278f9a4079db13b0066a0044`
   - Accepted receipt-hygiene source head:
@@ -65,8 +65,8 @@
   - Foreman acceptance/documentation head:
     `1a19cb894a9ea070effa2a7f73cc86709b044abb`
 - Branch/output expectation: create
-  `gdi/afk-session-trigger-local-result-route-delivery-v0` from the required
-  start ref. Commit and push that GDI branch when verification passes under the
+  `implementer/afk-session-trigger-local-result-route-delivery-v0` from the required
+  start ref. Commit and push that Implementer branch when verification passes under the
   active `agentic_relay` profile. Do not open a PR, merge, mutate main, mutate
   GitHub issues/projects, or broaden into external publication.
 
@@ -75,18 +75,18 @@
 The previous Foreman stop point was too conservative. The active profile and
 role contracts make this procedural:
 
-- Dock persona: Foreman coordinates, GDI implements deterministic slices,
+- Dock persona: Foreman coordinates, Implementer implements deterministic slices,
   Operator collects supervised live proof.
-- Entry path: this is AOS developer plus testing, not Operator/HITL.
-- Workflow profile: `agentic_relay` means GDI pushes a `gdi/*` branch and
+- Tooling context: this is AOS developer plus testing, not Operator/HITL.
+- Workflow profile: `agentic_relay` means Implementer pushes a `implementer/*` branch and
   Foreman/review authority handles merge/publication; PR is not required.
-- Workstream gate: live Codex/GDI provider acceptance and receipt hygiene are
+- Workstream gate: live Codex/Implementer provider acceptance and receipt hygiene are
   now accepted, so the obvious implementation follow-up is the first result
   route slice, not another human decision.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree,
+Implementer starts from a fresh context window. Do not assume branch, worktree,
 readiness, daemon state, live proof artifacts, or prior implementation state.
 Read and rediscover before editing.
 
@@ -131,7 +131,7 @@ receipts:
 - Preserve local-only behavior. Do not call gateway, Slack, GitHub, issue/PR
   comment, broker, or notifier routes.
 - Preserve the provider/live safety envelope:
-  - do not run a live provider launch in this GDI round;
+  - do not run a live provider launch in this Implementer round;
   - do not read provider transcript bodies;
   - do not remove or relax `--i-am-present`;
   - do not implement unsupervised trigger execution.
@@ -155,7 +155,7 @@ receipts:
 ## Read First
 
 - `AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/dev/active-profile.json`
 - `docs/dev/workflow-profiles.json`
 - `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
@@ -172,7 +172,7 @@ Run:
 
 ```bash
 git status --short --branch
-git rev-parse HEAD gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0 1a19cb894a9ea070effa2a7f73cc86709b044abb e4e029f406ae2c452ee61181d9286565d9740ae2
+git rev-parse HEAD implementer/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0 1a19cb894a9ea070effa2a7f73cc86709b044abb e4e029f406ae2c452ee61181d9286565d9740ae2
 ./aos ready
 ./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,scripts/afk-launch-attempt-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs,tests/afk-launch-attempt-prototype.test.mjs
 ```
@@ -181,10 +181,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -259,4 +259,4 @@ Return:
   provider store/catalog/telemetry mutation, gateway/dock runtime mutation,
   GitHub issue/PR/main mutation, main merge, PR creation, external notifier,
   durable work/evidence record, unsupervised trigger, or non-local async routing
-  occurred beyond the expected GDI branch push.
+  occurred beyond the expected Implementer branch push.

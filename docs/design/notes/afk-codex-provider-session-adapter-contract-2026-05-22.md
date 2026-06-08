@@ -292,7 +292,7 @@ for example:
 
 ```bash
 ./aos dev provider-sessions codex resolve --session-id <id> --json
-./aos dev provider-sessions codex list --cwd .docks/gdi --json
+./aos dev provider-sessions codex list --cwd the implementer native subagent --json
 ./aos dev afk correlate-codex-launch --fixture <path> --json
 ```
 
@@ -385,7 +385,7 @@ The provider-neutral AFK layer should depend on common result states such as
 `not_observed`. Provider-specific adapters should own source layout, metadata
 parsing, resume/deeplink/reference shape, and privacy boundaries.
 
-## Recommended Next GDI Slice
+## Recommended Next Implementer Slice
 
 Implement the Codex metadata adapter behind fixture-only tests:
 

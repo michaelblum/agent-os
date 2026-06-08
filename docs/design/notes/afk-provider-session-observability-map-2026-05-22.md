@@ -6,7 +6,7 @@
 ## Summary
 
 The supervised AFK provider-session smoke proved that a human can launch a
-docked Codex/GDI session from `.docks/gdi`, read the provider session id from
+docked Codex/Implementer session from `the implementer native subagent`, read the provider session id from
 provider-visible terminal text, and confirm branch/head/status. It did not prove
 that AOS dispatch can observe the same session through the provider catalog,
 agent telemetry, terminal substrate, or result-route machinery.
@@ -18,13 +18,13 @@ state, add schemas, implement dispatch, or change runtime behavior.
 
 ## Current Observability Table
 
-| Fact | Current surface | Direct `.docks/gdi` Codex CLI launch | Sigil agent-terminal / codex-terminal launcher | Gap for AFK dispatch receipts |
+| Fact | Current surface | Direct `the implementer native subagent` Codex CLI launch | Sigil agent-terminal / codex-terminal launcher | Gap for AFK dispatch receipts |
 | --- | --- | --- | --- | --- |
 | Provider identity | Human terminal/status text; dry-run provider option; provider catalog records after discovery | Human-visible only unless a receipt records the selected provider | `AGENT_TERMINAL_COMMAND`, launcher flags, bridge `/health` defaults, catalog `/sessions` filter | Dispatch needs to record selected provider at launch time, not infer it later from transcript discovery. |
 | Provider session id | Codex terminal/shutdown text; Codex rollout filename or `session_meta.payload.id` once catalog sees the transcript | Human-visible during/after the session; not automatically bridged into a receipt | Catalog `/sessions` can expose `session_id` after provider transcript exists; `/session-inspector` can inspect by id | Launch-side receipt needs either a catalog match after launch or an explicit provider/session bridge. |
-| cwd | Dock launch cwd; dry-run `launch_root`; catalog `cwd`; bridge `defaultCwd` and ensured session cwd | Available to the human and shell because Codex starts in `.docks/gdi`; catalog may later report `.docks/gdi` if transcript metadata is discovered | Launcher has `CWD_TARGET`, `/health.defaultCwd`, `/ensure.cwd`, terminal command/cwd tracking, and catalog cwd filtering | Dispatch can know intended cwd before launch, but needs post-launch confirmation or mismatch handling. |
+| cwd | Dock launch cwd; dry-run `launch_root`; catalog `cwd`; bridge `defaultCwd` and ensured session cwd | Available to the human and shell because Codex starts in `the implementer native subagent`; catalog may later report `the implementer native subagent` if transcript metadata is discovered | Launcher has `CWD_TARGET`, `/health.defaultCwd`, `/ensure.cwd`, terminal command/cwd tracking, and catalog cwd filtering | Dispatch can know intended cwd before launch, but needs post-launch confirmation or mismatch handling. |
 | Branch | Provider status text; `git branch --show-current`; catalog `branch` from Codex `session_meta.payload.git.branch` when present | Human-visible/status-command-visible; not automatically captured | Catalog can expose branch after transcript metadata exists; terminal bridge can run or display shell state but does not convert it to receipt proof | Receipt should distinguish intended branch, provider-reported branch, and catalog-observed branch. |
-| Launch root | Dry-run output; dock profile; launcher `CWD_TARGET` | Known from the manual operator invoking Codex in `.docks/gdi` | Known by launch wrapper and bridge environment | Direct launch has no AOS-owned launch-attempt record unless the operator writes one. |
+| Launch root | Dry-run output; dock profile; launcher `CWD_TARGET` | Known from the manual operator invoking Codex in `the implementer native subagent` | Known by launch wrapper and bridge environment | Direct launch has no AOS-owned launch-attempt record unless the operator writes one. |
 | Terminal substrate | Human terminal app only | Not observable by repo surfaces beyond human report | Bridge reports `driver` as `tmux` or `process`, session name, capture endpoint, and attach command behavior | Automated dispatch needs a terminal/session substrate record if it will supervise or resume the process. |
 | Process/tmux handle | Human terminal only | Not observed | Bridge `SESSION` / tmux session or process session map; `/ensure` returns driver and session | Direct provider launch cannot produce a durable process handle for dispatch. |
 | Catalog record | `packages/host/src/session-catalog.ts`; `shared/schemas/provider-session-catalog.schema.json`; Sigil bridge `/sessions` | Only after Codex writes a discoverable rollout JSONL with `session_meta`; not observed by the smoke | Bridge exposes read-only catalog records filtered by cwd/provider | Catalog is useful post-launch discovery, but not sufficient as the only dispatch receipt source. |
@@ -33,12 +33,12 @@ state, add schemas, implement dispatch, or change runtime behavior.
 
 ## Direct Dock Launch Versus Launcher
 
-A normal `.docks/gdi` Codex CLI session launched manually from the dock root has
+A normal `the implementer native subagent` Codex CLI session launched manually from the dock root has
 these facts available to the human and provider terminal:
 
 - provider identity: Codex CLI invocation and status text;
 - provider session id: provider terminal/shutdown text;
-- cwd and launch root: the terminal was started in `.docks/gdi`;
+- cwd and launch root: the terminal was started in `the implementer native subagent`;
 - branch/head/status: provider statusline or commands run by the worker;
 - provider version/model/permission mode: provider status text when visible.
 
@@ -74,13 +74,13 @@ to report if automated launch is expected to supervise a provider process.
 ## What The Manual Smoke Proved
 
 The manual smoke receipt at
-`docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`
+`docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-implementer-completed.md`
 proved:
 
 - `./aos dev afk-dry-run` can validate a packet for provider `codex`, dock
-  `gdi`, and launch root `.docks/gdi` without launching a provider;
-- a supervised human/operator can launch one Codex GDI session from
-  `.docks/gdi`;
+  `implementer`, and launch root `the implementer native subagent` without launching a provider;
+- a supervised human/operator can launch one Codex Implementer session from
+  `the implementer native subagent`;
 - the provider terminal can expose Codex CLI version, model, permission mode,
   session id, branch, head, and clean status;
 - no source edits, generated receipt artifacts, provider config changes,
@@ -139,7 +139,7 @@ terminal facts, but they should not imply context telemetry exists.
 
 ## Recommended Next Slice
 
-Owner: GDI implementation, with Foreman routing/review.
+Owner: Implementer implementation, with Foreman routing/review.
 
 Implement a local, reversible, no-provider-launch validation slice that extends
 the AFK dry-run receipt shape with launch-observability fields, without starting

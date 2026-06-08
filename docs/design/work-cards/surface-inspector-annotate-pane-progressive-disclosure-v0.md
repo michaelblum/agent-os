@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Work in
+Implementer starts from a fresh context window. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`. Do not assume daemon,
 display, canvas, Operator artifact, clipboard, or prior Surface Inspector state.
 Rediscover before editing.
@@ -27,7 +27,7 @@ but the Annotate pane still reads like debug state below the summary.
 
 ## Foreman Review Disposition
 
-GDI's first pass at `289fd01` is not accepted as final. It made useful progress
+Implementer's first pass at `289fd01` is not accepted as final. It made useful progress
 by selecting Annotate on mode activation, moving raw debug rows to Diagnostics,
 and demoting repeated surface row actions, but the default Annotate pane is still
 not the right information architecture.

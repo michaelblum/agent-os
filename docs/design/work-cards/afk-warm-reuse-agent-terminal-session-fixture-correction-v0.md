@@ -2,7 +2,7 @@
 
 ## Recipient
 
-GDI
+Implementer
 
 ## Transfer Kind
 
@@ -16,12 +16,12 @@ Source card:
 
 Rejected head:
 
-- `gdi/afk-warm-reuse-agent-terminal-session-fixture-v0` at
+- `implementer/afk-warm-reuse-agent-terminal-session-fixture-v0` at
   `46bc880a408932c2f84929870a56f18cac77ebd7`.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, provider, or prior implementation state. Read and rediscover
 before editing.
 
@@ -40,12 +40,12 @@ Do not broaden the slice.
 
 - card_branch:
   `foreman/afk-warm-reuse-agent-terminal-session-fixture-correction-v0`
-- branch_from: `gdi/afk-warm-reuse-agent-terminal-session-fixture-v0` at
+- branch_from: `implementer/afk-warm-reuse-agent-terminal-session-fixture-v0` at
   `46bc880a408932c2f84929870a56f18cac77ebd7`
 - required_start_ref:
   `foreman/afk-warm-reuse-agent-terminal-session-fixture-correction-v0`
 - expected_output_branch:
-  `gdi/afk-warm-reuse-agent-terminal-session-fixture-correction-v0`
+  `implementer/afk-warm-reuse-agent-terminal-session-fixture-correction-v0`
 
 Create or update the expected output branch from the required start ref. Do not
 reset to `origin/main`; the rejected implementation and this correction card are
@@ -73,10 +73,10 @@ If `./aos ready` reports a repo-mode Accessibility, Input Monitoring, or
 inactive input-tap blocker, run:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
-Then stop with `human_needed`. After the human returns with `finished`, run:
+Then stop with `manual_intervention`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission
@@ -124,7 +124,7 @@ substrate defaults from the previous:
 to registry defaults such as:
 
 - `driver: "aos_pty"`;
-- `session_handle: "gdi:fixture-pty"`.
+- `session_handle: "implementer:fixture-pty"`.
 
 The source card explicitly required preserving older fallback behavior for
 fixtures that only provide `warm_tui_reuse`, `warmTuiReuse`, or loose warm

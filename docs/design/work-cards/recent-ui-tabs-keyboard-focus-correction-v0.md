@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-Continue on branch `gdi/recent-ui-live-regression-gdi-repairs-v0` in
+Continue on branch `implementer/recent-ui-live-regression-implementer-repairs-v0` in
 `/Users/Michael/Code/agent-os`. Do not work in `.docks/`. This is a targeted
 review correction for commit `17aded471d855ede48f99e37cfe9c0fb7192cdf4`.
 
@@ -85,7 +85,7 @@ If the correction touches live consumers, also run their relevant focused tests.
 
 - Do not reintroduce bare `@zag-js/...` imports in browser-consumed files.
 - Do not broaden into other Zag adapters.
-- Do not rerun the full Operator sweep in GDI. Report completion to Foreman so
+- Do not rerun the full Operator sweep in Implementer. Report completion to Foreman so
   Foreman can decide whether to merge or route the next live verification pass.
 
 ## Completion Report

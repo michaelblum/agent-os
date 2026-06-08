@@ -1,14 +1,14 @@
 # Work Card: afk-dev-dry-run-command-v0
 
 **Status:** Accepted 2026-05-22
-**Owner:** GDI
+**Owner:** Implementer
 
 ## Tracker
 
 Transfer classification:
 
-- Recipient: GDI
-- Transfer kind: GDI round
+- Recipient: Implementer
+- Transfer kind: Implementer round
 - Source artifact:
   `scripts/afk-dry-run-prototype.mjs`
 - Single next goal: expose the accepted AFK dry-run prototype through an
@@ -27,10 +27,10 @@ surface while preserving its experimental/no-provider-launch boundary.
 
 Accepted evidence:
 
-- GDI branch: `gdi/afk-dev-dry-run-command-v0`
+- Implementer branch: `implementer/afk-dev-dry-run-command-v0`
 - Accepted commit: `f71c0aa2d8d2f0649a3b6a5f6f308cce0aa9d142`
 - Output command:
-  `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock gdi --json`
+  `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock implementer --json`
 - Changed files:
   `src/commands/dev.swift`, `src/shared/command-registry-data.swift`, and
   `tests/dev-workflow-router.sh`
@@ -55,7 +55,7 @@ Accepted evidence:
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, prior implementation state, or built-binary freshness. Read and
 rediscover before editing.
 
@@ -64,7 +64,7 @@ rediscover before editing.
 Add an experimental developer command:
 
 ```bash
-./aos dev afk-dry-run --packet <packet.json> --provider codex --dock gdi --json
+./aos dev afk-dry-run --packet <packet.json> --provider codex --dock implementer --json
 ```
 
 The command should delegate to the accepted dry-run prototype behavior. It
@@ -75,9 +75,9 @@ gateway, or imply final `aos session ...` command spelling.
 ## Read First
 
 - `AGENTS.md`
-- `.docks/README.md`
 - `.docks/AGENTS.md`
-- `.docks/gdi/AGENTS.md`
+- `.docks/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/afk-dry-run-prototype-v0.md`
 - `docs/design/work-cards/afk-dry-run-prototype-cwd-validation-correction-v0.md`
 - `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
@@ -104,7 +104,7 @@ live readiness check reports repo-mode TCC/input-tap blockers after rebuilding,
 use the repo-standard recovery path rather than retrying blindly:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ```
 
 After the human returns, run:
@@ -121,7 +121,7 @@ required_start_ref: `docs/durable-agent-cognition-v0`
 This branch contains local-only design notes, work cards, and the accepted
 experimental dry-run prototype. Do not reset to `origin/main`.
 
-If you create an output branch, use `gdi/afk-dev-dry-run-command-v0` from the
+If you create an output branch, use `implementer/afk-dev-dry-run-command-v0` from the
 required start ref. Keep the checkpoint local unless Foreman or Michael
 explicitly asks for a push or PR.
 
@@ -221,7 +221,7 @@ bash tests/dev-workflow-router.sh
 After the build, run a command-level smoke with a temp packet:
 
 ```bash
-./aos dev afk-dry-run --packet <temp-packet.json> --provider codex --dock gdi --json
+./aos dev afk-dry-run --packet <temp-packet.json> --provider codex --dock implementer --json
 ```
 
 The smoke should prove:
@@ -244,8 +244,8 @@ git diff --check
 
 If `./aos dev recommend --json` recommends `./aos ready`, run it only if local
 readiness is the next meaningful proof and the repo-mode TCC/input-tap state is
-not blocked. If it is blocked, use `.docks/gdi/scripts/human-needed-tcc-reset`
-and stop with `human_needed`.
+not blocked. If it is blocked, use the manual TCC blocker report path
+and stop with `manual_intervention`.
 
 ## Completion Report
 

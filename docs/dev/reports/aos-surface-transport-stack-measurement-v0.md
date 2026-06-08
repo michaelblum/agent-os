@@ -2,7 +2,7 @@
 
 Date: 2026-06-05
 
-Branch: `gdi/aos-surface-transport-stack-measurement-v0`
+Branch: `implementer/aos-surface-transport-stack-measurement-v0`
 
 Start ref: `8f9fafc8c2b304000ad05135313c802eb68bd569`
 
@@ -20,7 +20,7 @@ Start ref: `8f9fafc8c2b304000ad05135313c802eb68bd569`
 - Swift rebuild completed (`./aos dev build` passed, warnings only).
 - TCC permissions re-granted after rebuild; daemon `ready: true`.
 
-## Readiness Snapshot (GDI round)
+## Readiness Snapshot (Implementer round)
 
 `./aos ready --json` reported `status: ok`, `ready: true`, repo mode, daemon pid
 `33915`, and active input tap. Permissions reported true for Accessibility,
@@ -29,8 +29,8 @@ listen access, post access, and screen recording.
 `./aos status --json` reported `status: degraded` only because the active Sigil
 status item still pointed at the previous branch-scoped roots:
 
-- `sigil_gdi_avatar_compact_surface_ux_v0`
-- `toolkit_gdi_avatar_compact_surface_ux_v0`
+- `sigil_implementer_avatar_compact_surface_ux_v0`
+- `toolkit_implementer_avatar_compact_surface_ux_v0`
 
 Content root correction applied in the Foreman live session via
 `./aos experience activate sigil`. Active roots switched to:
@@ -374,7 +374,7 @@ numbers. That completes Phase 0.
 
 ## Verification
 
-Passed (GDI source round):
+Passed (Implementer source round):
 
 ```bash
 node --check apps/sigil/renderer/live-modules/main.js
@@ -414,7 +414,7 @@ material. Proceed to Phase 1 per the goal contract:
 > Exit gate: deletable traffic → ~0; slider-drag is direct; focus + fault
 > behavior acceptable.
 
-The work card for Phase 1 does not yet exist. A GDI round should create it,
+The work card for Phase 1 does not yet exist. A Implementer round should create it,
 targeting the avatar owner ↔ compact panel pair as the prototype.
 
 **Phase 0 exit gate assessment:**

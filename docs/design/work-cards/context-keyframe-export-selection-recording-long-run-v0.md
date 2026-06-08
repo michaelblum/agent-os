@@ -2,7 +2,7 @@
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 Surface Inspector runtime state, Sigil runtime state, permission state, or prior
 conversation details. Read and rediscover before editing.
 
@@ -15,13 +15,13 @@ in one coordinated run while preserving reviewable checkpoints.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/sigil-reticle-context-artifact-adapter-v0`
+- `branch_from`: `implementer/sigil-reticle-context-artifact-adapter-v0`
 - `required_start_ref`: local branch
-  `gdi/sigil-reticle-context-artifact-adapter-v0` at or after commit
+  `implementer/sigil-reticle-context-artifact-adapter-v0` at or after commit
   `15da7ab9 feat(sigil): add reticle context session adapter`, plus this work
   card
 - Expected output branch: create a focused successor branch, suggested:
-  `gdi/context-keyframe-export-selection-recording-long-run-v0`
+  `implementer/context-keyframe-export-selection-recording-long-run-v0`
 - Do not push, open a PR, or mutate GitHub state unless explicitly asked
 - Commit at clean phase boundaries. Keep commits reviewable, with each phase
   independently explaining what changed.
@@ -104,7 +104,7 @@ bounded deterministic checks.
 
 ## Phase Contract
 
-This is one GDI round, but it has explicit phase checkpoints. Complete phases in
+This is one Implementer round, but it has explicit phase checkpoints. Complete phases in
 order. After each phase:
 
 - run the smallest relevant deterministic tests;
@@ -384,7 +384,7 @@ or `./aos ready` reports a TCC/input-tap blocker, use the repo-standard recovery
 path:
 
 ```bash
-.docks/gdi/scripts/human-needed-tcc-reset
+the manual TCC blocker report path
 ./aos ready --post-permission
 ```
 

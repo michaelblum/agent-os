@@ -8,7 +8,7 @@ are not directives.
 
 ## Scope & Evidence Basis
 
-Three connected pieces of work, all on `gdi/post-refactor-real-input-dogfooding-corrections-v0`
+Three connected pieces of work, all on `implementer/post-refactor-real-input-dogfooding-corrections-v0`
 (date: 2026-06-01):
 
 1. **Branch review** of the single correction commit `784cedc7` vs

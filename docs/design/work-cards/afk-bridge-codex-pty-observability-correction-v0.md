@@ -41,7 +41,7 @@
 - Reviewed output commit:
   `fad05c8132d1045a8298a77a44854adf277753b8`
 - Branch:
-  `gdi/afk-bridge-codex-pty-observability-correction-v0`
+  `implementer/afk-bridge-codex-pty-observability-correction-v0`
 - Base:
   `5d34f294aaaa295fe3ac51324eb3e6a7d7d7257e`
 - Local verification passed:
@@ -92,7 +92,7 @@ accepted base for this follow-up.
 
 ## Transfer Classification
 
-- Recipient: GDI
+- Recipient: Implementer
 - Transfer kind: correction round
 - Single next goal: make the process-driver bridge prove, with deterministic
   tests, whether accepted `/input` bytes are forwarded through `pty-proxy.py`
@@ -105,12 +105,12 @@ accepted base for this follow-up.
 - Required start ref: `docs/durable-agent-cognition-v0`
 - Branch/output expectation: create or reuse a scoped local output branch from
   `docs/durable-agent-cognition-v0`. A suitable branch name is
-  `gdi/afk-bridge-codex-pty-observability-correction-v0`. Keep the checkpoint
+  `implementer/afk-bridge-codex-pty-observability-correction-v0`. Keep the checkpoint
   local; do not push, open a PR, mutate GitHub, or publish externally.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+Implementer starts from a fresh context window. Do not assume branch, worktree, daemon,
 provider sessions, Codex threads, bridge state, terminal dimensions, raw-mode
 behavior, or prior implementation state. Read and rediscover before editing.
 
@@ -128,7 +128,7 @@ needed so the next Operator run can distinguish:
 - the TUI received and submitted input, but no transcript materialized.
 
 Do not launch real Codex, Claude, Gemini, Sigil, gateway, or other providers in
-this GDI round.
+this Implementer round.
 
 ## Triggering Evidence
 
@@ -144,9 +144,9 @@ process-driver bridge to:
 
 Operator then reran the live transcript-materialization proof:
 
-- bridge launched `codex --no-alt-screen` from `.docks/gdi`;
+- bridge launched `codex --no-alt-screen` from `the implementer native subagent`;
 - process tree showed `pty-proxy.py`, `node .../bin/codex --no-alt-screen`,
-  and native Codex all under `.docks/gdi`;
+  and native Codex all under `the implementer native subagent`;
 - `/input` returned:
 
 ```json
@@ -155,7 +155,7 @@ Operator then reran the live transcript-materialization proof:
 
 - snapshots after the accepted input write never showed typed text, submission,
   response, or marker;
-- no separate `.docks/gdi` Codex rollout materialized.
+- no separate `the implementer native subagent` Codex rollout materialized.
 
 This narrows the unresolved gap below the Node HTTP handler but above successful
 provider transcript creation. Do not change the accepted Codex adapter
@@ -163,7 +163,7 @@ correlation rules in this slice.
 
 ## Read First
 
-- `.docks/gdi/AGENTS.md`
+- the implementer native subagent instructions
 - `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-rerun-v0.md`
 - `docs/design/work-cards/afk-bridge-codex-input-submission-correction-v0.md`
 - `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-diagnosis-v0.md`
@@ -197,7 +197,7 @@ running it.
 - required_start_ref: `docs/durable-agent-cognition-v0`
 - routed_from_sha: `9f7925b75bcdd2cc953c3518c339970cb2633e9a`
 - expected output branch:
-  `gdi/afk-bridge-codex-pty-observability-correction-v0`
+  `implementer/afk-bridge-codex-pty-observability-correction-v0`
 - publication: local-only; do not push, open a PR, mutate GitHub, or publish
   externally
 
