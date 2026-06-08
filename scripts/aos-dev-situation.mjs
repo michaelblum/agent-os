@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { readSuccessorNote, successorNoteRelativePath } from './aos-successor-note.mjs';
 
 function printJSON(value) {
   process.stdout.write(formatJSON(value));
@@ -230,6 +231,20 @@ function buildSituation(options) {
   setTrace(trace, 'git.remote_branches', ['git_remote_branches']);
   setTrace(trace, 'git.stashes', ['git_stashes']);
 
+  const successorNote = readSuccessorNote(repoRoot, 'foreman', {
+    gitBranch: gitPayload.branch,
+    gitHead: gitPayload.head,
+  });
+  sources.push({
+    id: 'successor_note',
+    command: `read ${successorNoteRelativePath('foreman')}`,
+    status: 'success',
+    exit_code: 0,
+    note: successorNote.status,
+  });
+  setTrace(trace, 'successor_note.status', ['successor_note']);
+  setTrace(trace, 'successor_note.note', successorNote.note ? ['successor_note'] : []);
+
   const openIssueCount = limitedCount(openIssues, options.issueLimit);
   const openPRCount = limitedCount(openPRs, options.prLimit);
   const summary = {
@@ -277,6 +292,7 @@ function buildSituation(options) {
       ready: readyJSON,
       status: statusJSON,
     },
+    successor_note: successorNote,
     summary,
   };
 }
@@ -292,6 +308,9 @@ function printText(payload) {
   process.stdout.write(`Open issues: ${limitedCountText(payload.summary.open_issue_count, payload.summary.open_issue_count_limit, payload.summary.open_issue_count_limit_reached)}\n`);
   process.stdout.write(`Stashes: ${payload.summary.stash_count ?? 'unknown'}\n`);
   process.stdout.write(`Runtime ready: ${payload.summary.runtime_ready ?? 'unknown'}\n`);
+  if (payload.successor_note?.status && payload.successor_note.status !== 'missing') {
+    process.stdout.write(`Successor note: ${payload.successor_note.status} (${payload.successor_note.path})\n`);
+  }
   const failed = payload.sources.filter((source) => source.status !== 'success');
   for (const source of failed) process.stdout.write(`Source failed: ${source.id} exit=${source.exit_code}${source.note ? ` ${source.note}` : ''}\n`);
 }

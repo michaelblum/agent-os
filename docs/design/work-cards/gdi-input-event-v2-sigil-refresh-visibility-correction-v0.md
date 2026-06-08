@@ -204,8 +204,8 @@ Owned scope:
 - Do not remove/recreate `avatar-main` as the proof strategy.
 - Do not push, open PRs, close issues, or mutate GitHub state.
 - Do not route Operator or update the clipboard.
-- Do not reintroduce broad legacy input compatibility aliases; #431 is a hard
-  cutover lane.
+- Do not reintroduce broad legacy input compatibility aliases; query #431 before
+  changing that cutover lane.
 
 ## Suggested Implementation Areas
 

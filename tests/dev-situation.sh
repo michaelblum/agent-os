@@ -24,6 +24,8 @@ git -C "$REPO" branch -M main
 git -C "$REPO" update-ref refs/remotes/origin/main HEAD
 printf 'two\n' >> "$REPO/file.txt"
 git -C "$REPO" stash push -q -m "preserve test stash"
+HEAD="$(git -C "$REPO" rev-parse HEAD)"
+export HEAD
 
 FAKE_AOS="$TMPDIR/aos"
 FAKE_LOG="$TMPDIR/fake-aos.log"
@@ -88,6 +90,8 @@ assert data["summary"]["open_pr_count_limit_reached"] is False, data
 assert data["summary"]["stash_count"] == 1, data
 assert data["summary"]["runtime_ready"] is True, data
 assert "notes" not in data["summary"], data["summary"]
+assert data["successor_note"]["status"] == "missing", data["successor_note"]
+assert data["successor_note"]["note"] is None, data["successor_note"]
 assert "runtime" in data and "ready" in data["runtime"] and "status" in data["runtime"], data
 assert "ready" not in data["github"] and "status" not in data["github"], data["github"]
 for key, source_id in {
@@ -117,6 +121,7 @@ for source_id in [
     "github_open_prs",
     "aos_ready",
     "aos_status",
+    "successor_note",
 ]:
     assert sources[source_id]["status"] == "success", sources[source_id]
 PY
@@ -124,6 +129,207 @@ then
     pass "dev situation emits sourced live-orientation packet"
 else
     fail "dev situation packet shape or summary drifted"
+fi
+
+VALID_NOTE="$TMPDIR/valid-successor-note.json"
+cat > "$VALID_NOTE" <<JSON
+{
+  "role": "foreman",
+  "active_epic": {
+    "id": "#426",
+    "source": "GitHub issue #426",
+    "why": "Keep the dev-stack continuity lane easy to resume."
+  },
+  "current_slice": "Add successor-note continuity to dev situation.",
+  "next_step": "Run focused tests and commit the checkpoint.",
+  "side_missions": [
+    {
+      "id": "native-subagent-agent-type",
+      "status": "parked",
+      "why_started": "The current spawn tool lacks an agent_type argument.",
+      "current_ref": "local transcript note",
+      "enough_for_now": "Treat it as parked until the native spawn surface exposes role selection.",
+      "return_condition": "Return when a later slice needs real subagent dispatch.",
+      "next_step": "Keep implementation local for this slice."
+    }
+  ],
+  "expires_when": "git.head == $HEAD"
+}
+JSON
+
+if OUT="$(REPO="$REPO" BODY_FILE="$VALID_NOTE" node --input-type=module <<'JS' 2>/dev/null
+import fs from 'node:fs';
+import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
+
+const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+if (!result.ok) process.exit(1);
+process.stdout.write(`${JSON.stringify(result)}\n`);
+JS
+)" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["OUT"])
+path = Path(os.environ["REPO"]) / ".runtime/dev/successor/foreman.json"
+stored = json.loads(path.read_text())
+assert data["status"] == "ok", data
+assert data["role"] == "foreman", data
+assert data["path"] == ".runtime/dev/successor/foreman.json", data
+assert data["bytes"] <= data["max_bytes"], data
+assert stored["active_epic"]["id"] == "#426", stored
+assert stored["side_missions"][0]["id"] == "native-subagent-agent-type", stored
+PY
+then
+    pass "successor note writer stores compact validated note"
+else
+    fail "successor note writer did not store a valid note"
+fi
+
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+note = data["successor_note"]
+assert note["status"] == "valid", note
+assert note["authority"] == "local_breadcrumb", note
+assert note["note"]["role"] == "foreman", note
+assert note["note"]["active_epic"]["id"] == "#426", note
+assert note["note"]["side_missions"][0]["status"] == "parked", note
+assert note["expires"]["status"] == "current", note
+assert "successor_note" in data["source_trace"]["successor_note.status"], data["source_trace"]
+PY
+then
+    pass "dev situation includes valid successor note as local breadcrumb"
+else
+    fail "dev situation did not include valid successor note"
+fi
+
+INVALID_NOTE="$TMPDIR/invalid-successor-note.json"
+printf '%s\n' '{"role":"foreman"}' > "$INVALID_NOTE"
+if ERR="$(REPO="$REPO" BODY_FILE="$INVALID_NOTE" node --input-type=module <<'JS' 2>&1 >/dev/null
+import fs from 'node:fs';
+import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
+
+const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+if (result.ok) process.exit(0);
+process.stderr.write(`${JSON.stringify({ code: 'INVALID_NOTE', error: `successor note ${result.status}`, details: result.errors })}\n`);
+process.exit(1);
+JS
+)"; then
+    fail "successor note writer should reject missing required fields"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "INVALID_NOTE", data
+assert any("current_slice" in item for item in data["details"]), data
+PY
+then
+    pass "successor note writer rejects missing required fields"
+else
+    fail "successor note writer invalid-note error drifted: $ERR"
+fi
+
+printf '%s\n' '{"role":"foreman"}' > "$REPO/.runtime/dev/successor/foreman.json"
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+note = data["successor_note"]
+assert note["status"] == "invalid", note
+assert note["note"] is None, note
+assert any("current_slice" in item for item in note["errors"]), note
+assert data["status"] == "success", data
+PY
+then
+    pass "dev situation labels invalid successor note without promoting it"
+else
+    fail "dev situation invalid-note handling drifted"
+fi
+
+cat > "$REPO/.runtime/dev/successor/foreman.json" <<JSON
+{
+  "role": "foreman",
+  "active_epic": {
+    "id": "#426",
+    "source": "GitHub issue #426",
+    "why": "Keep the dev-stack continuity lane easy to resume."
+  },
+  "current_slice": "Add successor-note continuity to dev situation.",
+  "next_step": "Run focused tests and commit the checkpoint.",
+  "side_missions": [],
+  "expires_when": "git.head == 0000000"
+}
+JSON
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+note = data["successor_note"]
+assert note["status"] == "stale", note
+assert note["note"]["role"] == "foreman", note
+assert note["expires"]["status"] == "stale", note
+assert data["status"] == "success", data
+PY
+then
+    pass "dev situation labels stale successor note"
+else
+    fail "dev situation stale-note handling drifted"
+fi
+
+OVERSIZED_NOTE="$TMPDIR/oversized-successor-note.json"
+{
+    printf '%s' '{"role":"foreman","active_epic":{"id":"#426","source":"GitHub issue #426","why":"x"},"current_slice":"'
+    head -c 5000 /dev/zero | tr '\0' a
+    printf '%s\n' '","next_step":"x","side_missions":[],"expires_when":"git.head == '"$HEAD"'"}'
+} > "$OVERSIZED_NOTE"
+if ERR="$(REPO="$REPO" BODY_FILE="$OVERSIZED_NOTE" node --input-type=module <<'JS' 2>&1 >/dev/null
+import fs from 'node:fs';
+import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
+
+const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+if (result.ok) process.exit(0);
+const code = result.status === 'oversized' ? 'OVERSIZED_NOTE' : 'INVALID_NOTE';
+process.stderr.write(`${JSON.stringify({ code, error: `successor note ${result.status}`, details: result.errors })}\n`);
+process.exit(1);
+JS
+)"; then
+    fail "successor note writer should reject oversized notes"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "OVERSIZED_NOTE", data
+assert "max is" in data["details"][0], data
+PY
+then
+    pass "successor note writer rejects oversized notes"
+else
+    fail "successor note writer oversized-note error drifted: $ERR"
+fi
+
+cp "$OVERSIZED_NOTE" "$REPO/.runtime/dev/successor/foreman.json"
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+note = data["successor_note"]
+assert note["status"] == "oversized", note
+assert note["note"] is None, note
+assert note["bytes"] > note["max_bytes"], note
+assert data["status"] == "success", data
+PY
+then
+    pass "dev situation labels oversized successor note"
+else
+    fail "dev situation oversized-note handling drifted"
 fi
 
 if OUT="$(./aos help dev situation --json 2>/dev/null)" python3 - <<'PY'
