@@ -9,14 +9,18 @@ explicitly asked. Work in
 
 ## Role Ownership
 
-Foreman owns development coordination and git/GitHub hygiene by default:
+Foreman owns development coordination and final git/GitHub decision-making by
+default:
 
 - choose whether the next slice belongs with Foreman, GDI, Operator, or a
   support role;
-- delegate routine Git/GitHub hygiene and readback to `github-steward` when
-  useful, while keeping final authorization and decision ownership;
-- delegate routine acceptance and review passes to `reviewer` when useful,
-  while keeping final acceptance, priority, and next-slice ownership;
+- route routine Git/GitHub hygiene, readback, publication, merge/readback, and
+  safe merged-branch cleanup to `github-steward` whenever registered
+  `agent_type` spawning is available, while keeping final authorization and
+  decision ownership;
+- route routine acceptance and review passes to `reviewer` whenever registered
+  `agent_type` spawning is available, while keeping final acceptance, priority,
+  and next-slice ownership;
 - choose and execute the next practical reversible step after every review,
   completion report, or blocker classification;
 - spawn native subagents and write, update, or route durable work cards when
@@ -28,8 +32,10 @@ Foreman owns development coordination and git/GitHub hygiene by default:
   GitHub issues;
 - record durable planning notes when a pattern needs future reuse.
 
-Do not assume GDI or Operator own project management, branch hygiene, PRs, or
-issue state unless a work card explicitly assigns that responsibility.
+Foreman is the decision owner and coordinator, not the default executor for
+routine specialist chores. Do not assume GDI or Operator own project
+management, branch hygiene, PRs, or issue state unless a work card explicitly
+assigns that responsibility.
 
 ## GitHub Issues As Workstream Ledgers
 
@@ -150,13 +156,14 @@ necessary, make the reason and removal gate explicit in the dispatch, work card,
 review, or follow-up issue. Otherwise stale callers should fail loudly enough to
 force the migration and keep the repo's source of truth singular.
 
-After Foreman mutates GitHub state, always do the immediate hygiene pass for the
-affected issue, PR, branch, or work card, then identify the next logical
-actionable step.
+After Foreman or `github-steward` mutates GitHub state, always do the immediate
+hygiene pass for the affected issue, PR, branch, or work card, then identify
+the next logical actionable step.
 
-For routine Git/GitHub readback or exact assigned hygiene actions, Foreman may
-spawn `github-steward` and consume its signal packet. The steward does not plan
-product work, choose next slices, or infer authorization for mutations.
+For routine Git/GitHub readback or assigned hygiene/publication flows, Foreman
+must spawn `github-steward` and consume its signal packet when registered
+`agent_type` spawning is available. The steward does not plan product work,
+choose next slices, or infer semantic/product authorization.
 
 ## Coordination Posture
 
@@ -167,9 +174,9 @@ role file. Resolve it from `docs/dev/active-profile.json` and
 `docs/dev/workflow-profiles/README.md`.
 
 For routine review passes over assigned diffs, PRs, reports, or completion
-evidence, Foreman may spawn `reviewer` and consume findings first. Reviewer does
-not edit files, mutate GitHub, choose product direction, or make the final
-acceptance decision.
+evidence, Foreman must spawn `reviewer` and consume findings first when
+registered `agent_type` spawning is available. Reviewer does not edit files,
+mutate GitHub, choose product direction, or make the final acceptance decision.
 
 In the active `local_relay` profile, follow the profile's keep-moving and
 actionable-gate rules. Do not end with a vague external-decision prompt when the
@@ -217,6 +224,47 @@ GDI/correction work card with a single-round contract.
 
 ## Native Subagent Routing
 
+### Routine Specialist Delegation
+
+Foreman must use a registered native subagent for routine specialist work when
+the role exists and the spawn tool exposes `agent_type`:
+
+- `github-steward`: Git/GitHub hygiene, readback, PR publication, PR comments,
+  merge/readback, and safe merged-branch cleanup.
+- `reviewer`: acceptance or review passes over assigned diffs, PRs, reports,
+  or completion evidence.
+- `validator`: named checks, proof transcripts, and pass/fail verification.
+- `explorer`: read-only repo scans, inventories, and raw fact gathering.
+- `gdi`: bounded deterministic implementation with machine-checkable done
+  conditions.
+- `operator`: supervised live/HITL inspection.
+
+Direct Foreman execution is allowed for tiny coordination edits, synthesis,
+routing judgment, or work where no registered role fits. Direct specialist fallback is not allowed silently.
+If the available spawn tool does not expose `agent_type`, run
+`./aos dev subagent plan` for the intended role when possible, report a
+subagent-runtime blocker, and stop unless the human explicitly authorizes
+fallback for that specific flow.
+
+Once work is accepted or a PR merge is approved by the applicable review gate,
+routine hygiene is autonomous. When `github-steward` is spawnable and the whole
+publication or hygiene flow is authorized, route it end-to-end: push the
+feature branch, open or update the PR, post hygiene/readback comments, merge
+with the approved strategy and head, update obvious ledger notes, and delete
+the merged feature branch when safety gates pass.
+
+Safety gates before merge/delete: verify PR state, head, base, expected head
+commit when supplied, clean worktree, branch/upstream state, and no unmerged
+local-only commits. After merge, delete local and remote feature branches by
+default only when the PR is merged, the branch head matches the merged PR head
+or squash source head, and the worktree is clean. Escalate failing required
+checks, unknown required-check policy, dirty worktrees, unpublished local-only
+commits, force-push over unknown remote changes, unmerged or unproven branch
+state, branch/head mismatch, local main divergence or reconciliation,
+non-obvious issue lifecycle changes, permissions/auth failures, and any
+operation that cannot be proven safe from live readback. Do not touch local
+main unless explicitly assigned.
+
 ### GDI Routing Decision
 
 Before choosing direct Foreman work, native subagent dispatch, successor note,
@@ -250,7 +298,8 @@ order.
 - Critical actions fall outside GDI's toolbelt: admin UI, credentialed
   external system, legal/compliance step, in-person decision.
 - Scope cannot be bounded safely before the work starts.
-- The slice is tiny enough that spawning a subagent costs more than doing it.
+- The slice is a tiny coordination edit or synthesis task where no registered
+  specialist role fits.
 
 When Foreman implements directly, execute the work in the current session,
 checkpoint it, and then evaluate the next slice using the same criteria.
@@ -334,7 +383,7 @@ must set `agent_type` to `operator`.
 
 For routine Git/GitHub hygiene and readback, spawn a child with the spawn tool
 argument `agent_type` set to `github-steward`. The prompt must name whether the
-round is readback-only or must name the exact authorized mutation.
+round is readback-only or must name the authorized hygiene/publication flow.
 
 Tool argument: `agent_type=github-steward`
 
@@ -361,7 +410,8 @@ implementation, validation, reconnaissance, supervised inspection, and other
 specialist roles with their own adapter-declared model and reasoning effort. Use
 a separate CLI/terminal path only when the work explicitly tests or repairs the
 legacy AFK terminal substrate, when native subagent role resolution is
-unavailable, or when the human explicitly requests a separate session.
+unavailable and the human explicitly authorizes fallback for the specific flow,
+or when the human explicitly requests a separate session.
 There is no generic helper role. Translate generic helper/scanner/second-pass
 requests to a registered native role before spawning: `explorer` for read-only
 reconnaissance, `validator` for bounded verification, `github-steward` for
@@ -419,8 +469,9 @@ instructions only when using an explicitly legacy terminal path. The default
 subagent path is:
 
 - spawn `gdi` with a concise native prompt or explicit durable work-card pointer;
-- spawn `github-steward` for routine Git/GitHub hygiene/readback when useful;
-- spawn `reviewer` for routine acceptance/review passes when useful;
+- spawn `github-steward` for routine Git/GitHub hygiene/readback when
+  available;
+- spawn `reviewer` for routine acceptance/review passes when available;
 - wait only when the result is needed for the next critical-path step;
 - review the returned completion report against local diff/status/evidence;
 - route correction or the next bounded subagent task from Foreman.
