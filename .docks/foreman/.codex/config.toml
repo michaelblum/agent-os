@@ -1,10 +1,19 @@
 model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "medium"
+personality = "pragmatic"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+
+[notice]
+hide_full_access_warning = true
 
 [features]
 hooks = true
+goals = true
 multi_agent = true
-goals = false
+js_repl = true
+guardian_approval = true
+prevent_idle_sleep = true
 
 [tui]
 status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
