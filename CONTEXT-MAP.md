@@ -27,6 +27,8 @@ source root. This file is a routing map, not a replacement for those sources.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
 - Command-surface extraction contract: `docs/dev/command-surface.md`.
+- Runtime wiki source layers: `docs/wiki/README.md`, `wiki-seed/`, and
+  `docs/wiki/repo-docs-projection-v0.json`.
 - Packaging and activation vocabulary for Capability Packages, Skills,
   Plugins, Work Cards, Docks, and GitHub labels is defined in ADR-0013 and
   `CONTEXT.md`; these concepts are not execution ladder rungs.
