@@ -19,6 +19,15 @@ function die(message, code = 'ERROR', exitCode = 1) {
   process.exit(exitCode);
 }
 
+function printJSONTo(stream, value) {
+  stream.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function dieStructured(message, code = 'ERROR', exitCode = 1) {
+  printJSONTo(process.stderr, { status: 'error', code, error: message });
+  process.exit(exitCode);
+}
+
 function invocationDisplayName() {
   return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
 }
@@ -69,12 +78,12 @@ const FLAG_SPECS = {
     },
   },
   '--title': {
-    summary: 'an issue title',
+    summary: (command) => command === 'pr:create' ? 'a PR title' : 'an issue title',
     assign: (options, value, command, flag) => {
       options.title = value;
       if (command === 'issue:edit') appendOperation(options, value, command, flag);
     },
-    invalid: '--title is only valid for issue create and edit subcommands',
+    invalid: '--title is only valid for issue create/edit and PR create subcommands',
   },
   '--pr': {
     summary: 'a PR number',
@@ -211,6 +220,7 @@ const COMMAND_FLAGS = new Map([
   ])],
   ['label:list', new Set([...COMMON_FLAGS, '--limit', '--search', '--sort', '--order'])],
   ['pr:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, ...PR_LIST_FLAGS])],
+  ['pr:create', new Set([...COMMON_FLAGS, '--title', '--base', '--head'])],
   ['pr:merge', new Set([...COMMON_FLAGS, ...PR_MERGE_STRATEGY_FLAGS, '--match-head-commit'])],
 ]);
 
@@ -228,7 +238,7 @@ function flagErrorMessage(flag, command, allowedFlags) {
   return null;
 }
 
-function parseOptions(args, command = 'common') {
+function parseOptions(args, command = 'common', config = {}) {
   const options = {
     json: false,
     repo: null,
@@ -255,10 +265,11 @@ function parseOptions(args, command = 'common') {
     issueEditOperations: [],
     positionals: [],
   };
+  const fail = config.structuredErrors ? dieStructured : die;
   const allowedFlags = COMMAND_FLAGS.get(command) ?? COMMAND_FLAGS.get('common');
   const requireValueAt = (index, flag, summary) => {
     if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
-      die(`${flag} requires ${summary}`, 'MISSING_ARG');
+      fail(`${flag} requires ${summary}`, 'MISSING_ARG');
     }
     return args[index + 1];
   };
@@ -267,8 +278,8 @@ function parseOptions(args, command = 'common') {
     const spec = FLAG_SPECS[arg];
     if (spec) {
       const error = flagErrorMessage(arg, command, allowedFlags);
-      if (error) die(error, 'UNKNOWN_FLAG');
-      if (!allowedFlags.has(arg)) die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
+      if (error) fail(error, 'UNKNOWN_FLAG');
+      if (!allowedFlags.has(arg)) fail(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
       if (spec.summary) {
         const summary = typeof spec.summary === 'function' ? spec.summary(command) : spec.summary;
         const value = requireValueAt(i, arg, summary);
@@ -279,7 +290,7 @@ function parseOptions(args, command = 'common') {
         i += 1;
       }
     } else if (arg.startsWith('--')) {
-      die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
+      fail(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
       options.positionals.push(arg);
       i += 1;
@@ -330,6 +341,7 @@ function runGhAndExit(args, cwd) {
 }
 
 function emitCompositeErrorAndExit(command, result, json) {
+  cleanupTempBodyFiles();
   if (json) {
     printJSON({
       status: 'error',
@@ -343,6 +355,28 @@ function emitCompositeErrorAndExit(command, result, json) {
     writeProcessOutput(result);
   }
   process.exit(result.status);
+}
+
+function normalizePullRequestPayload(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (
+    payload.number == null ||
+    payload.url == null ||
+    payload.state == null ||
+    payload.headRefName == null ||
+    payload.baseRefName == null
+  ) {
+    return null;
+  }
+  return {
+    status: 'success',
+    authority: 'gh_cli',
+    number: payload.number ?? null,
+    url: payload.url ?? null,
+    state: payload.state ?? null,
+    head: payload.headRefName ?? null,
+    base: payload.baseRefName ?? null,
+  };
 }
 
 function parseJSON(text) {
@@ -749,6 +783,37 @@ function prCommand(args) {
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'name,state,bucket,link,startedAt,completedAt,workflow');
     runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'create') {
+    const options = parseOptions(args.slice(1), 'pr:create', { structuredErrors: true });
+    if (options.positionals.length > 0) dieStructured(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    if (!options.title) dieStructured('dev gh pr create requires --title <title>', 'MISSING_ARG');
+    if (!options.base) dieStructured('dev gh pr create requires --base <branch>', 'MISSING_ARG');
+    if (!options.head) dieStructured('dev gh pr create requires --head <branch>', 'MISSING_ARG');
+    if (!options.bodyFile) dieStructured('dev gh pr create requires --body-file <path|->', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const bodyFile = materializeBodyFile(options.bodyFile, 'PR');
+    const ghArgs = ['pr', 'create'];
+    appendRepo(ghArgs, repoFullName);
+    ghArgs.push('--base', options.base, '--head', options.head, '--title', options.title, '--body-file', bodyFile);
+    const createResult = runGh(ghArgs, repoRoot);
+    if (createResult.status !== 0) emitCompositeErrorAndExit(ghArgs, createResult, options.json);
+    if (!options.json) {
+      cleanupTempBodyFiles();
+      writeProcessOutput(createResult);
+      process.exit(createResult.status);
+    }
+    const createdPR = firstLine(createResult.stdout) ?? firstLine(createResult.stderr);
+    if (!createdPR) dieStructured('Could not identify created PR from gh pr create output', 'MISSING_PR');
+    const viewArgs = ['pr', 'view', createdPR];
+    appendRepo(viewArgs, repoFullName);
+    viewArgs.push('--json', 'number,url,state,headRefName,baseRefName');
+    const viewResult = runGh(viewArgs, repoRoot);
+    if (viewResult.status !== 0) emitCompositeErrorAndExit(viewArgs, viewResult, options.json);
+    const payload = normalizePullRequestPayload(parseJSON(viewResult.stdout));
+    if (!payload) dieStructured('Could not parse created PR JSON from gh pr view', 'INVALID_JSON');
+    cleanupTempBodyFiles();
+    printJSON(payload);
   } else if (action === 'comment') {
     const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');

@@ -601,6 +601,7 @@ assert "dev.github.issue_close" in ids, ids
 assert "dev.github.issue_edit" in ids, ids
 assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_create" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
 assert "dev.subagent.dispatch_contract" in ids, ids
@@ -656,6 +657,24 @@ then
     pass "dev capabilities explain returns PR comment metadata"
 else
     fail "dev capabilities explain did not return expected PR comment metadata"
+fi
+
+if OUT="$(./aos dev capabilities explain dev.github.pr_create --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+capability = data["capability"]
+assert capability["id"] == "dev.github.pr_create", data
+assert capability["adapter"]["kind"] == "aos_cli", data
+assert capability["mutability"]["class"] == "external_write", data
+assert capability["mutability"]["requires_body_file"] is True, data
+assert capability["execution"]["raw_process"] is False, data
+PY
+then
+    pass "dev capabilities explain returns PR create metadata"
+else
+    fail "dev capabilities explain did not return expected PR create metadata"
 fi
 
 if OUT="$(./aos dev capabilities explain dev.github.issue_create --json 2>/dev/null)" python3 - <<'PY'
@@ -820,6 +839,7 @@ assert "dev.github.issue_close" in ids, ids
 assert "dev.github.issue_edit" in ids, ids
 assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_create" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
 assert "dev.subagent.dispatch_contract" in ids, ids
@@ -864,6 +884,7 @@ assert "dev.github.issue_create" not in ids, ids
 assert "dev.github.issue_close" not in ids, ids
 assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
+assert "dev.github.pr_create" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
 assert "dev.subagent.dispatch_contract" not in ids, ids
 assert "dev.build.aos" in ids, ids
@@ -907,6 +928,7 @@ assert "dev.github.issue_create" not in ids, ids
 assert "dev.github.issue_close" not in ids, ids
 assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
+assert "dev.github.pr_create" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
 assert "dev.subagent.dispatch_contract" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
@@ -1001,6 +1023,17 @@ if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --au
 fi
 if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
     echo '[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]'
+    exit 0
+fi
+if [[ "$cmd" == pr\ create\ --repo\ michaelblum/agent-os\ --base\ main\ --head\ foreman/dev-gh-pr-create-v0\ --title\ Add\ PR\ create\ --body-file\ * ]]; then
+    body_file="${cmd##* --body-file }"
+    cat "$body_file" >> "$GH_BODY_LOG"
+    printf '\n---\n' >> "$GH_BODY_LOG"
+    echo "https://github.com/michaelblum/agent-os/pull/433"
+    exit 0
+fi
+if [[ "$cmd" == "pr view https://github.com/michaelblum/agent-os/pull/433 --repo michaelblum/agent-os --json number,url,state,headRefName,baseRefName" ]]; then
+    echo '{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"foreman/dev-gh-pr-create-v0","baseRefName":"main"}'
     exit 0
 fi
 if [[ "$cmd" == pr\ merge\ 410\ --repo\ michaelblum/agent-os\ --merge\ --match-head-commit\ abc123\ --body-file\ * ]]; then
@@ -1329,6 +1362,111 @@ then
     pass "dev gh pr view includes reviewDecision in JSON output"
 else
     fail "dev gh pr view did not request reviewDecision JSON"
+fi
+
+: > "$GH_ARGS_LOG"
+: > "$GH_BODY_LOG"
+if OUT="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file "$BODY" --json 2>/dev/null)" &&
+   OUT="$OUT" python3 - <<'PY' &&
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["authority"] == "gh_cli", data
+assert data["number"] == 433, data
+assert data["url"] == "https://github.com/michaelblum/agent-os/pull/433", data
+assert data["state"] == "OPEN", data
+assert data["head"] == "foreman/dev-gh-pr-create-v0", data
+assert data["base"] == "main", data
+PY
+   grep -q "pr create --repo michaelblum/agent-os --base main --head foreman/dev-gh-pr-create-v0 --title Add PR create --body-file $BODY" "$GH_ARGS_LOG" &&
+   grep -q "pr view https://github.com/michaelblum/agent-os/pull/433 --repo michaelblum/agent-os --json number,url,state,headRefName,baseRefName" "$GH_ARGS_LOG" &&
+   grep -q "accepted state" "$GH_BODY_LOG" &&
+   ! grep -q "accepted state" "$GH_ARGS_LOG"; then
+    pass "dev gh pr create shells out with body-file and returns JSON readback"
+else
+    fail "dev gh pr create did not dispatch through expected body-file flow"
+fi
+
+if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --body-file "$BODY" --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr create should require --title"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "MISSING_ARG", data
+assert data["error"] == "dev gh pr create requires --title <title>", data
+PY
+then
+    pass "dev gh pr create requires structured --title"
+else
+    fail "dev gh pr create missing title error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr create --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file "$BODY" --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr create should require --base"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "MISSING_ARG", data
+assert data["error"] == "dev gh pr create requires --base <branch>", data
+PY
+then
+    pass "dev gh pr create requires structured --base"
+else
+    fail "dev gh pr create missing base error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr create --base main --title "Add PR create" --body-file "$BODY" --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr create should require --head"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "MISSING_ARG", data
+assert data["error"] == "dev gh pr create requires --head <branch>", data
+PY
+then
+    pass "dev gh pr create requires structured --head"
+else
+    fail "dev gh pr create missing head error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr create should require --body-file"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "MISSING_ARG", data
+assert data["error"] == "dev gh pr create requires --body-file <path|->", data
+PY
+then
+    pass "dev gh pr create requires structured --body-file"
+else
+    fail "dev gh pr create missing body-file error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr create should reject missing --body-file values before a flag"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "MISSING_ARG", data
+assert data["error"] == "--body-file requires a path or -", data
+PY
+then
+    pass "dev gh pr create treats flag-after---body-file as structured missing value"
+else
+    fail "dev gh pr create missing body-file value error mismatch: $ERR"
 fi
 
 : > "$GH_ARGS_LOG"

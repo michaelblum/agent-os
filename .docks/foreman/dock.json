@@ -35,6 +35,7 @@
     "dev.github.pr_list",
     "dev.github.pr_view",
     "dev.github.pr_checks",
+    "dev.github.pr_create",
     "dev.github.pr_comment",
     "dev.github.pr_merge",
     "dev.github.ci_inspect",

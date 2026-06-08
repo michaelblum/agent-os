@@ -69,7 +69,7 @@ function assertDeltaDoc(result, output, label = 'dev gh help') {
   assert.doesNotMatch(output, /UNKNOWN_COMMAND/, label);
   assert.match(output, /^\.\/aos dev gh — sanctioned GitHub workflow subset/m, label);
   assert.match(output, /Non-interactive only: commands fail instead of prompting\./, label);
-  assert.match(output, /Body-writing commands use --body-file; issue create\/comment and pr comment require it\./, label);
+  assert.match(output, /Body-writing commands use --body-file <path\|->; stdin is accepted via - or \/dev\/stdin\./, label);
   assert.match(output, /pr merge requires exactly one explicit strategy: --squash, --merge, or --rebase\./, label);
   assert.match(output, /List commands take bounded --limit values for inventory scans\./, label);
   assert.match(output, /context\s+Reports local gh auth, repository, branch, current PR, and dirty checkout state\./, label);
