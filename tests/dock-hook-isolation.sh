@@ -195,11 +195,13 @@ for role in ("gdi", "operator", "explorer", "validator"):
     if 'model = "gpt-5.5"' in agent_text and 'model_reasoning_effort = "xhigh"' in agent_text:
         raise SystemExit(f"FAIL: {role} subagent TOML inherits Foreman's expensive model/effort posture")
 
+docks_agents = (root / ".docks" / "AGENTS.md").read_text()
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_subagents = (root / ".docks" / "foreman" / "SUBAGENTS.md").read_text()
 docks_readme = (root / ".docks" / "README.md").read_text()
 foreman_readme = (root / ".docks" / "foreman" / "README.md").read_text()
 gdi_agents = (root / ".docks" / "gdi" / "AGENTS.md").read_text()
+operator_agents = (root / ".docks" / "operator" / "AGENTS.md").read_text()
 explorer_agent = (root / ".codex" / "agents" / "explorer.toml").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()
 foreman_transfer_refs = [
@@ -278,6 +280,59 @@ for required in (
 ):
     if required not in foreman_agents:
         raise SystemExit(f"FAIL: Foreman AGENTS missing fail-closed native subagent routing token {required!r}")
+
+for required in (
+    "Native subagent prompts are the default for dock-team work",
+    "Do not create a work card just because",
+    "Use a successor note, concise handoff, or issue-ledger update",
+    "Use a durable work card only when it is explicitly requested, already current",
+    "spawn `gdi` with a concise native prompt",
+):
+    if required not in foreman_agents:
+        raise SystemExit(f"FAIL: Foreman AGENTS missing native-prompt default token {required!r}")
+
+for required in (
+    "Use a work-card pointer only when an explicit durable contract",
+    "If an explicit durable work card is current, use a concise pointer instead",
+):
+    if required not in foreman_subagents:
+        raise SystemExit(f"FAIL: Foreman SUBAGENTS missing durable-card exception token {required!r}")
+
+for required in (
+    "Work-card pointers are explicit durable-contract inputs, not the default",
+    "absence of a work-card path is normal for concise native subagent prompts",
+):
+    if required not in gdi_agents:
+        raise SystemExit(f"FAIL: GDI AGENTS missing native-prompt dispatch token {required!r}")
+
+for required in (
+    "Native subagent prompts are the default for dock-team execution rounds",
+    "Use a work card only when explicitly requested",
+):
+    if required not in docks_agents:
+        raise SystemExit(f"FAIL: Docks AGENTS missing native-prompt execution token {required!r}")
+
+if "bounded native subagent instruction or explicit" not in operator_agents:
+    raise SystemExit("FAIL: Operator AGENTS missing native-prompt handback token")
+
+active_instruction_docs = (
+    ("Docks AGENTS", docks_agents),
+    ("Foreman AGENTS", foreman_agents),
+    ("Foreman SUBAGENTS", foreman_subagents),
+    ("GDI AGENTS", gdi_agents),
+    ("Operator AGENTS", operator_agents),
+)
+for label, text in active_instruction_docs:
+    for forbidden in (
+        "Use work cards for bounded GDI",
+        "Before writing a work card, apply this routing decision",
+        "For non-trivial GDI implementation or validation work, create or update",
+        "When building a work card",
+        "work card with ordered milestones",
+        "spawn `gdi` with the concise work-card pointer",
+    ):
+        if forbidden in text:
+            raise SystemExit(f"FAIL: {label} still teaches work-card default routing: {forbidden}")
 
 for required in (
     "Foreman selects the read-first set",

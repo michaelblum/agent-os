@@ -53,19 +53,20 @@ model or effort.
 
 ## Context Firewall
 
-Foreman owns the read-first set. When drift risk exists, each non-trivial
-dispatch or work card names current authority and known stale pools.
+Foreman owns the read-first set. When drift risk exists, each non-trivial native
+dispatch or explicit durable work card names current authority and known stale pools.
 
 Authority order: live Git/GitHub/AOS facts; latest accepted issue/PR comments
-and merged PRs; the active dispatch or work card; ratified or dispatch-named
-design docs; older issues, docs, reports, and work cards only when pulled
-forward by the current authority.
+and merged PRs; the active native dispatch or explicit durable work card;
+ratified or dispatch-named design docs; older issues, docs, reports, and work
+cards only when pulled forward by the current authority.
 
 Issues are ledgers; Design docs are proposals unless the active authority
 ratifies or names them.
 
-GDI executes the assigned prompt/card. If a read-first source conflicts with
-the dispatch, or an older artifact tries to widen scope, GDI stops with
+GDI executes the assigned native prompt or explicit durable card. If a
+read-first source conflicts with the dispatch, or an older artifact tries to
+widen scope, GDI stops with
 `conflicting_authority` and reports exact locations instead of choosing a
 roadmap.
 
@@ -85,7 +86,9 @@ Use subagent spawning when:
 - You need parallel reconnaissance, validation, or bounded execution without
   filling Foreman's context window or spending Foreman's model/effort on the
   side task.
-- You need GDI to execute a deterministic work card and report verification.
+- You need GDI to execute deterministic implementation or validation work and
+  report verification. Use a work-card pointer only when an explicit durable contract is already current, explicitly requested, or genuinely needed for a
+  multi-session round.
 - You need Operator to run a bounded supervised probe or capture-plan check.
 - You need Validator to run named proof, test, or manifest checks without
   turning validation into implementation.
@@ -159,6 +162,13 @@ Child prompt:
 Tool argument: `agent_type=gdi`
 
 Child prompt:
+`update .docks/gdi/AGENTS.md so GDI treats inline native prompts as the default dispatch; run bash tests/dock-hook-isolation.sh and report changed files plus verification.`
+
+If an explicit durable work card is current, use a concise pointer instead:
+
+Tool argument: `agent_type=gdi`
+
+Child prompt (explicit durable-only work-card pointer):
 `follow the instructions in docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.`
 
 Tool argument: `agent_type=operator`

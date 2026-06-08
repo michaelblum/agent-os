@@ -26,8 +26,9 @@ Local sessions launched from `.docks/<dock>` inherit that dock's persona through
 the normal instruction ladder. Remote or undocked sessions should still adopt a
 dock role when the request names one or when the task clearly fits one:
 
-- Foreman coordinates work, reviews completion reports, writes/routes work
-  cards, and owns git/GitHub hygiene by default.
+- Foreman coordinates work, reviews completion reports, routes native
+  subagents, writes durable work cards only when warranted, and owns git/GitHub
+  hygiene by default.
 - GDI performs assigned deterministic implementation or validation rounds.
 - Operator collects supervised live or human-in-the-loop evidence.
 
@@ -151,14 +152,17 @@ work.
 Use GitHub issues as a coarse workstream ledger, not as the execution system.
 An issue should track a durable lane, parked side mission, unresolved pivot,
 human decision, or cross-session question whose context would otherwise be
-rediscovered poorly. Do not create an issue for every work card.
+rediscovered poorly. Do not create an issue for every subagent round or work
+card.
 
 Keep artifact roles distinct:
 
 - GitHub issues explain durable threads, side missions, parked ideas, and why a
   lane exists.
-- Work cards define bounded implementation, validation, correction, supervised,
-  or specialist subagent rounds.
+- Native subagent dispatches define ordinary bounded implementation,
+  validation, correction, supervised, or specialist rounds.
+- Work cards define explicit durable contracts for already-current or genuinely
+  multi-session implementation, validation, correction, or capture rounds.
 - Branches and commits are implementation checkpoints.
 - Session reports and synthesis notes are temporary map-making artifacts unless
   they become reusable project guidance.
@@ -166,7 +170,9 @@ Keep artifact roles distinct:
 When a thread is larger than one session, has several plausible next slices, is
 parked, or depends on external/human judgment, prefer updating or creating an
 issue over leaving the state only in chat. When the next action is already a
-single machine-checkable round, use a work card instead of a new issue.
+single machine-checkable round, spawn a native subagent with a concise dispatch
+instead of creating a new issue. Use a work card only when explicitly requested,
+already current, or needed for a genuinely durable multi-session contract.
 
 ## Cross-Session Transfers
 
@@ -178,18 +184,20 @@ Use precise transfer language so dock roles do not inherit the wrong workflow:
   Foreman-to-Foreman continuity.
 - **Dispatch** is the short instruction that starts a target actor on an
   existing artifact, usually by spawning a native subagent.
-- **Work card** is a durable Markdown task contract for an assigned round, most
-  often GDI implementation or validation; it is not successor-session state.
+- **Work card** is a durable Markdown task contract for an explicitly assigned
+  round, most often GDI implementation or validation; it is not the default
+  dispatch format and is not successor-session state.
 - **Round** is one recipient session's attempt at one goal until completion,
   failure, or stall.
 - **Relay** is a GitHub-visible branch/report exchange, not a synonym for every
   dock handoff.
 
 Keep storage aligned with the transfer kind. Successor handoffs are ephemeral
-session state and should live in chat, clipboard, or a temp file. Work cards are
+session state and should live in chat, clipboard, or a temp file. Native subagent prompts are the default for dock-team execution rounds. Work cards are
 durable Markdown task contracts and belong under `docs/design/work-cards/` only
-when they assign a GDI-style implementation, validation, correction, or relay
-round. Operator and human-needed transfers are usually chat packets unless
+when explicitly requested, already current, or needed for a genuinely durable
+multi-session GDI-style implementation, validation, correction, capture, or
+relay round. Operator and human-needed transfers are usually chat packets unless
 their capture plan or recovery path needs durable documentation.
 
 For Foreman successor handoffs, use the repo-level agent handoff tool from the

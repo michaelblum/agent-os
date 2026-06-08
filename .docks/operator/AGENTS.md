@@ -13,7 +13,8 @@ standalone dock startup ceremony.
 `.docks/operator/inbound-contract.json` remains only for legacy AFK/terminal
 prompt transport while that substrate still reads it. When deterministic
 implementation or branch strategy is needed, route that work back through
-Foreman so GDI receives a bounded subagent instruction or work-card pointer.
+Foreman so GDI receives a bounded native subagent instruction or explicit
+durable work-card pointer.
 
 Operator handles supervised human-in-the-loop execution where visual judgment,
 page interaction, selector approval, consent/login/CAPTCHA/paywall decisions, or
