@@ -20,14 +20,37 @@ ai-agents/
 │   ├── operator.md
 │   └── steward.md
 └── providers/
-    ├── codex/         ← Codex-specific sync skill + generated .toml stubs
-    │   ├── SKILL.md   ← $agent-sync skill (Codex frontmatter + points at agents/)
+    ├── codex/         ← Codex-specific sync skill + script
+    │   ├── SKILL.md   ← $agent-sync skill (Codex frontmatter, points at agents/)
     │   └── README.md
     ├── claude/        ← placeholder for Claude Code sync (not yet implemented)
     │   └── README.md
     └── gemini/        ← placeholder for Gemini sync (not yet implemented)
         └── README.md
 ```
+
+---
+
+## Why this is NOT under `.docks/`
+
+`.docks/` is the **runtime execution layer** — each dock is a named working
+context with an `AGENTS.md`, a foreman config, and scripts that run *inside*
+an active session. Docks are alive; they execute.
+
+`ai-agents/` is **static definition data** — it describes who the agents are
+and how to install them into a provider's config system. It never executes.
+It has more in common with `docs/` than with `.docks/`.
+
+Mixing them would:
+- Blur the dock concept for agents scanning `.docks/` for runtime context
+- Make provider-agnostic content (Claude, Gemini) live under a folder whose
+  name implies Codex's dock pattern
+- Create confusion for any future contributor (human or agent) learning the
+  codebase
+
+The separation is intentional: **`.docks/` = runtime, `ai-agents/` = definitions.**
+
+---
 
 ## How it works
 
