@@ -203,6 +203,8 @@ foreman_readme = (root / ".docks" / "foreman" / "README.md").read_text()
 gdi_agents = (root / ".docks" / "gdi" / "AGENTS.md").read_text()
 operator_agents = (root / ".docks" / "operator" / "AGENTS.md").read_text()
 explorer_agent = (root / ".codex" / "agents" / "explorer.toml").read_text()
+github_steward_agent = (root / ".codex" / "agents" / "github-steward.toml").read_text()
+reviewer_agent = (root / ".codex" / "agents" / "reviewer.toml").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()
 foreman_transfer_refs = [
     (path.name, path.read_text())
@@ -280,6 +282,36 @@ for required in (
 ):
     if required not in foreman_agents:
         raise SystemExit(f"FAIL: Foreman AGENTS missing fail-closed native subagent routing token {required!r}")
+
+for required in (
+    "Foreman is the decision owner and coordinator, not the default executor",
+    "registered native subagent for routine specialist work",
+    "Direct specialist fallback is not allowed silently",
+    "subagent-runtime blocker",
+    "unavailable and the human explicitly authorizes fallback for the specific flow",
+    "safe merged-branch cleanup",
+):
+    if required not in foreman_agents:
+        raise SystemExit(f"FAIL: Foreman AGENTS missing routine delegation token {required!r}")
+
+for required in (
+    "publication/hygiene flow",
+    "delete the merged feature branch",
+    "unknown required-check policy",
+    "local main divergence",
+    "Do not touch local main unless explicitly assigned",
+):
+    if required not in github_steward_agent:
+        raise SystemExit(f"FAIL: github-steward missing autonomous hygiene safety token {required!r}")
+
+for required in (
+    "Do not edit files",
+    "Do not apply patches",
+    "Do not mutate GitHub or git",
+    "Foreman owns final",
+):
+    if required not in reviewer_agent:
+        raise SystemExit(f"FAIL: reviewer missing no-mutation review token {required!r}")
 
 for required in (
     "Native subagent prompts are the default for dock-team work",

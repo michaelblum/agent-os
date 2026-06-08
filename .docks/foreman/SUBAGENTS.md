@@ -45,7 +45,7 @@ in the first-class project location.
 | `operator` | gpt-5.4 | medium | Supervised HITL inspector |
 | `explorer` | gpt-5.4-mini | low | Read-only codebase scanner |
 | `validator` | gpt-5.4-mini | low | Bounded verification worker |
-| `github-steward` | gpt-5.4-mini | low | Git/GitHub hygiene, readback, and exact authorized mutations |
+| `github-steward` | gpt-5.4-mini | low | Git/GitHub hygiene, readback, publication, merge/readback, and safe branch cleanup |
 | `reviewer` | gpt-5.4 | medium | Assigned diff, PR, report, or completion-evidence review |
 
 Foreman itself runs at `gpt-5.5 / xhigh` when launched from
@@ -84,8 +84,11 @@ work.
 
 GitHub Steward performs routine Git/GitHub hygiene only. It reads branch, ref,
 worktree, upstream, issue, PR, and check facts; uses `./aos dev gh` where
-available; and mutates git or GitHub only when Foreman or the user assigns the
-exact action.
+available; and mutates git or GitHub only when Foreman or the user assigns an
+exact action or an authorized publication/hygiene flow. After work is accepted
+or a PR merge is approved, the steward may execute routine push, PR
+create/update, comment, merge/readback, obvious ledger-note, and safe
+merged-branch cleanup steps end-to-end when its safety gates pass.
 
 Reviewer performs assigned review only. It reviews named diffs, files, PRs,
 reports, or completion evidence; returns findings first; and does not edit
@@ -93,7 +96,8 @@ files, mutate GitHub, choose product direction, or decide next slices.
 
 ## Routing Policy
 
-Use subagent spawning when:
+Foreman is the decision owner and coordinator, not the default executor for
+routine specialist chores. Use registered native subagent spawning when:
 
 - The task has a bounded goal and a clear stop condition.
 - You need parallel reconnaissance, validation, or bounded execution without
@@ -106,14 +110,23 @@ Use subagent spawning when:
 - You need Validator to run named proof, test, or manifest checks without
   turning validation into implementation.
 - You need GitHub Steward to do routine Git/GitHub readback, hygiene, or an
-  exact authorized mutation without spending Foreman's context.
+  authorized publication/hygiene flow without spending Foreman's context.
 - You need Reviewer to do a routine acceptance or review pass over assigned
   evidence while Foreman remains the final decision owner.
+
+If a registered role fits routine specialist work and the spawn tool exposes
+`agent_type`, Foreman must use that role. Direct Foreman execution is limited to
+tiny coordination edits, synthesis, routing judgment, or work where no
+registered role fits. If the spawn surface does not expose `agent_type`, do not
+spawn a default child or hide the fallback in the prompt; report a
+subagent-runtime blocker unless the human explicitly authorizes fallback for
+that specific flow.
 
 Use the legacy terminal/AFK path only when:
 
 - The work explicitly tests or repairs the legacy AFK terminal substrate.
-- Native subagent role resolution is unavailable.
+- Native subagent role resolution is unavailable and the human explicitly
+  authorizes fallback for the specific flow.
 - The human explicitly asks for a separate supervised terminal session.
 
 ## How Foreman Spawns Subagents
@@ -167,6 +180,25 @@ After the smoke, capture the visible spawn/proof transcript and validate it:
 ```
 
 If proof validation fails, do not fan out. The failed proof is the blocker.
+
+## GitHub Steward Safety Gates
+
+When Foreman or the user has authorized a publication, merge, or hygiene flow,
+GitHub Steward owns the routine mechanics under live readback:
+
+- before merge/delete, verify PR state, head, base, expected head commit when
+  supplied, worktree cleanliness, branch/upstream state, and no unmerged
+  local-only commits;
+- after merge, delete the local and remote feature branch by default only when
+  the PR is merged, the branch head matches the merged PR head or squash source
+  head, and the worktree is clean;
+- escalate failing required checks, unknown required-check policy, dirty
+  worktree, unpublished local-only commits, force-push over unknown remote
+  changes, deleting unmerged or unproven branch state, branch/head mismatch,
+  local main divergence or reconciliation, non-obvious issue lifecycle changes,
+  permissions/auth failure, and any operation that cannot be proven safe from
+  live readback;
+- do not touch local main unless explicitly assigned.
 
 Tool argument: `agent_type=explorer`
 
