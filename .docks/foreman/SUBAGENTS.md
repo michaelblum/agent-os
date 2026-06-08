@@ -17,6 +17,8 @@ broad fan-out.
   operator.toml                  <- spawnable Operator subagent config
   explorer.toml                  <- spawnable Explorer utility config
   validator.toml                 <- spawnable Validator utility config
+  github-steward.toml            <- spawnable Git/GitHub hygiene utility config
+  reviewer.toml                  <- spawnable review utility config
 ```
 
 The `.docks/` tree is the AOS team layer. It owns role definitions, scripts,
@@ -43,6 +45,8 @@ in the first-class project location.
 | `operator` | gpt-5.4 | medium | Supervised HITL inspector |
 | `explorer` | gpt-5.4-mini | low | Read-only codebase scanner |
 | `validator` | gpt-5.4-mini | low | Bounded verification worker |
+| `github-steward` | gpt-5.4-mini | low | Git/GitHub hygiene, readback, and exact authorized mutations |
+| `reviewer` | gpt-5.4 | medium | Assigned diff, PR, report, or completion-evidence review |
 
 Foreman itself runs at `gpt-5.5 / xhigh` when launched from
 `.docks/foreman` (see `.docks/foreman/.codex/config.toml`). That expensive
@@ -78,6 +82,15 @@ Validator performs bounded verification only. It runs named checks or inspects
 named evidence, reports pass/fail facts, and does not edit files or decide next
 work.
 
+GitHub Steward performs routine Git/GitHub hygiene only. It reads branch, ref,
+worktree, upstream, issue, PR, and check facts; uses `./aos dev gh` where
+available; and mutates git or GitHub only when Foreman or the user assigns the
+exact action.
+
+Reviewer performs assigned review only. It reviews named diffs, files, PRs,
+reports, or completion evidence; returns findings first; and does not edit
+files, mutate GitHub, choose product direction, or decide next slices.
+
 ## Routing Policy
 
 Use subagent spawning when:
@@ -92,6 +105,10 @@ Use subagent spawning when:
 - You need Operator to run a bounded supervised probe or capture-plan check.
 - You need Validator to run named proof, test, or manifest checks without
   turning validation into implementation.
+- You need GitHub Steward to do routine Git/GitHub readback, hygiene, or an
+  exact authorized mutation without spending Foreman's context.
+- You need Reviewer to do a routine acceptance or review pass over assigned
+  evidence while Foreman remains the final decision owner.
 
 Use the legacy terminal/AFK path only when:
 
@@ -114,17 +131,19 @@ inherit Foreman's model/effort.
 There is no generic helper role. If a user asks for a helper, scanner, second
 set of eyes, or lightweight pass, Foreman must translate that request to a
 registered role before spawning: `explorer` for read-only reconnaissance,
-`validator` for bounded verification, `gdi` for deterministic implementation,
-and `operator` for supervised live/HITL inspection. The first spawn attempt
-must use the registered role; a blocked generic/default spawn is a routing
-mistake, even if Foreman recovers by retrying correctly.
+`validator` for bounded verification, `github-steward` for routine Git/GitHub
+hygiene and readback, `reviewer` for assigned review passes, `gdi` for
+deterministic implementation, and `operator` for supervised live/HITL
+inspection. The first spawn attempt must use the registered role; a blocked
+generic/default spawn is a routing mistake, even if Foreman recovers by retrying
+correctly.
 
 Before broad fan-out, smoke one child. The visible spawn/status line and
 SubagentStart/SubagentStop voice labels must identify the intended role
-(`explorer`, `validator`, `gdi`, or `operator`), not `default`, and the visible
-model/effort must match the native agent config. If it says `default`, `Gibbs`,
-or inherits Foreman's `gpt-5.5 / xhigh`, stop and fix role loading before
-continuing.
+(`explorer`, `validator`, `github-steward`, `reviewer`, `gdi`, or `operator`),
+not `default`, and the visible model/effort must match the native agent config.
+If it says `default`, `Gibbs`, or inherits Foreman's `gpt-5.5 / xhigh`, stop
+and fix role loading before continuing.
 
 Foreman's `PreToolUse` hook blocks recognized spawn-tool calls that omit
 `agent_type`, use `default`, or name an unregistered role. `SubagentStart`
@@ -158,6 +177,16 @@ Tool argument: `agent_type=validator`
 
 Child prompt:
 `run bash tests/dock-hook-isolation.sh and report the pass/fail result and any exact failure line. Do not edit files.`
+
+Tool argument: `agent_type=github-steward`
+
+Child prompt:
+`return a compact GitHub hygiene signal packet for the current branch. Do not mutate git or GitHub.`
+
+Tool argument: `agent_type=reviewer`
+
+Child prompt:
+`review HEAD diff and return findings signal only. Do not edit files or mutate GitHub.`
 
 Tool argument: `agent_type=gdi`
 

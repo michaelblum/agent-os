@@ -167,7 +167,7 @@ dock_local_agents_dir = root / ".docks" / "foreman" / ".codex" / "agents"
 if dock_local_agents_dir.exists():
     raise SystemExit(f"FAIL: Foreman dock must not own native agent configs: {dock_local_agents_dir}")
 
-for role in ("gdi", "operator", "explorer", "validator"):
+for role in ("gdi", "operator", "explorer", "validator", "github-steward", "reviewer"):
     role_header = f"[agents.{role}]"
     repo_config_line = f'config_file = "agents/{role}.toml"'
     foreman_config_line = f'config_file = "../../../.codex/agents/{role}.toml"'
@@ -266,7 +266,7 @@ for label, text in (
 ):
     if "Spawn gdi:" in text or "Spawn operator:" in text or "Spawn explorer:" in text:
         raise SystemExit(f"FAIL: {label} still teaches prompt-text role selection")
-    for forbidden in ("agent_type: gdi", "agent_type: operator", "agent_type: explorer", "agent_type: validator"):
+    for forbidden in ("agent_type: gdi", "agent_type: operator", "agent_type: explorer", "agent_type: validator", "agent_type: github-steward", "agent_type: reviewer"):
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} still formats agent_type as prompt text: {forbidden}")
 
@@ -428,6 +428,13 @@ explorer_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"e
 out="$(printf '%s' "$explorer_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
 if [[ -n "$out" ]]; then
   echo "FAIL: expected explicit explorer spawn PreToolUse payload to emit no JSON, got $out" >&2
+  exit 1
+fi
+
+reviewer_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"reviewer","prompt":"Review assigned diff only."}}'
+out="$(printf '%s' "$reviewer_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+if [[ -n "$out" ]]; then
+  echo "FAIL: expected explicit reviewer spawn PreToolUse payload to emit no JSON, got $out" >&2
   exit 1
 fi
 
