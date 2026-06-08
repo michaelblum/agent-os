@@ -10,6 +10,7 @@ export const DEV_GH_COMMAND_PATHS = [
   ['pr', 'list'],
   ['pr', 'view'],
   ['pr', 'checks'],
+  ['pr', 'create'],
   ['pr', 'comment'],
   ['pr', 'merge'],
   ['ci', 'inspect'],

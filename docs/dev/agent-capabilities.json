@@ -601,6 +601,84 @@
       }
     },
     {
+      "id": "dev.github.pr_create",
+      "label": "GitHub PR Create",
+      "summary": "Create a GitHub pull request through explicit base/head branches, title, and body file using ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "create"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_pr_create"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "base",
+          "summary": "Base branch for the pull request.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "head",
+          "summary": "Head branch for the pull request.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "title",
+          "summary": "GitHub pull request title.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Markdown file containing the pull request body.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pull_request_json",
+          "summary": "Created pull request number, URL, state, head branch, and base branch.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.pr_comment",
       "label": "GitHub PR Comment",
       "summary": "Write a GitHub pull request comment through a body file using ./aos dev gh.",
