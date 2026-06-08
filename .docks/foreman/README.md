@@ -20,10 +20,12 @@ issue updates are appropriate.
 
 Generic helpers are not a role. Before broad native subagent fan-out, translate
 helper/scanner/second-pass requests to a registered role, use
-`./aos dev subagent plan` to produce the explicit `agent_type` contract, and
-use `./aos dev subagent validate-proof` to fail closed on `default` role,
-voice-label, or Foreman model/effort inheritance evidence. A blocked generic
-spawn followed by a correct retry is still a routing mistake to fix.
+`./aos dev subagent plan` to produce the role-selection contract, and use
+`./aos dev subagent validate-proof` to fail closed on missing role selection,
+`default` role, voice-label, or Foreman model/effort inheritance evidence. Use
+`agent_type=<role>` when the live spawn tool exposes it; otherwise start with
+`Use the custom agent named <role>.` A blocked generic spawn followed by a
+correct retry is still a routing mistake to fix.
 
 Workflow mechanics belong to the active profile in `docs/dev/active-profile.json`
 and `docs/dev/workflow-profiles.json`. Foreman should follow that profile

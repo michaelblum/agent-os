@@ -354,25 +354,29 @@ assert data["role"] == "explorer", data
 assert data["expected"]["agent_type"] == "explorer", data
 assert data["expected"]["model"] == "gpt-5.4-mini", data
 assert data["expected"]["model_reasoning_effort"] == "low", data
-assert data["native_spawn_contract"]["agent_type"] == "explorer", data
+assert data["native_spawn_contract"]["tool_argument"]["agent_type"] == "explorer", data
+assert "prompt_prefix" not in data["native_spawn_contract"], data
+assert data["native_spawn_contract"]["blocked_prompt_prefix"]["value"] == "Use the custom agent named explorer.", data
+assert "multi_agent_v1" in data["native_spawn_contract"]["blocked_prompt_prefix"]["reason"], data
 assert data["agent_config_path"] == ".codex/agents/explorer.toml", data
 assert data["discovery"]["native_project_agents_dir"] is True, data
 assert data["discovery"]["no_dock_local_agent_config"] is True, data
 assert "agent_type" in json.dumps(data), data
+assert "Use the custom agent named explorer." in json.dumps(data), data
 assert "gpt-5.5" not in json.dumps(data["expected"]), data
+assert "do NOT spawn using the prompt prefix" in data["next"], data
 PY
 then
-    pass "dev subagent plan emits explicit agent_type/model contract"
+    pass "dev subagent plan emits explicit role/model contract"
 else
     fail "dev subagent plan did not emit expected contract"
 fi
 
 GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.txt")"
 cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
-• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5 (gpt-5.4-mini low)
-  └ Do not edit files, do not run shell commands, and reply with exactly EXPLORER_AGENT_TYPE_SMOKE_OK.
+• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
 - spawn used agent_type=explorer
-- Default/Gibbs/gpt-5.5 xhigh child evidence: no visible evidence appeared
+- child developer-instruction identity response: Read files, grep, list, count, and map. Do nothing else.
 EOF
 if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'
 import json
@@ -381,20 +385,47 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["summary"]["failed"] == 0, data
-assert {claim["id"]: claim["status"] for claim in data["claims"]}["agent-type-explicit"] == "passed", data
+statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
+assert statuses["registered-role-selection"] == "passed", data
+assert statuses["agent-config-identity"] == "passed", data
 PY
 then
-    pass "dev subagent validate-proof accepts explicit explorer model evidence"
+    pass "dev subagent validate-proof accepts custom-agent identity evidence"
 else
     fail "dev subagent validate-proof rejected good proof"
 fi
 rm -f "$GOOD_SUBAGENT_PROOF"
 
+PREFIX_ONLY_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-prefix-only.XXXXXX.txt")"
+cat > "$PREFIX_ONLY_SUBAGENT_PROOF" <<'EOF'
+• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
+  └ Use the custom agent named github-steward. Return GitHub hygiene facts only.
+EOF
+if ERR="$(./aos dev subagent validate-proof --role github-steward --transcript-file "$PREFIX_ONLY_SUBAGENT_PROOF" --json 2>/dev/null)"; then
+    fail "dev subagent validate-proof should reject prefix-only proof"
+else
+    if OUT="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
+assert statuses["registered-role-selection"] == "failed", data
+assert "unsupported prompt prefix" in next(claim["observed"] for claim in data["claims"] if claim["id"] == "registered-role-selection"), data
+PY
+    then
+        pass "dev subagent validate-proof rejects prefix-only proof"
+    else
+        fail "dev subagent validate-proof prefix-only JSON mismatch: $ERR"
+    fi
+fi
+rm -f "$PREFIX_ONLY_SUBAGENT_PROOF"
+
 BAD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-bad.XXXXXX.txt")"
 cat > "$BAD_SUBAGENT_PROOF" <<'EOF'
-The exposed native subagent tool does not show an agent_type parameter in its schema, so I’m preserving the requested agent_type=explorer marker in the child prompt.
+- spawn used agent_type=explorer
 • Spawned 019ea449-73c9-7bc2-af9b-05c94f029e6a (gpt-5.5 xhigh)
-  └ agent_type: explorer
 Default Started
 visible spawned role name: Gibbs
 EOF
@@ -408,7 +439,7 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "failed", data
 statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
-assert statuses["agent-type-explicit"] == "failed", data
+assert statuses["registered-role-selection"] == "failed", data
 assert statuses["no-default-role-evidence"] == "failed", data
 assert statuses["no-foreman-model-inheritance"] == "failed", data
 PY

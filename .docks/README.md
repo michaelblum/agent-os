@@ -73,7 +73,12 @@ markdown instructions.
   `SubagentStart` warning/TTS tripwire. Generic/default helper spawns are
   blocked only at `PreToolUse`; `SubagentStart` can warn and suppress voice for
   already-started bad children, but it cannot stop startup in current Codex.
-  Foreman must select a registered native `agent_type`.
+  Foreman must select a registered native role with structured
+  `agent_type=<role>` when the live spawn tool exposes it. Current
+  `multi_agent_v1` prompt-prefix spawning is not sufficient because it can
+  inherit Foreman's model/effort; if structured `agent_type` is unavailable,
+  Foreman must stop with a subagent-runtime blocker instead of spawning a
+  default child.
 - `.docks/harness/provider-input-control.sh` and
   `.docks/harness/pty-input-control.sh` are legacy terminal-input helpers kept
   for AFK/live-provider substrates until that stack migrates off warm terminal
@@ -163,16 +168,18 @@ or design note and reference it from the handoff.
   Foreman's coordination posture.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
-`docs/design/work-cards/`, a spawn tool argument of `agent_type=gdi`, and a
-concise child prompt:
+`docs/design/work-cards/`, registered role selection for `gdi`, and a concise
+child prompt:
 
 ```text
-follow the instructions in docs/design/work-cards/<card>.md
+Follow the instructions in docs/design/work-cards/<card>.md
 ```
 
 Before broad fan-out, Foreman must smoke one spawned child and verify the
-visible role, voice label, model, and effort match the intended agent config.
-Use `./aos dev subagent plan` before the smoke and
-`./aos dev subagent validate-proof` on the captured transcript after it.
-Naming a role in child prompt prose is not role selection; the spawned agent
-must have the tool argument `agent_type=gdi`; failed proof blocks fan-out.
+registered role selection plus visible model/effort or developer-instruction
+identity evidence from the intended agent config. Use `./aos dev subagent plan`
+before the smoke and `./aos dev subagent validate-proof` on the captured
+transcript after it. Arbitrary role prose is not role selection; use
+structured `agent_type=<role>` when available. Prefix-only prompt text such as
+`Use the custom agent named <role>.` is not a confirmed runtime binding on
+current `multi_agent_v1` and must fail closed. Failed proof blocks fan-out.

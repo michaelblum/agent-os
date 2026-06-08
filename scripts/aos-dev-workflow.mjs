@@ -441,6 +441,20 @@ function tomlStringValue(text, key) {
   return match ? match[1] : null;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function developerInstructionPhrases(text) {
+  const match = text.match(/developer_instructions\s*=\s*"""([\s\S]*?)"""/m);
+  if (!match) return [];
+  return match[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-*]\s+/, '').trim())
+    .filter((line) => line.length >= 20 && line.length <= 180)
+    .filter((line) => !line.includes('```') && !line.includes('"""'));
+}
+
 function loadSubagentCatalog(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const agentsRoot = resolveUnderRepo(options.agents_root, repoRoot, '.codex/agents');
@@ -475,9 +489,12 @@ function loadSubagentRole(options) {
   const foremanConfig = path.join(catalog.repoRoot, '.docks', 'foreman', '.codex', 'config.toml');
   const repoConfigText = fs.existsSync(repoConfig) ? fs.readFileSync(repoConfig, 'utf8') : '';
   const foremanConfigText = fs.existsSync(foremanConfig) ? fs.readFileSync(foremanConfig, 'utf8') : '';
+  const roleConfigPath = path.join(catalog.repoRoot, role.agent_config_path);
+  const roleConfigText = readTextFile(roleConfigPath, 'MISSING_SUBAGENT_CONFIG', 'subagent config');
   return {
     ...catalog,
     role,
+    role_config_text: roleConfigText,
     discovery: {
       native_project_agents_dir: role.agent_config_path === `.codex/agents/${role.role}.toml`,
       repo_root_registration: repoConfigText.includes(`[agents.${role.role}]`) && repoConfigText.includes(`config_file = "agents/${role.role}.toml"`),
@@ -514,18 +531,24 @@ function buildSubagentPlan(options) {
       sandbox_mode: loaded.role.sandbox_mode,
     },
     native_spawn_contract: {
-      agent_type: loaded.role.role,
+      tool_argument: {
+        agent_type: loaded.role.role,
+      },
       prompt,
+      blocked_prompt_prefix: {
+        value: `Use the custom agent named ${loaded.role.role}.`,
+        reason: 'Prompt text is not a confirmed runtime role binding on multi_agent_v1 and can inherit Foreman model/effort.',
+      },
     },
     discovery: loaded.discovery,
     fail_closed_on: [
-      'missing agent_type',
+      'missing registered role selection',
       'default role',
       'Default Started/Stopped voice label',
       'Foreman model/effort inheritance',
-      'unverified visible model/effort',
+      'unverified model/effort or developer-instruction identity evidence',
     ],
-    next: `Spawn the native Codex subagent with agent_type=${loaded.role.role}, then run ./aos dev subagent validate-proof --role ${loaded.role.role} --transcript-file <captured-transcript> --json before broad fan-out.`,
+    next: `Structured agent_type dispatch requires multi_agent_v2. Check whether Codex was launched with multi_agent_v2=true. If not, do NOT spawn using the prompt prefix - emit a subagent-runtime-blocker instead. Run ./aos dev subagent validate-proof only after a multi_agent_v2 confirmed spawn.`,
   };
 }
 
@@ -545,11 +568,17 @@ function buildSubagentProof(options) {
   const role = loaded.role.role;
   const model = loaded.role.model || '';
   const effort = loaded.role.model_reasoning_effort || '';
+  const rolePathName = role.replaceAll('-', '_');
   const rolePatterns = [
     new RegExp(`^\\s*(?:[-•]\\s*)?(?:spawn used|spawn requested with|requested)\\s+agent_type\\s*=\\s*["']?${role}["']?\\b`, 'i'),
+    new RegExp(`/root/${escapeRegExp(rolePathName)}\\b`, 'i'),
   ];
-  const modelPatterns = model ? [new RegExp(model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')] : [];
-  const effortPatterns = effort ? [new RegExp(`\\b${effort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')] : [];
+  const prefixPatterns = [
+    new RegExp(`^\\s*(?:[-•]\\s*)?(?:└\\s*)?(?:Use|Spawn)\\s+(?:exactly\\s+one\\s+)?(?:the\\s+)?custom\\s+agent\\s+named\\s+${escapeRegExp(role)}\\b`, 'i'),
+  ];
+  const modelPatterns = model ? [new RegExp(escapeRegExp(model), 'i')] : [];
+  const effortPatterns = effort ? [new RegExp(`\\b${escapeRegExp(effort)}\\b`, 'i')] : [];
+  const identityPhrases = developerInstructionPhrases(loaded.role_config_text);
   const defaultPatterns = [
     /\bDefault Started\b/i,
     /\bDefault Stopped\b/i,
@@ -562,31 +591,41 @@ function buildSubagentProof(options) {
     /visible spawned model(?: and reasoning effort)?\s*:\s*gpt-5\.5\s*(?:\/|\s)\s*xhigh\b/i,
   ];
   const roleEvidence = lineMatchesAny(lines, rolePatterns);
+  const prefixEvidence = lineMatchesAny(lines, prefixPatterns);
   const modelEvidence = lineMatchesAny(lines, modelPatterns);
   const effortEvidence = lineMatchesAny(lines, effortPatterns);
+  const identityEvidence = lines.filter((line) => identityPhrases.some((phrase) => line.includes(phrase)));
+  const configEvidence = modelEvidence.length && effortEvidence.length ? [...modelEvidence.slice(0, 1), ...effortEvidence.slice(0, 1)] : identityEvidence;
   const defaultEvidence = lineMatchesAny(lines, defaultPatterns);
   const foremanEvidence = lineMatchesAny(lines, foremanInheritancePatterns);
   const claims = [
     {
-      id: 'agent-type-explicit',
-      status: roleEvidence.length ? 'passed' : 'failed',
-      expected: `agent_type=${role}`,
-      observed: roleEvidence[0] || 'missing',
+      id: 'registered-role-selection',
+      status: roleEvidence.length && !foremanEvidence.length ? 'passed' : 'failed',
+      expected: `structured agent_type=${role}; prompt-prefix text is not accepted as role selection`,
+      observed: roleEvidence[0] || (prefixEvidence[0] ? `unsupported prompt prefix: ${prefixEvidence[0]}` : 'missing'),
       evidence: roleEvidence.slice(0, 3),
     },
     {
+      id: 'agent-config-identity',
+      status: configEvidence.length ? 'passed' : 'failed',
+      expected: `visible ${model || 'model'}/${effort || 'effort'} or a developer-instruction identity response`,
+      observed: configEvidence[0] || 'missing',
+      evidence: configEvidence.slice(0, 3),
+    },
+    {
       id: 'expected-model-visible',
-      status: modelEvidence.length ? 'passed' : 'failed',
+      status: modelEvidence.length || identityEvidence.length ? 'passed' : 'failed',
       expected: model || 'declared model',
-      observed: modelEvidence[0] || 'missing',
-      evidence: modelEvidence.slice(0, 3),
+      observed: modelEvidence[0] || (identityEvidence[0] ? `covered by identity smoke: ${identityEvidence[0]}` : 'missing'),
+      evidence: modelEvidence.length ? modelEvidence.slice(0, 3) : identityEvidence.slice(0, 3),
     },
     {
       id: 'expected-effort-visible',
-      status: effortEvidence.length ? 'passed' : 'failed',
+      status: effortEvidence.length || identityEvidence.length ? 'passed' : 'failed',
       expected: effort || 'declared effort',
-      observed: effortEvidence[0] || 'missing',
-      evidence: effortEvidence.slice(0, 3),
+      observed: effortEvidence[0] || (identityEvidence[0] ? `covered by identity smoke: ${identityEvidence[0]}` : 'missing'),
+      evidence: effortEvidence.length ? effortEvidence.slice(0, 3) : identityEvidence.slice(0, 3),
     },
     {
       id: 'no-default-role-evidence',
@@ -612,6 +651,7 @@ function buildSubagentProof(options) {
     agent_config_path: loaded.role.agent_config_path,
     expected: {
       agent_type: role,
+      blocked_prompt_prefix: `Use the custom agent named ${role}.`,
       model,
       model_reasoning_effort: effort,
     },
@@ -622,7 +662,7 @@ function buildSubagentProof(options) {
       failed,
     },
     next: failed
-      ? `Do not fan out. Spawn again with agent_type=${role} and verify the visible model/effort before routing work.`
+      ? `Do not fan out. Structured agent_type dispatch requires multi_agent_v2. Do not retry with the prompt prefix; emit a subagent-runtime-blocker if the live spawn tool lacks agent_type.`
       : 'Subagent role proof accepted for this session; broad fan-out may proceed for the proven role.',
   };
 }
@@ -953,9 +993,10 @@ function printSubagentList(payload) {
 function printSubagentPlan(payload) {
   process.stdout.write(`dev subagent plan: ${payload.role}\n`);
   process.stdout.write(`Agent config: ${payload.agent_config_path}\n`);
-  process.stdout.write(`Expected: agent_type=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
+  process.stdout.write(`Expected: role=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
   process.stdout.write('Native spawn contract:\n');
-  process.stdout.write(`agent_type: ${payload.native_spawn_contract.agent_type}\n`);
+  process.stdout.write(`agent_type: ${payload.native_spawn_contract.tool_argument.agent_type}\n`);
+  process.stdout.write(`blocked_prompt_prefix: ${payload.native_spawn_contract.blocked_prompt_prefix.value}\n`);
   process.stdout.write(`prompt: ${payload.native_spawn_contract.prompt}\n`);
   process.stdout.write(`Next: ${payload.next}\n`);
 }
