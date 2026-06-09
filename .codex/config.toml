@@ -8,6 +8,7 @@ sandbox_mode = "danger-full-access"
 hooks = true
 goals = true
 multi_agent = true
+multi_agent_v2 = true
 js_repl = true
 guardian_approval = true
 prevent_idle_sleep = true
