@@ -30,8 +30,8 @@ description = "Read-only codebase scanner. Maps surfaces, locates patterns, and 
 config_file = "../../../.codex/agents/validator.toml"
 description = "Bounded verification worker. Runs named checks, inspects evidence, and reports pass/fail facts without editing files."
 
-[agents.github-steward]
-config_file = "../../../.codex/agents/github-steward.toml"
+[agents.steward]
+config_file = "../../../.codex/agents/steward.toml"
 description = "Routine Git/GitHub hygiene worker. Reads branch/ref/PR facts, performs explicitly assigned narrow mutations, and returns a compact signal packet."
 
 [agents.reviewer]
