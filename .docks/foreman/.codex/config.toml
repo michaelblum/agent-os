@@ -20,16 +20,7 @@ status_line = ["current-dir", "git-branch", "context-remaining", "model-with-rea
 terminal_title = ["current-dir", "activity", "git-branch", "model"]
 
 [agents]
-max_threads = 6
 max_depth = 1
-
-[agents.gdi]
-config_file = "../../../.codex/agents/gdi.toml"
-description = "Deterministic implementation worker. Executes bounded work-card instructions, runs verification, and reports completion evidence to Foreman."
-
-[agents.operator]
-config_file = "../../../.codex/agents/operator.toml"
-description = "Supervised HITL inspector. Probes live surfaces, evaluates stop conditions, and returns concise evidence to Foreman."
 
 [agents.explorer]
 config_file = "../../../.codex/agents/explorer.toml"
