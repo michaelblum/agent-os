@@ -18,10 +18,10 @@ git -C "$REPO" init -q
 git -C "$REPO" config user.email "dev-situation@example.invalid"
 git -C "$REPO" config user.name "Dev Situation Test"
 mkdir -p "$REPO/.codex/agents" "$REPO/.docks/foreman"
-for role in explorer github-steward reviewer; do
+for role in architect implementer reviewer explorer validator operator steward; do
     printf 'name = "%s"\n' "$role" > "$REPO/.codex/agents/$role.toml"
 done
-printf '%s\n' '# Foreman Subagents' > "$REPO/.docks/foreman/SUBAGENTS.md"
+printf '%s\n' '# Foreman' > "$REPO/.docks/foreman/AGENTS.md"
 printf 'one\n' > "$REPO/file.txt"
 git -C "$REPO" add file.txt .codex .docks
 git -C "$REPO" commit -q -m "initial"
@@ -101,8 +101,8 @@ delegation = data["subagent_delegation"]
 assert delegation["status"] == "active", delegation
 assert delegation["authority"] == "orientation_policy", delegation
 assert delegation["roles_dir"] == ".codex/agents", delegation
-assert delegation["team_doc"] == ".docks/foreman/SUBAGENTS.md", delegation
-assert delegation["registered_roles"] == ["explorer", "github-steward", "reviewer"], delegation
+assert delegation["team_doc"] == ".docks/foreman/AGENTS.md", delegation
+assert delegation["registered_roles"] == ["architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"], delegation
 assert delegation["routing_scope"] == [
     "bounded_specialist_work",
     "routine_git_github_hygiene",

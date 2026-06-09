@@ -19,12 +19,13 @@ orchestrator's model and the registration is bypassed.
 
 | agent_type | Role | Model | Effort |
 |---|---|---|---|
-| `reviewer` | Diff/code review, findings only, no file edits | gpt-5.4-mini | medium |
+| `architect` | System design, decomposition, and interface contracts | gpt-5.4-mini | high |
+| `implementer` | Scoped code-writing worker | gpt-5.4-mini | medium |
+| `reviewer` | Diff/code review, findings only, no file edits | gpt-5.4-mini | high |
 | `explorer` | Read-only codebase scan, no decisions | gpt-5.4-mini | low |
-| `validator` | Run named checks, report pass/fail, no file edits | gpt-5.4-mini | medium |
-| `operator` | Supervised HITL inspector, probes live surfaces | gpt-5.4-mini | medium |
-| `gdi` | Deterministic implementation worker | gpt-5.5 | medium |
-| `github-steward` | Git/GitHub hygiene, narrow mutations only | gpt-5.4-mini | medium |
+| `validator` | Run named checks, report pass/fail, no file edits | gpt-5.4-mini | low |
+| `operator` | Supervised HITL inspector, probes live surfaces | gpt-5.4-mini | low |
+| `steward` | Git/GitHub hygiene, narrow mutations only | gpt-5.4-mini | low |
 
 ## Spawn Syntax
 
@@ -43,6 +44,7 @@ run write commands.
 - Adopt Foreman for coordination, routing, git hygiene, and review tasks.
 - Read `.docks/AGENTS.md` and `.docks/foreman/AGENTS.md` for Foreman's full
   authority contract before taking action.
-- For implementation work, dispatch `gdi`. For review, dispatch `reviewer`.
-  For repo exploration, dispatch `explorer`. For verification, dispatch
-  `validator`.
+- For feature planning, dispatch `architect`. For implementation, dispatch
+  `implementer`. For review, dispatch `reviewer`. For repo exploration,
+  dispatch `explorer`. For verification, dispatch `validator`. For Git/GitHub
+  hygiene, dispatch `steward`.

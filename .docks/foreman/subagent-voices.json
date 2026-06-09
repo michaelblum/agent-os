@@ -6,19 +6,19 @@
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
-  "gdi": {
+  "architect": {
     "voice_slot": 2,
     "gender": "female",
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
-  "operator": {
+  "implementer": {
     "voice_slot": 3,
     "gender": "male",
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
-  "explorer": {
+  "reviewer": {
     "voice_slot": 4,
     "gender": "female",
     "language": "en",
@@ -30,14 +30,32 @@
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
+  "operator": {
+    "voice_slot": 6,
+    "gender": "male",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "explorer": {
+    "voice_slot": 7,
+    "gender": "female",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
+  "steward": {
+    "voice_slot": 8,
+    "gender": "male",
+    "language": "en",
+    "quality_tiers": ["premium", "enhanced"]
+  },
   "auditor": {
-    "voice_slot": 5,
+    "voice_slot": 9,
     "gender": "male",
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
   "_fallback": {
-    "voice_slot": 6,
+    "voice_slot": 10,
     "gender": "",
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]

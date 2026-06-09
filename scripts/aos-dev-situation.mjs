@@ -167,7 +167,7 @@ function setTrace(trace, key, ids) {
 
 function buildSubagentDelegationPolicy(repoRoot) {
   const rolesDir = '.codex/agents';
-  const teamDoc = '.docks/foreman/SUBAGENTS.md';
+  const teamDoc = '.docks/foreman/AGENTS.md';
   const rolesPath = path.join(repoRoot, rolesDir);
   let registeredRoles = [];
   let rolesDirStatus = 'present';

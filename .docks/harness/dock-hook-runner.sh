@@ -382,7 +382,7 @@ state_dir = pathlib.Path(repo_root) / ".runtime" / "dev" / "foreman-subagent-aut
 state_file = state_dir / f"{key}.json" if key else None
 
 authorization_pattern = re.compile(
-    r"^\s*use\s+subagents\s*$",
+    r"^\s*(?:use\s+subagents|authorize\s+registered\s+foreman\s+subagents\s+for\s+this\s+session)\s*$",
     re.IGNORECASE,
 )
 
@@ -412,6 +412,7 @@ if authorization_pattern.search(prompt):
             "scope": "registered_foreman_subagents",
         }, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({
+        "aosForemanStart": True,
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
             "additionalContext": additional_context,
@@ -423,7 +424,8 @@ reason = (
     "Foreman needs session-level authorization to use registered custom "
     "subagents for bounded specialist work before continuing.\n\n"
     "Reply with:\n"
-    "use subagents\n\n"
+    "authorize registered Foreman subagents for this session\n\n"
+    "Short form also accepted: use subagents\n\n"
     "This does not authorize extra file edits, commits, pushes, PRs, merges, "
     "branch deletion, or GitHub mutation beyond the current task and active "
     "workflow profile."
@@ -489,7 +491,36 @@ hook_continue="true"
 system_message=""
 
 if [[ "$phase" == "user-prompt-submit" ]]; then
-  user_prompt_submit_authorization_gate
+  authorization_output="$(user_prompt_submit_authorization_gate)"
+  should_speak_foreman_start="$(python3 - "$authorization_output" <<'PY'
+import json
+import sys
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    print("false")
+    raise SystemExit(0)
+print("true" if payload.get("aosForemanStart") is True else "false")
+PY
+)"
+  if [[ "$should_speak_foreman_start" == "true" && "$voice_enabled" == "true" ]]; then
+    foreman_slot="$(dock_json_value voice.voice_slot "")"
+    foreman_gender="$(dock_json_value voice.gender "")"
+    foreman_language="$(dock_json_value voice.language en)"
+    foreman_start_notice="$(dock_json_value events.start.start_notice "")"
+    if [[ -z "$foreman_start_notice" ]]; then
+      foreman_start_notice="$(dock_json_value start_notice "")"
+    fi
+    if [[ -z "$foreman_start_notice" ]]; then
+      foreman_start_notice="$(dock_json_value voice.start_notice "Foreman ready.")"
+    fi
+    foreman_tiers=()
+    while IFS= read -r tier; do
+      foreman_tiers+=("$tier")
+    done < <(dock_json_array voice.quality_tiers)
+    [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_start_notice"
+  fi
+  printf '%s\n' "$authorization_output"
   exit 0
 
 elif [[ "$phase" == "pre-tool-use" ]]; then

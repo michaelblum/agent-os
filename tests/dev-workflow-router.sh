@@ -325,15 +325,15 @@ data = json.loads(os.environ["OUT"])
 roles = {item["role"]: item for item in data["roles"]}
 assert data["status"] == "success", data
 assert data["agents_root"] == ".codex/agents", data
-assert {"explorer", "gdi", "github-steward", "operator", "reviewer", "validator"} <= set(roles), roles
+assert set(roles) == {"architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"}, roles
 assert roles["explorer"]["model"] == "gpt-5.4-mini", roles["explorer"]
 assert roles["explorer"]["model_reasoning_effort"] == "low", roles["explorer"]
 assert roles["explorer"]["agent_config_path"] == ".codex/agents/explorer.toml", roles["explorer"]
-assert roles["github-steward"]["model"] == "gpt-5.4-mini", roles["github-steward"]
-assert roles["github-steward"]["model_reasoning_effort"] == "low", roles["github-steward"]
-assert roles["github-steward"]["agent_config_path"] == ".codex/agents/github-steward.toml", roles["github-steward"]
-assert roles["reviewer"]["model"] == "gpt-5.4", roles["reviewer"]
-assert roles["reviewer"]["model_reasoning_effort"] == "medium", roles["reviewer"]
+assert roles["steward"]["model"] == "gpt-5.4-mini", roles["steward"]
+assert roles["steward"]["model_reasoning_effort"] == "low", roles["steward"]
+assert roles["steward"]["agent_config_path"] == ".codex/agents/steward.toml", roles["steward"]
+assert roles["reviewer"]["model"] == "gpt-5.4-mini", roles["reviewer"]
+assert roles["reviewer"]["model_reasoning_effort"] == "high", roles["reviewer"]
 assert roles["reviewer"]["agent_config_path"] == ".codex/agents/reviewer.toml", roles["reviewer"]
 assert roles["validator"]["model"] == "gpt-5.4-mini", roles["validator"]
 assert roles["validator"]["model_reasoning_effort"] == "low", roles["validator"]
@@ -350,6 +350,8 @@ import os
 
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
+assert data["subject"] == "subagent-diagnostic-contract", data
+assert data["dispatch_boundary"]["not_a_launcher"] is True, data
 assert data["role"] == "explorer", data
 assert data["expected"]["agent_type"] == "explorer", data
 assert data["expected"]["model"] == "gpt-5.4-mini", data
@@ -364,7 +366,8 @@ assert data["discovery"]["no_dock_local_agent_config"] is True, data
 assert "agent_type" in json.dumps(data), data
 assert "Use the custom agent named explorer." in json.dumps(data), data
 assert "gpt-5.5" not in json.dumps(data["expected"]), data
-assert "do NOT spawn using the prompt prefix" in data["next"], data
+assert "diagnostic output only" in data["next"], data
+assert "do NOT use ./aos dev subagent" in data["next"], data
 PY
 then
     pass "dev subagent plan emits explicit role/model contract"
@@ -376,7 +379,7 @@ GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.tx
 cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
 • Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
 - spawn used agent_type=explorer
-- child developer-instruction identity response: Read files, grep, list, count, and map. Do nothing else.
+- visible spawned model and reasoning effort: gpt-5.4-mini / low
 EOF
 if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'
 import json
@@ -384,6 +387,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
+assert data["dispatch_boundary"]["not_a_launcher"] is True, data
 assert data["summary"]["failed"] == 0, data
 statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
 assert statuses["registered-role-selection"] == "passed", data
@@ -399,9 +403,9 @@ rm -f "$GOOD_SUBAGENT_PROOF"
 PREFIX_ONLY_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-prefix-only.XXXXXX.txt")"
 cat > "$PREFIX_ONLY_SUBAGENT_PROOF" <<'EOF'
 • Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
-  └ Use the custom agent named github-steward. Return GitHub hygiene facts only.
+  └ Use the custom agent named steward. Return GitHub hygiene facts only.
 EOF
-if ERR="$(./aos dev subagent validate-proof --role github-steward --transcript-file "$PREFIX_ONLY_SUBAGENT_PROOF" --json 2>/dev/null)"; then
+if ERR="$(./aos dev subagent validate-proof --role steward --transcript-file "$PREFIX_ONLY_SUBAGENT_PROOF" --json 2>/dev/null)"; then
     fail "dev subagent validate-proof should reject prefix-only proof"
 else
     if OUT="$ERR" python3 - <<'PY'

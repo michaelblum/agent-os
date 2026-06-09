@@ -93,7 +93,7 @@ run_ts           = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 # Reads agent TOML files. Tracks current [section] so that fields inside
 # [model], [sandbox], [behavior] etc. don't collide with top-level fields.
 # Fields extracted:
-#   top-level : name, description, nickname_candidates
+#   top-level : name, description, nickname_candidates, model, model_reasoning_effort
 #   [model]   : name (-> model_name), effort (-> model_effort)
 def parse_agent_toml(text):
     # Collapse multiline strings
@@ -140,8 +140,8 @@ for toml_file in sorted(agents_dir.glob("*.toml")):
             "name":                   name,
             "description":            top.get("description", "").strip(),
             "nickname_candidates":    top.get("nickname_candidates", []),
-            "model_name":             mdl.get("name", ""),
-            "model_effort":           mdl.get("effort", ""),
+            "model_name":             mdl.get("name", top.get("model", "")),
+            "model_effort":           mdl.get("effort", top.get("model_reasoning_effort", "")),
             "source_file":            str(toml_file.resolve()),
             "target_file":            str((local_agents_dir / toml_file.name).resolve()),
         }
@@ -191,7 +191,7 @@ for name, agent in source.items():
         stale      = cfg_path not in raw
         desc_stale = agent["description"] and ('"' + agent["description"] + '"') not in raw
         if stale or desc_stale:
-            pattern = rf'\[agents\.{re.escape(name)}\][^\[]*'
+            pattern = rf'(?ms)^\[agents\.{re.escape(name)}\]\n.*?(?=^\[[A-Za-z_][^\]\n]*\]\s*$|\Z)'
             raw = re.sub(pattern, new_block, raw, flags=re.DOTALL)
             updated.append(name)
         else:

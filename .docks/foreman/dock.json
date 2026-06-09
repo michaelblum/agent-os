@@ -59,10 +59,13 @@
     "subagent_team": {
       "extensible": true,
       "registered_agents": [
-        "gdi",
+        "architect",
+        "implementer",
+        "reviewer",
+        "validator",
         "operator",
         "explorer",
-        "validator"
+        "steward"
       ],
       "model_policy": "native_agent_config_declares_model_and_effort",
       "inherits_foreman_model": false

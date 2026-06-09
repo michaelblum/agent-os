@@ -519,7 +519,12 @@ function buildSubagentPlan(options) {
   if (!prompt || !prompt.trim()) error('dev subagent plan requires --prompt <text> or --prompt-file <path>', 'MISSING_PROMPT');
   return {
     status: 'success',
-    subject: 'subagent-dispatch-contract',
+    subject: 'subagent-diagnostic-contract',
+    dispatch_boundary: {
+      canonical_dispatch: 'Codex spawn_agent with structured agent_type',
+      helper_role: 'diagnostic readback only',
+      not_a_launcher: true,
+    },
     repo: loaded.repoRoot,
     agents_root: loaded.agents_root,
     role: loaded.role.role,
@@ -548,7 +553,7 @@ function buildSubagentPlan(options) {
       'Foreman model/effort inheritance',
       'unverified model/effort or developer-instruction identity evidence',
     ],
-    next: `Structured agent_type dispatch requires multi_agent_v2. Check whether Codex was launched with multi_agent_v2=true. If not, do NOT spawn using the prompt prefix - emit a subagent-runtime-blocker instead. Run ./aos dev subagent validate-proof only after a multi_agent_v2 confirmed spawn.`,
+    next: `This is diagnostic output only. Structured agent_type dispatch belongs to the live Codex spawn_agent tool. If the live spawn tool lacks agent_type, do NOT use ./aos dev subagent or a prompt prefix as a substitute; emit a subagent-runtime-blocker instead. Run ./aos dev subagent validate-proof only after a multi_agent_v2 confirmed spawn.`,
   };
 }
 
@@ -587,8 +592,8 @@ function buildSubagentProof(options) {
     /visible spawned role name:\s*(Default|Gibbs)\b/i,
   ];
   const foremanInheritancePatterns = [
-    /\bSpawned\b.*\(\s*gpt-5\.5\s+xhigh\s*\)/i,
-    /visible spawned model(?: and reasoning effort)?\s*:\s*gpt-5\.5\s*(?:\/|\s)\s*xhigh\b/i,
+    /\bSpawned\b.*\(\s*gpt-5\.5\s+(?:medium|high|xhigh)\s*\)/i,
+    /visible spawned model(?: and reasoning effort)?\s*:\s*gpt-5\.5\s*(?:\/|\s)\s*(?:medium|high|xhigh)\b/i,
   ];
   const roleEvidence = lineMatchesAny(lines, rolePatterns);
   const prefixEvidence = lineMatchesAny(lines, prefixPatterns);
@@ -637,7 +642,7 @@ function buildSubagentProof(options) {
     {
       id: 'no-foreman-model-inheritance',
       status: foremanEvidence.length ? 'failed' : 'passed',
-      expected: 'no gpt-5.5 xhigh spawned child evidence',
+      expected: 'no gpt-5.5 Foreman-model spawned child evidence',
       observed: foremanEvidence[0] || 'none',
       evidence: foremanEvidence.slice(0, 3),
     },
@@ -646,6 +651,11 @@ function buildSubagentProof(options) {
   return {
     status: failed ? 'failed' : 'success',
     subject: 'subagent-proof',
+    dispatch_boundary: {
+      canonical_dispatch: 'Codex spawn_agent with structured agent_type',
+      helper_role: 'post-spawn proof check only',
+      not_a_launcher: true,
+    },
     repo: loaded.repoRoot,
     role,
     agent_config_path: loaded.role.agent_config_path,
@@ -983,7 +993,7 @@ function printDockCapabilities(payload) {
 }
 
 function printSubagentList(payload) {
-  process.stdout.write(`dev subagent roles: ${payload.count}\n`);
+  process.stdout.write(`dev subagent diagnostics: ${payload.count} registered roles\n`);
   process.stdout.write(`Agents root: ${payload.agents_root}\n`);
   for (const role of payload.roles) {
     process.stdout.write(`- ${role.role}: model=${role.model || 'unknown'} effort=${role.model_reasoning_effort || 'unknown'} config=${role.agent_config_path}\n`);
@@ -991,7 +1001,8 @@ function printSubagentList(payload) {
 }
 
 function printSubagentPlan(payload) {
-  process.stdout.write(`dev subagent plan: ${payload.role}\n`);
+  process.stdout.write(`dev subagent diagnostic contract: ${payload.role}\n`);
+  process.stdout.write(`Dispatch boundary: ${payload.dispatch_boundary.canonical_dispatch}; this helper is not a launcher.\n`);
   process.stdout.write(`Agent config: ${payload.agent_config_path}\n`);
   process.stdout.write(`Expected: role=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
   process.stdout.write('Native spawn contract:\n');
@@ -1003,6 +1014,7 @@ function printSubagentPlan(payload) {
 
 function printSubagentProof(payload) {
   process.stdout.write(`dev subagent proof: ${payload.status}\n`);
+  process.stdout.write(`Dispatch boundary: ${payload.dispatch_boundary.canonical_dispatch}; this helper is not a launcher.\n`);
   for (const item of payload.claims) {
     const marker = item.status === 'passed' ? 'PASS' : 'FAIL';
     process.stdout.write(`${marker} ${item.id} expected=${item.expected} observed=${item.observed}\n`);
