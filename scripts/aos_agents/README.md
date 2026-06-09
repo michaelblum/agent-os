@@ -14,6 +14,8 @@ on Codex CLI `multi_agent_v2`.
   `.docks/profiles/*/profile.md` pack.
 - Plans deterministic output directories under `.runtime/dev/aos-agents/`.
 - Provides `--self-test` for parser and path validation without OpenAI calls.
+- Keeps provider execution behind explicit `--execute`.
+- Writes provider results only under the planned runtime directory.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
 Codex config, or installed packages.
@@ -38,6 +40,13 @@ Plan a future provider-backed run:
 python3 scripts/aos_agents/runner.py --role explorer --task "inspect the agent profile inputs"
 ```
 
+Execute a read-only provider-backed run when the SDK and credentials are already
+available in the caller's environment:
+
+```bash
+python3 scripts/aos_agents/runner.py --role explorer --task "inspect the agent profile inputs" --execute
+```
+
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails
-clearly when it is missing. Provider execution is intentionally still a
-skeleton in this slice.
+clearly when it is missing. The runner never installs dependencies; install and
+configure the SDK outside this script.

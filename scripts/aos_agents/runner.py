@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import sys
@@ -226,14 +227,74 @@ def output_dir(root: pathlib.Path, role: str, task: str) -> pathlib.Path:
     return planned
 
 
-def require_openai_agents_sdk() -> None:
+def require_openai_agents_sdk() -> Any:
+    os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
     try:
-        import agents  # noqa: F401
+        import agents
     except ModuleNotFoundError as exc:
         raise RunnerError(
             "OpenAI Agents SDK is not installed. Install it outside this runner before executing "
             "provider-backed runs; --self-test does not require it."
         ) from exc
+    agent_cls = getattr(agents, "Agent", None)
+    runner_cls = getattr(agents, "Runner", None)
+    run_sync = getattr(runner_cls, "run_sync", None)
+    if not callable(agent_cls) or not callable(run_sync):
+        raise RunnerError("OpenAI Agents SDK import succeeded but Agent or Runner.run_sync is unavailable")
+    set_tracing_disabled = getattr(agents, "set_tracing_disabled", None)
+    if callable(set_tracing_disabled):
+        set_tracing_disabled(True)
+    return agents
+
+
+def build_agent_instructions(spec: AgentSpec, active_profile: ActiveProfile) -> str:
+    header = json.dumps(active_profile.header, indent=2, sort_keys=True)
+    packs = "\n\n".join(
+        f"## Profile Pack: {pack.name}\n\n{pack.markdown.strip()}" for pack in active_profile.profile_packs
+    )
+    return "\n\n".join(
+        [
+            f"# AOS Read-Only Agent: {spec.name}",
+            "This run is constrained to read-only reasoning. Do not claim to edit files, run commands, "
+            "mutate git, mutate GitHub, install dependencies, or change runtime state.",
+            "# Role Description",
+            spec.description.strip(),
+            "# Role Instructions",
+            spec.developer_instructions.strip(),
+            "# Active Profile",
+            active_profile.active_profile,
+            "# Active Profile Header",
+            header,
+            "# Active Profile Packs",
+            packs,
+        ]
+    )
+
+
+def execute_provider_run(
+    sdk: Any,
+    spec: AgentSpec,
+    active_profile: ActiveProfile,
+    task: str,
+    max_turns: int,
+) -> dict[str, Any]:
+    agent = sdk.Agent(
+        name=spec.name,
+        instructions=build_agent_instructions(spec, active_profile),
+        model=spec.model or None,
+    )
+    result = sdk.Runner.run_sync(agent, task, max_turns=max_turns)
+    final_output = getattr(result, "final_output", None)
+    if final_output is None:
+        final_output = str(result)
+    return {
+        "final_output": str(final_output),
+        "result_type": type(result).__name__,
+    }
+
+
+def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 def render_summary(root: pathlib.Path, specs: dict[str, AgentSpec], active_profile: ActiveProfile) -> dict[str, Any]:
@@ -295,19 +356,43 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(specs))}")
     if not args.task:
         raise RunnerError("--task is required outside --self-test")
+    if args.max_turns < 1:
+        raise RunnerError("--max-turns must be at least 1")
 
     active_profile = load_active_profile(root)
-    require_openai_agents_sdk()
+    sdk = require_openai_agents_sdk()
     planned_dir = output_dir(root, role, args.task)
     planned_dir.mkdir(parents=True, exist_ok=True)
 
-    return {
+    base_result = {
         "status": "ready",
-        "message": "Provider execution is intentionally not implemented in this skeleton.",
+        "message": "Provider execution is available with --execute.",
         "role": role,
         "agent_spec": str(specs[role].path.relative_to(root)),
         "active_profile": active_profile.active_profile,
         "output_dir": str(planned_dir),
+    }
+    if not args.execute:
+        return base_result
+
+    provider_result = execute_provider_run(sdk, specs[role], active_profile, args.task, args.max_turns)
+    result_path = planned_dir / "result.json"
+    result_doc = {
+        "status": "completed",
+        "role": role,
+        "agent_spec": str(specs[role].path.relative_to(root)),
+        "active_profile": active_profile.active_profile,
+        "task_hash": task_hash(args.task),
+        "max_turns": args.max_turns,
+        **provider_result,
+    }
+    write_json(result_path, result_doc)
+    return {
+        **base_result,
+        "status": "completed",
+        "message": "Provider execution completed.",
+        "result_path": str(result_path),
+        **provider_result,
     }
 
 
@@ -317,6 +402,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--self-test", action="store_true", help="Validate parsing and path behavior without API calls.")
     parser.add_argument("--role", default="explorer", help="Read-only role to plan/run.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
+    parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
+    parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
     return parser.parse_args(argv)
 
 
