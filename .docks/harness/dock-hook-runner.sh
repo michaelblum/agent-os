@@ -465,7 +465,8 @@ speak_slot() {
   local slot="$1" gender="$2" language="$3" text="$5"
   local tiers_name="$4"
   local -a tiers=()
-  eval "tiers=(\"${${tiers_name}[@]}\")"
+  local -n _speak_slot_tiers_ref="$tiers_name"
+  tiers=("${_speak_slot_tiers_ref[@]}")
   [[ -z "$slot" ]] && return 0
   local say_args=("$AOS_BIN" say --voice-slot "$slot")
   [[ -n "$language" ]] && say_args+=(--language "$language")
