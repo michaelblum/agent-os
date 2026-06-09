@@ -65,6 +65,9 @@ This local environment is a live-smoke unblock only. It is not sufficient for
 full native Codex subagent supersession, and it does not establish a
 repo-managed dependency policy.
 
+The M1 read-only parity proof is recorded in
+`docs/dev/reports/aos-agent-runner-m1-read-only-parity-v0.md`.
+
 List or read existing runtime artifacts without invoking the provider:
 
 ```bash
