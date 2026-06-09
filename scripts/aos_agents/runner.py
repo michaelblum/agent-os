@@ -28,6 +28,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on older system Pyth
 READ_ONLY_ROLES = frozenset({"explorer", "reviewer", "validator", "historian"})
 READ_ONLY_SANDBOX_MODE = "read-only"
 RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
+SUMMARY_STATUSES = frozenset({"ready", "completed", "error"})
 
 
 class RunnerError(Exception):
@@ -308,7 +309,24 @@ def summary_doc(
     execute: bool,
     max_turns: int,
     result_path: pathlib.Path | None = None,
+    error: str | None = None,
 ) -> dict[str, Any]:
+    if status not in SUMMARY_STATUSES:
+        allowed = ", ".join(sorted(SUMMARY_STATUSES))
+        raise RunnerError(f"Invalid summary status {status!r}; expected one of: {allowed}")
+    if status == "ready" and execute:
+        raise RunnerError("Ready summary must not be marked as execute")
+    if status in {"completed", "error"} and not execute:
+        raise RunnerError(f"Summary status {status!r} requires execute")
+    if status == "completed" and result_path is None:
+        raise RunnerError("Completed summary requires result_path")
+    if status != "completed" and result_path is not None:
+        raise RunnerError(f"Summary status {status!r} must not include result_path")
+    if status == "error" and not error:
+        raise RunnerError("Error summary requires an error message")
+    if status != "error" and error is not None:
+        raise RunnerError(f"Summary status {status!r} must not include an error message")
+
     doc: dict[str, Any] = {
         "schema_version": 1,
         "status": status,
@@ -323,6 +341,8 @@ def summary_doc(
     }
     if result_path is not None:
         doc["result_path"] = str(result_path)
+    if error is not None:
+        doc["error"] = error
     return doc
 
 
@@ -369,6 +389,24 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
     if first != second:
         raise RunnerError("Output directory planning is not deterministic")
 
+    invalid_summary_rejected = False
+    try:
+        summary_doc(
+            "bogus",
+            root,
+            "explorer",
+            specs["explorer"],
+            active_profile,
+            "same task",
+            first,
+            False,
+            1,
+        )
+    except RunnerError:
+        invalid_summary_rejected = True
+    if not invalid_summary_rejected:
+        raise RunnerError("Summary status validation failed")
+
     summary = render_summary(root, specs, active_profile)
     summary["self_test"] = "pass"
     return summary
@@ -410,8 +448,33 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         return base_result
 
-    provider_result = execute_provider_run(sdk, specs[role], active_profile, args.task, args.max_turns)
     result_path = planned_dir / "result.json"
+    if result_path.exists():
+        if result_path.is_file() or result_path.is_symlink():
+            result_path.unlink()
+        else:
+            raise RunnerError(f"Refusing to replace non-file result path: {result_path}")
+    try:
+        provider_result = execute_provider_run(sdk, specs[role], active_profile, args.task, args.max_turns)
+    except Exception as exc:
+        error_message = f"Provider execution failed: {exc}"
+        write_json(
+            summary_path,
+            summary_doc(
+                "error",
+                root,
+                role,
+                specs[role],
+                active_profile,
+                args.task,
+                planned_dir,
+                True,
+                args.max_turns,
+                error=error_message,
+            ),
+        )
+        raise RunnerError(error_message) from exc
+
     summary = summary_doc(
         "completed",
         root,

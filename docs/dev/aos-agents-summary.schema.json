@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaelblum/agent-os/docs/dev/aos-agents-summary.schema.json",
+  "title": "AOS Agent Runner Summary",
+  "description": "Runtime summary artifact written by scripts/aos_agents/runner.py under .runtime/dev/aos-agents/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "role",
+    "agent_spec",
+    "active_profile",
+    "task_hash",
+    "execute",
+    "max_turns",
+    "output_dir",
+    "summary_path"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["ready", "completed", "error"] },
+    "role": { "enum": ["explorer", "reviewer", "validator", "historian"] },
+    "agent_spec": {
+      "type": "string",
+      "pattern": "^\\.codex/agents/(explorer|reviewer|validator|historian)\\.toml$"
+    },
+    "active_profile": { "type": "string", "minLength": 1 },
+    "task_hash": { "type": "string", "pattern": "^[a-f0-9]{12}$" },
+    "execute": { "type": "boolean" },
+    "max_turns": { "type": "integer", "minimum": 1 },
+    "output_dir": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+$"
+    },
+    "summary_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+/summary\\.json$"
+    },
+    "result_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+/result\\.json$"
+    },
+    "error": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "ready" } }, "required": ["status"] },
+      "then": {
+        "properties": { "execute": { "const": false } },
+        "not": { "anyOf": [{ "required": ["result_path"] }, { "required": ["error"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "completed" } }, "required": ["status"] },
+      "then": {
+        "properties": { "execute": { "const": true } },
+        "required": ["result_path"],
+        "not": { "required": ["error"] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "error" } }, "required": ["status"] },
+      "then": {
+        "properties": { "execute": { "const": true } },
+        "required": ["error"],
+        "not": { "required": ["result_path"] }
+      }
+    }
+  ]
+}

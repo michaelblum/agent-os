@@ -15,6 +15,8 @@ on Codex CLI `multi_agent_v2`.
 - Plans deterministic output directories under `.runtime/dev/aos-agents/`.
 - Provides `--self-test` for parser and path validation without OpenAI calls.
 - Keeps provider execution behind explicit `--execute`.
+- Writes `summary.json` for ready, completed, and provider-error runs under the
+  planned runtime directory.
 - Writes provider results only under the planned runtime directory.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
@@ -50,6 +52,9 @@ available in the caller's environment:
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails
 clearly when it is missing. The runner never installs dependencies; install and
 configure the SDK outside this script.
+
+The `summary.json` artifact contract is documented in
+`docs/dev/aos-agents-summary.schema.json`.
 
 The Python script remains the implementation target and can still be invoked
 directly for focused debugging.

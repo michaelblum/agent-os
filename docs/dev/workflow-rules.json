@@ -184,6 +184,7 @@
       "id": "aos-agent-runner",
       "summary": "Experimental AOS-owned agent runner or command surface changed.",
       "patterns": [
+        "docs/dev/aos-agents-summary.schema.json",
         "scripts/aos_agents/**",
         "tests/aos-agents-runner.sh"
       ],

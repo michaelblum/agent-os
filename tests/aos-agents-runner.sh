@@ -10,9 +10,10 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 FIXTURE="$TMP_ROOT/repo"
 MISSING_SDK="$TMP_ROOT/missing-sdk"
 PRESENT_SDK="$TMP_ROOT/present-sdk"
+FAILING_SDK="$TMP_ROOT/failing-sdk"
 SDK_RECORD="$TMP_ROOT/sdk-record.json"
 AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
-mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK"
+mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
 
 cat >"$MISSING_SDK/agents.py" <<'PY'
 raise ModuleNotFoundError("forced missing agents SDK for aos agent runner test")
@@ -51,6 +52,26 @@ class Runner:
             )
         )
         return Result()
+
+
+def set_tracing_disabled(value):
+    global tracing_disabled
+    tracing_disabled = bool(value)
+PY
+
+cat >"$FAILING_SDK/agents.py" <<'PY'
+tracing_disabled = False
+
+
+class Agent:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class Runner:
+    @staticmethod
+    def run_sync(starting_agent, input, **kwargs):
+        raise RuntimeError("fake provider boom")
 
 
 def set_tracing_disabled(value):
@@ -99,6 +120,28 @@ EOF
 
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+schema = json.loads(Path("docs/dev/aos-agents-summary.schema.json").read_text())
+assert schema["$schema"] == "http://json-schema.org/draft-07/schema#", schema
+assert schema["properties"]["status"]["enum"] == ["ready", "completed", "error"], schema
+assert set(schema["required"]) == {
+    "schema_version",
+    "status",
+    "role",
+    "agent_spec",
+    "active_profile",
+    "task_hash",
+    "execute",
+    "max_turns",
+    "output_dir",
+    "summary_path",
+}, schema
+PY
+pass "summary schema documents the runtime artifact contract"
 
 if SELF_TEST="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --self-test)"; then
     SELF_TEST="$SELF_TEST" FIXTURE="$FIXTURE" python3 - <<'PY'
@@ -225,6 +268,41 @@ PY
     pass "provider execution uses guarded SDK adapter and writes result.json under runtime path"
 else
     fail "provider execution failed with fake SDK"
+fi
+
+ERROR_TASK="provider error task"
+if ERR="$(PYTHONPATH="$FAILING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "$ERROR_TASK" --execute --max-turns 1 2>&1 >/dev/null)"; then
+    fail "provider error path unexpectedly succeeded"
+elif ERR="$ERR" FIXTURE="$FIXTURE" ERROR_TASK="$ERROR_TASK" python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["ERR"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+task = os.environ["ERROR_TASK"]
+task_hash = hashlib.sha256(task.encode("utf-8")).hexdigest()[:12]
+output_dir = fixture / ".runtime/dev/aos-agents/runs/explorer" / f"provider-error-task-{task_hash}"
+summary_path = output_dir / "summary.json"
+result_path = output_dir / "result.json"
+assert data["status"] == "error", data
+assert "Provider execution failed: fake provider boom" in data["error"], data
+assert output_dir.is_dir(), output_dir
+assert summary_path.is_file(), summary_path
+assert not result_path.exists(), result_path
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["schema_version"] == 1, summary_doc
+assert summary_doc["status"] == "error", summary_doc
+assert summary_doc["execute"] is True, summary_doc
+assert summary_doc["task_hash"] == task_hash, summary_doc
+assert summary_doc["error"] == data["error"], summary_doc
+assert "result_path" not in summary_doc, summary_doc
+PY
+then
+    pass "provider execution errors write summary.json and no result.json"
+else
+    fail "provider error path did not produce clear JSON and error summary"
 fi
 
 if AOS_SELF_TEST="$(./aos dev agents --self-test --json)"; then
