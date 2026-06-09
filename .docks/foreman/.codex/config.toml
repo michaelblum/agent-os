@@ -11,6 +11,7 @@ hide_full_access_warning = true
 hooks = true
 goals = true
 multi_agent = true
+multi_agent_v2 = true
 js_repl = true
 guardian_approval = true
 prevent_idle_sleep = true
@@ -30,8 +31,8 @@ description = "Read-only codebase scanner. Maps surfaces, locates patterns, and 
 config_file = "../../../.codex/agents/validator.toml"
 description = "Bounded verification worker. Runs named checks, inspects evidence, and reports pass/fail facts without editing files."
 
-[agents.steward]
-config_file = "../../../.codex/agents/steward.toml"
+[agents.github-steward]
+config_file = "../../../.codex/agents/github-steward.toml"
 description = "Routine Git/GitHub hygiene worker. Reads branch/ref/PR facts, performs explicitly assigned narrow mutations, and returns a compact signal packet."
 
 [agents.reviewer]
