@@ -89,47 +89,59 @@ local_agents_dir = pathlib.Path(sys.argv[3])
 dry_run          = sys.argv[4] == "true"
 run_ts           = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
-# ── Minimal TOML parser — handles the exact fields in agent TOMLs ────────────
-# Supports: bare string values, quoted strings, inline arrays of quoted strings,
-# and multiline strings ("""..."""). Skips [section] headers and comments.
+# ── Section-aware TOML parser ───────────────────────────────────────────────────
+# Reads agent TOML files. Tracks current [section] so that fields inside
+# [model], [sandbox], [behavior] etc. don't collide with top-level fields.
+# Fields extracted:
+#   top-level : name, description, nickname_candidates
+#   [model]   : name (-> model_name), effort (-> model_effort)
 def parse_agent_toml(text):
-    data = {}
-    # Normalise multiline strings: collapse """...""" to a single quoted value
-    text = re.sub(r'"""(.*?)"""', lambda m: '"' + m.group(1).replace('\n', ' ').strip() + '"',
+    # Collapse multiline strings
+    text = re.sub(r'"""(.*?)"""',
+                  lambda m: '"' + m.group(1).replace('\n', ' ').strip() + '"',
                   text, flags=re.DOTALL)
+    section = None
+    top   = {}   # top-level keys
+    model = {}   # [model] section keys
     for line in text.splitlines():
         line = line.strip()
-        if not line or line.startswith('#') or line.startswith('['):
+        if not line or line.startswith('#'):
             continue
-        m = re.match(r'^(\w[\w_-]*)\s*=\s*(.+)$', line)
+        # Section header
+        sh = re.match(r'^\[([\w.]+)\]$', line)
+        if sh:
+            section = sh.group(1)
+            continue
+        m = re.match(r'^([\w_-]+)\s*=\s*(.+)$', line)
         if not m:
             continue
         key, val = m.group(1), m.group(2).strip()
-        # Inline array: ["a", "b", ...]
+        # Parse value
         if val.startswith('['):
-            items = re.findall(r'"([^"]+)"', val)
-            data[key] = items
-        # Quoted string
+            parsed = re.findall(r'"([^"]+)"', val)
         elif val.startswith('"'):
-            data[key] = re.sub(r'^"(.*)"$', r'\1', val)
-        # Bare value (numbers, booleans, unquoted strings)
+            parsed = re.sub(r'^"(.*)"$', r'\1', val)
         else:
-            data[key] = val
-    return data
+            parsed = val
+        if section is None:
+            top[key] = parsed
+        elif section == 'model':
+            model[key] = parsed
+    return top, model
 
 # ── Read source agent TOMLs ──────────────────────────────────────────────────
 source = {}
 for toml_file in sorted(agents_dir.glob("*.toml")):
     try:
-        text = toml_file.read_text()
-        data = parse_agent_toml(text)
-        name = data.get("name") or toml_file.stem
+        text     = toml_file.read_text()
+        top, mdl = parse_agent_toml(text)
+        name     = top.get("name") or toml_file.stem
         source[name] = {
             "name":                   name,
-            "description":            data.get("description", "").strip(),
-            "nickname_candidates":    data.get("nickname_candidates", []),
-            "model":                  data.get("model", ""),
-            "model_reasoning_effort": data.get("model_reasoning_effort", ""),
+            "description":            top.get("description", "").strip(),
+            "nickname_candidates":    top.get("nickname_candidates", []),
+            "model_name":             mdl.get("name", ""),
+            "model_effort":           mdl.get("effort", ""),
             "source_file":            str(toml_file.resolve()),
             "target_file":            str((local_agents_dir / toml_file.name).resolve()),
         }
@@ -205,7 +217,7 @@ telem = {
     "agent_sync_telemetry": {
         "run_at":           run_ts,
         "dry_run":          dry_run,
-        "agent_os_path":    str(agents_dir.parent.parent),
+        "agent_os_path":    str(agents_dir.parent.parent.parent),
         "source_dir":       str(agents_dir),
         "global_config":    str(global_cfg),
         "local_agents_dir": str(local_agents_dir),
@@ -217,7 +229,9 @@ telem = {
             "noticed": noticed,
         },
         "toml_files": [
-            {"agent": name, "action": action, "path": path}
+            {"agent": name, "action": action, "path": path,
+             "model": source[name]["model_name"],
+             "effort": source[name]["model_effort"]}
             for name, action, path in toml_results
         ],
         "errors": [],
