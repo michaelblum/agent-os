@@ -19,7 +19,7 @@ commands as a role-selection fallback.
 
 The Foreman hooks provide:
 
-- first-prompt authorization context for subagent use;
+- quiet first-prompt session initialization and Foreman start TTS;
 - a PreToolUse guard that blocks missing, default, or unknown `agent_type`
   spawn attempts and requires the v2 `task_name` label;
 - TTS for Foreman start/stop and subagent start/stop events.

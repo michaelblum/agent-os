@@ -112,9 +112,9 @@ assert delegation["routing_scope"] == [
     "implementation",
 ], delegation
 assert delegation["standing_authorization_intent"] is True, delegation
-assert delegation["ask_user_if_runtime_requires_turn_authorization"] is True, delegation
+assert delegation["ask_user_if_runtime_requires_turn_authorization"] is False, delegation
 assert delegation["fail_closed_without_registered_role"] is True, delegation
-assert delegation["fail_closed_without_session_authorization"] is True, delegation
+assert delegation["fail_closed_without_session_authorization"] is False, delegation
 assert delegation["direct_specialist_fallback_allowed"] is False, delegation
 assert delegation["extra_mutation_authorized"] is False, delegation
 for removed_key in ["standing_user_intent", "runtime_gate", "fail_closed", "authorization_scope"]:

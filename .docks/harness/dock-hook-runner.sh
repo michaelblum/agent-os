@@ -360,7 +360,7 @@ print("ok\t")
 PY
 }
 
-user_prompt_submit_authorization_gate() {
+user_prompt_submit_session_start() {
   python3 - "$HOOK_INPUT" "$REPO_ROOT" <<'PY'
 import hashlib
 import json
@@ -391,58 +391,21 @@ key = session_key()
 state_dir = pathlib.Path(repo_root) / ".runtime" / "dev" / "foreman-subagent-authorization"
 state_file = state_dir / f"{key}.json" if key else None
 
-authorization_pattern = re.compile(
-    r"^\s*(?:use\s+subagents|authorize\s+registered\s+foreman\s+subagents\s+for\s+this\s+session)\s*$",
-    re.IGNORECASE,
-)
-
-additional_context = (
-    "Foreman subagent session authorization is active. Use registered custom "
-    "subagents for bounded specialist work; do not fall back to direct "
-    "Foreman execution for routable specialist work."
-)
-
 if state_file and state_file.is_file():
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit",
-            "additionalContext": additional_context,
-        },
-    }))
+    print(json.dumps({"foremanStart": False}))
     raise SystemExit(0)
 
-if authorization_pattern.search(prompt):
-    if state_file:
-        state_dir.mkdir(parents=True, exist_ok=True)
-        state_file.write_text(json.dumps({
-            "status": "authorized",
-            "session_id": session_id or None,
-            "transcript_path": transcript_path or None,
-            "authorized_at": datetime.now(timezone.utc).isoformat(),
-            "scope": "registered_foreman_subagents",
-        }, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit",
-            "additionalContext": additional_context,
-        },
-    }))
-    raise SystemExit(0)
-
-reason = (
-    "Foreman needs session-level authorization to use registered custom "
-    "subagents for bounded specialist work before continuing.\n\n"
-    "Reply with:\n"
-    "authorize registered Foreman subagents for this session\n\n"
-    "Short form also accepted: use subagents\n\n"
-    "This does not authorize extra file edits, commits, pushes, PRs, merges, "
-    "branch deletion, or GitHub mutation beyond the current task and active "
-    "workflow profile."
-)
-print(json.dumps({
-    "decision": "block",
-    "reason": reason,
-}))
+if state_file:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps({
+        "status": "authorized",
+        "session_id": session_id or None,
+        "transcript_path": transcript_path or None,
+        "authorized_at": datetime.now(timezone.utc).isoformat(),
+        "scope": "registered_foreman_subagents",
+        "mode": "automatic_foreman_session",
+    }, indent=2) + "\n", encoding="utf-8")
+print(json.dumps({"foremanStart": True}))
 PY
 }
 
@@ -500,25 +463,16 @@ hook_continue="true"
 system_message=""
 
 if [[ "$phase" == "user-prompt-submit" ]]; then
-  authorization_output="$(user_prompt_submit_authorization_gate)"
-  should_speak_foreman_start="$(python3 - "$HOOK_INPUT" "$authorization_output" <<'PY'
+  session_start_output="$(user_prompt_submit_session_start)"
+  should_speak_foreman_start="$(python3 - "$session_start_output" <<'PY'
 import json
-import re
 import sys
 try:
-    hook_input = json.loads(sys.argv[1]) if sys.argv[1].strip() else {}
-    payload = json.loads(sys.argv[2])
+    payload = json.loads(sys.argv[1])
 except Exception:
     print("false")
     raise SystemExit(0)
-prompt = str(hook_input.get("prompt") or "")
-is_authorization_prompt = re.fullmatch(
-    r"\s*(?:use\s+subagents|authorize\s+registered\s+foreman\s+subagents\s+for\s+this\s+session)\s*",
-    prompt,
-    re.IGNORECASE,
-) is not None
-has_context = payload.get("hookSpecificOutput", {}).get("hookEventName") == "UserPromptSubmit"
-print("true" if is_authorization_prompt and has_context else "false")
+print("true" if payload.get("foremanStart") is True else "false")
 PY
 )"
   if [[ "$should_speak_foreman_start" == "true" && "$voice_enabled" == "true" ]]; then
@@ -538,7 +492,6 @@ PY
     done < <(dock_json_array voice.quality_tiers)
     [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_start_notice"
   fi
-  printf '%s\n' "$authorization_output"
   exit 0
 
 elif [[ "$phase" == "pre-tool-use" ]]; then

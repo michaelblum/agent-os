@@ -197,9 +197,9 @@ function buildSubagentDelegationPolicy(repoRoot) {
       'implementation',
     ],
     standing_authorization_intent: true,
-    ask_user_if_runtime_requires_turn_authorization: true,
+    ask_user_if_runtime_requires_turn_authorization: false,
     fail_closed_without_registered_role: true,
-    fail_closed_without_session_authorization: true,
+    fail_closed_without_session_authorization: false,
     direct_specialist_fallback_allowed: false,
     extra_mutation_authorized: false,
     source_status: {

@@ -117,27 +117,29 @@ exit 0
 SH
 chmod +x "$fake_aos"
 
-authorized_prompt_payload='{"session_id":"dock-hook-test-subagent-auth","hook_event_name":"UserPromptSubmit","prompt":"authorize registered Foreman subagents for this session"}'
+authorized_prompt_payload='{"session_id":"dock-hook-test-subagent-auth","hook_event_name":"UserPromptSubmit","prompt":"Run the first real task without a subagent authorization ritual."}'
 out="$(printf '%s' "$authorized_prompt_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/user-prompt-submit.sh")"
 python3 - "$out" "$auth_marker" <<'PY'
-import json
 import pathlib
 import sys
-payload = json.loads(sys.argv[1])
+stdout = sys.argv[1]
 marker = pathlib.Path(sys.argv[2])
-if set(payload) != {"hookSpecificOutput"}:
-    raise SystemExit(f"FAIL: authorization output contains non-hook keys, got {payload}")
-hook_output = payload.get("hookSpecificOutput", {})
-if hook_output.get("hookEventName") != "UserPromptSubmit":
-    raise SystemExit(f"FAIL: expected UserPromptSubmit context, got {payload}")
+if stdout:
+    raise SystemExit(f"FAIL: UserPromptSubmit should be quiet after auto-authorizing, got {stdout!r}")
 if not marker.exists():
-    raise SystemExit("FAIL: authorization marker was not created")
+    raise SystemExit("FAIL: automatic authorization marker was not created")
 PY
 grep -q 'ARGV:say --voice-slot 1 .*Foreman ready.' "$log_file" || {
   echo "FAIL: missing Foreman start voice call" >&2
   cat "$log_file" >&2
   exit 1
 }
+
+out="$(printf '%s' "$authorized_prompt_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/user-prompt-submit.sh")"
+if [[ -n "$out" ]]; then
+  echo "FAIL: repeated UserPromptSubmit should stay quiet, got $out" >&2
+  exit 1
+fi
 
 missing_agent_type_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"prompt":"Read-only helper task. Do not edit files."}}'
 out="$(printf '%s' "$missing_agent_type_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
