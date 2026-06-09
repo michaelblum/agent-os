@@ -8,6 +8,7 @@ on Codex CLI `multi_agent_v2`.
 
 - Loads read-only role specs from `.codex/agents/*.toml`.
 - Allows only `explorer`, `reviewer`, `validator`, and `historian`.
+- Requires each allowed role spec to declare `sandbox_mode = "read-only"`.
 - Rejects write-capable roles such as `implementer`.
 - Loads `.docks/profiles/active-profile.json` and each listed
   `.docks/profiles/*/profile.md` pack.
@@ -23,6 +24,12 @@ Validate local parsing and path behavior:
 
 ```bash
 python3 scripts/aos_agents/runner.py --self-test
+```
+
+Run the focused regression harness:
+
+```bash
+bash tests/aos-agents-runner.sh
 ```
 
 Plan a future provider-backed run:

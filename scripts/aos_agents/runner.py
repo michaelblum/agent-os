@@ -25,6 +25,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on older system Pyth
 
 
 READ_ONLY_ROLES = frozenset({"explorer", "reviewer", "validator", "historian"})
+READ_ONLY_SANDBOX_MODE = "read-only"
 RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
 
 
@@ -141,6 +142,11 @@ def load_agent_spec(path: pathlib.Path) -> AgentSpec:
         raise RunnerError(f"{path} has invalid model_reasoning_effort")
     if sandbox_mode is not None and not isinstance(sandbox_mode, str):
         raise RunnerError(f"{path} has invalid sandbox_mode")
+    if sandbox_mode != READ_ONLY_SANDBOX_MODE:
+        raise RunnerError(
+            f"{path} must declare sandbox_mode = {READ_ONLY_SANDBOX_MODE!r} "
+            "for the experimental read-only runner"
+        )
 
     return AgentSpec(
         name=name,
@@ -200,7 +206,7 @@ def load_active_profile(root: pathlib.Path) -> ActiveProfile:
 
 
 def slug(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip().lower()).strip("-")
+    normalized = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip().lower()).strip("-._")
     return normalized or "task"
 
 
@@ -211,7 +217,13 @@ def task_hash(task: str) -> str:
 def output_dir(root: pathlib.Path, role: str, task: str) -> pathlib.Path:
     if role not in READ_ONLY_ROLES:
         raise RunnerError(f"Role {role!r} is not enabled in the experimental read-only runner")
-    return root / RUNTIME_ROOT / "runs" / role / f"{slug(task)[:48]}-{task_hash(task)}"
+    runtime_root = (root / RUNTIME_ROOT).resolve()
+    planned = (runtime_root / "runs" / role / f"{slug(task)[:48]}-{task_hash(task)}").resolve(strict=False)
+    try:
+        planned.relative_to(runtime_root)
+    except ValueError as exc:
+        raise RunnerError(f"Planned output path escaped runtime root: {planned}") from exc
+    return planned
 
 
 def require_openai_agents_sdk() -> None:
@@ -278,13 +290,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return self_test(root)
 
     specs = load_agent_specs(root)
-    active_profile = load_active_profile(root)
     role = args.role
     if role not in specs:
         raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(specs))}")
     if not args.task:
         raise RunnerError("--task is required outside --self-test")
 
+    active_profile = load_active_profile(root)
     require_openai_agents_sdk()
     planned_dir = output_dir(root, role, args.task)
     planned_dir.mkdir(parents=True, exist_ok=True)
