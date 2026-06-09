@@ -347,8 +347,19 @@ assert result_doc["patch_path"] == str(patch_path), result_doc
 assert result_doc["touched_paths"] == ["docs/example.md"], result_doc
 record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
 assert record["agent"]["name"] == "implementer", record
-assert "Patch-Only Output Contract" in record["agent"]["instructions"], record
-assert "Return only a unified diff patch" in record["agent"]["instructions"], record
+instructions = record["agent"]["instructions"]
+assert "Patch-Only Output Contract" in instructions, record
+assert "Return a true unified diff only" in instructions, record
+assert "overrides any role instruction to include IMPLEMENTER DONE" in instructions, record
+assert "must start with `diff --git a/... b/...`" in instructions, record
+assert "include `--- a/...`" in instructions, record
+assert "include `+++ b/...`" in instructions, record
+assert "include `@@` hunks" in instructions, record
+assert "no `*** Begin Patch`" in instructions, record
+assert "no `*** Update File`" in instructions, record
+assert "no `apply_patch`" in instructions, record
+assert "Do not include prose before or after the diff" in instructions, record
+assert "Do not wrap the diff in Markdown fences" in instructions, record
 assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
 assert not (fixture / "docs" / "example.md").exists()
 PY

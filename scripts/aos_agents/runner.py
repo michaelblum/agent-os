@@ -390,9 +390,15 @@ def build_patch_output_instructions(spec: AgentSpec, active_profile: ActiveProfi
         [
             base,
             "# Patch-Only Output Contract",
-            "Return only a unified diff patch. Do not edit files, run commands, apply patches, mutate git, "
-            "mutate GitHub, install dependencies, or change runtime state. The runner will save your final "
-            "answer as patch.diff for Foreman review; Foreman applies nothing automatically.",
+            "This contract overrides any role instruction to include IMPLEMENTER DONE, summaries, or file-change "
+            "prose. Return a true unified diff only. Your final answer must start with "
+            "`diff --git a/... b/...`, include `--- a/...`, include `+++ b/...`, and include `@@` hunks.",
+            "Do not edit files, run commands, apply patches, mutate git, mutate GitHub, install dependencies, "
+            "or change runtime state. The runner will save your final answer as patch.diff for Foreman review; "
+            "Foreman applies nothing automatically.",
+            "Never output an apply_patch envelope or patch-tool syntax: no `*** Begin Patch`, no "
+            "`*** Update File`, and no `apply_patch`. Do not include prose before or after the diff. "
+            "Do not wrap the diff in Markdown fences.",
         ]
     )
 
