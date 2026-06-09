@@ -1,17 +1,6 @@
-# operator — Codex provider manifest
-# Source of truth: ai-agents/agents/operator.md
-
-name        = "operator"
-description = "Runs and coordinates multi-agent workflows. Manages sequencing, handoffs, and overall task completion against a plan."
-nickname_candidates = ["Operator", "Foreman", "Coordinator"]
-
-[model]
-name   = "gpt-5.5"
-effort = "medium"
-
-[sandbox]
-mode = "workspace-write"
-
-[behavior]
-orchestrator = true
-can_spawn    = true
+name                   = "operator"
+model                  = "gpt-5.5"
+model_reasoning_effort = "medium"
+description            = "Runs and coordinates multi-agent workflows. Manages sequencing, handoffs, and overall task completion against a plan."
+nickname_candidates    = ["Operator", "Foreman", "Coordinator"]
+developer_instructions = "You are Operator. Coordinate agent dispatch, manage sequencing and handoffs, and ensure task completion against the plan."
