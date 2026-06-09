@@ -25,7 +25,7 @@ Codex config, or installed packages.
 Validate local parsing and path behavior:
 
 ```bash
-python3 scripts/aos_agents/runner.py --self-test
+./aos dev agents --self-test --json
 ```
 
 Run the focused regression harness:
@@ -37,16 +37,19 @@ bash tests/aos-agents-runner.sh
 Plan a future provider-backed run:
 
 ```bash
-python3 scripts/aos_agents/runner.py --role explorer --task "inspect the agent profile inputs"
+./aos dev agents --role explorer --task "inspect the agent profile inputs" --json
 ```
 
 Execute a read-only provider-backed run when the SDK and credentials are already
 available in the caller's environment:
 
 ```bash
-python3 scripts/aos_agents/runner.py --role explorer --task "inspect the agent profile inputs" --execute
+./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --json
 ```
 
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails
 clearly when it is missing. The runner never installs dependencies; install and
 configure the SDK outside this script.
+
+The Python script remains the implementation target and can still be invoked
+directly for focused debugging.

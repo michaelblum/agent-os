@@ -181,6 +181,42 @@
       "verification": []
     },
     {
+      "id": "aos-agent-runner",
+      "summary": "Experimental AOS-owned agent runner or command surface changed.",
+      "patterns": [
+        "scripts/aos_agents/**",
+        "tests/aos-agents-runner.sh"
+      ],
+      "classes": [
+        "agent_runner",
+        "command_contract"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "aos-agents-runner",
+          "command": "bash tests/aos-agents-runner.sh",
+          "reason": "Verify read-only role enforcement, SDK-missing behavior, runtime artifacts, and ./aos dev agents routing."
+        },
+        {
+          "id": "dev-workflow-router-test",
+          "command": "bash tests/dev-workflow-router.sh",
+          "reason": "Verify the dev command surface exposes and routes ./aos dev agents."
+        },
+        {
+          "id": "dev-audit-test",
+          "command": "bash tests/dev-audit.sh",
+          "reason": "Verify the dev grammar audit includes the agents command surface."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "command-surface-implementations",
       "summary": "Hot-swappable external command implementation changed.",
       "patterns": [

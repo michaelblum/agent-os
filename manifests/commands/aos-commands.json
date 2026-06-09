@@ -6734,6 +6734,89 @@
         {
           "args" : [
             {
+              "id" : "self-test",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate role/profile parsing without SDK or provider calls",
+              "token" : "--self-test",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "role",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Read-only role to plan or execute: explorer, reviewer, validator, or historian",
+              "token" : "--role",
+              "value_type" : "string"
+            },
+            {
+              "id" : "task",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Task text for path planning and optional provider execution",
+              "token" : "--task",
+              "value_type" : "string"
+            },
+            {
+              "id" : "execute",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Run the provider-backed agent after validation",
+              "token" : "--execute",
+              "value_type" : "bool"
+            },
+            {
+              "default_value" : 1,
+              "id" : "max-turns",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum provider turns for --execute",
+              "token" : "--max-turns",
+              "value_type" : "int"
+            },
+            {
+              "id" : "repo",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repository root path",
+              "token" : "--repo",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Accepted for command-surface consistency; output is JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos dev agents --self-test --json",
+            "aos dev agents --role explorer --task \"inspect the active profile\" --json",
+            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "dev-agents",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos dev agents [--self-test] [--role <role>] [--task <text>] [--execute] [--max-turns n] [--repo <path>] [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "action",
               "kind" : "positional",
               "required" : true,

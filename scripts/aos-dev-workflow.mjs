@@ -848,7 +848,7 @@ function auditRegistryClaims(repoRoot) {
     return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-subagent', 'dev-gh'];
+  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-agents', 'dev-subagent', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
     claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
@@ -862,6 +862,7 @@ function auditRegistryClaims(repoRoot) {
     auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
     auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
     auditFormFlagClaim('dev-docks-help-flags', forms.get('dev-docks'), ['--dock-root', '--capabilities-manifest', '--entry-path', '--repo', '--json'], false),
+    auditFormFlagClaim('dev-agents-help-flags', forms.get('dev-agents'), ['--self-test', '--role', '--task', '--execute', '--max-turns', '--repo', '--json'], false),
     auditFormFlagClaim('dev-subagent-help-flags', forms.get('dev-subagent'), ['--repo', '--agents-root', '--role', '--prompt', '--prompt-file', '--transcript', '--transcript-file', '--json'], false),
     auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
   ];

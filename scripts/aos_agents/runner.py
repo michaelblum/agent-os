@@ -297,6 +297,35 @@ def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
+def summary_doc(
+    status: str,
+    root: pathlib.Path,
+    role: str,
+    spec: AgentSpec,
+    active_profile: ActiveProfile,
+    task: str,
+    planned_dir: pathlib.Path,
+    execute: bool,
+    max_turns: int,
+    result_path: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    doc: dict[str, Any] = {
+        "schema_version": 1,
+        "status": status,
+        "role": role,
+        "agent_spec": str(spec.path.relative_to(root)),
+        "active_profile": active_profile.active_profile,
+        "task_hash": task_hash(task),
+        "execute": execute,
+        "max_turns": max_turns,
+        "output_dir": str(planned_dir),
+        "summary_path": str(planned_dir / "summary.json"),
+    }
+    if result_path is not None:
+        doc["result_path"] = str(result_path)
+    return doc
+
+
 def render_summary(root: pathlib.Path, specs: dict[str, AgentSpec], active_profile: ActiveProfile) -> dict[str, Any]:
     sample_task = "self test path behavior"
     return {
@@ -364,6 +393,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     planned_dir = output_dir(root, role, args.task)
     planned_dir.mkdir(parents=True, exist_ok=True)
 
+    summary_path = planned_dir / "summary.json"
     base_result = {
         "status": "ready",
         "message": "Provider execution is available with --execute.",
@@ -371,12 +401,29 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "agent_spec": str(specs[role].path.relative_to(root)),
         "active_profile": active_profile.active_profile,
         "output_dir": str(planned_dir),
+        "summary_path": str(summary_path),
     }
     if not args.execute:
+        write_json(
+            summary_path,
+            summary_doc("ready", root, role, specs[role], active_profile, args.task, planned_dir, False, args.max_turns),
+        )
         return base_result
 
     provider_result = execute_provider_run(sdk, specs[role], active_profile, args.task, args.max_turns)
     result_path = planned_dir / "result.json"
+    summary = summary_doc(
+        "completed",
+        root,
+        role,
+        specs[role],
+        active_profile,
+        args.task,
+        planned_dir,
+        True,
+        args.max_turns,
+        result_path,
+    )
     result_doc = {
         "status": "completed",
         "role": role,
@@ -387,6 +434,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         **provider_result,
     }
     write_json(result_path, result_doc)
+    write_json(summary_path, summary)
     return {
         **base_result,
         "status": "completed",
@@ -398,12 +446,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Experimental AOS-owned Python agent runner")
-    parser.add_argument("--repo-root", help="Repo root override. Defaults to walking up from cwd.")
+    parser.add_argument("--repo-root", "--repo", dest="repo_root", help="Repo root override. Defaults to walking up from cwd.")
     parser.add_argument("--self-test", action="store_true", help="Validate parsing and path behavior without API calls.")
     parser.add_argument("--role", default="explorer", help="Read-only role to plan/run.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
+    parser.add_argument("--json", action="store_true", help="Accepted for ./aos dev command-surface consistency.")
     return parser.parse_args(argv)
 
 

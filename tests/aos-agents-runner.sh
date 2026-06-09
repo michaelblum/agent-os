@@ -11,6 +11,7 @@ FIXTURE="$TMP_ROOT/repo"
 MISSING_SDK="$TMP_ROOT/missing-sdk"
 PRESENT_SDK="$TMP_ROOT/present-sdk"
 SDK_RECORD="$TMP_ROOT/sdk-record.json"
+AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
 mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK"
 
 cat >"$MISSING_SDK/agents.py" <<'PY'
@@ -165,9 +166,16 @@ data = json.loads(os.environ["READY"])
 fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 output_dir = Path(data["output_dir"])
+summary_path = Path(data["summary_path"])
 assert data["status"] == "ready", data
 assert output_dir.is_dir(), output_dir
 assert output_dir.is_relative_to(runtime_root), output_dir
+assert summary_path == output_dir / "summary.json", data
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["schema_version"] == 1, summary_doc
+assert summary_doc["status"] == "ready", summary_doc
+assert summary_doc["execute"] is False, summary_doc
+assert summary_doc["task_hash"] == "64375183f2e5", summary_doc
 assert ".." not in output_dir.name, output_dir
 assert output_dir.name == "unsafe-output-task-64375183f2e5", output_dir
 assert not (output_dir / "result.json").exists(), output_dir
@@ -188,11 +196,18 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 output_dir = Path(data["output_dir"])
 result_path = Path(data["result_path"])
+summary_path = Path(data["summary_path"])
 assert data["status"] == "completed", data
 assert data["final_output"] == "fake provider final output", data
 assert output_dir.is_dir(), output_dir
 assert output_dir.is_relative_to(runtime_root), output_dir
 assert result_path == output_dir / "result.json", data
+assert summary_path == output_dir / "summary.json", data
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["schema_version"] == 1, summary_doc
+assert summary_doc["status"] == "completed", summary_doc
+assert summary_doc["execute"] is True, summary_doc
+assert summary_doc["result_path"] == str(result_path), summary_doc
 result_doc = json.loads(result_path.read_text())
 assert result_doc["status"] == "completed", result_doc
 assert result_doc["final_output"] == "fake provider final output", result_doc
@@ -210,6 +225,67 @@ PY
     pass "provider execution uses guarded SDK adapter and writes result.json under runtime path"
 else
     fail "provider execution failed with fake SDK"
+fi
+
+if AOS_SELF_TEST="$(./aos dev agents --self-test --json)"; then
+    AOS_SELF_TEST="$AOS_SELF_TEST" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["AOS_SELF_TEST"])
+assert data["self_test"] == "pass", data
+assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
+PY
+    pass "./aos dev agents routes self-test through the external command surface"
+else
+    fail "./aos dev agents self-test route failed"
+fi
+
+if ERR="$(./aos dev agents --role implementer --task "write check" --json 2>&1 >/dev/null)"; then
+    fail "./aos dev agents implementer rejection unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "Role 'implementer' is not enabled" in data["error"], data
+PY
+then
+    pass "./aos dev agents rejects write-capable roles before SDK checks"
+else
+    fail "./aos dev agents implementer rejection error was not clear JSON"
+fi
+
+if AOS_EXECUTED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" ./aos dev agents --role explorer --task "execute through aos command surface" --execute --max-turns 1 --json)"; then
+    AOS_EXECUTED="$AOS_EXECUTED" SDK_RECORD="$SDK_RECORD" AOS_CLEANUP_TARGET="$AOS_CLEANUP_TARGET" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["AOS_EXECUTED"])
+output_dir = Path(data["output_dir"])
+summary_path = Path(data["summary_path"])
+result_path = Path(data["result_path"])
+assert data["status"] == "completed", data
+assert output_dir.is_dir(), output_dir
+assert summary_path == output_dir / "summary.json", data
+assert result_path == output_dir / "result.json", data
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["status"] == "completed", summary_doc
+assert summary_doc["execute"] is True, summary_doc
+record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
+assert record["input"] == "execute through aos command surface", record
+Path(os.environ["AOS_CLEANUP_TARGET"]).write_text(str(output_dir))
+PY
+    AOS_OUTPUT_DIR="$(cat "$AOS_CLEANUP_TARGET")"
+    case "$AOS_OUTPUT_DIR" in
+        "$ROOT/.runtime/dev/aos-agents/"*) rm -rf "$AOS_OUTPUT_DIR" ;;
+        *) fail "./aos dev agents cleanup target escaped runtime root: $AOS_OUTPUT_DIR" ;;
+    esac
+    pass "./aos dev agents executes through the external command surface"
+else
+    fail "./aos dev agents execution route failed with fake SDK"
 fi
 
 echo "aos-agents-runner: all checks passed"

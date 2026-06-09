@@ -110,6 +110,26 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files scripts/aos_agents/runner.py 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+commands = {item["command"] for item in data["next_commands"]}
+assert "aos-agent-runner" in summary["rule_ids"], data
+assert "bash tests/aos-agents-runner.sh" in commands, data
+assert "bash tests/dev-workflow-router.sh" in commands, data
+assert "bash tests/dev-audit.sh" in commands, data
+assert summary["hot_swappable"] is True, data
+assert summary["tcc_identity_sensitive"] is False, data
+PY
+then
+    pass "dev recommend routes AOS agent runner changes to focused command-surface checks"
+else
+    fail "dev recommend AOS agent runner routing drifted"
+fi
+
 if OUT="$(./aos dev recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -206,7 +226,7 @@ assert data["status"] == "success", data
 assert data["files"], data
 for item in data["files"]:
     rules = set(item["rules"])
-    assert "command-surface-implementations" in rules, item
+    assert "command-surface-implementations" in rules or "aos-agent-runner" in rules, item
     assert "unclassified" not in rules, item
     assert item["hot_swappable"] is True, item
     assert item["tcc_identity_sensitive"] is False, item
@@ -281,7 +301,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-subagent", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-agents", "dev-subagent", "dev-gh"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
@@ -306,15 +326,32 @@ capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args
 assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capability_tokens, capability_tokens
 dock_tokens = {arg.get("token") for arg in forms["dev-docks"]["args"]}
 assert {"--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"} <= dock_tokens, dock_tokens
+agents_tokens = {arg.get("token") for arg in forms["dev-agents"]["args"]}
+assert {"--self-test", "--role", "--task", "--execute", "--max-turns", "--repo", "--json"} <= agents_tokens, agents_tokens
 subagent_tokens = {arg.get("token") for arg in forms["dev-subagent"]["args"]}
 assert {"--agents-root", "--role", "--prompt", "--prompt-file", "--transcript", "--transcript-file", "--repo", "--json"} <= subagent_tokens, subagent_tokens
 gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/subagent/gh"
+    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/agents/subagent/gh"
 else
     fail "dev help missing workflow router forms"
+fi
+
+if OUT="$(./aos dev agents --self-test --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["self_test"] == "pass", data
+assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
+assert all(item["sandbox_mode"] == "read-only" for item in data["roles"].values()), data
+PY
+then
+    pass "dev agents self-test runs through external command manifest"
+else
+    fail "dev agents self-test route drifted"
 fi
 
 if OUT="$(./aos dev subagent list --json 2>/dev/null)" python3 - <<'PY'
@@ -325,7 +362,7 @@ data = json.loads(os.environ["OUT"])
 roles = {item["role"]: item for item in data["roles"]}
 assert data["status"] == "success", data
 assert data["agents_root"] == ".codex/agents", data
-assert set(roles) == {"architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"}, roles
+assert set(roles) == {"architect", "explorer", "historian", "implementer", "operator", "reviewer", "steward", "validator"}, roles
 assert roles["explorer"]["model"] == "gpt-5.4-mini", roles["explorer"]
 assert roles["explorer"]["model_reasoning_effort"] == "low", roles["explorer"]
 assert roles["explorer"]["agent_config_path"] == ".codex/agents/explorer.toml", roles["explorer"]
@@ -335,6 +372,9 @@ assert roles["steward"]["agent_config_path"] == ".codex/agents/steward.toml", ro
 assert roles["reviewer"]["model"] == "gpt-5.4-mini", roles["reviewer"]
 assert roles["reviewer"]["model_reasoning_effort"] == "high", roles["reviewer"]
 assert roles["reviewer"]["agent_config_path"] == ".codex/agents/reviewer.toml", roles["reviewer"]
+assert roles["historian"]["model"] == "gpt-5.4-mini", roles["historian"]
+assert roles["historian"]["model_reasoning_effort"] == "medium", roles["historian"]
+assert roles["historian"]["agent_config_path"] == ".codex/agents/historian.toml", roles["historian"]
 assert roles["validator"]["model"] == "gpt-5.4-mini", roles["validator"]
 assert roles["validator"]["model_reasoning_effort"] == "low", roles["validator"]
 PY
@@ -508,7 +548,7 @@ else
     fail "dev afk-launch-attempt help drifted"
 fi
 
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-dry-run.XXXXXX.json")"
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-dry-run.XXXXXX")"
 cat > "$PACKET" <<JSON
 {
   "packet_id": "dev-wrapper-afk-dry-run",
@@ -528,18 +568,20 @@ import json
 import os
 
 data = json.loads(os.environ["OUT"])
-assert data["final_status"] == "completed", data
+assert data["final_status"] == "failed", data
 assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-dry-run", data
 assert data["dispatch"]["selected_provider"] == "codex", data
+assert data["dispatch"]["selected_dock_profile"]["status"] == "missing_with_reason", data
+assert "dock profile not found" in data["dispatch"]["selected_dock_profile"]["reason"], data
 PY
 then
-    pass "dev afk-dry-run runs through external command manifest"
+    pass "dev afk-dry-run runs through external command manifest and fails closed on retired dock profiles"
 else
-    fail "dev afk-dry-run external wrapper drifted: $OUT"
+    fail "dev afk-dry-run external wrapper drifted: ${OUT:-}"
 fi
 rm -f "$PACKET"
 
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-launch-attempt.XXXXXX.json")"
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-launch-attempt.XXXXXX")"
 cat > "$PACKET" <<JSON
 {
   "packet_id": "dev-wrapper-afk-launch-attempt",
@@ -554,19 +596,21 @@ cat > "$PACKET" <<JSON
   "goal": "verify external dev afk-launch-attempt wrapper"
 }
 JSON
-if OUT="$(./aos dev afk-launch-attempt --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev afk-launch-attempt --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>&1 >/dev/null)"; then
+    fail "dev afk-launch-attempt should fail closed when the retired gdi dock contract is missing"
+elif OUT="$OUT" python3 - <<'PY'
 import json
 import os
 
 data = json.loads(os.environ["OUT"])
 assert data["record_type"] == "aos.afk_launch_attempt", data
-assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-launch-attempt", data
-assert data["selection"]["selected_provider"] == "codex", data
+assert data["lifecycle_state"] == "failed", data
+assert ".docks/gdi/inbound-contract.json" in data["error"], data
 PY
 then
-    pass "dev afk-launch-attempt runs through external command manifest"
+    pass "dev afk-launch-attempt routes through external command manifest and fails closed on retired dock contract"
 else
-    fail "dev afk-launch-attempt external wrapper drifted: $OUT"
+    fail "dev afk-launch-attempt external wrapper drifted: ${OUT:-}"
 fi
 rm -f "$PACKET"
 
@@ -593,7 +637,7 @@ else
     fail "dev afk-session-trigger help drifted"
 fi
 
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-session-trigger.XXXXXX.json")"
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-session-trigger.XXXXXX")"
 cat > "$PACKET" <<JSON
 {
   "packet_id": "dev-wrapper-afk-session-trigger",
@@ -614,14 +658,16 @@ import os
 
 data = json.loads(os.environ["OUT"])
 assert data["record_type"] == "aos.afk_session_trigger_dry_run", data
-assert data["status"] == "dry_run_ready", data
+assert data["status"] == "rejected", data
 assert data["packet"]["packet_id"] == "dev-wrapper-afk-session-trigger", data
+assert data["packet"]["validation_status"] == "invalid", data
 assert data["dispatch"]["selected_provider"] == "codex", data
+assert any(item["class"] == "unknown_dock" for item in data["mismatches"]), data
 PY
 then
-    pass "dev afk-session-trigger runs through external command manifest"
+    pass "dev afk-session-trigger runs through external command manifest and rejects retired dock profiles"
 else
-    fail "dev afk-session-trigger external wrapper drifted: $OUT"
+    fail "dev afk-session-trigger external wrapper drifted: ${OUT:-}"
 fi
 rm -f "$PACKET"
 
@@ -854,7 +900,7 @@ data = json.loads(os.environ["OUT"])
 names = {item["name"] for item in data["docks"]}
 assert data["status"] == "success", data
 assert data["dock_root"] == ".docks", data
-assert {"foreman", "gdi", "operator"} <= names, names
+assert names == {"foreman"}, names
 assert any(item["default_entry_path"] == "aos_developer" for item in data["docks"] if item["name"] == "foreman"), data
 PY
 then
@@ -909,74 +955,52 @@ else
     fail "dev docks capabilities extra positional error mismatch: $ERR"
 fi
 
-if OUT="$(./aos dev docks capabilities gdi --json 2>/dev/null)" python3 - <<'PY'
+if ERR="$(./aos dev docks capabilities gdi --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject retired gdi dock profile"
+elif ERR="$ERR" python3 - <<'PY'
 import json
 import os
 
-data = json.loads(os.environ["OUT"])
-ids = {item["id"] for item in data["capabilities"]}
-assert "dev.github.issue_list" in ids, ids
-assert "dev.github.label_list" in ids, ids
-assert "dev.github.pr_list" in ids, ids
-assert "dev.github.pr_checks" in ids, ids
-assert "dev.github.issue_comment" not in ids, ids
-assert "dev.github.issue_create" not in ids, ids
-assert "dev.github.issue_close" not in ids, ids
-assert "dev.github.issue_edit" not in ids, ids
-assert "dev.github.pr_comment" not in ids, ids
-assert "dev.github.pr_create" not in ids, ids
-assert "dev.github.pr_merge" not in ids, ids
-assert "dev.subagent.dispatch_contract" not in ids, ids
-assert "dev.build.aos" in ids, ids
-assert "dev.test.schema_node" in ids, ids
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_DOCK", data
+assert data["error"] == "Unknown dock profile: gdi", data
 PY
 then
-    pass "dev docks capabilities keeps GDI out of issue-comment writes"
+    pass "dev docks capabilities rejects retired gdi profile"
 else
-    fail "dev docks capabilities allowed unexpected GDI external write"
+    fail "dev docks capabilities gdi error mismatch: ${ERR:-}"
 fi
 
-if OUT="$(./aos dev docks capabilities operator --json 2>/dev/null)" python3 - <<'PY'
+if ERR="$(./aos dev docks capabilities operator --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject retired operator dock profile"
+elif ERR="$ERR" python3 - <<'PY'
 import json
 import os
 
-data = json.loads(os.environ["OUT"])
-assert data["dock"] == "operator", data
-assert data["active_entry_path"] == "agent_harness", data
-assert data["capabilities"] == [], data
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_DOCK", data
+assert data["error"] == "Unknown dock profile: operator", data
 PY
 then
-    pass "dev docks capabilities keeps operator default path narrow"
+    pass "dev docks capabilities rejects retired operator profile"
 else
-    fail "dev docks capabilities operator default path was too broad"
+    fail "dev docks capabilities operator error mismatch: ${ERR:-}"
 fi
 
-if OUT="$(./aos dev docks capabilities operator --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
+if ERR="$(./aos dev docks capabilities operator --entry-path aos_developer --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject retired operator assigned path"
+elif ERR="$ERR" python3 - <<'PY'
 import json
 import os
 
-data = json.loads(os.environ["OUT"])
-ids = {item["id"] for item in data["capabilities"]}
-assert "dev.github.context" in ids, ids
-assert "dev.github.issue_list" in ids, ids
-assert "dev.github.label_list" in ids, ids
-assert "dev.github.pr_list" in ids, ids
-assert "dev.github.pr_checks" in ids, ids
-assert "dev.github.ci_inspect" in ids, ids
-assert "dev.github.issue_comment" not in ids, ids
-assert "dev.github.issue_create" not in ids, ids
-assert "dev.github.issue_close" not in ids, ids
-assert "dev.github.issue_edit" not in ids, ids
-assert "dev.github.pr_comment" not in ids, ids
-assert "dev.github.pr_create" not in ids, ids
-assert "dev.github.pr_merge" not in ids, ids
-assert "dev.subagent.dispatch_contract" not in ids, ids
-assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_DOCK", data
+assert data["error"] == "Unknown dock profile: operator", data
 PY
 then
-    pass "dev docks capabilities allows operator assigned read-only dev path"
+    pass "dev docks capabilities rejects retired operator assigned path"
 else
-    fail "dev docks capabilities operator assigned path drifted"
+    fail "dev docks capabilities operator assigned path error mismatch: ${ERR:-}"
 fi
 
 if ERR="$(./aos dev docks capabilities operator --entry-path --json 2>&1 >/dev/null)"; then

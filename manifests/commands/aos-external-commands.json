@@ -616,6 +616,16 @@
       }
     },
     {
+      "path": ["dev", "agents"],
+      "summary": "Run the experimental AOS-owned read-only agent runner.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos_agents/runner.py"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["dev", "subagent"],
       "summary": "Plan and validate fail-closed native Codex subagent dispatch contracts.",
       "executable": "/usr/bin/env",
