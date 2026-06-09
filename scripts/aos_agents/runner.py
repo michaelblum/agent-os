@@ -219,13 +219,105 @@ def task_hash(task: str) -> str:
 def output_dir(root: pathlib.Path, role: str, task: str) -> pathlib.Path:
     if role not in READ_ONLY_ROLES:
         raise RunnerError(f"Role {role!r} is not enabled in the experimental read-only runner")
-    runtime_root = (root / RUNTIME_ROOT).resolve()
-    planned = (runtime_root / "runs" / role / f"{slug(task)[:48]}-{task_hash(task)}").resolve(strict=False)
+    root_dir = runtime_root(root)
+    planned = (root_dir / "runs" / role / f"{slug(task)[:48]}-{task_hash(task)}").resolve(strict=False)
     try:
-        planned.relative_to(runtime_root)
+        planned.relative_to(root_dir)
     except ValueError as exc:
         raise RunnerError(f"Planned output path escaped runtime root: {planned}") from exc
     return planned
+
+
+def runtime_root(root: pathlib.Path) -> pathlib.Path:
+    return (root / RUNTIME_ROOT).resolve()
+
+
+def resolve_run_dir(root: pathlib.Path, value: str) -> pathlib.Path:
+    root_dir = runtime_root(root)
+    candidate = pathlib.Path(value).expanduser()
+    if candidate.is_absolute():
+        resolved = candidate.resolve(strict=False)
+    else:
+        repo_relative = (root / candidate).resolve(strict=False)
+        runtime_relative = (root_dir / "runs" / candidate).resolve(strict=False)
+        resolved = repo_relative if is_relative_to(repo_relative, root_dir) else runtime_relative
+    if not is_relative_to(resolved, root_dir):
+        raise RunnerError(f"Run path escaped runtime root: {resolved}")
+    return resolved
+
+
+def is_relative_to(path: pathlib.Path, parent: pathlib.Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def load_json_file(path: pathlib.Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise RunnerError(f"Missing artifact: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RunnerError(f"Invalid JSON artifact {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise RunnerError(f"Invalid JSON artifact {path}: expected object")
+    return data
+
+
+def list_runs(root: pathlib.Path, role: str | None = None) -> dict[str, Any]:
+    if role is not None and role not in READ_ONLY_ROLES:
+        raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(READ_ONLY_ROLES))}")
+    root_dir = runtime_root(root)
+    summaries: list[dict[str, Any]] = []
+    role_dirs = [root_dir / "runs" / role] if role else sorted((root_dir / "runs").glob("*"))
+    for role_dir in role_dirs:
+        if not role_dir.is_dir() or (role_dir.name not in READ_ONLY_ROLES):
+            continue
+        for summary_path in sorted(role_dir.glob("*/summary.json")):
+            run_dir = summary_path.parent.resolve(strict=False)
+            result_path = run_dir / "result.json"
+            item: dict[str, Any] = {
+                "role": role_dir.name,
+                "output_dir": str(run_dir),
+                "summary_path": str(summary_path),
+                "result_path": str(result_path),
+                "result_exists": result_path.is_file(),
+            }
+            try:
+                summary = load_json_file(summary_path)
+            except RunnerError as exc:
+                item["artifact_error"] = str(exc)
+            else:
+                item["summary"] = summary
+            summaries.append(item)
+    return {
+        "status": "success",
+        "runtime_root": str(root_dir),
+        "count": len(summaries),
+        "runs": summaries,
+    }
+
+
+def read_run(root: pathlib.Path, value: str) -> dict[str, Any]:
+    run_dir = resolve_run_dir(root, value)
+    summary_path = run_dir / "summary.json"
+    result_path = run_dir / "result.json"
+    result: dict[str, Any] | None = None
+    if result_path.exists():
+        if not result_path.is_file():
+            raise RunnerError(f"Refusing to read non-file result path: {result_path}")
+        result = load_json_file(result_path)
+    return {
+        "status": "success",
+        "output_dir": str(run_dir),
+        "summary_path": str(summary_path),
+        "result_path": str(result_path),
+        "result_exists": result is not None,
+        "summary": load_json_file(summary_path),
+        "result": result,
+    }
 
 
 def require_openai_agents_sdk() -> Any:
@@ -414,11 +506,19 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(pathlib.Path(args.repo_root) if args.repo_root else None)
+    if args.list_runs and args.read_run:
+        raise RunnerError("--list-runs and --read-run are mutually exclusive")
     if args.self_test:
+        if args.list_runs or args.read_run:
+            raise RunnerError("--self-test cannot be combined with artifact readback")
         return self_test(root)
+    if args.list_runs:
+        return list_runs(root, args.role)
+    if args.read_run:
+        return read_run(root, args.read_run)
 
     specs = load_agent_specs(root)
-    role = args.role
+    role = args.role or "explorer"
     if role not in specs:
         raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(specs))}")
     if not args.task:
@@ -511,7 +611,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Experimental AOS-owned Python agent runner")
     parser.add_argument("--repo-root", "--repo", dest="repo_root", help="Repo root override. Defaults to walking up from cwd.")
     parser.add_argument("--self-test", action="store_true", help="Validate parsing and path behavior without API calls.")
-    parser.add_argument("--role", default="explorer", help="Read-only role to plan/run.")
+    parser.add_argument("--list-runs", action="store_true", help="List existing runtime summaries without SDK or provider calls.")
+    parser.add_argument("--read-run", help="Read summary.json and result.json for an output_dir under the runtime root.")
+    parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")

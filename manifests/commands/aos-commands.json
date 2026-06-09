@@ -6742,10 +6742,26 @@
               "value_type" : "bool"
             },
             {
+              "id" : "list-runs",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "List existing runtime summaries without SDK or provider calls",
+              "token" : "--list-runs",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "read-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Read summary.json and result.json for an output directory under the runtime root",
+              "token" : "--read-run",
+              "value_type" : "string"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Read-only role to plan or execute: explorer, reviewer, validator, or historian",
+              "summary" : "Read-only role to plan, execute, or filter readback: explorer, reviewer, validator, or historian",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -6794,7 +6810,9 @@
           "examples" : [
             "aos dev agents --self-test --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --json",
-            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json"
+            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
+            "aos dev agents --list-runs --json",
+            "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -6812,7 +6830,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--role <role>] [--task <text>] [--execute] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--role <role>] [--task <text>] [--execute] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [

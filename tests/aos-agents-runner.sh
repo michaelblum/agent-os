@@ -13,6 +13,7 @@ PRESENT_SDK="$TMP_ROOT/present-sdk"
 FAILING_SDK="$TMP_ROOT/failing-sdk"
 SDK_RECORD="$TMP_ROOT/sdk-record.json"
 AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
+RUNNER_READ_TARGET="$TMP_ROOT/runner-output-dir.txt"
 mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
 
 cat >"$MISSING_SDK/agents.py" <<'PY'
@@ -229,7 +230,7 @@ else
 fi
 
 if EXECUTED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "execute read-only task" --execute --max-turns 1)"; then
-    EXECUTED="$EXECUTED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" python3 - <<'PY'
+    EXECUTED="$EXECUTED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" RUNNER_READ_TARGET="$RUNNER_READ_TARGET" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -264,6 +265,7 @@ assert record["input"] == "execute read-only task", record
 assert record["kwargs"] == {"max_turns": 1}, record
 assert record["tracing_disabled"] is True, record
 assert record["tracing_env"] == "1", record
+Path(os.environ["RUNNER_READ_TARGET"]).write_text(str(output_dir))
 PY
     pass "provider execution uses guarded SDK adapter and writes result.json under runtime path"
 else
@@ -303,6 +305,44 @@ then
     pass "provider execution errors write summary.json and no result.json"
 else
     fail "provider error path did not produce clear JSON and error summary"
+fi
+
+if RUN_LIST="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --list-runs)"; then
+    RUN_LIST="$RUN_LIST" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["RUN_LIST"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+runtime_root = fixture / ".runtime/dev/aos-agents"
+assert data["status"] == "success", data
+assert data["runtime_root"] == str(runtime_root), data
+assert data["count"] == 3, data
+statuses = {item["summary"]["status"] for item in data["runs"]}
+assert statuses == {"ready", "completed", "error"}, data
+assert all(Path(item["output_dir"]).is_relative_to(runtime_root) for item in data["runs"]), data
+assert any(item["result_exists"] for item in data["runs"]), data
+PY
+    pass "artifact list readback enumerates existing runtime summaries without SDK"
+else
+    fail "artifact list readback failed"
+fi
+
+if RUN_READ="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --read-run "$(cat "$RUNNER_READ_TARGET")")"; then
+    RUN_READ="$RUN_READ" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["RUN_READ"])
+assert data["status"] == "success", data
+assert data["summary"]["status"] == "completed", data
+assert data["result_exists"] is True, data
+assert data["result"]["final_output"] == "fake provider final output", data
+PY
+    pass "artifact readback loads summary.json and result.json without SDK"
+else
+    fail "artifact readback failed"
 fi
 
 if AOS_SELF_TEST="$(./aos dev agents --self-test --json)"; then
@@ -357,13 +397,42 @@ assert record["input"] == "execute through aos command surface", record
 Path(os.environ["AOS_CLEANUP_TARGET"]).write_text(str(output_dir))
 PY
     AOS_OUTPUT_DIR="$(cat "$AOS_CLEANUP_TARGET")"
+    if AOS_READ="$(./aos dev agents --read-run "$AOS_OUTPUT_DIR" --json)"; then
+        AOS_READ="$AOS_READ" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["AOS_READ"])
+assert data["status"] == "success", data
+assert data["summary"]["status"] == "completed", data
+assert data["result_exists"] is True, data
+assert data["result"]["final_output"] == "fake provider final output", data
+PY
+    else
+        fail "./aos dev agents artifact read route failed"
+    fi
     case "$AOS_OUTPUT_DIR" in
         "$ROOT/.runtime/dev/aos-agents/"*) rm -rf "$AOS_OUTPUT_DIR" ;;
         *) fail "./aos dev agents cleanup target escaped runtime root: $AOS_OUTPUT_DIR" ;;
     esac
-    pass "./aos dev agents executes through the external command surface"
+    pass "./aos dev agents executes and reads artifacts through the external command surface"
 else
     fail "./aos dev agents execution route failed with fake SDK"
+fi
+
+if AOS_LIST="$(./aos dev agents --list-runs --json)"; then
+    AOS_LIST="$AOS_LIST" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["AOS_LIST"])
+assert data["status"] == "success", data
+assert "runtime_root" in data, data
+assert isinstance(data["runs"], list), data
+PY
+    pass "./aos dev agents lists artifacts through the external command surface"
+else
+    fail "./aos dev agents artifact list route failed"
 fi
 
 echo "aos-agents-runner: all checks passed"

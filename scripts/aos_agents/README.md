@@ -18,6 +18,7 @@ on Codex CLI `multi_agent_v2`.
 - Writes `summary.json` for ready, completed, and provider-error runs under the
   planned runtime directory.
 - Writes provider results only under the planned runtime directory.
+- Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
 Codex config, or installed packages.
@@ -47,6 +48,28 @@ available in the caller's environment:
 
 ```bash
 ./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --json
+```
+
+For M1 live-smoke only, use an ignored local venv under `.runtime/dev/aos-agents/`
+instead of adding repo-managed Python dependencies:
+
+```bash
+python3 -m venv .runtime/dev/aos-agents/.venv
+.runtime/dev/aos-agents/.venv/bin/python -m pip install --upgrade pip openai-agents
+export OPENAI_API_KEY="sk-..."
+PATH="$PWD/.runtime/dev/aos-agents/.venv/bin:$PATH" \
+  ./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --max-turns 1 --json
+```
+
+This local environment is a live-smoke unblock only. It is not sufficient for
+full native Codex subagent supersession, and it does not establish a
+repo-managed dependency policy.
+
+List or read existing runtime artifacts without invoking the provider:
+
+```bash
+./aos dev agents --list-runs --json
+./aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json
 ```
 
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails
