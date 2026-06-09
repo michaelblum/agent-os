@@ -1,0 +1,7 @@
+{
+  "id": "ethos-foundation-breaking",
+  "name": "Foundation Breaking Ethos",
+  "migration_posture": "owned contracts may be broken and migrated broadly",
+  "compatibility_policy": "no aliases or shims for owned internal contracts unless an external consumer is proven",
+  "reversibility": "recover through git and process checkpoints, not obsolete contracts"
+}

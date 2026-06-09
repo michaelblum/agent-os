@@ -2,7 +2,14 @@
 
 `.docks/foreman/` is the Codex launch directory for the main Foreman session.
 Foreman is the liaison and orchestrator for the native Codex subagent team:
-architect, implementer, reviewer, explorer, validator, operator, and steward.
+architect, implementer, reviewer, explorer, validator, operator, steward, and
+historian.
+
+`.docks/profiles/` is the shared operating-context model. It selects the active
+session doctrine that Foreman announces at startup and passes, in bounded
+extracts, to subagents. Docks are runtime shells; profiles are operating
+doctrine. Capability routes are path/tool/test routing mechanics, not identity
+or ethos.
 
 Retired standalone dock directories such as `.docks/gdi/` and
 `.docks/operator/` are not part of the current runtime. The old goal-command,

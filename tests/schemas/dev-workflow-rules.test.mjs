@@ -156,5 +156,11 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     'node --test tests/schemas/aos-dock-profile-v0.test.mjs',
   );
   assert.ok(rules.get('dock-profiles')?.patterns?.includes('.docks/*/dock.json'));
+  assert.ok(rules.get('dock-profiles')?.patterns?.includes('.docks/profiles/**'));
+  assert.ok(
+    rules
+      .get('dock-profiles')
+      ?.commands?.some((step) => step.command === 'node --test tests/schemas/dock-operating-profiles.test.mjs'),
+  );
   assert.ok(rules.get('app-subtree-local-contract')?.notes?.[0]?.includes('nearest subtree AGENTS.md'));
 });

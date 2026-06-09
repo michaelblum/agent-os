@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-agent-capability-manifest-v0.schema.json",
   "title": "AOS Agent Capability Manifest v0",
-  "description": "Declarative manifest for typed agent capabilities. It separates AOS control surfaces from raw host process escapes so docks and entry paths can reason about authority without hardcoding provider-specific tools.",
+  "description": "Declarative manifest for typed agent capabilities. It separates AOS control surfaces from raw host process escapes so docks and capability routes can reason about authority without hardcoding provider-specific tools.",
   "type": "object",
   "required": [
     "type",

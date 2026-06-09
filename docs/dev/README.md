@@ -5,16 +5,19 @@
 layers, package loops, schema tests, and local-contract delegation, but do not
 encode app-specific playbooks here.
 
-`workflow-profiles.json` is the source of truth for built-in example development
-workflow profiles: branch, commit, review, PR, merge-authority, and release
-postures for repo work without treating that posture as an immutable AOS
-primitive. `local_relay` is the single-checkout local branch/stash procedure for
-tight Foreman-human-dock-team loops with no linked git worktrees or automatic
-pushes. `agentic_relay` is the GitHub-branch relay procedure for local GDI
-implementation, whether run as a native subagent or explicitly assigned
-terminal relay, reviewed by a designated Foreman-compatible relay authority; it
-does not create a separate product role.
-`active-profile.json` is the single repo-local selector for the active profile.
+`workflow-profiles.json` is a low-level integration posture manifest: branch,
+commit, review, PR, merge-authority, and release postures for repo work. It is
+not the primary session operating model. Docked sessions load operating doctrine
+from `.docks/profiles/active-profile.json`; the workflow profile is only one
+development-policy input to that dock profile.
+
+`local_relay` is the single-checkout local branch/stash procedure for tight
+Foreman-human-dock-team loops with no linked git worktrees or automatic pushes.
+`agentic_relay` is the GitHub-branch relay procedure for native subagent or
+explicit terminal-relay implementation reviewed by a designated
+Foreman-compatible relay authority; it does not create a separate product role.
+`active-profile.json` remains the repo-local selector for this low-level
+development integration profile only.
 For the current cleanup narrative that led from real-input/live-drag testing to
 the agent-relay readiness state, read
 `docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md` before

@@ -19,11 +19,13 @@
     "override_policy": { "type": "string", "minLength": 1 },
     "axes": {
       "type": "object",
-      "required": ["dock", "entry_path", "workflow_profile"],
+      "required": ["agent_definition", "dock", "dock_profile", "capability_route", "workflow_profile"],
       "additionalProperties": false,
       "properties": {
+        "agent_definition": { "type": "string", "minLength": 1 },
         "dock": { "type": "string", "minLength": 1 },
-        "entry_path": { "type": "string", "minLength": 1 },
+        "dock_profile": { "type": "string", "minLength": 1 },
+        "capability_route": { "type": "string", "minLength": 1 },
         "workflow_profile": { "type": "string", "minLength": 1 }
       }
     },

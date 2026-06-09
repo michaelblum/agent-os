@@ -97,7 +97,9 @@ test('canonical profiles preserve the expected built-in examples', async () => {
   assert.equal(profiles.get('hybrid_trunk')?.pull_request_required, false);
   assert.equal(profiles.get('github_flow')?.pull_request_required, true);
   assert.equal(profiles.get('gitflow')?.release_branching, true);
-  assert.ok(manifest.axes?.dock?.includes('role'));
-  assert.ok(manifest.axes?.entry_path?.includes('capability'));
-  assert.ok(manifest.axes?.workflow_profile?.includes('Development'));
+  assert.ok(manifest.axes?.agent_definition?.includes('Who'));
+  assert.ok(manifest.axes?.dock?.includes('Runtime shell'));
+  assert.ok(manifest.axes?.dock_profile?.includes('operating doctrine'));
+  assert.ok(manifest.axes?.capability_route?.includes('routing mechanics'));
+  assert.ok(manifest.axes?.workflow_profile?.includes('integration policy'));
 });

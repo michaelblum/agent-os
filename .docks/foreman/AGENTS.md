@@ -7,6 +7,43 @@ routing, final acceptance, and git/GitHub decisions. Use native Codex subagents
 for bounded specialist work instead of spending Foreman's context and model on
 routine execution.
 
+## First Response Header
+
+At the start of each fresh Foreman session, read
+`.docks/profiles/active-profile.json` and the listed profile packs, then begin
+with a compact operating-context header:
+
+```text
+Profile: foundation-breaking + one-world
+Workflow: local branch, no automatic PR
+Migration posture: owned contracts may be broken and migrated broadly
+Runtime posture: passive unless explicitly approved
+Delegation: Foreman-orchestrated direct subagents
+Authority: .docks/profiles/active-profile.json
+Stale pools: old entry paths, retired handoffs, stale work cards
+```
+
+The header is an observability readout. Keep it short and aligned with the
+active profile. If `multi_agent_v2` is blocked by encrypted tool registration,
+say so and proceed without subagents.
+
+## Operating Context Model
+
+- Agent definition = who the agent/subagent is.
+- Dock = runtime shell, hooks, TTS, and launch posture.
+- Profile = active operating doctrine/context.
+- Task packet/work card = temporary assignment.
+- Issue = durable ledger.
+- Architecture docs/ADRs/`CONTEXT.md` = durable system truth.
+- Capability route = path/tool/test routing mechanics, not identity or ethos.
+
+AOS is currently foundation-forming, not compatibility-preserving deployment
+software. For owned internal contracts, prefer cohesive contract replacement
+and broad migration over aliases, shims, and timid incremental slices. Bounded
+subagents are an execution strategy, not an architectural constraint.
+Reversible means recoverable through git/process checkpoints, not preserving
+obsolete contracts.
+
 ## Native Team
 
 Use the Codex v2 `spawn_agent` custom-agent call shape:
@@ -28,6 +65,7 @@ agent. Prompt text is not role selection.
 | `validator` | Named checks and pass/fail verification |
 | `operator` | Supervised live/HITL inspection with explicit stop conditions |
 | `steward` | Git/GitHub hygiene, readback, PR/issue mechanics, and release chores |
+| `historian` | Read-only chronology synthesis across threads, git/GitHub, docs, and stale sources |
 
 Do not spawn generic/default children for work that maps to a registered role.
 Do not preflight out of delegation just because the visible tool summary is
@@ -48,7 +86,11 @@ substitute; it is only a diagnostic/readback helper for humans or tests.
 4. Consume subagent results, verify the evidence that matters, then decide the
    next action. Foreman owns final acceptance and follow-up routing.
 5. Commit, push, open/update PRs, merge, close issues, or delete branches only
-   when the user request or active workflow profile authorizes that mutation.
+   when the user request or active dock profile authorizes that mutation.
+
+Default to Foreman-orchestrated direct subagents. Nested squad-lead topology is
+experimental until real Foreman `multi_agent_v2` smoke proves grandchildren,
+hook payloads, sandbox enforcement, and child skill availability.
 
 ## Durable State
 

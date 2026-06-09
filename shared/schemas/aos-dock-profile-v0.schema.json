@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-dock-profile-v0.schema.json",
   "title": "AOS Dock Profile v0",
-  "description": "Machine-readable profile for an AOS dock role. Dock profiles describe role identity, execution topology, default entry path, and capability envelope without executing or granting capabilities.",
+  "description": "Machine-readable profile for an AOS dock runtime shell. Dock profiles describe dock identity, execution topology, default capability route, and capability envelope without executing or granting capabilities. Active operating doctrine lives in .docks/profiles/.",
   "type": "object",
   "required": [
     "type",

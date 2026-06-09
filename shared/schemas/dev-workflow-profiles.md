@@ -1,9 +1,11 @@
 # AOS Dev Workflow Profiles
 
-`docs/dev/workflow-profiles.json` defines repo-selectable development workflow
-profiles for branch, commit, review, pull request, merge authority, and release
-posture.
-`docs/dev/active-profile.json` selects the active repo-local profile.
+`docs/dev/workflow-profiles.json` defines repo-selectable development
+integration profiles for branch, commit, review, pull request, merge authority,
+and release posture.
+`docs/dev/active-profile.json` selects the active repo-local development
+integration profile. Docked session doctrine is selected separately in
+`.docks/profiles/active-profile.json`.
 
 The profile manifest is not an AOS primitive contract. It is a development
 policy surface that agents can read before deciding whether to stay on `main`,

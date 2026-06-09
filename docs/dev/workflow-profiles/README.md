@@ -1,10 +1,14 @@
 # Dev Workflow Profiles
 
 Development workflow profiles describe branch, commit, review, pull request, and
-release posture. They are deliberately separate from AOS docks and entry paths:
+release posture. They are low-level development integration references. They are
+not the primary session operating model. Docked sessions load operating doctrine
+from `.docks/profiles/active-profile.json`.
 
-- A dock defines who the agent is for the session.
-- An entry path defines the active capability layer for the task.
+- An agent definition defines who the agent or subagent is.
+- A dock defines runtime shell, hooks, TTS, and launch posture.
+- A dock profile defines active operating doctrine and context.
+- A capability route defines the path, tool, and test mechanics for a task.
 - A workflow profile defines how development work flows through git and review.
 
 The machine-readable source is `docs/dev/workflow-profiles.json`. The built-in
@@ -13,7 +17,9 @@ project needs a different development posture.
 
 ## Active Profile
 
-The active profile for this repo is selected in `docs/dev/active-profile.json`.
+The active development integration profile for this repo is selected in
+`docs/dev/active-profile.json`. The active session doctrine is selected in
+`.docks/profiles/active-profile.json`.
 
 Agents should treat an explicit user instruction as stronger than the active
 profile for the current session, unless the instruction would discard work,

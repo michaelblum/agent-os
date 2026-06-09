@@ -10,6 +10,8 @@ codex
 Foreman is the liaison and orchestrator for the native Codex subagent team.
 The working repo is `/Users/Michael/Code/agent-os`; `.docks/foreman` is only
 the launch root for Foreman's `AGENTS.md`, `.codex/config.toml`, and hooks.
+Operating doctrine loads from `.docks/profiles/active-profile.json`; fresh
+Foreman sessions should announce the compact profile header from that file.
 
 Registered subagents live in repo-root `.codex/agents/` and are selected with
 the Codex v2 `spawn_agent` call shape: `task_name` plus structured
@@ -24,6 +26,6 @@ The Foreman hooks provide:
   spawn attempts and requires the v2 `task_name` label;
 - TTS for Foreman start/stop and subagent start/stop events.
 
-Workflow mechanics belong to the active workflow profile. Foreman should keep
-subagent prompts short because role behavior comes from each agent's native
-TOML config.
+Development integration posture is one part of the active dock profile.
+Foreman should keep subagent prompts short because role behavior comes from
+each agent's native TOML config.

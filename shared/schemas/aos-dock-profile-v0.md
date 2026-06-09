@@ -1,25 +1,26 @@
 # AOS Dock Profile v0
 
 Dock profiles are the machine-readable seed for `.docks/<dock>/dock.json`.
-They describe the durable role, execution topology, default entry path, and
-capability envelope for a dock.
+They describe the durable dock role, execution topology, default capability
+route, and capability envelope for a dock. They are not the active operating
+doctrine; dock sessions load doctrine from `.docks/profiles/`.
 
 The profile is intentionally descriptive. It does not grant permissions,
 execute commands, or replace the human/model operating contract in
 `AGENTS.md`. It gives AOS and agents a stable way to answer: "who is this dock,
-what path does it start from, can it be launched directly or is it normally
-spawned by another dock, and which capability classes are in-bounds when the
-task explicitly calls for them?"
+which capability route does it start from, can it be launched directly or is it
+normally spawned by another dock, and which capability classes are in-bounds
+when the task explicitly calls for them?"
 
 ## Fields
 
 - `name` is the dock directory identity, such as `foreman`, `gdi`, or
   `operator`.
 - `role` is the durable authority boundary used by capability manifests.
-- `default_entry_path` is the entry path assumed before the task asks for a
-  deeper layer.
-- `allowed_entry_paths` is the bounded set the dock may move through when the
-  task justifies it.
+- `default_entry_path` is the compatibility field for the default capability
+  route assumed before the task asks for a deeper route.
+- `allowed_entry_paths` is the compatibility field for the bounded set of
+  capability routes the dock may move through when the task justifies it.
 - `capability_manifest` points to the capability vocabulary, currently
   `docs/dev/agent-capabilities.json`.
 - `allowed_capability_classes` is a coarse envelope over mutability classes.

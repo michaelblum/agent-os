@@ -1,0 +1,18 @@
+{
+  "id": "runtime-passive-unless-approved",
+  "name": "Runtime Passive Unless Approved",
+  "runtime_posture": "passive readback unless explicitly approved",
+  "allowed_without_approval": [
+    "git readback",
+    "./aos service status --mode repo --json",
+    "schema tests",
+    "static scans",
+    "bounded process inspection"
+  ],
+  "requires_explicit_approval": [
+    "service restart",
+    "live HITL smoke",
+    "repo-mode native rebuild",
+    "manual TCC reset or regrant flow"
+  ]
+}

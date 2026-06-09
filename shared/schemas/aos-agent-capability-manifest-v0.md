@@ -3,8 +3,8 @@
 Schema:
 [`aos-agent-capability-manifest-v0.schema.json`](./aos-agent-capability-manifest-v0.schema.json)
 
-This manifest describes typed capabilities that an agent role or entry path can
-activate. It is the contract layer between role/profile policy and concrete
+This manifest describes typed capabilities that an agent role or capability
+route can activate. It is the contract layer between profile policy and concrete
 tool adapters. The goal is to make AOS the agent shell while still allowing
 repo-development tools such as `gh`, Node, npm, Python, and Bash to exist as
 explicit, reviewable capabilities.
@@ -13,8 +13,11 @@ explicit, reviewable capabilities.
 
 The manifest separates four concepts that should not be conflated:
 
-- **Dock/role**: who the agent is and what authority boundary it carries.
-- **Entry path**: which capability layer is active for the current task.
+- **Agent definition**: who the agent or subagent is.
+- **Dock**: runtime shell, hooks, TTS, and launch posture.
+- **Dock profile**: active operating doctrine and context.
+- **Capability route**: which path/tool/test layer is active for the current
+  task.
 - **Capability**: what operation can be performed.
 - **Adapter**: how the capability is implemented in the current runtime.
 
@@ -27,8 +30,8 @@ connector being installed.
 
 Raw host process execution is not a base harness primitive. Capabilities with
 `execution.raw_process=true` are only valid for the `aos_developer`, `testing`,
-or `break_glass` entry paths. They must declare a non-`none` cwd policy, a
-timeout, audit posture, and `requires_explicit_assignment=true`.
+or `break_glass` capability routes. They must declare a non-`none` cwd policy,
+a timeout, audit posture, and `requires_explicit_assignment=true`.
 
 This makes raw Bash, Node, npm, Python, and arbitrary process execution visible
 as elevated capabilities instead of ambient agent powers.
@@ -38,7 +41,7 @@ as elevated capabilities instead of ambient agent powers.
 V0 is deliberately small. It records:
 
 - capability identity and status;
-- role and entry-path applicability;
+- role and capability-route applicability;
 - adapter kind and command surface;
 - mutability and side-effect class;
 - cwd/network/raw-process/audit execution policy;

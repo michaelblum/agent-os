@@ -1,12 +1,14 @@
 {
   "$schema": "../../shared/schemas/dev-workflow-profiles.schema.json",
   "schema_version": 1,
-  "summary": "Built-in example development workflow profiles for agent-os.",
+  "summary": "Built-in example development integration profiles for agent-os. Docked session doctrine is selected separately in .docks/profiles/active-profile.json.",
   "override_policy": "A direct user instruction for the current repo or session overrides the active profile unless it would discard work, publish externally, or perform a destructive operation.",
   "axes": {
-    "dock": "Durable agent role, authority boundary, handoff contract, stop conditions, and lifecycle hooks.",
-    "entry_path": "Active capability layer for the current task, such as Agent harness, AOS developer, testing, visual diagnostics, or user-input diagnostics.",
-    "workflow_profile": "Development integration policy: branch, commit, review, PR, merge authority, and release posture."
+    "agent_definition": "Who the agent or subagent is, declared in native provider config such as .codex/agents/*.toml.",
+    "dock": "Runtime shell, hooks, TTS, launch posture, stop conditions, and provider config.",
+    "dock_profile": "Active operating doctrine and context for a docked session.",
+    "capability_route": "Path, tool, and test routing mechanics for the current task.",
+    "workflow_profile": "Low-level development integration policy: branch, commit, review, PR, merge authority, and release posture."
   },
   "profiles": [
     {

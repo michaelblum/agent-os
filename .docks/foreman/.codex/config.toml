@@ -47,3 +47,7 @@ description = "Read-only research worker. Scans files, APIs, dependencies, and u
 [agents.steward]
 config_file = "../../../.codex/agents/steward.toml"
 description = "GitHub and repo hygiene worker. Performs explicit branch, PR, issue, label, and release coordination tasks."
+
+[agents.historian]
+config_file = "../../../.codex/agents/historian.toml"
+description = "Read-only chronology and meaning synthesis across threads, git/GitHub, docs, ledgers, and stale sources."

@@ -3,6 +3,10 @@
 This directory is for runtime launch context. In the current system,
 `.docks/foreman/` is the active Codex session entrypoint.
 
+Session doctrine lives in `.docks/profiles/`. Foreman should load
+`.docks/profiles/active-profile.json`, announce the compact profile header, and
+treat old entry-path language as capability routing only.
+
 If you land here directly, read `.docks/foreman/AGENTS.md` and operate as
 Foreman unless the user explicitly names another role. Do not infer retired
 standalone docks from old paths or historical docs.

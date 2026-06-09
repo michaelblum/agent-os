@@ -48,7 +48,7 @@
     "language": "en",
     "quality_tiers": ["premium", "enhanced"]
   },
-  "auditor": {
+  "historian": {
     "voice_slot": 9,
     "gender": "male",
     "language": "en",

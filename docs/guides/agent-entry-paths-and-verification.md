@@ -1,12 +1,17 @@
-# Recipe: Agent Entry Paths and Verification
+# Recipe: Capability Routes and Verification
+
+This guide predates the dock profile model. Treat "entry path" language in this
+file as compatibility wording for capability routes only. It does not define
+agent identity, dock runtime posture, session ethos, or active operating
+doctrine. Docked sessions load those from `.docks/profiles/active-profile.json`.
 
 Use this recipe when an agent is developing or diagnosing AOS through AOS itself.
 The goal is to dogfood the platform without confusing ordinary harness behavior
 with elevated developer powers.
 
-## Entry Paths
+## Capability Routes
 
-Entry paths are progressive-disclosure branches. Choose the narrowest path that
+Capability routes are progressive-disclosure branches. Choose the narrowest path that
 matches the task, then backtrack and add layers when the task pivots, the user
 asks for a different mode, or evidence shows the current path cannot answer the
 question. Do not make non-dev agents read developer/testing procedures unless
@@ -157,7 +162,7 @@ starting point.
 
 ## Checklist
 
-1. Name the current entry path: agent harness, AOS developer, testing, visual
+1. Name the current capability route: agent harness, AOS developer, testing, visual
    diagnostics, user-input diagnostics, or an app-specific layer.
 2. State the active path when it affects what will be read, skipped, tested, or
    modified.

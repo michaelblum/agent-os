@@ -272,7 +272,7 @@
         {
           "id": "dev-active-profile-schema-test",
           "command": "node --test tests/schemas/dev-active-profile.test.mjs",
-          "reason": "Validate the active workflow profile selector and its referenced profile."
+          "reason": "Validate the active development integration profile selector and its referenced profile."
         },
         {
           "id": "dev-workflow-profile-schema-test",
@@ -336,6 +336,7 @@
       "summary": "Dock profile metadata, schema, docs, or tests changed.",
       "patterns": [
         ".docks/*/dock.json",
+        ".docks/profiles/**",
         ".docks/dock-defaults.json",
         ".docks/README.md",
         ".docks/AGENTS.md",
@@ -361,6 +362,11 @@
           "reason": "Validate dock profiles, fixtures, and capability-envelope semantics."
         },
         {
+          "id": "dock-operating-profile-test",
+          "command": "node --test tests/schemas/dock-operating-profiles.test.mjs",
+          "reason": "Validate active dock operating profile packs and anti-drift doctrine."
+        },
+        {
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
           "reason": "Verify dock profile discovery remains exposed through the dev control surface."
@@ -376,6 +382,7 @@
         ".codex/agents/**",
         ".docks/foreman/.codex/config.toml",
         ".docks/foreman/.codex/hooks.json",
+        ".docks/profiles/multi-agent-v2-findings.md",
         ".docks/foreman/SUBAGENTS.md",
         ".docks/foreman/README.md",
         ".docks/foreman/subagent-voices.json",

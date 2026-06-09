@@ -4,7 +4,7 @@
   "schema_version": "2026-05-agent-capability-manifest-v0",
   "id": "agent-os.dev-capabilities",
   "label": "agent-os Developer Capabilities",
-  "summary": "Canonical capability manifest for typed repo-development operations exposed to docked sessions and AOS developer entry paths.",
+  "summary": "Canonical capability manifest for typed repo-development operations exposed to docked sessions and AOS developer capability routes.",
   "applies_to": {
     "roles": ["foreman", "gdi", "operator"],
     "entry_paths": ["aos_developer", "testing"]

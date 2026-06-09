@@ -12,7 +12,7 @@ import re
 import sys
 
 root = pathlib.Path(sys.argv[1])
-canonical_roles = ("architect", "implementer", "reviewer", "explorer", "validator", "operator", "steward")
+canonical_roles = ("architect", "implementer", "reviewer", "explorer", "validator", "operator", "steward", "historian")
 retired_roles = ("gdi", "github-steward")
 
 for retired in (
@@ -52,12 +52,18 @@ for role in canonical_roles:
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 for required in (
+    "First Response Header",
+    ".docks/profiles/active-profile.json",
+    "Profile: foundation-breaking + one-world",
+    "Capability route = path/tool/test routing mechanics, not identity or ethos",
+    "foundation-forming",
     "spawn_agent",
     "task_name",
     "`agent_type` must match",
     "Prompt text is not role selection",
     "subagent-runtime blocker",
     "diagnostic/readback helper",
+    "Nested squad-lead topology is\nexperimental",
 ):
     if required not in foreman_agents:
         raise SystemExit(f"FAIL: Foreman AGENTS missing native-dispatch boundary token {required!r}")
@@ -95,6 +101,48 @@ for role in ("foreman", *canonical_roles):
     if slot in slots:
         raise SystemExit(f"FAIL: voice slot {slot} reused by {role} and {slots[slot]}")
     slots[slot] = role
+
+active_profile = json.loads((root / ".docks" / "profiles" / "active-profile.json").read_text())
+if "foundation-breaking" not in active_profile.get("header", {}).get("profile", ""):
+    raise SystemExit("FAIL: active dock profile header must name foundation-breaking posture")
+for pack in active_profile.get("profile_packs", []):
+    pack_root = root / ".docks" / "profiles" / pack
+    if not (pack_root / "profile.md").is_file() or not (pack_root / "profile.json").is_file():
+        raise SystemExit(f"FAIL: active dock profile pack missing profile.md/profile.json: {pack}")
+
+profile_readme = (root / ".docks" / "profiles" / "README.md").read_text()
+for required in (
+    "Agent definition = who the agent or subagent is",
+    "Dock = runtime shell",
+    "Profile = active operating doctrine",
+    "Capability route = path, tool, and test routing mechanics",
+    "encrypted tool registration",
+):
+    if required not in profile_readme:
+        raise SystemExit(f"FAIL: dock profile README missing {required!r}")
+
+one_world_stale = (root / ".docks" / "profiles" / "workstream-one-world" / "stale-sources.md").read_text()
+for required in ("entry-point", "transfer-contract", "goal-command", "clipboard-dispatch", "stale work cards"):
+    if required not in one_world_stale:
+        raise SystemExit(f"FAIL: stale-source quarantine missing {required!r}")
+
+findings = (root / ".docks" / "profiles" / "multi-agent-v2-findings.md").read_text()
+for required in (
+    "Codex CLI 0.138.0 encrypted tool",
+    "max_depth = 1",
+    "max_threads",
+    "SubagentStart/SubagentStop",
+    "codex-thread-workbench",
+    "Foreman-orchestrated direct",
+):
+    if required not in findings:
+        raise SystemExit(f"FAIL: multi_agent_v2 findings missing {required!r}")
+
+workflow_readme = (root / "docs" / "dev" / "workflow-profiles" / "README.md").read_text()
+if "not the primary session operating model" not in workflow_readme:
+    raise SystemExit("FAIL: workflow profile docs must be demoted below dock profiles")
+if "entry paths" in workflow_readme:
+    raise SystemExit("FAIL: workflow profile docs still use current entry-path framing")
 PY
 
 TMPDIR_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-dock-hook-isolation.XXXXXX")"

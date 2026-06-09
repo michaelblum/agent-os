@@ -1,0 +1,20 @@
+{
+  "id": "base-aos-local",
+  "name": "Base AOS Local",
+  "workflow_posture": "local branch, no automatic PR or push",
+  "delegation_topology": "foreman_orchestrated_direct_subagents",
+  "must_stay_with_foreman": [
+    "final acceptance",
+    "git/GitHub publication decisions",
+    "profile selection",
+    "repo-mode rebuild and TCC handoff decisions"
+  ],
+  "delegate_when_available": [
+    "bounded exploration",
+    "scoped implementation",
+    "findings-only review",
+    "named validation",
+    "supervised live inspection",
+    "Git/GitHub readback"
+  ]
+}

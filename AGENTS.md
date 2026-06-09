@@ -19,8 +19,8 @@ or role-specific policy here.
 Change root `AGENTS.md` only when a repo-wide invariant or routing pointer has
 changed. Prefer the narrower owner:
 
-- `.docks/` for dock roles, launch model, hooks, inbound contracts, transfer
-  vocabulary, and stop behavior.
+- `.docks/` for dock roles, launch model, active dock profiles, hooks, inbound
+  contracts, transfer vocabulary, and stop behavior.
 - Nearest subtree `AGENTS.md` for package, app, daemon, toolkit, or test-local
   operating contracts.
 - `docs/guides/` for repeatable procedures and checklists.
@@ -40,8 +40,8 @@ inline instructions with a pointer to the owning surface.
 - `CONTEXT.md` defines shared vocabulary and resolved terminology.
 - `CONTEXT-MAP.md` routes work to the right source roots, contracts, schemas,
   recipes, and domain docs.
-- `.docks/README.md` explains dock launch, hook/config ownership, and canonical
-  dock roles.
+- `.docks/README.md` explains dock launch, active profile loading, hook/config
+  ownership, and canonical dock roles.
 - `.docks/AGENTS.md` is the shared docked-session contract.
 - `.docks/foreman/AGENTS.md`, `.docks/gdi/AGENTS.md`, and
   `.docks/operator/AGENTS.md` define role-local authority and stop conditions.

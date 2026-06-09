@@ -12,8 +12,6 @@ const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-dock-profil
 const capabilityManifestPath = path.join(repoRoot, 'docs/dev/agent-capabilities.json');
 const canonicalDockPaths = [
   path.join(repoRoot, '.docks/foreman/dock.json'),
-  path.join(repoRoot, '.docks/gdi/dock.json'),
-  path.join(repoRoot, '.docks/operator/dock.json'),
 ];
 
 async function jsonFiles(dir) {
@@ -135,31 +133,15 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   );
 
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_comment'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_comment'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_comment'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_create'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_create'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_create'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_close'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_close'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_close'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_edit'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_edit'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_edit'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_comment'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_create'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_create'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_create'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_merge'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_merge'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
-  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
 
-  for (const profileName of ['foreman', 'gdi', 'operator']) {
+  for (const profileName of ['foreman']) {
     const allowed = profiles.get(profileName).allowed_capabilities;
     assert.ok(allowed.includes('dev.github.issue_list'), `${profileName} should allow issue inventory`);
     assert.ok(allowed.includes('dev.github.issue_view'), `${profileName} should allow issue reads`);
@@ -169,28 +151,18 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
     assert.ok(allowed.includes('dev.github.pr_checks'), `${profileName} should allow PR check reads`);
   }
 
-  assert.equal(profiles.get('operator').default_entry_path, 'agent_harness');
-  assert.ok(!profiles.get('operator').allowed_capability_classes.includes('external_write'));
-  assert.ok(!profiles.get('operator').allowed_capability_classes.includes('host_write'));
-
   assert.equal(profiles.get('foreman').metadata.execution_topology, 'team_root');
   assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
   assert.equal(profiles.get('foreman').metadata.subagent_team.extensible, true);
-  assert.deepEqual(profiles.get('foreman').metadata.subagent_team.registered_agents, ['gdi', 'operator', 'explorer', 'validator']);
+  assert.deepEqual(
+    profiles.get('foreman').metadata.subagent_team.registered_agents,
+    ['architect', 'implementer', 'reviewer', 'validator', 'operator', 'explorer', 'steward', 'historian'],
+  );
   assert.equal(
     profiles.get('foreman').metadata.subagent_team.model_policy,
     'native_agent_config_declares_model_and_effort',
   );
   assert.equal(profiles.get('foreman').metadata.subagent_team.inherits_foreman_model, false);
 
-  for (const profileName of ['gdi', 'operator']) {
-    assert.equal(profiles.get(profileName).metadata.execution_topology, 'native_subagent');
-    assert.equal(profiles.get(profileName).metadata.normal_launch_root, false);
-    assert.equal(profiles.get(profileName).metadata.spawned_by, 'foreman');
-    assert.equal(profiles.get(profileName).metadata.legacy_terminal_transport, true);
-  }
-
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
-  assert.ok(profiles.get('gdi').allowed_capabilities.includes('dev.test.schema_node'));
-  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.test.schema_node'));
 });

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "active_profile": "foundation-breaking-one-world-local",
+  "profile_packs": [
+    "base-aos-local",
+    "ethos-foundation-breaking",
+    "runtime-passive-unless-approved",
+    "workstream-one-world"
+  ],
+  "header": {
+    "profile": "foundation-breaking + one-world",
+    "workflow": "local branch, no automatic PR",
+    "migration_posture": "owned contracts may be broken and migrated broadly",
+    "runtime_posture": "passive unless explicitly approved",
+    "delegation": "Foreman-orchestrated direct subagents",
+    "authority": ".docks/profiles/active-profile.json",
+    "stale_pools": "old entry paths, retired handoffs, stale work cards"
+  }
+}

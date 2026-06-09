@@ -65,7 +65,8 @@
         "validator",
         "operator",
         "explorer",
-        "steward"
+        "steward",
+        "historian"
       ],
       "model_policy": "native_agent_config_declares_model_and_effort",
       "inherits_foreman_model": false

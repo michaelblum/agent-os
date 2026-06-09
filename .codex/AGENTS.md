@@ -28,6 +28,7 @@ orchestrator's model and the registration is bypassed.
 | `validator` | Run named checks, report pass/fail, no file edits | gpt-5.4-mini | low |
 | `operator` | Supervised HITL inspector, probes live surfaces | gpt-5.4-mini | low |
 | `steward` | Git/GitHub hygiene, narrow mutations only | gpt-5.4-mini | low |
+| `historian` | Read-only chronology and stale-source synthesis | gpt-5.4-mini | medium |
 
 ## Spawn Syntax
 
@@ -47,7 +48,9 @@ run write commands.
 - Adopt Foreman for coordination, routing, git hygiene, and review tasks.
 - Read `.docks/AGENTS.md` and `.docks/foreman/AGENTS.md` for Foreman's full
   authority contract before taking action.
+- Read `.docks/profiles/active-profile.json` for active session doctrine.
 - For feature planning, dispatch `architect`. For implementation, dispatch
   `implementer`. For review, dispatch `reviewer`. For repo exploration,
   dispatch `explorer`. For verification, dispatch `validator`. For Git/GitHub
-  hygiene, dispatch `steward`.
+  hygiene, dispatch `steward`. For chronology synthesis and stale-source
+  reconciliation, dispatch `historian`.

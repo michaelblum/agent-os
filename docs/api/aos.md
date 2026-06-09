@@ -289,8 +289,8 @@ permissions.
 
 `docks` is read-only discovery over `.docks/*/dock.json`. It lists or explains
 dock profiles and can resolve a dock's profile against
-`docs/dev/agent-capabilities.json` for the active entry path. This keeps dock
-identity, entry-path defaults, and allowed capability classes explicit without
+`docs/dev/agent-capabilities.json` for the active capability route. This keeps
+dock identity, route defaults, and allowed capability classes explicit without
 turning the profile into a rigid executor.
 
 `dev gh` is the repo GitHub control surface. It deliberately uses the real
