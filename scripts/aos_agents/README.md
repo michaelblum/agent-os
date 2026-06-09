@@ -22,6 +22,8 @@ on Codex CLI `multi_agent_v2`.
 - Writes provider results only under the planned runtime directory.
 - Writes patch-output metadata only under the planned runtime directory; it never
   applies patches to the checkout.
+- Writes diagnostic `result.json` with raw provider final output when
+  patch-output extraction fails after a provider response.
 - Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global

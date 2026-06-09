@@ -91,7 +91,7 @@
       "then": {
         "properties": { "execute": { "const": true } },
         "required": ["error"],
-        "not": { "anyOf": [{ "required": ["result_path"] }, { "required": ["patch_path"] }] }
+        "not": { "required": ["patch_path"] }
       }
     },
     {

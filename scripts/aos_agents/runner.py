@@ -504,8 +504,8 @@ def summary_doc(
         raise RunnerError(f"Summary status {status!r} requires execute")
     if status == "completed" and result_path is None:
         raise RunnerError("Completed summary requires result_path")
-    if status != "completed" and result_path is not None:
-        raise RunnerError(f"Summary status {status!r} must not include result_path")
+    if status == "ready" and result_path is not None:
+        raise RunnerError("Ready summary must not include result_path")
     if status == "error" and not error:
         raise RunnerError("Error summary requires an error message")
     if status != "error" and error is not None:
@@ -689,6 +689,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             patch_path.unlink()
         else:
             raise RunnerError(f"Refusing to replace non-file patch path: {patch_path}")
+    provider_result: dict[str, Any] | None = None
     try:
         provider_result = execute_provider_run(
             sdk,
@@ -701,6 +702,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         patch_text = extract_patch_text(provider_result["final_output"]) if args.patch_output else None
     except Exception as exc:
         error_message = f"Provider execution failed: {exc}"
+        diagnostic_result_path = None
+        if args.patch_output and provider_result is not None:
+            diagnostic_result_path = result_path
+            write_json(
+                result_path,
+                {
+                    "status": "error",
+                    "role": role,
+                    "agent_spec": str(spec.path.relative_to(root)),
+                    "active_profile": active_profile.active_profile,
+                    "base_commit": base_commit,
+                    "target_branch": target_branch,
+                    "task_hash": task_hash(args.task),
+                    "max_turns": args.max_turns,
+                    "output_dir": str(planned_dir),
+                    "summary_path": str(summary_path),
+                    "error": error_message,
+                    "extraction_error": str(exc),
+                    "raw_final_output": provider_result["final_output"],
+                    "result_type": provider_result.get("result_type"),
+                },
+            )
         write_json(
             summary_path,
             summary_doc(
@@ -713,6 +736,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 planned_dir,
                 True,
                 args.max_turns,
+                diagnostic_result_path,
                 error=error_message,
                 base_commit=base_commit,
                 target_branch=target_branch,

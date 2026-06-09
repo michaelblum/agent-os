@@ -45,7 +45,10 @@ class Runner:
     def run_sync(starting_agent, input, **kwargs):
         final_output = "fake provider final output"
         if starting_agent.kwargs.get("name") == "implementer":
-            final_output = """diff --git a/docs/example.md b/docs/example.md
+            if os.environ.get("AOS_AGENT_FAKE_SDK_PATCH_FAILURE") == "1":
+                final_output = "not a unified diff\nIMPLEMENTER DONE. no files changed"
+            else:
+                final_output = """diff --git a/docs/example.md b/docs/example.md
 new file mode 100644
 index 0000000..8ab686e
 --- /dev/null
@@ -157,6 +160,8 @@ assert set(schema["required"]) == {
     "summary_path",
 }, schema
 assert "implementer" in schema["properties"]["role"]["enum"], schema
+error_clause = schema["allOf"][2]["then"]
+assert error_clause["not"] == {"required": ["patch_path"]}, schema
 PY
 pass "summary schema documents the runtime artifact contract"
 
@@ -352,6 +357,52 @@ else
     fail "implementer patch-output execution failed with fake SDK"
 fi
 
+PATCH_ERROR_TASK="produce invalid patch output"
+if ERR="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" AOS_AGENT_FAKE_SDK_PATCH_FAILURE=1 PYTHONPATH="$PRESENT_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "$PATCH_ERROR_TASK" --patch-output --execute --max-turns 1 2>&1 >/dev/null)"; then
+    fail "implementer patch-output extraction failure unexpectedly succeeded"
+elif ERR="$ERR" FIXTURE="$FIXTURE" PATCH_ERROR_TASK="$PATCH_ERROR_TASK" python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["ERR"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+task = os.environ["PATCH_ERROR_TASK"]
+task_hash = hashlib.sha256(task.encode("utf-8")).hexdigest()[:12]
+runtime_root = fixture / ".runtime/dev/aos-agents"
+output_dir = runtime_root / "runs/implementer" / f"produce-invalid-patch-output-{task_hash}"
+summary_path = output_dir / "summary.json"
+result_path = output_dir / "result.json"
+patch_path = output_dir / "patch.diff"
+assert data["status"] == "error", data
+assert "Patch-output provider result did not contain a unified diff" in data["error"], data
+assert output_dir.is_dir(), output_dir
+assert summary_path.is_file(), summary_path
+assert result_path.is_file(), result_path
+assert not patch_path.exists(), patch_path
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["status"] == "error", summary_doc
+assert summary_doc["role"] == "implementer", summary_doc
+assert summary_doc["error"] == data["error"], summary_doc
+assert summary_doc["result_path"] == str(result_path), summary_doc
+assert "patch_path" not in summary_doc, summary_doc
+result_doc = json.loads(result_path.read_text())
+assert result_doc["status"] == "error", result_doc
+assert result_doc["role"] == "implementer", result_doc
+assert result_doc["error"] == data["error"], result_doc
+assert result_doc["extraction_error"] == "Patch-output provider result did not contain a unified diff", result_doc
+assert result_doc["raw_final_output"] == "not a unified diff\nIMPLEMENTER DONE. no files changed", result_doc
+assert "patch_path" not in result_doc, result_doc
+assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
+assert not (fixture / "docs" / "example.md").exists()
+PY
+then
+    pass "implementer patch-output extraction errors write inspectable result.json without patch or checkout mutation"
+else
+    fail "implementer patch-output extraction error did not produce diagnostic artifacts"
+fi
+
 ERROR_TASK="provider error task"
 if ERR="$(PYTHONPATH="$FAILING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "$ERROR_TASK" --execute --max-turns 1 2>&1 >/dev/null)"; then
     fail "provider error path unexpectedly succeeded"
@@ -398,10 +449,11 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["status"] == "success", data
 assert data["runtime_root"] == str(runtime_root), data
-assert data["count"] == 4, data
+assert data["count"] == 5, data
 statuses = {item["summary"]["status"] for item in data["runs"]}
 assert statuses == {"ready", "completed", "error"}, data
 assert any(item["role"] == "implementer" and item["summary"].get("patch_path") for item in data["runs"]), data
+assert any(item["role"] == "implementer" and item["summary"]["status"] == "error" and item["result_exists"] for item in data["runs"]), data
 assert all(Path(item["output_dir"]).is_relative_to(runtime_root) for item in data["runs"]), data
 assert any(item["result_exists"] for item in data["runs"]), data
 PY
