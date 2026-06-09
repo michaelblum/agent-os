@@ -15,8 +15,13 @@ SDK_RECORD="$TMP_ROOT/sdk-record.json"
 AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
 AOS_PATCH_CLEANUP_TARGET="$TMP_ROOT/aos-patch-output-dir.txt"
 RUNNER_READ_TARGET="$TMP_ROOT/runner-output-dir.txt"
-mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
+mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$FIXTURE/scripts/aos_agents" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
 printf 'main checkout sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
+cat >"$FIXTURE/scripts/aos_agents/README.md" <<'EOF'
+# Fixture AOS Agent Runner
+
+The M1 read-only parity proof is recorded in the fixture report.
+EOF
 
 cat >"$MISSING_SDK/agents.py" <<'PY'
 raise ModuleNotFoundError("forced missing agents SDK for aos agent runner test")
@@ -160,6 +165,7 @@ assert set(schema["required"]) == {
     "summary_path",
 }, schema
 assert "implementer" in schema["properties"]["role"]["enum"], schema
+assert "context_files" in schema["properties"], schema
 error_clause = schema["allOf"][2]["then"]
 assert error_clause["not"] == {"required": ["patch_path"]}, schema
 PY
@@ -217,6 +223,54 @@ then
     pass "patch-output mode requires explicit provider execution"
 else
     fail "patch-output without execute error was not clear JSON"
+fi
+
+if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "context needs patch output" --context-file scripts/aos_agents/README.md 2>&1 >/dev/null)"; then
+    fail "context-file without patch-output unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "--context-file is only enabled with --patch-output" in data["error"], data
+PY
+then
+    pass "context-file is restricted to patch-output mode"
+else
+    fail "context-file without patch-output error was not clear JSON"
+fi
+
+if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "bad context traversal" --context-file ../outside.md --patch-output --execute 2>&1 >/dev/null)"; then
+    fail "context-file traversal unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "--context-file escaped repo root" in data["error"], data
+PY
+then
+    pass "context-file rejects path traversal before provider execution"
+else
+    fail "context-file traversal error was not clear JSON"
+fi
+
+if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "bad absolute context" --context-file "$TMP_ROOT/outside.md" --patch-output --execute 2>&1 >/dev/null)"; then
+    fail "absolute context-file unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "--context-file must be repo-relative" in data["error"], data
+PY
+then
+    pass "context-file rejects absolute paths outside repo"
+else
+    fail "absolute context-file error was not clear JSON"
 fi
 
 if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "sdk missing check" 2>&1 >/dev/null)"; then
@@ -360,12 +414,49 @@ assert "no `*** Update File`" in instructions, record
 assert "no `apply_patch`" in instructions, record
 assert "Do not include prose before or after the diff" in instructions, record
 assert "Do not wrap the diff in Markdown fences" in instructions, record
+assert "Source Context" not in instructions, record
 assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
 assert not (fixture / "docs" / "example.md").exists()
 PY
     pass "implementer patch-output writes patch artifacts under runtime root without checkout mutation"
 else
     fail "implementer patch-output execution failed with fake SDK"
+fi
+
+if CONTEXT_PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "produce contextual patch" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1)"; then
+    CONTEXT_PATCHED="$CONTEXT_PATCHED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["CONTEXT_PATCHED"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+runtime_root = fixture / ".runtime/dev/aos-agents"
+output_dir = Path(data["output_dir"])
+summary_path = Path(data["summary_path"])
+result_path = Path(data["result_path"])
+patch_path = Path(data["patch_path"])
+assert data["status"] == "completed", data
+assert data["context_files"] == ["scripts/aos_agents/README.md"], data
+assert output_dir.is_relative_to(runtime_root), output_dir
+assert patch_path == output_dir / "patch.diff", data
+assert patch_path.is_file(), patch_path
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["context_files"] == ["scripts/aos_agents/README.md"], summary_doc
+result_doc = json.loads(result_path.read_text())
+assert result_doc["context_files"] == ["scripts/aos_agents/README.md"], result_doc
+record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
+instructions = record["agent"]["instructions"]
+assert "Source Context" in instructions, record
+assert "BEGIN FILE scripts/aos_agents/README.md" in instructions, record
+assert "The M1 read-only parity proof is recorded in the fixture report." in instructions, record
+assert "END FILE scripts/aos_agents/README.md" in instructions, record
+assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
+assert not (fixture / "docs" / "example.md").exists()
+PY
+    pass "implementer patch-output includes bounded repo source context without checkout mutation"
+else
+    fail "implementer patch-output with context failed with fake SDK"
 fi
 
 PATCH_ERROR_TASK="produce invalid patch output"
@@ -460,10 +551,11 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["status"] == "success", data
 assert data["runtime_root"] == str(runtime_root), data
-assert data["count"] == 5, data
+assert data["count"] == 6, data
 statuses = {item["summary"]["status"] for item in data["runs"]}
 assert statuses == {"ready", "completed", "error"}, data
 assert any(item["role"] == "implementer" and item["summary"].get("patch_path") for item in data["runs"]), data
+assert any(item["role"] == "implementer" and item["summary"].get("context_files") == ["scripts/aos_agents/README.md"] for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"]["status"] == "error" and item["result_exists"] for item in data["runs"]), data
 assert all(Path(item["output_dir"]).is_relative_to(runtime_root) for item in data["runs"]), data
 assert any(item["result_exists"] for item in data["runs"]), data
@@ -564,7 +656,7 @@ else
     fail "./aos dev agents execution route failed with fake SDK"
 fi
 
-if AOS_PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" ./aos dev agents --role implementer --task "patch through aos command surface" --patch-output --execute --max-turns 1 --json)"; then
+if AOS_PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" ./aos dev agents --role implementer --task "patch through aos command surface" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json)"; then
     AOS_PATCHED="$AOS_PATCHED" ROOT="$ROOT" AOS_PATCH_CLEANUP_TARGET="$AOS_PATCH_CLEANUP_TARGET" python3 - <<'PY'
 import json
 import os
@@ -582,6 +674,7 @@ assert output_dir.parent == runtime_root / "runs" / "implementer", output_dir
 assert patch_path == output_dir / "patch.diff", data
 assert patch_path.read_text().startswith("diff --git a/docs/example.md b/docs/example.md"), patch_path.read_text()
 assert data["touched_paths"] == ["docs/example.md"], data
+assert data["context_files"] == ["scripts/aos_agents/README.md"], data
 Path(os.environ["AOS_PATCH_CLEANUP_TARGET"]).write_text(str(output_dir))
 PY
     AOS_PATCH_OUTPUT_DIR="$(cat "$AOS_PATCH_CLEANUP_TARGET")"

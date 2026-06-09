@@ -6790,6 +6790,14 @@
               "value_type" : "bool"
             },
             {
+              "id" : "context-file",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repo-relative file to include as bounded source context for --patch-output",
+              "token" : "--context-file",
+              "value_type" : "string"
+            },
+            {
               "default_value" : 1,
               "id" : "max-turns",
               "kind" : "flag",
@@ -6819,7 +6827,7 @@
             "aos dev agents --self-test --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
-            "aos dev agents --role implementer --task \"produce a patch artifact\" --patch-output --execute --max-turns 1 --json",
+            "aos dev agents --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
             "aos dev agents --list-runs --json",
             "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json"
           ],
@@ -6839,7 +6847,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [

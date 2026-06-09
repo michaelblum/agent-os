@@ -32,6 +32,8 @@ ARTIFACT_ROLES = READ_ONLY_ROLES | PATCH_OUTPUT_ROLES
 READ_ONLY_SANDBOX_MODE = "read-only"
 RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
 SUMMARY_STATUSES = frozenset({"ready", "completed", "error"})
+CONTEXT_FILE_MAX_BYTES = 12000
+CONTEXT_FILE_MAX_LINES = 240
 
 
 class RunnerError(Exception):
@@ -62,6 +64,14 @@ class ActiveProfile:
     active_profile: str
     profile_packs: tuple[ProfilePack, ...]
     header: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class IncludedContextFile:
+    repo_path: str
+    path: pathlib.Path
+    text: str
+    truncated: bool
 
 
 def repo_root(start: pathlib.Path | None = None) -> pathlib.Path:
@@ -252,6 +262,61 @@ def runtime_root(root: pathlib.Path) -> pathlib.Path:
     return (root / RUNTIME_ROOT).resolve()
 
 
+def git_ignored(root: pathlib.Path, repo_path: str) -> bool:
+    if not (root / ".git").exists():
+        return False
+    try:
+        completed = subprocess.run(
+            ("git", "check-ignore", "-q", "--", repo_path),
+            cwd=root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    return completed.returncode == 0
+
+
+def resolve_context_file(root: pathlib.Path, value: str) -> IncludedContextFile:
+    requested = pathlib.Path(value)
+    if requested.is_absolute():
+        raise RunnerError(f"--context-file must be repo-relative: {value}")
+    candidate = (root / requested).resolve(strict=False)
+    if not is_relative_to(candidate, root):
+        raise RunnerError(f"--context-file escaped repo root: {value}")
+    if is_relative_to(candidate, runtime_root(root)):
+        raise RunnerError(f"--context-file may not include runtime artifacts: {value}")
+    repo_path = candidate.relative_to(root).as_posix()
+    if repo_path == ".git" or repo_path.startswith(".git/"):
+        raise RunnerError(f"--context-file may not include git internals: {value}")
+    if git_ignored(root, repo_path):
+        raise RunnerError(f"--context-file may not include ignored files: {repo_path}")
+    if not candidate.is_file():
+        raise RunnerError(f"--context-file is not a repo file: {repo_path}")
+
+    raw = candidate.read_bytes()
+    truncated = len(raw) > CONTEXT_FILE_MAX_BYTES
+    text = raw[:CONTEXT_FILE_MAX_BYTES].decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    if len(lines) > CONTEXT_FILE_MAX_LINES:
+        text = "\n".join(lines[:CONTEXT_FILE_MAX_LINES])
+        truncated = True
+    return IncludedContextFile(repo_path=repo_path, path=candidate, text=text, truncated=truncated)
+
+
+def load_context_files(root: pathlib.Path, values: list[str] | None) -> tuple[IncludedContextFile, ...]:
+    if not values:
+        return ()
+    loaded: list[IncludedContextFile] = []
+    seen: set[str] = set()
+    for value in values:
+        context_file = resolve_context_file(root, value)
+        if context_file.repo_path not in seen:
+            loaded.append(context_file)
+            seen.add(context_file.repo_path)
+    return tuple(loaded)
+
+
 def resolve_run_dir(root: pathlib.Path, value: str) -> pathlib.Path:
     root_dir = runtime_root(root)
     candidate = pathlib.Path(value).expanduser()
@@ -384,23 +449,49 @@ def build_agent_instructions(spec: AgentSpec, active_profile: ActiveProfile) -> 
     )
 
 
-def build_patch_output_instructions(spec: AgentSpec, active_profile: ActiveProfile) -> str:
+def render_context_files(context_files: tuple[IncludedContextFile, ...]) -> str | None:
+    if not context_files:
+        return None
+    blocks = [
+        "# Source Context",
+        "The following repo files are read-only source context. Generate the unified diff against this exact content.",
+    ]
+    for context_file in context_files:
+        truncated = " (truncated)" if context_file.truncated else ""
+        blocks.extend(
+            [
+                f"## {context_file.repo_path}{truncated}",
+                f"BEGIN FILE {context_file.repo_path}",
+                context_file.text,
+                f"END FILE {context_file.repo_path}",
+            ]
+        )
+    return "\n".join(blocks)
+
+
+def build_patch_output_instructions(
+    spec: AgentSpec,
+    active_profile: ActiveProfile,
+    context_files: tuple[IncludedContextFile, ...] = (),
+) -> str:
     base = build_agent_instructions(spec, active_profile)
-    return "\n\n".join(
-        [
-            base,
-            "# Patch-Only Output Contract",
-            "This contract overrides any role instruction to include IMPLEMENTER DONE, summaries, or file-change "
-            "prose. Return a true unified diff only. Your final answer must start with "
-            "`diff --git a/... b/...`, include `--- a/...`, include `+++ b/...`, and include `@@` hunks.",
-            "Do not edit files, run commands, apply patches, mutate git, mutate GitHub, install dependencies, "
-            "or change runtime state. The runner will save your final answer as patch.diff for Foreman review; "
-            "Foreman applies nothing automatically.",
-            "Never output an apply_patch envelope or patch-tool syntax: no `*** Begin Patch`, no "
-            "`*** Update File`, and no `apply_patch`. Do not include prose before or after the diff. "
-            "Do not wrap the diff in Markdown fences.",
-        ]
-    )
+    sections = [
+        base,
+        "# Patch-Only Output Contract",
+        "This contract overrides any role instruction to include IMPLEMENTER DONE, summaries, or file-change "
+        "prose. Return a true unified diff only. Your final answer must start with "
+        "`diff --git a/... b/...`, include `--- a/...`, include `+++ b/...`, and include `@@` hunks.",
+        "Do not edit files, run commands, apply patches, mutate git, mutate GitHub, install dependencies, "
+        "or change runtime state. The runner will save your final answer as patch.diff for Foreman review; "
+        "Foreman applies nothing automatically.",
+        "Never output an apply_patch envelope or patch-tool syntax: no `*** Begin Patch`, no "
+        "`*** Update File`, and no `apply_patch`. Do not include prose before or after the diff. "
+        "Do not wrap the diff in Markdown fences.",
+    ]
+    context = render_context_files(context_files)
+    if context is not None:
+        sections.append(context)
+    return "\n\n".join(sections)
 
 
 def execute_provider_run(
@@ -411,11 +502,12 @@ def execute_provider_run(
     max_turns: int,
     *,
     patch_output: bool = False,
+    context_files: tuple[IncludedContextFile, ...] = (),
 ) -> dict[str, Any]:
     agent = sdk.Agent(
         name=spec.name,
         instructions=(
-            build_patch_output_instructions(spec, active_profile)
+            build_patch_output_instructions(spec, active_profile, context_files)
             if patch_output
             else build_agent_instructions(spec, active_profile)
         ),
@@ -498,6 +590,7 @@ def summary_doc(
     target_branch: str | None = None,
     patch_path: pathlib.Path | None = None,
     touched_paths: list[str] | None = None,
+    context_files: list[str] | None = None,
     suggested_review_command_value: str | None = None,
     suggested_apply_command_value: str | None = None,
 ) -> dict[str, Any]:
@@ -541,6 +634,8 @@ def summary_doc(
         doc["patch_path"] = str(patch_path)
     if touched_paths is not None:
         doc["touched_paths"] = touched_paths
+    if context_files is not None:
+        doc["context_files"] = context_files
     if suggested_review_command_value is not None:
         doc["suggested_review_command"] = suggested_review_command_value
     if suggested_apply_command_value is not None:
@@ -631,6 +726,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return read_run(root, args.read_run)
 
     role = args.role or "explorer"
+    if args.context_file and not args.patch_output:
+        raise RunnerError("--context-file is only enabled with --patch-output")
     if args.patch_output:
         if not args.execute:
             raise RunnerError("--patch-output requires --execute so patch.diff, summary.json, and result.json are produced together")
@@ -646,6 +743,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise RunnerError("--max-turns must be at least 1")
 
     active_profile = load_active_profile(root)
+    context_files = load_context_files(root, args.context_file)
+    context_file_paths = [context_file.repo_path for context_file in context_files]
     sdk = require_openai_agents_sdk()
     planned_dir = output_dir(root, role, args.task, patch_output=args.patch_output)
     planned_dir.mkdir(parents=True, exist_ok=True)
@@ -704,6 +803,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.task,
             args.max_turns,
             patch_output=args.patch_output,
+            context_files=context_files,
         )
         patch_text = extract_patch_text(provider_result["final_output"]) if args.patch_output else None
     except Exception as exc:
@@ -728,6 +828,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "extraction_error": str(exc),
                     "raw_final_output": provider_result["final_output"],
                     "result_type": provider_result.get("result_type"),
+                    **({"context_files": context_file_paths} if context_file_paths else {}),
                 },
             )
         write_json(
@@ -746,6 +847,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 error=error_message,
                 base_commit=base_commit,
                 target_branch=target_branch,
+                context_files=context_file_paths or None,
             ),
         )
         raise RunnerError(error_message) from exc
@@ -768,6 +870,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         target_branch=target_branch,
         patch_path=patch_path if args.patch_output else None,
         touched_paths=touched_paths,
+        context_files=context_file_paths or None,
         suggested_review_command_value=suggested_review_command(patch_path) if args.patch_output else None,
         suggested_apply_command_value=suggested_apply_command(patch_path) if args.patch_output else None,
     )
@@ -789,6 +892,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         result_doc["touched_paths"] = touched_paths
         result_doc["suggested_review_command"] = suggested_review_command(patch_path)
         result_doc["suggested_apply_command"] = suggested_apply_command(patch_path)
+    if context_file_paths:
+        result_doc["context_files"] = context_file_paths
     write_json(result_path, result_doc)
     write_json(summary_path, summary)
     return {
@@ -802,6 +907,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "touched_paths": touched_paths,
                 "suggested_review_command": suggested_review_command(patch_path),
                 "suggested_apply_command": suggested_apply_command(patch_path),
+                **({"context_files": context_file_paths} if context_file_paths else {}),
             }
             if args.patch_output
             else {}
@@ -820,6 +926,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
     parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only.")
+    parser.add_argument("--context-file", action="append", help="Repo-relative file to include as bounded source context for --patch-output.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
     parser.add_argument("--json", action="store_true", help="Accepted for ./aos dev command-surface consistency.")
     return parser.parse_args(argv)

@@ -24,6 +24,8 @@ on Codex CLI `multi_agent_v2`.
   applies patches to the checkout.
 - Writes diagnostic `result.json` with raw provider final output when
   patch-output extraction fails after a provider response.
+- Allows patch-output runs to include bounded repo-relative source context via
+  `--context-file`.
 - Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
@@ -59,7 +61,7 @@ available in the caller's environment:
 Produce a reviewable implementer patch artifact without mutating the checkout:
 
 ```bash
-./aos dev agents --role implementer --task "make a minimal docs change" --patch-output --execute --max-turns 1 --json
+./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
 ```
 
 Review the generated patch before any manual apply:

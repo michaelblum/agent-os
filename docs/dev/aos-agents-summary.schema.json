@@ -54,6 +54,11 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "context_files": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "suggested_review_command": {
       "type": "string",
       "pattern": "^git apply --check /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
