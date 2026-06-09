@@ -382,7 +382,7 @@ state_dir = pathlib.Path(repo_root) / ".runtime" / "dev" / "foreman-subagent-aut
 state_file = state_dir / f"{key}.json" if key else None
 
 authorization_pattern = re.compile(
-    r"\bauthori[sz]e\s+registered\s+foreman\s+subagents\s+for\s+this\s+session\b",
+    r"^\s*use\s+subagents\s*$",
     re.IGNORECASE,
 )
 
@@ -423,7 +423,7 @@ reason = (
     "Foreman needs session-level authorization to use registered custom "
     "subagents for bounded specialist work before continuing.\n\n"
     "Reply with:\n"
-    "authorize registered Foreman subagents for this session\n\n"
+    "use subagents\n\n"
     "This does not authorize extra file edits, commits, pushes, PRs, merges, "
     "branch deletion, or GitHub mutation beyond the current task and active "
     "workflow profile."
