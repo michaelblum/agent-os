@@ -79,18 +79,9 @@ EOF
   echo "agent-sync: created $GLOBAL_CONFIG with safe defaults"
 fi
 
-# ── 3. Sync via Python 3 ────────────────────────────────────────────────────
+# ── 3. Sync via Python 3 (any version ≥3.6, zero deps) ────────────────────
 python3 - "$AGENTS_DIR" "$GLOBAL_CONFIG" "$LOCAL_AGENTS_DIR" "$DRY_RUN" <<'PYEOF'
-import sys, os, re, pathlib, shutil, datetime, json
-
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        print("ERROR: Python 3.11+ required (or: pip install tomli)", file=sys.stderr)
-        sys.exit(1)
+import sys, re, pathlib, shutil, datetime, json
 
 agents_dir       = pathlib.Path(sys.argv[1])
 global_cfg       = pathlib.Path(sys.argv[2])
@@ -98,34 +89,61 @@ local_agents_dir = pathlib.Path(sys.argv[3])
 dry_run          = sys.argv[4] == "true"
 run_ts           = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
+# ── Minimal TOML parser — handles the exact fields in agent TOMLs ────────────
+# Supports: bare string values, quoted strings, inline arrays of quoted strings,
+# and multiline strings ("""..."""). Skips [section] headers and comments.
+def parse_agent_toml(text):
+    data = {}
+    # Normalise multiline strings: collapse """...""" to a single quoted value
+    text = re.sub(r'"""(.*?)"""', lambda m: '"' + m.group(1).replace('\n', ' ').strip() + '"',
+                  text, flags=re.DOTALL)
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or line.startswith('['):
+            continue
+        m = re.match(r'^(\w[\w_-]*)\s*=\s*(.+)$', line)
+        if not m:
+            continue
+        key, val = m.group(1), m.group(2).strip()
+        # Inline array: ["a", "b", ...]
+        if val.startswith('['):
+            items = re.findall(r'"([^"]+)"', val)
+            data[key] = items
+        # Quoted string
+        elif val.startswith('"'):
+            data[key] = re.sub(r'^"(.*)"$', r'\1', val)
+        # Bare value (numbers, booleans, unquoted strings)
+        else:
+            data[key] = val
+    return data
+
 # ── Read source agent TOMLs ──────────────────────────────────────────────────
 source = {}
 for toml_file in sorted(agents_dir.glob("*.toml")):
     try:
-        with open(toml_file, "rb") as f:
-            data = tomllib.load(f)
+        text = toml_file.read_text()
+        data = parse_agent_toml(text)
         name = data.get("name") or toml_file.stem
         source[name] = {
-            "name":                name,
-            "description":         data.get("description", "").strip(),
-            "nickname_candidates": data.get("nickname_candidates", []),
-            "model":               data.get("model", ""),
+            "name":                   name,
+            "description":            data.get("description", "").strip(),
+            "nickname_candidates":    data.get("nickname_candidates", []),
+            "model":                  data.get("model", ""),
             "model_reasoning_effort": data.get("model_reasoning_effort", ""),
-            "source_file":         str(toml_file.resolve()),
-            "target_file":         str((local_agents_dir / toml_file.name).resolve()),
+            "source_file":            str(toml_file.resolve()),
+            "target_file":            str((local_agents_dir / toml_file.name).resolve()),
         }
     except Exception as e:
-        print(f"  WARN: skipping {toml_file.name} — parse error: {e}", flush=True)
+        print(f"  WARN: skipping {toml_file.name} — {e}", flush=True)
 
 if not source:
     print("  WARN: no agent .toml files found in", agents_dir, flush=True)
     sys.exit(0)
 
 # ── Step A: Write/update ~/.codex/agents/<name>.toml ────────────────────────
-toml_results = []  # (name, action, path)
+toml_results = []
 for name, agent in source.items():
-    target = pathlib.Path(agent["target_file"])
-    # Read source toml as raw text and write verbatim to target
+    target   = pathlib.Path(agent["target_file"])
     src_text = pathlib.Path(agent["source_file"]).read_text()
     if dry_run:
         action = "would-write" if not target.exists() else "would-update"
@@ -136,17 +154,15 @@ for name, agent in source.items():
 
 # ── Step B: Patch ~/.codex/config.toml [agents.*] blocks ────────────────────
 raw = global_cfg.read_text()
-
-# Detect existing [agents.<name>] blocks
 existing_agents = set(re.findall(r'^\[agents\.(\w[\w-]*)\]', raw, re.MULTILINE))
 
 added, updated, skipped, noticed = [], [], [], []
 new_blocks = []
 
 for name, agent in source.items():
-    desc      = agent["description"].replace('"', '\\"')
-    cfg_path  = agent["target_file"]   # ~/.codex/agents/<name>.toml
-    nicks     = agent["nickname_candidates"]
+    desc     = agent["description"].replace('"', '\\"')
+    cfg_path = agent["target_file"]
+    nicks    = agent["nickname_candidates"]
 
     lines = [f'[agents.{name}]']
     lines.append(f'description         = "{desc}"')
@@ -160,9 +176,8 @@ for name, agent in source.items():
         new_blocks.append((name, new_block))
         added.append(name)
     else:
-        # Check if config_file path needs updating (stale path check)
-        stale = cfg_path not in raw
-        desc_stale = agent["description"] and f'"{agent["description"]}"' not in raw
+        stale      = cfg_path not in raw
+        desc_stale = agent["description"] and ('"' + agent["description"] + '"') not in raw
         if stale or desc_stale:
             pattern = rf'\[agents\.{re.escape(name)}\][^\[]*'
             raw = re.sub(pattern, new_block, raw, flags=re.DOTALL)
@@ -170,33 +185,31 @@ for name, agent in source.items():
         else:
             skipped.append(name)
 
-# Agents in global config not in agent-os (do not touch)
 for name in existing_agents:
     if name not in source:
         noticed.append(name)
 
-# Append new blocks
 if new_blocks:
     raw = raw.rstrip() + "\n\n" + "\n\n".join(blk for _, blk in new_blocks) + "\n"
 
-# ── Write global config (with backup) ───────────────────────────────────────
+# ── Write (with backup) ───────────────────────────────────────────────────────
 backup_path = None
 if not dry_run and (added or updated):
     ts          = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = str(global_cfg) + ".bak-" + ts
-    shutil.copy2(global_cfg, backup_path)
+    shutil.copy2(str(global_cfg), backup_path)
     global_cfg.write_text(raw)
 
-# ── Telemetry block ──────────────────────────────────────────────────────────
+# ── Telemetry ──────────────────────────────────────────────────────────────
 telem = {
     "agent_sync_telemetry": {
-        "run_at":          run_ts,
-        "dry_run":         dry_run,
-        "agent_os_path":   str(agents_dir.parent.parent),
-        "source_dir":      str(agents_dir),
-        "global_config":   str(global_cfg),
+        "run_at":           run_ts,
+        "dry_run":          dry_run,
+        "agent_os_path":    str(agents_dir.parent.parent),
+        "source_dir":       str(agents_dir),
+        "global_config":    str(global_cfg),
         "local_agents_dir": str(local_agents_dir),
-        "backup":          backup_path,
+        "backup":           backup_path,
         "config_changes": {
             "added":   added,
             "updated": updated,
@@ -217,7 +230,6 @@ print("=" * 64)
 print(json.dumps(telem, indent=2))
 print("=" * 64 + "\n")
 
-# Human summary
 if added:   print(f"  added:   {', '.join(added)}")
 if updated: print(f"  updated: {', '.join(updated)}")
 if skipped: print(f"  skipped: {', '.join(skipped)} (no change)")
