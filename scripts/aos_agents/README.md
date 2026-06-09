@@ -88,6 +88,9 @@ repo-managed dependency policy.
 The M1 read-only parity proof is recorded in
 `docs/dev/reports/aos-agent-runner-m1-read-only-parity-v0.md`.
 
+The M2 implementer patch-output proof and Foreman apply boundary are recorded in
+`docs/dev/reports/aos-agent-runner-m2-implementer-patch-output-v0.md`.
+
 List or read existing runtime artifacts without invoking the provider:
 
 ```bash
