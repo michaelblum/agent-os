@@ -419,7 +419,6 @@
         ".codex/agents/**",
         ".docks/foreman/.codex/config.toml",
         ".docks/foreman/.codex/hooks.json",
-        ".docks/profiles/multi-agent-v2-findings.md",
         ".docks/foreman/SUBAGENTS.md",
         ".docks/foreman/README.md",
         ".docks/foreman/subagent-voices.json",

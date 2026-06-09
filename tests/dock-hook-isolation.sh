@@ -126,17 +126,19 @@ for required in ("entry-point", "transfer-contract", "goal-command", "clipboard-
     if required not in one_world_stale:
         raise SystemExit(f"FAIL: stale-source quarantine missing {required!r}")
 
-findings = (root / ".docks" / "profiles" / "multi-agent-v2-findings.md").read_text()
+for forbidden_profile_note in (root / ".docks" / "profiles").glob("*findings*.md"):
+    raise SystemExit(f"FAIL: stale dock profile findings note still exists: {forbidden_profile_note}")
+
 for required in (
-    "Codex CLI 0.138.0 encrypted tool",
-    "max_depth = 1",
-    "max_threads",
-    "SubagentStart/SubagentStop",
-    "codex-thread-workbench",
-    "Foreman-orchestrated direct",
+    "Codex CLI 0.138.0",
+    "encrypted tool registration",
+    "Foreman must proceed\nwithout subagents",
+    "Observed local behavior in the real Foreman dock",
+    "Default topology is Foreman-orchestrated direct subagents",
+    "Nested squad leads\nremain experimental",
 ):
-    if required not in findings:
-        raise SystemExit(f"FAIL: multi_agent_v2 findings missing {required!r}")
+    if required not in profile_readme:
+        raise SystemExit(f"FAIL: dock profile README missing multi_agent_v2 boundary {required!r}")
 
 workflow_readme = (root / "docs" / "dev" / "workflow-profiles" / "README.md").read_text()
 if "not the primary session operating model" not in workflow_readme:

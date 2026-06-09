@@ -55,14 +55,14 @@ test('dock profile docs encode anti-drift operating model', async () => {
 });
 
 test('multi_agent_v2 unknowns stay explicit until local smoke proves them', async () => {
-  const findings = await fs.readFile(path.join(profilesRoot, 'multi-agent-v2-findings.md'), 'utf8');
-  assert.match(findings, /Codex CLI 0\.138\.0 encrypted tool/);
-  assert.match(findings, /Does real Foreman `spawn_agent` expose and honor `agent_type`\?/);
-  assert.match(findings, /Does project `agents\.max_depth = 1` block grandchildren\?/);
-  assert.match(findings, /How do `agents\.max_threads` and `max_depth` interact\?/);
-  assert.match(findings, /SubagentStart\/SubagentStop/);
-  assert.match(findings, /codex-thread-workbench/);
-  assert.match(findings, /supported topology is Foreman-orchestrated direct/);
+  const readme = await fs.readFile(path.join(profilesRoot, 'README.md'), 'utf8');
+  assert.match(readme, /Codex CLI 0\.138\.0/);
+  assert.match(readme, /encrypted tool registration/);
+  assert.match(readme, /Foreman must proceed\s+without subagents/);
+  assert.match(readme, /Observed local behavior in the real Foreman dock/);
+  assert.match(readme, /\.codex\/agents\/\*\.toml/);
+  assert.match(readme, /Default topology is Foreman-orchestrated direct subagents/);
+  assert.match(readme, /Nested squad leads\s+remain experimental/);
 });
 
 test('workflow profile docs are demoted below dock profiles', async () => {
