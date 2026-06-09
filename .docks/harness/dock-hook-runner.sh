@@ -461,12 +461,15 @@ run_aos_bounded() {
 
 # Build and run an aos say command for a given voice slot.
 # Usage: speak_slot <slot> <gender> <language> <tiers_array_nameref> <text>
+# Compatible with bash 3.2+ (no local -n nameref).
 speak_slot() {
   local slot="$1" gender="$2" language="$3" text="$5"
   local tiers_name="$4"
   local -a tiers=()
-  local -n _speak_slot_tiers_ref="$tiers_name"
-  tiers=("${_speak_slot_tiers_ref[@]}")
+  # Portable array copy: eval expands the named variable's elements into a new array.
+  # tiers_name is validated above to contain only [a-zA-Z_][a-zA-Z0-9_]* chars by the
+  # call sites (foreman_tiers, sub_tiers, voice_quality_tiers) so eval is safe here.
+  eval "tiers=(\"\${${tiers_name}[@]+\${${tiers_name}[@]}}\")" 2>/dev/null || tiers=()
   [[ -z "$slot" ]] && return 0
   local say_args=("$AOS_BIN" say --voice-slot "$slot")
   [[ -n "$language" ]] && say_args+=(--language "$language")
