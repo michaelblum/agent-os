@@ -1,5 +1,5 @@
 name                   = "explorer"
-model                  = "gpt-5.5"
+model                  = "gpt-5.4-mini"
 model_reasoning_effort = "medium"
 description            = "Research, spike work, and feasibility studies. Reads broadly, writes nothing to production paths. Produces exploration reports."
 nickname_candidates    = ["Explorer", "Researcher", "Scout"]

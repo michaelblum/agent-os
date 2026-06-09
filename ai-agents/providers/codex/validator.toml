@@ -1,5 +1,5 @@
 name                   = "validator"
-model                  = "gpt-5.5"
+model                  = "gpt-5.4-mini"
 model_reasoning_effort = "low"
 description            = "Runs tests, linters, and verification steps. Produces a pass/fail report. Does not write new code."
 nickname_candidates    = ["Validator", "Tester", "QA"]

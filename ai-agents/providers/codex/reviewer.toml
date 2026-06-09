@@ -1,5 +1,5 @@
 name                   = "reviewer"
-model                  = "gpt-5.5"
+model                  = "gpt-5.4-mini"
 model_reasoning_effort = "medium"
 description            = "Code review, diff analysis, correctness checks, and PR feedback. Dispatched after Implementer finishes a slice."
 nickname_candidates    = ["Reviewer", "Critic", "Code Reviewer"]
