@@ -4,13 +4,14 @@ Date: 2026-06-09
 
 ## Decision
 
-The M2 patch-output lane is acceptable as the next supersession primitive for
-provider-produced, Foreman-reviewed patch artifacts.
+The M2 patch-output lane plus the Foreman-owned apply gate is acceptable as the
+next supersession primitive for provider-produced, Foreman-reviewed patch
+artifacts.
 
 This does not mean full native Codex subagent supersession. Full supersession
 remains blocked by the intentionally disabled general write-capable
-`implementer` path and by the need for an explicit Foreman approval/apply
-workflow before any provider-produced patch mutates the checkout.
+`implementer` path and by native subagent/runtime integration decisions beyond
+the patch-artifact boundary.
 
 ## Branch And Dependency Posture
 
@@ -20,6 +21,7 @@ workflow before any provider-produced patch mutates the checkout.
   - `698637af` Add patch-output failure diagnostics
   - `94546c13` Harden patch-output diff instructions
   - `1eec265b` Add patch-output source context
+  - `5a139175` Add AOS agent patch artifact check gate
 - Provider SDK unblock: ignored local venv under `.runtime/dev/aos-agents/.venv`
 - Dependency decision: unchanged from M1. The local venv is a live-smoke-only
   environment, not an optional dev dependency and not a repo-managed dependency
@@ -82,15 +84,20 @@ Smoke readback:
 
 ## Foreman Apply Boundary
 
-- Foreman may inspect `patch.diff`.
-- Foreman must run `git apply --check <patch.diff>` before applying a provider
-  patch artifact.
-- Foreman must get explicit approval before applying a provider patch artifact.
+- Foreman may inspect `patch.diff` with
+  `./aos dev agents --check-patch <output-dir> --json`.
+- Foreman may apply an existing artifact only with
+  `./aos dev agents --apply-patch <output-dir> --i-approve-checkout-mutation --json`.
+- The apply gate validates the runtime-root-confined `summary.json`,
+  `result.json`, and `patch.diff` artifact contract, requires completed status
+  in summary/result, requires a clean worktree, reruns `git apply --check`
+  immediately before mutation, and applies with plain `git apply`.
+- The apply gate leaves checkout changes unstaged.
 - The provider never applies patches directly.
 
 ## Remaining Blocker
 
-The next slice should implement the first explicit Foreman approval/apply
-workflow. That workflow should preserve the current provider boundary, consume
-an existing `patch.diff` artifact, run `git apply --check`, require an explicit
-approval step, then apply the patch as a Foreman-controlled checkout mutation.
+The explicit patch-output and Foreman apply primitive is now scaffolded. Full
+supersession still requires a native subagent/runtime path that can replace the
+provider proof lane without weakening the direct-mutation boundary, plus a
+decision on dependency/runtime packaging beyond the ignored local smoke venv.

@@ -28,6 +28,10 @@ on Codex CLI `multi_agent_v2`.
   `--context-file`.
 - Checks existing implementer patch-output artifacts with `git apply --check`
   without invoking the provider or mutating the checkout.
+- Applies existing implementer patch-output artifacts only through the
+  Foreman-owned `--apply-patch ... --i-approve-checkout-mutation` gate, after
+  validating artifacts, requiring a clean worktree, and rerunning
+  `git apply --check`.
 - Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
@@ -80,8 +84,17 @@ Use the Foreman-owned check gate for an existing patch-output run:
 
 This check-only gate validates `summary.json`, `result.json`, and `patch.diff`
 consistency, runs `git apply --check`, reports touched paths and worktree
-cleanliness, and applies nothing. A future apply command must require explicit
-Foreman approval before mutating the checkout.
+cleanliness, and applies nothing.
+
+Apply an existing patch artifact only after explicit Foreman approval:
+
+```bash
+./aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json
+```
+
+The apply gate does not invoke the provider. It rejects dirty worktrees, reruns
+`git apply --check` immediately before mutation, applies with plain `git apply`,
+and leaves resulting checkout changes unstaged.
 
 For M1 live-smoke only, use an ignored local venv under `.runtime/dev/aos-agents/`
 instead of adding repo-managed Python dependencies:
@@ -110,6 +123,7 @@ List or read existing runtime artifacts without invoking the provider:
 ./aos dev agents --list-runs --json
 ./aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json
 ./aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json
+./aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json
 ```
 
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails

@@ -6766,6 +6766,22 @@
               "value_type" : "string"
             },
             {
+              "id" : "apply-patch",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Apply an existing implementer patch-output run after explicit checkout-mutation approval",
+              "token" : "--apply-patch",
+              "value_type" : "string"
+            },
+            {
+              "id" : "i-approve-checkout-mutation",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Required approval for --apply-patch to mutate the checkout",
+              "token" : "--i-approve-checkout-mutation",
+              "value_type" : "bool"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
               "required" : false,
@@ -6838,7 +6854,8 @@
             "aos dev agents --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
             "aos dev agents --list-runs --json",
             "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
-            "aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json"
+            "aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json",
+            "aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -6856,7 +6873,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--check-patch <output-dir>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [

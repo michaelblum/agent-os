@@ -40,12 +40,16 @@ class RunnerError(Exception):
     """User-facing runner failure."""
 
 
-class PatchCheckError(RunnerError):
-    """Structured failure for check-only patch artifact review."""
+class PatchArtifactError(RunnerError):
+    """Structured failure for patch artifact review or application."""
 
     def __init__(self, message: str, payload: dict[str, Any]):
         super().__init__(message)
         self.payload = payload
+
+
+class PatchCheckError(PatchArtifactError):
+    """Structured failure for check-only patch artifact review."""
 
 
 @dataclass(frozen=True)
@@ -413,25 +417,51 @@ def read_run(root: pathlib.Path, value: str) -> dict[str, Any]:
     }
 
 
-def git_status_clean(root: pathlib.Path) -> bool:
+def git_status_porcelain(root: pathlib.Path) -> list[str] | None:
     try:
         completed = subprocess.run(
             ("git", "status", "--porcelain"),
             cwd=root,
             check=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
         )
     except (OSError, subprocess.CalledProcessError):
-        return False
-    return completed.stdout.strip() == ""
+        return None
+    return completed.stdout.splitlines()
+
+
+def require_git_status_porcelain(root: pathlib.Path) -> list[str]:
+    lines = git_status_porcelain(root)
+    if lines is None:
+        raise RunnerError(f"Could not read git status for repo root: {root}")
+    return lines
+
+
+def git_status_clean(root: pathlib.Path) -> bool:
+    return git_status_porcelain(root) == []
 
 
 def run_git_apply_check(root: pathlib.Path, patch_path: pathlib.Path) -> tuple[bool, str]:
     try:
         completed = subprocess.run(
             ("git", "apply", "--check", str(patch_path)),
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except OSError as exc:
+        return False, str(exc)
+    output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
+    return completed.returncode == 0, output
+
+
+def run_git_apply(root: pathlib.Path, patch_path: pathlib.Path) -> tuple[bool, str]:
+    try:
+        completed = subprocess.run(
+            ("git", "apply", str(patch_path)),
             cwd=root,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -469,7 +499,7 @@ def require_artifact_value(
         )
 
 
-def check_patch(root: pathlib.Path, value: str) -> dict[str, Any]:
+def validate_patch_artifact(root: pathlib.Path, value: str) -> tuple[dict[str, Any], pathlib.Path]:
     run_dir = resolve_run_dir(root, value)
     if not run_dir.is_dir():
         raise RunnerError(f"Run directory not found under runtime root: {run_dir}")
@@ -534,6 +564,11 @@ def check_patch(root: pathlib.Path, value: str) -> dict[str, Any]:
     touched_paths = summary_touched or result_touched or touched_paths_from_patch(patch_path.read_text())
     payload["touched_paths"] = touched_paths
 
+    return payload, patch_path
+
+
+def check_patch(root: pathlib.Path, value: str) -> dict[str, Any]:
+    payload, patch_path = validate_patch_artifact(root, value)
     passed, apply_output = run_git_apply_check(root, patch_path)
     if not passed:
         payload["apply_check"] = "fail"
@@ -550,6 +585,44 @@ def check_patch(root: pathlib.Path, value: str) -> dict[str, Any]:
             f"{suggested_apply_command(patch_path)}"
         ),
     }
+
+
+def apply_patch_artifact(root: pathlib.Path, value: str) -> dict[str, Any]:
+    payload, patch_path = validate_patch_artifact(root, value)
+    git_status_before = require_git_status_porcelain(root)
+    payload["git_status_before"] = git_status_before
+    payload["git_status_clean"] = git_status_before == []
+    if git_status_before:
+        check_patch_failure("Worktree must be clean before applying patch artifact", payload)
+
+    passed, apply_output = run_git_apply_check(root, patch_path)
+    if not passed:
+        payload["apply_check"] = "fail"
+        if apply_output:
+            payload["apply_check_output"] = apply_output
+        check_patch_failure(f"git apply --check failed for {patch_path}", payload)
+
+    applied, git_apply_output = run_git_apply(root, patch_path)
+    if not applied:
+        payload["apply_check"] = "pass"
+        payload["applied"] = False
+        if git_apply_output:
+            payload["git_apply_output"] = git_apply_output
+        check_patch_failure(f"git apply failed for {patch_path}", payload)
+
+    git_status_after = require_git_status_porcelain(root)
+    result = {
+        **payload,
+        "status": "success",
+        "apply_check": "pass",
+        "applied": True,
+        "git_status_before": git_status_before,
+        "git_status_after": git_status_after,
+        "suggested_next": None,
+    }
+    if git_apply_output:
+        result["git_apply_output"] = git_apply_output
+    return result
 
 
 def require_openai_agents_sdk() -> Any:
@@ -861,9 +934,11 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(pathlib.Path(args.repo_root) if args.repo_root else None)
-    artifact_modes = sum(bool(item) for item in (args.list_runs, args.read_run, args.check_patch))
+    artifact_modes = sum(bool(item) for item in (args.list_runs, args.read_run, args.check_patch, args.apply_patch))
     if artifact_modes > 1:
-        raise RunnerError("--list-runs, --read-run, and --check-patch are mutually exclusive")
+        raise RunnerError("--list-runs, --read-run, --check-patch, and --apply-patch are mutually exclusive")
+    if args.i_approve_checkout_mutation and not args.apply_patch:
+        raise RunnerError("--i-approve-checkout-mutation is only enabled with --apply-patch")
     if args.self_test:
         if artifact_modes:
             raise RunnerError("--self-test cannot be combined with artifact readback")
@@ -876,6 +951,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if args.role or args.task or args.execute or args.patch_output or args.context_file:
             raise RunnerError("--check-patch cannot be combined with role/task/provider execution options")
         return check_patch(root, args.check_patch)
+    if args.apply_patch:
+        if args.role or args.task or args.execute or args.patch_output or args.context_file:
+            raise RunnerError("--apply-patch cannot be combined with role/task/provider execution options")
+        if not args.i_approve_checkout_mutation:
+            raise RunnerError("--apply-patch requires --i-approve-checkout-mutation")
+        return apply_patch_artifact(root, args.apply_patch)
 
     role = args.role or "explorer"
     if args.context_file and not args.patch_output:
@@ -1075,6 +1156,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--list-runs", action="store_true", help="List existing runtime summaries without SDK or provider calls.")
     parser.add_argument("--read-run", help="Read summary.json and result.json for an output_dir under the runtime root.")
     parser.add_argument("--check-patch", help="Validate an implementer patch-output run and run git apply --check without applying it.")
+    parser.add_argument("--apply-patch", help="Apply an existing implementer patch-output run after explicit checkout-mutation approval.")
+    parser.add_argument("--i-approve-checkout-mutation", action="store_true", help="Required approval for --apply-patch to mutate the checkout.")
     parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
@@ -1088,7 +1171,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     try:
         result = run(parse_args(argv))
-    except PatchCheckError as exc:
+    except PatchArtifactError as exc:
         print(json.dumps(exc.payload, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     except RunnerError as exc:

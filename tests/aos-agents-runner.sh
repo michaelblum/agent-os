@@ -143,6 +143,15 @@ cat >"$FIXTURE/.docks/profiles/base/profile.md" <<'EOF'
 Read-only fixture profile.
 EOF
 
+cat >"$FIXTURE/.gitignore" <<'EOF'
+.runtime/
+EOF
+git -C "$FIXTURE" init -q
+git -C "$FIXTURE" config user.email "test@example.invalid"
+git -C "$FIXTURE" config user.name "AOS Test"
+git -C "$FIXTURE" add .
+git -C "$FIXTURE" commit -qm "fixture baseline"
+
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
@@ -766,6 +775,120 @@ PY
     pass "check-patch passes for a valid fixture patch without checkout mutation"
 else
     fail "check-patch valid fixture patch failed"
+fi
+
+if ERR="$(./aos dev agents --repo-root "$FIXTURE" --apply-patch "$(cat "$RUNNER_PATCH_TARGET")" --json 2>&1 >/dev/null)"; then
+    fail "apply-patch without approval unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "--apply-patch requires --i-approve-checkout-mutation" in data["error"], data
+PY
+then
+    pass "apply-patch requires explicit checkout mutation approval"
+else
+    fail "apply-patch missing approval error was not clear JSON"
+fi
+
+printf 'dirty sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --apply-patch "$(cat "$RUNNER_PATCH_TARGET")" --i-approve-checkout-mutation 2>&1 >/dev/null)"; then
+    fail "apply-patch dirty worktree unexpectedly succeeded"
+elif ERR="$ERR" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["ERR"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+assert data["status"] == "error", data
+assert data["patch_exists"] is True, data
+assert data["apply_check"] == "not_run", data
+assert data["git_status_clean"] is False, data
+assert " M main-checkout-sentinel.txt" in data["git_status_before"], data
+assert "Worktree must be clean" in data["error"], data
+assert not (fixture / "docs" / "example.md").exists(), data
+PY
+then
+    pass "apply-patch rejects dirty worktree before apply-check or mutation"
+else
+    fail "apply-patch dirty worktree error was not clear JSON"
+fi
+printf 'main checkout sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
+
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --apply-patch "$MISSING_PATCH_DIR" --i-approve-checkout-mutation 2>&1 >/dev/null)"; then
+    fail "apply-patch missing patch.diff unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert data["patch_exists"] is False, data
+assert data["apply_check"] == "not_run", data
+assert "Missing patch.diff artifact" in data["error"], data
+PY
+then
+    pass "apply-patch rejects missing patch.diff"
+else
+    fail "apply-patch missing patch.diff error was not clear JSON"
+fi
+
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --apply-patch "$APPLY_FAIL_DIR" --i-approve-checkout-mutation 2>&1 >/dev/null)"; then
+    fail "apply-patch failed apply-check unexpectedly succeeded"
+elif ERR="$ERR" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["ERR"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+assert data["status"] == "error", data
+assert data["patch_exists"] is True, data
+assert data["git_status_before"] == [], data
+assert data["apply_check"] == "fail", data
+assert "git apply --check failed" in data["error"], data
+assert "patch does not apply" in data["apply_check_output"], data
+assert not (fixture / "docs" / "example.md").exists(), data
+PY
+then
+    pass "apply-patch rejects failed apply-check without checkout mutation"
+else
+    fail "apply-patch failed apply-check error was not clear JSON"
+fi
+
+if APPLY_PATCHED="$(./aos dev agents --repo-root "$FIXTURE" --apply-patch "$(cat "$RUNNER_PATCH_TARGET")" --i-approve-checkout-mutation --json)"; then
+    APPLY_PATCHED="$APPLY_PATCHED" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["APPLY_PATCHED"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+example = fixture / "docs" / "example.md"
+assert data["status"] == "success", data
+assert data["applied"] is True, data
+assert data["apply_check"] == "pass", data
+assert data["patch_exists"] is True, data
+assert data["git_status_before"] == [], data
+assert data["touched_paths"] == ["docs/example.md"], data
+assert data["patch_path"].endswith("/patch.diff"), data
+assert any(line.startswith("?? docs") for line in data["git_status_after"]), data
+assert example.read_text() == "patch artifact smoke\n", data
+PY
+    if ! git -C "$FIXTURE" diff --cached --quiet; then
+        fail "apply-patch staged checkout changes"
+    fi
+    rm -f "$FIXTURE/docs/example.md"
+    rmdir "$FIXTURE/docs"
+    if [ -n "$(git -C "$FIXTURE" status --porcelain)" ]; then
+        fail "apply-patch fixture cleanup left dirty worktree"
+    fi
+    pass "apply-patch applies a valid fixture patch unstaged with explicit approval"
+else
+    fail "apply-patch valid fixture patch failed"
 fi
 
 if AOS_SELF_TEST="$(./aos dev agents --self-test --json)"; then
