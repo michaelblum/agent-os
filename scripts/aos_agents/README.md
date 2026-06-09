@@ -26,6 +26,8 @@ on Codex CLI `multi_agent_v2`.
   patch-output extraction fails after a provider response.
 - Allows patch-output runs to include bounded repo-relative source context via
   `--context-file`.
+- Checks existing implementer patch-output artifacts with `git apply --check`
+  without invoking the provider or mutating the checkout.
 - Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
@@ -70,6 +72,17 @@ Review the generated patch before any manual apply:
 git apply --check .runtime/dev/aos-agents/runs/implementer/<run-dir>/patch.diff
 ```
 
+Use the Foreman-owned check gate for an existing patch-output run:
+
+```bash
+./aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json
+```
+
+This check-only gate validates `summary.json`, `result.json`, and `patch.diff`
+consistency, runs `git apply --check`, reports touched paths and worktree
+cleanliness, and applies nothing. A future apply command must require explicit
+Foreman approval before mutating the checkout.
+
 For M1 live-smoke only, use an ignored local venv under `.runtime/dev/aos-agents/`
 instead of adding repo-managed Python dependencies:
 
@@ -96,6 +109,7 @@ List or read existing runtime artifacts without invoking the provider:
 ```bash
 ./aos dev agents --list-runs --json
 ./aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json
+./aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json
 ```
 
 Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails

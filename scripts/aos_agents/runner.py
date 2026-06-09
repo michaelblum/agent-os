@@ -40,6 +40,14 @@ class RunnerError(Exception):
     """User-facing runner failure."""
 
 
+class PatchCheckError(RunnerError):
+    """Structured failure for check-only patch artifact review."""
+
+    def __init__(self, message: str, payload: dict[str, Any]):
+        super().__init__(message)
+        self.payload = payload
+
+
 @dataclass(frozen=True)
 class AgentSpec:
     name: str
@@ -405,6 +413,145 @@ def read_run(root: pathlib.Path, value: str) -> dict[str, Any]:
     }
 
 
+def git_status_clean(root: pathlib.Path) -> bool:
+    try:
+        completed = subprocess.run(
+            ("git", "status", "--porcelain"),
+            cwd=root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return completed.stdout.strip() == ""
+
+
+def run_git_apply_check(root: pathlib.Path, patch_path: pathlib.Path) -> tuple[bool, str]:
+    try:
+        completed = subprocess.run(
+            ("git", "apply", "--check", str(patch_path)),
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except OSError as exc:
+        return False, str(exc)
+    output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
+    return completed.returncode == 0, output
+
+
+def check_patch_failure(message: str, payload: dict[str, Any]) -> None:
+    raise PatchCheckError(
+        message,
+        {
+            **payload,
+            "status": "error",
+            "error": message,
+        },
+    )
+
+
+def require_artifact_value(
+    artifact_name: str,
+    doc: dict[str, Any],
+    key: str,
+    expected: str,
+    payload: dict[str, Any],
+) -> None:
+    observed = doc.get(key)
+    if observed != expected:
+        check_patch_failure(
+            f"{artifact_name} {key} mismatch: expected {expected}, observed {observed!r}",
+            payload,
+        )
+
+
+def check_patch(root: pathlib.Path, value: str) -> dict[str, Any]:
+    run_dir = resolve_run_dir(root, value)
+    if not run_dir.is_dir():
+        raise RunnerError(f"Run directory not found under runtime root: {run_dir}")
+
+    summary_path = run_dir / "summary.json"
+    result_path = run_dir / "result.json"
+    patch_path = run_dir / "patch.diff"
+    payload: dict[str, Any] = {
+        "status": "error",
+        "output_dir": str(run_dir),
+        "summary_path": str(summary_path),
+        "result_path": str(result_path),
+        "patch_path": str(patch_path),
+        "patch_exists": patch_path.is_file() and not patch_path.is_symlink(),
+        "apply_check": "not_run",
+        "touched_paths": [],
+        "git_status_clean": git_status_clean(root),
+        "suggested_next": None,
+    }
+
+    summary = load_json_file(summary_path)
+    result = load_json_file(result_path)
+    if summary.get("status") != "completed":
+        check_patch_failure(
+            f"summary.json status must be completed for patch review: {summary.get('status')!r}",
+            payload,
+        )
+    if result.get("status") != "completed":
+        check_patch_failure(
+            f"result.json status must be completed for patch review: {result.get('status')!r}",
+            payload,
+        )
+    if summary.get("role") != "implementer" or result.get("role") != "implementer":
+        check_patch_failure("Patch review requires implementer summary.json and result.json artifacts", payload)
+
+    expected_output_dir = str(run_dir)
+    expected_summary_path = str(summary_path)
+    expected_result_path = str(result_path)
+    expected_patch_path = str(patch_path)
+    require_artifact_value("summary.json", summary, "output_dir", expected_output_dir, payload)
+    require_artifact_value("summary.json", summary, "summary_path", expected_summary_path, payload)
+    require_artifact_value("summary.json", summary, "result_path", expected_result_path, payload)
+    require_artifact_value("summary.json", summary, "patch_path", expected_patch_path, payload)
+    require_artifact_value("result.json", result, "output_dir", expected_output_dir, payload)
+    require_artifact_value("result.json", result, "summary_path", expected_summary_path, payload)
+    require_artifact_value("result.json", result, "patch_path", expected_patch_path, payload)
+
+    if not payload["patch_exists"]:
+        check_patch_failure(f"Missing patch.diff artifact: {patch_path}", payload)
+    resolved_patch = patch_path.resolve(strict=True)
+    if not is_relative_to(resolved_patch, runtime_root(root)):
+        check_patch_failure(f"patch.diff resolved outside runtime root: {resolved_patch}", payload)
+
+    summary_touched = summary.get("touched_paths")
+    result_touched = result.get("touched_paths")
+    if summary_touched is not None and result_touched is not None and summary_touched != result_touched:
+        check_patch_failure("summary.json and result.json touched_paths mismatch", payload)
+    if summary_touched is not None and not isinstance(summary_touched, list):
+        check_patch_failure("summary.json touched_paths must be an array", payload)
+    if result_touched is not None and not isinstance(result_touched, list):
+        check_patch_failure("result.json touched_paths must be an array", payload)
+    touched_paths = summary_touched or result_touched or touched_paths_from_patch(patch_path.read_text())
+    payload["touched_paths"] = touched_paths
+
+    passed, apply_output = run_git_apply_check(root, patch_path)
+    if not passed:
+        payload["apply_check"] = "fail"
+        if apply_output:
+            payload["apply_check_output"] = apply_output
+        check_patch_failure(f"git apply --check failed for {patch_path}", payload)
+
+    return {
+        **payload,
+        "status": "success",
+        "apply_check": "pass",
+        "suggested_next": (
+            "After explicit Foreman approval, apply with: "
+            f"{suggested_apply_command(patch_path)}"
+        ),
+    }
+
+
 def require_openai_agents_sdk() -> Any:
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
     try:
@@ -714,16 +861,21 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(pathlib.Path(args.repo_root) if args.repo_root else None)
-    if args.list_runs and args.read_run:
-        raise RunnerError("--list-runs and --read-run are mutually exclusive")
+    artifact_modes = sum(bool(item) for item in (args.list_runs, args.read_run, args.check_patch))
+    if artifact_modes > 1:
+        raise RunnerError("--list-runs, --read-run, and --check-patch are mutually exclusive")
     if args.self_test:
-        if args.list_runs or args.read_run:
+        if artifact_modes:
             raise RunnerError("--self-test cannot be combined with artifact readback")
         return self_test(root)
     if args.list_runs:
         return list_runs(root, args.role)
     if args.read_run:
         return read_run(root, args.read_run)
+    if args.check_patch:
+        if args.role or args.task or args.execute or args.patch_output or args.context_file:
+            raise RunnerError("--check-patch cannot be combined with role/task/provider execution options")
+        return check_patch(root, args.check_patch)
 
     role = args.role or "explorer"
     if args.context_file and not args.patch_output:
@@ -922,6 +1074,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--self-test", action="store_true", help="Validate parsing and path behavior without API calls.")
     parser.add_argument("--list-runs", action="store_true", help="List existing runtime summaries without SDK or provider calls.")
     parser.add_argument("--read-run", help="Read summary.json and result.json for an output_dir under the runtime root.")
+    parser.add_argument("--check-patch", help="Validate an implementer patch-output run and run git apply --check without applying it.")
     parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
@@ -935,6 +1088,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     try:
         result = run(parse_args(argv))
+    except PatchCheckError as exc:
+        print(json.dumps(exc.payload, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
     except RunnerError as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, indent=2, sort_keys=True), file=sys.stderr)
         return 1

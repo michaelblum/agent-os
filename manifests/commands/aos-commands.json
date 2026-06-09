@@ -6758,6 +6758,14 @@
               "value_type" : "string"
             },
             {
+              "id" : "check-patch",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate an implementer patch-output run and run git apply --check without applying it",
+              "token" : "--check-patch",
+              "value_type" : "string"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
               "required" : false,
@@ -6829,7 +6837,8 @@
             "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
             "aos dev agents --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
             "aos dev agents --list-runs --json",
-            "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json"
+            "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
+            "aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -6847,7 +6856,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--check-patch <output-dir>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [

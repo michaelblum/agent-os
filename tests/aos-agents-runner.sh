@@ -8,6 +8,7 @@ TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-agents-runner.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 FIXTURE="$TMP_ROOT/repo"
+FIXTURE_REAL=""
 MISSING_SDK="$TMP_ROOT/missing-sdk"
 PRESENT_SDK="$TMP_ROOT/present-sdk"
 FAILING_SDK="$TMP_ROOT/failing-sdk"
@@ -15,7 +16,9 @@ SDK_RECORD="$TMP_ROOT/sdk-record.json"
 AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
 AOS_PATCH_CLEANUP_TARGET="$TMP_ROOT/aos-patch-output-dir.txt"
 RUNNER_READ_TARGET="$TMP_ROOT/runner-output-dir.txt"
+RUNNER_PATCH_TARGET="$TMP_ROOT/runner-patch-output-dir.txt"
 mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$FIXTURE/scripts/aos_agents" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
+FIXTURE_REAL="$(cd "$FIXTURE" && pwd -P)"
 printf 'main checkout sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
 cat >"$FIXTURE/scripts/aos_agents/README.md" <<'EOF'
 # Fixture AOS Agent Runner
@@ -424,7 +427,7 @@ else
 fi
 
 if CONTEXT_PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "produce contextual patch" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1)"; then
-    CONTEXT_PATCHED="$CONTEXT_PATCHED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" python3 - <<'PY'
+    CONTEXT_PATCHED="$CONTEXT_PATCHED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" RUNNER_PATCH_TARGET="$RUNNER_PATCH_TARGET" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -453,6 +456,7 @@ assert "The M1 read-only parity proof is recorded in the fixture report." in ins
 assert "END FILE scripts/aos_agents/README.md" in instructions, record
 assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
 assert not (fixture / "docs" / "example.md").exists()
+Path(os.environ["RUNNER_PATCH_TARGET"]).write_text(str(output_dir))
 PY
     pass "implementer patch-output includes bounded repo source context without checkout mutation"
 else
@@ -581,6 +585,189 @@ else
     fail "artifact readback failed"
 fi
 
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --check-patch "$TMP_ROOT/outside-run" 2>&1 >/dev/null)"; then
+    fail "check-patch outside runtime root unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "Run path escaped runtime root" in data["error"], data
+PY
+then
+    pass "check-patch rejects paths outside runtime root"
+else
+    fail "check-patch outside runtime root error was not clear JSON"
+fi
+
+MISSING_PATCH_DIR="$FIXTURE_REAL/.runtime/dev/aos-agents/runs/implementer/missing-patch"
+mkdir -p "$MISSING_PATCH_DIR"
+cat >"$MISSING_PATCH_DIR/summary.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$MISSING_PATCH_DIR",
+  "summary_path": "$MISSING_PATCH_DIR/summary.json",
+  "result_path": "$MISSING_PATCH_DIR/result.json",
+  "patch_path": "$MISSING_PATCH_DIR/patch.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+cat >"$MISSING_PATCH_DIR/result.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$MISSING_PATCH_DIR",
+  "summary_path": "$MISSING_PATCH_DIR/summary.json",
+  "patch_path": "$MISSING_PATCH_DIR/patch.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --check-patch "$MISSING_PATCH_DIR" 2>&1 >/dev/null)"; then
+    fail "check-patch missing patch.diff unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert data["patch_exists"] is False, data
+assert data["apply_check"] == "not_run", data
+assert "Missing patch.diff artifact" in data["error"], data
+PY
+then
+    pass "check-patch rejects missing patch.diff"
+else
+    fail "check-patch missing patch.diff error was not clear JSON"
+fi
+
+MISMATCH_DIR="$FIXTURE_REAL/.runtime/dev/aos-agents/runs/implementer/mismatched-patch-path"
+mkdir -p "$MISMATCH_DIR"
+printf '%s\n' \
+    'diff --git a/scripts/aos_agents/README.md b/scripts/aos_agents/README.md' \
+    '--- a/scripts/aos_agents/README.md' \
+    '+++ b/scripts/aos_agents/README.md' \
+    '@@ -1,3 +1,4 @@' \
+    ' # Fixture AOS Agent Runner' \
+    ' ' \
+    ' The M1 read-only parity proof is recorded in the fixture report.' \
+    '+check patch fixture' \
+    >"$MISMATCH_DIR/patch.diff"
+cat >"$MISMATCH_DIR/summary.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$MISMATCH_DIR",
+  "summary_path": "$MISMATCH_DIR/summary.json",
+  "result_path": "$MISMATCH_DIR/result.json",
+  "patch_path": "$MISMATCH_DIR/elsewhere.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+cat >"$MISMATCH_DIR/result.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$MISMATCH_DIR",
+  "summary_path": "$MISMATCH_DIR/summary.json",
+  "patch_path": "$MISMATCH_DIR/elsewhere.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --check-patch "$MISMATCH_DIR" 2>&1 >/dev/null)"; then
+    fail "check-patch mismatched patch_path unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert data["patch_exists"] is True, data
+assert "summary.json patch_path mismatch" in data["error"], data
+PY
+then
+    pass "check-patch rejects summary/result patch_path mismatch"
+else
+    fail "check-patch patch_path mismatch error was not clear JSON"
+fi
+
+APPLY_FAIL_DIR="$FIXTURE_REAL/.runtime/dev/aos-agents/runs/implementer/apply-check-failure"
+mkdir -p "$APPLY_FAIL_DIR"
+printf '%s\n' \
+    'diff --git a/scripts/aos_agents/README.md b/scripts/aos_agents/README.md' \
+    '--- a/scripts/aos_agents/README.md' \
+    '+++ b/scripts/aos_agents/README.md' \
+    '@@ -1,3 +1,3 @@' \
+    ' # Fixture AOS Agent Runner' \
+    ' ' \
+    '-This line is not in the fixture.' \
+    '+check patch fixture' \
+    >"$APPLY_FAIL_DIR/patch.diff"
+cat >"$APPLY_FAIL_DIR/summary.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$APPLY_FAIL_DIR",
+  "summary_path": "$APPLY_FAIL_DIR/summary.json",
+  "result_path": "$APPLY_FAIL_DIR/result.json",
+  "patch_path": "$APPLY_FAIL_DIR/patch.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+cat >"$APPLY_FAIL_DIR/result.json" <<EOF
+{
+  "status": "completed",
+  "role": "implementer",
+  "output_dir": "$APPLY_FAIL_DIR",
+  "summary_path": "$APPLY_FAIL_DIR/summary.json",
+  "patch_path": "$APPLY_FAIL_DIR/patch.diff",
+  "touched_paths": ["scripts/aos_agents/README.md"]
+}
+EOF
+if ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --check-patch "$APPLY_FAIL_DIR" 2>&1 >/dev/null)"; then
+    fail "check-patch apply-check failure unexpectedly succeeded"
+elif ERR="$ERR" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["ERR"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+assert data["status"] == "error", data
+assert data["patch_exists"] is True, data
+assert data["apply_check"] == "fail", data
+assert "git apply --check failed" in data["error"], data
+assert "patch does not apply" in data["apply_check_output"], data
+assert (fixture / "scripts/aos_agents/README.md").read_text().endswith("fixture report.\n"), data
+PY
+then
+    pass "check-patch reports git apply --check failure without checkout mutation"
+else
+    fail "check-patch apply-check failure was not clear JSON"
+fi
+
+if PATCH_CHECK="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --check-patch "$(cat "$RUNNER_PATCH_TARGET")")"; then
+    PATCH_CHECK="$PATCH_CHECK" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["PATCH_CHECK"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+assert data["status"] == "success", data
+assert data["patch_exists"] is True, data
+assert data["apply_check"] == "pass", data
+assert data["touched_paths"] == ["docs/example.md"], data
+assert data["suggested_next"].startswith("After explicit Foreman approval"), data
+assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
+assert not (fixture / "docs" / "example.md").exists()
+PY
+    pass "check-patch passes for a valid fixture patch without checkout mutation"
+else
+    fail "check-patch valid fixture patch failed"
+fi
+
 if AOS_SELF_TEST="$(./aos dev agents --self-test --json)"; then
     AOS_SELF_TEST="$AOS_SELF_TEST" python3 - <<'PY'
 import json
@@ -678,11 +865,25 @@ assert data["context_files"] == ["scripts/aos_agents/README.md"], data
 Path(os.environ["AOS_PATCH_CLEANUP_TARGET"]).write_text(str(output_dir))
 PY
     AOS_PATCH_OUTPUT_DIR="$(cat "$AOS_PATCH_CLEANUP_TARGET")"
+    if AOS_PATCH_CHECK="$(./aos dev agents --check-patch "$AOS_PATCH_OUTPUT_DIR" --json)"; then
+        AOS_PATCH_CHECK="$AOS_PATCH_CHECK" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["AOS_PATCH_CHECK"])
+assert data["status"] == "success", data
+assert data["patch_exists"] is True, data
+assert data["apply_check"] == "pass", data
+assert data["touched_paths"] == ["docs/example.md"], data
+PY
+    else
+        fail "./aos dev agents check-patch route failed"
+    fi
     case "$AOS_PATCH_OUTPUT_DIR" in
         "$ROOT/.runtime/dev/aos-agents/"*) rm -rf "$AOS_PATCH_OUTPUT_DIR" ;;
         *) fail "./aos dev agents patch cleanup target escaped runtime root: $AOS_PATCH_OUTPUT_DIR" ;;
     esac
-    pass "./aos dev agents routes implementer patch-output artifacts through the external command surface"
+    pass "./aos dev agents routes implementer patch-output artifacts and check-patch through the external command surface"
 else
     fail "./aos dev agents implementer patch-output route failed with fake SDK"
 fi
