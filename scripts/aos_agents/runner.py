@@ -15,6 +15,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +27,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on older system Pyth
 
 
 READ_ONLY_ROLES = frozenset({"explorer", "reviewer", "validator", "historian"})
+PATCH_OUTPUT_ROLES = frozenset({"implementer"})
+ARTIFACT_ROLES = READ_ONLY_ROLES | PATCH_OUTPUT_ROLES
 READ_ONLY_SANDBOX_MODE = "read-only"
 RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
 SUMMARY_STATUSES = frozenset({"ready", "completed", "error"})
@@ -122,13 +125,18 @@ def load_flat_toml(path: pathlib.Path) -> dict[str, Any]:
     return data
 
 
-def load_agent_spec(path: pathlib.Path) -> AgentSpec:
+def load_agent_spec(
+    path: pathlib.Path,
+    *,
+    allowed_roles: frozenset[str] = READ_ONLY_ROLES,
+    require_read_only_sandbox: bool = True,
+) -> AgentSpec:
     data = load_toml(path)
     name = data.get("name")
     if not isinstance(name, str) or not name:
         raise RunnerError(f"{path} is missing a string name")
-    if name not in READ_ONLY_ROLES:
-        raise RunnerError(f"Role {name!r} is not enabled in the experimental read-only runner")
+    if name not in allowed_roles:
+        raise RunnerError(f"Role {name!r} is not enabled in the experimental runner")
 
     description = data.get("description", "")
     model = data.get("model", "")
@@ -144,7 +152,7 @@ def load_agent_spec(path: pathlib.Path) -> AgentSpec:
         raise RunnerError(f"{path} has invalid model_reasoning_effort")
     if sandbox_mode is not None and not isinstance(sandbox_mode, str):
         raise RunnerError(f"{path} has invalid sandbox_mode")
-    if sandbox_mode != READ_ONLY_SANDBOX_MODE:
+    if require_read_only_sandbox and sandbox_mode != READ_ONLY_SANDBOX_MODE:
         raise RunnerError(
             f"{path} must declare sandbox_mode = {READ_ONLY_SANDBOX_MODE!r} "
             "for the experimental read-only runner"
@@ -173,6 +181,17 @@ def load_agent_specs(root: pathlib.Path) -> dict[str, AgentSpec]:
     if missing:
         raise RunnerError(f"Missing read-only agent specs: {', '.join(missing)}")
     return specs
+
+
+def load_patch_output_spec(root: pathlib.Path, role: str) -> AgentSpec:
+    if role not in PATCH_OUTPUT_ROLES:
+        raise RunnerError(
+            f"--patch-output is only enabled for: {', '.join(sorted(PATCH_OUTPUT_ROLES))}"
+        )
+    path = root / ".codex" / "agents" / f"{role}.toml"
+    if not path.is_file():
+        raise RunnerError(f"Missing patch-output agent spec: {path}")
+    return load_agent_spec(path, allowed_roles=PATCH_OUTPUT_ROLES, require_read_only_sandbox=False)
 
 
 def load_active_profile(root: pathlib.Path) -> ActiveProfile:
@@ -216,8 +235,9 @@ def task_hash(task: str) -> str:
     return hashlib.sha256(task.encode("utf-8")).hexdigest()[:12]
 
 
-def output_dir(root: pathlib.Path, role: str, task: str) -> pathlib.Path:
-    if role not in READ_ONLY_ROLES:
+def output_dir(root: pathlib.Path, role: str, task: str, *, patch_output: bool = False) -> pathlib.Path:
+    allowed_roles = ARTIFACT_ROLES if patch_output else READ_ONLY_ROLES
+    if role not in allowed_roles:
         raise RunnerError(f"Role {role!r} is not enabled in the experimental read-only runner")
     root_dir = runtime_root(root)
     planned = (root_dir / "runs" / role / f"{slug(task)[:48]}-{task_hash(task)}").resolve(strict=False)
@@ -267,13 +287,13 @@ def load_json_file(path: pathlib.Path) -> dict[str, Any]:
 
 
 def list_runs(root: pathlib.Path, role: str | None = None) -> dict[str, Any]:
-    if role is not None and role not in READ_ONLY_ROLES:
-        raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(READ_ONLY_ROLES))}")
+    if role is not None and role not in ARTIFACT_ROLES:
+        raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(ARTIFACT_ROLES))}")
     root_dir = runtime_root(root)
     summaries: list[dict[str, Any]] = []
     role_dirs = [root_dir / "runs" / role] if role else sorted((root_dir / "runs").glob("*"))
     for role_dir in role_dirs:
-        if not role_dir.is_dir() or (role_dir.name not in READ_ONLY_ROLES):
+        if not role_dir.is_dir() or (role_dir.name not in ARTIFACT_ROLES):
             continue
         for summary_path in sorted(role_dir.glob("*/summary.json")):
             run_dir = summary_path.parent.resolve(strict=False)
@@ -364,16 +384,35 @@ def build_agent_instructions(spec: AgentSpec, active_profile: ActiveProfile) -> 
     )
 
 
+def build_patch_output_instructions(spec: AgentSpec, active_profile: ActiveProfile) -> str:
+    base = build_agent_instructions(spec, active_profile)
+    return "\n\n".join(
+        [
+            base,
+            "# Patch-Only Output Contract",
+            "Return only a unified diff patch. Do not edit files, run commands, apply patches, mutate git, "
+            "mutate GitHub, install dependencies, or change runtime state. The runner will save your final "
+            "answer as patch.diff for Foreman review; Foreman applies nothing automatically.",
+        ]
+    )
+
+
 def execute_provider_run(
     sdk: Any,
     spec: AgentSpec,
     active_profile: ActiveProfile,
     task: str,
     max_turns: int,
+    *,
+    patch_output: bool = False,
 ) -> dict[str, Any]:
     agent = sdk.Agent(
         name=spec.name,
-        instructions=build_agent_instructions(spec, active_profile),
+        instructions=(
+            build_patch_output_instructions(spec, active_profile)
+            if patch_output
+            else build_agent_instructions(spec, active_profile)
+        ),
         model=spec.model or None,
     )
     result = sdk.Runner.run_sync(agent, task, max_turns=max_turns)
@@ -384,6 +423,53 @@ def execute_provider_run(
         "final_output": str(final_output),
         "result_type": type(result).__name__,
     }
+
+
+def git_value(root: pathlib.Path, *args: str) -> str:
+    try:
+        completed = subprocess.run(
+            ("git", *args),
+            cwd=root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return completed.stdout.strip() or "unknown"
+
+
+def extract_patch_text(final_output: str) -> str:
+    text = final_output.strip()
+    fenced = re.search(r"```(?:diff|patch)?\s*\n(?P<patch>.*?)\n```", text, flags=re.DOTALL)
+    if fenced:
+        text = fenced.group("patch").strip()
+    if not (text.startswith("diff --git ") or text.startswith("--- ")):
+        raise RunnerError("Patch-output provider result did not contain a unified diff")
+    return text + "\n"
+
+
+def touched_paths_from_patch(patch_text: str) -> list[str]:
+    paths: set[str] = set()
+    for line in patch_text.splitlines():
+        if line.startswith("diff --git "):
+            parts = line.split()
+            if len(parts) >= 4:
+                for candidate in parts[2:4]:
+                    if candidate.startswith(("a/", "b/")) and candidate[2:] != "/dev/null":
+                        paths.add(candidate[2:])
+        elif line.startswith(("--- a/", "+++ b/")):
+            paths.add(line[6:].split("\t", 1)[0])
+    return sorted(paths)
+
+
+def suggested_review_command(patch_path: pathlib.Path) -> str:
+    return f"git apply --check {patch_path}"
+
+
+def suggested_apply_command(patch_path: pathlib.Path) -> str:
+    return f"git apply {patch_path}"
 
 
 def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
@@ -402,6 +488,12 @@ def summary_doc(
     max_turns: int,
     result_path: pathlib.Path | None = None,
     error: str | None = None,
+    base_commit: str | None = None,
+    target_branch: str | None = None,
+    patch_path: pathlib.Path | None = None,
+    touched_paths: list[str] | None = None,
+    suggested_review_command_value: str | None = None,
+    suggested_apply_command_value: str | None = None,
 ) -> dict[str, Any]:
     if status not in SUMMARY_STATUSES:
         allowed = ", ".join(sorted(SUMMARY_STATUSES))
@@ -435,6 +527,18 @@ def summary_doc(
         doc["result_path"] = str(result_path)
     if error is not None:
         doc["error"] = error
+    if base_commit is not None:
+        doc["base_commit"] = base_commit
+    if target_branch is not None:
+        doc["target_branch"] = target_branch
+    if patch_path is not None:
+        doc["patch_path"] = str(patch_path)
+    if touched_paths is not None:
+        doc["touched_paths"] = touched_paths
+    if suggested_review_command_value is not None:
+        doc["suggested_review_command"] = suggested_review_command_value
+    if suggested_apply_command_value is not None:
+        doc["suggested_apply_command"] = suggested_apply_command_value
     return doc
 
 
@@ -475,6 +579,9 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
         rejected = True
     if not rejected:
         raise RunnerError("Write-capable role rejection failed")
+    patch_dir = output_dir(root, "implementer", "patch output path", patch_output=True)
+    if not is_relative_to(patch_dir, runtime_root(root)):
+        raise RunnerError("Patch-output directory planning escaped runtime root")
 
     first = output_dir(root, "explorer", "same task")
     second = output_dir(root, "explorer", "same task")
@@ -517,10 +624,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.read_run:
         return read_run(root, args.read_run)
 
-    specs = load_agent_specs(root)
     role = args.role or "explorer"
-    if role not in specs:
-        raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(specs))}")
+    if args.patch_output:
+        if not args.execute:
+            raise RunnerError("--patch-output requires --execute so patch.diff, summary.json, and result.json are produced together")
+        spec = load_patch_output_spec(root, role)
+    else:
+        specs = load_agent_specs(root)
+        if role not in specs:
+            raise RunnerError(f"Role {role!r} is not enabled. Allowed roles: {', '.join(sorted(specs))}")
+        spec = specs[role]
     if not args.task:
         raise RunnerError("--task is required outside --self-test")
     if args.max_turns < 1:
@@ -528,34 +641,64 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     active_profile = load_active_profile(root)
     sdk = require_openai_agents_sdk()
-    planned_dir = output_dir(root, role, args.task)
+    planned_dir = output_dir(root, role, args.task, patch_output=args.patch_output)
     planned_dir.mkdir(parents=True, exist_ok=True)
 
     summary_path = planned_dir / "summary.json"
+    base_commit = git_value(root, "rev-parse", "HEAD")
+    target_branch = git_value(root, "branch", "--show-current")
     base_result = {
         "status": "ready",
         "message": "Provider execution is available with --execute.",
         "role": role,
-        "agent_spec": str(specs[role].path.relative_to(root)),
+        "agent_spec": str(spec.path.relative_to(root)),
         "active_profile": active_profile.active_profile,
+        "base_commit": base_commit,
+        "target_branch": target_branch,
         "output_dir": str(planned_dir),
         "summary_path": str(summary_path),
     }
     if not args.execute:
         write_json(
             summary_path,
-            summary_doc("ready", root, role, specs[role], active_profile, args.task, planned_dir, False, args.max_turns),
+            summary_doc(
+                "ready",
+                root,
+                role,
+                spec,
+                active_profile,
+                args.task,
+                planned_dir,
+                False,
+                args.max_turns,
+                base_commit=base_commit,
+                target_branch=target_branch,
+            ),
         )
         return base_result
 
     result_path = planned_dir / "result.json"
+    patch_path = planned_dir / "patch.diff"
     if result_path.exists():
         if result_path.is_file() or result_path.is_symlink():
             result_path.unlink()
         else:
             raise RunnerError(f"Refusing to replace non-file result path: {result_path}")
+    if args.patch_output and patch_path.exists():
+        if patch_path.is_file() or patch_path.is_symlink():
+            patch_path.unlink()
+        else:
+            raise RunnerError(f"Refusing to replace non-file patch path: {patch_path}")
     try:
-        provider_result = execute_provider_run(sdk, specs[role], active_profile, args.task, args.max_turns)
+        provider_result = execute_provider_run(
+            sdk,
+            spec,
+            active_profile,
+            args.task,
+            args.max_turns,
+            patch_output=args.patch_output,
+        )
+        patch_text = extract_patch_text(provider_result["final_output"]) if args.patch_output else None
     except Exception as exc:
         error_message = f"Provider execution failed: {exc}"
         write_json(
@@ -564,38 +707,58 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "error",
                 root,
                 role,
-                specs[role],
+                spec,
                 active_profile,
                 args.task,
                 planned_dir,
                 True,
                 args.max_turns,
                 error=error_message,
+                base_commit=base_commit,
+                target_branch=target_branch,
             ),
         )
         raise RunnerError(error_message) from exc
 
+    touched_paths = touched_paths_from_patch(patch_text) if patch_text is not None else None
+    if patch_text is not None:
+        patch_path.write_text(patch_text)
     summary = summary_doc(
         "completed",
         root,
         role,
-        specs[role],
+        spec,
         active_profile,
         args.task,
         planned_dir,
         True,
         args.max_turns,
         result_path,
+        base_commit=base_commit,
+        target_branch=target_branch,
+        patch_path=patch_path if args.patch_output else None,
+        touched_paths=touched_paths,
+        suggested_review_command_value=suggested_review_command(patch_path) if args.patch_output else None,
+        suggested_apply_command_value=suggested_apply_command(patch_path) if args.patch_output else None,
     )
     result_doc = {
         "status": "completed",
         "role": role,
-        "agent_spec": str(specs[role].path.relative_to(root)),
+        "agent_spec": str(spec.path.relative_to(root)),
         "active_profile": active_profile.active_profile,
+        "base_commit": base_commit,
+        "target_branch": target_branch,
         "task_hash": task_hash(args.task),
         "max_turns": args.max_turns,
+        "output_dir": str(planned_dir),
+        "summary_path": str(summary_path),
         **provider_result,
     }
+    if args.patch_output:
+        result_doc["patch_path"] = str(patch_path)
+        result_doc["touched_paths"] = touched_paths
+        result_doc["suggested_review_command"] = suggested_review_command(patch_path)
+        result_doc["suggested_apply_command"] = suggested_apply_command(patch_path)
     write_json(result_path, result_doc)
     write_json(summary_path, summary)
     return {
@@ -603,6 +766,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "status": "completed",
         "message": "Provider execution completed.",
         "result_path": str(result_path),
+        **(
+            {
+                "patch_path": str(patch_path),
+                "touched_paths": touched_paths,
+                "suggested_review_command": suggested_review_command(patch_path),
+                "suggested_apply_command": suggested_apply_command(patch_path),
+            }
+            if args.patch_output
+            else {}
+        ),
         **provider_result,
     }
 
@@ -616,6 +789,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and future provider execution.")
     parser.add_argument("--execute", action="store_true", help="Run the provider-backed agent after validation.")
+    parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
     parser.add_argument("--json", action="store_true", help="Accepted for ./aos dev command-surface consistency.")
     return parser.parse_args(argv)

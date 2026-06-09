@@ -13,8 +13,10 @@ PRESENT_SDK="$TMP_ROOT/present-sdk"
 FAILING_SDK="$TMP_ROOT/failing-sdk"
 SDK_RECORD="$TMP_ROOT/sdk-record.json"
 AOS_CLEANUP_TARGET="$TMP_ROOT/aos-output-dir.txt"
+AOS_PATCH_CLEANUP_TARGET="$TMP_ROOT/aos-patch-output-dir.txt"
 RUNNER_READ_TARGET="$TMP_ROOT/runner-output-dir.txt"
 mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
+printf 'main checkout sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
 
 cat >"$MISSING_SDK/agents.py" <<'PY'
 raise ModuleNotFoundError("forced missing agents SDK for aos agent runner test")
@@ -34,12 +36,23 @@ class Agent:
 
 
 class Result:
-    final_output = "fake provider final output"
+    def __init__(self, final_output):
+        self.final_output = final_output
 
 
 class Runner:
     @staticmethod
     def run_sync(starting_agent, input, **kwargs):
+        final_output = "fake provider final output"
+        if starting_agent.kwargs.get("name") == "implementer":
+            final_output = """diff --git a/docs/example.md b/docs/example.md
+new file mode 100644
+index 0000000..8ab686e
+--- /dev/null
++++ b/docs/example.md
+@@ -0,0 +1 @@
++patch artifact smoke
+"""
         Path(os.environ["AOS_AGENT_FAKE_SDK_RECORD"]).write_text(
             json.dumps(
                 {
@@ -52,7 +65,7 @@ class Runner:
                 sort_keys=True,
             )
         )
-        return Result()
+        return Result(final_output)
 
 
 def set_tracing_disabled(value):
@@ -138,9 +151,12 @@ assert set(schema["required"]) == {
     "task_hash",
     "execute",
     "max_turns",
+    "base_commit",
+    "target_branch",
     "output_dir",
     "summary_path",
 }, schema
+assert "implementer" in schema["properties"]["role"]["enum"], schema
 PY
 pass "summary schema documents the runtime artifact contract"
 
@@ -180,6 +196,22 @@ then
     pass "write-capable roles are rejected before runtime mutation"
 else
     fail "implementer rejection error was not clear JSON"
+fi
+
+if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "patch check" --patch-output 2>&1 >/dev/null)"; then
+    fail "implementer patch-output without execute unexpectedly succeeded"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "--patch-output requires --execute" in data["error"], data
+PY
+then
+    pass "patch-output mode requires explicit provider execution"
+else
+    fail "patch-output without execute error was not clear JSON"
 fi
 
 if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "sdk missing check" 2>&1 >/dev/null)"; then
@@ -272,6 +304,54 @@ else
     fail "provider execution failed with fake SDK"
 fi
 
+if PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "produce trivial patch" --patch-output --execute --max-turns 1)"; then
+    PATCHED="$PATCHED" FIXTURE="$FIXTURE" SDK_RECORD="$SDK_RECORD" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["PATCHED"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+runtime_root = fixture / ".runtime/dev/aos-agents"
+output_dir = Path(data["output_dir"])
+summary_path = Path(data["summary_path"])
+result_path = Path(data["result_path"])
+patch_path = Path(data["patch_path"])
+assert data["status"] == "completed", data
+assert data["role"] == "implementer", data
+assert output_dir.is_relative_to(runtime_root), output_dir
+assert output_dir.parent == runtime_root / "runs" / "implementer", output_dir
+assert summary_path == output_dir / "summary.json", data
+assert result_path == output_dir / "result.json", data
+assert patch_path == output_dir / "patch.diff", data
+assert patch_path.is_file(), patch_path
+assert patch_path.read_text().startswith("diff --git a/docs/example.md b/docs/example.md"), patch_path.read_text()
+assert data["touched_paths"] == ["docs/example.md"], data
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["status"] == "completed", summary_doc
+assert summary_doc["role"] == "implementer", summary_doc
+assert summary_doc["base_commit"], summary_doc
+assert summary_doc["target_branch"], summary_doc
+assert summary_doc["patch_path"] == str(patch_path), summary_doc
+assert summary_doc["touched_paths"] == ["docs/example.md"], summary_doc
+assert summary_doc["suggested_review_command"] == f"git apply --check {patch_path}", summary_doc
+assert summary_doc["suggested_apply_command"] == f"git apply {patch_path}", summary_doc
+result_doc = json.loads(result_path.read_text())
+assert result_doc["status"] == "completed", result_doc
+assert result_doc["patch_path"] == str(patch_path), result_doc
+assert result_doc["touched_paths"] == ["docs/example.md"], result_doc
+record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
+assert record["agent"]["name"] == "implementer", record
+assert "Patch-Only Output Contract" in record["agent"]["instructions"], record
+assert "Return only a unified diff patch" in record["agent"]["instructions"], record
+assert (fixture / "main-checkout-sentinel.txt").read_text() == "main checkout sentinel\n"
+assert not (fixture / "docs" / "example.md").exists()
+PY
+    pass "implementer patch-output writes patch artifacts under runtime root without checkout mutation"
+else
+    fail "implementer patch-output execution failed with fake SDK"
+fi
+
 ERROR_TASK="provider error task"
 if ERR="$(PYTHONPATH="$FAILING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "$ERROR_TASK" --execute --max-turns 1 2>&1 >/dev/null)"; then
     fail "provider error path unexpectedly succeeded"
@@ -318,9 +398,10 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["status"] == "success", data
 assert data["runtime_root"] == str(runtime_root), data
-assert data["count"] == 3, data
+assert data["count"] == 4, data
 statuses = {item["summary"]["status"] for item in data["runs"]}
 assert statuses == {"ready", "completed", "error"}, data
+assert any(item["role"] == "implementer" and item["summary"].get("patch_path") for item in data["runs"]), data
 assert all(Path(item["output_dir"]).is_relative_to(runtime_root) for item in data["runs"]), data
 assert any(item["result_exists"] for item in data["runs"]), data
 PY
@@ -418,6 +499,36 @@ PY
     pass "./aos dev agents executes and reads artifacts through the external command surface"
 else
     fail "./aos dev agents execution route failed with fake SDK"
+fi
+
+if AOS_PATCHED="$(AOS_AGENT_FAKE_SDK_RECORD="$SDK_RECORD" PYTHONPATH="$PRESENT_SDK" ./aos dev agents --role implementer --task "patch through aos command surface" --patch-output --execute --max-turns 1 --json)"; then
+    AOS_PATCHED="$AOS_PATCHED" ROOT="$ROOT" AOS_PATCH_CLEANUP_TARGET="$AOS_PATCH_CLEANUP_TARGET" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["AOS_PATCHED"])
+root = Path(os.environ["ROOT"]).resolve()
+runtime_root = root / ".runtime/dev/aos-agents"
+output_dir = Path(data["output_dir"])
+patch_path = Path(data["patch_path"])
+assert data["status"] == "completed", data
+assert data["role"] == "implementer", data
+assert output_dir.is_relative_to(runtime_root), output_dir
+assert output_dir.parent == runtime_root / "runs" / "implementer", output_dir
+assert patch_path == output_dir / "patch.diff", data
+assert patch_path.read_text().startswith("diff --git a/docs/example.md b/docs/example.md"), patch_path.read_text()
+assert data["touched_paths"] == ["docs/example.md"], data
+Path(os.environ["AOS_PATCH_CLEANUP_TARGET"]).write_text(str(output_dir))
+PY
+    AOS_PATCH_OUTPUT_DIR="$(cat "$AOS_PATCH_CLEANUP_TARGET")"
+    case "$AOS_PATCH_OUTPUT_DIR" in
+        "$ROOT/.runtime/dev/aos-agents/"*) rm -rf "$AOS_PATCH_OUTPUT_DIR" ;;
+        *) fail "./aos dev agents patch cleanup target escaped runtime root: $AOS_PATCH_OUTPUT_DIR" ;;
+    esac
+    pass "./aos dev agents routes implementer patch-output artifacts through the external command surface"
+else
+    fail "./aos dev agents implementer patch-output route failed with fake SDK"
 fi
 
 if AOS_LIST="$(./aos dev agents --list-runs --json)"; then

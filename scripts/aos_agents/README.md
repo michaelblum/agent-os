@@ -9,7 +9,9 @@ on Codex CLI `multi_agent_v2`.
 - Loads read-only role specs from `.codex/agents/*.toml`.
 - Allows only `explorer`, `reviewer`, `validator`, and `historian`.
 - Requires each allowed role spec to declare `sandbox_mode = "read-only"`.
-- Rejects write-capable roles such as `implementer`.
+- Rejects write-capable roles such as `implementer` by default.
+- Allows `implementer` only through explicit `--patch-output --execute`, where
+  the provider final output is saved as `patch.diff` under the run directory.
 - Loads `.docks/profiles/active-profile.json` and each listed
   `.docks/profiles/*/profile.md` pack.
 - Plans deterministic output directories under `.runtime/dev/aos-agents/`.
@@ -18,6 +20,8 @@ on Codex CLI `multi_agent_v2`.
 - Writes `summary.json` for ready, completed, and provider-error runs under the
   planned runtime directory.
 - Writes provider results only under the planned runtime directory.
+- Writes patch-output metadata only under the planned runtime directory; it never
+  applies patches to the checkout.
 - Lists and reads existing runtime artifacts without SDK or provider calls.
 
 This prototype does not change `packages/host`, daemon/socket contracts, global
@@ -48,6 +52,18 @@ available in the caller's environment:
 
 ```bash
 ./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --json
+```
+
+Produce a reviewable implementer patch artifact without mutating the checkout:
+
+```bash
+./aos dev agents --role implementer --task "make a minimal docs change" --patch-output --execute --max-turns 1 --json
+```
+
+Review the generated patch before any manual apply:
+
+```bash
+git apply --check .runtime/dev/aos-agents/runs/implementer/<run-dir>/patch.diff
 ```
 
 For M1 live-smoke only, use an ignored local venv under `.runtime/dev/aos-agents/`

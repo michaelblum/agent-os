@@ -862,7 +862,7 @@ function auditRegistryClaims(repoRoot) {
     auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
     auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
     auditFormFlagClaim('dev-docks-help-flags', forms.get('dev-docks'), ['--dock-root', '--capabilities-manifest', '--entry-path', '--repo', '--json'], false),
-    auditFormFlagClaim('dev-agents-help-flags', forms.get('dev-agents'), ['--self-test', '--list-runs', '--read-run', '--role', '--task', '--execute', '--max-turns', '--repo', '--json'], false),
+    auditFormFlagClaim('dev-agents-help-flags', forms.get('dev-agents'), ['--self-test', '--list-runs', '--read-run', '--role', '--task', '--execute', '--patch-output', '--max-turns', '--repo', '--json'], false),
     auditFormFlagClaim('dev-subagent-help-flags', forms.get('dev-subagent'), ['--repo', '--agents-root', '--role', '--prompt', '--prompt-file', '--transcript', '--transcript-file', '--json'], false),
     auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
   ];

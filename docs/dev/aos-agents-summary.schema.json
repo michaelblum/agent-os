@@ -14,32 +14,53 @@
     "task_hash",
     "execute",
     "max_turns",
+    "base_commit",
+    "target_branch",
     "output_dir",
     "summary_path"
   ],
   "properties": {
     "schema_version": { "const": 1 },
     "status": { "enum": ["ready", "completed", "error"] },
-    "role": { "enum": ["explorer", "reviewer", "validator", "historian"] },
+    "role": { "enum": ["explorer", "reviewer", "validator", "historian", "implementer"] },
     "agent_spec": {
       "type": "string",
-      "pattern": "^\\.codex/agents/(explorer|reviewer|validator|historian)\\.toml$"
+      "pattern": "^\\.codex/agents/(explorer|reviewer|validator|historian|implementer)\\.toml$"
     },
     "active_profile": { "type": "string", "minLength": 1 },
     "task_hash": { "type": "string", "pattern": "^[a-f0-9]{12}$" },
     "execute": { "type": "boolean" },
     "max_turns": { "type": "integer", "minimum": 1 },
+    "base_commit": { "type": "string", "minLength": 1 },
+    "target_branch": { "type": "string", "minLength": 1 },
     "output_dir": {
       "type": "string",
-      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+$"
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+$"
     },
     "summary_path": {
       "type": "string",
-      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+/summary\\.json$"
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+/summary\\.json$"
     },
     "result_path": {
       "type": "string",
-      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian)/[^/]+/result\\.json$"
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+/result\\.json$"
+    },
+    "patch_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
+    },
+    "touched_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "suggested_review_command": {
+      "type": "string",
+      "pattern": "^git apply --check /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
+    },
+    "suggested_apply_command": {
+      "type": "string",
+      "pattern": "^git apply /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
     },
     "error": { "type": "string", "minLength": 1 }
   },
@@ -48,7 +69,13 @@
       "if": { "properties": { "status": { "const": "ready" } }, "required": ["status"] },
       "then": {
         "properties": { "execute": { "const": false } },
-        "not": { "anyOf": [{ "required": ["result_path"] }, { "required": ["error"] }] }
+        "not": {
+          "anyOf": [
+            { "required": ["result_path"] },
+            { "required": ["patch_path"] },
+            { "required": ["error"] }
+          ]
+        }
       }
     },
     {
@@ -64,7 +91,24 @@
       "then": {
         "properties": { "execute": { "const": true } },
         "required": ["error"],
-        "not": { "required": ["result_path"] }
+        "not": { "anyOf": [{ "required": ["result_path"] }, { "required": ["patch_path"] }] }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "completed" },
+          "role": { "const": "implementer" }
+        },
+        "required": ["status", "role"]
+      },
+      "then": {
+        "required": [
+          "patch_path",
+          "touched_paths",
+          "suggested_review_command",
+          "suggested_apply_command"
+        ]
       }
     }
   ]
