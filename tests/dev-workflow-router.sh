@@ -352,11 +352,15 @@ data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert data["subject"] == "subagent-diagnostic-contract", data
 assert data["dispatch_boundary"]["not_a_launcher"] is True, data
+assert "task_name plus structured agent_type" in data["dispatch_boundary"]["canonical_dispatch"], data
 assert data["role"] == "explorer", data
+assert data["expected"]["task_name"] == "explorer", data
 assert data["expected"]["agent_type"] == "explorer", data
 assert data["expected"]["model"] == "gpt-5.4-mini", data
 assert data["expected"]["model_reasoning_effort"] == "low", data
+assert data["native_spawn_contract"]["tool_argument"]["task_name"] == "explorer", data
 assert data["native_spawn_contract"]["tool_argument"]["agent_type"] == "explorer", data
+assert data["native_spawn_contract"]["tool_argument"]["fork_turns"] == "none", data
 assert "prompt_prefix" not in data["native_spawn_contract"], data
 assert data["native_spawn_contract"]["blocked_prompt_prefix"]["value"] == "Use the custom agent named explorer.", data
 assert "multi_agent_v1" in data["native_spawn_contract"]["blocked_prompt_prefix"]["reason"], data
@@ -367,6 +371,7 @@ assert "agent_type" in json.dumps(data), data
 assert "Use the custom agent named explorer." in json.dumps(data), data
 assert "gpt-5.5" not in json.dumps(data["expected"]), data
 assert "diagnostic output only" in data["next"], data
+assert "task_name=explorer" in data["next"], data
 assert "do NOT use ./aos dev subagent" in data["next"], data
 PY
 then
@@ -378,7 +383,7 @@ fi
 GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.txt")"
 cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
 • Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
-- spawn used agent_type=explorer
+- v2 spawn task_name=explorer agent_type=explorer
 - visible spawned model and reasoning effort: gpt-5.4-mini / low
 EOF
 if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'

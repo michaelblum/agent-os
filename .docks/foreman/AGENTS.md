@@ -9,8 +9,15 @@ routine execution.
 
 ## Native Team
 
-Use the Codex `spawn_agent` tool with the structured `agent_type` argument.
-Prompt text is not role selection.
+Use the Codex v2 `spawn_agent` custom-agent call shape:
+
+```text
+spawn_agent(task_name="<short_task_id>", agent_type="<role>", fork_turns="none", message="<bounded task>")
+```
+
+`agent_type` must match the `name` field in `.codex/agents/<role>.toml`.
+`task_name` is the v2 task/thread label; by itself it does not select a custom
+agent. Prompt text is not role selection.
 
 | agent_type | Use for |
 | --- | --- |
@@ -23,7 +30,9 @@ Prompt text is not role selection.
 | `steward` | Git/GitHub hygiene, readback, PR/issue mechanics, and release chores |
 
 Do not spawn generic/default children for work that maps to a registered role.
-If the live spawn surface lacks structured `agent_type`, stop with a
+Do not preflight out of delegation just because the visible tool summary is
+ambiguous. Attempt the v2 custom-agent call shape above. If the call is
+rejected, or the child starts without the requested `agent_type`, stop with a
 subagent-runtime blocker. Do not route through `./aos dev subagent` as a
 substitute; it is only a diagnostic/readback helper for humans or tests.
 

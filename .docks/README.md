@@ -7,8 +7,8 @@ architect, implementer, reviewer, explorer, validator, operator, and steward.
 Retired standalone dock directories such as `.docks/gdi/` and
 `.docks/operator/` are not part of the current runtime. The old goal-command,
 transfer-contract, clipboard-dispatch, and separate terminal handoff machinery
-has been replaced by native Codex `spawn_agent` calls with structured
-`agent_type`.
+has been replaced by native Codex v2 `spawn_agent` calls with both `task_name`
+and structured `agent_type`.
 
 Agent definitions are not stored here:
 
@@ -18,4 +18,4 @@ Agent definitions are not stored here:
 
 The remaining Foreman hooks provide guardrails and TTS for Foreman/subagent
 start and stop events. They do not dispatch subagents; dispatch belongs to the
-Codex `spawn_agent` tool.
+Codex v2 `spawn_agent` tool call.

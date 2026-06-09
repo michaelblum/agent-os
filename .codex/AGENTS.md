@@ -10,9 +10,11 @@ This repo uses `multi_agent_v2`. Registered agents are declared in
 `.codex/config.toml` under `[agents.<name>]` and have per-agent model,
 effort, and system-prompt overrides in `.codex/agents/<name>.toml`.
 
-**Always use `agent_type=<name>` when spawning a registered agent.** Do not
-use prompt-prefix role selection. The `agent_type` argument is what activates
-the per-agent model and effort config. Without it the subagent inherits the
+**Always use the v2 custom-agent call shape when spawning a registered agent:**
+`task_name=<short_task_id>` plus `agent_type=<name>`. Do not use prompt-prefix
+role selection. The `agent_type` argument is what activates the per-agent model
+and effort config. `task_name` is only the v2 thread label; by itself it does
+not bind the custom agent. Without `agent_type`, the subagent inherits the
 orchestrator's model and the registration is bypassed.
 
 ### Registered names
@@ -29,10 +31,11 @@ orchestrator's model and the registration is bypassed.
 
 ## Spawn Syntax
 
-When the task routes to a registered role, spawn with the structured argument:
+When the task routes to a registered role, spawn with the v2 custom-agent
+arguments:
 
 ```
-spawn agent_type=reviewer: <task description>
+spawn_agent(task_name="review_current_diff", agent_type="reviewer", fork_turns="none", message="<task description>")
 ```
 
 Do not fall back to generic subagents for work that has a registered role.

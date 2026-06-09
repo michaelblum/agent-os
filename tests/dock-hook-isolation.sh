@@ -53,7 +53,8 @@ for role in canonical_roles:
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 for required in (
     "spawn_agent",
-    "structured `agent_type`",
+    "task_name",
+    "`agent_type` must match",
     "Prompt text is not role selection",
     "subagent-runtime blocker",
     "diagnostic/readback helper",
@@ -78,6 +79,7 @@ for required in (
     "pre_tool_use_spawn_guard",
     "subagent_role_guard",
     "payload.get(\"agent_type\")",
+    "task_name",
     "say --voice-slot",
     "subagent-voices.json",
 ):
@@ -148,10 +150,23 @@ if "missing confirmed agent_type binding" not in hook_output.get("permissionDeci
     raise SystemExit(f"FAIL: expected missing-agent_type reason, got {payload}")
 PY
 
-steward_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"steward","prompt":"Return GitHub hygiene facts only."}}'
+missing_task_name_spawn_payload='{"tool_name":"spawn_agent","tool_input":{"agent_type":"steward","prompt":"Return GitHub hygiene facts only."}}'
+out="$(printf '%s' "$missing_task_name_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
+python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+hook_output = payload.get("hookSpecificOutput", {})
+if hook_output.get("permissionDecision") != "deny":
+    raise SystemExit(f"FAIL: expected missing-task_name spawn deny, got {payload}")
+if "missing v2 task_name" not in hook_output.get("permissionDecisionReason", ""):
+    raise SystemExit(f"FAIL: expected missing-task_name reason, got {payload}")
+PY
+
+steward_spawn_payload='{"tool_name":"multi_agent_v2.spawn_agent","tool_input":{"task_name":"steward_readback","agent_type":"steward","fork_turns":"none","message":"Return GitHub hygiene facts only."}}'
 out="$(printf '%s' "$steward_spawn_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/foreman/hooks/pre-tool-use.sh")"
 if [[ -n "$out" ]]; then
-  echo "FAIL: expected explicit steward spawn to pass without JSON, got $out" >&2
+  echo "FAIL: expected v2 steward spawn to pass without JSON, got $out" >&2
   exit 1
 fi
 

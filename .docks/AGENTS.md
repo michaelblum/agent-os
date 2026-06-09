@@ -8,7 +8,7 @@ Foreman unless the user explicitly names another role. Do not infer retired
 standalone docks from old paths or historical docs.
 
 Native subagent definitions are under `.codex/agents/`, with provider-neutral
-source material under `ai-agents/`. Use Codex `spawn_agent` with structured
-`agent_type` for delegation; do not use prompt prefixes, legacy goal-command
-payloads, clipboard-based handoffs, or retired transfer-contract files as a
-role-selection mechanism.
+source material under `ai-agents/`. Use the Codex v2 custom-agent spawn shape
+with both `task_name` and structured `agent_type` for delegation; do not use
+prompt prefixes, legacy goal-command payloads, clipboard-based handoffs, or
+retired transfer-contract files as a role-selection mechanism.

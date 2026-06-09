@@ -517,11 +517,12 @@ function buildSubagentPlan(options) {
   const loaded = loadSubagentRole(options);
   const prompt = resolveOptionalText(options, 'prompt', 'prompt_file', 'subagent prompt');
   if (!prompt || !prompt.trim()) error('dev subagent plan requires --prompt <text> or --prompt-file <path>', 'MISSING_PROMPT');
+  const taskName = loaded.role.role.replace(/[^a-z0-9_-]/g, '_');
   return {
     status: 'success',
     subject: 'subagent-diagnostic-contract',
     dispatch_boundary: {
-      canonical_dispatch: 'Codex spawn_agent with structured agent_type',
+      canonical_dispatch: 'Codex multi_agent_v2 spawn_agent with task_name plus structured agent_type',
       helper_role: 'diagnostic readback only',
       not_a_launcher: true,
     },
@@ -530,6 +531,7 @@ function buildSubagentPlan(options) {
     role: loaded.role.role,
     agent_config_path: loaded.role.agent_config_path,
     expected: {
+      task_name: taskName,
       agent_type: loaded.role.role,
       model: loaded.role.model,
       model_reasoning_effort: loaded.role.model_reasoning_effort,
@@ -537,7 +539,9 @@ function buildSubagentPlan(options) {
     },
     native_spawn_contract: {
       tool_argument: {
+        task_name: taskName,
         agent_type: loaded.role.role,
+        fork_turns: 'none',
       },
       prompt,
       blocked_prompt_prefix: {
@@ -553,7 +557,7 @@ function buildSubagentPlan(options) {
       'Foreman model/effort inheritance',
       'unverified model/effort or developer-instruction identity evidence',
     ],
-    next: `This is diagnostic output only. Structured agent_type dispatch belongs to the live Codex spawn_agent tool. If the live spawn tool lacks agent_type, do NOT use ./aos dev subagent or a prompt prefix as a substitute; emit a subagent-runtime-blocker instead. Run ./aos dev subagent validate-proof only after a multi_agent_v2 confirmed spawn.`,
+    next: `This is diagnostic output only. Dispatch belongs to the live Codex multi_agent_v2 spawn_agent call. Attempt the v2 custom-agent shape with task_name=${taskName} and agent_type=${loaded.role.role}; do NOT use ./aos dev subagent or a prompt prefix as a substitute. If that call is rejected, or the child starts without the requested agent_type/model evidence, emit a subagent-runtime-blocker. Run ./aos dev subagent validate-proof only after a confirmed spawn.`,
   };
 }
 
@@ -576,6 +580,7 @@ function buildSubagentProof(options) {
   const rolePathName = role.replaceAll('-', '_');
   const rolePatterns = [
     new RegExp(`^\\s*(?:[-•]\\s*)?(?:spawn used|spawn requested with|requested)\\s+agent_type\\s*=\\s*["']?${role}["']?\\b`, 'i'),
+    new RegExp(`^\\s*(?:[-•]\\s*)?v2 spawn\\s+task_name\\s*=\\s*["']?[a-z][a-z0-9_-]*["']?\\s+agent_type\\s*=\\s*["']?${role}["']?\\b`, 'i'),
     new RegExp(`/root/${escapeRegExp(rolePathName)}\\b`, 'i'),
   ];
   const prefixPatterns = [
@@ -652,7 +657,7 @@ function buildSubagentProof(options) {
     status: failed ? 'failed' : 'success',
     subject: 'subagent-proof',
     dispatch_boundary: {
-      canonical_dispatch: 'Codex spawn_agent with structured agent_type',
+      canonical_dispatch: 'Codex multi_agent_v2 spawn_agent with task_name plus structured agent_type',
       helper_role: 'post-spawn proof check only',
       not_a_launcher: true,
     },
@@ -660,6 +665,7 @@ function buildSubagentProof(options) {
     role,
     agent_config_path: loaded.role.agent_config_path,
     expected: {
+      task_name: role.replace(/[^a-z0-9_-]/g, '_'),
       agent_type: role,
       blocked_prompt_prefix: `Use the custom agent named ${role}.`,
       model,
@@ -672,7 +678,7 @@ function buildSubagentProof(options) {
       failed,
     },
     next: failed
-      ? `Do not fan out. Structured agent_type dispatch requires multi_agent_v2. Do not retry with the prompt prefix; emit a subagent-runtime-blocker if the live spawn tool lacks agent_type.`
+      ? `Do not fan out. Custom-agent dispatch requires a confirmed multi_agent_v2 spawn with task_name plus agent_type. Do not retry with the prompt prefix; emit a subagent-runtime-blocker if the v2 call is rejected or the child lacks role/model evidence.`
       : 'Subagent role proof accepted for this session; broad fan-out may proceed for the proven role.',
   };
 }
@@ -1004,8 +1010,9 @@ function printSubagentPlan(payload) {
   process.stdout.write(`dev subagent diagnostic contract: ${payload.role}\n`);
   process.stdout.write(`Dispatch boundary: ${payload.dispatch_boundary.canonical_dispatch}; this helper is not a launcher.\n`);
   process.stdout.write(`Agent config: ${payload.agent_config_path}\n`);
-  process.stdout.write(`Expected: role=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
+  process.stdout.write(`Expected: task_name=${payload.expected.task_name} role=${payload.expected.agent_type} model=${payload.expected.model} effort=${payload.expected.model_reasoning_effort}\n`);
   process.stdout.write('Native spawn contract:\n');
+  process.stdout.write(`task_name: ${payload.native_spawn_contract.tool_argument.task_name}\n`);
   process.stdout.write(`agent_type: ${payload.native_spawn_contract.tool_argument.agent_type}\n`);
   process.stdout.write(`blocked_prompt_prefix: ${payload.native_spawn_contract.blocked_prompt_prefix.value}\n`);
   process.stdout.write(`prompt: ${payload.native_spawn_contract.prompt}\n`);

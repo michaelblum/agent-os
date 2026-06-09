@@ -200,7 +200,7 @@ def emit(status, normalized_role, message):
 prefix = "Blocked native subagent start" if event == "subagent-start" else "Suppressed native subagent stop voice"
 
 if not role_key:
-    emit("block", "", f"{prefix}: missing agent_type. Use the spawn tool argument agent_type=<role>; do not put agent_type text in the child prompt.")
+    emit("block", "", f"{prefix}: missing agent_type. Use the v2 spawn shape task_name=<short_task_id> with agent_type=<role>; do not put agent_type text in the child prompt.")
     raise SystemExit(0)
 
 if role_key in {"default", "foreman", "gibbs"}:
@@ -302,6 +302,8 @@ if not looks_like_spawn:
 
 role = nested_value(tool_input, "agent_type")
 role = str(role or "").strip()
+task_name = nested_value(tool_input, "task_name")
+task_name = str(task_name or "").strip()
 
 prompt_text = first_string(
     nested_value(tool_input, "message"),
@@ -323,9 +325,17 @@ def block(message):
 
 if not role_key:
     if prefix_role:
-        block("Blocked: no confirmed agent_type binding for this spawn. Prompt-prefix custom-agent selection is unverified on multi_agent_v1. Use multi_agent_v2 + agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not spawn a default child.")
+        block("Blocked: no confirmed agent_type binding for this spawn. Prompt-prefix custom-agent selection is unverified. Use the multi_agent_v2 spawn shape with task_name=<short_task_id> and agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not spawn a default child.")
         raise SystemExit(0)
-    block("Blocked native subagent tool call: missing confirmed agent_type binding. Use the spawn tool agent_type=<role> argument when the structured field is exposed, or surface a subagent-runtime-blocker to the human. Do not use prompt-prefix custom-agent selection.")
+    block("Blocked native subagent tool call: missing confirmed agent_type binding. Use the multi_agent_v2 spawn shape with task_name=<short_task_id> and agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not use prompt-prefix custom-agent selection.")
+    raise SystemExit(0)
+
+if not task_name:
+    block("Blocked native subagent tool call: missing v2 task_name. Use task_name=<short_task_id> together with agent_type=<role>; task_name alone is not role selection.")
+    raise SystemExit(0)
+
+if not re.fullmatch(r"[a-z][a-z0-9_-]*", task_name):
+    block(f"Blocked native subagent tool call: invalid task_name {task_name!r}. Use a short lowercase v2 task label with letters, digits, hyphens, or underscores.")
     raise SystemExit(0)
 
 if role_key in {"default", "foreman", "gibbs"}:

@@ -190,9 +190,9 @@ cat > "$VALID_NOTE" <<JSON
     {
       "id": "native-subagent-agent-type",
       "status": "parked",
-      "why_started": "The current spawn tool lacks an agent_type argument.",
+      "why_started": "The current spawn attempt did not confirm the multi_agent_v2 task_name plus agent_type binding.",
       "current_ref": "local transcript note",
-      "enough_for_now": "Treat it as parked until the native spawn surface exposes role selection.",
+      "enough_for_now": "Treat it as parked until a v2 custom-agent spawn proves role/model selection.",
       "return_condition": "Return when a later slice needs real subagent dispatch.",
       "next_step": "Keep implementation local for this slice."
     }
