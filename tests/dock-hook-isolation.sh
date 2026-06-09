@@ -125,6 +125,8 @@ import pathlib
 import sys
 payload = json.loads(sys.argv[1])
 marker = pathlib.Path(sys.argv[2])
+if set(payload) != {"hookSpecificOutput"}:
+    raise SystemExit(f"FAIL: authorization output contains non-hook keys, got {payload}")
 hook_output = payload.get("hookSpecificOutput", {})
 if hook_output.get("hookEventName") != "UserPromptSubmit":
     raise SystemExit(f"FAIL: expected UserPromptSubmit context, got {payload}")

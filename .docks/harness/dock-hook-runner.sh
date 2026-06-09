@@ -422,7 +422,6 @@ if authorization_pattern.search(prompt):
             "scope": "registered_foreman_subagents",
         }, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({
-        "aosForemanStart": True,
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
             "additionalContext": additional_context,
@@ -502,15 +501,24 @@ system_message=""
 
 if [[ "$phase" == "user-prompt-submit" ]]; then
   authorization_output="$(user_prompt_submit_authorization_gate)"
-  should_speak_foreman_start="$(python3 - "$authorization_output" <<'PY'
+  should_speak_foreman_start="$(python3 - "$HOOK_INPUT" "$authorization_output" <<'PY'
 import json
+import re
 import sys
 try:
-    payload = json.loads(sys.argv[1])
+    hook_input = json.loads(sys.argv[1]) if sys.argv[1].strip() else {}
+    payload = json.loads(sys.argv[2])
 except Exception:
     print("false")
     raise SystemExit(0)
-print("true" if payload.get("aosForemanStart") is True else "false")
+prompt = str(hook_input.get("prompt") or "")
+is_authorization_prompt = re.fullmatch(
+    r"\s*(?:use\s+subagents|authorize\s+registered\s+foreman\s+subagents\s+for\s+this\s+session)\s*",
+    prompt,
+    re.IGNORECASE,
+) is not None
+has_context = payload.get("hookSpecificOutput", {}).get("hookEventName") == "UserPromptSubmit"
+print("true" if is_authorization_prompt and has_context else "false")
 PY
 )"
   if [[ "$should_speak_foreman_start" == "true" && "$voice_enabled" == "true" ]]; then
