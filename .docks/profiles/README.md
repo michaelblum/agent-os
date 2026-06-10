@@ -42,7 +42,7 @@ Profile: foundation-breaking + one-world
 Workflow: local branch, no automatic PR
 Migration posture: owned contracts may be broken and migrated broadly
 Runtime posture: passive unless explicitly approved
-Delegation: Foreman-orchestrated direct subagents
+Delegation: AOS-owned runner first; native subagents diagnostic
 Authority: .docks/profiles/active-profile.json
 Stale pools: old entry paths, retired handoffs, stale work cards
 ```
@@ -50,12 +50,21 @@ Stale pools: old entry paths, retired handoffs, stale work cards
 The header is observability, not a new ceremony. Keep it short and update it
 when the active packs change.
 
+## Agent Execution North Star
+
+`docs/adr/0016-aos-owned-agent-execution.md` is the durable authority for AOS
+agent execution. AOS owns child execution by default through `./aos dev agents`
+and `scripts/aos_agents/runner.py`; `provider-sdk` is the default engine.
+Native Codex subagents are an explicit diagnostic/import lane only and must not
+become the default execution substrate without a new ADR or explicit human
+architecture decision.
+
 ## multi_agent_v2 Status
 
 As of Codex CLI 0.138.0 in the real Foreman dock, native `multi_agent_v2`
 delegation is blocked by encrypted tool registration. Foreman must proceed
-without subagents when that blocker is present and must document any unproven
-runtime capability instead of inferring behavior from public docs.
+without native subagents when that blocker is present and must document any
+unproven runtime capability instead of inferring behavior from public docs.
 
 Authority order for `multi_agent_v2` claims:
 
@@ -64,6 +73,7 @@ Authority order for `multi_agent_v2` claims:
    `.codex/agents/*.toml`, `.docks/foreman/.codex/*`, and `.docks/harness/*`.
 3. Codex docs/manual as terminology background only.
 
-Default topology is Foreman-orchestrated direct subagents. Nested squad leads
-remain experimental until local Foreman smoke proves depth, hooks, sandboxing,
-and skill availability.
+Default topology is Foreman-orchestrated AOS-owned runner execution. Native
+Codex subagents and nested squad leads remain experimental until local Foreman
+smoke proves depth, hooks, sandboxing, skill availability, debuggable runtime
+state, and role-specific model/effort binding.

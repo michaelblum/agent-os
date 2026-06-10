@@ -182,11 +182,13 @@
     },
     {
       "id": "aos-agent-runner",
-      "summary": "Experimental AOS-owned agent runner or command surface changed.",
+      "summary": "AOS-owned agent runner, north-star intent, or command surface changed.",
       "patterns": [
+        "docs/adr/0016-aos-owned-agent-execution.md",
         "docs/dev/aos-agents-summary.schema.json",
         "docs/dev/aos-agents-native-dispatch.schema.json",
         "docs/dev/aos-agents-native-result.schema.json",
+        "docs/dev/reports/aos-agent-runtime-m3-correction-v1.md",
         "scripts/aos_agents/**",
         "tests/aos-agents-runner.sh"
       ],

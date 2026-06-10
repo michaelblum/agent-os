@@ -6814,11 +6814,11 @@
               "value_type" : "bool"
             },
             {
-              "default_value" : "native-codex",
+              "default_value" : "provider-sdk",
               "id" : "engine",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent engine: native-codex by default, or provider-sdk for explicit local provider execution",
+              "summary" : "Agent engine: provider-sdk by default, or native-codex for explicit diagnostic/import workflows",
               "token" : "--engine",
               "value_type" : "string"
             },
@@ -6850,7 +6850,7 @@
               "id" : "patch-output",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses dispatch/import",
+              "summary" : "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses explicit dispatch/import",
               "token" : "--patch-output",
               "value_type" : "bool"
             },
@@ -6892,6 +6892,8 @@
             "aos dev agents --self-test --json",
             "aos dev agents --runtime-info --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --json",
+            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
+            "aos dev agents --engine native-codex --role explorer --task \"inspect the active profile\" --json",
             "aos dev agents --native-dispatch .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
             "aos dev agents --complete-native-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --result-file /tmp/native-result.json --json",
             "aos dev agents --engine provider-sdk --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",

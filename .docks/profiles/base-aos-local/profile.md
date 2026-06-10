@@ -25,7 +25,8 @@ does not imply publication.
 ## Delegation
 
 Foreman owns coordination, final acceptance, git/GitHub decisions, and profile
-selection. Delegate bounded read, implementation, review, validation, operation,
-or stewardship work only with structured `agent_type` when `multi_agent_v2` is
-available. If encrypted tool registration blocks native delegation, proceed
-directly and record the blocker.
+selection. Use the AOS-owned runner (`./aos dev agents`) as the default child
+execution surface when a bounded project-agent lane is needed. Native Codex
+subagents are diagnostic/explicit only; if encrypted tool registration or
+missing role binding blocks native delegation, proceed through the AOS-owned
+runner or directly and record the blocker.

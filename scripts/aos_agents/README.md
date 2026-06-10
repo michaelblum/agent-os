@@ -1,13 +1,15 @@
 # AOS Agent Runtime
 
 `./aos dev agents` is the AOS-owned local contract surface for project agents.
-It is not a provider-proof smoke harness. The command owns role/profile
-readback, native Codex dispatch planning, runtime artifact readback, and
-approval-gated patch validation/application.
+It is not a provider-proof smoke harness and not a wrapper around opaque Codex
+native subagent execution. The command owns role/profile readback, provider
+execution, native Codex diagnostic dispatch planning, runtime artifact readback,
+and approval-gated patch validation/application.
 
 ## Architecture
 
-- Native Codex is the default engine: `--engine native-codex`.
+- Provider-backed AOS execution is the default engine: `--engine provider-sdk`.
+- Native Codex is explicit diagnostic/import only: `--engine native-codex`.
 - Native planning emits the required v2 custom-agent spawn contract:
   `spawn_agent(task_name=<role>-<task_hash>, agent_type=<role>,
   fork_turns="none", message=<task>)`.
@@ -16,14 +18,14 @@ approval-gated patch validation/application.
   available.
 - Native plans write `summary.json` and `native-dispatch.json`; the child result
   is imported later with `--complete-native-run`.
-- Provider-backed execution remains as an explicit optional adapter:
-  `--engine provider-sdk --execute`.
+- Provider-backed execution remains explicit at mutation/runtime time:
+  `--execute`.
 - Read-only roles are `explorer`, `reviewer`, `validator`, and `historian`.
 - `implementer` remains rejected by default.
 - `implementer` may only produce a reviewable `patch.diff` through explicit
-  patch-output mode. Native patch-output uses dispatch/import; provider patch
-  output uses `--engine provider-sdk --role implementer --patch-output
-  --execute`.
+  patch-output mode. Provider patch output uses
+  `--role implementer --patch-output --execute`; native patch-output requires
+  explicit `--engine native-codex` dispatch/import.
 - Check/apply gates never invoke native children, providers, or SDK code.
 - Patch application requires explicit checkout-mutation approval through
   `--apply-patch <output-dir> --i-approve-checkout-mutation`.
@@ -52,15 +54,15 @@ Durable schemas and public command metadata live outside this script:
 
 ## Dependency And Runtime Packaging
 
-Native planning, artifact readback, `--check-patch`, and `--apply-patch` require
-only the repository Python runtime. They must not install dependencies or depend
-on an ignored smoke virtual environment.
+Artifact readback, `--check-patch`, `--apply-patch`, and explicit native
+diagnostic planning require only the repository Python runtime. They must not
+install dependencies or depend on an ignored smoke virtual environment.
 
-The provider adapter is optional. When `--engine provider-sdk --execute` is
-used, the caller must provide an environment where the `agents` Python module is
-already importable. The runner disables tracing for those local adapter runs and
-fails clearly if the SDK is missing. It never installs, upgrades, publishes, or
-mutates dependencies.
+The provider adapter is the default AOS-owned execution lane, but its dependency
+is still caller supplied. When `--execute` is used, the caller must provide an
+environment where the `agents` Python module is already importable. The runner
+disables tracing for those local adapter runs and fails clearly if the SDK is
+missing. It never installs, upgrades, publishes, or mutates dependencies.
 
 Use this readback to inspect the current contract and provider SDK availability:
 
@@ -82,10 +84,22 @@ Run the focused regression harness:
 bash tests/aos-agents-runner.sh
 ```
 
-Plan a native Codex read-only child:
+Plan a default provider-backed read-only child without executing it:
 
 ```bash
 ./aos dev agents --role explorer --task "inspect the agent profile inputs" --json
+```
+
+Execute a default provider-backed read-only child:
+
+```bash
+./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --max-turns 1 --json
+```
+
+Plan an explicit native Codex diagnostic child:
+
+```bash
+./aos dev agents --engine native-codex --role explorer --task "inspect the agent profile inputs" --json
 ```
 
 Read the exact native spawn contract for a planned native child:
@@ -107,20 +121,20 @@ The result file must be a JSON object with matching `engine`, `role`,
 Plan native implementer patch-output without local child execution:
 
 ```bash
-./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
+./aos dev agents --engine native-codex --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
 ```
 
-Execute a read-only provider adapter run only when the SDK and credentials are
-already available:
+Produce a reviewable implementer patch artifact through the default provider
+lane without mutating the checkout:
+
+```bash
+./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
+```
+
+Execute explicitly through the provider adapter when documenting the engine:
 
 ```bash
 ./aos dev agents --engine provider-sdk --role explorer --task "inspect the agent profile inputs" --execute --max-turns 1 --json
-```
-
-Produce a reviewable implementer patch artifact without mutating the checkout:
-
-```bash
-./aos dev agents --engine provider-sdk --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
 ```
 
 Check an existing patch artifact without invoking native children or providers:
@@ -146,6 +160,13 @@ providers, or SDK imports:
 ## Legacy Artifact Policy
 
 Legacy M2 patch artifacts without an explicit `engine` are rejected by
-`--check-patch` and `--apply-patch`. M3 is foundation-breaking: completed
-artifacts must identify whether they came from `native-codex` or
-`provider-sdk` before the patch can be reviewed or applied.
+`--check-patch` and `--apply-patch`. Completed artifacts must identify whether
+they came from `provider-sdk` or explicit diagnostic `native-codex` before the
+patch can be reviewed or applied.
+
+## Durable Intent
+
+`docs/adr/0016-aos-owned-agent-execution.md` is the durable north-star
+authority: AOS owns child execution by default. `native-codex` must not become
+the default again without an explicit ADR or human architecture decision that
+supersedes ADR 0016.

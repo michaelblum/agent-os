@@ -16,7 +16,7 @@ test('active dock profile selects existing profile packs and header fields', asy
   assert.ok(Array.isArray(active.profile_packs));
   assert.ok(active.profile_packs.includes('ethos-foundation-breaking'));
   assert.ok(active.profile_packs.includes('workstream-one-world'));
-  assert.equal(active.header.delegation, 'Foreman-orchestrated direct subagents');
+  assert.equal(active.header.delegation, 'AOS-owned runner first; native subagents diagnostic');
   assert.match(active.header.migration_posture, /broken and migrated broadly/);
   assert.match(active.header.stale_pools, /old entry paths/);
 
@@ -35,7 +35,8 @@ test('dock profile docs encode anti-drift operating model', async () => {
   assert.match(readme, /Dock = runtime shell/);
   assert.match(readme, /Profile = active operating doctrine/);
   assert.match(readme, /Capability route = path, tool, and test routing mechanics/);
-  assert.match(readme, /Foreman-orchestrated direct subagents/);
+  assert.match(readme, /AOS-owned runner first; native subagents diagnostic/);
+  assert.match(readme, /docs\/adr\/0016-aos-owned-agent-execution\.md/);
 
   const ethos = await fs.readFile(
     path.join(profilesRoot, 'ethos-foundation-breaking/profile.md'),
@@ -58,11 +59,11 @@ test('multi_agent_v2 unknowns stay explicit until local smoke proves them', asyn
   const readme = await fs.readFile(path.join(profilesRoot, 'README.md'), 'utf8');
   assert.match(readme, /Codex CLI 0\.138\.0/);
   assert.match(readme, /encrypted tool registration/);
-  assert.match(readme, /Foreman must proceed\s+without subagents/);
+  assert.match(readme, /Foreman must proceed\s+without native subagents/);
   assert.match(readme, /Observed local behavior in the real Foreman dock/);
   assert.match(readme, /\.codex\/agents\/\*\.toml/);
-  assert.match(readme, /Default topology is Foreman-orchestrated direct subagents/);
-  assert.match(readme, /Nested squad leads\s+remain experimental/);
+  assert.match(readme, /Default topology is Foreman-orchestrated AOS-owned runner execution/);
+  assert.match(readme, /native\s+Codex subagents and nested squad leads remain experimental/i);
 });
 
 test('workflow profile docs are demoted below dock profiles', async () => {

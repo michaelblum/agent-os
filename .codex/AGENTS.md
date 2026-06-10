@@ -4,13 +4,22 @@ This file governs undocked Codex sessions launched from the repo root.
 Docked sessions under `.docks/<dock>` have their own `AGENTS.md` that
 supersedes this one for role-specific authority.
 
-## Registered Subagents
+## Agent Execution North Star
+
+`docs/adr/0016-aos-owned-agent-execution.md` is the durable authority for
+project-agent execution. AOS owns child execution by default through
+`./aos dev agents` and `scripts/aos_agents/runner.py`. Native Codex subagents
+are an explicit diagnostic/import lane only; they are not the default execution
+substrate.
+
+## Registered Native Subagents
 
 This repo uses `multi_agent_v2`. Registered agents are declared in
 `.codex/config.toml` under `[agents.<name>]` and have per-agent model,
 effort, and system-prompt overrides in `.codex/agents/<name>.toml`.
 
-**Always use the v2 custom-agent call shape when spawning a registered agent:**
+**When an explicit native diagnostic requires spawning a registered agent, use
+the v2 custom-agent call shape:**
 `task_name=<short_task_id>` plus `agent_type=<name>`. Do not use prompt-prefix
 role selection. The `agent_type` argument is what activates the per-agent model
 and effort config. `task_name` is only the v2 thread label; by itself it does
@@ -32,16 +41,16 @@ orchestrator's model and the registration is bypassed.
 
 ## Spawn Syntax
 
-When the task routes to a registered role, spawn with the v2 custom-agent
-arguments:
+When an explicit native diagnostic routes to a registered role, spawn with the
+v2 custom-agent arguments:
 
 ```
 spawn_agent(task_name="review_current_diff", agent_type="reviewer", fork_turns="none", message="<task description>")
 ```
 
-Do not fall back to generic subagents for work that has a registered role.
-Read-only roles (`reviewer`, `explorer`, `validator`) must not edit files or
-run write commands.
+Do not fall back to generic subagents for work that has a registered role. Do
+not use native Codex subagents as the routine execution default. Read-only roles
+(`reviewer`, `explorer`, `validator`) must not edit files or run write commands.
 
 ## Orchestrator Defaults
 
@@ -49,8 +58,7 @@ run write commands.
 - Read `.docks/AGENTS.md` and `.docks/foreman/AGENTS.md` for Foreman's full
   authority contract before taking action.
 - Read `.docks/profiles/active-profile.json` for active session doctrine.
-- For feature planning, dispatch `architect`. For implementation, dispatch
-  `implementer`. For review, dispatch `reviewer`. For repo exploration,
-  dispatch `explorer`. For verification, dispatch `validator`. For Git/GitHub
-  hygiene, dispatch `steward`. For chronology synthesis and stale-source
-  reconciliation, dispatch `historian`.
+- For routine project-agent execution, use `./aos dev agents` and the AOS-owned
+  runner contract. Use native `architect`, `implementer`, `reviewer`,
+  `explorer`, `validator`, `steward`, and `historian` only for explicit native
+  diagnostics or when a human deliberately asks for that substrate.

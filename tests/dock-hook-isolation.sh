@@ -63,7 +63,8 @@ for required in (
     "Prompt text is not role selection",
     "subagent-runtime blocker",
     "diagnostic/readback helper",
-    "Nested squad-lead topology is\nexperimental",
+    "Default to Foreman-orchestrated AOS-owned runner execution",
+    "Native subagents and\nnested squad-lead topology are experimental",
 ):
     if required not in foreman_agents:
         raise SystemExit(f"FAIL: Foreman AGENTS missing native-dispatch boundary token {required!r}")
@@ -132,10 +133,10 @@ for forbidden_profile_note in (root / ".docks" / "profiles").glob("*findings*.md
 for required in (
     "Codex CLI 0.138.0",
     "encrypted tool registration",
-    "Foreman must proceed\nwithout subagents",
+    "Foreman must proceed\nwithout native subagents",
     "Observed local behavior in the real Foreman dock",
-    "Default topology is Foreman-orchestrated direct subagents",
-    "Nested squad leads\nremain experimental",
+    "Default topology is Foreman-orchestrated AOS-owned runner execution",
+    "Native\nCodex subagents and nested squad leads remain experimental",
 ):
     if required not in profile_readme:
         raise SystemExit(f"FAIL: dock profile README missing multi_agent_v2 boundary {required!r}")

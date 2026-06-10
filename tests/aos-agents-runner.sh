@@ -214,7 +214,7 @@ data = json.loads(os.environ["SELF_TEST"])
 fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["self_test"] == "pass", data
-assert data["default_engine"] == "native-codex", data
+assert data["default_engine"] == "provider-sdk", data
 assert set(data["engines"]) == {"native-codex", "provider-sdk"}, data
 assert data["runtime_root"] == str(runtime_root), data
 assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
@@ -255,15 +255,15 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 assert data["status"] == "success", data
 assert data["runtime"] == "aos-agents", data
 assert data["runtime_root"] == str(fixture / ".runtime/dev/aos-agents"), data
-assert data["engines"]["native-codex"]["default"] is True, data
+assert data["engines"]["native-codex"]["default"] is False, data
 assert data["engines"]["native-codex"]["local_process_can_execute"] is False, data
 assert "spawn_agent" in data["engines"]["native-codex"]["dispatch_contract"], data
-assert data["engines"]["provider-sdk"]["default"] is False, data
+assert data["engines"]["provider-sdk"]["default"] is True, data
 assert data["engines"]["provider-sdk"]["dependency"]["available"] is True, data
 assert data["roles"]["implementer"]["default_execution"] == "patch artifact only", data
 PY
     [ ! -e "$FIXTURE/.runtime" ] || fail "runtime-info created runtime state"
-    pass "runtime-info reports native default and provider dependency policy without runtime mutation"
+    pass "runtime-info reports provider default and native diagnostic policy without runtime mutation"
 else
     fail "runtime-info failed"
 fi
@@ -332,7 +332,32 @@ else
     fail "runtime-info self-test exclusivity error was not clear JSON"
 fi
 
-if NATIVE_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "native plan task")"; then
+if PROVIDER_DEFAULT_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "provider default plan")"; then
+    PROVIDER_DEFAULT_READY="$PROVIDER_DEFAULT_READY" FIXTURE="$FIXTURE" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+data = json.loads(os.environ["PROVIDER_DEFAULT_READY"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+runtime_root = fixture / ".runtime/dev/aos-agents"
+output_dir = Path(data["output_dir"])
+summary_doc = json.loads(Path(data["summary_path"]).read_text())
+assert data["status"] == "ready", data
+assert data["engine"] == "provider-sdk", data
+assert output_dir.is_relative_to(runtime_root), data
+assert "native_spawn_contract" not in data, data
+assert not (output_dir / "native-dispatch.json").exists(), output_dir
+assert not (output_dir / "result.json").exists(), output_dir
+assert summary_doc["engine"] == "provider-sdk", summary_doc
+assert summary_doc["execute"] is False, summary_doc
+PY
+    pass "default provider planning is ready without invoking SDK or native dispatch"
+else
+    fail "default provider planning failed"
+fi
+
+if NATIVE_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine native-codex --role explorer --task "native plan task")"; then
     NATIVE_READY="$NATIVE_READY" FIXTURE="$FIXTURE" python3 - <<'PY'
 import json
 import os
@@ -365,13 +390,13 @@ assert dispatch_doc["native_spawn_contract"] == contract, dispatch_doc
 assert dispatch_doc["patch_output"] is False, dispatch_doc
 assert not (output_dir / "result.json").exists(), output_dir
 PY
-    pass "native default plans v2 dispatch contract without provider SDK"
+    pass "explicit native planning emits v2 dispatch contract without provider SDK"
 else
-    fail "native default planning failed without provider SDK"
+    fail "explicit native planning failed without provider SDK"
 fi
 
 NATIVE_READ_TASK="native read-only import"
-if NATIVE_READ_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "$NATIVE_READ_TASK")"; then
+if NATIVE_READ_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine native-codex --role explorer --task "$NATIVE_READ_TASK")"; then
     NATIVE_READ_READY="$NATIVE_READ_READY" NATIVE_READ_TARGET="$NATIVE_READ_TARGET" python3 - <<'PY'
 import json
 import os
@@ -448,7 +473,7 @@ else
 fi
 
 NATIVE_PATCH_TASK="native patch import"
-if NATIVE_PATCH_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "$NATIVE_PATCH_TASK" --patch-output --context-file scripts/aos_agents/README.md)"; then
+if NATIVE_PATCH_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine native-codex --role implementer --task "$NATIVE_PATCH_TASK" --patch-output --context-file scripts/aos_agents/README.md)"; then
     NATIVE_PATCH_READY="$NATIVE_PATCH_READY" NATIVE_PATCH_TARGET="$NATIVE_PATCH_TARGET" python3 - <<'PY'
 import json
 import os
@@ -565,7 +590,7 @@ fi
 BAD_NATIVE_RESULT="$TMP_ROOT/bad-native-result.json"
 NATIVE_MISMATCH_TASK="native mismatch import"
 NATIVE_MISMATCH_TARGET="$TMP_ROOT/native-mismatch-output-dir.txt"
-if NATIVE_MISMATCH_READY="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role implementer --task "$NATIVE_MISMATCH_TASK" --patch-output)"; then
+if NATIVE_MISMATCH_READY="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine native-codex --role implementer --task "$NATIVE_MISMATCH_TASK" --patch-output)"; then
     NATIVE_MISMATCH_READY="$NATIVE_MISMATCH_READY" NATIVE_MISMATCH_TARGET="$NATIVE_MISMATCH_TARGET" python3 - <<'PY'
 import json
 import os
@@ -728,7 +753,7 @@ else
     fail "native completion output_dir mismatch rejection was not clear JSON"
 fi
 
-if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --role explorer --task "native execute blocked" --execute 2>&1 >/dev/null)"; then
+if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine native-codex --role explorer --task "native execute blocked" --execute 2>&1 >/dev/null)"; then
     fail "native execute unexpectedly succeeded from local runner"
 elif ERR="$ERR" FIXTURE="$FIXTURE" python3 - <<'PY'
 import hashlib
@@ -1114,13 +1139,14 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["status"] == "success", data
 assert data["runtime_root"] == str(runtime_root), data
-assert data["count"] == 11, data
+assert data["count"] == 12, data
 statuses = {item["summary"]["status"] for item in data["runs"]}
 assert statuses == {"ready", "completed", "blocked", "error"}, data
 assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["status"] == "blocked" for item in data["runs"]), data
 assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["status"] == "completed" and item["role"] == "explorer" for item in data["runs"]), data
 assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["status"] == "completed" and item["role"] == "implementer" for item in data["runs"]), data
 assert any(item["summary"].get("engine") == "provider-sdk" and item["summary"]["status"] == "completed" for item in data["runs"]), data
+assert any(item["summary"].get("engine") == "provider-sdk" and item["summary"]["status"] == "ready" for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"].get("patch_path") for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"].get("context_files") == ["scripts/aos_agents/README.md"] for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"]["status"] == "error" and item["result_exists"] for item in data["runs"]), data

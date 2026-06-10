@@ -345,7 +345,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 assert data["self_test"] == "pass", data
-assert data["default_engine"] == "native-codex", data
+assert data["default_engine"] == "provider-sdk", data
 assert set(data["engines"]) == {"native-codex", "provider-sdk"}, data
 assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
 assert all(item["sandbox_mode"] == "read-only" for item in data["roles"].values()), data

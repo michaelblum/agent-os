@@ -26,22 +26,24 @@ standalone GDI/Operator dock, and stale work-card instructions. Do not let them
 override the active profile, native agent TOML, current schemas, or direct user
 instruction.
 
-## Delegation Topology
+## Execution Topology
 
 Default:
 
 ```text
 Foreman
-  -> Historian
-  -> Explorer
-  -> Steward
-  -> optional Reviewer
+  -> ./aos dev agents
+      -> Historian
+      -> Explorer
+      -> Steward
+      -> optional Reviewer
 ```
 
-Foreman orchestrates the squad and passes outputs around. Nested
-Historian-spawns-Explorer or other squad-lead topology is experimental until
-real Foreman `multi_agent_v2` smoke proves grandchildren, hooks, sandboxing,
-and skill inheritance.
+Foreman orchestrates the squad and passes outputs around. The default execution
+substrate is the AOS-owned runner. Native Codex subagents, nested
+Historian-spawns-Explorer, and other squad-lead topology are experimental until
+real Foreman smoke proves grandchildren, hooks, sandboxing, skill inheritance,
+debuggable runtime state, and role-specific model/effort binding.
 
 ## Historian Contract
 

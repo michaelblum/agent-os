@@ -3,9 +3,10 @@
 """AOS-owned agent runtime contract and local artifact gate.
 
 The runtime is intentionally local, serial, and conservative. It loads existing
-AOS role/profile source data, validates native Codex dispatch contracts, keeps
-provider SDK execution behind an explicit adapter selection, and owns
-patch-artifact check/apply gates without delegating checkout mutation.
+AOS role/profile source data, keeps provider SDK execution as the default
+AOS-owned child execution path, validates explicit native Codex dispatch
+contracts only as a diagnostic/import lane, and owns patch-artifact check/apply
+gates without delegating checkout mutation.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
 ENGINE_NATIVE_CODEX = "native-codex"
 ENGINE_PROVIDER_SDK = "provider-sdk"
 ENGINES = frozenset({ENGINE_NATIVE_CODEX, ENGINE_PROVIDER_SDK})
+DEFAULT_ENGINE = ENGINE_PROVIDER_SDK
 SUMMARY_STATUSES = frozenset({"ready", "completed", "blocked", "error"})
 CONTEXT_FILE_MAX_BYTES = 12000
 CONTEXT_FILE_MAX_LINES = 240
@@ -285,7 +287,7 @@ def output_dir(root: pathlib.Path, role: str, task: str, *, patch_output: bool =
 
 def normalize_engine(value: str | None) -> str:
     if value is None:
-        return ENGINE_NATIVE_CODEX
+        return DEFAULT_ENGINE
     normalized = value.strip().lower()
     aliases = {
         "native": ENGINE_NATIVE_CODEX,
@@ -704,7 +706,7 @@ def openai_agents_sdk_status() -> dict[str, Any]:
         "module": "agents",
         "agent_class": callable(agent_cls),
         "runner_run_sync": callable(run_sync),
-        "install_policy": "Optional adapter dependency only; native-codex planning/readback and check/apply gates do not require it.",
+        "install_policy": "AOS-owned runner dependency supplied by the caller environment; native-codex diagnostic planning/readback and check/apply gates do not require it.",
     }
 
 
@@ -741,14 +743,14 @@ def runtime_info(root: pathlib.Path) -> dict[str, Any]:
         "runtime": "aos-agents",
         "engines": {
             ENGINE_NATIVE_CODEX: {
-                "default": True,
-                "execution_owner": "native Codex session tool runtime",
+                "default": False,
+                "execution_owner": "native Codex session tool runtime (explicit diagnostic/import lane only)",
                 "local_process_can_execute": False,
                 "dispatch_contract": "spawn_agent(task_name=<short_task_id>, agent_type=<role>, fork_turns=\"none\", message=<task>)",
             },
             ENGINE_PROVIDER_SDK: {
-                "default": False,
-                "execution_owner": "optional OpenAI Agents SDK adapter",
+                "default": True,
+                "execution_owner": "AOS-owned local OpenAI Agents SDK adapter",
                 "local_process_can_execute": True,
                 "dependency": openai_agents_sdk_status(),
             },
@@ -762,7 +764,7 @@ def runtime_info(root: pathlib.Path) -> dict[str, Any]:
                 "model": spec.model,
                 "model_reasoning_effort": spec.model_reasoning_effort,
                 "sandbox_mode": spec.sandbox_mode,
-                "default_execution": "read-only native dispatch" if name in READ_ONLY_ROLES else "patch artifact only",
+                "default_execution": "read-only provider execution" if name in READ_ONLY_ROLES else "patch artifact only",
             }
             for name, spec in sorted(specs.items())
         },
@@ -1275,7 +1277,7 @@ def render_summary(root: pathlib.Path, specs: dict[str, AgentSpec], active_profi
     return {
         "repo_root": str(root),
         "runtime_root": str(root / RUNTIME_ROOT),
-        "default_engine": ENGINE_NATIVE_CODEX,
+        "default_engine": DEFAULT_ENGINE,
         "engines": sorted(ENGINES),
         "roles": {
             name: {
@@ -1682,11 +1684,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--check-patch", help="Validate an implementer patch-output run and run git apply --check without applying it.")
     parser.add_argument("--apply-patch", help="Apply an existing implementer patch-output run after explicit checkout-mutation approval.")
     parser.add_argument("--i-approve-checkout-mutation", action="store_true", help="Required approval for --apply-patch to mutate the checkout.")
-    parser.add_argument("--engine", default=ENGINE_NATIVE_CODEX, help="Agent engine: native-codex (default) or provider-sdk.")
+    parser.add_argument(
+        "--engine",
+        default=DEFAULT_ENGINE,
+        help="Agent engine: provider-sdk (default AOS-owned runner) or native-codex (explicit diagnostic/import lane).",
+    )
     parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and explicit execution.")
     parser.add_argument("--execute", action="store_true", help="Execute the selected engine after validation. provider-sdk is the only local executable engine.")
-    parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses dispatch/import.")
+    parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses explicit dispatch/import.")
     parser.add_argument("--context-file", action="append", help="Repo-relative file to include as bounded source context for --patch-output.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
     parser.add_argument("--json", action="store_true", help="Accepted for ./aos dev command-surface consistency.")
