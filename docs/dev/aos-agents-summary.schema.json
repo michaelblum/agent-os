@@ -23,11 +23,11 @@
   "properties": {
     "schema_version": { "const": 1 },
     "status": { "enum": ["ready", "completed", "blocked", "error"] },
-    "engine": { "enum": ["native-codex", "provider-sdk"] },
+    "engine": { "enum": ["provider-sdk"] },
     "role": { "enum": ["explorer", "reviewer", "validator", "historian", "implementer"] },
     "agent_spec": {
       "type": "string",
-      "pattern": "^\\.codex/agents/(explorer|reviewer|validator|historian|implementer)\\.toml$"
+      "pattern": "^ai-agents/providers/codex/(explorer|reviewer|validator|historian|implementer)\\.toml$"
     },
     "active_profile": { "type": "string", "minLength": 1 },
     "task_hash": { "type": "string", "pattern": "^[a-f0-9]{12}$" },
@@ -69,36 +69,7 @@
       "type": "string",
       "pattern": "^git apply /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
     },
-    "error": { "type": "string", "minLength": 1 },
-    "native_spawn_contract": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["tool", "tool_contract", "arguments", "provider_side_checkout_mutation"],
-      "properties": {
-        "tool": { "const": "spawn_agent" },
-        "tool_contract": { "const": "multi_agent_v2" },
-        "blocked_if_only_multi_agent_v1": { "type": "boolean" },
-        "provider_side_checkout_mutation": { "const": false },
-        "arguments": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["task_name", "agent_type", "fork_turns", "message"],
-          "properties": {
-            "task_name": {
-              "type": "string",
-              "pattern": "^(explorer|reviewer|validator|historian|implementer)-[a-f0-9]{12}$"
-            },
-            "agent_type": { "enum": ["explorer", "reviewer", "validator", "historian", "implementer"] },
-            "fork_turns": { "const": "none" },
-            "message": { "type": "string", "minLength": 1 }
-          }
-        }
-      }
-    },
-    "native_dispatch_path": {
-      "type": "string",
-      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+/native-dispatch\\.json$"
-    }
+    "error": { "type": "string", "minLength": 1 }
   },
   "allOf": [
     {
@@ -142,10 +113,6 @@
           ]
         }
       }
-    },
-    {
-      "if": { "properties": { "engine": { "const": "native-codex" } }, "required": ["engine"] },
-      "then": { "required": ["native_spawn_contract", "native_dispatch_path"] }
     },
     {
       "if": {

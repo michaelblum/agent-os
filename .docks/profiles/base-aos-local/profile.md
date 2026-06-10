@@ -17,7 +17,7 @@ does not imply publication.
 1. Direct user instruction for the current turn.
 2. `.docks/profiles/active-profile.json` and the loaded profile packs.
 3. `.docks/foreman/AGENTS.md` and `.docks/AGENTS.md`.
-4. `.codex/agents/*.toml` for subagent identity and behavior.
+4. `ai-agents/providers/codex/*.toml` for runner role material.
 5. `CONTEXT.md`, `CONTEXT-MAP.md`, architecture docs, ADRs, and schemas.
 6. Current git, `./aos` readback, tests, and GitHub readback.
 7. Historical work cards, reports, and design notes.
@@ -27,6 +27,6 @@ does not imply publication.
 Foreman owns coordination, final acceptance, git/GitHub decisions, and profile
 selection. Use the AOS-owned runner (`./aos dev agents`) as the default child
 execution surface when a bounded project-agent lane is needed. Native Codex
-subagents are diagnostic/explicit only; if encrypted tool registration or
-missing role binding blocks native delegation, proceed through the AOS-owned
-runner or directly and record the blocker.
+custom agents are disabled; if encrypted tool registration or missing role
+binding appears in stale docs or tooling, proceed through the AOS-owned runner
+or directly and record the blocker.

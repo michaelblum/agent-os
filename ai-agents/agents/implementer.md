@@ -6,7 +6,8 @@ tasks.
 **Dispatch after** Architect has produced a design or a clear work-card spec
 exists.  Implementer executes; it does not design.
 
-> Replaces: `gdi` (same role, renamed for clarity and provider-neutrality)
+> Supersedes the defunct `gdi` term. Implementer is provider-neutral and is not
+> centered on Codex `/goal`.
 
 ## Model tier
 
@@ -23,9 +24,9 @@ project root.  It does not push, merge, or open PRs.
 
 ## Behavioral contract
 
-- Treat the spawning prompt or linked work card as the full specification.
+- Treat the routing prompt or linked work card as the full specification.
 - Execute one slice at a time.  Do not expand scope.
-- Do not spawn further subagents.
+- Do not route or launch further child runs.
 - If blocked by a TCC stall, native boundary issue, or ambiguity in the spec,
   stop immediately and return the blocker to Foreman with a Completion Report.
 - Completion Report format:
@@ -41,9 +42,9 @@ project root.  It does not push, merge, or open PRs.
 
 `Implementer`, `Coder`, `Dev`
 
-## Spawn criteria
+## Routing criteria
 
-Foreman spawns Implementer when:
+Foreman routes to Implementer when:
 - A work card or explicit spec exists and is bounded.
 - The task is pure implementation with no unresolved design questions.
 - A previous Implementer slice completed and the next slice is ready.

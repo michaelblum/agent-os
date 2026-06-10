@@ -422,20 +422,24 @@
       "verification": []
     },
     {
-      "id": "codex-subagent-team",
-      "summary": "Native Codex subagent roster or Foreman team launch config changed.",
+      "id": "aos-agent-runner-team",
+      "summary": "AOS agent runner role material or Foreman dock launch config changed.",
       "patterns": [
         ".codex/config.toml",
-        ".codex/agents/**",
+        "ai-agents/providers/codex/**",
+        "ai-agents/agents/**",
+        "scripts/aos_agents/**",
         ".docks/foreman/.codex/config.toml",
         ".docks/foreman/.codex/hooks.json",
-        ".docks/foreman/SUBAGENTS.md",
         ".docks/foreman/README.md",
+        ".docks/foreman/AGENTS.md",
         ".docks/foreman/subagent-voices.json",
+        "docs/adr/0016-aos-owned-agent-execution.md",
+        "docs/adr/0017-retire-codex-native-custom-agents.md",
         "tests/dock-hook-isolation.sh"
       ],
       "classes": [
-        "codex_subagent",
+        "aos_agent_runner",
         "dock_harness"
       ],
       "actions": [
@@ -447,12 +451,12 @@
         {
           "id": "dock-hook-isolation-test",
           "command": "bash tests/dock-hook-isolation.sh",
-          "reason": "Verify Foreman hooks, voice labels, native agent roster paths, and subagent firewall contracts."
+          "reason": "Verify Foreman hooks, voice labels, native custom-agent denial, and dock profile contracts."
         },
         {
-          "id": "dev-workflow-router-test",
-          "command": "bash tests/dev-workflow-router.sh",
-          "reason": "Verify the AOS subagent proof helper and help manifests expose the native roster contract."
+          "id": "aos-agent-runner-test",
+          "command": "bash tests/aos-agents-runner.sh",
+          "reason": "Verify provider-sdk default execution, proxy configuration readback, and retired native engine guards."
         }
       ],
       "verification": []

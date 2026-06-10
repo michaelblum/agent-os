@@ -6745,7 +6745,7 @@
               "id" : "runtime-info",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Report native/provider runtime contract and dependency status without executing agents",
+              "summary" : "Report provider runtime contract and dependency status without executing agents",
               "token" : "--runtime-info",
               "value_type" : "bool"
             },
@@ -6769,7 +6769,7 @@
               "id" : "native-dispatch",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Read a ready or blocked native-codex run and emit the native spawn contract",
+              "summary" : "Retired native-codex import flag; fails closed for agent-os",
               "token" : "--native-dispatch",
               "value_type" : "string"
             },
@@ -6777,7 +6777,7 @@
               "id" : "complete-native-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Import a native child result into a planned native output directory",
+              "summary" : "Retired native-codex import flag; fails closed for agent-os",
               "token" : "--complete-native-run",
               "value_type" : "string"
             },
@@ -6785,7 +6785,7 @@
               "id" : "result-file",
               "kind" : "flag",
               "required" : false,
-              "summary" : "JSON result file for --complete-native-run",
+              "summary" : "Retired native-codex result flag; fails closed for agent-os",
               "token" : "--result-file",
               "value_type" : "string"
             },
@@ -6818,7 +6818,7 @@
               "id" : "engine",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Agent engine: provider-sdk by default, or native-codex for explicit diagnostic/import workflows",
+              "summary" : "Agent engine: provider-sdk. native-codex is retired for agent-os",
               "token" : "--engine",
               "value_type" : "string"
             },
@@ -6850,7 +6850,7 @@
               "id" : "patch-output",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses explicit dispatch/import",
+              "summary" : "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute",
               "token" : "--patch-output",
               "value_type" : "bool"
             },
@@ -6893,9 +6893,6 @@
             "aos dev agents --runtime-info --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
-            "aos dev agents --engine native-codex --role explorer --task \"inspect the active profile\" --json",
-            "aos dev agents --native-dispatch .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
-            "aos dev agents --complete-native-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --result-file /tmp/native-result.json --json",
             "aos dev agents --engine provider-sdk --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
             "aos dev agents --engine provider-sdk --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
             "aos dev agents --list-runs --json",
@@ -6919,7 +6916,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--runtime-info] [--list-runs] [--read-run <output-dir>] [--native-dispatch <output-dir>] [--complete-native-run <output-dir> --result-file <path>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--engine <native-codex|provider-sdk>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--runtime-info] [--list-runs] [--read-run <output-dir>] [--native-dispatch <output-dir>] [--complete-native-run <output-dir> --result-file <path>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--engine <provider-sdk>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [
@@ -6927,15 +6924,15 @@
               "id" : "action",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Subagent contract action: list, plan, or validate-proof",
+              "summary" : "Retired subagent helper action; command fails closed for agent-os",
               "value_type" : "string"
             },
             {
-              "default_value" : ".codex\/agents",
+              "default_value" : "ai-agents\/providers\/codex",
               "id" : "agents-root",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Native Codex agents root",
+              "summary" : "Retired native agent root flag; ignored because dev subagent is retired",
               "token" : "--agents-root",
               "value_type" : "string"
             },
@@ -6943,7 +6940,7 @@
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Subagent role name such as explorer, gdi, operator, or validator",
+              "summary" : "Retired subagent role flag; use ./aos dev agents roles instead",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -6951,7 +6948,7 @@
               "id" : "prompt",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Native subagent prompt text for plan output",
+              "summary" : "Retired subagent prompt text flag",
               "token" : "--prompt",
               "value_type" : "string"
             },
@@ -6959,7 +6956,7 @@
               "id" : "prompt-file",
               "kind" : "flag",
               "required" : false,
-              "summary" : "File containing native subagent prompt text for plan output",
+              "summary" : "Retired subagent prompt-file flag",
               "token" : "--prompt-file",
               "value_type" : "string"
             },
@@ -6967,7 +6964,7 @@
               "id" : "transcript",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Captured subagent spawn transcript text for proof validation",
+              "summary" : "Retired subagent transcript flag",
               "token" : "--transcript",
               "value_type" : "string"
             },
@@ -6975,7 +6972,7 @@
               "id" : "transcript-file",
               "kind" : "flag",
               "required" : false,
-              "summary" : "File containing captured subagent spawn transcript text for proof validation",
+              "summary" : "Retired subagent transcript-file flag",
               "token" : "--transcript-file",
               "value_type" : "string"
             },
@@ -6991,15 +6988,13 @@
               "id" : "json",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Emit machine-readable subagent contract or proof output",
+              "summary" : "Emit retired-command error JSON",
               "token" : "--json",
               "value_type" : "bool"
             }
           ],
           "examples" : [
-            "aos dev subagent list --json",
-            "aos dev subagent plan --role explorer --prompt \"return exact smoke token\" --json",
-            "aos dev subagent validate-proof --role explorer --transcript-file \/tmp\/subagent-smoke.txt --json"
+            "aos dev subagent list --json # retired; fails closed"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -7012,12 +7007,12 @@
           },
           "id" : "dev-subagent",
           "output" : {
-            "default_mode" : "text",
+            "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev subagent <list|plan|validate-proof> [--role <role>] [--prompt <text>|--prompt-file <path>] [--transcript <text>|--transcript-file <path>] [--agents-root <path>] [--repo <path>] [--json]"
+          "usage" : "aos dev subagent <list|plan|validate-proof> [retired; fails closed]"
         },
         {
           "args" : [

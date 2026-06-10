@@ -9,45 +9,9 @@ hide_full_access_warning = true
 
 [features]
 hooks = true
-multi_agent_v2 = true
 guardian_approval = true
 prevent_idle_sleep = true
 
 [tui]
 status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
 terminal_title = ["current-dir", "activity", "git-branch", "model"]
-
-[agents]
-max_depth = 1
-
-[agents.architect]
-config_file = "../../../.codex/agents/architect.toml"
-description = "System design, decomposition, interface contracts, tradeoff analysis, and RFC-style planning. Makes no code changes."
-
-[agents.implementer]
-config_file = "../../../.codex/agents/implementer.toml"
-description = "Scoped code-writing worker. Modifies code only within the assigned Foreman or Architect task."
-
-[agents.reviewer]
-config_file = "../../../.codex/agents/reviewer.toml"
-description = "Code review, diff analysis, correctness checks, and PR feedback. Returns findings only and never edits files."
-
-[agents.validator]
-config_file = "../../../.codex/agents/validator.toml"
-description = "Bounded verification worker. Runs named checks, inspects evidence, and reports pass/fail facts without editing files."
-
-[agents.operator]
-config_file = "../../../.codex/agents/operator.toml"
-description = "Supervised HITL inspector. Probes live surfaces, evaluates stop conditions, and returns concise evidence."
-
-[agents.explorer]
-config_file = "../../../.codex/agents/explorer.toml"
-description = "Read-only research worker. Scans files, APIs, dependencies, and unknowns, then returns raw findings."
-
-[agents.steward]
-config_file = "../../../.codex/agents/steward.toml"
-description = "GitHub and repo hygiene worker. Performs explicit branch, PR, issue, label, and release coordination tasks."
-
-[agents.historian]
-config_file = "../../../.codex/agents/historian.toml"
-description = "Read-only chronology and meaning synthesis across threads, git/GitHub, docs, ledgers, and stale sources."

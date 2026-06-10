@@ -40,7 +40,7 @@
     "dev.github.pr_merge",
     "dev.github.ci_inspect",
     "dev.github.review_comments",
-    "dev.subagent.dispatch_contract",
+    "dev.agents",
     "dev.build.aos",
     "dev.test.schema_node"
   ],
@@ -54,9 +54,9 @@
     "requires_goal_prefix": false
   },
   "metadata": {
-    "execution_topology": "team_root",
+    "execution_topology": "aos_owned_runner_root",
     "normal_launch_root": true,
-    "subagent_team": {
+    "agent_runner_team": {
       "extensible": true,
       "registered_agents": [
         "architect",
@@ -68,7 +68,7 @@
         "steward",
         "historian"
       ],
-      "model_policy": "native_agent_config_declares_model_and_effort",
+      "model_policy": "provider_role_material_declares_model_and_effort",
       "inherits_foreman_model": false
     },
     "legacy_terminal_transport": false

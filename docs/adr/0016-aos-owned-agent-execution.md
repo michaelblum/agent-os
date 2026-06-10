@@ -1,6 +1,6 @@
 # ADR 0016: AOS-Owned Agent Execution
 
-**Status:** Accepted
+**Status:** Accepted; amended by ADR 0017
 **Date:** 2026-06-10
 
 ## Decision
@@ -11,10 +11,9 @@ surface is `./aos dev agents`, backed by the repo-owned Python runner at
 artifacts under `.runtime/dev/aos-agents/`.
 
 The default agent engine is `provider-sdk`, the AOS-owned local runner adapter.
-`native-codex` is an explicit diagnostic/import lane only. It may render and
-validate Codex native subagent dispatch contracts, but it must not be the default
-child execution substrate, and Foreman must not treat it as a trusted replacement
-for the AOS runner.
+ADR 0017 retires active Codex native custom-agent registration and dispatch for
+agent-os. Foreman must not treat native Codex custom agents as a trusted
+replacement for the AOS runner.
 
 ## North Star
 
@@ -23,8 +22,8 @@ and unreliable for this repo's operating model. The required destination is
 inspectable, testable, AOS-owned execution with:
 
 - role-specific model, effort, sandbox, and instruction control;
-- typed `summary.json`, `result.json`, `native-dispatch.json`, and `patch.diff`
-  artifacts where applicable;
+- typed `summary.json`, `result.json`, and `patch.diff` artifacts where
+  applicable;
 - deterministic runtime paths under `.runtime/dev/aos-agents/`;
 - status guards and error-path coverage;
 - provider/child output that can be read, checked, imported, or rejected without
@@ -56,12 +55,10 @@ layer in-house through `scripts/aos_agents/runner.py` and `./aos dev agents`.
 ## Consequences
 
 - `provider-sdk` is the default engine for `./aos dev agents`.
-- `native-codex` requires an explicit `--engine native-codex` request and remains
-  a diagnostic/import lane.
-- `native-codex` may not become default again through a milestone report, README
-  rewrite, or command manifest update. Reversal requires a new ADR or explicit
-  human architecture decision that names this ADR and explains why the native
-  substrate is now inspectable, testable, role-bound, and debuggable enough.
+- Native Codex custom-agent registration and dispatch are retired by ADR 0017.
+  Reversal requires a new ADR or explicit human architecture decision that names
+  ADR 0016 and ADR 0017 and explains why the native substrate is now inspectable,
+  testable, role-bound, and debuggable enough.
 - M1/M2 provider-backed work is the seed of the canonical runtime, not just a
   disposable smoke harness.
 - M3's `native-codex` default was off-plan drift from this north star and is

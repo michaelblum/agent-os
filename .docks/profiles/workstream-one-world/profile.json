@@ -5,6 +5,8 @@
   "nested_topology": "experimental_until_local_proof",
   "stale_source_quarantine": [
     "old entry paths as identity",
+    "GDI persona terminology",
+    "standalone Operator dock terminology",
     "retired transfer contracts",
     "legacy goal-command payloads",
     "clipboard dispatch role selection",

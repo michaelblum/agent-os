@@ -16,7 +16,7 @@ test('active dock profile selects existing profile packs and header fields', asy
   assert.ok(Array.isArray(active.profile_packs));
   assert.ok(active.profile_packs.includes('ethos-foundation-breaking'));
   assert.ok(active.profile_packs.includes('workstream-one-world'));
-  assert.equal(active.header.delegation, 'AOS-owned runner first; native subagents diagnostic');
+  assert.equal(active.header.delegation, 'AOS-owned runner only; native Codex subagents disabled');
   assert.match(active.header.migration_posture, /broken and migrated broadly/);
   assert.match(active.header.stale_pools, /old entry paths/);
 
@@ -31,12 +31,13 @@ test('active dock profile selects existing profile packs and header fields', asy
 
 test('dock profile docs encode anti-drift operating model', async () => {
   const readme = await fs.readFile(path.join(profilesRoot, 'README.md'), 'utf8');
-  assert.match(readme, /Agent definition = who the agent or subagent is/);
-  assert.match(readme, /Dock = runtime shell/);
+  assert.match(readme, /Agent definition = who the agent is/);
+  assert.match(readme, /Dock = named runtime launch envelope/);
   assert.match(readme, /Profile = active operating doctrine/);
   assert.match(readme, /Capability route = path, tool, and test routing mechanics/);
-  assert.match(readme, /AOS-owned runner first; native subagents diagnostic/);
+  assert.match(readme, /AOS-owned runner only; native Codex subagents disabled/);
   assert.match(readme, /docs\/adr\/0016-aos-owned-agent-execution\.md/);
+  assert.match(readme, /Native Codex custom-agent registration is\s+disabled/);
 
   const ethos = await fs.readFile(
     path.join(profilesRoot, 'ethos-foundation-breaking/profile.md'),
@@ -55,29 +56,34 @@ test('dock profile docs encode anti-drift operating model', async () => {
   assert.match(stale, /clipboard-dispatch/);
 });
 
-test('multi_agent_v2 unknowns stay explicit until local smoke proves them', async () => {
+test('native custom agents stay retired unless a durable decision reverses them', async () => {
   const readme = await fs.readFile(path.join(profilesRoot, 'README.md'), 'utf8');
   assert.match(readme, /Codex CLI 0\.138\.0/);
   assert.match(readme, /encrypted tool registration/);
   assert.match(readme, /Foreman must proceed\s+without native subagents/);
   assert.match(readme, /Observed local behavior in the real Foreman dock/);
-  assert.match(readme, /\.codex\/agents\/\*\.toml/);
+  assert.match(readme, /ai-agents\/providers\/codex\/\*\.toml/);
   assert.match(readme, /Default topology is Foreman-orchestrated AOS-owned runner execution/);
-  assert.match(readme, /native\s+Codex subagents and nested squad leads remain experimental/i);
+  assert.match(readme, /Native Codex custom agents and nested squad\s+leads remain retired unless/i);
 });
 
 test('Foreman instructions keep AOS-owned runner as default execution lane', async () => {
   const foreman = await fs.readFile(path.join(repoRoot, '.docks/foreman/AGENTS.md'), 'utf8');
   assert.match(foreman, /docs\/adr\/0016-aos-owned-agent-execution\.md/);
+  assert.match(foreman, /docs\/adr\/0017-retire-codex-native-custom-agents\.md/);
   assert.match(foreman, /AOS owns project-agent child execution by default/);
   assert.match(foreman, /default engine is `provider-sdk`/);
-  assert.match(foreman, /native-codex` may be used only when explicitly requested/);
-  assert.match(foreman, /Use native Codex subagents only as an explicit diagnostic\/import\s+exception/);
+  assert.match(foreman, /Native Codex custom-agent registration is disabled/);
+  assert.match(foreman, /\.\/aos dev agents/);
   assert.doesNotMatch(foreman, /default engine is `native-codex`/i);
   assert.doesNotMatch(foreman, /native-codex` is the default/i);
   assert.doesNotMatch(foreman, /prefer `--engine native-codex`/i);
   assert.doesNotMatch(foreman, /Use native Codex subagents\s+for bounded specialist work/i);
   assert.doesNotMatch(foreman, /Default to Foreman-orchestrated direct subagents/i);
+  assert.doesNotMatch(foreman, /spawn_agent/);
+  assert.doesNotMatch(foreman, /multi_agent_v2/);
+  assert.doesNotMatch(foreman, /task_name/);
+  assert.doesNotMatch(foreman, /agent_type/);
 });
 
 test('workflow profile docs are demoted below dock profiles', async () => {

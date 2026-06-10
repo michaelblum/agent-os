@@ -17,13 +17,13 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email "dev-situation@example.invalid"
 git -C "$REPO" config user.name "Dev Situation Test"
-mkdir -p "$REPO/.codex/agents" "$REPO/.docks/foreman"
+mkdir -p "$REPO/ai-agents/providers/codex" "$REPO/.docks/foreman"
 for role in architect implementer reviewer explorer validator operator steward; do
-    printf 'name = "%s"\n' "$role" > "$REPO/.codex/agents/$role.toml"
+    printf 'name = "%s"\n' "$role" > "$REPO/ai-agents/providers/codex/$role.toml"
 done
 printf '%s\n' '# Foreman' > "$REPO/.docks/foreman/AGENTS.md"
 printf 'one\n' > "$REPO/file.txt"
-git -C "$REPO" add file.txt .codex .docks
+git -C "$REPO" add file.txt ai-agents .docks
 git -C "$REPO" commit -q -m "initial"
 git -C "$REPO" branch -M main
 git -C "$REPO" update-ref refs/remotes/origin/main HEAD
@@ -97,28 +97,32 @@ assert data["summary"]["runtime_ready"] is True, data
 assert "notes" not in data["summary"], data["summary"]
 assert data["successor_note"]["status"] == "missing", data["successor_note"]
 assert data["successor_note"]["note"] is None, data["successor_note"]
-delegation = data["subagent_delegation"]
-assert delegation["status"] == "active", delegation
-assert delegation["authority"] == "orientation_policy", delegation
-assert delegation["roles_dir"] == ".codex/agents", delegation
-assert delegation["team_doc"] == ".docks/foreman/AGENTS.md", delegation
-assert delegation["registered_roles"] == ["architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"], delegation
-assert delegation["routing_scope"] == [
+execution = data["agent_execution"]
+assert execution["status"] == "provider_runner_ready", execution
+assert execution["authority"] == "adr_0017_provider_runner", execution
+assert execution["execution_surface"] == "./aos dev agents", execution
+assert execution["default_engine"] == "provider-sdk", execution
+assert execution["native_custom_agents_enabled"] is False, execution
+assert execution["codex_config_registration_allowed"] is False, execution
+assert execution["roles_dir"] == "ai-agents/providers/codex", execution
+assert execution["team_doc"] == ".docks/foreman/AGENTS.md", execution
+assert execution["registered_roles"] == ["architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"], execution
+assert execution["routing_scope"] == [
     "bounded_specialist_work",
     "routine_git_github_hygiene",
     "review",
     "validation",
     "reconnaissance",
     "implementation",
-], delegation
-assert delegation["standing_authorization_intent"] is True, delegation
-assert delegation["ask_user_if_runtime_requires_turn_authorization"] is False, delegation
-assert delegation["fail_closed_without_registered_role"] is True, delegation
-assert delegation["fail_closed_without_session_authorization"] is False, delegation
-assert delegation["direct_specialist_fallback_allowed"] is False, delegation
-assert delegation["extra_mutation_authorized"] is False, delegation
+], execution
+assert execution["standing_authorization_intent"] is False, execution
+assert execution["ask_user_if_runtime_requires_turn_authorization"] is False, execution
+assert execution["fail_closed_without_registered_role"] is True, execution
+assert execution["fail_closed_without_session_authorization"] is False, execution
+assert execution["direct_specialist_fallback_allowed"] is False, execution
+assert execution["extra_mutation_authorized"] is False, execution
 for removed_key in ["standing_user_intent", "runtime_gate", "fail_closed", "authorization_scope"]:
-    assert removed_key not in delegation, delegation
+    assert removed_key not in execution, execution
 assert "runtime" in data and "ready" in data["runtime"] and "status" in data["runtime"], data
 assert "ready" not in data["github"] and "status" not in data["github"], data["github"]
 for key, source_id in {
@@ -132,15 +136,15 @@ for key, source_id in {
     "summary.open_pr_count_limit_reached": "github_open_prs",
     "summary.stash_count": "git_stashes",
     "summary.runtime_ready": "aos_ready",
-    "subagent_delegation.status": "subagent_delegation_policy",
-    "subagent_delegation.registered_roles": "subagent_delegation_policy",
-    "subagent_delegation.routing_scope": "subagent_delegation_policy",
-    "subagent_delegation.standing_authorization_intent": "subagent_delegation_policy",
-    "subagent_delegation.ask_user_if_runtime_requires_turn_authorization": "subagent_delegation_policy",
-    "subagent_delegation.fail_closed_without_registered_role": "subagent_delegation_policy",
-    "subagent_delegation.fail_closed_without_session_authorization": "subagent_delegation_policy",
-    "subagent_delegation.direct_specialist_fallback_allowed": "subagent_delegation_policy",
-    "subagent_delegation.extra_mutation_authorized": "subagent_delegation_policy",
+    "agent_execution.status": "agent_execution_policy",
+    "agent_execution.registered_roles": "agent_execution_policy",
+    "agent_execution.routing_scope": "agent_execution_policy",
+    "agent_execution.standing_authorization_intent": "agent_execution_policy",
+    "agent_execution.ask_user_if_runtime_requires_turn_authorization": "agent_execution_policy",
+    "agent_execution.fail_closed_without_registered_role": "agent_execution_policy",
+    "agent_execution.fail_closed_without_session_authorization": "agent_execution_policy",
+    "agent_execution.direct_specialist_fallback_allowed": "agent_execution_policy",
+    "agent_execution.extra_mutation_authorized": "agent_execution_policy",
 }.items():
     assert source_id in data["source_trace"][key], (key, data["source_trace"].get(key))
 for source_id in [
@@ -158,7 +162,7 @@ for source_id in [
     "aos_ready",
     "aos_status",
     "successor_note",
-    "subagent_delegation_policy",
+    "agent_execution_policy",
 ]:
     assert sources[source_id]["status"] == "success", sources[source_id]
 PY
@@ -169,10 +173,10 @@ else
 fi
 
 if TEXT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 2>/dev/null)" \
-    && grep -q '^Subagent delegation: active (.codex/agents)$' <<< "$TEXT"; then
-    pass "dev situation text output names subagent delegation state"
+    && grep -q '^Agent execution: provider_runner_ready (ai-agents/providers/codex)$' <<< "$TEXT"; then
+    pass "dev situation text output names agent execution state"
 else
-    fail "dev situation text output omitted subagent delegation state"
+    fail "dev situation text output omitted agent execution state"
 fi
 
 VALID_NOTE="$TMPDIR/valid-successor-note.json"
@@ -188,12 +192,12 @@ cat > "$VALID_NOTE" <<JSON
   "next_step": "Run focused tests and commit the checkpoint.",
   "side_missions": [
     {
-      "id": "native-subagent-agent-type",
+      "id": "provider-runner-routing",
       "status": "parked",
-      "why_started": "The current spawn attempt did not confirm the multi_agent_v2 task_name plus agent_type binding.",
+      "why_started": "The current provider-runner lane needed durable readback in dev situation.",
       "current_ref": "local transcript note",
-      "enough_for_now": "Treat it as parked until a v2 custom-agent spawn proves role/model selection.",
-      "return_condition": "Return when a later slice needs real subagent dispatch.",
+      "enough_for_now": "Treat it as parked until a later slice needs deeper provider execution telemetry.",
+      "return_condition": "Return when a later slice needs real AOS-owned child execution.",
       "next_step": "Keep implementation local for this slice."
     }
   ],
@@ -222,7 +226,7 @@ assert data["role"] == "foreman", data
 assert data["path"] == ".runtime/dev/successor/foreman.json", data
 assert data["bytes"] <= data["max_bytes"], data
 assert stored["active_epic"]["id"] == "#426", stored
-assert stored["side_missions"][0]["id"] == "native-subagent-agent-type", stored
+assert stored["side_missions"][0]["id"] == "provider-runner-routing", stored
 PY
 then
     pass "successor note writer stores compact validated note"

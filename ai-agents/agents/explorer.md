@@ -23,7 +23,7 @@ Returns raw findings only.  Makes no decisions and writes no files.
 - Return a structured plain-text report: files inspected, pattern
   found/not-found, exact locations, raw counts.
 - Do not interpret, recommend, or decide.  Foreman does that.
-- Do not spawn subagents.
+- Do not route or launch child runs.
 - If findings are ambiguous, report the ambiguity verbatim; do not resolve it.
 - If Foreman names authority bounds or date limits, stay inside them.
 
@@ -31,9 +31,9 @@ Returns raw findings only.  Makes no decisions and writes no files.
 
 `Explorer`, `Scout`, `Researcher`, `Web-crawler`
 
-## Spawn criteria
+## Routing Criteria
 
-Foreman spawns Explorer when:
+Foreman routes to Explorer when:
 - Mapping dependency surfaces across many files before writing a work card.
 - Checking whether a pattern, symbol, or contract is consistently applied.
 - Counting or listing occurrences that would fill Foreman's context window.

@@ -6,7 +6,7 @@
   "label": "agent-os Developer Capabilities",
   "summary": "Canonical capability manifest for typed repo-development operations exposed to docked sessions and AOS developer capability routes.",
   "applies_to": {
-    "roles": ["foreman", "gdi", "operator"],
+    "roles": ["foreman", "implementer", "operator"],
     "entry_paths": ["aos_developer", "testing"]
   },
   "capabilities": [
@@ -15,7 +15,7 @@
       "label": "GitHub Context",
       "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -55,7 +55,7 @@
       "label": "GitHub Issue List",
       "summary": "List GitHub issues through ./aos dev gh with bounded read-only inventory filters.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -105,7 +105,7 @@
       "label": "GitHub Issue View",
       "summary": "Read one GitHub issue through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -403,7 +403,7 @@
       "label": "GitHub Label List",
       "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -453,7 +453,7 @@
       "label": "GitHub PR List",
       "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -503,7 +503,7 @@
       "label": "GitHub PR View",
       "summary": "Read one GitHub pull request through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -554,7 +554,7 @@
       "label": "GitHub PR Checks",
       "summary": "Read GitHub pull request check status through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -821,7 +821,7 @@
       "label": "GitHub CI Inspect",
       "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer", "testing"],
       "adapter": {
         "kind": "aos_cli",
@@ -872,7 +872,7 @@
       "label": "GitHub Review Comments",
       "summary": "Read thread-level PR review comment state through ./aos dev gh and gh GraphQL.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["foreman", "implementer", "operator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -919,15 +919,15 @@
       }
     },
     {
-      "id": "dev.subagent.dispatch_contract",
-      "label": "Subagent Dispatch Contract",
-      "summary": "Plan and validate fail-closed native Codex subagent role/model proof before Foreman fans out work.",
+      "id": "dev.agents",
+      "label": "AOS Agent Runner",
+      "summary": "Inspect and execute AOS-owned provider-backed agent runs through ./aos dev agents.",
       "status": "active",
       "roles": ["foreman"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "subagent"]
+        "command": ["./aos", "dev", "agents"]
       },
       "mutability": {
         "class": "read_only",
@@ -946,17 +946,17 @@
       "inputs": [
         {
           "name": "role",
-          "summary": "Native subagent role name such as explorer, gdi, operator, or validator.",
-          "required": true,
+          "summary": "AOS agent role such as explorer, implementer, reviewer, validator, or historian.",
+          "required": false,
           "schema": {
             "type": "string",
             "minLength": 1
           }
         },
         {
-          "name": "prompt_or_transcript",
-          "summary": "Prompt text for plan, or captured native spawn transcript for validate-proof.",
-          "required": true,
+          "name": "task",
+          "summary": "Task text for planning or provider-backed execution.",
+          "required": false,
           "schema": {
             "type": "string",
             "minLength": 1
@@ -965,8 +965,8 @@
       ],
       "outputs": [
         {
-          "name": "subagent_contract_or_proof_json",
-          "summary": "Expected agent_type/model/effort contract and pass/fail proof claims.",
+          "name": "aos_agent_runtime_json",
+          "summary": "Runtime info, run summary, or artifact readback from the AOS-owned runner.",
           "required": true,
           "schema": {
             "type": "object"
@@ -983,7 +983,7 @@
       "label": "AOS Developer Build",
       "summary": "Build the repo-mode ./aos binary through the signing-aware developer control surface.",
       "status": "active",
-      "roles": ["foreman", "gdi"],
+      "roles": ["foreman", "implementer"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -1023,7 +1023,7 @@
       "label": "Node Schema Test",
       "summary": "Run the schema Node test suite as an explicit developer/testing raw-process capability.",
       "status": "active",
-      "roles": ["foreman", "gdi"],
+      "roles": ["foreman", "implementer"],
       "entry_paths": ["aos_developer", "testing"],
       "adapter": {
         "kind": "node",

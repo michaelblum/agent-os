@@ -27,16 +27,16 @@ modifies source code or commits.
 - Each slice must be independently completable by Implementer without
   further clarification.
 - Do not write implementation code.
-- Do not spawn subagents.
+- Do not route or launch child runs.
 - If requirements are ambiguous, ask for clarification before designing.
 
 ## Nickname candidates
 
 `Architect`, `Planner`, `Design Lead`
 
-## Spawn criteria
+## Routing Criteria
 
-Foreman spawns Architect when:
+Foreman routes to Architect when:
 - A new feature is requested and no design exists.
 - A major refactor would cross more than two subsystem boundaries.
 - An interface contract needs to be established between two agents or components.

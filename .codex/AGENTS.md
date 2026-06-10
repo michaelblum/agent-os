@@ -8,49 +8,22 @@ supersedes this one for role-specific authority.
 
 `docs/adr/0016-aos-owned-agent-execution.md` is the durable authority for
 project-agent execution. AOS owns child execution by default through
-`./aos dev agents` and `scripts/aos_agents/runner.py`. Native Codex subagents
-are an explicit diagnostic/import lane only; they are not the default execution
-substrate.
+`./aos dev agents` and `scripts/aos_agents/runner.py`. Native Codex
+custom-agent registration is disabled in active config.
 
-## Registered Native Subagents
+## Native Custom Agents Disabled
 
-This repo uses `multi_agent_v2`. Registered agents are declared in
-`.codex/config.toml` under `[agents.<name>]` and have per-agent model,
-effort, and system-prompt overrides in `.codex/agents/<name>.toml`.
+Do not add `multi_agent_v2`, `[agents.*]`, or `.codex/agents/*.toml` as active
+Codex discovery surfaces. The current Codex encrypted-tool regression can reject
+turns before the model runs when native custom-agent tools are registered.
 
-**When an explicit native diagnostic requires spawning a registered agent, use
-the v2 custom-agent call shape:**
-`task_name=<short_task_id>` plus `agent_type=<name>`. Do not use prompt-prefix
-role selection. The `agent_type` argument is what activates the per-agent model
-and effort config. `task_name` is only the v2 thread label; by itself it does
-not bind the custom agent. Without `agent_type`, the subagent inherits the
-orchestrator's model and the registration is bypassed.
+Preserved Codex-native role material lives under
+`ai-agents/providers/codex/*.toml`. Treat those files as source/reference
+material for the AOS-owned runner and future provider work, not as active Codex
+custom-agent registration.
 
-### Registered names
-
-| agent_type | Role | Model | Effort |
-|---|---|---|---|
-| `architect` | System design, decomposition, and interface contracts | gpt-5.4-mini | high |
-| `implementer` | Scoped code-writing worker | gpt-5.4-mini | medium |
-| `reviewer` | Diff/code review, findings only, no file edits | gpt-5.4-mini | high |
-| `explorer` | Read-only codebase scan, no decisions | gpt-5.4-mini | low |
-| `validator` | Run named checks, report pass/fail, no file edits | gpt-5.4-mini | low |
-| `operator` | Supervised HITL inspector, probes live surfaces | gpt-5.4-mini | low |
-| `steward` | Git/GitHub hygiene, narrow mutations only | gpt-5.4-mini | low |
-| `historian` | Read-only chronology and stale-source synthesis | gpt-5.4-mini | medium |
-
-## Spawn Syntax
-
-When an explicit native diagnostic routes to a registered role, spawn with the
-v2 custom-agent arguments:
-
-```
-spawn_agent(task_name="review_current_diff", agent_type="reviewer", fork_turns="none", message="<task description>")
-```
-
-Do not fall back to generic subagents for work that has a registered role. Do
-not use native Codex subagents as the routine execution default. Read-only roles
-(`reviewer`, `explorer`, `validator`) must not edit files or run write commands.
+Do not run `$agent-sync` or recreate global `~/.codex/agents` registrations.
+Use `./aos dev agents` for bounded project-agent execution.
 
 ## Orchestrator Defaults
 
@@ -59,6 +32,6 @@ not use native Codex subagents as the routine execution default. Read-only roles
   authority contract before taking action.
 - Read `.docks/profiles/active-profile.json` for active session doctrine.
 - For routine project-agent execution, use `./aos dev agents` and the AOS-owned
-  runner contract. Use native `architect`, `implementer`, `reviewer`,
-  `explorer`, `validator`, `steward`, and `historian` only for explicit native
-  diagnostics or when a human deliberately asks for that substrate.
+  runner contract. Provider proxy settings are environment-driven by
+  `AOS_AGENT_PROVIDER_BASE_URL`, `AOS_AGENT_PROVIDER_API_KEY`, and
+  `AOS_AGENT_PROVIDER_API`.

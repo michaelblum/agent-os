@@ -2,7 +2,7 @@
   "id": "base-aos-local",
   "name": "Base AOS Local",
   "workflow_posture": "local branch, no automatic PR or push",
-  "delegation_topology": "foreman_orchestrated_direct_subagents",
+  "delegation_topology": "foreman_orchestrated_aos_owned_runner",
   "must_stay_with_foreman": [
     "final acceptance",
     "git/GitHub publication decisions",

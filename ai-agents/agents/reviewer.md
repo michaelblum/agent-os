@@ -48,9 +48,9 @@ Dispatch on any completed diff or PR branch.  Never edits files.
 
 `Reviewer`, `QA`, `Critic`
 
-## Spawn criteria
+## Routing Criteria
 
-Foreman spawns Reviewer when:
+Foreman routes to Reviewer when:
 - An Implementer slice is complete and a diff exists.
 - A PR needs acceptance criteria checked.
 - Security or correctness concerns need an independent pass.

@@ -346,7 +346,8 @@ import os
 data = json.loads(os.environ["OUT"])
 assert data["self_test"] == "pass", data
 assert data["default_engine"] == "provider-sdk", data
-assert set(data["engines"]) == {"native-codex", "provider-sdk"}, data
+assert set(data["engines"]) == {"provider-sdk"}, data
+assert data["retired_engines"]["native-codex"]["retired"] is True, data
 assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
 assert all(item["sandbox_mode"] == "read-only" for item in data["roles"].values()), data
 PY
@@ -356,158 +357,12 @@ else
     fail "dev agents self-test route drifted"
 fi
 
-if OUT="$(./aos dev subagent list --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-roles = {item["role"]: item for item in data["roles"]}
-assert data["status"] == "success", data
-assert data["agents_root"] == ".codex/agents", data
-assert set(roles) == {"architect", "explorer", "historian", "implementer", "operator", "reviewer", "steward", "validator"}, roles
-assert roles["explorer"]["model"] == "gpt-5.4-mini", roles["explorer"]
-assert roles["explorer"]["model_reasoning_effort"] == "low", roles["explorer"]
-assert roles["explorer"]["agent_config_path"] == ".codex/agents/explorer.toml", roles["explorer"]
-assert roles["steward"]["model"] == "gpt-5.4-mini", roles["steward"]
-assert roles["steward"]["model_reasoning_effort"] == "low", roles["steward"]
-assert roles["steward"]["agent_config_path"] == ".codex/agents/steward.toml", roles["steward"]
-assert roles["reviewer"]["model"] == "gpt-5.4-mini", roles["reviewer"]
-assert roles["reviewer"]["model_reasoning_effort"] == "high", roles["reviewer"]
-assert roles["reviewer"]["agent_config_path"] == ".codex/agents/reviewer.toml", roles["reviewer"]
-assert roles["historian"]["model"] == "gpt-5.4-mini", roles["historian"]
-assert roles["historian"]["model_reasoning_effort"] == "medium", roles["historian"]
-assert roles["historian"]["agent_config_path"] == ".codex/agents/historian.toml", roles["historian"]
-assert roles["validator"]["model"] == "gpt-5.4-mini", roles["validator"]
-assert roles["validator"]["model_reasoning_effort"] == "low", roles["validator"]
-PY
-then
-    pass "dev subagent list discovers native project agent configs"
+if ERR="$(./aos dev subagent list --json 2>&1 >/dev/null)"; then
+    fail "dev subagent should be retired"
+elif echo "$ERR" | grep -q "RETIRED_SUBAGENT_COMMAND"; then
+    pass "dev subagent fails closed with retired-command error"
 else
-    fail "dev subagent list did not expose expected agent configs"
-fi
-
-if OUT="$(./aos dev subagent plan --role explorer --prompt "reply exactly EXPLORER_AGENT_TYPE_SMOKE_OK" --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["subject"] == "subagent-diagnostic-contract", data
-assert data["dispatch_boundary"]["not_a_launcher"] is True, data
-assert "task_name plus structured agent_type" in data["dispatch_boundary"]["canonical_dispatch"], data
-assert data["role"] == "explorer", data
-assert data["expected"]["task_name"] == "explorer", data
-assert data["expected"]["agent_type"] == "explorer", data
-assert data["expected"]["model"] == "gpt-5.4-mini", data
-assert data["expected"]["model_reasoning_effort"] == "low", data
-assert data["native_spawn_contract"]["tool_argument"]["task_name"] == "explorer", data
-assert data["native_spawn_contract"]["tool_argument"]["agent_type"] == "explorer", data
-assert data["native_spawn_contract"]["tool_argument"]["fork_turns"] == "none", data
-assert "prompt_prefix" not in data["native_spawn_contract"], data
-assert data["native_spawn_contract"]["blocked_prompt_prefix"]["value"] == "Use the custom agent named explorer.", data
-assert "multi_agent_v1" in data["native_spawn_contract"]["blocked_prompt_prefix"]["reason"], data
-assert data["agent_config_path"] == ".codex/agents/explorer.toml", data
-assert data["discovery"]["native_project_agents_dir"] is True, data
-assert data["discovery"]["no_dock_local_agent_config"] is True, data
-assert "agent_type" in json.dumps(data), data
-assert "Use the custom agent named explorer." in json.dumps(data), data
-assert "gpt-5.5" not in json.dumps(data["expected"]), data
-assert "diagnostic output only" in data["next"], data
-assert "task_name=explorer" in data["next"], data
-assert "do NOT use ./aos dev subagent" in data["next"], data
-PY
-then
-    pass "dev subagent plan emits explicit role/model contract"
-else
-    fail "dev subagent plan did not emit expected contract"
-fi
-
-GOOD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-good.XXXXXX.txt")"
-cat > "$GOOD_SUBAGENT_PROOF" <<'EOF'
-• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
-- v2 spawn task_name=explorer agent_type=explorer
-- visible spawned model and reasoning effort: gpt-5.4-mini / low
-EOF
-if OUT="$(./aos dev subagent validate-proof --role explorer --transcript-file "$GOOD_SUBAGENT_PROOF" --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["dispatch_boundary"]["not_a_launcher"] is True, data
-assert data["summary"]["failed"] == 0, data
-statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
-assert statuses["registered-role-selection"] == "passed", data
-assert statuses["agent-config-identity"] == "passed", data
-PY
-then
-    pass "dev subagent validate-proof accepts custom-agent identity evidence"
-else
-    fail "dev subagent validate-proof rejected good proof"
-fi
-rm -f "$GOOD_SUBAGENT_PROOF"
-
-PREFIX_ONLY_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-prefix-only.XXXXXX.txt")"
-cat > "$PREFIX_ONLY_SUBAGENT_PROOF" <<'EOF'
-• Spawned 019ea43d-1005-7e52-a108-2b5d8fd384b5
-  └ Use the custom agent named steward. Return GitHub hygiene facts only.
-EOF
-if ERR="$(./aos dev subagent validate-proof --role steward --transcript-file "$PREFIX_ONLY_SUBAGENT_PROOF" --json 2>/dev/null)"; then
-    fail "dev subagent validate-proof should reject prefix-only proof"
-else
-    if OUT="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "failed", data
-statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
-assert statuses["registered-role-selection"] == "failed", data
-assert "unsupported prompt prefix" in next(claim["observed"] for claim in data["claims"] if claim["id"] == "registered-role-selection"), data
-PY
-    then
-        pass "dev subagent validate-proof rejects prefix-only proof"
-    else
-        fail "dev subagent validate-proof prefix-only JSON mismatch: $ERR"
-    fi
-fi
-rm -f "$PREFIX_ONLY_SUBAGENT_PROOF"
-
-BAD_SUBAGENT_PROOF="$(mktemp "${TMPDIR:-/tmp}/aos-subagent-proof-bad.XXXXXX.txt")"
-cat > "$BAD_SUBAGENT_PROOF" <<'EOF'
-- spawn used agent_type=explorer
-• Spawned 019ea449-73c9-7bc2-af9b-05c94f029e6a (gpt-5.5 xhigh)
-Default Started
-visible spawned role name: Gibbs
-EOF
-if ERR="$(./aos dev subagent validate-proof --role explorer --transcript-file "$BAD_SUBAGENT_PROOF" --json 2>/dev/null)"; then
-    fail "dev subagent validate-proof should reject default/Foreman inheritance proof"
-else
-    if OUT="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "failed", data
-statuses = {claim["id"]: claim["status"] for claim in data["claims"]}
-assert statuses["registered-role-selection"] == "failed", data
-assert statuses["no-default-role-evidence"] == "failed", data
-assert statuses["no-foreman-model-inheritance"] == "failed", data
-PY
-    then
-        pass "dev subagent validate-proof rejects default/Foreman inheritance proof"
-    else
-        fail "dev subagent validate-proof bad-proof JSON mismatch: $ERR"
-    fi
-fi
-rm -f "$BAD_SUBAGENT_PROOF"
-
-if ERR="$(./aos dev subagent plan --role --json 2>&1 >/dev/null)"; then
-    fail "dev subagent plan should reject missing --role values before a flag"
-elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
-    pass "dev subagent plan treats flag-after---role as missing value"
-else
-    fail "dev subagent plan missing --role error mismatch: $ERR"
+    fail "dev subagent retired-command error mismatch: $ERR"
 fi
 
 if OUT="$(./aos help dev afk-dry-run --json 2>/dev/null)" python3 - <<'PY'
@@ -692,7 +547,7 @@ assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_create" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
-assert "dev.subagent.dispatch_contract" in ids, ids
+assert "dev.agents" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 assert all("adapter_kind" in item for item in data["capabilities"]), data
@@ -783,23 +638,23 @@ else
     fail "dev capabilities explain did not return expected issue create metadata"
 fi
 
-if OUT="$(./aos dev capabilities explain dev.subagent.dispatch_contract --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev capabilities explain dev.agents --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
 data = json.loads(os.environ["OUT"])
 capability = data["capability"]
-assert capability["id"] == "dev.subagent.dispatch_contract", data
+assert capability["id"] == "dev.agents", data
 assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["adapter"]["command"] == ["./aos", "dev", "subagent"], data
+assert capability["adapter"]["command"] == ["./aos", "dev", "agents"], data
 assert capability["mutability"]["class"] == "read_only", data
 assert capability["execution"]["network"] == "forbidden", data
 assert capability["execution"]["raw_process"] is False, data
 PY
 then
-    pass "dev capabilities explain returns subagent dispatch contract metadata"
+    pass "dev capabilities explain returns AOS agent runner metadata"
 else
-    fail "dev capabilities explain did not return expected subagent metadata"
+    fail "dev capabilities explain did not return expected AOS agent runner metadata"
 fi
 
 if OUT="$(./aos dev capabilities explain dev.github.issue_close --json 2>/dev/null)" python3 - <<'PY'
@@ -930,7 +785,7 @@ assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_create" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
-assert "dev.subagent.dispatch_contract" in ids, ids
+assert "dev.agents" in ids, ids
 assert "dev.build.aos" in ids, ids
 PY
 then

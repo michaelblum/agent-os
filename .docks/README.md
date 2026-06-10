@@ -1,28 +1,34 @@
 # Docks
 
-`.docks/foreman/` is the Codex launch directory for the main Foreman session.
-Foreman is the liaison and orchestrator for the native Codex subagent team:
-architect, implementer, reviewer, explorer, validator, operator, steward, and
-historian.
+A dock is a named runtime launch envelope for an AOS agent session. A dock owns
+its launch root, local `AGENTS.md`, hook/config posture, voice/stop behavior,
+and profile binding. It is not an agent definition and not a work assignment.
+
+`.docks/foreman/` is the only current named dock. It is the Codex launch
+directory for the main Foreman session. Foreman is the liaison and coordinator
+for AOS-owned agent execution. Native Codex custom agents are disabled for
+agent-os; role material is consumed through `./aos dev agents`.
 
 `.docks/profiles/` is the shared operating-context model. It selects the active
 session doctrine that Foreman announces at startup and passes, in bounded
-extracts, to subagents. Docks are runtime shells; profiles are operating
+extracts, to AOS-owned child runs. Docks are runtime shells; profiles are operating
 doctrine. Capability routes are path/tool/test routing mechanics, not identity
 or ethos.
 
-Retired standalone dock directories such as `.docks/gdi/` and
-`.docks/operator/` are not part of the current runtime. The old goal-command,
-transfer-contract, clipboard-dispatch, and separate terminal handoff machinery
-has been replaced by native Codex v2 `spawn_agent` calls with both `task_name`
-and structured `agent_type`.
+Future docks are allowed when they define their own runtime envelope and current
+authority. Older `.docks/gdi/` and
+`.docks/operator/` references predate the current dock metaphor and are
+historical only. GDI is superseded by Implementer, and Implementer is not
+centered on Codex `/goal`. The old goal-command, transfer-contract,
+clipboard-dispatch, separate terminal handoff machinery, and native Codex
+custom-agent dispatch are all retired for routine project-agent execution.
 
 Agent definitions are not stored here:
 
 - Provider-neutral source material lives under `ai-agents/`.
-- Codex TOML agent configs live under `.codex/agents/`.
+- Codex-shaped role material lives under `ai-agents/providers/codex/`.
 - `.docks/foreman/.codex/config.toml` is only the Foreman launch config.
 
-The remaining Foreman hooks provide guardrails and TTS for Foreman/subagent
-start and stop events. They do not dispatch subagents; dispatch belongs to the
-Codex v2 `spawn_agent` tool call.
+The remaining Foreman hooks provide guardrails and TTS for Foreman lifecycle
+events and fail closed if a native custom-agent tool appears. They do not
+dispatch agents; execution belongs to `./aos dev agents`.

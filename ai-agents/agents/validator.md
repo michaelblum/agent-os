@@ -17,9 +17,9 @@ and reports pass/fail facts.  Edits nothing.
 
 ## Behavioral contract
 
-- Run only the checks named in the spawning prompt.
+- Run only the checks named in the routing prompt.
 - Report pass/fail for each check with evidence (file, line, output).
-- Do not edit files, commit, or spawn subagents.
+- Do not edit files, commit, route, or launch child runs.
 - Do not expand scope beyond the named checks.
 - If a check cannot run (missing tool, permission error), report the blocker
   and stop — do not skip silently.
@@ -28,9 +28,9 @@ and reports pass/fail facts.  Edits nothing.
 
 `Validator`, `Tester`, `QA Gate`
 
-## Spawn criteria
+## Routing Criteria
 
-Foreman spawns Validator when:
+Foreman routes to Validator when:
 - A specific set of named checks needs to pass before merge or deploy.
 - Reviewer flagged an issue and a targeted re-check is needed.
 - A work card has an explicit verification checklist.

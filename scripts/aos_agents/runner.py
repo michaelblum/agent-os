@@ -4,9 +4,8 @@
 
 The runtime is intentionally local, serial, and conservative. It loads existing
 AOS role/profile source data, keeps provider SDK execution as the default
-AOS-owned child execution path, validates explicit native Codex dispatch
-contracts only as a diagnostic/import lane, and owns patch-artifact check/apply
-gates without delegating checkout mutation.
+AOS-owned child execution path, and owns patch-artifact check/apply gates
+without delegating checkout mutation.
 """
 
 from __future__ import annotations
@@ -35,12 +34,11 @@ READ_ONLY_SANDBOX_MODE = "read-only"
 RUNTIME_ROOT = pathlib.Path(".runtime/dev/aos-agents")
 ENGINE_NATIVE_CODEX = "native-codex"
 ENGINE_PROVIDER_SDK = "provider-sdk"
-ENGINES = frozenset({ENGINE_NATIVE_CODEX, ENGINE_PROVIDER_SDK})
+ENGINES = frozenset({ENGINE_PROVIDER_SDK})
 DEFAULT_ENGINE = ENGINE_PROVIDER_SDK
 SUMMARY_STATUSES = frozenset({"ready", "completed", "blocked", "error"})
 CONTEXT_FILE_MAX_BYTES = 12000
 CONTEXT_FILE_MAX_LINES = 240
-NATIVE_DISPATCH_ARTIFACT = "native-dispatch.json"
 
 
 class RunnerError(Exception):
@@ -57,14 +55,6 @@ class PatchArtifactError(RunnerError):
 
 class PatchCheckError(PatchArtifactError):
     """Structured failure for check-only patch artifact review."""
-
-
-class NativeExecutionBlocked(RunnerError):
-    """Native Codex execution cannot be driven from this local process."""
-
-    def __init__(self, message: str, summary: dict[str, Any]):
-        super().__init__(message)
-        self.summary = summary
 
 
 @dataclass(frozen=True)
@@ -104,9 +94,21 @@ class IncludedContextFile:
 def repo_root(start: pathlib.Path | None = None) -> pathlib.Path:
     current = (start or pathlib.Path.cwd()).resolve()
     for candidate in (current, *current.parents):
-        if (candidate / ".codex" / "agents").is_dir() and (candidate / ".docks" / "profiles").is_dir():
+        if agent_specs_dir(candidate) is not None and (candidate / ".docks" / "profiles").is_dir():
             return candidate
-    raise RunnerError("Could not find repo root with .codex/agents and .docks/profiles")
+    raise RunnerError("Could not find repo root with ai-agents/providers/codex plus .docks/profiles")
+
+
+def agent_specs_dir(root: pathlib.Path) -> pathlib.Path | None:
+    candidate = root / "ai-agents" / "providers" / "codex"
+    return candidate if candidate.is_dir() else None
+
+
+def agent_spec_path(root: pathlib.Path, role: str) -> pathlib.Path:
+    specs_dir = agent_specs_dir(root)
+    if specs_dir is None:
+        raise RunnerError("Missing agent spec source: expected ai-agents/providers/codex")
+    return specs_dir / f"{role}.toml"
 
 
 def load_toml(path: pathlib.Path) -> dict[str, Any]:
@@ -117,7 +119,7 @@ def load_toml(path: pathlib.Path) -> dict[str, Any]:
 
 
 def load_flat_toml(path: pathlib.Path) -> dict[str, Any]:
-    """Parse the flat string TOML currently used by .codex/agents/*.toml.
+    """Parse the flat string TOML currently used by provider agent TOML files.
 
     This keeps --self-test dependency-free on older Python versions. It is not a
     general TOML parser; nested tables and non-string values should use Python
@@ -209,7 +211,7 @@ def load_agent_spec(
 def load_agent_specs(root: pathlib.Path) -> dict[str, AgentSpec]:
     specs: dict[str, AgentSpec] = {}
     for role in sorted(READ_ONLY_ROLES):
-        path = root / ".codex" / "agents" / f"{role}.toml"
+        path = agent_spec_path(root, role)
         if path.is_file():
             spec = load_agent_spec(path)
             specs[spec.name] = spec
@@ -224,8 +226,8 @@ def load_patch_output_spec(root: pathlib.Path, role: str) -> AgentSpec:
     if role not in PATCH_OUTPUT_ROLES:
         raise RunnerError(
             f"--patch-output is only enabled for: {', '.join(sorted(PATCH_OUTPUT_ROLES))}"
-        )
-    path = root / ".codex" / "agents" / f"{role}.toml"
+    )
+    path = agent_spec_path(root, role)
     if not path.is_file():
         raise RunnerError(f"Missing patch-output agent spec: {path}")
     return load_agent_spec(path, allowed_roles=PATCH_OUTPUT_ROLES, require_read_only_sandbox=False)
@@ -290,13 +292,12 @@ def normalize_engine(value: str | None) -> str:
         return DEFAULT_ENGINE
     normalized = value.strip().lower()
     aliases = {
-        "native": ENGINE_NATIVE_CODEX,
-        "codex": ENGINE_NATIVE_CODEX,
-        "native-codex": ENGINE_NATIVE_CODEX,
         "provider": ENGINE_PROVIDER_SDK,
         "provider-sdk": ENGINE_PROVIDER_SDK,
         "openai-agents": ENGINE_PROVIDER_SDK,
     }
+    if normalized in {"native", "codex", ENGINE_NATIVE_CODEX}:
+        raise RunnerError("native-codex is retired for agent-os; use --engine provider-sdk with the configured provider proxy")
     engine = aliases.get(normalized)
     if engine is None:
         raise RunnerError(f"Unknown --engine {value!r}. Allowed engines: {', '.join(sorted(ENGINES))}")
@@ -684,11 +685,63 @@ def require_openai_agents_sdk() -> Any:
     set_tracing_disabled = getattr(agents, "set_tracing_disabled", None)
     if callable(set_tracing_disabled):
         set_tracing_disabled(True)
+    configure_provider_sdk(agents)
     return agents
+
+
+def provider_env_status() -> dict[str, Any]:
+    base_url_source = "AOS_AGENT_PROVIDER_BASE_URL" if os.environ.get("AOS_AGENT_PROVIDER_BASE_URL") else (
+        "OPENAI_BASE_URL" if os.environ.get("OPENAI_BASE_URL") else None
+    )
+    api_key_source = "AOS_AGENT_PROVIDER_API_KEY" if os.environ.get("AOS_AGENT_PROVIDER_API_KEY") else (
+        "OPENAI_API_KEY" if os.environ.get("OPENAI_API_KEY") else None
+    )
+    api_mode = os.environ.get("AOS_AGENT_PROVIDER_API")
+    if not api_mode and base_url_source:
+        api_mode = "chat_completions"
+    return {
+        "base_url_configured": base_url_source is not None,
+        "base_url_source": base_url_source,
+        "api_key_configured": api_key_source is not None,
+        "api_key_source": api_key_source,
+        "api": api_mode or "sdk-default",
+    }
+
+
+def configure_provider_sdk(agents: Any) -> None:
+    base_url = os.environ.get("AOS_AGENT_PROVIDER_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+    api_key = os.environ.get("AOS_AGENT_PROVIDER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_mode = os.environ.get("AOS_AGENT_PROVIDER_API")
+    if base_url and not api_mode:
+        api_mode = "chat_completions"
+    if api_mode:
+        set_default_openai_api = getattr(agents, "set_default_openai_api", None)
+        if not callable(set_default_openai_api):
+            raise RunnerError("OpenAI Agents SDK does not expose set_default_openai_api for provider proxy configuration")
+        if api_mode not in {"responses", "chat_completions"}:
+            raise RunnerError("AOS_AGENT_PROVIDER_API must be 'responses' or 'chat_completions'")
+        set_default_openai_api(api_mode)
+    if base_url:
+        if not api_key:
+            raise RunnerError("Provider proxy execution requires AOS_AGENT_PROVIDER_API_KEY or OPENAI_API_KEY")
+        set_default_openai_client = getattr(agents, "set_default_openai_client", None)
+        if not callable(set_default_openai_client):
+            raise RunnerError("OpenAI Agents SDK does not expose set_default_openai_client for provider proxy configuration")
+        try:
+            from openai import AsyncOpenAI
+        except (ImportError, ModuleNotFoundError) as exc:
+            raise RunnerError("Provider proxy execution requires openai.AsyncOpenAI") from exc
+        set_default_openai_client(AsyncOpenAI(base_url=base_url, api_key=api_key), use_for_tracing=False)
+    elif os.environ.get("AOS_AGENT_PROVIDER_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
+        set_default_openai_key = getattr(agents, "set_default_openai_key", None)
+        if not callable(set_default_openai_key):
+            raise RunnerError("OpenAI Agents SDK does not expose set_default_openai_key for provider API key configuration")
+        set_default_openai_key(os.environ["AOS_AGENT_PROVIDER_API_KEY"], use_for_tracing=False)
 
 
 def openai_agents_sdk_status() -> dict[str, Any]:
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
+    provider_env = provider_env_status()
     try:
         import agents
     except ModuleNotFoundError as exc:
@@ -697,6 +750,7 @@ def openai_agents_sdk_status() -> dict[str, Any]:
             "module": "agents",
             "error": str(exc),
             "install_policy": "Use a repo-local or caller-provided Python environment; the runner never installs dependencies.",
+            "provider_env": provider_env,
         }
     agent_cls = getattr(agents, "Agent", None)
     runner_cls = getattr(agents, "Runner", None)
@@ -706,7 +760,8 @@ def openai_agents_sdk_status() -> dict[str, Any]:
         "module": "agents",
         "agent_class": callable(agent_cls),
         "runner_run_sync": callable(run_sync),
-        "install_policy": "AOS-owned runner dependency supplied by the caller environment; native-codex diagnostic planning/readback and check/apply gates do not require it.",
+        "install_policy": "AOS-owned runner dependency supplied by the caller environment; artifact readback and check/apply gates do not require it.",
+        "provider_env": provider_env,
     }
 
 
@@ -723,49 +778,28 @@ def provider_model_settings(sdk: Any, spec: AgentSpec) -> Any | None:
     return model_settings_cls(reasoning=Reasoning(effort=spec.model_reasoning_effort))
 
 
-def native_spawn_contract(spec: AgentSpec, task: str) -> dict[str, Any]:
-    label = f"{spec.name}-{task_hash(task)}"
-    return {
-        "tool": "spawn_agent",
-        "tool_contract": "multi_agent_v2",
-        "blocked_if_only_multi_agent_v1": True,
-        "arguments": {
-            "task_name": label,
-            "agent_type": spec.name,
-            "fork_turns": "none",
-            "message": task,
-        },
-        "role_model": {
-            "model": spec.model,
-            "model_reasoning_effort": spec.model_reasoning_effort,
-            "sandbox_mode": spec.sandbox_mode,
-        },
-        "provider_side_checkout_mutation": False,
-    }
-
-
 def runtime_info(root: pathlib.Path) -> dict[str, Any]:
     specs = {
-        role: load_agent_spec(root / ".codex" / "agents" / f"{role}.toml", allowed_roles=ARTIFACT_ROLES, require_read_only_sandbox=False)
+        role: load_agent_spec(agent_spec_path(root, role), allowed_roles=ARTIFACT_ROLES, require_read_only_sandbox=False)
         for role in sorted(ARTIFACT_ROLES)
-        if (root / ".codex" / "agents" / f"{role}.toml").is_file()
+        if agent_spec_path(root, role).is_file()
     }
     active_profile = load_active_profile(root)
     return {
         "status": "success",
         "runtime": "aos-agents",
         "engines": {
-            ENGINE_NATIVE_CODEX: {
-                "default": False,
-                "execution_owner": "native Codex session tool runtime (explicit diagnostic/import lane only)",
-                "local_process_can_execute": False,
-                "dispatch_contract": "spawn_agent(task_name=<short_task_id>, agent_type=<role>, fork_turns=\"none\", message=<task>)",
-            },
             ENGINE_PROVIDER_SDK: {
                 "default": True,
                 "execution_owner": "AOS-owned local OpenAI Agents SDK adapter",
                 "local_process_can_execute": True,
                 "dependency": openai_agents_sdk_status(),
+            },
+        },
+        "retired_engines": {
+            ENGINE_NATIVE_CODEX: {
+                "retired": True,
+                "reason": "ADR 0017 retires Codex native custom-agent registration and dispatch for agent-os.",
             },
         },
         "runtime_root": str(runtime_root(root)),
@@ -937,277 +971,6 @@ def write_json(path: pathlib.Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
-def native_dispatch_doc(
-    root: pathlib.Path,
-    *,
-    status: str,
-    role: str,
-    task: str,
-    planned_dir: pathlib.Path,
-    summary_path: pathlib.Path,
-    base_commit: str,
-    target_branch: str,
-    native_contract: dict[str, Any],
-    patch_output: bool = False,
-    context_files: list[str] | None = None,
-    error: str | None = None,
-) -> dict[str, Any]:
-    if status not in {"ready", "blocked"}:
-        raise RunnerError(f"Native dispatch artifact status must be ready or blocked, observed {status!r}")
-    doc: dict[str, Any] = {
-        "schema_version": 1,
-        "status": status,
-        "engine": ENGINE_NATIVE_CODEX,
-        "role": role,
-        "task_hash": task_hash(task),
-        "base_commit": base_commit,
-        "target_branch": target_branch,
-        "output_dir": str(planned_dir),
-        "summary_path": str(summary_path),
-        "native_dispatch_path": str(planned_dir / NATIVE_DISPATCH_ARTIFACT),
-        "native_spawn_contract": native_contract,
-        "patch_output": patch_output,
-        "provider_side_checkout_mutation": False,
-        "completion_command": (
-            f"./aos dev agents --complete-native-run {planned_dir} "
-            "--result-file <json-result> --json"
-        ),
-    }
-    if context_files:
-        doc["context_files"] = context_files
-    if error is not None:
-        doc["error"] = error
-    return doc
-
-
-def write_native_dispatch(
-    root: pathlib.Path,
-    *,
-    status: str,
-    role: str,
-    task: str,
-    planned_dir: pathlib.Path,
-    summary_path: pathlib.Path,
-    base_commit: str,
-    target_branch: str,
-    native_contract: dict[str, Any],
-    patch_output: bool = False,
-    context_files: list[str] | None = None,
-    error: str | None = None,
-) -> dict[str, Any]:
-    dispatch = native_dispatch_doc(
-        root,
-        status=status,
-        role=role,
-        task=task,
-        planned_dir=planned_dir,
-        summary_path=summary_path,
-        base_commit=base_commit,
-        target_branch=target_branch,
-        native_contract=native_contract,
-        patch_output=patch_output,
-        context_files=context_files,
-        error=error,
-    )
-    write_json(planned_dir / NATIVE_DISPATCH_ARTIFACT, dispatch)
-    return dispatch
-
-
-def require_native_identity(summary: dict[str, Any], dispatch: dict[str, Any], run_dir: pathlib.Path) -> None:
-    expected_output_dir = str(run_dir)
-    expected_summary_path = str(run_dir / "summary.json")
-    expected_dispatch_path = str(run_dir / NATIVE_DISPATCH_ARTIFACT)
-    for artifact_name, doc in (("summary.json", summary), (NATIVE_DISPATCH_ARTIFACT, dispatch)):
-        if doc.get("engine") != ENGINE_NATIVE_CODEX:
-            raise RunnerError(f"{artifact_name} engine must be native-codex")
-        if doc.get("output_dir") != expected_output_dir:
-            raise RunnerError(f"{artifact_name} output_dir mismatch: expected {expected_output_dir}, observed {doc.get('output_dir')!r}")
-        if doc.get("summary_path") != expected_summary_path:
-            raise RunnerError(f"{artifact_name} summary_path mismatch: expected {expected_summary_path}, observed {doc.get('summary_path')!r}")
-        if doc.get("native_dispatch_path") != expected_dispatch_path:
-            raise RunnerError(f"{artifact_name} native_dispatch_path mismatch: expected {expected_dispatch_path}, observed {doc.get('native_dispatch_path')!r}")
-    for key in ("role", "task_hash", "base_commit", "target_branch"):
-        if summary.get(key) != dispatch.get(key):
-            raise RunnerError(f"Native run identity mismatch for {key}: summary={summary.get(key)!r} dispatch={dispatch.get(key)!r}")
-    if summary.get("native_spawn_contract") != dispatch.get("native_spawn_contract"):
-        raise RunnerError("Native run identity mismatch for native_spawn_contract")
-
-
-def native_dispatch(root: pathlib.Path, value: str) -> dict[str, Any]:
-    run_dir = resolve_run_dir(root, value)
-    summary = load_json_file(run_dir / "summary.json")
-    dispatch = load_json_file(run_dir / NATIVE_DISPATCH_ARTIFACT)
-    require_native_identity(summary, dispatch, run_dir)
-    if summary.get("status") not in {"ready", "blocked"}:
-        raise RunnerError(f"--native-dispatch requires a ready or blocked native run, observed {summary.get('status')!r}")
-    return {
-        "status": "success",
-        "output_dir": str(run_dir),
-        "summary_path": str(run_dir / "summary.json"),
-        "native_dispatch_path": str(run_dir / NATIVE_DISPATCH_ARTIFACT),
-        "summary": summary,
-        "native_dispatch": dispatch,
-        "native_spawn_contract": dispatch["native_spawn_contract"],
-        "run_metadata": {
-            "engine": ENGINE_NATIVE_CODEX,
-            "role": dispatch["role"],
-            "task_hash": dispatch["task_hash"],
-            "base_commit": dispatch["base_commit"],
-            "target_branch": dispatch["target_branch"],
-            "output_dir": str(run_dir),
-            "patch_output": dispatch.get("patch_output") is True,
-        },
-    }
-
-
-def load_native_result_file(path_value: str) -> tuple[dict[str, Any], str]:
-    path = pathlib.Path(path_value).expanduser()
-    if not path.is_file():
-        raise RunnerError(f"--result-file is not a file: {path}")
-    raw = path.read_text()
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RunnerError("--result-file must be a JSON object with native identity fields") from exc
-    if not isinstance(parsed, dict):
-        raise RunnerError("--result-file must be a JSON object")
-    output_keys = ("final_output", "result", "text")
-    output_key = next((key for key in output_keys if key in parsed), None)
-    if output_key is None:
-        raise RunnerError("--result-file must include one of final_output, result, or text")
-    final_output = parsed[output_key]
-    if not isinstance(final_output, str):
-        raise RunnerError("--result-file final_output/result/text must be a string")
-    return parsed, final_output
-
-
-def validate_imported_native_identity(imported: dict[str, Any], dispatch: dict[str, Any]) -> None:
-    missing = [key for key in ("engine", "role", "task_hash", "output_dir") if key not in imported]
-    if missing:
-        raise RunnerError(f"Native JSON result is missing identity fields: {', '.join(missing)}")
-    for key in ("engine", "role", "task_hash", "output_dir"):
-        expected = ENGINE_NATIVE_CODEX if key == "engine" else dispatch[key]
-        if imported.get(key) != expected:
-            raise RunnerError(
-                f"Native result identity mismatch for {key}: expected {expected}, observed {imported.get(key)!r}"
-            )
-
-
-def complete_native_run(root: pathlib.Path, value: str, result_file: str) -> dict[str, Any]:
-    run_dir = resolve_run_dir(root, value)
-    summary_path = run_dir / "summary.json"
-    result_path = run_dir / "result.json"
-    patch_path = run_dir / "patch.diff"
-    summary = load_json_file(summary_path)
-    dispatch = load_json_file(run_dir / NATIVE_DISPATCH_ARTIFACT)
-    require_native_identity(summary, dispatch, run_dir)
-    if summary.get("status") not in {"ready", "blocked"}:
-        raise RunnerError(f"--complete-native-run requires a ready or blocked native run, observed {summary.get('status')!r}")
-    imported, final_output = load_native_result_file(result_file)
-    validate_imported_native_identity(imported, dispatch)
-    role = dispatch["role"]
-    patch_output = dispatch.get("patch_output") is True
-    if role == "implementer" and not patch_output:
-        raise RunnerError("Native implementer completion requires a planned patch-output run")
-    if role != "implementer" and patch_output:
-        raise RunnerError("Native patch-output completion requires role implementer")
-
-    if result_path.exists():
-        if result_path.is_file() or result_path.is_symlink():
-            result_path.unlink()
-        else:
-            raise RunnerError(f"Refusing to replace non-file result path: {result_path}")
-    if patch_path.exists():
-        if patch_path.is_file() or patch_path.is_symlink():
-            patch_path.unlink()
-        else:
-            raise RunnerError(f"Refusing to replace non-file patch path: {patch_path}")
-
-    touched_paths = None
-    patch_text = None
-    if patch_output:
-        patch_text = extract_patch_text(final_output)
-        patch_path.write_text(patch_text)
-        touched_paths = touched_paths_from_patch(patch_text)
-
-    role_name = str(role)
-    spec_path = root / ".codex" / "agents" / f"{role_name}.toml"
-    spec = load_agent_spec(
-        spec_path,
-        allowed_roles=ARTIFACT_ROLES,
-        require_read_only_sandbox=role_name in READ_ONLY_ROLES,
-    )
-    active_profile = load_active_profile(root)
-    completed_summary = summary_doc(
-        "completed",
-        root,
-        role_name,
-        spec,
-        active_profile,
-        final_output,
-        run_dir,
-        True,
-        int(summary.get("max_turns", 1)),
-        ENGINE_NATIVE_CODEX,
-        result_path,
-        base_commit=dispatch["base_commit"],
-        target_branch=dispatch["target_branch"],
-        patch_path=patch_path if patch_output else None,
-        touched_paths=touched_paths,
-        context_files=dispatch.get("context_files"),
-        suggested_review_command_value=suggested_review_command(patch_path) if patch_output else None,
-        suggested_apply_command_value=suggested_apply_command(patch_path) if patch_output else None,
-        native_spawn_contract_value=dispatch["native_spawn_contract"],
-        native_dispatch_path=run_dir / NATIVE_DISPATCH_ARTIFACT,
-    )
-    completed_summary["task_hash"] = dispatch["task_hash"]
-    result_doc = {
-        "schema_version": 1,
-        "status": "completed",
-        "engine": ENGINE_NATIVE_CODEX,
-        "role": role_name,
-        "agent_spec": summary["agent_spec"],
-        "active_profile": summary["active_profile"],
-        "base_commit": dispatch["base_commit"],
-        "target_branch": dispatch["target_branch"],
-        "task_hash": dispatch["task_hash"],
-        "max_turns": int(summary.get("max_turns", 1)),
-        "output_dir": str(run_dir),
-        "summary_path": str(summary_path),
-        "native_dispatch_path": str(run_dir / NATIVE_DISPATCH_ARTIFACT),
-        "final_output": final_output,
-        "imported_result_format": "json",
-    }
-    if patch_output:
-        result_doc["patch_path"] = str(patch_path)
-        result_doc["touched_paths"] = touched_paths
-        result_doc["suggested_review_command"] = suggested_review_command(patch_path)
-        result_doc["suggested_apply_command"] = suggested_apply_command(patch_path)
-    if dispatch.get("context_files"):
-        result_doc["context_files"] = dispatch["context_files"]
-    write_json(result_path, result_doc)
-    write_json(summary_path, completed_summary)
-    return {
-        "status": "completed",
-        "engine": ENGINE_NATIVE_CODEX,
-        "role": role_name,
-        "task_hash": dispatch["task_hash"],
-        "output_dir": str(run_dir),
-        "summary_path": str(summary_path),
-        "result_path": str(result_path),
-        **(
-            {
-                "patch_path": str(patch_path),
-                "touched_paths": touched_paths,
-                "suggested_review_command": suggested_review_command(patch_path),
-                "suggested_apply_command": suggested_apply_command(patch_path),
-            }
-            if patch_output
-            else {}
-        ),
-    }
-
-
 def summary_doc(
     status: str,
     root: pathlib.Path,
@@ -1228,8 +991,6 @@ def summary_doc(
     context_files: list[str] | None = None,
     suggested_review_command_value: str | None = None,
     suggested_apply_command_value: str | None = None,
-    native_spawn_contract_value: dict[str, Any] | None = None,
-    native_dispatch_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     if status not in SUMMARY_STATUSES:
         allowed = ", ".join(sorted(SUMMARY_STATUSES))
@@ -1282,10 +1043,6 @@ def summary_doc(
         doc["suggested_review_command"] = suggested_review_command_value
     if suggested_apply_command_value is not None:
         doc["suggested_apply_command"] = suggested_apply_command_value
-    if native_spawn_contract_value is not None:
-        doc["native_spawn_contract"] = native_spawn_contract_value
-    if native_dispatch_path is not None:
-        doc["native_dispatch_path"] = str(native_dispatch_path)
     return doc
 
 
@@ -1296,6 +1053,12 @@ def render_summary(root: pathlib.Path, specs: dict[str, AgentSpec], active_profi
         "runtime_root": str(root / RUNTIME_ROOT),
         "default_engine": DEFAULT_ENGINE,
         "engines": sorted(ENGINES),
+        "retired_engines": {
+            ENGINE_NATIVE_CODEX: {
+                "retired": True,
+                "reason": "ADR 0017 retires active Codex native custom-agent dispatch/import for agent-os.",
+            }
+        },
         "roles": {
             name: {
                 "path": str(spec.path.relative_to(root)),
@@ -1349,7 +1112,7 @@ def self_test(root: pathlib.Path) -> dict[str, Any]:
             first,
             False,
             1,
-            ENGINE_NATIVE_CODEX,
+            ENGINE_PROVIDER_SDK,
         )
     except RunnerError:
         invalid_summary_rejected = True
@@ -1383,6 +1146,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return runtime_info(root)
 
     engine = normalize_engine(args.engine)
+    if args.native_dispatch or args.complete_native_run:
+        raise RunnerError("native-codex dispatch/import is retired for agent-os; use provider-sdk execution and provider artifacts")
     if artifact_modes > 1:
         raise RunnerError(
             "--list-runs, --read-run, --check-patch, --apply-patch, --native-dispatch, "
@@ -1400,16 +1165,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return list_runs(root, args.role)
     if args.read_run:
         return read_run(root, args.read_run)
-    if args.native_dispatch:
-        if args.role or args.task or args.execute or args.patch_output or args.context_file:
-            raise RunnerError("--native-dispatch cannot be combined with role/task/execution options")
-        return native_dispatch(root, args.native_dispatch)
-    if args.complete_native_run:
-        if args.role or args.task or args.execute or args.patch_output or args.context_file:
-            raise RunnerError("--complete-native-run cannot be combined with role/task/execution options")
-        if not args.result_file:
-            raise RunnerError("--complete-native-run requires --result-file")
-        return complete_native_run(root, args.complete_native_run, args.result_file)
     if args.check_patch:
         if args.role or args.task or args.execute or args.patch_output or args.context_file:
             raise RunnerError("--check-patch cannot be combined with role/task/provider execution options")
@@ -1444,7 +1199,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     summary_path = planned_dir / "summary.json"
     base_commit = git_value(root, "rev-parse", "HEAD")
     target_branch = git_value(root, "branch", "--show-current")
-    native_contract = native_spawn_contract(spec, args.task) if engine == ENGINE_NATIVE_CODEX else None
     base_result = {
         "status": "ready",
         "engine": engine,
@@ -1459,27 +1213,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     if context_file_paths:
         base_result["context_files"] = context_file_paths
-    if native_contract is not None:
-        base_result["message"] = "Native Codex dispatch contract is ready for native session execution."
-        base_result["native_spawn_contract"] = native_contract
-        base_result["native_dispatch_path"] = str(planned_dir / NATIVE_DISPATCH_ARTIFACT)
     if not args.execute:
         planned_dir.mkdir(parents=True, exist_ok=True)
-        native_dispatch_value = None
-        if native_contract is not None:
-            native_dispatch_value = write_native_dispatch(
-                root,
-                status="ready",
-                role=role,
-                task=args.task,
-                planned_dir=planned_dir,
-                summary_path=summary_path,
-                base_commit=base_commit,
-                target_branch=target_branch,
-                native_contract=native_contract,
-                patch_output=args.patch_output,
-                context_files=context_file_paths or None,
-            )
         write_json(
             summary_path,
             summary_doc(
@@ -1496,56 +1231,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 base_commit=base_commit,
                 target_branch=target_branch,
                 context_files=context_file_paths or None,
-                native_spawn_contract_value=native_contract,
-                native_dispatch_path=(planned_dir / NATIVE_DISPATCH_ARTIFACT) if native_contract else None,
             ),
         )
-        if native_dispatch_value is not None:
-            base_result["native_dispatch"] = native_dispatch_value
         return base_result
-
-    if engine == ENGINE_NATIVE_CODEX:
-        planned_dir.mkdir(parents=True, exist_ok=True)
-        blocked_message = (
-            "Native Codex execution is owned by the native session tool runtime and cannot be launched from the local "
-            "./aos dev agents process. Use --native-dispatch on this output_dir, execute the "
-            "spawn_agent v2 contract in a Codex session, then import the result with --complete-native-run."
-        )
-        native_dispatch_value = write_native_dispatch(
-            root,
-            status="blocked",
-            role=role,
-            task=args.task,
-            planned_dir=planned_dir,
-            summary_path=summary_path,
-            base_commit=base_commit,
-            target_branch=target_branch,
-            native_contract=native_contract,
-            patch_output=args.patch_output,
-            context_files=context_file_paths or None,
-            error=blocked_message,
-        )
-        blocked_summary = summary_doc(
-            "blocked",
-            root,
-            role,
-            spec,
-            active_profile,
-            args.task,
-            planned_dir,
-            True,
-            args.max_turns,
-            engine,
-            error=blocked_message,
-            base_commit=base_commit,
-            target_branch=target_branch,
-            context_files=context_file_paths or None,
-            native_spawn_contract_value=native_contract,
-            native_dispatch_path=planned_dir / NATIVE_DISPATCH_ARTIFACT,
-        )
-        write_json(summary_path, blocked_summary)
-        blocked_summary["native_dispatch"] = native_dispatch_value
-        raise NativeExecutionBlocked(blocked_message, blocked_summary)
 
     sdk = require_openai_agents_sdk()
     planned_dir.mkdir(parents=True, exist_ok=True)
@@ -1692,24 +1380,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AOS-owned agent runtime contract and artifact gate")
     parser.add_argument("--repo-root", "--repo", dest="repo_root", help="Repo root override. Defaults to walking up from cwd.")
     parser.add_argument("--self-test", action="store_true", help="Validate parsing and path behavior without API calls.")
-    parser.add_argument("--runtime-info", action="store_true", help="Report native/provider runtime contract and dependency status without executing agents.")
+    parser.add_argument("--runtime-info", action="store_true", help="Report provider runtime contract and dependency status without executing agents.")
     parser.add_argument("--list-runs", action="store_true", help="List existing runtime summaries without SDK or provider calls.")
     parser.add_argument("--read-run", help="Read summary.json and result.json for an output_dir under the runtime root.")
-    parser.add_argument("--native-dispatch", help="Read a ready or blocked native-codex run and emit the native spawn contract.")
-    parser.add_argument("--complete-native-run", help="Import a native child result into a planned native output_dir.")
-    parser.add_argument("--result-file", help="JSON result file for --complete-native-run.")
+    parser.add_argument("--native-dispatch", help="Retired native-codex import flag; kept only to fail closed with a clear error.")
+    parser.add_argument("--complete-native-run", help="Retired native-codex import flag; kept only to fail closed with a clear error.")
+    parser.add_argument("--result-file", help="Retired native-codex result flag; kept only to fail closed with a clear error.")
     parser.add_argument("--check-patch", help="Validate an implementer patch-output run and run git apply --check without applying it.")
     parser.add_argument("--apply-patch", help="Apply an existing implementer patch-output run after explicit checkout-mutation approval.")
     parser.add_argument("--i-approve-checkout-mutation", action="store_true", help="Required approval for --apply-patch to mutate the checkout.")
     parser.add_argument(
         "--engine",
         default=DEFAULT_ENGINE,
-        help="Agent engine: provider-sdk (default AOS-owned runner) or native-codex (explicit diagnostic/import lane).",
+        help="Agent engine: provider-sdk. native-codex is retired for agent-os.",
     )
     parser.add_argument("--role", help="Read-only role to plan/run or filter --list-runs.")
     parser.add_argument("--task", help="Task text for path planning and explicit execution.")
     parser.add_argument("--execute", action="store_true", help="Execute the selected engine after validation. provider-sdk is the only local executable engine.")
-    parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses explicit dispatch/import.")
+    parser.add_argument("--patch-output", action="store_true", help="Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute.")
     parser.add_argument("--context-file", action="append", help="Repo-relative file to include as bounded source context for --patch-output.")
     parser.add_argument("--max-turns", type=int, default=1, help="Maximum provider turns for --execute. Defaults to 1.")
     parser.add_argument("--json", action="store_true", help="Accepted for ./aos dev command-surface consistency.")
@@ -1728,9 +1416,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     try:
         result = run(parse_args(argv))
-    except NativeExecutionBlocked as exc:
-        print(json.dumps({"status": "blocked", "error": str(exc), "summary": exc.summary}, indent=2, sort_keys=True), file=sys.stderr)
-        return 1
     except PatchArtifactError as exc:
         print(json.dumps(exc.payload, indent=2, sort_keys=True), file=sys.stderr)
         return 1

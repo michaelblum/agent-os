@@ -1,16 +1,24 @@
 # providers/codex/
 
-Codex-specific agent sync for agent-os.
+Preserved Codex-flavored role material for the AOS-owned agent runner.
 
-- **`SKILL.md`** — the `$agent-sync` skill definition, invokable from the
-  Codex CLI or any agent.
-- **`scripts/agent-sync.sh`** (at repo root `scripts/`) — the implementation.
+These TOML files are read by `./aos dev agents` and should not be copied into
+Codex global config. The old `$agent-sync` path is retired because it
+re-registers native Codex custom agents.
 
-## Quick reference
+Current execution path:
 
 ```bash
-./scripts/agent-sync.sh --dry-run   # preview
-./scripts/agent-sync.sh             # apply
+./aos dev agents --role explorer --task "inspect the active profile" --json
 ```
 
-Full docs: [`SKILL.md`](./SKILL.md) and [`../../README.md`](../../README.md).
+Proxy-backed execution:
+
+```bash
+AOS_AGENT_PROVIDER_BASE_URL=<proxy-url> \
+AOS_AGENT_PROVIDER_API_KEY=<proxy-key> \
+AOS_AGENT_PROVIDER_API=chat_completions \
+./aos dev agents --role explorer --task "inspect the active profile" --execute --json
+```
+
+See [`SKILL.md`](./SKILL.md) and [`../../README.md`](../../README.md).

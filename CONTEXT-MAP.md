@@ -67,18 +67,19 @@ source root. This file is a routing map, not a replacement for those sources.
 
 - Launch and ownership map: `.docks/README.md`.
 - Shared docked-session contract: `.docks/AGENTS.md`.
-- Role contracts: `.docks/foreman/AGENTS.md`, `.docks/gdi/AGENTS.md`, and
-  `.docks/operator/AGENTS.md`.
-- Native Codex subagent configs: `.codex/agents/`.
+- Active standalone dock contract: `.docks/foreman/AGENTS.md`.
+- AOS-owned runner role material: `ai-agents/providers/codex/*.toml` and
+  `ai-agents/agents/*.md`.
 - Hook and harness sources: `.docks/foreman/.codex/hooks.json`,
   `.docks/foreman/hooks/`, `.docks/harness/`, `.docks/<dock>/dock.json`, and
   `.docks/<dock>/inbound-contract.json`.
-- Scripts and skills: `.docks/foreman/scripts/handoff`,
-  `.docks/gdi/scripts/human-needed-tcc-reset`, and role-local skill directories
-  when present.
-- Use this context for dock identity, handoffs, work cards, transfer vocabulary,
-  provider entry syntax, hook-owned behavior, role authority, GDI rounds,
-  Operator supervised probes, and Foreman coordination.
+- Scripts and skills: `.docks/foreman/`, `.docks/harness/`, and role-local
+  skill directories when present.
+- Use this context for Foreman launch identity, active profile doctrine,
+  hook-owned behavior, AOS-owned runner role authority, Implementer slices,
+  Operator supervised probes, and Foreman coordination. Treat GDI, `/goal`, and
+  standalone Operator dock language as stale historical terminology unless an
+  old artifact is being read for forensics.
 
 ## Sigil App Behavior
 

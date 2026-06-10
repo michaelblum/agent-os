@@ -178,11 +178,9 @@ subagent_role_guard() {
   local event="${1:-subagent-start}" fallback="${2:-}"
   python3 - "$HOOK_INPUT" "$REPO_ROOT" "$event" "$fallback" <<'PY'
 import json
-import pathlib
-import re
 import sys
 
-raw, repo_root, event, fallback = sys.argv[1:]
+raw, _repo_root, event, fallback = sys.argv[1:]
 try:
     payload = json.loads(raw) if raw.strip() else {}
 except json.JSONDecodeError:
@@ -197,37 +195,12 @@ def emit(status, normalized_role, message):
     label = normalized_role[:1].upper() + normalized_role[1:] if normalized_role else "Subagent"
     print(sep.join([status, normalized_role, label, message]))
 
-prefix = "Blocked native subagent start" if event == "subagent-start" else "Suppressed native subagent stop voice"
-
-if not role_key:
-    emit("block", "", f"{prefix}: missing agent_type. Use the v2 spawn shape task_name=<short_task_id> with agent_type=<role>; do not put agent_type text in the child prompt.")
-    raise SystemExit(0)
-
-if role_key in {"default", "foreman", "gibbs"}:
-    emit("block", role_key, f"{prefix}: prohibited role {role_key!r}. Use a registered repo-root .codex/agents/<role>.toml role instead.")
-    raise SystemExit(0)
-
-if not re.fullmatch(r"[a-z][a-z0-9_-]*", role_key):
-    emit("block", role_key, f"{prefix}: invalid agent_type {role!r}.")
-    raise SystemExit(0)
-
-agent_path = pathlib.Path(repo_root) / ".codex" / "agents" / f"{role_key}.toml"
-if not agent_path.is_file():
-    emit("block", role_key, f"{prefix}: no repo-root native agent config for agent_type={role_key!r}.")
-    raise SystemExit(0)
-
-try:
-    agent_text = agent_path.read_text(encoding="utf-8")
-except OSError as exc:
-    emit("block", role_key, f"{prefix}: could not read {agent_path}: {exc}.")
-    raise SystemExit(0)
-
-name_pattern = re.compile(rf'(?m)^name\s*=\s*"{re.escape(role_key)}"\s*$')
-if not name_pattern.search(agent_text):
-    emit("block", role_key, f"{prefix}: {agent_path} does not declare name = {role_key!r}.")
-    raise SystemExit(0)
-
-emit("ok", role_key, "")
+label = "Native Codex subagent start" if event == "subagent-start" else "Native Codex subagent stop"
+emit(
+    "block",
+    role_key,
+    f"{label} is retired for agent-os. Close any native child thread and use ./aos dev agents with provider-sdk execution.",
+)
 PY
 }
 
@@ -300,63 +273,7 @@ if not looks_like_spawn:
     print("ok\t")
     raise SystemExit(0)
 
-role = nested_value(tool_input, "agent_type")
-role = str(role or "").strip()
-task_name = nested_value(tool_input, "task_name")
-task_name = str(task_name or "").strip()
-
-prompt_text = first_string(
-    nested_value(tool_input, "message"),
-    nested_value(tool_input, "prompt"),
-)
-prefix_role = ""
-if prompt_text:
-    match = re.match(
-        r"(?is)^\s*(?:use|spawn)\s+(?:exactly\s+one\s+)?(?:the\s+)?custom\s+agent\s+named\s+([a-z][a-z0-9_-]*)\b",
-        prompt_text,
-    )
-    if match:
-        prefix_role = match.group(1)
-
-role_key = role.lower()
-
-def block(message):
-    print(f"block\t{message}")
-
-if not role_key:
-    if prefix_role:
-        block("Blocked: no confirmed agent_type binding for this spawn. Prompt-prefix custom-agent selection is unverified. Use the multi_agent_v2 spawn shape with task_name=<short_task_id> and agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not spawn a default child.")
-        raise SystemExit(0)
-    block("Blocked native subagent tool call: missing confirmed agent_type binding. Use the multi_agent_v2 spawn shape with task_name=<short_task_id> and agent_type=<role>, or surface a subagent-runtime-blocker to the human. Do not use prompt-prefix custom-agent selection.")
-    raise SystemExit(0)
-
-if not task_name:
-    block("Blocked native subagent tool call: missing v2 task_name. Use task_name=<short_task_id> together with agent_type=<role>; task_name alone is not role selection.")
-    raise SystemExit(0)
-
-if not re.fullmatch(r"[a-z][a-z0-9_-]*", task_name):
-    block(f"Blocked native subagent tool call: invalid task_name {task_name!r}. Use a short lowercase v2 task label with letters, digits, hyphens, or underscores.")
-    raise SystemExit(0)
-
-if role_key in {"default", "foreman", "gibbs"}:
-    block(f"Blocked native subagent tool call: prohibited agent_type {role_key!r}.")
-    raise SystemExit(0)
-
-if not re.fullmatch(r"[a-z][a-z0-9_-]*", role_key):
-    block(f"Blocked native subagent tool call: invalid agent_type {role!r}.")
-    raise SystemExit(0)
-
-agent_path = pathlib.Path(repo_root) / ".codex" / "agents" / f"{role_key}.toml"
-if not agent_path.is_file():
-    block(f"Blocked native subagent tool call: no repo-root native agent config for agent_type={role_key!r}.")
-    raise SystemExit(0)
-
-agent_text = agent_path.read_text(encoding="utf-8")
-if not re.search(rf'(?m)^name\s*=\s*"{re.escape(role_key)}"\s*$', agent_text):
-    block(f"Blocked native subagent tool call: {agent_path} does not declare name = {role_key!r}.")
-    raise SystemExit(0)
-
-print("ok\t")
+print("block\tNative Codex custom-agent tools are retired for agent-os. Use ./aos dev agents with provider-sdk execution and the configured provider proxy.")
 PY
 }
 

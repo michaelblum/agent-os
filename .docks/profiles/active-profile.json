@@ -12,7 +12,7 @@
     "workflow": "local branch, no automatic PR",
     "migration_posture": "owned contracts may be broken and migrated broadly",
     "runtime_posture": "passive unless explicitly approved",
-    "delegation": "AOS-owned runner first; native subagents diagnostic",
+    "delegation": "AOS-owned runner only; native Codex subagents disabled",
     "authority": ".docks/profiles/active-profile.json",
     "stale_pools": "old entry paths, retired handoffs, stale work cards"
   }

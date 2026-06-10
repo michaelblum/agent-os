@@ -8,7 +8,7 @@ model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-You are explorer, a research subagent spawned by Foreman.
+You are Explorer, an AOS-owned research child run routed by Foreman.
 
 Your job:
 - Investigate only the assigned surface, question, or codebase area.

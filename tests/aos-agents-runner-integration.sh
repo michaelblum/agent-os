@@ -8,8 +8,8 @@ if [[ "${AOS_AGENT_PROVIDER_SDK_SMOKE:-}" != "1" ]]; then
     exit 0
 fi
 
-if [[ -z "${OPENAI_API_KEY:-}" && -z "${OPENAI_BASE_URL:-}" ]]; then
-    echo "FAIL: set OPENAI_API_KEY for OpenAI, or OPENAI_BASE_URL plus provider-compatible auth for a custom endpoint" >&2
+if [[ -z "${AOS_AGENT_PROVIDER_API_KEY:-}" && -z "${OPENAI_API_KEY:-}" ]]; then
+    echo "FAIL: set AOS_AGENT_PROVIDER_API_KEY or OPENAI_API_KEY for provider execution" >&2
     exit 1
 fi
 
@@ -45,10 +45,11 @@ import pathlib
 import re
 
 root = pathlib.Path(os.environ["ROOT"])
-text = (root / ".codex/agents/explorer.toml").read_text()
+source = root / "ai-agents/providers/codex/explorer.toml"
+text = source.read_text()
 match = re.search(r'^model\s*=\s*"([^"]+)"', text, re.MULTILINE)
 if not match:
-    raise SystemExit("Could not find explorer model in .codex/agents/explorer.toml")
+    raise SystemExit(f"Could not find explorer model in {source}")
 print(match.group(1))
 PY
     )"
@@ -61,7 +62,7 @@ cleanup() {
 trap cleanup EXIT
 
 FIXTURE="$TMP_ROOT/repo"
-mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/smoke-profile" "$FIXTURE/scripts/aos_agents"
+mkdir -p "$FIXTURE/ai-agents/providers/codex" "$FIXTURE/.docks/profiles/smoke-profile" "$FIXTURE/scripts/aos_agents"
 cp "$ROOT/scripts/aos_agents/runner.py" "$FIXTURE/scripts/aos_agents/runner.py"
 
 cat >"$FIXTURE/.docks/profiles/active-profile.json" <<'JSON'
@@ -92,7 +93,7 @@ for role in explorer reviewer validator historian; do
     if [[ "$role" == "reviewer" ]]; then
         effort="medium"
     fi
-    cat >"$FIXTURE/.codex/agents/$role.toml" <<EOF
+    cat >"$FIXTURE/ai-agents/providers/codex/$role.toml" <<EOF
 name = "$role"
 description = "$role smoke role"
 model = "$MODEL"
@@ -111,7 +112,7 @@ done
     git init -q
     git config user.email "aos-smoke@example.invalid"
     git config user.name "AOS Provider SDK Smoke"
-    git add .codex .docks
+    git add ai-agents .docks scripts
     git commit -q -m "provider sdk smoke fixture"
 )
 

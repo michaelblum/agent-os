@@ -165,8 +165,8 @@ function setTrace(trace, key, ids) {
   trace[key] = ids.filter(Boolean);
 }
 
-function buildSubagentDelegationPolicy(repoRoot) {
-  const rolesDir = '.codex/agents';
+function buildAgentExecutionPolicy(repoRoot) {
+  const rolesDir = 'ai-agents/providers/codex';
   const teamDoc = '.docks/foreman/AGENTS.md';
   const rolesPath = path.join(repoRoot, rolesDir);
   let registeredRoles = [];
@@ -182,9 +182,13 @@ function buildSubagentDelegationPolicy(repoRoot) {
   const teamDocStatus = fs.existsSync(path.join(repoRoot, teamDoc)) ? 'present' : 'missing';
   return {
     status: rolesDirStatus === 'present' && teamDocStatus === 'present' && registeredRoles.length > 0
-      ? 'active'
+      ? 'provider_runner_ready'
       : 'unavailable',
-    authority: 'orientation_policy',
+    authority: 'adr_0017_provider_runner',
+    execution_surface: './aos dev agents',
+    default_engine: 'provider-sdk',
+    native_custom_agents_enabled: false,
+    codex_config_registration_allowed: false,
     roles_dir: rolesDir,
     team_doc: teamDoc,
     registered_roles: registeredRoles,
@@ -196,7 +200,7 @@ function buildSubagentDelegationPolicy(repoRoot) {
       'reconnaissance',
       'implementation',
     ],
-    standing_authorization_intent: true,
+    standing_authorization_intent: false,
     ask_user_if_runtime_requires_turn_authorization: false,
     fail_closed_without_registered_role: true,
     fail_closed_without_session_authorization: false,
@@ -290,23 +294,27 @@ function buildSituation(options) {
   setTrace(trace, 'successor_note.status', ['successor_note']);
   setTrace(trace, 'successor_note.note', successorNote.note ? ['successor_note'] : []);
 
-  const subagentDelegation = buildSubagentDelegationPolicy(repoRoot);
+  const agentExecution = buildAgentExecutionPolicy(repoRoot);
   sources.push({
-    id: 'subagent_delegation_policy',
-    command: `read ${subagentDelegation.roles_dir} and ${subagentDelegation.team_doc}`,
-    status: subagentDelegation.status === 'active' ? 'success' : 'failed',
-    exit_code: subagentDelegation.status === 'active' ? 0 : 1,
-    note: subagentDelegation.status,
+    id: 'agent_execution_policy',
+    command: `read ${agentExecution.roles_dir} and ${agentExecution.team_doc}`,
+    status: agentExecution.status === 'provider_runner_ready' ? 'success' : 'failed',
+    exit_code: agentExecution.status === 'provider_runner_ready' ? 0 : 1,
+    note: agentExecution.status,
   });
-  setTrace(trace, 'subagent_delegation.status', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.registered_roles', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.routing_scope', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.standing_authorization_intent', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.ask_user_if_runtime_requires_turn_authorization', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.fail_closed_without_registered_role', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.fail_closed_without_session_authorization', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.direct_specialist_fallback_allowed', ['subagent_delegation_policy']);
-  setTrace(trace, 'subagent_delegation.extra_mutation_authorized', ['subagent_delegation_policy']);
+  setTrace(trace, 'agent_execution.status', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.execution_surface', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.default_engine', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.native_custom_agents_enabled', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.codex_config_registration_allowed', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.registered_roles', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.routing_scope', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.standing_authorization_intent', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.ask_user_if_runtime_requires_turn_authorization', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.fail_closed_without_registered_role', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.fail_closed_without_session_authorization', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.direct_specialist_fallback_allowed', ['agent_execution_policy']);
+  setTrace(trace, 'agent_execution.extra_mutation_authorized', ['agent_execution_policy']);
 
   const openIssueCount = limitedCount(openIssues, options.issueLimit);
   const openPRCount = limitedCount(openPRs, options.prLimit);
@@ -356,7 +364,7 @@ function buildSituation(options) {
       status: statusJSON,
     },
     successor_note: successorNote,
-    subagent_delegation: subagentDelegation,
+    agent_execution: agentExecution,
     summary,
   };
 }
@@ -372,7 +380,7 @@ function printText(payload) {
   process.stdout.write(`Open issues: ${limitedCountText(payload.summary.open_issue_count, payload.summary.open_issue_count_limit, payload.summary.open_issue_count_limit_reached)}\n`);
   process.stdout.write(`Stashes: ${payload.summary.stash_count ?? 'unknown'}\n`);
   process.stdout.write(`Runtime ready: ${payload.summary.runtime_ready ?? 'unknown'}\n`);
-  process.stdout.write(`Subagent delegation: ${payload.subagent_delegation?.status ?? 'unknown'} (${payload.subagent_delegation?.roles_dir ?? 'unknown'})\n`);
+  process.stdout.write(`Agent execution: ${payload.agent_execution?.status ?? 'unknown'} (${payload.agent_execution?.roles_dir ?? 'unknown'})\n`);
   if (payload.successor_note?.status && payload.successor_note.status !== 'missing') {
     process.stdout.write(`Successor note: ${payload.successor_note.status} (${payload.successor_note.path})\n`);
   }

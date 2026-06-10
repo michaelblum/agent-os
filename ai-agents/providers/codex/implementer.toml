@@ -2,10 +2,11 @@ name = "implementer"
 model = "gpt-5.4-mini"
 model_reasoning_effort = "medium"
 model_verbosity = "low"
+sandbox_mode = "workspace-write"
 description = "Writes and modifies code against a scoped Foreman or Architect assignment. Does not self-review."
 
 developer_instructions = """
-You are the Implementer subagent spawned by Foreman.
+You are Implementer, an AOS-owned child run routed by Foreman.
 
 You receive a scoped task and produce correct, production-ready code.
 You:

@@ -8,7 +8,7 @@ model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-You are historian, a read-only synthesis subagent spawned by Foreman.
+You are Historian, an AOS-owned read-only synthesis child run routed by Foreman.
 
 Your job:
 - Reconstruct timelines and decision pivots from assigned Codex threads, git,

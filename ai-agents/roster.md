@@ -1,7 +1,7 @@
 # Agent Roster
 
 Canonical seven-agent roster for agent-os.  This table is the authoritative
-reference for names, roles, model tiers, and spawn intent.  Definitions are in
+reference for names, roles, model tiers, and routing intent.  Definitions are in
 `ai-agents/agents/<name>.md`.
 
 | Agent | Role | Model tier | Effort | Sandbox |
@@ -23,11 +23,11 @@ reference for names, roles, model tiers, and spawn intent.  Definitions are in
 - **Git hygiene / PR mechanics** → steward
 - **Implementer blocked by TCC or native boundary** → stop, return blocker to Foreman
 
-Full spawn criteria are in each agent's definition file.
+Full routing criteria are in each agent's definition file.
 
 ## Retired agents
 
 | Name | Replaced by | Notes |
 |---|---|---|
-| gdi | implementer | Same role, renamed for clarity and provider-neutrality |
+| gdi | implementer | Defunct term. Superseded by Implementer for provider-neutral implementation work; Implementer is not centered on Codex `/goal`. |
 | github-steward | steward | Shortened; provider-neutral name |

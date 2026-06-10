@@ -131,16 +131,20 @@ _Avoid_: workflow as a synonym for plugin, recipe.
 
 **Work Card**:
 A durable Markdown coordination contract for an assigned work slice, most often
-a GDI implementation, validation, correction, or relay round. A Work Card may
+an Implementer implementation, validation, correction, or relay round. Older
+work cards may say GDI; read that as stale historical terminology superseded by
+Implementer, not as a current dock or `/goal` command persona. A Work Card may
 route work that creates or runs execution-model artifacts, but it is not itself
 a Workflow.
 _Avoid_: workflow, work record, successor handoff.
 
 **Dock**:
-A repo-local AOS team/session profile rooted under `.docks/`, used to isolate
-persona, work-role instructions, hooks, recovery helpers, and team entry
-behavior from the repo root. Docks are not the native Codex subagent config
-store; spawnable Codex agent configs live under root `.codex/agents/`.
+A named runtime launch envelope rooted under `.docks/`, used to isolate a
+docked session's local instructions, hooks/config posture, stop behavior,
+launch posture, and active profile binding from the repo root. Foreman is the
+only current named dock; future docks may exist when they define their own
+runtime envelope and authority. Docks are not provider-agent identity stores or
+native Codex custom-agent registries.
 _Avoid_: workflow, workflow template, generated run, source workspace.
 
 **Docked Session**:
@@ -261,8 +265,8 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - A **Dock** is adopted by launching Codex from that dock's directory, or with
   `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but
   the Dock is not the Workflow and does not create a parallel Workflow type.
-  Native Codex subagent configs live in root `.codex/agents/`; dock launch
-  config may register those agents but should not own duplicate agent TOMLs.
+  AOS runner role material lives under `ai-agents/providers/codex/`; dock
+  launch config must not register duplicate native Codex custom agents.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.

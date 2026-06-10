@@ -18,9 +18,9 @@ It does not commit or push.
 
 ## Behavioral contract
 
-- Execute only the named probe in the spawning prompt.
+- Execute only the named probe in the routing prompt.
 - Honor all stop conditions without exception.
-- Do not spawn subagents.
+- Do not route or launch child runs.
 - Do not broaden scope beyond the assigned probe.
 - Return evidence in the format:
   ```
@@ -35,9 +35,9 @@ It does not commit or push.
 
 `Operator`, `Sherpa`, `User Tester`, `User Guide`
 
-## Spawn criteria
+## Routing Criteria
 
-Foreman spawns Operator when:
+Foreman routes to Operator when:
 - A bounded live-surface probe is needed (capture, click, scroll, read).
 - A stop condition needs to be evaluated against a live state.
 - Supervised evidence collection is required before a merge or deploy decision.

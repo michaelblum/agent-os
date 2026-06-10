@@ -1,254 +1,29 @@
 #!/usr/bin/env bash
-# agent-sync — sync agent-os agent roster → ~/.codex/agents/ + ~/.codex/config.toml
+# Retired: Codex native custom-agent registration is not an AOS execution path.
 #
-# Usage:
-#   ./scripts/agent-sync.sh                          # auto-detect agent-os path
-#   ./scripts/agent-sync.sh --dry-run                # preview changes, write nothing
-#   ./scripts/agent-sync.sh --agent-os-path <path>   # explicit path override
-#   AGENT_OS_PATH=/path/to/agent-os ./scripts/agent-sync.sh
+# This command used to copy ai-agents/providers/codex/*.toml into
+# ~/.codex/agents/ and write [agents.*] blocks into ~/.codex/config.toml. That
+# re-enables Codex native multi-agent/custom-agent registration, including the
+# encrypted tool path that AOS no longer trusts for project-agent execution.
 #
-# Source of truth: ai-agents/providers/codex/*.toml
-# Writes:          ~/.codex/agents/<name>.toml
-#                  ~/.codex/config.toml [agents.*] blocks
+# Preserved role material remains in ai-agents/providers/codex/*.toml. Execute
+# project agents through ./aos dev agents, whose default provider-sdk lane can
+# be pointed at an OpenAI-compatible proxy with:
 #
-# Invokable as $agent-sync from the Codex CLI.
-# See ai-agents/providers/codex/SKILL.md for full documentation.
+#   AOS_AGENT_PROVIDER_BASE_URL=<proxy-url>
+#   AOS_AGENT_PROVIDER_API_KEY=<proxy-key>
+#   AOS_AGENT_PROVIDER_API=chat_completions
 
 set -euo pipefail
 
-DRY_RUN=false
-AGENT_OS_PATH="${AGENT_OS_PATH:-}"
+cat >&2 <<'EOF'
+agent-sync is retired.
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --agent-os-path) AGENT_OS_PATH="$2"; shift 2 ;;
-    --dry-run)       DRY_RUN=true; shift ;;
-    -h|--help)
-      grep '^#' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
-    *) echo "Unknown flag: $1" >&2; exit 1 ;;
-  esac
-done
+Do not recreate ~/.codex/agents, [agents.*] blocks, multi_agent_v2, or Codex
+native custom-agent registration for agent-os.
 
-# ── 1. Resolve agent-os root ────────────────────────────────────────────────
-if [[ -z "$AGENT_OS_PATH" ]]; then
-  for candidate in \
-    "$HOME/Documents/GitHub/agent-os" \
-    "$HOME/Code/agent-os" \
-    "$HOME/code/agent-os" \
-    "$HOME/projects/agent-os"; do
-    if [[ -d "$candidate/ai-agents/providers/codex" ]]; then
-      AGENT_OS_PATH="$candidate"
-      break
-    fi
-  done
-fi
-
-# Fallback: are we already inside agent-os?
-if [[ -z "$AGENT_OS_PATH" && -d "ai-agents/providers/codex" ]]; then
-  AGENT_OS_PATH="$(pwd)"
-fi
-
-if [[ -z "$AGENT_OS_PATH" ]]; then
-  echo "ERROR: Cannot locate agent-os." >&2
-  echo "       Set AGENT_OS_PATH env var or run from inside the repo." >&2
-  exit 1
-fi
-
-AGENTS_DIR="$AGENT_OS_PATH/ai-agents/providers/codex"
-GLOBAL_CONFIG="$HOME/.codex/config.toml"
-LOCAL_AGENTS_DIR="$HOME/.codex/agents"
-
-# ── 2. Ensure target directories and global config exist ────────────────────
-mkdir -p "$LOCAL_AGENTS_DIR"
-
-if [[ ! -f "$GLOBAL_CONFIG" ]]; then
-  mkdir -p "$(dirname "$GLOBAL_CONFIG")"
-  cat > "$GLOBAL_CONFIG" <<'EOF'
-# ~/.codex/config.toml — created by agent-sync
-model = "gpt-5.5"
-model_reasoning_effort = "medium"
-approval_policy = "on-failure"
-sandbox_mode = "workspace-write"
-
-[features]
-multi_agent_v2 = true
-guardian_approval = true
+Use ./aos dev agents instead. Role material is preserved under
+ai-agents/providers/codex/*.toml and consumed by the AOS-owned provider runner.
 EOF
-  echo "agent-sync: created $GLOBAL_CONFIG with safe defaults"
-fi
 
-# ── 3. Sync via Python 3 (any version ≥3.6, zero deps) ────────────────────
-python3 - "$AGENTS_DIR" "$GLOBAL_CONFIG" "$LOCAL_AGENTS_DIR" "$DRY_RUN" <<'PYEOF'
-import sys, re, pathlib, shutil, datetime, json
-
-agents_dir       = pathlib.Path(sys.argv[1])
-global_cfg       = pathlib.Path(sys.argv[2])
-local_agents_dir = pathlib.Path(sys.argv[3])
-dry_run          = sys.argv[4] == "true"
-run_ts           = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-# ── Section-aware TOML parser ───────────────────────────────────────────────────
-# Reads agent TOML files. Tracks current [section] so that fields inside
-# [model], [sandbox], [behavior] etc. don't collide with top-level fields.
-# Fields extracted:
-#   top-level : name, description, nickname_candidates, model, model_reasoning_effort
-#   [model]   : name (-> model_name), effort (-> model_effort)
-def parse_agent_toml(text):
-    # Collapse multiline strings
-    text = re.sub(r'"""(.*?)"""',
-                  lambda m: '"' + m.group(1).replace('\n', ' ').strip() + '"',
-                  text, flags=re.DOTALL)
-    section = None
-    top   = {}   # top-level keys
-    model = {}   # [model] section keys
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        # Section header
-        sh = re.match(r'^\[([\w.]+)\]$', line)
-        if sh:
-            section = sh.group(1)
-            continue
-        m = re.match(r'^([\w_-]+)\s*=\s*(.+)$', line)
-        if not m:
-            continue
-        key, val = m.group(1), m.group(2).strip()
-        # Parse value
-        if val.startswith('['):
-            parsed = re.findall(r'"([^"]+)"', val)
-        elif val.startswith('"'):
-            parsed = re.sub(r'^"(.*)"$', r'\1', val)
-        else:
-            parsed = val
-        if section is None:
-            top[key] = parsed
-        elif section == 'model':
-            model[key] = parsed
-    return top, model
-
-# ── Read source agent TOMLs ──────────────────────────────────────────────────
-source = {}
-for toml_file in sorted(agents_dir.glob("*.toml")):
-    try:
-        text     = toml_file.read_text()
-        top, mdl = parse_agent_toml(text)
-        name     = top.get("name") or toml_file.stem
-        source[name] = {
-            "name":                   name,
-            "description":            top.get("description", "").strip(),
-            "nickname_candidates":    top.get("nickname_candidates", []),
-            "model_name":             mdl.get("name", top.get("model", "")),
-            "model_effort":           mdl.get("effort", top.get("model_reasoning_effort", "")),
-            "source_file":            str(toml_file.resolve()),
-            "target_file":            str((local_agents_dir / toml_file.name).resolve()),
-        }
-    except Exception as e:
-        print(f"  WARN: skipping {toml_file.name} — {e}", flush=True)
-
-if not source:
-    print("  WARN: no agent .toml files found in", agents_dir, flush=True)
-    sys.exit(0)
-
-# ── Step A: Write/update ~/.codex/agents/<name>.toml ────────────────────────
-toml_results = []
-for name, agent in source.items():
-    target   = pathlib.Path(agent["target_file"])
-    src_text = pathlib.Path(agent["source_file"]).read_text()
-    if dry_run:
-        action = "would-write" if not target.exists() else "would-update"
-    else:
-        action = "created" if not target.exists() else "updated"
-        target.write_text(src_text)
-    toml_results.append((name, action, str(target)))
-
-# ── Step B: Patch ~/.codex/config.toml [agents.*] blocks ────────────────────
-raw = global_cfg.read_text()
-existing_agents = set(re.findall(r'^\[agents\.(\w[\w-]*)\]', raw, re.MULTILINE))
-
-added, updated, skipped, noticed = [], [], [], []
-new_blocks = []
-
-for name, agent in source.items():
-    desc     = agent["description"].replace('"', '\\"')
-    cfg_path = agent["target_file"]
-    nicks    = agent["nickname_candidates"]
-
-    lines = [f'[agents.{name}]']
-    lines.append(f'description         = "{desc}"')
-    if nicks:
-        nicks_str = ", ".join(f'"{n}"' for n in nicks)
-        lines.append(f'nickname_candidates = [{nicks_str}]')
-    lines.append(f'config_file         = "{cfg_path}"')
-    new_block = "\n".join(lines) + "\n"
-
-    if name not in existing_agents:
-        new_blocks.append((name, new_block))
-        added.append(name)
-    else:
-        stale      = cfg_path not in raw
-        desc_stale = agent["description"] and ('"' + agent["description"] + '"') not in raw
-        if stale or desc_stale:
-            pattern = rf'(?ms)^\[agents\.{re.escape(name)}\]\n.*?(?=^\[[A-Za-z_][^\]\n]*\]\s*$|\Z)'
-            raw = re.sub(pattern, new_block, raw, flags=re.DOTALL)
-            updated.append(name)
-        else:
-            skipped.append(name)
-
-for name in existing_agents:
-    if name not in source:
-        noticed.append(name)
-
-if new_blocks:
-    raw = raw.rstrip() + "\n\n" + "\n\n".join(blk for _, blk in new_blocks) + "\n"
-
-# ── Write (with backup) ───────────────────────────────────────────────────────
-backup_path = None
-if not dry_run and (added or updated):
-    ts          = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    backup_path = str(global_cfg) + ".bak-" + ts
-    shutil.copy2(str(global_cfg), backup_path)
-    global_cfg.write_text(raw)
-
-# ── Telemetry ──────────────────────────────────────────────────────────────
-telem = {
-    "agent_sync_telemetry": {
-        "run_at":           run_ts,
-        "dry_run":          dry_run,
-        "agent_os_path":    str(agents_dir.parent.parent.parent),
-        "source_dir":       str(agents_dir),
-        "global_config":    str(global_cfg),
-        "local_agents_dir": str(local_agents_dir),
-        "backup":           backup_path,
-        "config_changes": {
-            "added":   added,
-            "updated": updated,
-            "skipped": skipped,
-            "noticed": noticed,
-        },
-        "toml_files": [
-            {"agent": name, "action": action, "path": path,
-             "model": source[name]["model_name"],
-             "effort": source[name]["model_effort"]}
-            for name, action, path in toml_results
-        ],
-        "errors": [],
-    }
-}
-
-print("\n" + "=" * 64)
-print("AGENT-SYNC TELEMETRY — paste this back for validation")
-print("=" * 64)
-print(json.dumps(telem, indent=2))
-print("=" * 64 + "\n")
-
-if added:   print(f"  added:   {', '.join(added)}")
-if updated: print(f"  updated: {', '.join(updated)}")
-if skipped: print(f"  skipped: {', '.join(skipped)} (no change)")
-if noticed: print(f"  noticed: {', '.join(noticed)} (foreign agents — not modified)")
-if dry_run: print("  [dry-run — no files written]")
-else:       print(f"  global config: {global_cfg}")
-
-PYEOF
+exit 1
