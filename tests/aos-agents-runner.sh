@@ -184,6 +184,16 @@ git -C "$FIXTURE" commit -qm "fixture baseline"
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
+if INTEGRATION_SKIP="$(bash tests/aos-agents-runner-integration.sh)"; then
+    if grep -q "SKIP: set AOS_AGENT_PROVIDER_SDK_SMOKE=1" <<<"$INTEGRATION_SKIP"; then
+        pass "provider SDK integration smoke is opt-in and skips by default"
+    else
+        fail "provider SDK integration smoke default output was not an opt-in skip"
+    fi
+else
+    fail "provider SDK integration smoke skip path failed"
+fi
+
 python3 - <<'PY'
 import json
 from pathlib import Path

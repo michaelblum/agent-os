@@ -190,7 +190,8 @@
         "docs/dev/aos-agents-native-result.schema.json",
         "docs/dev/reports/aos-agent-runtime-m3-correction-v1.md",
         "scripts/aos_agents/**",
-        "tests/aos-agents-runner.sh"
+        "tests/aos-agents-runner.sh",
+        "tests/aos-agents-runner-integration.sh"
       ],
       "classes": [
         "agent_runner",
@@ -207,6 +208,11 @@
           "id": "aos-agents-runner",
           "command": "bash tests/aos-agents-runner.sh",
           "reason": "Verify read-only role enforcement, SDK-missing behavior, runtime artifacts, and ./aos dev agents routing."
+        },
+        {
+          "id": "aos-agents-runner-integration",
+          "command": "bash tests/aos-agents-runner-integration.sh",
+          "reason": "Opt-in real provider SDK smoke. Skips unless AOS_AGENT_PROVIDER_SDK_SMOKE=1 and provider credentials are supplied."
         },
         {
           "id": "dev-workflow-router-test",

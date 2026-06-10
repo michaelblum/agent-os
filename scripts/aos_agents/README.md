@@ -85,6 +85,18 @@ Run the focused regression harness:
 bash tests/aos-agents-runner.sh
 ```
 
+Run the opt-in real provider SDK smoke from an environment where the
+`openai-agents` SDK and provider credentials are already available:
+
+```bash
+AOS_AGENT_PROVIDER_SDK_SMOKE=1 OPENAI_API_KEY=... bash tests/aos-agents-runner-integration.sh
+```
+
+Set `AOS_AGENT_PROVIDER_SMOKE_MODEL=<model>` to override the smoke model for a
+custom endpoint. Without that override, the smoke uses the repository explorer
+model and executes through `./aos dev agents --execute` against an isolated
+fixture repo.
+
 Plan a default provider-backed read-only child without executing it:
 
 ```bash

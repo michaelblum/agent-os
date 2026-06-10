@@ -129,8 +129,12 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-native-result.schema.json'));
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('scripts/aos_agents/**'));
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('tests/aos-agents-runner.sh'));
+  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('tests/aos-agents-runner-integration.sh'));
   assert.ok(
     rules.get('aos-agent-runner')?.commands?.some((step) => step.command === 'bash tests/aos-agents-runner.sh'),
+  );
+  assert.ok(
+    rules.get('aos-agent-runner')?.commands?.some((step) => step.command === 'bash tests/aos-agents-runner-integration.sh'),
   );
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
