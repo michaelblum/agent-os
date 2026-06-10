@@ -327,7 +327,7 @@ assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capabilit
 dock_tokens = {arg.get("token") for arg in forms["dev-docks"]["args"]}
 assert {"--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"} <= dock_tokens, dock_tokens
 agents_tokens = {arg.get("token") for arg in forms["dev-agents"]["args"]}
-assert {"--self-test", "--list-runs", "--read-run", "--check-patch", "--apply-patch", "--i-approve-checkout-mutation", "--role", "--task", "--execute", "--patch-output", "--context-file", "--max-turns", "--repo", "--json"} <= agents_tokens, agents_tokens
+assert {"--self-test", "--runtime-info", "--list-runs", "--read-run", "--native-dispatch", "--complete-native-run", "--result-file", "--check-patch", "--apply-patch", "--i-approve-checkout-mutation", "--engine", "--role", "--task", "--execute", "--patch-output", "--context-file", "--max-turns", "--repo", "--json"} <= agents_tokens, agents_tokens
 subagent_tokens = {arg.get("token") for arg in forms["dev-subagent"]["args"]}
 assert {"--agents-root", "--role", "--prompt", "--prompt-file", "--transcript", "--transcript-file", "--repo", "--json"} <= subagent_tokens, subagent_tokens
 gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
@@ -345,6 +345,8 @@ import os
 
 data = json.loads(os.environ["OUT"])
 assert data["self_test"] == "pass", data
+assert data["default_engine"] == "native-codex", data
+assert set(data["engines"]) == {"native-codex", "provider-sdk"}, data
 assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
 assert all(item["sandbox_mode"] == "read-only" for item in data["roles"].values()), data
 PY

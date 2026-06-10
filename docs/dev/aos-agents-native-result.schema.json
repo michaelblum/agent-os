@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaelblum/agent-os/docs/dev/aos-agents-native-result.schema.json",
+  "title": "AOS Agent Native Completion Result",
+  "description": "Native Codex result artifact imported into .runtime/dev/aos-agents/.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "status",
+    "engine",
+    "role",
+    "agent_spec",
+    "active_profile",
+    "base_commit",
+    "target_branch",
+    "task_hash",
+    "max_turns",
+    "output_dir",
+    "summary_path",
+    "native_dispatch_path",
+    "final_output",
+    "imported_result_format"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "const": "completed" },
+    "engine": { "const": "native-codex" },
+    "role": { "enum": ["explorer", "reviewer", "validator", "historian", "implementer"] },
+    "agent_spec": {
+      "type": "string",
+      "pattern": "^\\.codex/agents/(explorer|reviewer|validator|historian|implementer)\\.toml$"
+    },
+    "active_profile": { "type": "string", "minLength": 1 },
+    "base_commit": { "type": "string", "minLength": 1 },
+    "target_branch": { "type": "string", "minLength": 1 },
+    "task_hash": { "type": "string", "pattern": "^[a-f0-9]{12}$" },
+    "max_turns": { "type": "integer", "minimum": 1 },
+    "output_dir": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+$"
+    },
+    "summary_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+/summary\\.json$"
+    },
+    "native_dispatch_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/(explorer|reviewer|validator|historian|implementer)/[^/]+/native-dispatch\\.json$"
+    },
+    "final_output": { "type": "string" },
+    "imported_result_format": { "const": "json" },
+    "patch_path": {
+      "type": "string",
+      "pattern": "^/.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
+    },
+    "touched_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "context_files": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "suggested_review_command": {
+      "type": "string",
+      "pattern": "^git apply --check /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
+    },
+    "suggested_apply_command": {
+      "type": "string",
+      "pattern": "^git apply /.*/\\.runtime/dev/aos-agents/runs/implementer/[^/]+/patch\\.diff$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "role": { "const": "implementer" } }, "required": ["role"] },
+      "then": {
+        "required": [
+          "patch_path",
+          "touched_paths",
+          "suggested_review_command",
+          "suggested_apply_command"
+        ]
+      }
+    }
+  ]
+}

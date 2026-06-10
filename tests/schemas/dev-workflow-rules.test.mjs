@@ -123,6 +123,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-summary.schema.json'));
+  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-native-dispatch.schema.json'));
+  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-native-result.schema.json'));
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('scripts/aos_agents/**'));
   assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('tests/aos-agents-runner.sh'));
   assert.ok(

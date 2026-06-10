@@ -617,7 +617,7 @@
     },
     {
       "path": ["dev", "agents"],
-      "summary": "Run the experimental AOS-owned read-only agent runner and patch artifact review gate.",
+      "summary": "Run the AOS-owned agent runtime contract surface, native dispatch/import artifacts, and patch artifact gate.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["python3", "scripts/aos_agents/runner.py"],
       "cwd": "repo",

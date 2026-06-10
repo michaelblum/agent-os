@@ -1,41 +1,72 @@
-# Experimental AOS Agent Runner
+# AOS Agent Runtime
 
-This directory starts the AOS-owned Python agent runner lane. It is a minimal,
-isolated prototype for reading existing role/profile material without depending
-on Codex CLI `multi_agent_v2`.
+`./aos dev agents` is the AOS-owned local contract surface for project agents.
+It is not a provider-proof smoke harness. The command owns role/profile
+readback, native Codex dispatch planning, runtime artifact readback, and
+approval-gated patch validation/application.
 
-## Scope
+## Architecture
 
-- Loads read-only role specs from `.codex/agents/*.toml`.
-- Allows only `explorer`, `reviewer`, `validator`, and `historian`.
-- Requires each allowed role spec to declare `sandbox_mode = "read-only"`.
-- Rejects write-capable roles such as `implementer` by default.
-- Allows `implementer` only through explicit `--patch-output --execute`, where
-  the provider final output is saved as `patch.diff` under the run directory.
-- Loads `.docks/profiles/active-profile.json` and each listed
-  `.docks/profiles/*/profile.md` pack.
-- Plans deterministic output directories under `.runtime/dev/aos-agents/`.
-- Provides `--self-test` for parser and path validation without OpenAI calls.
-- Keeps provider execution behind explicit `--execute`.
-- Writes `summary.json` for ready, completed, and provider-error runs under the
-  planned runtime directory.
-- Writes provider results only under the planned runtime directory.
-- Writes patch-output metadata only under the planned runtime directory; it never
-  applies patches to the checkout.
-- Writes diagnostic `result.json` with raw provider final output when
-  patch-output extraction fails after a provider response.
-- Allows patch-output runs to include bounded repo-relative source context via
-  `--context-file`.
-- Checks existing implementer patch-output artifacts with `git apply --check`
-  without invoking the provider or mutating the checkout.
-- Applies existing implementer patch-output artifacts only through the
-  Foreman-owned `--apply-patch ... --i-approve-checkout-mutation` gate, after
-  validating artifacts, requiring a clean worktree, and rerunning
-  `git apply --check`.
-- Lists and reads existing runtime artifacts without SDK or provider calls.
+- Native Codex is the default engine: `--engine native-codex`.
+- Native planning emits the required v2 custom-agent spawn contract:
+  `spawn_agent(task_name=<role>-<task_hash>, agent_type=<role>,
+  fork_turns="none", message=<task>)`.
+- The local Python runner cannot execute native Codex children. A native Codex
+  session executes children through the session tool runtime when that v2 contract is
+  available.
+- Native plans write `summary.json` and `native-dispatch.json`; the child result
+  is imported later with `--complete-native-run`.
+- Provider-backed execution remains as an explicit optional adapter:
+  `--engine provider-sdk --execute`.
+- Read-only roles are `explorer`, `reviewer`, `validator`, and `historian`.
+- `implementer` remains rejected by default.
+- `implementer` may only produce a reviewable `patch.diff` through explicit
+  patch-output mode. Native patch-output uses dispatch/import; provider patch
+  output uses `--engine provider-sdk --role implementer --patch-output
+  --execute`.
+- Check/apply gates never invoke native children, providers, or SDK code.
+- Patch application requires explicit checkout-mutation approval through
+  `--apply-patch <output-dir> --i-approve-checkout-mutation`.
+- Apply rejects dirty worktrees, reruns `git apply --check`, applies with plain
+  `git apply`, and leaves changes unstaged.
 
-This prototype does not change `packages/host`, daemon/socket contracts, global
-Codex config, or installed packages.
+## What Stays In `runner.py`
+
+- Loading `.codex/agents/*.toml` role specs.
+- Loading `.docks/profiles/active-profile.json` and profile packs.
+- Deterministic runtime artifact paths under `.runtime/dev/aos-agents/`.
+- Native v2 dispatch-contract rendering.
+- Native dispatch artifact readback and completion import.
+- Optional provider SDK adapter execution.
+- `summary.json`, `result.json`, and `patch.diff` artifact writing.
+- Patch artifact validation, check, and apply gates.
+
+Durable schemas and public command metadata live outside this script:
+
+- `docs/dev/aos-agents-summary.schema.json`
+- `docs/dev/aos-agents-native-dispatch.schema.json`
+- `docs/dev/aos-agents-native-result.schema.json`
+- `manifests/commands/aos-commands.json`
+- `manifests/commands/aos-external-commands.json`
+- `docs/dev/workflow-rules.json`
+
+## Dependency And Runtime Packaging
+
+Native planning, artifact readback, `--check-patch`, and `--apply-patch` require
+only the repository Python runtime. They must not install dependencies or depend
+on an ignored smoke virtual environment.
+
+The provider adapter is optional. When `--engine provider-sdk --execute` is
+used, the caller must provide an environment where the `agents` Python module is
+already importable. The runner disables tracing for those local adapter runs and
+fails clearly if the SDK is missing. It never installs, upgrades, publishes, or
+mutates dependencies.
+
+Use this readback to inspect the current contract and provider SDK availability:
+
+```bash
+./aos dev agents --runtime-info --json
+```
 
 ## Usage
 
@@ -51,87 +82,70 @@ Run the focused regression harness:
 bash tests/aos-agents-runner.sh
 ```
 
-Plan a future provider-backed run:
+Plan a native Codex read-only child:
 
 ```bash
 ./aos dev agents --role explorer --task "inspect the agent profile inputs" --json
 ```
 
-Execute a read-only provider-backed run when the SDK and credentials are already
-available in the caller's environment:
+Read the exact native spawn contract for a planned native child:
 
 ```bash
-./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --json
+./aos dev agents --native-dispatch .runtime/dev/aos-agents/runs/explorer/<run-dir> --json
+```
+
+Import a native child result:
+
+```bash
+./aos dev agents --complete-native-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --result-file /tmp/native-result.json --json
+```
+
+The result file must be a JSON object with matching `engine`, `role`,
+`task_hash`, and `output_dir` identity fields, plus one string output field:
+`final_output`, `result`, or `text`.
+
+Plan native implementer patch-output without local child execution:
+
+```bash
+./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
+```
+
+Execute a read-only provider adapter run only when the SDK and credentials are
+already available:
+
+```bash
+./aos dev agents --engine provider-sdk --role explorer --task "inspect the agent profile inputs" --execute --max-turns 1 --json
 ```
 
 Produce a reviewable implementer patch artifact without mutating the checkout:
 
 ```bash
-./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
+./aos dev agents --engine provider-sdk --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
 ```
 
-Review the generated patch before any manual apply:
-
-```bash
-git apply --check .runtime/dev/aos-agents/runs/implementer/<run-dir>/patch.diff
-```
-
-Use the Foreman-owned check gate for an existing patch-output run:
+Check an existing patch artifact without invoking native children or providers:
 
 ```bash
 ./aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json
 ```
 
-This check-only gate validates `summary.json`, `result.json`, and `patch.diff`
-consistency, runs `git apply --check`, reports touched paths and worktree
-cleanliness, and applies nothing.
-
-Apply an existing patch artifact only after explicit Foreman approval:
+Apply an existing patch artifact only after explicit checkout-mutation approval:
 
 ```bash
 ./aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json
 ```
 
-The apply gate does not invoke the provider. It rejects dirty worktrees, reruns
-`git apply --check` immediately before mutation, applies with plain `git apply`,
-and leaves resulting checkout changes unstaged.
-
-For M1 live-smoke only, use an ignored local venv under `.runtime/dev/aos-agents/`
-instead of adding repo-managed Python dependencies:
-
-```bash
-python3 -m venv .runtime/dev/aos-agents/.venv
-.runtime/dev/aos-agents/.venv/bin/python -m pip install --upgrade pip openai-agents
-export OPENAI_API_KEY="sk-..."
-PATH="$PWD/.runtime/dev/aos-agents/.venv/bin:$PATH" \
-  ./aos dev agents --role explorer --task "inspect the agent profile inputs" --execute --max-turns 1 --json
-```
-
-This local environment is a live-smoke unblock only. It is not sufficient for
-full native Codex subagent supersession, and it does not establish a
-repo-managed dependency policy.
-
-The M1 read-only parity proof is recorded in
-`docs/dev/reports/aos-agent-runner-m1-read-only-parity-v0.md`.
-
-The M2 implementer patch-output proof and Foreman apply boundary are recorded in
-`docs/dev/reports/aos-agent-runner-m2-implementer-patch-output-v0.md`.
-
-List or read existing runtime artifacts without invoking the provider:
+List or read existing runtime artifacts without invoking native children,
+providers, or SDK imports:
 
 ```bash
 ./aos dev agents --list-runs --json
 ./aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json
-./aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json
-./aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json
 ```
 
-Outside `--self-test`, the runner checks for the OpenAI Agents SDK and fails
-clearly when it is missing. The runner never installs dependencies; install and
-configure the SDK outside this script.
+## Legacy Artifact Policy
 
-The `summary.json` artifact contract is documented in
-`docs/dev/aos-agents-summary.schema.json`.
-
-The Python script remains the implementation target and can still be invoked
-directly for focused debugging.
+Legacy M2 patch artifacts without an explicit `engine` are rejected by
+`--check-patch` and `--apply-patch`. M3 is foundation-breaking: completed
+artifacts must identify whether they came from `native-codex` or
+`provider-sdk` before the patch can be reviewed or applied.

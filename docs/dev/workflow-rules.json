@@ -185,6 +185,8 @@
       "summary": "Experimental AOS-owned agent runner or command surface changed.",
       "patterns": [
         "docs/dev/aos-agents-summary.schema.json",
+        "docs/dev/aos-agents-native-dispatch.schema.json",
+        "docs/dev/aos-agents-native-result.schema.json",
         "scripts/aos_agents/**",
         "tests/aos-agents-runner.sh"
       ],

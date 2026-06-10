@@ -6742,6 +6742,14 @@
               "value_type" : "bool"
             },
             {
+              "id" : "runtime-info",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report native/provider runtime contract and dependency status without executing agents",
+              "token" : "--runtime-info",
+              "value_type" : "bool"
+            },
+            {
               "id" : "list-runs",
               "kind" : "flag",
               "required" : false,
@@ -6755,6 +6763,30 @@
               "required" : false,
               "summary" : "Read summary.json and result.json for an output directory under the runtime root",
               "token" : "--read-run",
+              "value_type" : "string"
+            },
+            {
+              "id" : "native-dispatch",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Read a ready or blocked native-codex run and emit the native spawn contract",
+              "token" : "--native-dispatch",
+              "value_type" : "string"
+            },
+            {
+              "id" : "complete-native-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Import a native child result into a planned native output directory",
+              "token" : "--complete-native-run",
+              "value_type" : "string"
+            },
+            {
+              "id" : "result-file",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "JSON result file for --complete-native-run",
+              "token" : "--result-file",
               "value_type" : "string"
             },
             {
@@ -6782,6 +6814,15 @@
               "value_type" : "bool"
             },
             {
+              "default_value" : "native-codex",
+              "id" : "engine",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent engine: native-codex by default, or provider-sdk for explicit local provider execution",
+              "token" : "--engine",
+              "value_type" : "string"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
               "required" : false,
@@ -6793,7 +6834,7 @@
               "id" : "task",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Task text for path planning and optional provider execution",
+              "summary" : "Task text for path planning and explicit execution",
               "token" : "--task",
               "value_type" : "string"
             },
@@ -6801,7 +6842,7 @@
               "id" : "execute",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the provider-backed agent after validation",
+              "summary" : "Execute the selected engine after validation; provider-sdk is the only local executable engine",
               "token" : "--execute",
               "value_type" : "bool"
             },
@@ -6809,7 +6850,7 @@
               "id" : "patch-output",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Allow implementer to produce patch.diff artifacts only; requires --execute",
+              "summary" : "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute, native-codex uses dispatch/import",
               "token" : "--patch-output",
               "value_type" : "bool"
             },
@@ -6849,9 +6890,12 @@
           ],
           "examples" : [
             "aos dev agents --self-test --json",
+            "aos dev agents --runtime-info --json",
             "aos dev agents --role explorer --task \"inspect the active profile\" --json",
-            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
-            "aos dev agents --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
+            "aos dev agents --native-dispatch .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
+            "aos dev agents --complete-native-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --result-file /tmp/native-result.json --json",
+            "aos dev agents --engine provider-sdk --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
+            "aos dev agents --engine provider-sdk --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
             "aos dev agents --list-runs --json",
             "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
             "aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json",
@@ -6873,7 +6917,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev agents [--self-test] [--list-runs] [--read-run <output-dir>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
+          "usage" : "aos dev agents [--self-test] [--runtime-info] [--list-runs] [--read-run <output-dir>] [--native-dispatch <output-dir>] [--complete-native-run <output-dir> --result-file <path>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--engine <native-codex|provider-sdk>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
         },
         {
           "args" : [
