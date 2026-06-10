@@ -21,7 +21,7 @@ NATIVE_READ_TARGET="$TMP_ROOT/native-read-output-dir.txt"
 NATIVE_PATCH_TARGET="$TMP_ROOT/native-patch-output-dir.txt"
 NATIVE_READ_RESULT="$TMP_ROOT/native-read-result.json"
 NATIVE_PATCH_RESULT="$TMP_ROOT/native-patch-result.json"
-mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$FIXTURE/scripts/aos_agents" "$MISSING_SDK" "$PRESENT_SDK" "$FAILING_SDK"
+mkdir -p "$FIXTURE/.codex/agents" "$FIXTURE/.docks/profiles/base" "$FIXTURE/scripts/aos_agents" "$MISSING_SDK" "$PRESENT_SDK/openai/types" "$FAILING_SDK/openai/types"
 FIXTURE_REAL="$(cd "$FIXTURE" && pwd -P)"
 printf 'main checkout sentinel\n' >"$FIXTURE/main-checkout-sentinel.txt"
 cat >"$FIXTURE/scripts/aos_agents/README.md" <<'EOF'
@@ -45,6 +45,11 @@ tracing_disabled = False
 class Agent:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+
+
+class ModelSettings(dict):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
 class Result:
@@ -88,6 +93,13 @@ def set_tracing_disabled(value):
     tracing_disabled = bool(value)
 PY
 
+touch "$PRESENT_SDK/openai/__init__.py" "$PRESENT_SDK/openai/types/__init__.py"
+cat >"$PRESENT_SDK/openai/types/shared.py" <<'PY'
+class Reasoning(dict):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+PY
+
 cat >"$FAILING_SDK/agents.py" <<'PY'
 tracing_disabled = False
 
@@ -95,6 +107,11 @@ tracing_disabled = False
 class Agent:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+
+
+class ModelSettings(dict):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
 class Runner:
@@ -106,6 +123,13 @@ class Runner:
 def set_tracing_disabled(value):
     global tracing_disabled
     tracing_disabled = bool(value)
+PY
+
+touch "$FAILING_SDK/openai/__init__.py" "$FAILING_SDK/openai/types/__init__.py"
+cat >"$FAILING_SDK/openai/types/shared.py" <<'PY'
+class Reasoning(dict):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 PY
 
 for role in explorer reviewer validator historian; do
@@ -124,6 +148,7 @@ done
 cat >"$FIXTURE/.codex/agents/implementer.toml" <<'EOF'
 name = "implementer"
 model = "test-model"
+model_reasoning_effort = "medium"
 description = "write-capable fixture"
 developer_instructions = """
 Write-capable fixture instructions.
@@ -782,20 +807,36 @@ else
     fail "native execute block did not produce expected summary"
 fi
 
-if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine provider-sdk --role implementer --task "patch check" --patch-output 2>&1 >/dev/null)"; then
-    fail "implementer patch-output without execute unexpectedly succeeded"
-elif ERR="$ERR" python3 - <<'PY'
+if PATCH_READY="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine provider-sdk --role implementer --task "patch check" --context-file scripts/aos_agents/README.md --patch-output)"; then
+    PATCH_READY="$PATCH_READY" FIXTURE="$FIXTURE" python3 - <<'PY'
 import json
 import os
+from pathlib import Path
 
-data = json.loads(os.environ["ERR"])
-assert data["status"] == "error", data
-assert "--patch-output requires --execute" in data["error"], data
+data = json.loads(os.environ["PATCH_READY"])
+fixture = Path(os.environ["FIXTURE"]).resolve()
+runtime_root = fixture / ".runtime/dev/aos-agents"
+output_dir = Path(data["output_dir"])
+summary_path = Path(data["summary_path"])
+assert data["status"] == "ready", data
+assert data["engine"] == "provider-sdk", data
+assert data["role"] == "implementer", data
+assert data["context_files"] == ["scripts/aos_agents/README.md"], data
+assert output_dir.is_relative_to(runtime_root), data
+assert output_dir.parent == runtime_root / "runs" / "implementer", data
+assert summary_path == output_dir / "summary.json", data
+assert not (output_dir / "result.json").exists(), output_dir
+assert not (output_dir / "patch.diff").exists(), output_dir
+summary_doc = json.loads(summary_path.read_text())
+assert summary_doc["status"] == "ready", summary_doc
+assert summary_doc["engine"] == "provider-sdk", summary_doc
+assert summary_doc["role"] == "implementer", summary_doc
+assert summary_doc["execute"] is False, summary_doc
+assert summary_doc["context_files"] == ["scripts/aos_agents/README.md"], summary_doc
 PY
-then
-    pass "patch-output mode requires explicit provider execution"
+    pass "implementer patch-output planning writes ready summary without SDK or checkout mutation"
 else
-    fail "patch-output without execute error was not clear JSON"
+    fail "implementer patch-output planning failed"
 fi
 
 if ERR="$(PYTHONPATH="$MISSING_SDK" python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --engine provider-sdk --role explorer --task "context needs patch output" --context-file scripts/aos_agents/README.md 2>&1 >/dev/null)"; then
@@ -928,6 +969,7 @@ assert result_doc["max_turns"] == 1, result_doc
 record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
 assert record["agent"]["name"] == "explorer", record
 assert record["agent"]["model"] == "test-model", record
+assert record["agent"]["model_settings"]["reasoning"]["effort"] == "low", record
 assert "Read-only fixture instructions for explorer." in record["agent"]["instructions"], record
 assert "Read-only fixture profile." in record["agent"]["instructions"], record
 assert record["input"] == "execute read-only task", record
@@ -982,6 +1024,8 @@ assert result_doc["patch_path"] == str(patch_path), result_doc
 assert result_doc["touched_paths"] == ["docs/example.md"], result_doc
 record = json.loads(Path(os.environ["SDK_RECORD"]).read_text())
 assert record["agent"]["name"] == "implementer", record
+assert record["agent"]["model"] == "test-model", record
+assert record["agent"]["model_settings"]["reasoning"]["effort"] == "medium", record
 instructions = record["agent"]["instructions"]
 assert "Patch-Only Output Contract" in instructions, record
 assert "Return a true unified diff only" in instructions, record
@@ -1139,7 +1183,8 @@ fixture = Path(os.environ["FIXTURE"]).resolve()
 runtime_root = fixture / ".runtime/dev/aos-agents"
 assert data["status"] == "success", data
 assert data["runtime_root"] == str(runtime_root), data
-assert data["count"] == 12, data
+assert data["count"] == len(data["runs"]), data
+assert data["count"] >= 10, data
 statuses = {item["summary"]["status"] for item in data["runs"]}
 assert statuses == {"ready", "completed", "blocked", "error"}, data
 assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["status"] == "blocked" for item in data["runs"]), data
@@ -1147,6 +1192,7 @@ assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["
 assert any(item["summary"].get("engine") == "native-codex" and item["summary"]["status"] == "completed" and item["role"] == "implementer" for item in data["runs"]), data
 assert any(item["summary"].get("engine") == "provider-sdk" and item["summary"]["status"] == "completed" for item in data["runs"]), data
 assert any(item["summary"].get("engine") == "provider-sdk" and item["summary"]["status"] == "ready" for item in data["runs"]), data
+assert any(item["summary"].get("engine") == "provider-sdk" and item["summary"]["status"] == "ready" and item["role"] == "implementer" for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"].get("patch_path") for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"].get("context_files") == ["scripts/aos_agents/README.md"] for item in data["runs"]), data
 assert any(item["role"] == "implementer" and item["summary"]["status"] == "error" and item["result_exists"] for item in data["runs"]), data

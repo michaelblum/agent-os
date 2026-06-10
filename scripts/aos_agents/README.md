@@ -24,7 +24,8 @@ and approval-gated patch validation/application.
 - `implementer` remains rejected by default.
 - `implementer` may only produce a reviewable `patch.diff` through explicit
   patch-output mode. Provider patch output uses
-  `--role implementer --patch-output --execute`; native patch-output requires
+  `--role implementer --patch-output --execute`; provider patch-output planning
+  without `--execute` writes a ready summary only. Native patch-output requires
   explicit `--engine native-codex` dispatch/import.
 - Check/apply gates never invoke native children, providers, or SDK code.
 - Patch application requires explicit checkout-mutation approval through
@@ -118,10 +119,10 @@ The result file must be a JSON object with matching `engine`, `role`,
 `task_hash`, and `output_dir` identity fields, plus one string output field:
 `final_output`, `result`, or `text`.
 
-Plan native implementer patch-output without local child execution:
+Plan default provider implementer patch-output without local child execution:
 
 ```bash
-./aos dev agents --engine native-codex --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
+./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
 ```
 
 Produce a reviewable implementer patch artifact through the default provider
@@ -129,6 +130,12 @@ lane without mutating the checkout:
 
 ```bash
 ./aos dev agents --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json
+```
+
+Plan native implementer patch-output without local child execution:
+
+```bash
+./aos dev agents --engine native-codex --role implementer --task "make a minimal docs change" --context-file scripts/aos_agents/README.md --patch-output --json
 ```
 
 Execute explicitly through the provider adapter when documenting the engine:

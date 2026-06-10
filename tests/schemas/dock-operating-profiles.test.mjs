@@ -66,6 +66,20 @@ test('multi_agent_v2 unknowns stay explicit until local smoke proves them', asyn
   assert.match(readme, /native\s+Codex subagents and nested squad leads remain experimental/i);
 });
 
+test('Foreman instructions keep AOS-owned runner as default execution lane', async () => {
+  const foreman = await fs.readFile(path.join(repoRoot, '.docks/foreman/AGENTS.md'), 'utf8');
+  assert.match(foreman, /docs\/adr\/0016-aos-owned-agent-execution\.md/);
+  assert.match(foreman, /AOS owns project-agent child execution by default/);
+  assert.match(foreman, /default engine is `provider-sdk`/);
+  assert.match(foreman, /native-codex` may be used only when explicitly requested/);
+  assert.match(foreman, /Use native Codex subagents only as an explicit diagnostic\/import\s+exception/);
+  assert.doesNotMatch(foreman, /default engine is `native-codex`/i);
+  assert.doesNotMatch(foreman, /native-codex` is the default/i);
+  assert.doesNotMatch(foreman, /prefer `--engine native-codex`/i);
+  assert.doesNotMatch(foreman, /Use native Codex subagents\s+for bounded specialist work/i);
+  assert.doesNotMatch(foreman, /Default to Foreman-orchestrated direct subagents/i);
+});
+
 test('workflow profile docs are demoted below dock profiles', async () => {
   const workflowReadme = await fs.readFile(
     path.join(repoRoot, 'docs/dev/workflow-profiles/README.md'),

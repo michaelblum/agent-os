@@ -710,6 +710,19 @@ def openai_agents_sdk_status() -> dict[str, Any]:
     }
 
 
+def provider_model_settings(sdk: Any, spec: AgentSpec) -> Any | None:
+    if not spec.model_reasoning_effort:
+        return None
+    model_settings_cls = getattr(sdk, "ModelSettings", None)
+    if not callable(model_settings_cls):
+        raise RunnerError("OpenAI Agents SDK does not expose ModelSettings for role reasoning effort")
+    try:
+        from openai.types.shared import Reasoning
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise RunnerError("OpenAI Agents SDK reasoning effort requires openai.types.shared.Reasoning") from exc
+    return model_settings_cls(reasoning=Reasoning(effort=spec.model_reasoning_effort))
+
+
 def native_spawn_contract(spec: AgentSpec, task: str) -> dict[str, Any]:
     label = f"{spec.name}-{task_hash(task)}"
     return {
@@ -850,15 +863,19 @@ def execute_provider_run(
     patch_output: bool = False,
     context_files: tuple[IncludedContextFile, ...] = (),
 ) -> dict[str, Any]:
-    agent = sdk.Agent(
-        name=spec.name,
-        instructions=(
+    agent_kwargs = {
+        "name": spec.name,
+        "instructions": (
             build_patch_output_instructions(spec, active_profile, context_files)
             if patch_output
             else build_agent_instructions(spec, active_profile)
         ),
-        model=spec.model or None,
-    )
+        "model": spec.model or None,
+    }
+    model_settings = provider_model_settings(sdk, spec)
+    if model_settings is not None:
+        agent_kwargs["model_settings"] = model_settings
+    agent = sdk.Agent(**agent_kwargs)
     result = sdk.Runner.run_sync(agent, task, max_turns=max_turns)
     final_output = getattr(result, "final_output", None)
     if final_output is None:
@@ -1408,8 +1425,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.context_file and not args.patch_output:
         raise RunnerError("--context-file is only enabled with --patch-output")
     if args.patch_output:
-        if engine == ENGINE_PROVIDER_SDK and not args.execute:
-            raise RunnerError("--patch-output requires --execute so patch.diff, summary.json, and result.json are produced together")
         spec = load_patch_output_spec(root, role)
     else:
         specs = load_agent_specs(root)
@@ -1442,6 +1457,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "output_dir": str(planned_dir),
         "summary_path": str(summary_path),
     }
+    if context_file_paths:
+        base_result["context_files"] = context_file_paths
     if native_contract is not None:
         base_result["message"] = "Native Codex dispatch contract is ready for native session execution."
         base_result["native_spawn_contract"] = native_contract
