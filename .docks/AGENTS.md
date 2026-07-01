@@ -20,3 +20,12 @@ material lives under `ai-agents/`; Codex-shaped runner material lives under
 custom-agent dispatch. Do not use prompt prefixes, legacy goal-command payloads,
 clipboard-based handoffs, or retired transfer-contract files as a role-selection
 mechanism.
+
+## Child DOX Index
+
+- `foreman/AGENTS.md` governs the only current named dock and active Foreman
+  entrypoint.
+- `profiles/` owns active profile binding and reusable profile packs; it does
+  not have a child `AGENTS.md` yet.
+- `harness/` owns dock harness support files; it does not have a child
+  `AGENTS.md` yet.
