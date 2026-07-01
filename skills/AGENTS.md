@@ -29,4 +29,6 @@
 
 ## Child DOX Index
 
+- `aos-agent-workspace/` contains the saved perception workspace and compact
+  ref loop skill for normal `aos see` / `aos do` workflows.
 - Each direct child folder is a standalone skill package.

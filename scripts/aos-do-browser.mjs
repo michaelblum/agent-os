@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { maybeRunRefAction } from './lib/aos-agent-workspace.mjs';
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -230,6 +231,7 @@ function dragCommand(args) {
 
 try {
   const [command, ...args] = process.argv.slice(2);
+  if (command) maybeRunRefAction(command, args);
   if (command === 'fill') fillCommand(args);
   else if (command === 'navigate') navigateCommand(args);
   else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);

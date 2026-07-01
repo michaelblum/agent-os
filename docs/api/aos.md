@@ -145,6 +145,47 @@ Typical consumer loop:
 3. Use `aos do` or `aos show`.
 4. Re-perceive if needed.
 
+For longer agent loops, save compact local perception state instead of carrying
+full capture payloads through stdout:
+
+```bash
+aos see capture browser:work --save --mode som --workspace default
+aos see snapshots --workspace default --json
+aos see refs --workspace default --query Save --json
+aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
+```
+
+Saved agent workspaces live under
+`~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
+`$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
+root is overridden. Compact stdout includes counts, artifact refs, compact refs,
+resolution classes, backend confidence, warnings, known limits, and file paths.
+Full capture JSON, screenshots, base64 payloads, AX/browser element arrays, and
+semantic target arrays stay file-backed under the snapshot directory. The saved
+workspace contract is `aos.agent-workspace.v0`; see
+`shared/schemas/aos-agent-workspace-v0.md`.
+
+Capture modes are explicit:
+
+- `--mode ax`: tree-oriented refs where the backend can supply them.
+- `--mode vision`: screenshot-oriented capture with image/base64 artifacts
+  saved under `artifacts/`.
+- `--mode som`: screen-object mode; currently xray-backed where available.
+
+Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
+form is preferred. Bare refs resolve only when unambiguous inside the workspace.
+Real mutation is fail-closed: browser `snapshot_scoped` refs and native AX
+`volatile` refs currently require refreshed validation before action, while AOS
+canvas `reacquirable` refs can route through the current canvas resolver.
+
+Cleanup is explicit:
+
+```bash
+aos see workspace prune default --older-than 7d --dry-run --json
+aos see snapshot delete <snapshot-id> --workspace default --i-understand-local-artifacts --json
+aos see workspace delete default --i-understand-local-artifacts --json
+```
+
 ### 2. Ask For Bounded Human Input
 
 `aos gate ask` presents a bounded structured decision through the gate service and writes the terminal result to stdout as JSON.
@@ -628,13 +669,21 @@ Primary public verbs:
 | `session` | interactive action session |
 | `profiles` | inspect behavior profiles |
 
-`click` supports three target forms:
+`click` supports four target forms:
 
 ```bash
 aos do click 500,300
+aos do click ref:<snapshot-id>:<ref> --workspace <id>
 aos do click browser:<session>/<ref>
 aos do click canvas:<canvas-id>/<ref> --state-id <id>
 ```
+
+Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
+saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
+underlying command and whether current-target validation is still required.
+Non-dry-run mutation refuses unsafe resolution classes with machine-readable
+errors such as `REF_REVALIDATION_REQUIRED`, `REF_AMBIGUOUS`, `REF_NOT_FOUND`,
+or `ACTION_INCOMPATIBLE`.
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass

@@ -229,14 +229,61 @@ data = json.loads(os.environ["OUT"])
 form = next(item for item in data["forms"] if item["id"] == "do-click")
 usage = form["usage"]
 tokens = {arg.get("token") for arg in form["args"]}
+assert "ref:<snapshot-id>:<ref>" in usage, usage
 assert "canvas:<canvas-id>/<ref>" in usage, usage
 assert "browser:<session>/<ref>" in usage, usage
 assert "--state-id" in tokens, tokens
+assert "--workspace" in tokens, tokens
+assert "--snapshot" in tokens, tokens
 PY
 then
     pass "do click help exposes ref target forms"
 else
     fail "do click help is missing ref target forms: $OUT"
+fi
+
+# --- 18. saved agent workspace help stays discoverable ---
+if CAPTURE="$(./aos help see capture --json 2>/dev/null)" \
+   REFS="$(./aos help see refs --json 2>/dev/null)" \
+   SNAPSHOTS="$(./aos help see snapshots --json 2>/dev/null)" \
+   WORKSPACE="$(./aos help see workspace --json 2>/dev/null)" \
+   python3 - <<'PY'
+import json
+import os
+
+capture = json.loads(os.environ["CAPTURE"])
+capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
+capture_tokens = {arg.get("token") for arg in capture_form["args"]}
+mode_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--mode")
+mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
+assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
+assert mode_values == {"ax", "vision", "som"}, mode_values
+assert any("aos see refs" in item for item in capture_form["examples"]), capture_form["examples"]
+
+refs = json.loads(os.environ["REFS"])
+refs_form = next(item for item in refs["forms"] if item["id"] == "see-refs")
+refs_tokens = {arg.get("token") for arg in refs_form["args"]}
+assert refs_form["usage"] == "aos see refs [--workspace <id>] [--snapshot <id>] [--query <text>] [--json]", refs_form
+assert {"--workspace", "--snapshot", "--query", "--json"} <= refs_tokens, refs_tokens
+
+snapshots = json.loads(os.environ["SNAPSHOTS"])
+snapshots_form = next(item for item in snapshots["forms"] if item["id"] == "see-snapshots")
+assert snapshots_form["usage"] == "aos see snapshots [--workspace <id>] [--json]", snapshots_form
+
+workspace = json.loads(os.environ["WORKSPACE"])
+form_ids = {item["id"] for item in workspace["forms"]}
+assert {"see-workspace", "see-workspace-prune", "see-workspace-delete"} <= form_ids, form_ids
+prune = next(item for item in workspace["forms"] if item["id"] == "see-workspace-prune")
+delete = next(item for item in workspace["forms"] if item["id"] == "see-workspace-delete")
+prune_tokens = {arg.get("token") for arg in prune["args"]}
+delete_tokens = {arg.get("token") for arg in delete["args"]}
+assert {"--older-than", "--dry-run", "--i-understand-local-artifacts", "--json"} <= prune_tokens, prune_tokens
+assert {"--i-understand-local-artifacts", "--json"} <= delete_tokens, delete_tokens
+PY
+then
+    pass "saved agent workspace help exposes capture, refs, snapshots, and cleanup"
+else
+    fail "saved agent workspace help drifted"
 fi
 
 # --- 18. see zone define help matches the external deterministic parser ---

@@ -1,0 +1,20 @@
+export { maybeRunRefAction } from './agent-workspace/actions.mjs';
+export { parseSavedCaptureArgs, savedCaptureCommand } from './agent-workspace/capture.mjs';
+export {
+  agentWorkspaceCLI,
+  refsCommand,
+  snapshotCommand,
+  snapshotsCommand,
+  workspaceCommand,
+  workspacesCommand,
+} from './agent-workspace/commands.mjs';
+export {
+  agentWorkspacesRoot,
+  aosPath,
+  exitAgentWorkspaceError,
+  runtimeMode,
+  stateDir,
+  stateRoot,
+  validateLocalID,
+  workspaceID,
+} from './agent-workspace/core.mjs';

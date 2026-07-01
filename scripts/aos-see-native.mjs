@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import {
+  parseSavedCaptureArgs,
+  savedCaptureCommand,
+} from './lib/aos-agent-workspace.mjs';
 
 const CAPTURE_FORMATS = new Set(['png', 'jpg', 'heic']);
 const CAPTURE_QUALITIES = new Set(['high', 'med', 'low']);
@@ -31,6 +35,10 @@ const captureValueFlags = new Set([
   '--grid',
   '--thickness',
   '--shadow',
+  '--workspace',
+  '--name',
+  '--mode',
+  '--query',
 ]);
 
 const captureBoolFlags = new Set([
@@ -43,6 +51,7 @@ const captureBoolFlags = new Set([
   '--xray',
   '--label',
   '--clipboard',
+  '--save',
 ]);
 
 function isNumeric(value) {
@@ -54,6 +63,7 @@ function isPositiveInt(value) {
 }
 
 function parseCaptureArgs(args) {
+  const savedCapture = parseSavedCaptureArgs(args);
   let i = 0;
   let target = null;
   if (i < args.length && !args[i].startsWith('--')) {
@@ -110,6 +120,12 @@ function parseCaptureArgs(args) {
   if (seen.has('--window') && seen.has('--region')) error('--region and --window cannot be used together', 'INVALID_ARG');
   const surfaceSelectors = ['--region', '--canvas', '--channel'].filter((flag) => seen.has(flag));
   if (surfaceSelectors.length > 1) error('Use only one of --region, --canvas, or --channel', 'INVALID_ARG');
+  if (!savedCapture.options.save) {
+    for (const flag of ['--workspace', '--name', '--mode', '--query']) {
+      if (seen.has(flag)) error(`${flag} requires --save`, 'INVALID_ARG');
+    }
+  }
+  return savedCapture;
 }
 
 function parseNoArgPrimitive(primitive, args) {
@@ -125,8 +141,14 @@ if (!primitive) error('see native wrapper requires a primitive', 'MISSING_ARG');
 if (!['capture', 'cursor', 'list', 'selection'].includes(primitive)) {
   error(`Unknown see native primitive: ${primitive}`, 'UNKNOWN_SUBCOMMAND');
 }
-if (primitive === 'capture') parseCaptureArgs(args);
+let savedCapture = null;
+if (primitive === 'capture') savedCapture = parseCaptureArgs(args);
 if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
+
+if (primitive === 'capture' && savedCapture?.options.save) {
+  await savedCaptureCommand(args, savedCapture);
+  process.exit(0);
+}
 
 const result = spawnSync(aosPath(), ['__see', primitive, ...args], {
   encoding: 'utf8',
