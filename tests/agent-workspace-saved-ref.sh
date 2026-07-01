@@ -53,6 +53,35 @@ with_corrupt_file() {
     mv "$backup" "$file"
 }
 
+FAILING_AOS="$TMP_DIR/failing-aos"
+cat >"$FAILING_AOS" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "__see" && "${2:-}" == "capture" ]]; then
+    echo "primitive exploded" >&2
+    exit 7
+fi
+
+echo "unexpected failing aos invocation: $*" >&2
+exit 2
+SH
+chmod +x "$FAILING_AOS"
+
+FAILED_CAPTURE_ERR="$TMP_DIR/failing-capture.err"
+if AOS_PATH="$FAILING_AOS" node scripts/aos-see-native.mjs capture --save --mode ax --workspace ws-fail --name snapfail >"$TMP_DIR/failing-capture.out" 2>"$FAILED_CAPTURE_ERR"; then
+    fail "failing primitive saved capture unexpectedly succeeded"
+else
+    FAILED_CAPTURE_STATUS=$?
+fi
+[[ "$FAILED_CAPTURE_STATUS" -eq 7 ]] || fail "failing primitive exited $FAILED_CAPTURE_STATUS instead of 7: $(cat "$FAILED_CAPTURE_ERR")"
+grep -q "primitive exploded" "$FAILED_CAPTURE_ERR" \
+    || fail "failing primitive stderr was not forwarded: $(cat "$FAILED_CAPTURE_ERR")"
+[[ ! -e "$AOS_STATE_ROOT/repo/agent-workspaces/ws-fail/.write-lock" ]] \
+    || fail "failing primitive left workspace lock behind"
+[[ ! -e "$AOS_STATE_ROOT/repo/agent-workspaces/ws-fail/snapshots/snapfail" ]] \
+    || fail "failing primitive left partial snapshot directory behind"
+
 CAP1="$TMP_DIR/capture-snap1.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap1 --query button >"$CAP1"
 jq -e '
@@ -101,6 +130,15 @@ WORKSPACE_INFO="$TMP_DIR/workspace-info.json"
 ./aos see workspace ws1 --json >"$WORKSPACE_INFO"
 jq -e '.lock_state.status == "unlocked" and (.lock_state.path | endswith("/.write-lock"))' "$WORKSPACE_INFO" >/dev/null \
     || fail "workspace lock state did not report unlocked: $(cat "$WORKSPACE_INFO")"
+SNAP_EXISTS_ERR="$TMP_DIR/snapshot-exists.err"
+if ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap1 >"$TMP_DIR/snapshot-exists.out" 2>"$SNAP_EXISTS_ERR"; then
+    fail "duplicate snapshot unexpectedly succeeded"
+fi
+expect_error_code "SNAPSHOT_EXISTS" "$SNAP_EXISTS_ERR"
+[[ ! -e "$WORKSPACE_PATH/.write-lock" ]] \
+    || fail "duplicate snapshot left workspace lock behind"
+[[ -f "$SNAPSHOT_RECORD_PATH" ]] \
+    || fail "duplicate snapshot removed the existing snapshot record"
 jq -e '.elements | length == 3' "$CAPTURE_PATH" >/dev/null \
     || fail "full capture did not retain element payload"
 jq -e '(has("elements") | not) and (has("semantic_targets") | not) and (has("base64") | not)' "$SUMMARY_PATH" >/dev/null \
@@ -381,6 +419,11 @@ expect_error_code "REF_UNSUPPORTED" "$NATIVE_ERR"
 jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .ref.resolution_class == "volatile"' "$NATIVE_ERR" >/dev/null \
     || fail "native unsupported ref payload drifted: $(cat "$NATIVE_ERR")"
 
+HIGHLIGHT_MAIN="$TMP_DIR/capture-highlight-main.json"
+AOS_PATH="$FAKE_AOS" node scripts/aos-see-native.mjs capture --save --mode ax --workspace ws-highlight --name snaphighlight --highlight-cursor '#ff00aa' >"$HIGHLIGHT_MAIN"
+jq -e '.status == "success" and .target == "main" and .snapshot_id == "snaphighlight"' "$HIGHLIGHT_MAIN" >/dev/null \
+    || fail "no-target highlight saved capture did not persist main target: $(cat "$HIGHLIGHT_MAIN")"
+
 FAKE_CANVAS_AOS="$TMP_DIR/fake-canvas-aos"
 cat >"$FAKE_CANVAS_AOS" <<'SH'
 #!/usr/bin/env bash
@@ -504,6 +547,23 @@ if ./aos see workspace delete ws-vision >"$TMP_DIR/workspace-delete-no-ack.out" 
     fail "workspace delete succeeded without acknowledgement"
 fi
 expect_error_code "ACK_REQUIRED" "$ACK_ERR"
+
+MISSING_WORKSPACE_DIR="$AOS_STATE_ROOT/repo/agent-workspaces/missing"
+MISSING_WORKSPACE_DELETE_ERR="$TMP_DIR/workspace-delete-missing.err"
+if ./aos see workspace delete missing --i-understand-local-artifacts --json >"$TMP_DIR/workspace-delete-missing.out" 2>"$MISSING_WORKSPACE_DELETE_ERR"; then
+    fail "workspace delete missing unexpectedly succeeded"
+fi
+expect_error_code "WORKSPACE_NOT_FOUND" "$MISSING_WORKSPACE_DELETE_ERR"
+[[ ! -e "$MISSING_WORKSPACE_DIR" ]] \
+    || fail "workspace delete missing created state at $MISSING_WORKSPACE_DIR"
+
+MISSING_SNAPSHOT_DELETE_ERR="$TMP_DIR/snapshot-delete-missing-workspace.err"
+if ./aos see snapshot delete snap-missing --workspace missing --i-understand-local-artifacts --json >"$TMP_DIR/snapshot-delete-missing-workspace.out" 2>"$MISSING_SNAPSHOT_DELETE_ERR"; then
+    fail "snapshot delete in missing workspace unexpectedly succeeded"
+fi
+expect_error_code "WORKSPACE_NOT_FOUND" "$MISSING_SNAPSHOT_DELETE_ERR"
+[[ ! -e "$MISSING_WORKSPACE_DIR" ]] \
+    || fail "snapshot delete missing workspace created state at $MISSING_WORKSPACE_DIR"
 
 mkdir "$AOS_STATE_ROOT/repo/agent-workspaces/ws-vision/.write-lock"
 LOCKED_WORKSPACE_DELETE_ERR="$TMP_DIR/locked-workspace-delete.err"

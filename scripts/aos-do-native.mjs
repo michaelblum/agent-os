@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { maybeRunRefAction } from './lib/aos-agent-workspace.mjs';
+import {
+  emitAgentWorkspaceError,
+  isAgentWorkspaceError,
+  maybeRunRefAction,
+} from './lib/aos-agent-workspace.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -150,7 +154,12 @@ function validate(verb, args) {
 
 const [verb, ...args] = process.argv.slice(2);
 if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
-maybeRunRefAction(verb, args);
+try {
+  maybeRunRefAction(verb, args);
+} catch (err) {
+  if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
+  throw err;
+}
 validate(verb, args);
 
 const result = spawnSync(aosPath(), ['__do', verb, ...args], {

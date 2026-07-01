@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { maybeRunRefAction } from './lib/aos-agent-workspace.mjs';
+import {
+  emitAgentWorkspaceError,
+  isAgentWorkspaceError,
+  maybeRunRefAction,
+} from './lib/aos-agent-workspace.mjs';
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -238,6 +242,7 @@ try {
   else if (command === 'drag') dragCommand(args);
   else error(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
 } catch (err) {
+  if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
   if (Array.isArray(err)) error(err[1], err[0]);
   error(String(err), 'INTERNAL');
 }

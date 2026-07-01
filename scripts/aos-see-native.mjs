@@ -2,6 +2,8 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  emitAgentWorkspaceError,
+  isAgentWorkspaceError,
   parseCaptureArgs,
   savedCaptureCommand,
 } from './lib/aos-agent-workspace.mjs';
@@ -23,30 +25,35 @@ function parseNoArgPrimitive(primitive, args) {
   }
 }
 
-const [primitive, ...args] = process.argv.slice(2);
-if (!primitive) error('see native wrapper requires a primitive', 'MISSING_ARG');
-if (!['capture', 'cursor', 'list', 'selection'].includes(primitive)) {
-  error(`Unknown see native primitive: ${primitive}`, 'UNKNOWN_SUBCOMMAND');
-}
-let savedCapture = null;
-if (primitive === 'capture') {
-  savedCapture = parseCaptureArgs(args);
-  if (savedCapture.errors.length) {
-    const first = savedCapture.errors[0];
-    error(first.error, first.code);
+try {
+  const [primitive, ...args] = process.argv.slice(2);
+  if (!primitive) error('see native wrapper requires a primitive', 'MISSING_ARG');
+  if (!['capture', 'cursor', 'list', 'selection'].includes(primitive)) {
+    error(`Unknown see native primitive: ${primitive}`, 'UNKNOWN_SUBCOMMAND');
   }
-}
-if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
+  let savedCapture = null;
+  if (primitive === 'capture') {
+    savedCapture = parseCaptureArgs(args);
+    if (savedCapture.errors.length) {
+      const first = savedCapture.errors[0];
+      error(first.error, first.code);
+    }
+  }
+  if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
 
-if (primitive === 'capture' && savedCapture?.options.save) {
-  await savedCaptureCommand(args, savedCapture);
-  process.exit(0);
-}
+  if (primitive === 'capture' && savedCapture?.options.save) {
+    await savedCaptureCommand(args, savedCapture);
+    process.exit(0);
+  }
 
-const result = spawnSync(aosPath(), ['__see', primitive, ...args], {
-  encoding: 'utf8',
-  env: process.env,
-});
-if (result.stdout) process.stdout.write(result.stdout);
-if (result.stderr) process.stderr.write(result.stderr);
-process.exit(result.status ?? 1);
+  const result = spawnSync(aosPath(), ['__see', primitive, ...args], {
+    encoding: 'utf8',
+    env: process.env,
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status ?? 1);
+} catch (err) {
+  if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
+  throw err;
+}

@@ -279,6 +279,9 @@ mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert any("aos see refs" in item for item in capture_form["examples"]), capture_form["examples"]
+assert capture_form["execution"]["mutates_state"] is True, capture_form["execution"]
+assert capture_form["execution"]["read_only"] is False, capture_form["execution"]
+assert "--save" in capture["summary"], capture["summary"]
 
 refs = json.loads(os.environ["REFS"])
 refs_form = next(item for item in refs["forms"] if item["id"] == "see-refs")

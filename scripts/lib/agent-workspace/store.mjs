@@ -89,12 +89,18 @@ export function workspaceLockState(dir) {
   return { status: 'locked', path: lockDir, owner };
 }
 
-export function withWorkspaceLock(workspace, callback, env = process.env) {
+export function withWorkspaceLock(workspace, callback, env = process.env, { create = false } = {}) {
   const dir = assertUnderWorkspacesRoot(workspaceDir(workspace, env), env);
-  fs.mkdirSync(dir, { recursive: true });
+  if (create) {
+    fs.mkdirSync(dir, { recursive: true });
+  } else if (!fs.existsSync(dir)) {
+    exitAgentWorkspaceError(`Workspace '${workspace}' not found`, 'WORKSPACE_NOT_FOUND');
+  }
   const lockDir = workspaceLockDir(dir);
+  let lockHeld = false;
   try {
     fs.mkdirSync(lockDir);
+    lockHeld = true;
   } catch (error) {
     if (error?.code === 'EEXIST') {
       exitAgentWorkspaceError(`Workspace '${workspace}' is locked for mutation: ${lockDir}`, 'AGENT_WORKSPACE_LOCKED', {
@@ -102,19 +108,22 @@ export function withWorkspaceLock(workspace, callback, env = process.env) {
         lock_path: lockDir,
       });
     }
+    if (error?.code === 'ENOENT') {
+      exitAgentWorkspaceError(`Workspace '${workspace}' not found`, 'WORKSPACE_NOT_FOUND');
+    }
     throw error;
   }
-  writeJSONAtomic(path.join(lockDir, 'owner.json'), {
-    schema_version: SCHEMA_VERSION,
-    workspace_id: workspace,
-    pid: process.pid,
-    created_at: nowISO(),
-    session: sessionMetadata(env),
-  });
   try {
+    writeJSONAtomic(path.join(lockDir, 'owner.json'), {
+      schema_version: SCHEMA_VERSION,
+      workspace_id: workspace,
+      pid: process.pid,
+      created_at: nowISO(),
+      session: sessionMetadata(env),
+    });
     return callback();
   } finally {
-    fs.rmSync(lockDir, { recursive: true, force: true });
+    if (lockHeld) fs.rmSync(lockDir, { recursive: true, force: true });
   }
 }
 
@@ -282,7 +291,8 @@ export function pruneSnapshots(workspace, candidates, { dryRun = false } = {}, e
 
 export function deleteWorkspace(workspace, env = process.env) {
   return withWorkspaceLock(workspace, () => {
-    const dir = assertUnderWorkspacesRoot(workspaceDir(workspace, env), env);
+    const current = requireWorkspace(workspace, env);
+    const dir = assertUnderWorkspacesRoot(current.dir, env);
     const bytes = directoryBytes(dir);
     fs.rmSync(dir, { recursive: true, force: true });
     return { dir, bytes };

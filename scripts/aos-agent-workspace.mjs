@@ -1,5 +1,14 @@
 #!/usr/bin/env node
 
-import { agentWorkspaceCLI } from './lib/aos-agent-workspace.mjs';
+import {
+  agentWorkspaceCLI,
+  emitAgentWorkspaceError,
+  isAgentWorkspaceError,
+} from './lib/aos-agent-workspace.mjs';
 
-agentWorkspaceCLI(process.argv.slice(2));
+try {
+  agentWorkspaceCLI(process.argv.slice(2));
+} catch (error) {
+  if (isAgentWorkspaceError(error)) emitAgentWorkspaceError(error);
+  throw error;
+}

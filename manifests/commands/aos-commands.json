@@ -599,8 +599,8 @@
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
+            "mutates_state" : true,
+            "read_only" : false,
             "requires_permissions" : true,
             "streaming" : false,
             "supports_dry_run" : false
@@ -1057,7 +1057,7 @@
       "path" : [
         "see"
       ],
-      "summary" : "Perception — query what's on screen"
+      "summary" : "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
     },
     {
       "forms" : [

@@ -2,12 +2,13 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  AgentWorkspaceError,
   CAPTURE_MODES,
   SCHEMA_VERSION,
   aosPath,
   exitAgentWorkspaceError,
+  isAgentWorkspaceError,
   nowISO,
-  printError,
   printJSON,
   randomToken,
   runtimeMode,
@@ -78,21 +79,6 @@ function isPositiveInt(value) {
 
 function validationError(errors, message, code = 'INVALID_ARG') {
   errors.push({ code, error: message });
-}
-
-function targetFromCaptureArgs(args) {
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg.startsWith('--')) {
-      if (captureValueFlag(arg)) i += arg === '--draw-rect' || arg === '--draw-rect-fill' ? 2 : 1;
-      continue;
-    }
-    if (arg === 'external' && args[i + 1] && !args[i + 1].startsWith('--') && /^\d+$/.test(args[i + 1])) {
-      return `${arg} ${args[i + 1]}`;
-    }
-    return arg;
-  }
-  return 'main';
 }
 
 function hasFlag(args, flag) {
@@ -215,6 +201,7 @@ export function parseCaptureArgs(args) {
     target = arg;
     passthrough.push(arg);
     if (arg === 'external' && i + 1 < args.length && !args[i + 1].startsWith('--') && /^\d+$/.test(args[i + 1])) {
+      target = `${arg} ${args[i + 1]}`;
       passthrough.push(args[i + 1]);
       i += 1;
     }
@@ -233,7 +220,7 @@ export function parseCaptureArgs(args) {
   if (options.workspace) validateLocalID(options.workspace, 'workspace id');
   if (options.name) validateLocalID(options.name, 'snapshot id');
   return {
-    target: target ?? targetFromCaptureArgs(passthrough),
+    target: target ?? 'main',
     passthrough,
     options,
     requested_out: options.requested_out,
@@ -264,15 +251,18 @@ function captureArgsForMode(args, mode, artifactPath) {
 
 function parsePrimitiveJSON(result, label) {
   if (result.status !== 0) {
-    if (result.stderr) process.stderr.write(result.stderr);
-    else printError({ code: 'PRIMITIVE_FAILED', error: `${label} failed with exit ${result.status ?? 1}` });
-    process.exit(result.status ?? 1);
+    const status = result.status ?? 1;
+    throw new AgentWorkspaceError(
+      `${label} failed with exit ${status}`,
+      'PRIMITIVE_FAILED',
+      {},
+      { exitStatus: status, stderr: result.stderr || null },
+    );
   }
   try {
     return JSON.parse(result.stdout);
   } catch {
-    printError({ code: 'PRIMITIVE_JSON_INVALID', error: `${label} did not return JSON` });
-    process.exit(1);
+    throw new AgentWorkspaceError(`${label} did not return JSON`, 'PRIMITIVE_JSON_INVALID');
   }
 }
 
@@ -322,9 +312,9 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
   const workspace = workspaceID(parsed.options.workspace, env);
   const snapID = snapshotID(parsed.options.name);
   const target = parsed.target;
-  const current = ensureWorkspace(workspace, env);
-  const snapshotDir = path.join(current.dir, 'snapshots', snapID);
   return withWorkspaceLock(workspace, () => {
+    const current = ensureWorkspace(workspace, env);
+    const snapshotDir = path.join(current.dir, 'snapshots', snapID);
     if (fs.existsSync(snapshotDir)) {
       exitAgentWorkspaceError(`Snapshot '${snapID}' already exists in workspace '${workspace}'`, 'SNAPSHOT_EXISTS');
     }
@@ -429,10 +419,11 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       printJSON(summary);
     } catch (error) {
       fs.rmSync(snapshotDir, { recursive: true, force: true });
+      if (isAgentWorkspaceError(error)) throw error;
       if (error?.code || error?.message) {
         exitAgentWorkspaceError(error.message || String(error), error.code || 'AGENT_WORKSPACE_SAVE_FAILED');
       }
       throw error;
     }
-  }, env);
+  }, env, { create: true });
 }

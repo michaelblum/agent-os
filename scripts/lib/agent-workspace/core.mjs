@@ -52,13 +52,45 @@ export function printError(value) {
   process.stderr.write(`${JSON.stringify(value, null, JSON_SPACING)}\n`);
 }
 
+export class AgentWorkspaceError extends Error {
+  constructor(message, code, extra = {}, options = {}) {
+    super(message);
+    this.name = 'AgentWorkspaceError';
+    this.code = code;
+    this.extra = extra;
+    this.exitStatus = options.exitStatus ?? 1;
+    this.stderr = options.stderr ?? null;
+  }
+
+  toJSON() {
+    return {
+      code: this.code,
+      error: this.message,
+      ...this.extra,
+    };
+  }
+}
+
+export function isAgentWorkspaceError(error) {
+  return error instanceof AgentWorkspaceError || (
+    error?.name === 'AgentWorkspaceError' &&
+    typeof error?.code === 'string'
+  );
+}
+
 export function exitAgentWorkspaceError(message, code, extra = {}) {
-  printError({
-    code,
-    error: message,
-    ...extra,
+  throw new AgentWorkspaceError(message, code, extra);
+}
+
+export function emitAgentWorkspaceError(error) {
+  if (!isAgentWorkspaceError(error)) throw error;
+  if (error.stderr) process.stderr.write(error.stderr);
+  else printError(typeof error.toJSON === 'function' ? error.toJSON() : {
+    code: error.code,
+    error: error.message,
+    ...(error.extra ?? {}),
   });
-  process.exit(1);
+  process.exit(error.exitStatus ?? 1);
 }
 
 function sortObject(value) {

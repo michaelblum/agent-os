@@ -11,7 +11,9 @@ export {
 export {
   agentWorkspacesRoot,
   aosPath,
+  emitAgentWorkspaceError,
   exitAgentWorkspaceError,
+  isAgentWorkspaceError,
   runtimeMode,
   stateDir,
   stateRoot,
