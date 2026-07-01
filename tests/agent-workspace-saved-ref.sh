@@ -27,6 +27,32 @@ expect_error_code() {
         || fail "expected error code $expected, got: $(cat "$err_file")"
 }
 
+expect_corrupt_state() {
+    local expected_path="$1"
+    local err_file="$2"
+    expect_error_code "AGENT_WORKSPACE_STATE_CORRUPT" "$err_file"
+    jq -e --arg path "$expected_path" '.path == $path or (.error | contains($path))' "$err_file" >/dev/null \
+        || fail "corrupt-state error did not include path $expected_path: $(cat "$err_file")"
+}
+
+with_corrupt_file() {
+    local file="$1"
+    shift
+    local backup="$file.bak-test"
+    cp "$file" "$backup"
+    printf '{' >"$file"
+    if "$@" >"$TMP_DIR/corrupt.out" 2>"$TMP_DIR/corrupt.err"; then
+        mv "$backup" "$file"
+        fail "corrupt state unexpectedly succeeded for $file"
+    fi
+    expect_corrupt_state "$file" "$TMP_DIR/corrupt.err"
+    [[ "$(cat "$file")" == "{" ]] || {
+        mv "$backup" "$file"
+        fail "corrupt state file was rewritten: $file"
+    }
+    mv "$backup" "$file"
+}
+
 CAP1="$TMP_DIR/capture-snap1.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap1 --query button >"$CAP1"
 jq -e '
@@ -71,6 +97,10 @@ jq -e 'has("current_snapshot_id") | not' "$WORKSPACE_PATH/workspace.json" >/dev/
     || fail "workspace metadata must not own current_snapshot_id"
 jq -e '.current_snapshot_id == "snap1"' "$WORKSPACE_PATH/index.json" >/dev/null \
     || fail "workspace index did not own current_snapshot_id"
+WORKSPACE_INFO="$TMP_DIR/workspace-info.json"
+./aos see workspace ws1 --json >"$WORKSPACE_INFO"
+jq -e '.lock_state.status == "unlocked" and (.lock_state.path | endswith("/.write-lock"))' "$WORKSPACE_INFO" >/dev/null \
+    || fail "workspace lock state did not report unlocked: $(cat "$WORKSPACE_INFO")"
 jq -e '.elements | length == 3' "$CAPTURE_PATH" >/dev/null \
     || fail "full capture did not retain element payload"
 jq -e '(has("elements") | not) and (has("semantic_targets") | not) and (has("base64") | not)' "$SUMMARY_PATH" >/dev/null \
@@ -117,6 +147,36 @@ PY
 then
     fail "schema accepted saved ref missing identity_facts.state_id"
 fi
+
+with_corrupt_file "$WORKSPACE_PATH/workspace.json" ./aos see workspace ws1 --json
+with_corrupt_file "$WORKSPACE_PATH/index.json" ./aos see snapshots --workspace ws1 --json
+with_corrupt_file "$SNAPSHOT_RECORD_PATH" ./aos see refs --workspace ws1 --snapshot snap1 --json
+with_corrupt_file "$REFS_PATH" ./aos see refs --workspace ws1 --snapshot snap1 --json
+
+mkdir "$WORKSPACE_PATH/.write-lock"
+cat >"$WORKSPACE_PATH/.write-lock/owner.json" <<'JSON'
+{"owner":"test"}
+JSON
+LOCKED_INFO="$TMP_DIR/workspace-locked-info.json"
+./aos see workspace ws1 --json >"$LOCKED_INFO"
+jq -e '.lock_state.status == "locked" and .lock_state.owner.owner == "test"' "$LOCKED_INFO" >/dev/null \
+    || fail "workspace lock state did not report locked: $(cat "$LOCKED_INFO")"
+LOCKED_SAVE_ERR="$TMP_DIR/locked-save.err"
+if ./aos see capture browser:todo --save --mode ax --workspace ws1 --name locked-save >"$TMP_DIR/locked-save.out" 2>"$LOCKED_SAVE_ERR"; then
+    fail "save succeeded under pre-existing workspace lock"
+fi
+expect_error_code "AGENT_WORKSPACE_LOCKED" "$LOCKED_SAVE_ERR"
+LOCKED_PRUNE_ERR="$TMP_DIR/locked-prune.err"
+if ./aos see workspace prune ws1 --older-than 0s --i-understand-local-artifacts --json >"$TMP_DIR/locked-prune.out" 2>"$LOCKED_PRUNE_ERR"; then
+    fail "prune succeeded under pre-existing workspace lock"
+fi
+expect_error_code "AGENT_WORKSPACE_LOCKED" "$LOCKED_PRUNE_ERR"
+LOCKED_DELETE_ERR="$TMP_DIR/locked-delete.err"
+if ./aos see snapshot delete snap1 --workspace ws1 --i-understand-local-artifacts --json >"$TMP_DIR/locked-delete.out" 2>"$LOCKED_DELETE_ERR"; then
+    fail "snapshot delete succeeded under pre-existing workspace lock"
+fi
+expect_error_code "AGENT_WORKSPACE_LOCKED" "$LOCKED_DELETE_ERR"
+rm -rf "$WORKSPACE_PATH/.write-lock"
 
 REFS="$TMP_DIR/refs-snap1.json"
 ./aos see refs --workspace ws1 --snapshot snap1 --query button --json >"$REFS"
@@ -220,32 +280,25 @@ jq -e '
   .status == "success"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
-  and (.refs[0].supported_actions | index("fill") != null)
-  and (.refs[0].supported_actions | index("type") != null)
+  and (.refs[0].supported_actions == ["click"])
+  and (.refs[0].supported_actions | index("fill") | not)
+  and (.refs[0].supported_actions | index("type") | not)
+  and (.refs[0].supported_actions | index("key") | not)
   and .refs[0].action_target == "browser:form/e42"
 ' "$FORM" >/dev/null || fail "browser form saved-ref reporting drifted: $(cat "$FORM")"
 
-FORM_DRY="$TMP_DIR/do-form-fill-dry-run.json"
-AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_DRY"
-jq -e '
-  .status == "dry_run"
-  and .action == "fill"
-  and .ref.ref == "r1"
-  and .resolved_action.resolution_status == "validation_required"
-  and (.resolved_action.command | index("browser:form/e42") != null)
-  and (.resolved_action.command | index("hello") != null)
-' "$FORM_DRY" >/dev/null || fail "browser fill ref dry-run drifted: $(cat "$FORM_DRY")"
-
-FORM_REAL_ERR="$TMP_DIR/do-form-fill-real.err"
-if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-real.out" 2>"$FORM_REAL_ERR"; then
-    fail "browser fill snapshot ref mutation unexpectedly succeeded"
+FORM_FILL_ERR="$TMP_DIR/do-form-fill.err"
+if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill.out" 2>"$FORM_FILL_ERR"; then
+    fail "browser fill saved ref unexpectedly succeeded"
 fi
-expect_error_code "REF_REVALIDATION_REQUIRED" "$FORM_REAL_ERR"
+expect_error_code "ACTION_INCOMPATIBLE" "$FORM_FILL_ERR"
 
 CAP2="$TMP_DIR/capture-snap2.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap2 >"$CAP2"
 jq -e '.status == "success" and .snapshot_id == "snap2" and .capture_mode == "ax"' "$CAP2" >/dev/null \
     || fail "second capture failed: $(cat "$CAP2")"
+jq -e '([.snapshots[].snapshot_id] | index("snap1") != null and index("snap2") != null)' "$WORKSPACE_PATH/index.json" >/dev/null \
+    || fail "sequential saves did not preserve both snapshot index entries: $(cat "$WORKSPACE_PATH/index.json")"
 
 AMBIG_ERR="$TMP_DIR/do-ref-ambiguous.err"
 if ./aos do click "ref:$REF" --workspace ws1 --dry-run >"$TMP_DIR/do-ref-ambiguous.out" 2>"$AMBIG_ERR"; then
@@ -416,6 +469,7 @@ jq -e '
   and .refs[0].confidence == "high"
   and .refs[0].action_target == "canvas:canvas-fixture/save-button"
   and (.refs[0].supported_actions | index("click") != null)
+  and (.refs[0].supported_actions | index("focus") | not)
 ' "$CANVAS" >/dev/null || fail "AOS canvas saved-ref reporting drifted: $(cat "$CANVAS")"
 
 CANVAS_DRY="$TMP_DIR/do-canvas-dry-run.json"
@@ -450,6 +504,14 @@ if ./aos see workspace delete ws-vision >"$TMP_DIR/workspace-delete-no-ack.out" 
     fail "workspace delete succeeded without acknowledgement"
 fi
 expect_error_code "ACK_REQUIRED" "$ACK_ERR"
+
+mkdir "$AOS_STATE_ROOT/repo/agent-workspaces/ws-vision/.write-lock"
+LOCKED_WORKSPACE_DELETE_ERR="$TMP_DIR/locked-workspace-delete.err"
+if ./aos see workspace delete ws-vision --i-understand-local-artifacts --json >"$TMP_DIR/locked-workspace-delete.out" 2>"$LOCKED_WORKSPACE_DELETE_ERR"; then
+    fail "workspace delete succeeded under pre-existing workspace lock"
+fi
+expect_error_code "AGENT_WORKSPACE_LOCKED" "$LOCKED_WORKSPACE_DELETE_ERR"
+rm -rf "$AOS_STATE_ROOT/repo/agent-workspaces/ws-vision/.write-lock"
 
 PRUNE_CAPTURE="$TMP_DIR/capture-prune.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws-prune --name prune1 >"$PRUNE_CAPTURE"

@@ -27,6 +27,10 @@ Each workspace contains:
 - `snapshots/<snapshot>/refs.json`: full saved ref records.
 - `snapshots/<snapshot>/artifacts/`: file-backed screenshots or base64 payloads.
 
+Mutating commands may create a transient `.write-lock/` directory under the
+workspace. This is local contention control state, not part of the persisted
+schema contract.
+
 `capture.json` intentionally preserves the primitive output shape. The workspace
 schema validates the saved workspace files around that payload, not every
 primitive capture field.
@@ -73,14 +77,24 @@ Each saved ref records:
   `action_target`, and `current_address.action_target` are required even when
   their value is `null` for an unsupported or inspection-only ref.
 
-Mutation is fail-closed. `aos do <action> ref:<...>` may dry-run any actionable
-ref to show the resolved command. Non-dry-run mutation currently proceeds only
-for stable refs and AOS canvas `reacquirable` refs; browser
-`snapshot_scoped` and native AX `volatile` refs return
-`REF_REVALIDATION_REQUIRED` until a current-target validation path exists.
+Mutation is fail-closed. V0 saved refs publicly support only
+`aos do click ref:<...>`. Browser `snapshot_scoped` refs may dry-run click to
+show the resolved command, but real mutation returns
+`REF_REVALIDATION_REQUIRED` until a current-target validation path exists. AOS
+canvas `reacquirable` click refs may route through the current canvas resolver.
+Native AX `volatile` refs are inspection-only. Other producer actions may still
+be captured as facts, but `supported_actions` on saved refs is the intersection
+of producer actions and V0 saved-ref support; non-click saved-ref actions return
+`ACTION_INCOMPATIBLE`.
 
 `state_id` remains provenance for a perception state. It is carried into
 resolved AOS canvas actions when available, but it is not durable identity.
+
+Malformed, unreadable, or schema-invalid existing workspace files fail closed
+with `AGENT_WORKSPACE_STATE_CORRUPT` and include the state file path. Missing
+workspaces and missing snapshots keep using `WORKSPACE_NOT_FOUND` and
+`SNAPSHOT_NOT_FOUND`. Concurrent local mutations fail fast with
+`AGENT_WORKSPACE_LOCKED`.
 
 ## Cleanup
 

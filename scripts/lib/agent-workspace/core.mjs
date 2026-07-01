@@ -77,6 +77,15 @@ export function readJSON(file, fallback = null) {
   }
 }
 
+export function readJSONExisting(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    exitAgentWorkspaceError(`Workspace state is corrupt or unreadable: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+}
+
 export function writeJSONAtomic(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}-${randomToken()}`;

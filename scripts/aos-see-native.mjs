@@ -2,12 +2,9 @@
 
 import { spawnSync } from 'node:child_process';
 import {
-  parseSavedCaptureArgs,
+  parseCaptureArgs,
   savedCaptureCommand,
 } from './lib/aos-agent-workspace.mjs';
-
-const CAPTURE_FORMATS = new Set(['png', 'jpg', 'heic']);
-const CAPTURE_QUALITIES = new Set(['high', 'med', 'low']);
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -16,116 +13,6 @@ function error(message, code) {
 
 function aosPath() {
   return process.env.AOS_PATH || './aos';
-}
-
-const captureValueFlags = new Set([
-  '--out',
-  '--crop',
-  '--region',
-  '--canvas',
-  '--channel',
-  '--exclude-window',
-  '--format',
-  '--quality',
-  '--radius',
-  '--browser-dom-point',
-  '--browser-content-rect',
-  '--timeout',
-  '--delay',
-  '--grid',
-  '--thickness',
-  '--shadow',
-  '--workspace',
-  '--name',
-  '--mode',
-  '--query',
-]);
-
-const captureBoolFlags = new Set([
-  '--window',
-  '--base64',
-  '--perception',
-  '--show-cursor',
-  '--interactive',
-  '--wait-for-click',
-  '--xray',
-  '--label',
-  '--clipboard',
-  '--save',
-]);
-
-function isNumeric(value) {
-  return /^-?(?:\d+|\d*\.\d+)$/.test(value);
-}
-
-function isPositiveInt(value) {
-  return /^[1-9]\d*$/.test(value);
-}
-
-function parseCaptureArgs(args) {
-  const savedCapture = parseSavedCaptureArgs(args);
-  let i = 0;
-  let target = null;
-  if (i < args.length && !args[i].startsWith('--')) {
-    target = args[i];
-    i += 1;
-    if (target === 'external' && i < args.length && !args[i].startsWith('--') && /^\d+$/.test(args[i])) {
-      i += 1;
-    }
-  }
-
-  const seen = new Set();
-  while (i < args.length) {
-    const arg = args[i];
-    if (arg === '--highlight-cursor') {
-      seen.add(arg);
-      i += 1;
-      if (i < args.length && args[i].startsWith('#')) i += 1;
-      continue;
-    }
-    if (arg === '--draw-rect' || arg === '--draw-rect-fill') {
-      seen.add(arg);
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) error(`${arg} requires x,y,w,h and #color`, 'MISSING_ARG');
-      if (i + 2 >= args.length || args[i + 2].startsWith('--')) error(`${arg} requires a color after coordinates`, 'MISSING_ARG');
-      i += 3;
-      continue;
-    }
-    if (captureBoolFlags.has(arg)) {
-      seen.add(arg);
-      i += 1;
-      continue;
-    }
-    if (captureValueFlags.has(arg)) {
-      seen.add(arg);
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
-      const value = args[i + 1];
-      if (arg === '--exclude-window' && !isPositiveInt(value)) error('--exclude-window must be a positive integer CGWindowID', 'INVALID_ARG');
-      if (arg === '--radius' && !isPositiveInt(value)) error('--radius must be a positive integer', 'INVALID_ARG');
-      if (arg === '--timeout' && (!isNumeric(value) || Number(value) <= 0)) error('--timeout must be a positive number', 'INVALID_ARG');
-      if (arg === '--delay' && (!isNumeric(value) || Number(value) < 0)) error('--delay must be a non-negative number', 'INVALID_ARG');
-      if (arg === '--grid' && !/^[1-9]\d*x[1-9]\d*$/i.test(value)) error('--grid format: COLSxROWS (e.g., 4x3)', 'INVALID_ARG');
-      if (arg === '--thickness' && (!isNumeric(value) || Number(value) <= 0)) error('--thickness must be a positive number', 'INVALID_ARG');
-      if (arg === '--format' && !CAPTURE_FORMATS.has(value)) error(`--format must be one of: ${[...CAPTURE_FORMATS].join(', ')}`, 'INVALID_ARG');
-      if (arg === '--quality' && !CAPTURE_QUALITIES.has(value)) error(`--quality must be one of: ${[...CAPTURE_QUALITIES].join(', ')}`, 'INVALID_ARG');
-      i += 2;
-      continue;
-    }
-    if (arg.startsWith('--')) error(`Unknown see capture flag: ${arg}`, 'UNKNOWN_FLAG');
-    if (target) error(`Unknown see capture argument: ${arg}`, 'UNKNOWN_ARG');
-    target = arg;
-    i += 1;
-  }
-
-  if (seen.has('--crop') && seen.has('--region')) error('--region and --crop cannot be used together', 'INVALID_ARG');
-  if (seen.has('--window') && seen.has('--region')) error('--region and --window cannot be used together', 'INVALID_ARG');
-  const surfaceSelectors = ['--region', '--canvas', '--channel'].filter((flag) => seen.has(flag));
-  if (surfaceSelectors.length > 1) error('Use only one of --region, --canvas, or --channel', 'INVALID_ARG');
-  if (!savedCapture.options.save) {
-    for (const flag of ['--workspace', '--name', '--mode', '--query']) {
-      if (seen.has(flag)) error(`${flag} requires --save`, 'INVALID_ARG');
-    }
-  }
-  return savedCapture;
 }
 
 function parseNoArgPrimitive(primitive, args) {
@@ -142,7 +29,13 @@ if (!['capture', 'cursor', 'list', 'selection'].includes(primitive)) {
   error(`Unknown see native primitive: ${primitive}`, 'UNKNOWN_SUBCOMMAND');
 }
 let savedCapture = null;
-if (primitive === 'capture') savedCapture = parseCaptureArgs(args);
+if (primitive === 'capture') {
+  savedCapture = parseCaptureArgs(args);
+  if (savedCapture.errors.length) {
+    const first = savedCapture.errors[0];
+    error(first.error, first.code);
+  }
+}
 if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
 
 if (primitive === 'capture' && savedCapture?.options.save) {

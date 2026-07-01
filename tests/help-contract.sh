@@ -242,6 +242,26 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
+if OUT="$(./aos help do --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+for form in data["forms"]:
+    usage = form.get("usage", "")
+    examples = " ".join(form.get("examples", []))
+    has_saved_ref = "ref:<snapshot-id>:<ref>" in usage or "ref:<snapshot-id>:" in examples
+    if form["id"] == "do-click":
+        assert has_saved_ref, form
+    else:
+        assert not has_saved_ref, form
+PY
+then
+    pass "only do click help advertises saved ref targets"
+else
+    fail "non-click do help advertises saved ref targets"
+fi
+
 # --- 18. saved agent workspace help stays discoverable ---
 if CAPTURE="$(./aos help see capture --json 2>/dev/null)" \
    REFS="$(./aos help see refs --json 2>/dev/null)" \

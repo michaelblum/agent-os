@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref V0 actions are click-only",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -546,7 +546,7 @@
               "id" : "query",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Filter compact saved refs by text",
+              "summary" : "Filter compact saved refs by text; captured refs may list non-click facts, but saved-ref mutation is click-only in V0",
               "token" : "--query",
               "value_type" : "string"
             }

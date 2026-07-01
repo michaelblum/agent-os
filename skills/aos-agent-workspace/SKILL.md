@@ -27,6 +27,8 @@ aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
   stay file-backed under the snapshot directory.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
+- Workspace write locks are transient local control state. If a mutation returns
+  `AGENT_WORKSPACE_LOCKED`, refresh or retry after the other local writer exits.
 
 ## Capture Modes
 
@@ -49,11 +51,14 @@ aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
 ```
 
 Dry-run reports the resolved underlying command and whether validation is
-required. For real mutation:
+required. V0 saved refs publicly support click only:
 
 - AOS canvas `reacquirable` refs may route through the current canvas resolver.
-- Browser `snapshot_scoped` refs and native AX `volatile` refs fail closed with
-  `REF_REVALIDATION_REQUIRED` until current-target validation exists.
+- Browser `snapshot_scoped` refs may dry-run click, but real mutation fails
+  closed with `REF_REVALIDATION_REQUIRED` until current-target validation exists.
+- Native AX `volatile` refs are inspection-only.
+- Do not use saved refs with `fill`, `type`, `key`, `focus`, `drag`, or
+  `set-value`; non-click saved-ref actions return `ACTION_INCOMPATIBLE`.
 - Unsupported or incompatible actions return `REF_UNSUPPORTED` or
   `ACTION_INCOMPATIBLE`.
 

@@ -54,6 +54,12 @@ function browserActionsForElement(element) {
   return ['click'];
 }
 
+const SAVED_REF_V0_ACTIONS = new Set(['click']);
+
+function savedRefActions(actions) {
+  return [...new Set((actions ?? []).filter((action) => SAVED_REF_V0_ACTIONS.has(action)))];
+}
+
 export function generateRefRecords(capture, context) {
   const records = [];
   const artifactRefs = context.artifact_refs ?? [];
@@ -64,7 +70,8 @@ export function generateRefRecords(capture, context) {
     const sourceRef = textValue(target.ref);
     const canvasID = textValue(target.provenance?.canvas_id);
     const actionTarget = textValue(target.provenance?.do_target, canvasID && sourceRef ? `canvas:${canvasID}/${sourceRef}` : null);
-    const supported = Array.isArray(target.actions) ? target.actions.filter(Boolean) : [];
+    const producerSupported = Array.isArray(target.actions) ? target.actions.filter(Boolean) : [];
+    const supported = savedRefActions(producerSupported);
     const record = {
       schema_version: SCHEMA_VERSION,
       ref: nextRef(),
@@ -98,7 +105,9 @@ export function generateRefRecords(capture, context) {
         provenance: target.provenance ?? null,
       },
       artifact_refs: artifactRefs,
-      warnings: [],
+      warnings: producerSupported.length && supported.length === 0
+        ? ['producer actions are present, but saved-ref V0 only supports click mutation']
+        : [],
       known_limits: [
         'canvas refs are re-read from the current canvas; missing, disabled, segmented, or ambiguous current targets fail closed',
       ],
@@ -124,7 +133,7 @@ export function generateRefRecords(capture, context) {
       backend: isBrowser ? 'browser' : 'native_ax',
       resolution_class: isBrowser ? 'snapshot_scoped' : 'volatile',
       confidence: isBrowser ? 'medium' : 'low',
-      supported_actions: isBrowser ? browserActionsForElement(element) : [],
+      supported_actions: isBrowser ? savedRefActions(browserActionsForElement(element)) : [],
       target_summary: [element.role, element.title, element.label, element.value, sourceRef].filter(Boolean).join(' ') || 'element',
       identity_facts: {
         state_id: stateID,

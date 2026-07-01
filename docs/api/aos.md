@@ -174,9 +174,13 @@ Capture modes are explicit:
 
 Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
-Real mutation is fail-closed: browser `snapshot_scoped` refs and native AX
-`volatile` refs currently require refreshed validation before action, while AOS
-canvas `reacquirable` refs can route through the current canvas resolver.
+V0 saved-ref mutation is click-only: `aos do click ref:<...>` is the public
+saved-ref action form. Other captured refs may still be listed and queried, but
+`fill`, `type`, `key`, `focus`, `drag`, and `set-value` are not saved-ref
+mutation targets yet. Real mutation is fail-closed: browser `snapshot_scoped`
+refs may dry-run click but require refreshed validation before real action,
+native AX `volatile` refs are inspection-only, and AOS canvas `reacquirable`
+click refs can route through the current canvas resolver.
 
 Cleanup is explicit:
 
@@ -683,7 +687,10 @@ saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and whether current-target validation is still required.
 Non-dry-run mutation refuses unsafe resolution classes with machine-readable
 errors such as `REF_REVALIDATION_REQUIRED`, `REF_AMBIGUOUS`, `REF_NOT_FOUND`,
-or `ACTION_INCOMPATIBLE`.
+`ACTION_INCOMPATIBLE`, `AGENT_WORKSPACE_STATE_CORRUPT`, or
+`AGENT_WORKSPACE_LOCKED`. Workspace locks are transient local control state for
+fail-fast mutation contention; they are not part of the persisted schema
+contract.
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass

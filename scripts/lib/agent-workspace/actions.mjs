@@ -6,7 +6,7 @@ import {
   aosPath,
   exitAgentWorkspaceError,
   printJSON,
-  readJSON,
+  readJSONExisting,
   runtimeMode,
   stateRoot,
   validateLocalID,
@@ -70,7 +70,10 @@ function loadRefRecord(workspace, refToken, explicitSnapshot, env = process.env)
   const matches = [];
   for (const snapshot of index.snapshots ?? []) {
     const refsPath = path.join(workspaceDir(workspace, env), 'snapshots', snapshot.snapshot_id, 'refs.json');
-    const refs = readJSON(refsPath);
+    const refs = readJSONExisting(refsPath);
+    if (!refs?.refs || !Array.isArray(refs.refs)) {
+      exitAgentWorkspaceError(`Refs state is schema-invalid: ${refsPath}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: refsPath });
+    }
     const record = (refs?.refs ?? []).find((item) => item.ref === refToken.ref);
     if (record) matches.push(record);
   }
@@ -113,6 +116,14 @@ export function maybeRunRefAction(action, args, env = process.env) {
   const strippedTargetIndex = strippedPositions[0];
   const record = loadRefRecord(workspace, refToken, explicitSnapshot, env);
   const dryRun = stripped.args.includes('--dry-run');
+
+  if (action !== 'click') {
+    exitAgentWorkspaceError(`Saved refs only support click in V0; received ${action}`, 'ACTION_INCOMPATIBLE', {
+      status: 'action_incompatible',
+      ref: refSummary(record),
+      supported_actions: (record.supported_actions ?? []).filter((item) => item === 'click'),
+    });
+  }
 
   if (!record.action_target) {
     exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {

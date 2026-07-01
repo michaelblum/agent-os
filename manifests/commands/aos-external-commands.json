@@ -743,7 +743,7 @@
     },
     {
       "path": ["see", "refs"],
-      "summary": "List compact saved refs through external agent-workspace composition.",
+      "summary": "List compact saved refs through external agent-workspace composition; V0 saved-ref mutation is click-only.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "refs"],
       "cwd": "repo",
@@ -767,7 +767,7 @@
     },
     {
       "path": ["see", "workspace"],
-      "summary": "Inspect a local AOS agent workspace.",
+      "summary": "Inspect a local AOS agent workspace, including transient write-lock state.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspace"],
       "cwd": "repo",
@@ -779,7 +779,7 @@
     },
     {
       "path": ["see", "workspace", "prune"],
-      "summary": "Preview or prune saved AOS agent workspace snapshots.",
+      "summary": "Preview or prune saved AOS agent workspace snapshots with fail-fast workspace locking.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspace", "prune"],
       "cwd": "repo",

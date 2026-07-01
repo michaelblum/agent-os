@@ -12,7 +12,7 @@ import {
   validateLocalID,
   workspaceID,
   workspaceDir,
-  readJSON,
+  readJSONExisting,
 } from './core.mjs';
 import {
   deleteSnapshot,
@@ -20,6 +20,7 @@ import {
   loadSnapshot,
   pruneSnapshots,
   requireWorkspace,
+  workspaceLockState,
 } from './store.mjs';
 import { queryMatches, refSummary } from './refs.mjs';
 
@@ -69,6 +70,13 @@ function parseReadArgs(args, { requireID = false } = {}) {
   };
 }
 
+function assertWorkspaceListState(value, file, label) {
+  if (!value) return;
+  if (typeof value !== 'object' || Array.isArray(value) || value.schema_version !== SCHEMA_VERSION) {
+    exitAgentWorkspaceError(`${label} is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+}
+
 export function workspacesCommand(args, env = process.env) {
   parseReadArgs(args);
   const root = agentWorkspacesRoot(env);
@@ -77,8 +85,12 @@ export function workspacesCommand(args, env = process.env) {
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       if (!SAFE_ID.test(entry.name)) continue;
-      const metadata = readJSON(path.join(root, entry.name, 'workspace.json'));
-      const index = readJSON(path.join(root, entry.name, 'index.json'));
+      const metadataPath = path.join(root, entry.name, 'workspace.json');
+      const indexPath = path.join(root, entry.name, 'index.json');
+      const metadata = fs.existsSync(metadataPath) ? readJSONExisting(metadataPath) : null;
+      const index = fs.existsSync(indexPath) ? readJSONExisting(indexPath) : null;
+      assertWorkspaceListState(metadata, metadataPath, 'workspace metadata');
+      assertWorkspaceListState(index, indexPath, 'workspace index');
       workspaces.push({
         workspace_id: entry.name,
         current_snapshot_id: index?.current_snapshot_id ?? null,
@@ -152,10 +164,7 @@ export function workspaceCommand(args, env = process.env) {
       warnings: [],
     },
     retention: metadata.retention ?? defaultWorkspaceMetadata(workspace, env).retention,
-    lock_state: {
-      status: 'not_implemented',
-      reason: 'workspace write locks are not needed for this single-process external composition slice',
-    },
+    lock_state: workspaceLockState(dir),
   });
 }
 
