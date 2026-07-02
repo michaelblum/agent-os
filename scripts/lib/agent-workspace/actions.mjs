@@ -125,7 +125,7 @@ function validateCurrentTargets(action, record, secondary, workspace, env) {
   return { currentValidation, secondaryCurrentValidation };
 }
 
-export function maybeRunRefAction(action, args, env = process.env) {
+function maybeRunRefAction(action, args, env = process.env) {
   const positions = positionalIndexes(args);
   const firstIndex = positions[0];
   const refToken = firstIndex === undefined ? null : parseRefToken(args[firstIndex]);
@@ -189,4 +189,9 @@ export function maybeRunRefAction(action, args, env = process.env) {
   }
 
   dispatchResolvedAction({ ...envelopeArgs, env });
+}
+
+export function runRefAction(action, args, env = process.env) {
+  if (maybeRunRefAction(action, args, env)) return;
+  exitAgentWorkspaceError(`aos do ${action} saved-ref route requires a ref:<id> or ref:<snapshot-id>:<id> target`, 'INVALID_REF_TARGET');
 }

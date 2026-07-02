@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import {
-  emitAgentWorkspaceError,
-  isAgentWorkspaceError,
-  maybeRunRefAction,
-} from './lib/aos-agent-workspace.mjs';
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -81,10 +76,6 @@ function positionalArgs(args, allowedFlags = []) {
 function getArg(args, flag) {
   const index = args.indexOf(flag);
   return index >= 0 && index + 1 < args.length ? args[index + 1] : undefined;
-}
-
-function hasExplicitSavedRefScope(args) {
-  return args.includes('--workspace') || args.includes('--snapshot');
 }
 
 function ensureVersion() {
@@ -239,17 +230,12 @@ function dragCommand(args) {
 
 try {
   const [command, ...args] = process.argv.slice(2);
-  if (['click', 'fill', 'hover', 'scroll', 'drag'].includes(command)) {
-    maybeRunRefAction(command, args);
-  }
-  if (['type', 'key'].includes(command) && hasExplicitSavedRefScope(args)) maybeRunRefAction(command, args);
   if (command === 'fill') fillCommand(args);
   else if (command === 'navigate') navigateCommand(args);
   else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);
   else if (command === 'drag') dragCommand(args);
   else error(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
 } catch (err) {
-  if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
   if (Array.isArray(err)) error(err[1], err[0]);
   error(String(err), 'INTERNAL');
 }

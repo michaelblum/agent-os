@@ -2,11 +2,6 @@
 
 import { spawnSync } from 'node:child_process';
 import {
-  emitAgentWorkspaceError,
-  isAgentWorkspaceError,
-  maybeRunRefAction,
-} from './lib/aos-agent-workspace.mjs';
-import {
   directNativeAxProofStory,
   NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
   nativeAxNoForegroundConformance,
@@ -107,7 +102,7 @@ function validateFlagTypes(args) {
 
 function setValueTargetEntry(positionalEntries) {
   const first = positionalEntries[0];
-  if (first?.value?.startsWith('canvas:') || first?.value?.startsWith('ref:')) return first;
+  if (first?.value?.startsWith('canvas:')) return first;
   return null;
 }
 
@@ -183,7 +178,6 @@ function validate(verb, args) {
       if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'press':
-      if (pos[0]?.startsWith('ref:')) return;
       if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'press requires --pid', isInt);
       requireFlag(args, '--role', 'press requires --role');
@@ -203,7 +197,6 @@ function validate(verb, args) {
       if (!setValueSource(args)) error('set-value requires --value or a positional value', 'MISSING_ARG');
       break;
     case 'focus':
-      if (pos[0]?.startsWith('ref:')) return;
       if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'focus requires --pid', isInt);
       requireFlag(args, '--role', 'focus requires --role');
@@ -338,13 +331,8 @@ function mergeKnownLimits(existing, next) {
 function isDirectNativeAXAction(verb, args) {
   if (!['press', 'set-value', 'focus'].includes(verb)) return false;
   const pos = positionalArgs(args);
-  if (pos[0]?.startsWith('ref:')) return false;
   if (verb === 'set-value' && (pos[0]?.startsWith('canvas:'))) return false;
   return args.includes('--pid');
-}
-
-function hasExplicitSavedRefScope(args) {
-  return args.includes('--workspace') || args.includes('--snapshot');
 }
 
 function augmentDirectNativeAXPayload(payload, verb, args) {
@@ -384,13 +372,6 @@ function maybeEmitAugmentedDirectNativeAXResult(verb, args, result) {
 
 const [verb, ...args] = process.argv.slice(2);
 if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
-try {
-  if (['click', 'hover', 'drag', 'scroll', 'press', 'set-value', 'focus'].includes(verb)) maybeRunRefAction(verb, args);
-  if (['type', 'key'].includes(verb) && hasExplicitSavedRefScope(args)) maybeRunRefAction(verb, args);
-} catch (err) {
-  if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
-  throw err;
-}
 validate(verb, args);
 
 const dispatchArgs = verb === 'set-value' ? normalizeSetValueArgs(args) : args;

@@ -406,16 +406,9 @@ jq -e '
   and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
 ' "$KEY_UNSUPPORTED_ERR" >/dev/null || fail "unsupported browser saved-ref key lacked safe next command: $(cat "$KEY_UNSUPPORTED_ERR")"
 
-BROWSER_WRAPPER_TYPE_UNSUPPORTED_ERR="$TMP_DIR/do-browser-ref-type-unsupported.err"
-if node scripts/aos-do-browser.mjs type "ref:snap1:$REF" --workspace ws-browser --dry-run >"$TMP_DIR/do-browser-ref-type-unsupported.out" 2>"$BROWSER_WRAPPER_TYPE_UNSUPPORTED_ERR"; then
-    fail "direct browser wrapper saved-ref type unexpectedly succeeded"
+if rg -n "maybeRunRefAction|runRefAction" scripts/aos-do-browser.mjs scripts/aos-do-native.mjs >/dev/null; then
+    fail "backend do wrappers must not own saved-ref dispatch policy"
 fi
-expect_error_code "ACTION_INCOMPATIBLE" "$BROWSER_WRAPPER_TYPE_UNSUPPORTED_ERR"
-jq -e '
-  .status == "action_incompatible"
-  and .ref.ref == "r2"
-  and (.supported_actions | index("type") | not)
-' "$BROWSER_WRAPPER_TYPE_UNSUPPORTED_ERR" >/dev/null || fail "direct browser wrapper saved-ref type did not fail closed: $(cat "$BROWSER_WRAPPER_TYPE_UNSUPPORTED_ERR")"
 
 BROWSER_WRAPPER_REF_LITERAL_ERR="$TMP_DIR/do-browser-ref-literal.err"
 if AOS_AGENT_WORKSPACE=bad/id node scripts/aos-do-browser.mjs type 'ref:literal' 'hello' >"$TMP_DIR/do-browser-ref-literal.out" 2>"$BROWSER_WRAPPER_REF_LITERAL_ERR"; then
@@ -440,7 +433,7 @@ jq -e '
 ' "$FORM" >/dev/null || fail "browser form saved-ref reporting drifted: $(cat "$FORM")"
 
 FORM_FILL_DRY="$TMP_DIR/do-form-fill-dry.json"
-AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_FILL_DRY"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_FILL_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "fill"
@@ -453,7 +446,7 @@ jq -e '
 ' "$FORM_FILL_DRY" >/dev/null || fail "browser fill saved ref dry-run drifted: $(cat "$FORM_FILL_DRY")"
 
 FORM_FILL_MOVED_DRY="$TMP_DIR/do-form-fill-moved-dry.json"
-FORM_MOVED=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_FILL_MOVED_DRY"
+FORM_MOVED=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_FILL_MOVED_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "fill"
@@ -468,7 +461,7 @@ jq -e '
 ' "$FORM_FILL_MOVED_DRY" >/dev/null || fail "browser fill saved ref did not tolerate benign target movement: $(cat "$FORM_FILL_MOVED_DRY")"
 
 FORM_FILL_ACTION="$TMP_DIR/do-form-fill-action.json"
-AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$FORM_FILL_ACTION"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$FORM_FILL_ACTION"
 jq -e '
   .status == "success"
   and .schema_version == "aos.agent-workspace.v0"
@@ -484,13 +477,13 @@ jq -e '
 ' "$FORM_FILL_ACTION" >/dev/null || fail "browser fill saved ref did not dispatch after validation: $(cat "$FORM_FILL_ACTION")"
 
 FORM_FILL_EXTRA_ERR="$TMP_DIR/do-form-fill-extra.err"
-if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" "again" --workspace ws-form >"$TMP_DIR/do-form-fill-extra.out" 2>"$FORM_FILL_EXTRA_ERR"; then
+if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" "again" --workspace ws-form >"$TMP_DIR/do-form-fill-extra.out" 2>"$FORM_FILL_EXTRA_ERR"; then
     fail "browser fill saved ref with extra text unexpectedly succeeded"
 fi
 expect_error_code "UNKNOWN_ARG" "$FORM_FILL_EXTRA_ERR"
 
 FORM_FILL_STALE_REAL_ERR="$TMP_DIR/do-form-fill-stale-real.err"
-if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-stale-real.out" 2>"$FORM_FILL_STALE_REAL_ERR"; then
+if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-stale-real.out" 2>"$FORM_FILL_STALE_REAL_ERR"; then
     fail "stale browser fill real saved ref unexpectedly executed mutation"
 fi
 expect_error_code "REF_STALE" "$FORM_FILL_STALE_REAL_ERR"
@@ -506,7 +499,7 @@ jq -e '
     || fail "stale browser fill real action did not expose explicit uncertainty before dispatch: $(cat "$FORM_FILL_STALE_REAL_ERR")"
 
 FORM_STALE_ERR="$TMP_DIR/do-form-fill-stale.err"
-if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-stale.out" 2>"$FORM_STALE_ERR"; then
+if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-stale.out" 2>"$FORM_STALE_ERR"; then
     fail "stale browser fill saved ref unexpectedly succeeded"
 fi
 expect_error_code "REF_STALE" "$FORM_STALE_ERR"
@@ -514,7 +507,7 @@ jq -e '.status == "stale_ref" and .reason == "current_target_not_found" and .bac
     || fail "stale browser fill did not fail closed through current validation: $(cat "$FORM_STALE_ERR")"
 
 FORM_AMBIGUOUS_ERR="$TMP_DIR/do-form-fill-ambiguous.err"
-if FORM_AMBIGUOUS=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-ambiguous.out" 2>"$FORM_AMBIGUOUS_ERR"; then
+if FORM_AMBIGUOUS=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-ambiguous.out" 2>"$FORM_AMBIGUOUS_ERR"; then
     fail "ambiguous browser fill saved ref unexpectedly succeeded"
 fi
 expect_error_code "REF_AMBIGUOUS" "$FORM_AMBIGUOUS_ERR"
@@ -522,7 +515,7 @@ jq -e '.status == "ambiguous" and .reason == "current_target_ambiguous" and .bac
     || fail "ambiguous browser fill did not fail closed with candidates: $(cat "$FORM_AMBIGUOUS_ERR")"
 
 FORM_DISABLED_ERR="$TMP_DIR/do-form-fill-disabled.err"
-if FORM_DISABLED=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-disabled.out" 2>"$FORM_DISABLED_ERR"; then
+if FORM_DISABLED=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-disabled.out" 2>"$FORM_DISABLED_ERR"; then
     fail "disabled browser fill saved ref unexpectedly dispatched"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$FORM_DISABLED_ERR"
@@ -538,7 +531,7 @@ for drift in ROLE TITLE LABEL CONTEXT; do
     esac
     err="$TMP_DIR/do-form-fill-${drift_lower}-drift.err"
     env_name="FORM_${drift}_DRIFT"
-    if env "$env_name=1" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-${drift_lower}-drift.out" 2>"$err"; then
+    if env "$env_name=1" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-${drift_lower}-drift.out" 2>"$err"; then
         fail "${drift} drift browser fill saved ref unexpectedly dispatched"
     fi
     expect_error_code "REF_STALE" "$err"
@@ -547,7 +540,7 @@ for drift in ROLE TITLE LABEL CONTEXT; do
 done
 
 FORM_URL_DRIFT_ERR="$TMP_DIR/do-form-fill-url-drift.err"
-if FAKE_PWCLI_PAGE_URL="https://fixture.local/other" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-url-drift.out" 2>"$FORM_URL_DRIFT_ERR"; then
+if FAKE_PWCLI_PAGE_URL="https://fixture.local/other" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-url-drift.out" 2>"$FORM_URL_DRIFT_ERR"; then
     fail "URL drift browser fill saved ref unexpectedly dispatched"
 fi
 expect_error_code "REF_STALE" "$FORM_URL_DRIFT_ERR"

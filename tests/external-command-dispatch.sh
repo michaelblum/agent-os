@@ -218,11 +218,22 @@ for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "s
     assert native[0]["executable"] == "/usr/bin/env", native[0]
     assert native[0]["env"]["AOS_PATH"] == "$AOS_PATH", native[0]
     if primitive in ["click", "hover", "drag", "scroll", "type", "key"]:
-        assert native[0]["when"]["excluded_prefixes"] == ["browser:"], native[0]
+        assert native[0]["when"]["excluded_prefixes"] == ["browser:", "ref:"], native[0]
         browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive]]
         assert len(browser) == 1, (primitive, browser)
         assert browser[0]["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive], browser[0]
         assert browser[0]["when"]["prefix"] == "browser:", browser[0]
+    if primitive in ["press", "set-value", "focus"]:
+        assert native[0]["when"]["excluded_prefixes"] == ["ref:"], native[0]
+for action in ["click", "hover", "drag", "scroll", "type", "key", "fill", "press", "set-value", "focus"]:
+    ref = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", action) and item["argv_prefix"] == ["node", "scripts/aos-do-ref.mjs", action]]
+    assert len(ref) == 1, (action, ref)
+    assert ref[0]["executable"] == "/usr/bin/env", ref[0]
+    assert ref[0]["when"]["prefix"] == "ref:", ref[0]
+    assert ref[0]["env"]["AOS_PATH"] == "$AOS_PATH", ref[0]
+fill = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", "fill") and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", "fill"]]
+assert len(fill) == 1, fill
+assert fill[0]["when"]["excluded_prefixes"] == ["ref:"], fill[0]
 PY
 then
     pass "live-sensitive native primitives are routed through the external command manifest"

@@ -104,7 +104,7 @@ jq -e '
 NATIVE_REFS_PATH="$(jq -r '.paths.refs' "$NATIVE")"
 
 NATIVE_ERR="$TMP_DIR/do-native-ref.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs click ref:snapnative:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-ref.out" 2>"$NATIVE_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs click ref:snapnative:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-ref.out" 2>"$NATIVE_ERR"; then
     fail "native volatile inspection ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$NATIVE_ERR"
@@ -246,7 +246,7 @@ jq -e '
 ' "$KNOWN_LIMIT_NATIVE" >/dev/null || fail "native known-limit refs did not stay blocked: $(cat "$KNOWN_LIMIT_NATIVE")"
 
 KNOWN_LIMIT_ERR="$TMP_DIR/do-native-known-limit.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapknown:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-known-limit.out" 2>"$KNOWN_LIMIT_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapknown:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-known-limit.out" 2>"$KNOWN_LIMIT_ERR"; then
     fail "native known-limit ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$KNOWN_LIMIT_ERR"
@@ -276,7 +276,7 @@ jq '(.refs[0].resolution_class = "coordinate_fallback")
   | (.refs[0].warnings += ["coordinate fallback is diagnostic-only"])
   | (.refs[0].known_limits += ["coordinate-backed saved-ref mutation is refused in v0"])' "$NATIVE_REFS_PATH.coordinate-backup" >"$NATIVE_REFS_PATH"
 COORDINATE_FALLBACK_ERR="$TMP_DIR/do-native-coordinate-fallback.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs click ref:snapnative:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-coordinate-fallback.out" 2>"$COORDINATE_FALLBACK_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs click ref:snapnative:r1 --workspace ws-native --dry-run >"$TMP_DIR/do-native-coordinate-fallback.out" 2>"$COORDINATE_FALLBACK_ERR"; then
     mv "$NATIVE_REFS_PATH.coordinate-backup" "$NATIVE_REFS_PATH"
     fail "coordinate fallback diagnostic ref unexpectedly became actionable"
 fi
@@ -286,7 +286,7 @@ jq -e '.status == "unsupported" and .ref.resolution_class == "coordinate_fallbac
     || fail "coordinate fallback diagnostic ref did not refuse with warning context: $(cat "$COORDINATE_FALLBACK_ERR")"
 
 NATIVE_FOCUS_ERR="$TMP_DIR/do-native-focus-ref.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-focus-ref.out" 2>"$NATIVE_FOCUS_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-focus-ref.out" 2>"$NATIVE_FOCUS_ERR"; then
     fail "native focus volatile inspection ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$NATIVE_FOCUS_ERR"
@@ -294,7 +294,7 @@ jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .safe_next_a
     || fail "native focus unsupported ref payload drifted: $(cat "$NATIVE_FOCUS_ERR")"
 
 NATIVE_PRESS_ERR="$TMP_DIR/do-native-press-ref.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-press-ref.out" 2>"$NATIVE_PRESS_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-press-ref.out" 2>"$NATIVE_PRESS_ERR"; then
     fail "native press volatile inspection ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$NATIVE_PRESS_ERR"
@@ -365,7 +365,7 @@ jq -e '
 ' "$PRESS_ONLY_NATIVE" >/dev/null || fail "native press-only saved-ref recommendation drifted: $(cat "$PRESS_ONLY_NATIVE")"
 
 DURABLE_PRESS_DRY="$TMP_DIR/do-native-durable-press-dry.json"
-AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native --dry-run >"$DURABLE_PRESS_DRY"
+AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native --dry-run >"$DURABLE_PRESS_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "press"
@@ -385,13 +385,13 @@ jq -e '
 ' "$DURABLE_PRESS_DRY" >/dev/null || fail "durable native AX dry-run drifted: $(cat "$DURABLE_PRESS_DRY")"
 
 DURABLE_PRESS_UNKNOWN_FLAG_ERR="$TMP_DIR/do-native-durable-press-unknown-flag.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native --bogus --dry-run >"$TMP_DIR/do-native-durable-press-unknown-flag.out" 2>"$DURABLE_PRESS_UNKNOWN_FLAG_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native --bogus --dry-run >"$TMP_DIR/do-native-durable-press-unknown-flag.out" 2>"$DURABLE_PRESS_UNKNOWN_FLAG_ERR"; then
     fail "durable native AX press with unknown flag unexpectedly succeeded"
 fi
 expect_error_code "UNKNOWN_FLAG" "$DURABLE_PRESS_UNKNOWN_FLAG_ERR"
 
 DURABLE_PRESS_DIRECT_FILTER_ERR="$TMP_DIR/do-native-durable-press-direct-filter.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native --role AXButton --dry-run >"$TMP_DIR/do-native-durable-press-direct-filter.out" 2>"$DURABLE_PRESS_DIRECT_FILTER_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native --role AXButton --dry-run >"$TMP_DIR/do-native-durable-press-direct-filter.out" 2>"$DURABLE_PRESS_DIRECT_FILTER_ERR"; then
     fail "durable native AX press saved ref accepted direct-only filter"
 fi
 expect_error_code "UNKNOWN_FLAG" "$DURABLE_PRESS_DIRECT_FILTER_ERR"
@@ -399,7 +399,7 @@ jq -e '.error | contains("Unknown saved-ref press flag: --role")' "$DURABLE_PRES
     || fail "durable native AX press direct-only filter error drifted: $(cat "$DURABLE_PRESS_DIRECT_FILTER_ERR")"
 
 DURABLE_PRESS="$TMP_DIR/do-native-durable-press.json"
-AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native >"$DURABLE_PRESS"
+AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native >"$DURABLE_PRESS"
 jq -e '
   .status == "success"
   and .action == "press"
@@ -418,7 +418,7 @@ jq -e '
 ' "$DURABLE_PRESS" >/dev/null || fail "durable native AX press dispatch drifted: $(cat "$DURABLE_PRESS")"
 
 DURABLE_PRESS_FALLBACK="$TMP_DIR/do-native-durable-press-fallback.json"
-NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native >"$DURABLE_PRESS_FALLBACK"
+NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native >"$DURABLE_PRESS_FALLBACK"
 jq -e '
   .status == "success"
   and .action == "press"
@@ -438,7 +438,7 @@ jq -e '
 ' "$DURABLE_PRESS_FALLBACK" >/dev/null || fail "durable native AX saved-ref fallback conformance was hidden: $(cat "$DURABLE_PRESS_FALLBACK")"
 
 DURABLE_PRESS_FAIL_ERR="$TMP_DIR/do-native-durable-press-fail.err"
-if NATIVE_AX_FAIL=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapdurable:r1 --workspace ws-native >"$TMP_DIR/do-native-durable-press-fail.out" 2>"$DURABLE_PRESS_FAIL_ERR"; then
+if NATIVE_AX_FAIL=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapdurable:r1 --workspace ws-native >"$TMP_DIR/do-native-durable-press-fail.out" 2>"$DURABLE_PRESS_FAIL_ERR"; then
     fail "durable native AX missing target unexpectedly succeeded"
 fi
 jq -e '
@@ -456,7 +456,7 @@ jq -e '
 ' "$DURABLE_PRESS_FAIL_ERR" >/dev/null || fail "durable native AX failure envelope drifted: $(cat "$DURABLE_PRESS_FAIL_ERR")"
 
 DURABLE_SET_VALUE="$TMP_DIR/do-native-durable-set-value.json"
-AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native >"$DURABLE_SET_VALUE"
+AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native >"$DURABLE_SET_VALUE"
 jq -e '
   .status == "success"
   and .action == "set-value"
@@ -473,7 +473,7 @@ jq -e '
 ' "$DURABLE_SET_VALUE" >/dev/null || fail "durable native AX set-value dispatch drifted: $(cat "$DURABLE_SET_VALUE")"
 
 DURABLE_SET_VALUE_FALLBACK="$TMP_DIR/do-native-durable-set-value-fallback.json"
-NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native >"$DURABLE_SET_VALUE_FALLBACK"
+NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native >"$DURABLE_SET_VALUE_FALLBACK"
 jq -e '
   .status == "success"
   and .action == "set-value"
@@ -491,7 +491,7 @@ jq -e '
 ' "$DURABLE_SET_VALUE_FALLBACK" >/dev/null || fail "durable native AX set-value fallback conformance was hidden: $(cat "$DURABLE_SET_VALUE_FALLBACK")"
 
 DURABLE_FOCUS_DRY="$TMP_DIR/do-native-durable-focus-dry.json"
-AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapdurable:r2 --workspace ws-native --dry-run >"$DURABLE_FOCUS_DRY"
+AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapdurable:r2 --workspace ws-native --dry-run >"$DURABLE_FOCUS_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "focus"
@@ -512,7 +512,7 @@ jq -e '
 ' "$DURABLE_FOCUS_DRY" >/dev/null || fail "durable native AX focus dry-run drifted: $(cat "$DURABLE_FOCUS_DRY")"
 
 DURABLE_FOCUS="$TMP_DIR/do-native-durable-focus.json"
-AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapdurable:r2 --workspace ws-native >"$DURABLE_FOCUS"
+AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapdurable:r2 --workspace ws-native >"$DURABLE_FOCUS"
 jq -e '
   .status == "success"
   and .action == "focus"
@@ -532,7 +532,7 @@ jq -e '
 ' "$DURABLE_FOCUS" >/dev/null || fail "durable native AX focus dispatch drifted: $(cat "$DURABLE_FOCUS")"
 
 DURABLE_FOCUS_FALLBACK="$TMP_DIR/do-native-durable-focus-fallback.json"
-NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapdurable:r2 --workspace ws-native >"$DURABLE_FOCUS_FALLBACK"
+NATIVE_AX_FALLBACK=1 AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapdurable:r2 --workspace ws-native >"$DURABLE_FOCUS_FALLBACK"
 jq -e '
   .status == "success"
   and .action == "focus"
@@ -550,7 +550,7 @@ jq -e '
 ' "$DURABLE_FOCUS_FALLBACK" >/dev/null || fail "durable native AX focus fallback conformance was hidden: $(cat "$DURABLE_FOCUS_FALLBACK")"
 
 DURABLE_FOCUS_DIRECT_FILTER_ERR="$TMP_DIR/do-native-durable-focus-direct-filter.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapdurable:r2 --workspace ws-native --timeout 200 --dry-run >"$TMP_DIR/do-native-durable-focus-direct-filter.out" 2>"$DURABLE_FOCUS_DIRECT_FILTER_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapdurable:r2 --workspace ws-native --timeout 200 --dry-run >"$TMP_DIR/do-native-durable-focus-direct-filter.out" 2>"$DURABLE_FOCUS_DIRECT_FILTER_ERR"; then
     fail "durable native AX focus saved ref accepted direct-only filter"
 fi
 expect_error_code "UNKNOWN_FLAG" "$DURABLE_FOCUS_DIRECT_FILTER_ERR"
@@ -558,7 +558,7 @@ jq -e '.error | contains("Unknown saved-ref focus flag: --timeout")' "$DURABLE_F
     || fail "durable native AX focus direct-only filter error drifted: $(cat "$DURABLE_FOCUS_DIRECT_FILTER_ERR")"
 
 DURABLE_SET_VALUE_BOTH_SOURCES_ERR="$TMP_DIR/do-native-durable-set-value-both-sources.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native --value Grace >"$TMP_DIR/do-native-durable-set-value-both-sources.out" 2>"$DURABLE_SET_VALUE_BOTH_SOURCES_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native --value Grace >"$TMP_DIR/do-native-durable-set-value-both-sources.out" 2>"$DURABLE_SET_VALUE_BOTH_SOURCES_ERR"; then
     fail "durable native AX set-value with both value sources unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$DURABLE_SET_VALUE_BOTH_SOURCES_ERR"
@@ -566,13 +566,13 @@ jq -e '.error | contains("exactly one value source")' "$DURABLE_SET_VALUE_BOTH_S
     || fail "durable native AX set-value both-source error drifted: $(cat "$DURABLE_SET_VALUE_BOTH_SOURCES_ERR")"
 
 DURABLE_SET_VALUE_EXTRA_POSITIONAL_ERR="$TMP_DIR/do-native-durable-set-value-extra-positional.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs set-value ref:snapdurable:r2 Ada Grace --workspace ws-native >"$TMP_DIR/do-native-durable-set-value-extra-positional.out" 2>"$DURABLE_SET_VALUE_EXTRA_POSITIONAL_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs set-value ref:snapdurable:r2 Ada Grace --workspace ws-native >"$TMP_DIR/do-native-durable-set-value-extra-positional.out" 2>"$DURABLE_SET_VALUE_EXTRA_POSITIONAL_ERR"; then
     fail "durable native AX set-value with extra positional value unexpectedly succeeded"
 fi
 expect_error_code "UNKNOWN_ARG" "$DURABLE_SET_VALUE_EXTRA_POSITIONAL_ERR"
 
 DURABLE_SET_VALUE_DIRECT_FILTER_ERR="$TMP_DIR/do-native-durable-set-value-direct-filter.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native --title Name >"$TMP_DIR/do-native-durable-set-value-direct-filter.out" 2>"$DURABLE_SET_VALUE_DIRECT_FILTER_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs set-value ref:snapdurable:r2 Ada --workspace ws-native --title Name >"$TMP_DIR/do-native-durable-set-value-direct-filter.out" 2>"$DURABLE_SET_VALUE_DIRECT_FILTER_ERR"; then
     fail "durable native AX set-value saved ref accepted direct-only filter"
 fi
 expect_error_code "UNKNOWN_FLAG" "$DURABLE_SET_VALUE_DIRECT_FILTER_ERR"
@@ -611,7 +611,7 @@ jq -e '
 ' "$UNSUPPORTED_DURABLE_NATIVE" >/dev/null || fail "unsupported durable native AX action reporting drifted: $(cat "$UNSUPPORTED_DURABLE_NATIVE")"
 
 UNSUPPORTED_DURABLE_PRESS_ERR="$TMP_DIR/do-native-unsupported-durable-press.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapunsupportednative:r1 --workspace ws-native >"$TMP_DIR/do-native-unsupported-durable-press.out" 2>"$UNSUPPORTED_DURABLE_PRESS_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snapunsupportednative:r1 --workspace ws-native >"$TMP_DIR/do-native-unsupported-durable-press.out" 2>"$UNSUPPORTED_DURABLE_PRESS_ERR"; then
     fail "unsupported durable native AX action unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$UNSUPPORTED_DURABLE_PRESS_ERR"
@@ -647,7 +647,7 @@ jq -e '
 ' "$PATH_ONLY_NATIVE" >/dev/null || fail "path-only native AX evidence became actionable: $(cat "$PATH_ONLY_NATIVE")"
 
 PATH_ONLY_PRESS_ERR="$TMP_DIR/do-native-path-only-press.err"
-if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snappathonly:r1 --workspace ws-native >"$TMP_DIR/do-native-path-only-press.out" 2>"$PATH_ONLY_PRESS_ERR"; then
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs press ref:snappathonly:r1 --workspace ws-native >"$TMP_DIR/do-native-path-only-press.out" 2>"$PATH_ONLY_PRESS_ERR"; then
     fail "path-only native AX ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$PATH_ONLY_PRESS_ERR"

@@ -41,36 +41,28 @@ function snapshotID(explicit) {
   return `snap-${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z').replace('T', '-')}-${randomToken()}`;
 }
 
-function captureValueFlag(flag) {
-  return new Set([
-    '--out',
-    '--crop',
-    '--region',
-    '--canvas',
-    '--channel',
-    '--exclude-window',
-    '--format',
-    '--quality',
-    '--radius',
-    '--browser-dom-point',
-    '--browser-content-rect',
-    '--timeout',
-    '--delay',
-    '--grid',
-    '--thickness',
-    '--shadow',
-    '--workspace',
-    '--name',
-    '--mode',
-    '--query',
-    '--draw-rect',
-    '--draw-rect-fill',
-  ]).has(flag);
-}
-
-const CAPTURE_FORMATS = new Set(['png', 'jpg', 'heic']);
-const CAPTURE_QUALITIES = new Set(['high', 'med', 'low']);
-const CAPTURE_BOOL_FLAGS = new Set([
+const WORKSPACE_CAPTURE_VALUE_FLAGS = new Set(['--workspace', '--name', '--mode', '--query']);
+const PRIMITIVE_CAPTURE_VALUE_ARITY = new Map([
+  ['--out', 1],
+  ['--crop', 1],
+  ['--region', 1],
+  ['--canvas', 1],
+  ['--channel', 1],
+  ['--exclude-window', 1],
+  ['--format', 1],
+  ['--quality', 1],
+  ['--radius', 1],
+  ['--browser-dom-point', 1],
+  ['--browser-content-rect', 1],
+  ['--timeout', 1],
+  ['--delay', 1],
+  ['--grid', 1],
+  ['--thickness', 1],
+  ['--shadow', 1],
+  ['--draw-rect', 2],
+  ['--draw-rect-fill', 2],
+]);
+const PRIMITIVE_CAPTURE_BOOL_FLAGS = new Set([
   '--window',
   '--base64',
   '--perception',
@@ -80,16 +72,7 @@ const CAPTURE_BOOL_FLAGS = new Set([
   '--xray',
   '--label',
   '--clipboard',
-  '--save',
 ]);
-
-function isNumeric(value) {
-  return /^-?(?:\d+|\d*\.\d+)$/.test(value);
-}
-
-function isPositiveInt(value) {
-  return /^[1-9]\d*$/.test(value);
-}
 
 function validationError(errors, message, code = 'INVALID_ARG') {
   errors.push({ code, error: message });
@@ -131,31 +114,12 @@ export function parseCaptureArgs(args) {
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (arg === '--highlight-cursor') {
-      seen.add(arg);
-      passthrough.push(arg);
-      if (i + 1 < args.length && args[i + 1].startsWith('#')) {
-        passthrough.push(args[i + 1]);
-        i += 1;
-      }
-      continue;
-    }
-    if (arg === '--draw-rect' || arg === '--draw-rect-fill') {
-      seen.add(arg);
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) validationError(errors, `${arg} requires x,y,w,h and #color`, 'MISSING_ARG');
-      if (i + 2 >= args.length || args[i + 2].startsWith('--')) validationError(errors, `${arg} requires a color after coordinates`, 'MISSING_ARG');
-      passthrough.push(arg);
-      if (i + 1 < args.length) passthrough.push(args[i + 1]);
-      if (i + 2 < args.length) passthrough.push(args[i + 2]);
-      i += 2;
-      continue;
-    }
     if (arg === '--save') {
       seen.add(arg);
       options.save = true;
       continue;
     }
-    if (arg === '--workspace' || arg === '--name' || arg === '--mode' || arg === '--query') {
+    if (WORKSPACE_CAPTURE_VALUE_FLAGS.has(arg)) {
       seen.add(arg);
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
         validationError(errors, `${arg} requires a value`, 'MISSING_ARG');
@@ -169,51 +133,39 @@ export function parseCaptureArgs(args) {
       i += 1;
       continue;
     }
-    if (arg === '--out') {
+    if (arg === '--highlight-cursor') {
       seen.add(arg);
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
-        validationError(errors, '--out requires a value', 'MISSING_ARG');
-        continue;
+      passthrough.push(arg);
+      if (i + 1 < args.length && args[i + 1].startsWith('#')) {
+        passthrough.push(args[i + 1]);
+        i += 1;
       }
-      options.requested_out = args[i + 1];
-      passthrough.push(arg, args[i + 1]);
-      i += 1;
       continue;
     }
-    if (CAPTURE_BOOL_FLAGS.has(arg)) {
+    if (PRIMITIVE_CAPTURE_BOOL_FLAGS.has(arg)) {
       seen.add(arg);
       passthrough.push(arg);
       continue;
     }
-    if (captureValueFlag(arg)) {
+    if (PRIMITIVE_CAPTURE_VALUE_ARITY.has(arg)) {
       seen.add(arg);
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
-        validationError(errors, `${arg} requires a value`, 'MISSING_ARG');
-        continue;
+      passthrough.push(arg);
+      const arity = PRIMITIVE_CAPTURE_VALUE_ARITY.get(arg);
+      for (let consumed = 0; consumed < arity && i + 1 < args.length && !args[i + 1].startsWith('--'); consumed += 1) {
+        const value = args[i + 1];
+        if (arg === '--out' && consumed === 0) options.requested_out = value;
+        passthrough.push(value);
+        i += 1;
       }
-      const value = args[i + 1];
-      if (arg === '--exclude-window' && !isPositiveInt(value)) validationError(errors, '--exclude-window must be a positive integer CGWindowID');
-      if (arg === '--radius' && !isPositiveInt(value)) validationError(errors, '--radius must be a positive integer');
-      if (arg === '--timeout' && (!isNumeric(value) || Number(value) <= 0)) validationError(errors, '--timeout must be a positive number');
-      if (arg === '--delay' && (!isNumeric(value) || Number(value) < 0)) validationError(errors, '--delay must be a non-negative number');
-      if (arg === '--grid' && !/^[1-9]\d*x[1-9]\d*$/i.test(value)) validationError(errors, '--grid format: COLSxROWS (e.g., 4x3)');
-      if (arg === '--thickness' && (!isNumeric(value) || Number(value) <= 0)) validationError(errors, '--thickness must be a positive number');
-      if (arg === '--format' && !CAPTURE_FORMATS.has(value)) validationError(errors, `--format must be one of: ${[...CAPTURE_FORMATS].join(', ')}`);
-      if (arg === '--quality' && !CAPTURE_QUALITIES.has(value)) validationError(errors, `--quality must be one of: ${[...CAPTURE_QUALITIES].join(', ')}`);
-      passthrough.push(arg, value);
-      i += 1;
       continue;
     }
     if (arg.startsWith('--')) {
-      validationError(errors, `Unknown see capture flag: ${arg}`, 'UNKNOWN_FLAG');
+      passthrough.push(arg);
       continue;
     }
-    if (target) {
-      validationError(errors, `Unknown see capture argument: ${arg}`, 'UNKNOWN_ARG');
-      continue;
-    }
-    target = arg;
     passthrough.push(arg);
+    if (target) continue;
+    target = arg;
     if (arg === 'external' && i + 1 < args.length && !args[i + 1].startsWith('--') && /^\d+$/.test(args[i + 1])) {
       target = `${arg} ${args[i + 1]}`;
       passthrough.push(args[i + 1]);
@@ -222,10 +174,6 @@ export function parseCaptureArgs(args) {
   }
 
   if (!CAPTURE_MODES.has(options.mode)) validationError(errors, '--mode must be one of: ax, vision, som');
-  if (seen.has('--crop') && seen.has('--region')) validationError(errors, '--region and --crop cannot be used together');
-  if (seen.has('--window') && seen.has('--region')) validationError(errors, '--region and --window cannot be used together');
-  const surfaceSelectors = ['--region', '--canvas', '--channel'].filter((flag) => seen.has(flag));
-  if (surfaceSelectors.length > 1) validationError(errors, 'Use only one of --region, --canvas, or --channel');
   if (options.save && seen.has('--out')) {
     validationError(errors, '--out cannot be used with --save; saved captures write artifacts under the workspace snapshot');
   }

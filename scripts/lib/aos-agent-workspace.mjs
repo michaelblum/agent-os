@@ -1,4 +1,4 @@
-export { maybeRunRefAction } from './agent-workspace/actions.mjs';
+export { runRefAction } from './agent-workspace/actions.mjs';
 export { parseCaptureArgs, parseSavedCaptureArgs, savedCaptureCommand } from './agent-workspace/capture.mjs';
 export {
   agentWorkspaceCLI,

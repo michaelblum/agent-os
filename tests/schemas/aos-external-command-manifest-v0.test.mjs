@@ -260,6 +260,36 @@ test('permissions public workflow routes are externally composed', async () => {
   assert.equal(fallback.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
 });
 
+test('saved-ref do targets are routed before backend wrappers', async () => {
+  const manifest = await loadJson(manifestPath);
+  const refActions = ['click', 'hover', 'drag', 'scroll', 'type', 'key', 'fill', 'press', 'set-value', 'focus'];
+  for (const action of refActions) {
+    const routes = manifest.commands.filter((command) => command.path.join(' ') === `do ${action}`);
+    const refRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-ref.mjs ${action}`);
+    assert.ok(refRoute, `do ${action} missing first-class saved-ref route`);
+    assert.equal(refRoute.when?.child_arg_index, 0, `do ${action} ref route must inspect first target`);
+    assert.equal(refRoute.when?.prefix, 'ref:', `do ${action} ref route must own ref: targets`);
+    assert.equal(refRoute.env?.AOS_PATH, '$AOS_PATH', `do ${action} ref route must dispatch through configured AOS_PATH`);
+  }
+
+  for (const action of ['click', 'hover', 'drag', 'scroll', 'type', 'key']) {
+    const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
+    assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['browser:', 'ref:'], `do ${action} native route must not catch ref targets`);
+  }
+  for (const action of ['press', 'set-value', 'focus']) {
+    const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
+    assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['ref:'], `do ${action} native route must not catch ref targets`);
+  }
+  const fillRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-browser.mjs fill');
+  assert.deepEqual(fillRoute?.when?.excluded_prefixes, ['ref:'], 'do fill browser route must not catch ref targets');
+
+  for (const relativePath of ['scripts/aos-do-browser.mjs', 'scripts/aos-do-native.mjs']) {
+    const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
+    assert.equal(source.includes('maybeRunRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
+    assert.equal(source.includes('runRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
+  }
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);

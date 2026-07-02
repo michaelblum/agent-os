@@ -98,7 +98,7 @@ jq '(.refs[0]) |= (
     | .known_limits = ((.known_limits // []) + ["coordinate-backed saved-ref mutation is refused in v0"])
   )' "$CANVAS_REFS_PATH.coordinate-backup" >"$CANVAS_REFS_PATH"
 CANVAS_COORDINATE_FALLBACK_ERR="$TMP_DIR/do-canvas-coordinate-fallback.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dry-run >"$TMP_DIR/do-canvas-coordinate-fallback.out" 2>"$CANVAS_COORDINATE_FALLBACK_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dry-run >"$TMP_DIR/do-canvas-coordinate-fallback.out" 2>"$CANVAS_COORDINATE_FALLBACK_ERR"; then
     mv "$CANVAS_REFS_PATH.coordinate-backup" "$CANVAS_REFS_PATH"
     fail "AOS canvas coordinate fallback diagnostic ref unexpectedly became actionable"
 fi
@@ -118,7 +118,7 @@ jq -e '
     || fail "AOS canvas coordinate fallback diagnostic ref did not refuse before dispatch: $(cat "$CANVAS_COORDINATE_FALLBACK_ERR")"
 
 CANVAS_DRY="$TMP_DIR/do-canvas-dry-run.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dry-run >"$CANVAS_DRY"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dry-run >"$CANVAS_DRY"
 jq -e '
   .status == "dry_run"
   and .ref.backend == "aos_canvas"
@@ -131,7 +131,7 @@ jq -e '
 ' "$CANVAS_DRY" >/dev/null || fail "AOS canvas ref dry-run drifted: $(cat "$CANVAS_DRY")"
 
 CANVAS_DWELL_DRY="$TMP_DIR/do-canvas-click-dwell-dry-run.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dwell 25 --dry-run >"$CANVAS_DWELL_DRY"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs click ref:snapcanvas:r1 --workspace ws-canvas --dwell 25 --dry-run >"$CANVAS_DWELL_DRY"
 jq -e '
   .status == "dry_run"
   and .ref.backend == "aos_canvas"
@@ -141,7 +141,7 @@ jq -e '
 ' "$CANVAS_DWELL_DRY" >/dev/null || fail "AOS canvas click ref dwell dry-run drifted: $(cat "$CANVAS_DWELL_DRY")"
 
 CANVAS_ACTION="$TMP_DIR/do-canvas-action.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs click ref:snapcanvas:r1 --workspace ws-canvas >"$CANVAS_ACTION"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs click ref:snapcanvas:r1 --workspace ws-canvas >"$CANVAS_ACTION"
 jq -e '
   .status == "success"
   and .schema_version == "aos.agent-workspace.v0"
@@ -160,7 +160,7 @@ jq -e '
 ' "$CANVAS_ACTION" >/dev/null || fail "AOS canvas ref action drifted: $(cat "$CANVAS_ACTION")"
 
 CANVAS_SET_DRY="$TMP_DIR/do-canvas-set-value-dry-run.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 42 --dry-run >"$CANVAS_SET_DRY"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 42 --dry-run >"$CANVAS_SET_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "set-value"
@@ -175,7 +175,7 @@ jq -e '
 ' "$CANVAS_SET_DRY" >/dev/null || fail "AOS canvas set-value ref dry-run drifted: $(cat "$CANVAS_SET_DRY")"
 
 CANVAS_SET_ACTION="$TMP_DIR/do-canvas-set-value-action.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 43 >"$CANVAS_SET_ACTION"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 43 >"$CANVAS_SET_ACTION"
 jq -e '
   .status == "success"
   and .schema_version == "aos.agent-workspace.v0"
@@ -192,7 +192,7 @@ jq -e '
 ' "$CANVAS_SET_ACTION" >/dev/null || fail "AOS canvas set-value ref action drifted: $(cat "$CANVAS_SET_ACTION")"
 
 CANVAS_SET_POSITIONAL="$TMP_DIR/do-canvas-set-value-positional.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 44 --workspace ws-canvas >"$CANVAS_SET_POSITIONAL"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 44 --workspace ws-canvas >"$CANVAS_SET_POSITIONAL"
 jq -e '
   .status == "success"
   and .schema_version == "aos.agent-workspace.v0"
@@ -240,7 +240,7 @@ jq -e '.error | contains("exactly one target source")' "$CANVAS_DIRECT_SET_BOTH_
     || fail "direct canvas set-value both-target error did not explain one-target rule: $(cat "$CANVAS_DIRECT_SET_BOTH_TARGET_SOURCES_ERR")"
 
 CANVAS_FOCUS_ERR="$TMP_DIR/do-canvas-focus.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs focus ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-focus.out" 2>"$CANVAS_FOCUS_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs focus ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-focus.out" 2>"$CANVAS_FOCUS_ERR"; then
     fail "unsupported AOS canvas focus ref unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_FOCUS_ERR"
@@ -248,7 +248,7 @@ jq -e '.status == "action_incompatible" and .ref.backend == "aos_canvas" and .sa
     || fail "AOS canvas focus ref did not fail closed through action matrix: $(cat "$CANVAS_FOCUS_ERR")"
 
 CANVAS_PRESS_ERR="$TMP_DIR/do-canvas-press.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs press ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-press.out" 2>"$CANVAS_PRESS_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs press ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-press.out" 2>"$CANVAS_PRESS_ERR"; then
     fail "unsupported AOS canvas press ref unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_PRESS_ERR"
@@ -256,13 +256,13 @@ jq -e '.status == "action_incompatible" and .ref.backend == "aos_canvas"' "$CANV
     || fail "AOS canvas press ref did not fail closed through action matrix: $(cat "$CANVAS_PRESS_ERR")"
 
 CANVAS_SET_MISSING_VALUE_ERR="$TMP_DIR/do-canvas-set-value-missing.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --dry-run >"$TMP_DIR/do-canvas-set-value-missing.out" 2>"$CANVAS_SET_MISSING_VALUE_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --dry-run >"$TMP_DIR/do-canvas-set-value-missing.out" 2>"$CANVAS_SET_MISSING_VALUE_ERR"; then
     fail "set-value saved ref without value unexpectedly succeeded"
 fi
 expect_error_code "MISSING_ARG" "$CANVAS_SET_MISSING_VALUE_ERR"
 
 CANVAS_SET_BOTH_VALUE_SOURCES_ERR="$TMP_DIR/do-canvas-set-value-both-sources.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 46 --workspace ws-canvas --value 47 >"$TMP_DIR/do-canvas-set-value-both-sources.out" 2>"$CANVAS_SET_BOTH_VALUE_SOURCES_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 46 --workspace ws-canvas --value 47 >"$TMP_DIR/do-canvas-set-value-both-sources.out" 2>"$CANVAS_SET_BOTH_VALUE_SOURCES_ERR"; then
     fail "set-value saved ref with both value sources unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$CANVAS_SET_BOTH_VALUE_SOURCES_ERR"
@@ -270,13 +270,13 @@ jq -e '.error | contains("exactly one value source")' "$CANVAS_SET_BOTH_VALUE_SO
     || fail "set-value both-source error did not explain one-source rule: $(cat "$CANVAS_SET_BOTH_VALUE_SOURCES_ERR")"
 
 CANVAS_SET_EXTRA_POSITIONAL_ERR="$TMP_DIR/do-canvas-set-value-extra-positional.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 46 47 --workspace ws-canvas >"$TMP_DIR/do-canvas-set-value-extra-positional.out" 2>"$CANVAS_SET_EXTRA_POSITIONAL_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 46 47 --workspace ws-canvas >"$TMP_DIR/do-canvas-set-value-extra-positional.out" 2>"$CANVAS_SET_EXTRA_POSITIONAL_ERR"; then
     fail "set-value saved ref with extra positional value unexpectedly succeeded"
 fi
 expect_error_code "UNKNOWN_ARG" "$CANVAS_SET_EXTRA_POSITIONAL_ERR"
 
 CANVAS_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-incompatible.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs type ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs type ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then
     fail "incompatible AOS canvas ref action unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_INCOMPATIBLE_ERR"
@@ -287,7 +287,7 @@ jq -e '
 ' "$CANVAS_INCOMPATIBLE_ERR" >/dev/null || fail "incompatible AOS canvas type ref action lacked safe next command: $(cat "$CANVAS_INCOMPATIBLE_ERR")"
 
 CANVAS_KEY_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-key-incompatible.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs key ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-key-incompatible.out" 2>"$CANVAS_KEY_INCOMPATIBLE_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs key ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-key-incompatible.out" 2>"$CANVAS_KEY_INCOMPATIBLE_ERR"; then
     fail "incompatible AOS canvas key ref action unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_KEY_INCOMPATIBLE_ERR"

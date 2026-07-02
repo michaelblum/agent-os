@@ -9,6 +9,7 @@ trap 'rm -rf "$STATE_ROOT"' EXIT
 
 export AOS_STATE_ROOT="$STATE_ROOT"
 export AOS_DISABLE_DAEMON_AUTOSTART=1
+export AOS_BYPASS_PERMISSIONS_SETUP=1
 
 check_unknown_flag() {
   local label="$1"
@@ -65,6 +66,22 @@ check_invalid_arg() {
   fi
   if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
     echo "FAIL: $label did not use INVALID_ARG" >&2
+    cat "$err" >&2
+    exit 1
+  fi
+}
+
+check_code() {
+  local label="$1"
+  local code="$2"
+  shift 2
+  local err="$STATE_ROOT/${label}.err"
+  if "$@" 2>"$err"; then
+    echo "FAIL: $label unexpectedly succeeded" >&2
+    exit 1
+  fi
+  if ! grep -Eq "\"code\"[[:space:]]*:[[:space:]]*\"$code\"" "$err"; then
+    echo "FAIL: $label did not use $code" >&2
     cat "$err" >&2
     exit 1
   fi
@@ -245,8 +262,17 @@ check_unknown_flag see-list-unknown-flag ./aos see list --bogus
 check_unknown_arg see-list-extra ./aos see list unexpected
 check_unknown_flag see-selection-unknown-flag ./aos see selection --bogus
 check_unknown_arg see-selection-extra ./aos see selection unexpected
-check_unknown_flag see-capture-unknown-flag ./aos see capture main --bogus
-check_unknown_arg see-capture-extra ./aos see capture main unexpected
+node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import { parseCaptureArgs } from './scripts/lib/agent-workspace/capture.mjs';
+
+const parsed = parseCaptureArgs(['main', '--format', 'jpeg']);
+assert.deepEqual(parsed.errors, [], 'workspace capture parser must delegate primitive --format jpeg grammar to Swift');
+assert.deepEqual(parsed.passthrough, ['main', '--format', 'jpeg']);
+assert.equal(parsed.target, 'main');
+JS
+check_code see-capture-unknown-flag UNKNOWN_OPTION ./aos see capture main --bogus
+check_code see-capture-extra UNKNOWN_OPTION ./aos see capture main unexpected
 check_missing_arg see-capture-out-missing ./aos see capture main --out
 check_missing_arg see-capture-region-missing ./aos see capture main --region
 check_missing_arg see-capture-draw-rect-color-missing ./aos see capture main --draw-rect 1,2,3,4
@@ -275,8 +301,8 @@ if ./aos see capture main --format gif 2>"$err"; then
   echo "FAIL: see capture accepted invalid --format value" >&2
   exit 1
 fi
-if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
-  echo "FAIL: see capture invalid --format value did not use INVALID_ARG" >&2
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_FORMAT"' "$err"; then
+  echo "FAIL: see capture invalid --format value did not use INVALID_FORMAT" >&2
   cat "$err" >&2
   exit 1
 fi
@@ -285,8 +311,8 @@ if ./aos see capture main --quality ultra 2>"$err"; then
   echo "FAIL: see capture accepted invalid --quality value" >&2
   exit 1
 fi
-if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
-  echo "FAIL: see capture invalid --quality value did not use INVALID_ARG" >&2
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_QUALITY"' "$err"; then
+  echo "FAIL: see capture invalid --quality value did not use INVALID_QUALITY" >&2
   cat "$err" >&2
   exit 1
 fi

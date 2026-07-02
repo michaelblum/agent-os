@@ -23,6 +23,7 @@ import {
   SAVED_REF_CONFIDENCE_VALUES,
   SAVED_REF_RESOLUTION_CLASSES,
   SAVED_REF_V0_ACTION_MATRIX,
+  SAVED_REF_V0_ACTION_MATRIX_ROWS,
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
   savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
@@ -169,7 +170,9 @@ for (const action of SAVED_REF_V0_ACTIONS_BY_BACKEND.browser) {
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('success'), `browser ${action} must document success status`);
 }
 
-const requiredActions = ['click', 'set-value', 'fill', 'hover', 'scroll', 'drag', 'focus', 'press', 'type', 'key'];
+const actionMatrixRows = SAVED_REF_V0_ACTION_MATRIX_ROWS;
+const requiredActions = actionMatrixRows.map((row) => row.action);
+assert.deepEqual(requiredActions, Object.keys(SAVED_REF_V0_ACTION_MATRIX), 'structured action rows must be generated from the canonical matrix order');
 for (const action of requiredActions) {
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action], `missing matrix action ${action}`);
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('REF_NOT_FOUND'), `${action} must document resolver REF_NOT_FOUND`);
@@ -186,7 +189,7 @@ for (const action of ['set-value', 'scroll']) {
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('INVALID_ARG'), `${action} must document saved-ref grammar INVALID_ARG`);
 }
 
-for (const [action, contract] of Object.entries(SAVED_REF_V0_ACTION_MATRIX)) {
+for (const { action, ...contract } of actionMatrixRows) {
   assert.equal(typeof contract.dry_run, 'boolean', `${action} dry_run`);
   assert.ok(Array.isArray(contract.required_args), `${action} required_args`);
   assert.ok(Array.isArray(contract.optional_args), `${action} optional_args`);
@@ -270,7 +273,7 @@ function schemaDocActionRow(action) {
   return schemaDoc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\``));
 }
 
-for (const [action, contract] of Object.entries(SAVED_REF_V0_ACTION_MATRIX)) {
+for (const { action, ...contract } of actionMatrixRows) {
   const row = schemaDocActionRow(action);
   assert.ok(row, `schema doc missing action matrix row for ${action}`);
   for (const status of contract.statuses) {

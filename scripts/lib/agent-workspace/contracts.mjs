@@ -413,7 +413,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     required_args: ['command-specific'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'unsupported for saved refs in v0; ref:* can be literal typed text for native type paths',
+    validation: 'unsupported for saved refs in v0; public ref: targets route to the saved-ref resolver before backend wrappers',
     known_limits: {},
     statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
   },
@@ -424,11 +424,28 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     required_args: ['command-specific'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'unsupported for saved refs in v0',
+    validation: 'unsupported for saved refs in v0; public ref: targets route to the saved-ref resolver before backend wrappers',
     known_limits: {},
     statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
   },
 };
+
+export const SAVED_REF_V0_ACTION_MATRIX_ROWS = Object.freeze(
+  Object.entries(SAVED_REF_V0_ACTION_MATRIX).map(([action, contract]) => Object.freeze({
+    action,
+    supported_backends: Object.freeze(Object.fromEntries(
+      Object.entries(contract.supported_backends).map(([backend, classes]) => [backend, Object.freeze([...classes])]),
+    )),
+    dry_run: contract.dry_run,
+    real_mutation: Object.freeze({ ...contract.real_mutation }),
+    required_args: Object.freeze([...contract.required_args]),
+    optional_args: Object.freeze([...contract.optional_args]),
+    mutation_risk: contract.mutation_risk,
+    validation: contract.validation,
+    known_limits: Object.freeze({ ...contract.known_limits }),
+    statuses: Object.freeze([...contract.statuses]),
+  })),
+);
 
 export const SAVED_REF_V0_ACTIONS_BY_BACKEND = Object.freeze(
   Object.fromEntries(SAVED_REF_BACKENDS.map((backend) => [
