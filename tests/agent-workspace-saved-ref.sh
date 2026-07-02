@@ -383,7 +383,9 @@ FORM_FILL_ERR="$TMP_DIR/do-form-fill.err"
 if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill.out" 2>"$FORM_FILL_ERR"; then
     fail "browser fill saved ref unexpectedly succeeded"
 fi
-expect_error_code "UNKNOWN_FLAG" "$FORM_FILL_ERR"
+expect_error_code "ACTION_INCOMPATIBLE" "$FORM_FILL_ERR"
+jq -e '.status == "action_incompatible" and .ref.backend == "browser" and (.safe_next_action | contains("aos see capture --save"))' "$FORM_FILL_ERR" >/dev/null \
+    || fail "browser fill saved ref did not fail closed through ref resolver: $(cat "$FORM_FILL_ERR")"
 
 NON_CLICK_AOS="$TMP_DIR/non-click-aos"
 cat >"$NON_CLICK_AOS" <<'SH'
@@ -504,6 +506,22 @@ expect_error_code "REF_UNSUPPORTED" "$NATIVE_ERR"
 jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .ref.resolution_class == "volatile"' "$NATIVE_ERR" >/dev/null \
     || fail "native unsupported ref payload drifted: $(cat "$NATIVE_ERR")"
 
+NATIVE_FOCUS_ERR="$TMP_DIR/do-native-focus-ref.err"
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs focus ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-focus-ref.out" 2>"$NATIVE_FOCUS_ERR"; then
+    fail "native focus volatile inspection ref unexpectedly became actionable"
+fi
+expect_error_code "REF_UNSUPPORTED" "$NATIVE_FOCUS_ERR"
+jq -e '.status == "unsupported" and .ref.backend == "native_ax" and (.safe_next_action | contains("aos see capture --save"))' "$NATIVE_FOCUS_ERR" >/dev/null \
+    || fail "native focus unsupported ref payload drifted: $(cat "$NATIVE_FOCUS_ERR")"
+
+NATIVE_PRESS_ERR="$TMP_DIR/do-native-press-ref.err"
+if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs press ref:snapnative:r1 --workspace ws-native >"$TMP_DIR/do-native-press-ref.out" 2>"$NATIVE_PRESS_ERR"; then
+    fail "native press volatile inspection ref unexpectedly became actionable"
+fi
+expect_error_code "REF_UNSUPPORTED" "$NATIVE_PRESS_ERR"
+jq -e '.status == "unsupported" and .ref.backend == "native_ax" and (.recommended_next_command | contains("aos see capture --save"))' "$NATIVE_PRESS_ERR" >/dev/null \
+    || fail "native press unsupported ref payload drifted: $(cat "$NATIVE_PRESS_ERR")"
+
 HIGHLIGHT_MAIN="$TMP_DIR/capture-highlight-main.json"
 AOS_PATH="$FAKE_AOS" node scripts/aos-see-native.mjs capture --save --mode ax --workspace ws-highlight --name snaphighlight --highlight-cursor '#ff00aa' >"$HIGHLIGHT_MAIN"
 jq -e '.status == "success" and .target == "main" and .snapshot_id == "snaphighlight"' "$HIGHLIGHT_MAIN" >/dev/null \
@@ -551,6 +569,46 @@ if [[ "${1:-}" == "__see" && "${2:-}" == "capture" ]]; then
           "capabilities": ["click", "focus"]
         }
       }
+    },
+    {
+      "ref": "brightness-slider",
+      "surface": "fixture-panel",
+      "role": "slider",
+      "name": "Brightness",
+      "enabled": true,
+      "actions": ["set-value", "focus"],
+      "target": {
+        "target_id": "fixture.brightness",
+        "owner_namespace": {
+          "app_id": "fixture",
+          "canvas_id": "canvas-fixture",
+          "surface_id": "fixture-panel",
+          "component_family": "fixture.panel",
+          "structural_owner": ["fixture-panel"]
+        }
+      },
+      "state": {
+        "value": "10",
+        "values": [10],
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "orientation": "horizontal",
+        "thumb_count": 1
+      },
+      "provenance": {
+        "canvas_id": "canvas-fixture",
+        "do_target": "canvas:canvas-fixture/brightness-slider",
+        "center": { "x": 80, "y": 30 }
+      },
+      "reacquisition": {
+        "strategy": "owner-structural-fingerprint",
+        "machine_fingerprint": {
+          "role": "slider",
+          "structural_path": ["fixture-panel", "brightness-slider"],
+          "capabilities": ["set-value", "focus"]
+        }
+      }
     }
   ]
 }
@@ -579,6 +637,42 @@ PY
     exit 0
 fi
 
+if [[ "${1:-}" == "do" && "${2:-}" == "set-value" && "${3:-}" == "canvas:canvas-fixture/brightness-slider" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+args = sys.argv[1:]
+assert "--state-id" in args, args
+assert args[args.index("--state-id") + 1] == "see_canvas_fixture", args
+value = args[args.index("--value") + 1] if "--value" in args else args[3]
+print(json.dumps({
+    "status": "success",
+    "received": args,
+    "execution": {
+        "backend": "canvas",
+        "strategy": "fixture_canvas_set_value",
+        "state_id": "see_canvas_fixture"
+    },
+    "value": value
+}))
+PY
+    exit 0
+fi
+
+if [[ "${1:-}" == "__do" && "${2:-}" == "set-value" && "${3:-}" == "canvas:canvas-fixture/brightness-slider" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "dry_run_passthrough",
+    "received": sys.argv[1:]
+}))
+PY
+    exit 0
+fi
+
 echo "unexpected fake canvas aos invocation: $*" >&2
 exit 2
 SH
@@ -598,6 +692,9 @@ jq -e '
   and .refs[0].action_target == "canvas:canvas-fixture/save-button"
   and (.refs[0].supported_actions | index("click") != null)
   and (.refs[0].supported_actions | index("focus") | not)
+  and .refs[1].action_target == "canvas:canvas-fixture/brightness-slider"
+  and (.refs[1].supported_actions | index("set-value") != null)
+  and (.refs[1].supported_actions | index("focus") | not)
 ' "$CANVAS" >/dev/null || fail "AOS canvas saved-ref reporting drifted: $(cat "$CANVAS")"
 
 CANVAS_DRY="$TMP_DIR/do-canvas-dry-run.json"
@@ -620,6 +717,70 @@ jq -e '
   and .execution.state_id == "see_canvas_fixture"
   and (.received | index("canvas:canvas-fixture/save-button") != null)
 ' "$CANVAS_ACTION" >/dev/null || fail "AOS canvas ref action drifted: $(cat "$CANVAS_ACTION")"
+
+CANVAS_SET_DRY="$TMP_DIR/do-canvas-set-value-dry-run.json"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 42 --dry-run >"$CANVAS_SET_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "set-value"
+  and .ref.backend == "aos_canvas"
+  and .ref.resolution_class == "reacquirable"
+  and .resolved_action.resolution_status == "resolved"
+  and (.resolved_action.command | index("canvas:canvas-fixture/brightness-slider") != null)
+  and (.resolved_action.command | index("--value") != null)
+  and (.resolved_action.command | index("42") != null)
+  and (.resolved_action.command | index("--state-id") != null)
+  and (.resolved_action.command | index("see_canvas_fixture") != null)
+' "$CANVAS_SET_DRY" >/dev/null || fail "AOS canvas set-value ref dry-run drifted: $(cat "$CANVAS_SET_DRY")"
+
+CANVAS_SET_ACTION="$TMP_DIR/do-canvas-set-value-action.json"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 43 >"$CANVAS_SET_ACTION"
+jq -e '
+  .status == "success"
+  and .execution.backend == "canvas"
+  and .execution.state_id == "see_canvas_fixture"
+  and .value == "43"
+  and (.received | index("canvas:canvas-fixture/brightness-slider") != null)
+' "$CANVAS_SET_ACTION" >/dev/null || fail "AOS canvas set-value ref action drifted: $(cat "$CANVAS_SET_ACTION")"
+
+CANVAS_SET_POSITIONAL="$TMP_DIR/do-canvas-set-value-positional.json"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 44 --workspace ws-canvas >"$CANVAS_SET_POSITIONAL"
+jq -e '
+  .status == "success"
+  and .value == "44"
+  and (.received | index("44") != null)
+' "$CANVAS_SET_POSITIONAL" >/dev/null || fail "AOS canvas positional set-value ref action drifted: $(cat "$CANVAS_SET_POSITIONAL")"
+
+CANVAS_DIRECT_SET="$TMP_DIR/do-canvas-direct-set-value.json"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value canvas:canvas-fixture/brightness-slider --value 45 --dry-run >"$CANVAS_DIRECT_SET"
+jq -e '
+  .status == "dry_run_passthrough"
+  and (.received | index("__do") != null)
+  and (.received | index("set-value") != null)
+  and (.received | index("canvas:canvas-fixture/brightness-slider") != null)
+' "$CANVAS_DIRECT_SET" >/dev/null || fail "direct canvas set-value wrapper validation drifted: $(cat "$CANVAS_DIRECT_SET")"
+
+CANVAS_FOCUS_ERR="$TMP_DIR/do-canvas-focus.err"
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs focus ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-focus.out" 2>"$CANVAS_FOCUS_ERR"; then
+    fail "unsupported AOS canvas focus ref unexpectedly succeeded"
+fi
+expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_FOCUS_ERR"
+jq -e '.status == "action_incompatible" and .ref.backend == "aos_canvas" and (.safe_next_action | contains("aos see capture --save"))' "$CANVAS_FOCUS_ERR" >/dev/null \
+    || fail "AOS canvas focus ref did not fail closed through action matrix: $(cat "$CANVAS_FOCUS_ERR")"
+
+CANVAS_PRESS_ERR="$TMP_DIR/do-canvas-press.err"
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs press ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-press.out" 2>"$CANVAS_PRESS_ERR"; then
+    fail "unsupported AOS canvas press ref unexpectedly succeeded"
+fi
+expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_PRESS_ERR"
+jq -e '.status == "action_incompatible" and .ref.backend == "aos_canvas"' "$CANVAS_PRESS_ERR" >/dev/null \
+    || fail "AOS canvas press ref did not fail closed through action matrix: $(cat "$CANVAS_PRESS_ERR")"
+
+CANVAS_SET_MISSING_VALUE_ERR="$TMP_DIR/do-canvas-set-value-missing.err"
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --dry-run >"$TMP_DIR/do-canvas-set-value-missing.out" 2>"$CANVAS_SET_MISSING_VALUE_ERR"; then
+    fail "set-value saved ref without value unexpectedly succeeded"
+fi
+expect_error_code "MISSING_ARG" "$CANVAS_SET_MISSING_VALUE_ERR"
 
 CANVAS_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-incompatible.err"
 if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs type ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then

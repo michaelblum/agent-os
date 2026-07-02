@@ -122,14 +122,22 @@ function validate(verb, args) {
       if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'press':
+      if (pos[0]?.startsWith('ref:')) return;
       requireFlag(args, '--pid', 'press requires --pid', isInt);
       break;
     case 'set-value':
+      if (pos[0]?.startsWith('canvas:') || pos[0]?.startsWith('ref:')) {
+        const value = flagValue(args, '--value') ?? pos[1];
+        if (!value) error('set-value requires --value or a positional value', 'MISSING_ARG');
+        if (pos.length > 2) unknownArg(pos[2]);
+        break;
+      }
       requireFlag(args, '--pid', 'set-value requires --pid', isInt);
       requireFlag(args, '--role', 'set-value requires --role');
       requireFlag(args, '--value', 'set-value requires --value');
       break;
     case 'focus':
+      if (pos[0]?.startsWith('ref:')) return;
       requireFlag(args, '--pid', 'focus requires --pid', isInt);
       requireFlag(args, '--role', 'focus requires --role');
       break;
@@ -155,7 +163,7 @@ function validate(verb, args) {
 const [verb, ...args] = process.argv.slice(2);
 if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
 try {
-  if (verb === 'click') maybeRunRefAction(verb, args);
+  if (['click', 'press', 'set-value', 'focus'].includes(verb)) maybeRunRefAction(verb, args);
 } catch (err) {
   if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
   throw err;

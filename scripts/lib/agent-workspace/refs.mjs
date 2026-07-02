@@ -54,10 +54,15 @@ function browserActionsForElement(element) {
   return ['click'];
 }
 
-const SAVED_REF_V0_ACTIONS = new Set(['click']);
+const SAVED_REF_V0_ACTIONS_BY_BACKEND = {
+  aos_canvas: new Set(['click', 'set-value']),
+  browser: new Set(['click']),
+  native_ax: new Set(),
+};
 
-function savedRefActions(actions) {
-  return [...new Set((actions ?? []).filter((action) => SAVED_REF_V0_ACTIONS.has(action)))];
+function savedRefActions(actions, backend) {
+  const allowed = SAVED_REF_V0_ACTIONS_BY_BACKEND[backend] ?? new Set();
+  return [...new Set((actions ?? []).filter((action) => allowed.has(action)))];
 }
 
 export function generateRefRecords(capture, context) {
@@ -71,7 +76,7 @@ export function generateRefRecords(capture, context) {
     const canvasID = textValue(target.provenance?.canvas_id);
     const actionTarget = textValue(target.provenance?.do_target, canvasID && sourceRef ? `canvas:${canvasID}/${sourceRef}` : null);
     const producerSupported = Array.isArray(target.actions) ? target.actions.filter(Boolean) : [];
-    const supported = savedRefActions(producerSupported);
+    const supported = savedRefActions(producerSupported, 'aos_canvas');
     const record = {
       schema_version: SCHEMA_VERSION,
       ref: nextRef(),
@@ -106,7 +111,7 @@ export function generateRefRecords(capture, context) {
       },
       artifact_refs: artifactRefs,
       warnings: producerSupported.length && supported.length === 0
-        ? ['producer actions are present, but saved-ref V0 only supports click mutation']
+        ? ['producer actions are present, but this saved-ref slice only supports canvas click and set-value mutation']
         : [],
       known_limits: [
         'canvas refs are re-read from the current canvas; missing, disabled, segmented, or ambiguous current targets fail closed',
@@ -133,7 +138,7 @@ export function generateRefRecords(capture, context) {
       backend: isBrowser ? 'browser' : 'native_ax',
       resolution_class: isBrowser ? 'snapshot_scoped' : 'volatile',
       confidence: isBrowser ? 'medium' : 'low',
-      supported_actions: isBrowser ? savedRefActions(browserActionsForElement(element)) : [],
+      supported_actions: isBrowser ? savedRefActions(browserActionsForElement(element), 'browser') : [],
       target_summary: [element.role, element.title, element.label, element.value, sourceRef].filter(Boolean).join(' ') || 'element',
       identity_facts: {
         state_id: stateID,

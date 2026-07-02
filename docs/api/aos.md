@@ -174,13 +174,20 @@ Capture modes are explicit:
 
 Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
-V0 saved-ref mutation is click-only: `aos do click ref:<...>` is the public
-saved-ref action form. Other captured refs may still be listed and queried, but
-`fill`, `type`, `key`, `focus`, `drag`, and `set-value` are not saved-ref
-mutation targets yet. Real mutation is fail-closed: browser `snapshot_scoped`
-refs may dry-run click but require refreshed validation before real action,
-native AX `volatile` refs are inspection-only, and AOS canvas `reacquirable`
-click refs can route through the current canvas resolver.
+Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
+refs can route `click` and `set-value` through the current canvas resolver:
+
+```bash
+aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
+aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
+```
+
+Browser `snapshot_scoped` refs may dry-run click but require refreshed
+validation before real action. Native AX `volatile` refs are inspection-only.
+`focus`, `press`/`open`/`toggle`, browser `fill`/`type`/`key`, and other
+saved-ref forms fail closed with structured JSON until a backend-owned current
+target validation path exists. See
+`shared/schemas/aos-agent-workspace-v0.md` for the full action grammar matrix.
 
 Cleanup is explicit:
 

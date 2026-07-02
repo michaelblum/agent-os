@@ -743,7 +743,7 @@
     },
     {
       "path": ["see", "refs"],
-      "summary": "List compact saved refs through external agent-workspace composition; V0 saved-ref mutation is click-only.",
+      "summary": "List compact saved refs through external agent-workspace composition; saved-ref mutation follows the backend action matrix.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "refs"],
       "cwd": "repo",

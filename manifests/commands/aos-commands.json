@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref V0 actions are click-only",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click and set-value",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -546,7 +546,7 @@
               "id" : "query",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Filter compact saved refs by text; captured refs may list non-click facts, but saved-ref mutation is click-only in V0",
+              "summary" : "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
               "token" : "--query",
               "value_type" : "string"
             }
@@ -2973,9 +2973,16 @@
         {
           "args" : [
             {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Saved ref or canvas target; omit for AX --pid/--role form",
+              "value_type" : "string"
+            },
+            {
               "id" : "pid",
               "kind" : "flag",
-              "required" : true,
+              "required" : false,
               "summary" : "Process ID",
               "token" : "--pid",
               "value_type" : "int"
@@ -2983,7 +2990,7 @@
             {
               "id" : "role",
               "kind" : "flag",
-              "required" : true,
+              "required" : false,
               "summary" : "AX role to match",
               "token" : "--role",
               "value_type" : "string"
@@ -3053,6 +3060,30 @@
               "value_type" : "int"
             },
             {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the ref/canvas action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
+              "value_type" : "string"
+            },
+            {
               "id" : "timeout",
               "kind" : "flag",
               "required" : false,
@@ -3062,6 +3093,8 @@
             }
           ],
           "examples" : [
+            "aos do set-value ref:<snapshot-id>:r2 --workspace default --value \"42\" --dry-run",
+            "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
           "execution" : {
@@ -3071,7 +3104,7 @@
             "read_only" : false,
             "requires_permissions" : true,
             "streaming" : false,
-            "supports_dry_run" : false
+            "supports_dry_run" : true
           },
           "id" : "do-set-value",
           "output" : {
@@ -3080,7 +3113,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do set-value --pid <pid> --role <role> --value <value> [filters]"
+          "usage" : "aos do set-value <ref:<snapshot-id>:<ref>|canvas:<canvas-id>/<ref>|--pid <pid> --role <role>> (--value <value>|<value>) [--workspace <id>] [--snapshot <id>] [filters]"
         },
         {
           "args" : [

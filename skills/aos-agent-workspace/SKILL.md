@@ -13,6 +13,7 @@ aos see capture browser:work --save --mode som --workspace default
 aos see snapshots --workspace default --json
 aos see refs --workspace default --query Save --json
 aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
+aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run
 ```
 
 ## Contract
@@ -51,14 +52,15 @@ aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
 ```
 
 Dry-run reports the resolved underlying command and whether validation is
-required. V0 saved refs publicly support click only:
+required. Saved refs use a backend action matrix:
 
-- AOS canvas `reacquirable` refs may route through the current canvas resolver.
+- AOS canvas `reacquirable` refs may route `click` and `set-value` through the
+  current canvas resolver.
 - Browser `snapshot_scoped` refs may dry-run click, but real mutation fails
   closed with `REF_REVALIDATION_REQUIRED` until current-target validation exists.
 - Native AX `volatile` refs are inspection-only.
-- Do not use saved refs with `fill`, `type`, `key`, `focus`, `drag`, or
-  `set-value`; non-click saved-ref actions return `ACTION_INCOMPATIBLE`.
+- `focus`, `press`/`open`/`toggle`, browser `fill`/`type`/`key`, and other
+  unsupported saved-ref actions fail closed with structured JSON.
 - Unsupported or incompatible actions return `REF_UNSUPPORTED` or
   `ACTION_INCOMPATIBLE`.
 

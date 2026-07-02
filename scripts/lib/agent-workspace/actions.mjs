@@ -100,6 +100,44 @@ function unsafeResolutionForMutation(record) {
   return record.resolution_class || 'unsupported';
 }
 
+function recommendedRefreshCommand(workspace) {
+  return `aos see capture --save --workspace ${workspace}`;
+}
+
+function failUnsupportedRef(record, workspace) {
+  exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {
+    status: 'unsupported',
+    ref: refSummary(record),
+    recommended_next_command: recommendedRefreshCommand(workspace),
+    safe_next_action: recommendedRefreshCommand(workspace),
+    requires_user_approval: false,
+  });
+}
+
+function failIncompatibleAction(record, action, workspace) {
+  exitAgentWorkspaceError(`Ref '${record.ref}' does not support ${action}`, 'ACTION_INCOMPATIBLE', {
+    status: 'action_incompatible',
+    ref: refSummary(record),
+    supported_actions: record.supported_actions ?? [],
+    recommended_next_command: recommendedRefreshCommand(workspace),
+    safe_next_action: recommendedRefreshCommand(workspace),
+    requires_user_approval: false,
+  });
+}
+
+function validateActionArgs(action, args, targetIndex) {
+  if (action !== 'set-value') return;
+  const valueFlagIndex = args.indexOf('--value');
+  const hasFlagValue = valueFlagIndex >= 0
+    && valueFlagIndex + 1 < args.length
+    && !String(args[valueFlagIndex + 1]).startsWith('--');
+  const positions = positionalIndexes(args);
+  const hasPositionalValue = positions.some((index) => index !== targetIndex);
+  if (!hasFlagValue && !hasPositionalValue) {
+    exitAgentWorkspaceError('set-value requires --value or a positional value', 'MISSING_ARG');
+  }
+}
+
 export function maybeRunRefAction(action, args, env = process.env) {
   const positions = positionalIndexes(args);
   const firstIndex = positions[0];
@@ -113,28 +151,13 @@ export function maybeRunRefAction(action, args, env = process.env) {
   const strippedTargetIndex = strippedPositions[0];
   const record = loadRefRecord(workspace, refToken, explicitSnapshot, env);
   const dryRun = stripped.args.includes('--dry-run');
-
-  if (action !== 'click') {
-    exitAgentWorkspaceError(`Saved refs only support click in V0; received ${action}`, 'ACTION_INCOMPATIBLE', {
-      status: 'action_incompatible',
-      ref: refSummary(record),
-      supported_actions: (record.supported_actions ?? []).filter((item) => item === 'click'),
-    });
-  }
+  validateActionArgs(action, stripped.args, strippedTargetIndex);
 
   if (!record.action_target) {
-    exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {
-      status: 'unsupported',
-      ref: refSummary(record),
-      recommended_next_command: `aos see capture --save --workspace ${workspace}`,
-    });
+    failUnsupportedRef(record, workspace);
   }
   if (!(record.supported_actions ?? []).includes(action)) {
-    exitAgentWorkspaceError(`Ref '${record.ref}' does not support ${action}`, 'ACTION_INCOMPATIBLE', {
-      status: 'action_incompatible',
-      ref: refSummary(record),
-      supported_actions: record.supported_actions ?? [],
-    });
+    failIncompatibleAction(record, action, workspace);
   }
 
   const unsafe = unsafeResolutionForMutation(record);
@@ -142,7 +165,8 @@ export function maybeRunRefAction(action, args, env = process.env) {
     exitAgentWorkspaceError(`Ref '${record.ref}' is ${unsafe}; refresh perception before mutating`, 'REF_REVALIDATION_REQUIRED', {
       status: unsafe,
       ref: refSummary(record),
-      safe_next_action: `aos see capture --save --workspace ${workspace}`,
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
       requires_user_approval: false,
     });
   }

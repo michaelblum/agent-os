@@ -247,19 +247,24 @@ import json
 import os
 
 data = json.loads(os.environ["OUT"])
+saved_ref_forms = {"do-click", "do-set-value"}
 for form in data["forms"]:
     usage = form.get("usage", "")
     examples = " ".join(form.get("examples", []))
     has_saved_ref = "ref:<snapshot-id>:<ref>" in usage or "ref:<snapshot-id>:" in examples
-    if form["id"] == "do-click":
+    if form["id"] in saved_ref_forms:
         assert has_saved_ref, form
     else:
         assert not has_saved_ref, form
+set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
+set_value_tokens = {arg.get("token") for arg in set_value["args"]}
+assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
+assert "canvas:<canvas-id>/<ref>" in set_value["usage"], set_value["usage"]
 PY
 then
-    pass "only do click help advertises saved ref targets"
+    pass "only supported saved-ref do actions advertise saved ref targets"
 else
-    fail "non-click do help advertises saved ref targets"
+    fail "do saved-ref help advertising drifted"
 fi
 
 # --- 18. saved agent workspace help stays discoverable ---

@@ -77,15 +77,23 @@ Each saved ref records:
   `action_target`, and `current_address.action_target` are required even when
   their value is `null` for an unsupported or inspection-only ref.
 
-Mutation is fail-closed. V0 saved refs publicly support only
-`aos do click ref:<...>`. Browser `snapshot_scoped` refs may dry-run click to
-show the resolved command, but real mutation returns
-`REF_REVALIDATION_REQUIRED` until a current-target validation path exists. AOS
-canvas `reacquirable` click refs may route through the current canvas resolver.
-Native AX `volatile` refs are inspection-only. Other producer actions may still
-be captured as facts, but `supported_actions` on saved refs is the intersection
-of producer actions and V0 saved-ref support; non-click saved-ref actions return
-`ACTION_INCOMPATIBLE`.
+Mutation is fail-closed. Saved-ref actions are the intersection of producer
+actions, backend durability, and existing `aos do` command behavior. Browser
+`snapshot_scoped` refs may dry-run click to show the resolved command, but real
+mutation returns `REF_REVALIDATION_REQUIRED` until a current-target validation
+path exists. AOS canvas `reacquirable` click and set-value refs may route
+through the current canvas resolver. Native AX `volatile` refs are
+inspection-only.
+
+## Saved-Ref Action Grammar Matrix
+
+| action | command form | backend(s) | resolution classes | required args | dry-run | mutation risk | validation / reacquisition | statuses | post-action evidence | known limits |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `click` | `aos do click ref:<snapshot-id>:<ref> --workspace <id>` | `aos_canvas`; browser dry-run only | `reacquirable` for canvas, `snapshot_scoped` for browser | ref target; optional `--right`, `--double`, `--dwell` | yes | medium; pointer activation | load saved ref, require unambiguous scope, require supported action, resolve current canvas target before mutation | `dry_run`, `success`, `REF_REVALIDATION_REQUIRED`, `REF_UNSUPPORTED`, `ACTION_INCOMPATIBLE`, `REF_AMBIGUOUS` | action response includes execution metadata and state id when available; agents should refresh capture when UI state may have changed | browser navigation/DOM replacement is not validated yet; native AX refs are not click-actionable |
+| `set-value` | `aos do set-value ref:<snapshot-id>:<ref> --workspace <id> --value <value>` | `aos_canvas` | `reacquirable` | ref target plus `--value <value>` or positional value | yes | high; edits control state | load saved ref, require unambiguous scope, require producer `set-value`, resolve current canvas target, dispatch existing canvas semantic value action | `dry_run`, `success`, `REF_UNSUPPORTED`, `ACTION_INCOMPATIBLE`, `REF_AMBIGUOUS`, direct canvas errors such as `TARGET_DISABLED` or `UNSUPPORTED_ACTION` | action response includes execution metadata and post-target state when current infrastructure can read it | only current single-value canvas controls with existing semantic value handling are supported |
+| `focus` | `aos do focus ref:<snapshot-id>:<ref> --workspace <id>` | none for saved refs in this slice | none | ref target | no supported mutation | high; can redirect keyboard input | fail closed before AX fallback or label-based targeting | `REF_UNSUPPORTED` or `ACTION_INCOMPATIBLE` | recommended next command is a fresh saved capture | direct `aos do focus --pid ... --role ...` remains AX-only; canvas focus needs a separate public command contract before saved refs can use it |
+| `press` / `open` / `toggle` | `aos do press ref:<snapshot-id>:<ref> --workspace <id>` where a top-level command exists; no public `do open` or `do toggle` saved-ref command exists | none for saved refs in this slice | none | ref target | no supported mutation | high; activation aliases can hide product semantics | fail closed unless a future command defines a backend-owned semantic action | `REF_UNSUPPORTED` or `ACTION_INCOMPATIBLE` | recommended next command is a fresh saved capture or an owner-specific direct command | do not silently map same-label `open` or `toggle` facts to click |
+| `fill`, `type`, `key`, `hover`, `scroll`, `drag` | command-specific `aos do ... ref:<...>` | none for saved refs in this slice, except future matrix entries | none | command-specific | no supported mutation | varies; can silently affect the wrong surface | fail closed through the saved-ref resolver when a ref target is supplied | `ACTION_INCOMPATIBLE` or `REF_UNSUPPORTED` | recommended next command is a fresh saved capture | browser and native current-target validation are not implemented for these saved-ref actions |
 
 `state_id` remains provenance for a perception state. It is carried into
 resolved AOS canvas actions when available, but it is not durable identity.
