@@ -24,6 +24,36 @@ function assertPlainObject(value, file, label) {
   }
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isNullableString(value) {
+  return value === null || typeof value === 'string';
+}
+
+function assertStringArray(value, file, label) {
+  if (!Array.isArray(value) || value.some((item) => !isNonEmptyString(item))) {
+    exitAgentWorkspaceError(`${label} is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+}
+
+function assertArtifactRef(value, file, label) {
+  assertPlainObject(value, file, label);
+  if (!isNonEmptyString(value.role) || !isNonEmptyString(value.path)) {
+    exitAgentWorkspaceError(`${label} is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+}
+
+function assertPaths(value, file, label) {
+  assertPlainObject(value, file, label);
+  for (const key of ['workspace', 'snapshot', 'snapshot_record', 'capture', 'summary', 'refs', 'artifacts']) {
+    if (!isNonEmptyString(value[key])) {
+      exitAgentWorkspaceError(`${label} is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+    }
+  }
+}
+
 function assertSchemaVersion(value, file, label) {
   assertPlainObject(value, file, label);
   if (value.schema_version !== SCHEMA_VERSION) {
@@ -31,45 +61,140 @@ function assertSchemaVersion(value, file, label) {
   }
 }
 
-function readWorkspaceMetadata(file, workspace, { optional = false } = {}) {
+export function readWorkspaceMetadata(file, workspace, { optional = false } = {}) {
   const metadata = readJSONExisting(file);
   if (!metadata && optional) return null;
   if (!metadata) return null;
   assertSchemaVersion(metadata, file, 'workspace metadata');
-  if (metadata.workspace_id !== workspace) {
+  if (
+    metadata.workspace_id !== workspace
+    || !isNonEmptyString(metadata.runtime_mode)
+    || !isNonEmptyString(metadata.state_root)
+    || !isNonEmptyString(metadata.workspace_dir)
+    || !isNonEmptyString(metadata.created_at)
+    || !isNonEmptyString(metadata.updated_at)
+    || !metadata.retention
+    || typeof metadata.retention !== 'object'
+    || Array.isArray(metadata.retention)
+    || !metadata.session
+    || typeof metadata.session !== 'object'
+    || Array.isArray(metadata.session)
+  ) {
     exitAgentWorkspaceError(`workspace metadata id mismatch: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
   }
   return metadata;
 }
 
-function readWorkspaceIndex(file, workspace, { optional = false } = {}) {
+export function readWorkspaceIndex(file, workspace, { optional = false } = {}) {
   const index = readJSONExisting(file);
   if (!index && optional) return null;
   if (!index) return null;
   assertSchemaVersion(index, file, 'workspace index');
-  if (index.workspace_id !== workspace || !Array.isArray(index.snapshots)) {
+  if (
+    index.workspace_id !== workspace
+    || !isNonEmptyString(index.runtime_mode)
+    || !(index.current_snapshot_id === null || isNonEmptyString(index.current_snapshot_id))
+    || !Array.isArray(index.snapshots)
+    || !isNonEmptyString(index.updated_at)
+  ) {
     exitAgentWorkspaceError(`workspace index is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  for (const snapshot of index.snapshots) {
+    assertPlainObject(snapshot, file, 'workspace index snapshot');
+    if (
+      !isNonEmptyString(snapshot.snapshot_id)
+      || !isNonEmptyString(snapshot.created_at)
+      || !isNonEmptyString(snapshot.capture_mode)
+      || !isNonEmptyString(snapshot.target)
+      || !Number.isInteger(snapshot.ref_count)
+      || snapshot.ref_count < 0
+      || !Number.isInteger(snapshot.artifact_count)
+      || snapshot.artifact_count < 0
+    ) {
+      exitAgentWorkspaceError(`workspace index is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+    }
+    assertPaths(snapshot.paths, file, 'workspace index snapshot paths');
   }
   return index;
 }
 
-function readSnapshotRecord(file, workspace, snapshotIDValue) {
+export function readSnapshotRecord(file, workspace, snapshotIDValue) {
   const snapshot = readJSONExisting(file);
   if (!snapshot) return null;
   assertSchemaVersion(snapshot, file, 'snapshot record');
-  if (snapshot.workspace_id !== workspace || snapshot.snapshot_id !== snapshotIDValue) {
+  if (
+    snapshot.workspace_id !== workspace
+    || snapshot.snapshot_id !== snapshotIDValue
+    || !isNonEmptyString(snapshot.created_at)
+    || !isNonEmptyString(snapshot.runtime_mode)
+    || !isNonEmptyString(snapshot.capture_mode)
+    || !isNonEmptyString(snapshot.ref_scope_grammar)
+    || !isNonEmptyString(snapshot.target)
+    || !Array.isArray(snapshot.artifact_refs)
+    || !Number.isInteger(snapshot.ref_count)
+    || snapshot.ref_count < 0
+  ) {
     exitAgentWorkspaceError(`snapshot record id mismatch: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
   }
+  assertPaths(snapshot.paths, file, 'snapshot record paths');
+  assertStringArray(snapshot.omitted_from_compact_stdout, file, 'snapshot omitted payloads');
+  assertStringArray(snapshot.known_limits, file, 'snapshot known limits');
   return snapshot;
 }
 
-function readRefsRecord(file, workspace, snapshotIDValue) {
+function assertRefRecord(record, file, workspace, snapshotIDValue) {
+  assertSchemaVersion(record, file, 'ref record');
+  if (
+    record.ref_scope !== 'snapshot'
+    || record.workspace_id !== workspace
+    || record.snapshot_id !== snapshotIDValue
+    || !isNonEmptyString(record.ref)
+    || !isNonEmptyString(record.short_action_target)
+    || !isNullableString(record.action_target)
+    || !isNullableString(record.copyable_action_target)
+    || !isNonEmptyString(record.backend)
+    || !isNonEmptyString(record.resolution_class)
+    || !isNonEmptyString(record.confidence)
+    || !isNonEmptyString(record.target_summary)
+  ) {
+    exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  assertStringArray(record.supported_actions, file, 'ref supported actions');
+  assertStringArray(record.warnings, file, 'ref warnings');
+  assertStringArray(record.known_limits, file, 'ref known limits');
+  assertPlainObject(record.identity_facts, file, 'ref identity facts');
+  if (
+    !Object.hasOwn(record.identity_facts, 'state_id')
+    || !Object.hasOwn(record.identity_facts, 'source_ref')
+    || !isNullableString(record.identity_facts.state_id)
+    || !isNullableString(record.identity_facts.source_ref)
+  ) {
+    exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  assertPlainObject(record.hint_facts, file, 'ref hint facts');
+  assertPlainObject(record.current_address, file, 'ref current address');
+  if (!Object.hasOwn(record.current_address, 'action_target') || !isNullableString(record.current_address.action_target)) {
+    exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  if (!Array.isArray(record.artifact_refs)) {
+    exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  for (const artifactRef of record.artifact_refs) assertArtifactRef(artifactRef, file, 'ref artifact ref');
+}
+
+export function readRefsRecord(file, workspace, snapshotIDValue) {
   const refs = readJSONExisting(file);
   if (!refs) return null;
   assertSchemaVersion(refs, file, 'refs record');
-  if (refs.workspace_id !== workspace || refs.snapshot_id !== snapshotIDValue || !Array.isArray(refs.refs)) {
+  if (
+    refs.workspace_id !== workspace
+    || refs.snapshot_id !== snapshotIDValue
+    || !isNonEmptyString(refs.created_at)
+    || !Array.isArray(refs.refs)
+  ) {
     exitAgentWorkspaceError(`refs record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
   }
+  for (const record of refs.refs) assertRefRecord(record, file, workspace, snapshotIDValue);
   return refs;
 }
 

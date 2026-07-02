@@ -155,7 +155,7 @@ function validate(verb, args) {
 const [verb, ...args] = process.argv.slice(2);
 if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
 try {
-  maybeRunRefAction(verb, args);
+  if (verb === 'click') maybeRunRefAction(verb, args);
 } catch (err) {
   if (isAgentWorkspaceError(err)) emitAgentWorkspaceError(err);
   throw err;

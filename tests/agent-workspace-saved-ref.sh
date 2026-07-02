@@ -253,6 +253,17 @@ WORKSPACES="$TMP_DIR/workspaces.json"
 jq -e '.status == "success" and any(.workspaces[]; .workspace_id == "ws1" and .snapshot_count == 1)' "$WORKSPACES" >/dev/null \
     || fail "workspace list missing ws1: $(cat "$WORKSPACES")"
 
+BAD_ENV_WORKSPACES="$TMP_DIR/bad-env-workspaces.json"
+AOS_AGENT_WORKSPACE=bad/id node scripts/aos-agent-workspace.mjs workspaces --json >"$BAD_ENV_WORKSPACES"
+jq -e '.status == "success" and any(.workspaces[]; .workspace_id == "ws1")' "$BAD_ENV_WORKSPACES" >/dev/null \
+    || fail "workspaces validated AOS_AGENT_WORKSPACE default: $(cat "$BAD_ENV_WORKSPACES")"
+
+BAD_ENV_WORKSPACE_ERR="$TMP_DIR/bad-env-workspace-missing.err"
+if AOS_AGENT_WORKSPACE=bad/id node scripts/aos-agent-workspace.mjs workspace missing --json >"$TMP_DIR/bad-env-workspace-missing.out" 2>"$BAD_ENV_WORKSPACE_ERR"; then
+    fail "missing workspace unexpectedly succeeded with bad env default"
+fi
+expect_error_code "WORKSPACE_NOT_FOUND" "$BAD_ENV_WORKSPACE_ERR"
+
 DRY="$TMP_DIR/do-ref-dry-run.json"
 ./aos do click "ref:snap1:$REF" --workspace ws1 --dry-run >"$DRY"
 jq -e '
@@ -282,6 +293,17 @@ fi
 expect_error_code "REF_REVALIDATION_REQUIRED" "$REAL_ERR"
 jq -e '.status == "snapshot_scoped" and .ref.ref == "r2"' "$REAL_ERR" >/dev/null \
     || fail "real mutation did not fail closed with ref details: $(cat "$REAL_ERR")"
+
+MALFORMED_REFS_BACKUP="$REFS_PATH.valid-test-backup"
+cp "$REFS_PATH" "$MALFORMED_REFS_BACKUP"
+jq 'del(.refs[0].identity_facts.state_id)' "$MALFORMED_REFS_BACKUP" >"$REFS_PATH"
+MALFORMED_REFS_ERR="$TMP_DIR/malformed-refs-action.err"
+if ./aos do click "ref:snap1:$REF" --workspace ws1 --dry-run >"$TMP_DIR/malformed-refs-action.out" 2>"$MALFORMED_REFS_ERR"; then
+    mv "$MALFORMED_REFS_BACKUP" "$REFS_PATH"
+    fail "saved-ref action accepted malformed refs record"
+fi
+expect_corrupt_state "$REFS_PATH" "$MALFORMED_REFS_ERR"
+mv "$MALFORMED_REFS_BACKUP" "$REFS_PATH"
 
 FAKE_FORM_AOS="$TMP_DIR/fake-form-aos"
 cat >"$FAKE_FORM_AOS" <<'SH'
@@ -329,7 +351,38 @@ FORM_FILL_ERR="$TMP_DIR/do-form-fill.err"
 if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill.out" 2>"$FORM_FILL_ERR"; then
     fail "browser fill saved ref unexpectedly succeeded"
 fi
-expect_error_code "ACTION_INCOMPATIBLE" "$FORM_FILL_ERR"
+expect_error_code "UNKNOWN_FLAG" "$FORM_FILL_ERR"
+
+NON_CLICK_AOS="$TMP_DIR/non-click-aos"
+cat >"$NON_CLICK_AOS" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "__do" && "${2:-}" == "type" && "${3:-}" == "ref:literal" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "received": sys.argv[1:],
+}))
+PY
+    exit 0
+fi
+
+echo "unexpected non-click aos invocation: $*" >&2
+exit 2
+SH
+chmod +x "$NON_CLICK_AOS"
+NON_CLICK_LITERAL="$TMP_DIR/non-click-ref-literal.json"
+AOS_AGENT_WORKSPACE=bad/id AOS_PATH="$NON_CLICK_AOS" node scripts/aos-do-native.mjs type 'ref:literal' --dry-run >"$NON_CLICK_LITERAL"
+jq -e '
+  .status == "success"
+  and (.received | index("__do") != null)
+  and (.received | index("type") != null)
+  and (.received | index("ref:literal") != null)
+' "$NON_CLICK_LITERAL" >/dev/null || fail "non-click ref literal was not passed through without workspace resolution: $(cat "$NON_CLICK_LITERAL")"
 
 CAP2="$TMP_DIR/capture-snap2.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap2 >"$CAP2"
@@ -540,7 +593,7 @@ CANVAS_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-incompatible.err"
 if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs type ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then
     fail "incompatible AOS canvas ref action unexpectedly succeeded"
 fi
-expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_INCOMPATIBLE_ERR"
+expect_error_code "UNKNOWN_FLAG" "$CANVAS_INCOMPATIBLE_ERR"
 
 ACK_ERR="$TMP_DIR/workspace-delete-no-ack.err"
 if ./aos see workspace delete ws-vision >"$TMP_DIR/workspace-delete-no-ack.out" 2>"$ACK_ERR"; then

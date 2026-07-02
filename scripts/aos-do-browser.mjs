@@ -235,7 +235,7 @@ function dragCommand(args) {
 
 try {
   const [command, ...args] = process.argv.slice(2);
-  if (command) maybeRunRefAction(command, args);
+  if (command === 'click') maybeRunRefAction(command, args);
   if (command === 'fill') fillCommand(args);
   else if (command === 'navigate') navigateCommand(args);
   else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);

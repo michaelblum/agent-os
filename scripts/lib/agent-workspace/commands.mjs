@@ -12,19 +12,20 @@ import {
   validateLocalID,
   workspaceID,
   workspaceDir,
-  readJSONExisting,
 } from './core.mjs';
 import {
   deleteSnapshot,
   deleteWorkspace,
   loadSnapshot,
   pruneSnapshots,
+  readWorkspaceIndex,
+  readWorkspaceMetadata,
   requireWorkspace,
   workspaceLockState,
 } from './store.mjs';
 import { queryMatches, refSummary } from './refs.mjs';
 
-function parseReadArgs(args, { requireID = false } = {}) {
+function parseReadArgs(args, { requireID = false, workspaceMode = 'default', env = process.env } = {}) {
   let id = null;
   let workspace = null;
   let snapshot = null;
@@ -42,6 +43,9 @@ function parseReadArgs(args, { requireID = false } = {}) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
         exitAgentWorkspaceError(`${arg} requires a value`, 'MISSING_ARG');
       }
+      if (arg === '--workspace' && workspaceMode === 'none') {
+        exitAgentWorkspaceError(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+      }
       if (arg === '--workspace') workspace = args[i + 1];
       if (arg === '--snapshot') snapshot = args[i + 1];
       if (arg === '--query') query = args[i + 1];
@@ -58,9 +62,14 @@ function parseReadArgs(args, { requireID = false } = {}) {
     id = arg;
   }
   if (requireID && !id) exitAgentWorkspaceError('Missing id', 'MISSING_ARG');
+  const resolvedWorkspace = workspaceMode === 'none'
+    ? null
+    : (workspaceMode === 'explicit'
+      ? (workspace === null ? null : validateLocalID(workspace, 'workspace id'))
+      : workspaceID(workspace, env));
   return {
     id,
-    workspace: workspaceID(workspace),
+    workspace: resolvedWorkspace,
     snapshot: snapshot ? validateLocalID(snapshot, 'snapshot id') : null,
     query,
     json,
@@ -78,7 +87,7 @@ function assertWorkspaceListState(value, file, label) {
 }
 
 export function workspacesCommand(args, env = process.env) {
-  parseReadArgs(args);
+  parseReadArgs(args, { workspaceMode: 'none', env });
   const root = agentWorkspacesRoot(env);
   const workspaces = [];
   if (fs.existsSync(root)) {
@@ -87,8 +96,8 @@ export function workspacesCommand(args, env = process.env) {
       if (!SAFE_ID.test(entry.name)) continue;
       const metadataPath = path.join(root, entry.name, 'workspace.json');
       const indexPath = path.join(root, entry.name, 'index.json');
-      const metadata = fs.existsSync(metadataPath) ? readJSONExisting(metadataPath) : null;
-      const index = fs.existsSync(indexPath) ? readJSONExisting(indexPath) : null;
+      const metadata = fs.existsSync(metadataPath) ? readWorkspaceMetadata(metadataPath, entry.name) : null;
+      const index = fs.existsSync(indexPath) ? readWorkspaceIndex(indexPath, entry.name) : null;
       assertWorkspaceListState(metadata, metadataPath, 'workspace metadata');
       assertWorkspaceListState(index, indexPath, 'workspace index');
       workspaces.push({
@@ -110,7 +119,7 @@ export function workspacesCommand(args, env = process.env) {
 }
 
 export function snapshotsCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args);
+  const parsed = parseReadArgs(args, { env });
   const { index } = requireWorkspace(parsed.workspace, env);
   printJSON({
     status: 'success',
@@ -123,7 +132,7 @@ export function snapshotsCommand(args, env = process.env) {
 }
 
 export function refsCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args);
+  const parsed = parseReadArgs(args, { env });
   const { index } = requireWorkspace(parsed.workspace, env);
   const snapshotIDs = parsed.snapshot
     ? [parsed.snapshot]
@@ -148,7 +157,7 @@ export function workspaceCommand(args, env = process.env) {
   const [subcommand, ...rest] = args;
   if (subcommand === 'delete') return deleteWorkspaceCommand(rest, env);
   if (subcommand === 'prune') return pruneWorkspaceCommand(rest, env);
-  const parsed = parseReadArgs(args, { requireID: true });
+  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
   const workspace = validateLocalID(parsed.id, 'workspace id');
   const { dir, metadata, index } = requireWorkspace(workspace, env);
   printJSON({
@@ -169,7 +178,7 @@ export function workspaceCommand(args, env = process.env) {
 }
 
 function deleteWorkspaceCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { requireID: true });
+  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
   const workspace = validateLocalID(parsed.id, 'workspace id');
   if (!parsed.acknowledge) {
     exitAgentWorkspaceError('workspace delete requires --i-understand-local-artifacts', 'ACK_REQUIRED');
@@ -193,7 +202,7 @@ function parseDurationMs(value) {
 }
 
 function pruneWorkspaceCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { requireID: true });
+  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
   if (!parsed.olderThan) exitAgentWorkspaceError('workspace prune requires --older-than <duration>', 'MISSING_ARG');
   if (!parsed.dryRun && !parsed.acknowledge) {
     exitAgentWorkspaceError('workspace prune requires --dry-run or --i-understand-local-artifacts', 'ACK_REQUIRED');
@@ -221,7 +230,7 @@ export function snapshotCommand(args, env = process.env) {
   if (subcommand !== 'delete') {
     exitAgentWorkspaceError(`Unknown snapshot subcommand: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
   }
-  const parsed = parseReadArgs(rest, { requireID: true });
+  const parsed = parseReadArgs(rest, { requireID: true, env });
   if (!parsed.acknowledge) {
     exitAgentWorkspaceError('snapshot delete requires --i-understand-local-artifacts', 'ACK_REQUIRED');
   }

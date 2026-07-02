@@ -6,14 +6,13 @@ import {
   aosPath,
   exitAgentWorkspaceError,
   printJSON,
-  readJSONExisting,
   runtimeMode,
   stateRoot,
   validateLocalID,
   workspaceDir,
   workspaceID,
 } from './core.mjs';
-import { loadSnapshot, requireWorkspace } from './store.mjs';
+import { loadSnapshot, readRefsRecord, requireWorkspace } from './store.mjs';
 import { refSummary } from './refs.mjs';
 
 function positionalIndexes(args) {
@@ -70,10 +69,8 @@ function loadRefRecord(workspace, refToken, explicitSnapshot, env = process.env)
   const matches = [];
   for (const snapshot of index.snapshots ?? []) {
     const refsPath = path.join(workspaceDir(workspace, env), 'snapshots', snapshot.snapshot_id, 'refs.json');
-    const refs = readJSONExisting(refsPath);
-    if (!refs?.refs || !Array.isArray(refs.refs)) {
-      exitAgentWorkspaceError(`Refs state is schema-invalid: ${refsPath}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: refsPath });
-    }
+    const refs = readRefsRecord(refsPath, workspace, snapshot.snapshot_id);
+    if (!refs) continue;
     const record = (refs?.refs ?? []).find((item) => item.ref === refToken.ref);
     if (record) matches.push(record);
   }
