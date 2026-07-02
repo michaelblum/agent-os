@@ -224,24 +224,31 @@ Native AX refs also report `target_uncertainty.status:
 blocked_missing_native_identity` until saved capture includes durable identity
 and validation facts such as app PID, window id, an actual AX identifier,
 enabled state, action names, permission state, and a captured baseline for
-focus, cursor, and Space state.
+focus, cursor, and Space state, plus an actionable
+`native_saved_ref_evidence` producer verdict.
 Their `identity_facts` preserve the strongest available captured native hints,
 including `role`, `title`, `label`, `value`, `enabled`, `bounds`,
 `context_path`, `app_pid`, `app_name`, `window_id`,
 `ax_identifier_or_stable_path`, `action_names`, `permission_state`, `app_hint`,
 and `window_hint`; these may be listed in `available_identity_facts`, but they
 are not durable enough for saved-ref mutation while the focus/cursor/Space
-baseline is missing.
+baseline or producer verdict is missing.
 The corresponding missing-fact identifiers are `app_pid`, `window_id`,
 `ax_identifier`, `enabled`, `action_names`,
-`permission_state`, and `focus_cursor_space_baseline`; `enabled` is
-unsatisfied unless the captured value is `true`, and `permission_state` is
-unsatisfied unless the captured value is `granted`.
+`permission_state`, `focus_cursor_space_baseline`, and
+`native_saved_ref_evidence`; `enabled` is unsatisfied unless the captured value
+is `true`, `permission_state` is unsatisfied unless the captured value is
+`granted`, and `native_saved_ref_evidence` is unsatisfied unless the producer
+marks it actionable with complete known-limit facts.
 When a native capture already includes that full durable identity contract with
-`enabled: true`, `permission_state: granted`, and a captured baseline, the
-saved ref can become `stable` and support only capture-declared native
-`press`, `focus`, and `set-value`. Those actions convert the saved facts to the
-existing direct AX selector flags, report
+`enabled: true`, `permission_state: granted`, a captured baseline, and
+`native_saved_ref_evidence` as an actionable verdict, the saved ref can become
+`stable` and support only capture-declared native `press`, `focus`, and
+`set-value`. The current Swift producer emits an inspection-only verdict until
+it can prove complete known-limit facts, so live native captures remain
+`volatile` unless a native producer explicitly emits an actionable verdict.
+Stable actions convert the saved facts to the existing direct AX selector flags,
+report
 `direct_ax_ready` / `requires_direct_ax_current_matching`, and return the
 direct AX wrapper response under `underlying_result`. They still report
 `not_claimed` no-foreground safety and do not count as completed native proof
@@ -281,7 +288,7 @@ Backend conformance levels are intentionally explicit:
 | --- | --- | --- | --- | --- |
 | `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
 | `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `native_ax` stable saved refs | durable-identity `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |
+| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |
 | direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus the same approval gates |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus the same approval gates |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in browser, AOS canvas, and native saved-ref tests |
@@ -886,7 +893,8 @@ matching, report `direct_ax_current_matching_semantics`, and do not satisfy the
 saved-ref durable identity contract; their
 `target_uncertainty.missing_identity_facts` still includes saved-ref-only facts
 such as `enabled`, `action_names`, `permission_state`, and
-`focus_cursor_space_baseline` when the direct call did not prove them. Their
+`focus_cursor_space_baseline`, and `native_saved_ref_evidence` when the direct
+call did not prove them. Their
 `conformance.proof.status` is `approval_gated_live_proof_not_run` until the
 approval-gated live proof and native rebuild gates are explicitly run.
 

@@ -49,7 +49,8 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
 
 - `--mode ax`: use when you need tree/ref facts. Browser targets use xray refs;
   non-browser native AX refs are inspection-first unless the capture includes
-  the full durable native identity facts needed for a stable direct AX saved ref.
+  the full durable native identity facts and actionable producer verdict needed
+  for a stable direct AX saved ref.
 - `--mode vision`: use when image inspection matters. Screenshots/base64 are
   stored as artifacts and summarized by path.
 - `--mode som`: use for general screen-object loops. It uses xray-backed refs
@@ -131,28 +132,35 @@ matrix:
   `conformance.target_uncertainty.status` to be
   `blocked_missing_native_identity` until saved capture records enough durable
   facts, including app PID, window id, an actual AX identifier, enabled
-  state, action names, permission state, and a captured baseline for focus,
-  cursor, and Space state. The
+  state, action names, permission state, a captured baseline for focus, cursor,
+  and Space state, and an actionable `native_saved_ref_evidence` producer
+  verdict. The
   `identity_facts` still preserve the strongest available captured native hints
   such as `role`, `title`, `label`, `value`, `enabled`, `bounds`,
   `context_path`, `app_pid`, `app_name`, `window_id`,
   `ax_identifier_or_stable_path`, `action_names`, `permission_state`,
   `app_hint`, and `window_hint`; treat those as inspection evidence, not durable
-  saved-ref identity when the focus/cursor/Space baseline is missing. The
+  saved-ref identity when the focus/cursor/Space baseline or producer verdict is
+  missing. The
   machine-readable missing facts are `app_pid`, `window_id`,
   `ax_identifier`, `enabled`, `action_names`,
-  `permission_state`, and `focus_cursor_space_baseline`; `enabled` is
-  unsatisfied unless the captured value is `true`, and `permission_state` is
-  unsatisfied unless the captured value is `granted`. Native AX refs report
+  `permission_state`, `focus_cursor_space_baseline`, and
+  `native_saved_ref_evidence`; `enabled` is unsatisfied unless the captured value
+  is `true`, `permission_state` is unsatisfied unless the captured value is
+  `granted`, and `native_saved_ref_evidence` is unsatisfied unless the producer
+  marks it actionable with complete known-limit facts. Native AX refs report
   `conformance.proof.status: approval_gated_live_proof_not_run`; do not count
   native saved-ref proof complete until the proof `approval_gates` are run.
 - Native AX `stable` refs are actionable only when the saved capture already
   includes the full durable identity contract: `app_pid`, `window_id`,
   `ax_identifier`, `enabled: true`, `action_names`,
-  `permission_state: granted`, and `focus_cursor_space_baseline` as a captured
-  baseline. They support only capture-declared `press`, `focus`, and
-  `set-value`, convert saved facts to direct AX selector flags, and report
-  `direct_ax_ready` plus
+  `permission_state: granted`, `focus_cursor_space_baseline` as a captured
+  baseline, and `native_saved_ref_evidence` as an actionable verdict. The
+  current Swift producer emits an inspection-only verdict until it can prove
+  complete known-limit facts, so live native captures remain `volatile` unless a
+  native producer explicitly emits an actionable verdict. Stable refs support
+  only capture-declared `press`, `focus`, and `set-value`, convert saved facts to
+  direct AX selector flags, and report `direct_ax_ready` plus
   `requires_direct_ax_current_matching`. Treat their `underlying_result` as a
   direct AX wrapper response, not as browser-style current validation. They
   still report `not_claimed` no-foreground safety and
@@ -185,7 +193,8 @@ matrix:
   `conformance.no_foreground`; a foreground fallback success is not
   no-foreground proof. Treat saved-ref-only gaps in `missing_identity_facts`,
   including `enabled`, `action_names`, `permission_state`, and
-  `focus_cursor_space_baseline`, as explicit uncertainty rather than proof.
+  `focus_cursor_space_baseline`, and `native_saved_ref_evidence`, as explicit
+  uncertainty rather than proof.
 - `coordinate_fallback` is diagnostic/fallback-only in this slice. Do not treat
   coordinate fallback refs as normal saved-ref mutation targets; mutation should
   warn or refuse before dispatch.

@@ -243,6 +243,14 @@ struct NativeFocusCursorSpaceBaselineJSON: Encodable {
     let space: String
 }
 
+struct NativeSavedRefEvidenceJSON: Encodable {
+    let status: String
+    let actionability: String
+    let known_limit_facts_complete: Bool
+    let producer: String
+    let reasons: [String]
+}
+
 struct AXElementJSON: Encodable {
     let app_pid: Int?
     let app_name: String?
@@ -256,6 +264,7 @@ struct AXElementJSON: Encodable {
     let action_names: [String]?
     let permission_state: String?
     let focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON?
+    let native_saved_ref_evidence: NativeSavedRefEvidenceJSON?
     let window_state: String?
     let space_state: String?
     let control_kind: String?
@@ -282,6 +291,7 @@ struct AXElementJSON: Encodable {
         action_names: [String]? = nil,
         permission_state: String? = nil,
         focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON? = nil,
+        native_saved_ref_evidence: NativeSavedRefEvidenceJSON? = nil,
         window_state: String? = nil,
         space_state: String? = nil,
         control_kind: String? = nil,
@@ -307,6 +317,7 @@ struct AXElementJSON: Encodable {
         self.action_names = action_names
         self.permission_state = permission_state
         self.focus_cursor_space_baseline = focus_cursor_space_baseline
+        self.native_saved_ref_evidence = native_saved_ref_evidence
         self.window_state = window_state
         self.space_state = space_state
         self.control_kind = control_kind

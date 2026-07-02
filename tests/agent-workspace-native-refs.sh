@@ -10,8 +10,12 @@ write_fake_native_aos "$FAKE_AOS"
 
 grep -q 'struct NativeFocusCursorSpaceBaselineJSON' "$ROOT/src/perceive/models.swift" \
     || fail "native AX baseline must encode captured as a boolean producer fact"
+grep -q 'struct NativeSavedRefEvidenceJSON' "$ROOT/src/perceive/models.swift" \
+    || fail "native AX saved-ref evidence must be a typed producer verdict"
 grep -q 'focus_cursor_space_baseline: nativeAXFocusCursorSpaceBaseline()' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX traversal must emit a captured focus/cursor/Space baseline"
+grep -q 'native_saved_ref_evidence: nativeAXSavedRefEvidence()' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX traversal must emit a producer saved-ref evidence verdict"
 grep -q 'func xrayAppsIntersectingCapture' "$ROOT/src/perceive/capture-pipeline.swift" \
     || fail "display native AX capture must discover apps from the captured region, not only the frontmost app"
 grep -q 'window.frame.intersects(captureRect)' "$ROOT/src/perceive/capture-pipeline.swift" \
@@ -66,7 +70,8 @@ jq -e '
   and .refs[0].conformance.no_foreground.space_preservation == "unverified"
   and .refs[0].conformance.no_foreground.permission_state == "granted"
   and .refs[0].conformance.target_uncertainty.status == "blocked_missing_native_identity"
-  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["focus_cursor_space_baseline"]
+  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["focus_cursor_space_baseline", "native_saved_ref_evidence"]
+  and any(.refs[0].conformance.target_uncertainty.reasons[]; contains("producer did not emit an actionable saved-ref evidence verdict"))
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "app_pid")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "app_name")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "window_id")
@@ -83,7 +88,7 @@ jq -e '
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "bounds")
   and (.refs[0].warnings[0] | contains("native AX"))
   and (.refs[0].known_limits[0] | contains("hints"))
-  and any(.refs[0].known_limits[]; contains("required durable AX identity facts are missing"))
+  and any(.refs[0].known_limits[]; contains("required durable AX identity facts or the actionable native producer verdict are missing"))
   and all(.refs[0].known_limits[]; contains("mutation is disabled until durable AX identity") | not)
   and any(.refs[0].known_limits[]; contains("no-foreground"))
   and any(.known_limits[]; contains("non-browser ax mode"))
@@ -124,9 +129,36 @@ jq -e '
   and (.refs[0].identity_facts.focus_cursor_space_baseline.captured == null)
   and .refs[0].conformance.actionability == "inspection_only"
   and .refs[0].conformance.target_uncertainty.status == "blocked_missing_native_identity"
-  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["focus_cursor_space_baseline"]
+  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["focus_cursor_space_baseline", "native_saved_ref_evidence"]
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
 ' "$WEAK_NATIVE" >/dev/null || fail "weak native AX baseline became durable: $(cat "$WEAK_NATIVE")"
+
+SYNTHETIC_BASELINE_NATIVE="$TMP_DIR/capture-native-synthetic-baseline-only.json"
+NATIVE_SYNTHETIC_BASELINE_ONLY_CAPTURE=1 AOS_PATH="$FAKE_AOS" node scripts/aos-see-native.mjs capture main --save --mode ax --workspace ws-native --name snapsyntheticbaseline >"$SYNTHETIC_BASELINE_NATIVE"
+jq -e '
+  .status == "success"
+  and .snapshot_id == "snapsyntheticbaseline"
+  and .refs[0].backend == "native_ax"
+  and .refs[0].resolution_class == "volatile"
+  and .refs[0].confidence == "low"
+  and (.refs[0].supported_actions | length) == 0
+  and .refs[0].action_target == null
+  and .refs[0].identity_facts.app_pid == 4242
+  and .refs[0].identity_facts.window_id == 5150
+  and .refs[0].identity_facts.ax_identifier == "install-button"
+  and (.refs[0].identity_facts.action_names | index("AXPress") != null)
+  and .refs[0].identity_facts.permission_state == "granted"
+  and .refs[0].identity_facts.enabled == true
+  and .refs[0].identity_facts.focus_cursor_space_baseline.captured == true
+  and .refs[0].identity_facts.native_saved_ref_evidence == null
+  and .refs[0].conformance.actionability == "inspection_only"
+  and .refs[0].conformance.mutation == "unsupported"
+  and .refs[0].conformance.validation == "native_durable_identity_facts_missing"
+  and .refs[0].conformance.target_uncertainty.status == "blocked_missing_native_identity"
+  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["native_saved_ref_evidence"]
+  and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
+  and any(.refs[0].conformance.target_uncertainty.reasons[]; contains("producer did not emit an actionable saved-ref evidence verdict"))
+' "$SYNTHETIC_BASELINE_NATIVE" >/dev/null || fail "synthetic native AX baseline-only facts became durable: $(cat "$SYNTHETIC_BASELINE_NATIVE")"
 
 DENIED_NATIVE="$TMP_DIR/capture-native-denied-permission.json"
 NATIVE_DENIED_PERMISSION_CAPTURE=1 AOS_PATH="$FAKE_AOS" node scripts/aos-see-native.mjs capture main --save --mode ax --workspace ws-native --name snapdenied >"$DENIED_NATIVE"
@@ -146,7 +178,7 @@ jq -e '
   and .refs[0].conformance.actionability == "inspection_only"
   and .refs[0].conformance.no_foreground.permission_state == "denied"
   and .refs[0].conformance.target_uncertainty.status == "blocked_missing_native_identity"
-  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["permission_state"]
+  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["permission_state", "native_saved_ref_evidence"]
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "permission_state")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
 ' "$DENIED_NATIVE" >/dev/null || fail "denied native AX permission became durable: $(cat "$DENIED_NATIVE")"
@@ -171,7 +203,7 @@ jq -e '
   and .refs[0].conformance.actionability == "inspection_only"
   and .refs[0].conformance.no_foreground.permission_state == "granted"
   and .refs[0].conformance.target_uncertainty.status == "blocked_missing_native_identity"
-  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["enabled"]
+  and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["enabled", "native_saved_ref_evidence"]
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "enabled")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "permission_state")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
@@ -287,6 +319,9 @@ jq -e '
   and .refs[0].identity_facts.enabled == true
   and .refs[0].identity_facts.permission_state == "granted"
   and .refs[0].identity_facts.focus_cursor_space_baseline.captured == true
+  and .refs[0].identity_facts.native_saved_ref_evidence.status == "actionable"
+  and .refs[0].identity_facts.native_saved_ref_evidence.actionability == "direct_ax_saved_ref_mutation"
+  and .refs[0].identity_facts.native_saved_ref_evidence.known_limit_facts_complete == true
   and .refs[0].current_address.direct_ax_args.app_pid == 4242
   and .refs[0].current_address.direct_ax_args.window_id == 5150
   and .refs[0].conformance.actionability == "direct_ax_saved_ref_mutation"
@@ -306,6 +341,7 @@ jq -e '
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "action_names")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "permission_state")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
+  and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "native_saved_ref_evidence")
   and any(.refs[0].warnings[]; contains("direct AX current matching"))
   and any(.refs[0].known_limits[]; contains("approval-gated live proof"))
   and all(.refs[0].known_limits[]; contains("mutation is disabled") | not)
@@ -607,7 +643,7 @@ jq -e '
   and .refs[0].conformance.target_uncertainty.missing_identity_facts == ["ax_identifier"]
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "stable_path")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "ax_identifier_or_stable_path")
-  and any(.refs[0].known_limits[]; contains("required durable AX identity facts are missing"))
+  and any(.refs[0].known_limits[]; contains("required durable AX identity facts or the actionable native producer verdict are missing"))
 ' "$PATH_ONLY_NATIVE" >/dev/null || fail "path-only native AX evidence became actionable: $(cat "$PATH_ONLY_NATIVE")"
 
 PATH_ONLY_PRESS_ERR="$TMP_DIR/do-native-path-only-press.err"

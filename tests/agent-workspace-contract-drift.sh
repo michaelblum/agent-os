@@ -18,6 +18,7 @@ import {
   nativeEnabledStatePresent,
   nativeFocusCursorSpaceBaselinePresent,
   nativePermissionStateGranted,
+  nativeSavedRefEvidenceActionable,
   SAVED_REF_BACKENDS,
   SAVED_REF_CONFIDENCE_VALUES,
   SAVED_REF_RESOLUTION_CLASSES,
@@ -69,12 +70,23 @@ assert.deepEqual(
     'action_names',
     'permission_state',
     'focus_cursor_space_baseline',
+    'native_saved_ref_evidence',
   ],
-  'native AX saved refs must keep a concrete durable-identity prerequisite list',
+  'native AX saved refs must keep a concrete durable-identity and producer-verdict prerequisite list',
 );
 assert.equal(nativeFocusCursorSpaceBaselinePresent({ captured: true }), true);
 assert.equal(nativeFocusCursorSpaceBaselinePresent({ status: 'captured' }), true);
 assert.equal(nativeFocusCursorSpaceBaselinePresent({ focus: 'not_changed', cursor: 'not_changed', space: 'not_changed' }), false);
+assert.equal(nativeSavedRefEvidenceActionable({
+  status: 'actionable',
+  actionability: 'direct_ax_saved_ref_mutation',
+  known_limit_facts_complete: true,
+}), true);
+assert.equal(nativeSavedRefEvidenceActionable({
+  status: 'inspection_only',
+  actionability: 'inspection_only',
+  known_limit_facts_complete: false,
+}), false);
 assert.equal(nativePermissionStateGranted('granted'), true);
 assert.equal(nativePermissionStateGranted('denied'), false);
 assert.equal(nativeEnabledStatePresent(true), true);
@@ -87,6 +99,7 @@ assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
   action_names: ['AXPress'],
   permission_state: 'denied',
   focus_cursor_space_baseline: { captured: true },
+  native_saved_ref_evidence: { status: 'actionable', actionability: 'direct_ax_saved_ref_mutation', known_limit_facts_complete: true },
 }), ['permission_state']);
 assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
   app_pid: 4242,
@@ -96,6 +109,7 @@ assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
   action_names: ['AXPress'],
   permission_state: 'granted',
   focus_cursor_space_baseline: { captured: true },
+  native_saved_ref_evidence: { status: 'actionable', actionability: 'direct_ax_saved_ref_mutation', known_limit_facts_complete: true },
 }), ['enabled']);
 assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
   app_pid: 4242,
@@ -106,7 +120,17 @@ assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
   action_names: ['AXPress'],
   permission_state: 'granted',
   focus_cursor_space_baseline: { captured: true },
+  native_saved_ref_evidence: { status: 'actionable', actionability: 'direct_ax_saved_ref_mutation', known_limit_facts_complete: true },
 }), ['ax_identifier'], 'path-only native evidence must not satisfy the v0 direct AX identifier selector requirement');
+assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
+  app_pid: 4242,
+  window_id: 5150,
+  ax_identifier: 'install-button',
+  enabled: true,
+  action_names: ['AXPress'],
+  permission_state: 'granted',
+  focus_cursor_space_baseline: { captured: true },
+}), ['native_saved_ref_evidence'], 'synthetic native baseline facts alone must not satisfy the producer verdict boundary');
 assert.equal(nativeAxSavedRefHasBlockingKnownLimit({
   app_pid: 4242,
   window_id: 5150,
@@ -115,6 +139,7 @@ assert.equal(nativeAxSavedRefHasBlockingKnownLimit({
   action_names: ['AXPress'],
   permission_state: 'granted',
   focus_cursor_space_baseline: { captured: true },
+  native_saved_ref_evidence: { status: 'actionable', actionability: 'direct_ax_saved_ref_mutation', known_limit_facts_complete: true },
 }), false, 'ordinary durable native identity should not be known-limit blocked');
 assert.deepEqual(nativeAxSavedRefBlockedKnownLimitReasons({
   space_state: 'off_space',
@@ -215,6 +240,26 @@ for (const referencePath of skillReferencePaths) {
   assert.ok(fs.existsSync(referencePath), `AOS workspace skill reference does not exist: ${referencePath}`);
 }
 
+const fixtureShim = fs.readFileSync('tests/lib/agent-workspace-fixtures.sh', 'utf8');
+assert.ok(fixtureShim.split(/\r?\n/).length < 40, 'agent workspace fixture shim must stay source-only and small');
+const fixtureDomains = {
+  'common.sh': ['agent_workspace_test_setup', 'assert_no_heavy_capture_payloads'],
+  'native-file.sh': ['write_failing_capture_aos', 'write_native_file_capture_aos'],
+  'browser.sh': ['write_fake_form_aos', 'write_non_click_ref_literal_aos'],
+  'native-ax.sh': ['write_fake_native_aos', 'native_saved_ref_evidence'],
+  'canvas.sh': ['write_fake_canvas_aos'],
+  'mixed.sh': ['write_fake_mixed_support_aos'],
+};
+for (const [fileName, needles] of Object.entries(fixtureDomains)) {
+  const fixturePath = `tests/lib/agent-workspace-fixtures/${fileName}`;
+  assert.ok(fs.existsSync(fixturePath), `missing split agent workspace fixture helper ${fixturePath}`);
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  assert.ok(fixtureText.split(/\r?\n/).length < 700, `${fixturePath} should stay below monolith size`);
+  for (const needle of needles) {
+    assert.ok(fixtureText.includes(needle), `${fixturePath} missing expected ownership marker ${needle}`);
+  }
+}
+
 for (const action of requiredActions) {
   assert.ok(schemaDoc.includes(`\`${action}\``) || (action === 'key' && schemaDoc.includes('`type`, `key`')), `schema doc missing ${action}`);
 }
@@ -287,6 +332,8 @@ for (const text of [schemaDoc, apiDoc, skill]) {
     assert.ok(text.includes(fact), `docs/skill missing native known-limit fact ${fact}`);
   }
   assert.ok(text.includes('captured baseline'), 'docs/skill must require a captured native baseline');
+  assert.ok(text.includes('native_saved_ref_evidence'), 'docs/skill must require native saved-ref producer evidence');
+  assert.ok(text.includes('producer verdict'), 'docs/skill must describe native saved-ref producer verdicts');
   assert.ok(text.includes('stable'), 'docs/skill must describe stable native AX saved refs');
   assert.ok(text.includes('aos do press ref:<snapshot-id>'), 'docs/skill must include stable native press saved-ref example');
   assert.ok(text.includes('aos do focus ref:<snapshot-id>'), 'docs/skill must include stable native focus saved-ref example');
@@ -313,10 +360,10 @@ assert.ok(
   'API doc must name backend-wide coordinate fallback refusal evidence',
 );
 
-for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
+for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
 }
-for (const needle of ['nativeAXSavedActionNames', 'AXUIElementCopyActionNames', 'AXSetValue', 'AXFocus', 'axWindowID', 'AXIsProcessTrusted() ? "granted" : "unknown"', 'contextPath: ["app:\\(appName)"]']) {
+for (const needle of ['nativeAXSavedActionNames', 'nativeAXSavedRefEvidence', 'native_saved_ref_evidence: nativeAXSavedRefEvidence()', 'AXUIElementCopyActionNames', 'AXSetValue', 'AXFocus', 'axWindowID', 'AXIsProcessTrusted() ? "granted" : "unknown"', 'contextPath: ["app:\\(appName)"]']) {
   assert.ok(swiftAXTraversal.includes(needle), `native AX traversal must preserve ${needle}`);
 }
 

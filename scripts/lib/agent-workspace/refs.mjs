@@ -193,6 +193,7 @@ function savedRefConformance(backend, resolutionClass, supportedActions, facts =
 
   if (backend === 'native_ax') {
     const hasRequiredNativeIdentity = nativeAxSavedRefHasRequiredIdentity(facts);
+    const missingNativeIdentityFacts = nativeAxSavedRefMissingIdentityFacts(facts);
     if (hasRequiredNativeIdentity && nativeBlockedKnownLimitReasons.length > 0) {
       return {
         actionability: 'inspection_only',
@@ -221,7 +222,7 @@ function savedRefConformance(backend, resolutionClass, supportedActions, facts =
         target_uncertainty: targetUncertainty(
           'requires_direct_ax_current_matching',
           [
-            'saved native AX ref has durable pid/window/AX identifier/enabled-state/action/permission/baseline facts',
+            'saved native AX ref has durable pid/window/AX identifier/enabled-state/action/permission/baseline facts plus an actionable native producer verdict',
             'stable path evidence is preserved for inspection, but v0 direct AX dispatch requires an actual AX identifier selector',
             'mutation routes through direct AX current matching semantics and still does not claim no-foreground proof',
           ],
@@ -257,8 +258,13 @@ function savedRefConformance(backend, resolutionClass, supportedActions, facts =
       no_foreground: nativeNoForeground,
       target_uncertainty: targetUncertainty(
         'blocked_missing_native_identity',
-        ['native AX snapshot facts are hints, not durable identity'],
-        nativeAxSavedRefMissingIdentityFacts(facts),
+        [
+          ...(missingNativeIdentityFacts.includes('native_saved_ref_evidence')
+            ? ['native producer did not emit an actionable saved-ref evidence verdict']
+            : []),
+          'native AX snapshot facts are hints, not durable identity',
+        ],
+        missingNativeIdentityFacts,
         availableIdentityFacts(facts),
       ),
     };
@@ -420,6 +426,7 @@ export function generateRefRecords(capture, context) {
       action_names: isBrowser ? [] : arrayValue(element.action_names, element.actionNames),
       permission_state: isBrowser ? null : textValue(element.permission_state),
       focus_cursor_space_baseline: isBrowser ? null : (element.focus_cursor_space_baseline ?? null),
+      native_saved_ref_evidence: isBrowser ? null : (element.native_saved_ref_evidence ?? element.nativeSavedRefEvidence ?? null),
       window_state: isBrowser ? null : textValue(element.window_state),
       space_state: isBrowser ? null : textValue(element.space_state),
       control_kind: isBrowser ? null : textValue(element.control_kind, element.native_control_kind),
@@ -515,7 +522,7 @@ export function generateRefRecords(capture, context) {
             ]
           : nativeActionable
             ? [
-                'native AX durable identity facts are present, but captured action_names do not map to v0 saved-ref actions',
+                'native AX durable identity facts and native producer verdict are present, but captured action_names do not map to v0 saved-ref actions',
                 'no saved-ref mutation or no-foreground proof is claimed for unsupported native action names',
                 'use direct AX commands only when the caller accepts current AX matching semantics; saved refs fail closed',
               ]
@@ -526,7 +533,7 @@ export function generateRefRecords(capture, context) {
               ]
           : [
               'AX titles, labels, bounds, and context paths are hints, not durable identity',
-              'native AX saved-ref mutation is disabled when required durable AX identity facts are missing; no saved-action no-foreground proof is claimed',
+              'native AX saved-ref mutation is disabled when required durable AX identity facts or the actionable native producer verdict are missing; no saved-action no-foreground proof is claimed',
               'use direct AX commands only when the caller accepts current AX matching semantics; saved refs fail closed',
             ],
     };

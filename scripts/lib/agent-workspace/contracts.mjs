@@ -10,6 +10,7 @@ export const NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS = Object.freeze([
   'action_names',
   'permission_state',
   'focus_cursor_space_baseline',
+  'native_saved_ref_evidence',
 ]);
 
 function present(value) {
@@ -23,6 +24,17 @@ export function nativeFocusCursorSpaceBaselinePresent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   if (value.captured === true) return true;
   return String(value.status ?? '').toLowerCase() === 'captured';
+}
+
+export function nativeSavedRefEvidenceActionable(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const status = normalizedString(value.status);
+  const actionability = normalizedString(value.actionability ?? value.saved_ref_actionability);
+  const knownLimitFacts = value.known_limit_facts_complete === true
+    || normalizedString(value.known_limit_facts) === 'complete';
+  return knownLimitFacts
+    && ['actionable', 'producer_actionable', 'stable'].includes(status)
+    && ['actionable', 'direct_ax_saved_ref_mutation', 'saved_ref_mutation'].includes(actionability);
 }
 
 export function nativePermissionStateGranted(value) {
@@ -47,6 +59,9 @@ function nativeIdentityFactPresent(facts, fact) {
   }
   if (fact === 'focus_cursor_space_baseline') {
     return nativeFocusCursorSpaceBaselinePresent(facts.focus_cursor_space_baseline);
+  }
+  if (fact === 'native_saved_ref_evidence') {
+    return nativeSavedRefEvidenceActionable(facts.native_saved_ref_evidence);
   }
   if (fact === 'permission_state') {
     return nativePermissionStateGranted(facts.permission_state);
@@ -350,10 +365,10 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     required_args: ['ref target', '--value or positional value'],
     optional_args: [],
     mutation_risk: 'medium',
-    validation: 'canvas refs use current canvas target resolution; native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
+    validation: 'canvas refs use current canvas target resolution; native AX refs require durable saved native identity facts plus an actionable native producer verdict and route through direct AX current matching semantics',
     known_limits: {
       aos_canvas: 'only current single-value canvas controls with existing semantic value handling are supported',
-      native_ax: 'native AX set-value saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
+      native_ax: 'native AX set-value saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts plus an actionable native_saved_ref_evidence producer verdict, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
     },
     statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'MISSING_ARG', 'INVALID_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
@@ -368,9 +383,9 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     required_args: ['ref target'],
     optional_args: [],
     mutation_risk: 'medium',
-    validation: 'native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
+    validation: 'native AX refs require durable saved native identity facts plus an actionable native producer verdict and route through direct AX current matching semantics',
     known_limits: {
-      native_ax: 'native AX focus saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
+      native_ax: 'native AX focus saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts plus an actionable native_saved_ref_evidence producer verdict, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
     },
     statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
@@ -385,9 +400,9 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     required_args: ['ref target'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
+    validation: 'native AX refs require durable saved native identity facts plus an actionable native producer verdict and route through direct AX current matching semantics',
     known_limits: {
-      native_ax: 'native AX press saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
+      native_ax: 'native AX press saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts plus an actionable native_saved_ref_evidence producer verdict, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
     },
     statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },

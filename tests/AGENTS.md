@@ -27,6 +27,9 @@ tests.
 
 - Name tests after the behavior or contract they protect.
 - Prefer existing harness helpers in `tests/lib/`.
+- Keep agent workspace fixture helpers split by domain under
+  `tests/lib/agent-workspace-fixtures/`; `tests/lib/agent-workspace-fixtures.sh`
+  is only the compatibility shim that sources those files.
 
 ## Verification
 

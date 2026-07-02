@@ -112,6 +112,18 @@ func nativeAXFocusCursorSpaceBaseline() -> NativeFocusCursorSpaceBaselineJSON {
     )
 }
 
+func nativeAXSavedRefEvidence() -> NativeSavedRefEvidenceJSON {
+    NativeSavedRefEvidenceJSON(
+        status: "inspection_only",
+        actionability: "inspection_only",
+        known_limit_facts_complete: false,
+        producer: "native_ax",
+        reasons: [
+            "native AX producer does not yet emit complete known-limit facts for stable saved-ref mutation"
+        ]
+    )
+}
+
 struct AXAncestorEvidence {
     let role: String
     let title: String?
@@ -391,6 +403,7 @@ func traverseAXElements(
                 action_names: nativeAXSavedActionNames(element),
                 permission_state: permissionState,
                 focus_cursor_space_baseline: nativeAXFocusCursorSpaceBaseline(),
+                native_saved_ref_evidence: nativeAXSavedRefEvidence(),
                 context_path: contextPath,
                 bounds: BoundsJSON(
                     x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
