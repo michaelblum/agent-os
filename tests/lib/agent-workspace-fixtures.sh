@@ -146,28 +146,91 @@ if [[ "${1:-}" == "__see" && "${2:-}" == "capture" ]]; then
 JSON
         exit 0
     fi
-    cat <<'JSON'
+    if [[ "${FORM_AMBIGUOUS:-0}" == "1" ]]; then
+        cat <<'JSON'
 {
   "status": "success",
-  "state_id": "see_form_fixture",
+  "state_id": "see_form_fixture_ambiguous",
   "files": [],
   "elements": [
     {
       "ref": "e42",
       "role": "textbox",
       "title": "Search",
+      "label": "Search field",
       "enabled": true,
       "context_path": ["browser:form"]
+    },
+    {
+      "ref": "e42",
+      "role": "textbox",
+      "title": "Search",
+      "label": "Search field",
+      "enabled": true,
+      "context_path": ["browser:form", "duplicate"]
     }
   ]
 }
 JSON
+        exit 0
+    fi
+    role="textbox"
+    title="Search"
+    label="Search field"
+    enabled="true"
+    context='["browser:form"]'
+    if [[ "${FORM_ROLE_DRIFT:-0}" == "1" ]]; then role="button"; fi
+    if [[ "${FORM_TITLE_DRIFT:-0}" == "1" ]]; then title="Find"; fi
+    if [[ "${FORM_LABEL_DRIFT:-0}" == "1" ]]; then label="Find field"; fi
+    if [[ "${FORM_DISABLED:-0}" == "1" ]]; then enabled="false"; fi
+    if [[ "${FORM_CONTEXT_DRIFT:-0}" == "1" ]]; then context='["browser:form","search-panel"]'; fi
+    python3 - "$role" "$title" "$label" "$enabled" "$context" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "state_id": "see_form_fixture",
+    "files": [],
+    "elements": [{
+        "ref": "e42",
+        "role": sys.argv[1],
+        "title": sys.argv[2],
+        "label": sys.argv[3],
+        "enabled": sys.argv[4] == "true",
+        "context_path": json.loads(sys.argv[5]),
+    }],
+}))
+PY
     exit 0
 fi
 
 if [[ "${1:-}" == "do" && "${2:-}" == "fill" && "${3:-}" == "browser:form/e42" ]]; then
-    echo "browser fill should not execute for snapshot-scoped saved refs" >&2
-    exit 3
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "execution": {"backend": "playwright", "strategy": "fake_form_fill"},
+    "received": sys.argv[1:],
+}))
+PY
+    exit 0
+fi
+
+if [[ "${1:-}" == "do" && "${2:-}" == "click" && "${3:-}" == "browser:form/e42" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "execution": {"backend": "playwright", "strategy": "fake_form_click"},
+    "received": sys.argv[1:],
+}))
+PY
+    exit 0
 fi
 
 echo "unexpected fake form aos invocation: $*" >&2

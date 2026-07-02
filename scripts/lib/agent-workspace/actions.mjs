@@ -14,7 +14,16 @@ import {
 } from './core.mjs';
 import { loadSnapshot, readRefsRecord, requireWorkspace } from './store.mjs';
 import { refSummary } from './refs.mjs';
-import { savedRefBackendSupportsAction } from './contracts.mjs';
+import {
+  savedRefBackendSupportsAction,
+  savedRefBackendSupportsRealMutation,
+  savedRefProducerActionsForBrowserElement,
+} from './contracts.mjs';
+import {
+  browserIdentityComparable,
+  browserIdentityComplete,
+  queryBrowserPageIdentity,
+} from './browser-identity.mjs';
 
 function positionalIndexes(args) {
   const indexes = [];
@@ -114,6 +123,7 @@ function compactBrowserElement(element) {
     label: element.label ?? null,
     context_path: element.context_path ?? [],
     enabled: element.enabled ?? null,
+    supported_actions: savedRefProducerActionsForBrowserElement(element),
   };
 }
 
@@ -136,11 +146,39 @@ function contextPathMatches(expected, actual) {
 }
 
 function browserCurrentMismatch(record, current) {
-  if (!optionalTextMatches(record.hint_facts?.role, current.role)) return 'role_changed';
-  if (!optionalTextMatches(record.hint_facts?.title, current.title)) return 'title_changed';
-  if (!optionalTextMatches(record.hint_facts?.label, current.label)) return 'label_changed';
+  if (!optionalTextMatches(record.identity_facts?.role ?? record.hint_facts?.role, current.role)) return 'role_changed';
+  if (!optionalTextMatches(record.identity_facts?.title ?? record.hint_facts?.title, current.title)) return 'title_changed';
+  if (!optionalTextMatches(record.identity_facts?.label ?? record.hint_facts?.label, current.label)) return 'label_changed';
   if (!contextPathMatches(record.identity_facts?.context_path, current.context_path)) return 'context_changed';
   return null;
+}
+
+function browserIdentityMismatch(record, currentIdentity) {
+  if (!record.identity_facts?.session) return 'missing_saved_session';
+  if (!browserIdentityComplete(currentIdentity)) return 'missing_current_page_identity';
+  const expected = {
+    session: normalizedText(record.identity_facts.session),
+    page_url: normalizedText(record.identity_facts.page_url),
+    frame_url: normalizedText(record.identity_facts.frame_url),
+    top_frame_url: normalizedText(record.identity_facts.top_frame_url),
+    document_title: normalizedText(record.identity_facts.document_title),
+  };
+  for (const key of ['page_url', 'frame_url', 'top_frame_url']) {
+    if (!expected[key]) return `missing_saved_${key}`;
+    if (expected[key] !== normalizedText(currentIdentity[key])) return `${key}_changed`;
+  }
+  if (expected.session !== normalizedText(currentIdentity.session)) return 'session_changed';
+  if (expected.document_title && expected.document_title !== normalizedText(currentIdentity.document_title)) {
+    return 'document_title_changed';
+  }
+  return null;
+}
+
+function currentBrowserIdentity(session, env, identityCache) {
+  if (identityCache.has(session)) return identityCache.get(session);
+  const identity = browserIdentityComparable(queryBrowserPageIdentity(session, env));
+  identityCache.set(session, identity);
+  return identity;
 }
 
 function currentBrowserCapture(session, workspace, env) {
@@ -194,16 +232,42 @@ function isAgentWorkspaceParseError(error) {
   return error?.name === 'AgentWorkspaceError';
 }
 
-function validateBrowserCurrentRef(record, action, workspace, env, captureCache = new Map()) {
+function validateBrowserCurrentRef(record, action, workspace, env, captureCache = new Map(), identityCache = new Map()) {
   if (!savedRefBackendSupportsAction('browser', action)) return null;
   const target = parseBrowserActionTarget(record.action_target);
   const sourceRef = record.identity_facts?.source_ref || target?.ref || null;
   if (!target || !sourceRef) return null;
+  if (record.identity_facts?.session && record.identity_facts.session !== target.session) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' session identity changed`, 'REF_STALE', {
+      status: 'stale_ref',
+      reason: 'session_changed',
+      backend: 'browser',
+      ref: refSummary(record),
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
 
   let capture = captureCache.get(target.session);
   if (!capture) {
     capture = currentBrowserCapture(target.session, workspace, env);
     captureCache.set(target.session, capture);
+  }
+  const pageIdentity = currentBrowserIdentity(target.session, env, identityCache);
+  const identityMismatch = browserIdentityMismatch(record, pageIdentity);
+  if (identityMismatch) {
+    const missingCapability = identityMismatch.startsWith('missing_');
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' failed page/frame/navigation validation: ${identityMismatch}`, missingCapability ? 'REF_REVALIDATION_REQUIRED' : 'REF_STALE', {
+      status: missingCapability ? 'validation_required' : 'stale_ref',
+      reason: identityMismatch,
+      backend: 'browser',
+      ref: refSummary(record),
+      current_identity: pageIdentity,
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
   }
   const matches = capture.elements.filter((element) => element.ref === sourceRef);
   if (matches.length === 0) {
@@ -241,7 +305,6 @@ function validateBrowserCurrentRef(record, action, workspace, env, captureCache 
       requires_user_approval: false,
     });
   }
-
   const mismatch = browserCurrentMismatch(record, current);
   if (mismatch) {
     exitAgentWorkspaceError(`Browser ref '${record.ref}' failed current validation: ${mismatch}`, 'REF_STALE', {
@@ -256,18 +319,41 @@ function validateBrowserCurrentRef(record, action, workspace, env, captureCache 
     });
   }
 
+  const currentSupportedActions = savedRefProducerActionsForBrowserElement(current);
+  if (!currentSupportedActions.includes(action)) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' no longer supports ${action}`, 'ACTION_INCOMPATIBLE', {
+      status: 'action_incompatible',
+      reason: 'current_target_action_incompatible',
+      backend: 'browser',
+      ref: refSummary(record),
+      current_target: compactBrowserElement(current),
+      supported_actions: currentSupportedActions,
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+
   return {
     status: 'reacquired',
     backend: 'browser',
     capture_state_id: capture.state_id ?? null,
+    current_identity: pageIdentity,
     current_target: compactBrowserElement(current),
     validation_command: `aos see capture browser:${target.session} --xray`,
   };
 }
 
-function unsafeResolutionForMutation(record) {
+function unsafeResolutionForMutation(record, action, currentValidation = null) {
   if (record.resolution_class === 'stable') return null;
   if (record.resolution_class === 'reacquirable' && record.backend === 'aos_canvas') return null;
+  if (
+    record.resolution_class === 'snapshot_scoped'
+    && savedRefBackendSupportsRealMutation(record.backend, action)
+    && currentValidation?.status === 'reacquired'
+  ) {
+    return null;
+  }
   return record.resolution_class || 'unsupported';
 }
 
@@ -411,17 +497,18 @@ export function maybeRunRefAction(action, args, env = process.env) {
     validateBrowserDragPair(record, secondary.record, workspace);
   }
 
-  let unsafe = unsafeResolutionForMutation(record);
-  let secondaryUnsafe = secondary ? unsafeResolutionForMutation(secondary.record) : null;
   let currentValidation = null;
   let secondaryCurrentValidation = null;
   const browserValidationCaptureCache = new Map();
-  if (dryRun && record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
-    currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache);
+  const browserValidationIdentityCache = new Map();
+  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
+    currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
   }
-  if (dryRun && secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
-    secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache);
+  if (secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
+    secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
   }
+  let unsafe = unsafeResolutionForMutation(record, action, currentValidation);
+  let secondaryUnsafe = secondary ? unsafeResolutionForMutation(secondary.record, action, secondaryCurrentValidation) : null;
   if (!dryRun && (unsafe || secondaryUnsafe)) {
     const unsafeRecord = unsafe ? record : secondary.record;
     const unsafeStatus = unsafe || secondaryUnsafe;

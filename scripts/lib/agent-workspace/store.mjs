@@ -308,7 +308,7 @@ function indexMatchesCommitted(index, next) {
     && JSON.stringify(index.snapshots ?? []) === JSON.stringify(next.snapshots ?? []);
 }
 
-function reconcileWorkspaceIndex(workspace, current, env = process.env, { preferredCurrentSnapshotID = null } = {}) {
+function reconcileWorkspaceIndex(workspace, current, env = process.env, { preferredCurrentSnapshotID = null, write = true } = {}) {
   const entries = committedSnapshotIndexEntries(current.dir, workspace);
   const hasPreferred = preferredCurrentSnapshotID && entries.some((item) => item.snapshot_id === preferredCurrentSnapshotID);
   const hasExistingCurrent = current.index?.current_snapshot_id
@@ -324,7 +324,7 @@ function reconcileWorkspaceIndex(workspace, current, env = process.env, { prefer
     snapshots: entries,
     updated_at: current.index?.updated_at ?? nowISO(),
   };
-  if (!indexMatchesCommitted(current.index, next)) {
+  if (!indexMatchesCommitted(current.index, next) && write) {
     next.updated_at = nowISO();
     writeJSONAtomic(current.indexFile, next);
     refreshWorkspaceMetadata(workspace, current, env);
@@ -399,7 +399,7 @@ export function ensureWorkspace(workspace, env = process.env) {
   }
 
   let index = readWorkspaceIndexForReconcile(indexFile, workspace);
-  index = reconcileWorkspaceIndex(workspace, { dir, workspaceFile, indexFile, metadata, index }, env);
+  index = reconcileWorkspaceIndex(workspace, { dir, workspaceFile, indexFile, metadata, index }, env, { write: true });
 
   return { dir, workspaceFile, indexFile, metadata, index };
 }
@@ -469,20 +469,19 @@ export function saveSnapshotToIndex(workspace, snapshot, env = process.env, { lo
   return lockHeld ? write() : withWorkspaceLock(workspace, write, env);
 }
 
-export function loadWorkspaceIndex(workspace, env = process.env) {
+export function loadWorkspaceIndex(workspace, env = process.env, { repair = false } = {}) {
   const dir = workspaceDir(workspace, env);
   const workspaceFile = path.join(dir, 'workspace.json');
   const indexFile = path.join(dir, 'index.json');
   const metadata = readWorkspaceMetadata(workspaceFile, workspace, { optional: true });
   if (!metadata) return { dir, index: null, metadata: null };
-  fs.mkdirSync(snapshotsRoot(dir), { recursive: true });
   const index = reconcileWorkspaceIndex(workspace, {
     dir,
     workspaceFile,
     indexFile,
     metadata,
     index: readWorkspaceIndexForReconcile(indexFile, workspace),
-  }, env);
+  }, env, { write: repair });
   return { dir, index, metadata };
 }
 

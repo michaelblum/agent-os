@@ -10,6 +10,7 @@ CAP1="$TMP_DIR/capture-snap1.json"
 REF="$(jq -r '.refs[0].ref' "$CAP1")"
 [[ "$REF" == "r2" ]] || fail "expected query to resolve r2, got $REF"
 WORKSPACE_PATH="$(jq -r '.paths.workspace' "$CAP1")"
+REFS_PATH="$(jq -r '.paths.refs' "$CAP1")"
 
 REFS="$TMP_DIR/refs-snap1.json"
 ./aos see refs --workspace ws-browser --snapshot snap1 --query button --json >"$REFS"
@@ -39,12 +40,13 @@ jq -e '
   and .workspace_id == "ws-browser"
   and .snapshot_id == "snap1"
   and .ref.ref == "r2"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.status == "reacquired"
   and .current_validation.current_target.ref == "e2"
+  and .current_validation.current_identity.page_url == "https://fixture.local/todo"
   and (.resolved_action.command | index("browser:todo/e2") != null)
-  and (.recommended_next_command | contains("aos see capture --save"))
-' "$DRY" >/dev/null || fail "browser ref dry-run advisory shape drifted: $(cat "$DRY")"
+  and .recommended_next_command == null
+' "$DRY" >/dev/null || fail "browser ref dry-run reacquired shape drifted: $(cat "$DRY")"
 
 BARE_DRY="$TMP_DIR/do-ref-bare-dry-run.json"
 ./aos do click "ref:$REF" --workspace ws-browser --dry-run >"$BARE_DRY"
@@ -52,49 +54,56 @@ jq -e '
   .status == "dry_run"
   and .snapshot_id == "snap1"
   and .ref.ref == "r2"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.status == "reacquired"
 ' "$BARE_DRY" >/dev/null || fail "bare browser ref dry-run shape drifted before ambiguity: $(cat "$BARE_DRY")"
 
-REAL_ACTION_ERR="$TMP_DIR/do-ref-real.err"
-if ./aos do click "ref:snap1:$REF" --workspace ws-browser >"$TMP_DIR/do-ref-real.out" 2>"$REAL_ACTION_ERR"; then
-    fail "browser saved-ref click unexpectedly executed real mutation"
-fi
-expect_error_code "REF_REVALIDATION_REQUIRED" "$REAL_ACTION_ERR"
+REAL_ACTION="$TMP_DIR/do-ref-real.json"
+./aos do click "ref:snap1:$REF" --workspace ws-browser >"$REAL_ACTION"
 jq -e '
-  .status == "snapshot_scoped"
-  and .ref.backend == "browser"
-  and .ref.resolution_class == "snapshot_scoped"
-  and (.safe_next_action | contains("aos see capture --save"))
-' "$REAL_ACTION_ERR" >/dev/null || fail "browser real mutation fail-closed payload drifted: $(cat "$REAL_ACTION_ERR")"
+  .status == "success"
+  and .execution.backend == "playwright"
+  and .execution.strategy == "playwright_click"
+  and (.result.stdout | contains("fake click invoked: -s=todo click e2"))
+' "$REAL_ACTION" >/dev/null || fail "browser saved-ref click did not dispatch after validation: $(cat "$REAL_ACTION")"
 
 HOVER_DRY="$TMP_DIR/do-ref-hover-dry.json"
 ./aos do hover "ref:snap1:$REF" --workspace ws-browser --dry-run >"$HOVER_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "hover"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.current_target.ref == "e2"
   and (.resolved_action.command | index("browser:todo/e2") != null)
 ' "$HOVER_DRY" >/dev/null || fail "browser hover saved-ref dry-run drifted: $(cat "$HOVER_DRY")"
+
+HOVER_REAL="$TMP_DIR/do-ref-hover-real.json"
+./aos do hover "ref:snap1:$REF" --workspace ws-browser >"$HOVER_REAL"
+jq -e '.status == "success" and .execution.strategy == "playwright_hover" and (.result.stdout | contains("fake hover invoked: -s=todo hover e2"))' "$HOVER_REAL" >/dev/null \
+    || fail "browser saved-ref hover did not dispatch after validation: $(cat "$HOVER_REAL")"
 
 SCROLL_DRY="$TMP_DIR/do-ref-scroll-dry.json"
 ./aos do scroll "ref:snap1:$REF" 0,-200 --workspace ws-browser --dry-run >"$SCROLL_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "scroll"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.current_target.ref == "e2"
   and (.resolved_action.command | index("browser:todo/e2") != null)
   and (.resolved_action.command | index("0,-200") != null)
 ' "$SCROLL_DRY" >/dev/null || fail "browser scroll saved-ref dry-run drifted: $(cat "$SCROLL_DRY")"
+
+SCROLL_REAL="$TMP_DIR/do-ref-scroll-real.json"
+./aos do scroll "ref:snap1:$REF" 0,-200 --workspace ws-browser >"$SCROLL_REAL"
+jq -e '.status == "success" and .execution.strategy == "playwright_mousewheel" and (.result.stdout | contains("fake mousewheel invoked: -s=todo mousewheel e2 0 -200"))' "$SCROLL_REAL" >/dev/null \
+    || fail "browser saved-ref scroll did not dispatch after validation: $(cat "$SCROLL_REAL")"
 
 DRAG_DRY="$TMP_DIR/do-ref-drag-dry.json"
 ./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws-browser --dry-run >"$DRAG_DRY"
 jq -e '
   .status == "dry_run"
   and .action == "drag"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.current_target.ref == "e2"
   and .secondary_ref.ref == "r3"
   and .secondary_current_validation.current_target.ref == "e3"
@@ -102,11 +111,23 @@ jq -e '
   and (.resolved_action.command | index("browser:todo/e3") != null)
 ' "$DRAG_DRY" >/dev/null || fail "browser drag saved-ref dry-run drifted: $(cat "$DRAG_DRY")"
 
-DRAG_REAL_ERR="$TMP_DIR/do-ref-drag-real.err"
-if ./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws-browser >"$TMP_DIR/do-ref-drag-real.out" 2>"$DRAG_REAL_ERR"; then
-    fail "browser saved-ref drag unexpectedly executed real mutation"
+DRAG_REAL="$TMP_DIR/do-ref-drag-real.json"
+./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws-browser >"$DRAG_REAL"
+jq -e '.status == "success" and .execution.strategy == "playwright_drag" and (.result.stdout | contains("fake drag invoked: -s=todo drag e2 e3"))' "$DRAG_REAL" >/dev/null \
+    || fail "browser saved-ref drag did not dispatch after validation: $(cat "$DRAG_REAL")"
+
+cp "$REFS_PATH" "$REFS_PATH.drag-backup"
+jq '(.refs[] | select(.ref == "r3") | .action_target) = "browser:other/e3"
+  | (.refs[] | select(.ref == "r3") | .identity_facts.session) = "other"' "$REFS_PATH.drag-backup" >"$REFS_PATH"
+DRAG_CROSS_SESSION_ERR="$TMP_DIR/do-ref-drag-cross-session.err"
+if ./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-drag-cross-session.out" 2>"$DRAG_CROSS_SESSION_ERR"; then
+    mv "$REFS_PATH.drag-backup" "$REFS_PATH"
+    fail "browser saved-ref cross-session drag unexpectedly succeeded"
 fi
-expect_error_code "REF_REVALIDATION_REQUIRED" "$DRAG_REAL_ERR"
+mv "$REFS_PATH.drag-backup" "$REFS_PATH"
+expect_error_code "ACTION_INCOMPATIBLE" "$DRAG_CROSS_SESSION_ERR"
+jq -e '.status == "action_incompatible" and .reason == "session_mismatch"' "$DRAG_CROSS_SESSION_ERR" >/dev/null \
+    || fail "cross-session drag did not fail closed: $(cat "$DRAG_CROSS_SESSION_ERR")"
 
 DRAG_MISSING_ERR="$TMP_DIR/do-ref-drag-missing.err"
 if ./aos do drag "ref:snap1:$REF" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-drag-missing.out" 2>"$DRAG_MISSING_ERR"; then
@@ -139,6 +160,14 @@ jq -e '.status == "success" and .snapshot_id == "snap2" and .capture_mode == "ax
 jq -e '([.snapshots[].snapshot_id] | index("snap1") != null and index("snap2") != null)' "$WORKSPACE_PATH/index.json" >/dev/null \
     || fail "sequential browser saves did not preserve both committed snapshot index entries: $(cat "$WORKSPACE_PATH/index.json")"
 
+DRAG_CROSS_SNAPSHOT_ERR="$TMP_DIR/do-ref-drag-cross-snapshot.err"
+if ./aos do drag "ref:snap1:$REF" ref:snap2:r3 --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-drag-cross-snapshot.out" 2>"$DRAG_CROSS_SNAPSHOT_ERR"; then
+    fail "browser saved-ref cross-snapshot drag unexpectedly succeeded"
+fi
+expect_error_code "ACTION_INCOMPATIBLE" "$DRAG_CROSS_SNAPSHOT_ERR"
+jq -e '.status == "action_incompatible" and .reason == "snapshot_mismatch"' "$DRAG_CROSS_SNAPSHOT_ERR" >/dev/null \
+    || fail "cross-snapshot drag did not fail closed: $(cat "$DRAG_CROSS_SNAPSHOT_ERR")"
+
 AMBIG_ERR="$TMP_DIR/do-ref-ambiguous.err"
 if ./aos do click "ref:$REF" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-ambiguous.out" 2>"$AMBIG_ERR"; then
     fail "bare ref unexpectedly resolved across multiple snapshots"
@@ -168,23 +197,27 @@ jq -e '
   .status == "dry_run"
   and .action == "fill"
   and .ref.backend == "browser"
-  and .resolved_action.resolution_status == "validation_required"
+  and .resolved_action.resolution_status == "reacquired"
   and .current_validation.current_target.ref == "e42"
+  and .current_validation.current_identity.document_title == "Fixture Todo"
   and (.resolved_action.command | index("browser:form/e42") != null)
   and (.resolved_action.command | index("hello") != null)
 ' "$FORM_FILL_DRY" >/dev/null || fail "browser fill saved ref dry-run drifted: $(cat "$FORM_FILL_DRY")"
 
-FORM_FILL_ACTION_ERR="$TMP_DIR/do-form-fill-action.err"
-if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-action.out" 2>"$FORM_FILL_ACTION_ERR"; then
-    fail "browser fill saved ref unexpectedly executed real mutation"
-fi
-expect_error_code "REF_REVALIDATION_REQUIRED" "$FORM_FILL_ACTION_ERR"
+FORM_FILL_ACTION="$TMP_DIR/do-form-fill-action.json"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$FORM_FILL_ACTION"
+jq -e '
+  .status == "success"
+  and .execution.strategy == "fake_form_fill"
+  and (.received | index("browser:form/e42") != null)
+  and (.received | index("hello") != null)
+' "$FORM_FILL_ACTION" >/dev/null || fail "browser fill saved ref did not dispatch after validation: $(cat "$FORM_FILL_ACTION")"
 
 FORM_FILL_STALE_REAL_ERR="$TMP_DIR/do-form-fill-stale-real.err"
 if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-stale-real.out" 2>"$FORM_FILL_STALE_REAL_ERR"; then
     fail "stale browser fill real saved ref unexpectedly executed mutation"
 fi
-expect_error_code "REF_REVALIDATION_REQUIRED" "$FORM_FILL_STALE_REAL_ERR"
+expect_error_code "REF_STALE" "$FORM_FILL_STALE_REAL_ERR"
 
 FORM_STALE_ERR="$TMP_DIR/do-form-fill-stale.err"
 if FORM_STALE=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-stale.out" 2>"$FORM_STALE_ERR"; then
@@ -193,6 +226,47 @@ fi
 expect_error_code "REF_STALE" "$FORM_STALE_ERR"
 jq -e '.status == "stale_ref" and .backend == "browser" and .ref.ref == "r1"' "$FORM_STALE_ERR" >/dev/null \
     || fail "stale browser fill did not fail closed through current validation: $(cat "$FORM_STALE_ERR")"
+
+FORM_AMBIGUOUS_ERR="$TMP_DIR/do-form-fill-ambiguous.err"
+if FORM_AMBIGUOUS=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$TMP_DIR/do-form-fill-ambiguous.out" 2>"$FORM_AMBIGUOUS_ERR"; then
+    fail "ambiguous browser fill saved ref unexpectedly succeeded"
+fi
+expect_error_code "REF_AMBIGUOUS" "$FORM_AMBIGUOUS_ERR"
+jq -e '.status == "ambiguous" and .backend == "browser" and (.candidates | length) == 2' "$FORM_AMBIGUOUS_ERR" >/dev/null \
+    || fail "ambiguous browser fill did not fail closed with candidates: $(cat "$FORM_AMBIGUOUS_ERR")"
+
+FORM_DISABLED_ERR="$TMP_DIR/do-form-fill-disabled.err"
+if FORM_DISABLED=1 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-disabled.out" 2>"$FORM_DISABLED_ERR"; then
+    fail "disabled browser fill saved ref unexpectedly dispatched"
+fi
+expect_error_code "ACTION_INCOMPATIBLE" "$FORM_DISABLED_ERR"
+jq -e '.status == "action_incompatible" and .reason == "target_disabled"' "$FORM_DISABLED_ERR" >/dev/null \
+    || fail "disabled browser fill did not fail closed before dispatch: $(cat "$FORM_DISABLED_ERR")"
+
+for drift in ROLE TITLE LABEL CONTEXT; do
+    case "$drift" in
+        ROLE) drift_lower="role" ;;
+        TITLE) drift_lower="title" ;;
+        LABEL) drift_lower="label" ;;
+        CONTEXT) drift_lower="context" ;;
+    esac
+    err="$TMP_DIR/do-form-fill-${drift_lower}-drift.err"
+    env_name="FORM_${drift}_DRIFT"
+    if env "$env_name=1" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-${drift_lower}-drift.out" 2>"$err"; then
+        fail "${drift} drift browser fill saved ref unexpectedly dispatched"
+    fi
+    expect_error_code "REF_STALE" "$err"
+    jq -e '.status == "stale_ref" and (.reason | endswith("_changed"))' "$err" >/dev/null \
+        || fail "${drift} drift did not fail closed with stale reason: $(cat "$err")"
+done
+
+FORM_URL_DRIFT_ERR="$TMP_DIR/do-form-fill-url-drift.err"
+if FAKE_PWCLI_PAGE_URL="https://fixture.local/other" AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$TMP_DIR/do-form-fill-url-drift.out" 2>"$FORM_URL_DRIFT_ERR"; then
+    fail "URL drift browser fill saved ref unexpectedly dispatched"
+fi
+expect_error_code "REF_STALE" "$FORM_URL_DRIFT_ERR"
+jq -e '.status == "stale_ref" and .reason == "page_url_changed" and .current_identity.page_url == "https://fixture.local/other"' "$FORM_URL_DRIFT_ERR" >/dev/null \
+    || fail "URL drift did not fail closed through page identity validation: $(cat "$FORM_URL_DRIFT_ERR")"
 
 NON_CLICK_AOS="$TMP_DIR/non-click-aos"
 write_non_click_ref_literal_aos "$NON_CLICK_AOS"

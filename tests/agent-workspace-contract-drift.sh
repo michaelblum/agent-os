@@ -15,6 +15,7 @@ import {
   SAVED_REF_RESOLUTION_CLASSES,
   SAVED_REF_V0_ACTION_MATRIX,
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
+  savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
 
 const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0.schema.json', 'utf8'));
@@ -25,9 +26,18 @@ assert.deepEqual(defs.backend.enum, SAVED_REF_BACKENDS);
 assert.deepEqual(defs.resolution_class.enum, SAVED_REF_RESOLUTION_CLASSES);
 assert.deepEqual(defs.confidence.enum, SAVED_REF_CONFIDENCE_VALUES);
 
-assert.deepEqual(SAVED_REF_V0_ACTIONS_BY_BACKEND.aos_canvas, ['click', 'set-value']);
-assert.deepEqual(SAVED_REF_V0_ACTIONS_BY_BACKEND.browser, ['click', 'fill', 'hover', 'scroll', 'drag']);
-assert.deepEqual(SAVED_REF_V0_ACTIONS_BY_BACKEND.native_ax, []);
+for (const [backend, actions] of Object.entries(SAVED_REF_V0_ACTIONS_BY_BACKEND)) {
+  for (const action of actions) {
+    assert.ok(SAVED_REF_V0_ACTION_MATRIX[action]?.supported_backends?.[backend], `${backend} ${action} must be matrix-owned`);
+  }
+}
+assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.aos_canvas.includes('click'));
+assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.aos_canvas.includes('set-value'));
+assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.native_ax.length === 0);
+for (const action of SAVED_REF_V0_ACTIONS_BY_BACKEND.browser) {
+  assert.ok(savedRefBackendSupportsRealMutation('browser', action), `browser ${action} must allow real mutation after validation`);
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('success'), `browser ${action} must document success status`);
+}
 
 const requiredActions = ['click', 'set-value', 'fill', 'hover', 'scroll', 'drag', 'focus', 'press', 'type', 'key'];
 for (const action of requiredActions) {
@@ -58,8 +68,10 @@ for (const action of requiredActions) {
 
 for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('REF_REVALIDATION_REQUIRED'), 'docs/skill must mention REF_REVALIDATION_REQUIRED');
-  assert.ok(/page,\s+frame,\s+and\s+navigation\s+identity/.test(text), 'docs/skill must explain browser identity blocker');
-  assert.ok(text.includes('dry-run') && text.includes('advisory'), 'docs/skill must describe browser dry-run advisory validation');
+  assert.ok(/page,\s+frame,\s+navigation/.test(text), 'docs/skill must explain browser page/frame/navigation validation');
+  assert.ok(text.includes('Dry-run') || text.includes('dry-run'), 'docs/skill must describe browser dry-run validation');
+  assert.ok(text.includes('reacquired'), 'docs/skill must describe reacquired dry-run status');
+  assert.ok(!/advisory-only|remains dry-run advisory|no real browser|real mutation fails closed/.test(text), 'docs/skill must not describe browser refs as advisory-only');
 }
 
 for (const text of [schemaDoc, apiDoc]) {
@@ -68,7 +80,9 @@ for (const text of [schemaDoc, apiDoc]) {
   assert.ok(text.includes('index.json') && /rebuild/.test(text), 'storage docs must describe index rebuild');
 }
 
-assert.ok(manifest.includes('browser click/fill/hover/scroll/drag remains dry-run advisory'), 'manifest save summary must not advertise browser real mutation');
+const browserActionSlashList = SAVED_REF_V0_ACTIONS_BY_BACKEND.browser.join('/');
+assert.ok(manifest.includes(`validated browser ${browserActionSlashList} mutation`), 'manifest save summary must advertise validated browser real mutation from matrix actions');
+assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary must not describe browser refs as advisory-only');
 JS
 
 echo "PASS contract drift"

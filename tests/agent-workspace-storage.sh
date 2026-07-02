@@ -52,15 +52,17 @@ jq -e '
   and .capture_mode == "ax"
   and .target == "browser:todo"
   and .query == "button"
+  and .counts.files == 0
   and .counts.elements == 3
   and .counts.refs == 3
+  and (.artifact_refs | length) == 0
   and (.refs | length) == 1
   and .refs[0].ref == "r2"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
   and .refs[0].confidence == "medium"
   and (.refs[0].supported_actions | index("click") != null)
-  and (.refs[0].warnings[0] | contains("real mutation fails closed"))
+  and (.refs[0].warnings[0] | contains("real mutation dispatches only after"))
   and (.omitted.heavy_payloads | index("elements") != null)
   and (.paths.capture | endswith("/capture.json"))
   and (.paths.snapshot_record | endswith("/snapshot.json"))
@@ -126,14 +128,35 @@ printf '{' >"$WORKSPACE_PATH/index.json"
 REBUILT_SNAPS="$TMP_DIR/rebuilt-snapshots.json"
 ./aos see snapshots --workspace ws1 --json >"$REBUILT_SNAPS"
 jq -e '.status == "success" and .current_snapshot_id == "snap1" and (.snapshots | length) == 1 and .snapshots[0].snapshot_id == "snap1"' "$REBUILT_SNAPS" >/dev/null \
-    || fail "corrupt index did not rebuild from committed snapshot: $(cat "$REBUILT_SNAPS")"
-jq -e '.current_snapshot_id == "snap1" and (.snapshots | length) == 1' "$WORKSPACE_PATH/index.json" >/dev/null \
-    || fail "rebuilt index was not persisted: $(cat "$WORKSPACE_PATH/index.json")"
+    || fail "corrupt index did not derive from committed snapshot: $(cat "$REBUILT_SNAPS")"
+[[ "$(cat "$WORKSPACE_PATH/index.json")" == "{" ]] \
+    || fail "read-only snapshots command rewrote corrupt index: $(cat "$WORKSPACE_PATH/index.json")"
 
 mkdir -p "$WORKSPACE_PATH/snapshots/partial-one/artifacts"
 printf '{}' >"$WORKSPACE_PATH/snapshots/partial-one/snapshot.json"
 mkdir -p "$WORKSPACE_PATH/snapshots/.staging/staged-one/artifacts"
 rm "$WORKSPACE_PATH/index.json"
+NO_INDEX_REFS="$TMP_DIR/no-index-refs.json"
+./aos see refs --workspace ws1 --snapshot snap1 --json >"$NO_INDEX_REFS"
+jq -e '.status == "success" and .snapshot_id == "snap1" and (.refs | length) == 3' "$NO_INDEX_REFS" >/dev/null \
+    || fail "refs read without index did not derive committed state: $(cat "$NO_INDEX_REFS")"
+[[ ! -e "$WORKSPACE_PATH/index.json" ]] \
+    || fail "read-only refs command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
+
+NO_INDEX_WORKSPACE="$TMP_DIR/no-index-workspace.json"
+./aos see workspace ws1 --json >"$NO_INDEX_WORKSPACE"
+jq -e '.status == "success" and .index_health.current_snapshot_id == "snap1" and .index_health.snapshot_count == 1' "$NO_INDEX_WORKSPACE" >/dev/null \
+    || fail "workspace read without index did not derive committed state: $(cat "$NO_INDEX_WORKSPACE")"
+[[ ! -e "$WORKSPACE_PATH/index.json" ]] \
+    || fail "read-only workspace command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
+
+NO_INDEX_WORKSPACES="$TMP_DIR/no-index-workspaces.json"
+./aos see workspaces --json >"$NO_INDEX_WORKSPACES"
+jq -e '.status == "success" and any(.workspaces[]; .workspace_id == "ws1" and .current_snapshot_id == "snap1" and .snapshot_count == 1)' "$NO_INDEX_WORKSPACES" >/dev/null \
+    || fail "workspaces read without index did not derive committed state: $(cat "$NO_INDEX_WORKSPACES")"
+[[ ! -e "$WORKSPACE_PATH/index.json" ]] \
+    || fail "read-only workspaces command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
+
 RECONCILED_SNAPS="$TMP_DIR/reconciled-snapshots.json"
 ./aos see snapshots --workspace ws1 --json >"$RECONCILED_SNAPS"
 jq -e '
@@ -142,6 +165,8 @@ jq -e '
   and (.snapshots | length) == 1
   and ([.snapshots[].snapshot_id] | index("snap1") != null and index("partial-one") == null and index("staged-one") == null)
 ' "$RECONCILED_SNAPS" >/dev/null || fail "index rebuild included uncommitted snapshots: $(cat "$RECONCILED_SNAPS")"
+[[ ! -e "$WORKSPACE_PATH/index.json" ]] \
+    || fail "read-only snapshots command recreated missing index: $(cat "$WORKSPACE_PATH/index.json")"
 
 PARTIAL_REF_ERR="$TMP_DIR/partial-ref.err"
 if ./aos see refs --workspace ws1 --snapshot partial-one --json >"$TMP_DIR/partial-ref.out" 2>"$PARTIAL_REF_ERR"; then
@@ -170,6 +195,13 @@ ARTIFACT="$(jq -r '.artifact_refs[0].path' "$VISION")"
 jq -e '.status == "success" and .capture_mode == "vision" and .counts.files == 1 and .counts.refs == 0' "$VISION" >/dev/null \
     || fail "vision saved capture shape drifted: $(cat "$VISION")"
 [[ -f "$ARTIFACT" ]] || fail "vision capture did not keep screenshot file-backed at final path: $ARTIFACT"
+
+SOM="$TMP_DIR/capture-som.json"
+./aos see capture browser:todo --save --mode som --workspace ws-som --name snapsom >"$SOM"
+SOM_ARTIFACT="$(jq -r '.artifact_refs[0].path' "$SOM")"
+jq -e '.status == "success" and .capture_mode == "som" and .counts.files == 1 and .counts.elements == 3 and .counts.refs == 3 and (.omitted.heavy_payloads | index("annotations") != null)' "$SOM" >/dev/null \
+    || fail "som saved capture did not combine browser refs and image pointers: $(cat "$SOM")"
+[[ -f "$SOM_ARTIFACT" ]] || fail "som capture did not keep screenshot file-backed at final path: $SOM_ARTIFACT"
 
 BAD_MODE_ERR="$TMP_DIR/bad-mode.err"
 if ./aos see capture browser:todo --save --mode bad --workspace ws1 --name badmode >"$TMP_DIR/bad-mode.out" 2>"$BAD_MODE_ERR"; then

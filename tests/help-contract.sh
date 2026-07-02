@@ -242,12 +242,18 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
-if OUT="$(./aos help do --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos help do --json 2>/dev/null)" \
+   SAVED_REF_ACTIONS="$(node --input-type=module <<'JS'
+import { SAVED_REF_V0_ACTIONS_BY_BACKEND } from './scripts/lib/agent-workspace/contracts.mjs';
+console.log(JSON.stringify([...new Set(Object.values(SAVED_REF_V0_ACTIONS_BY_BACKEND).flat())]));
+JS
+)" \
+   python3 - <<'PY'
 import json
 import os
 
 data = json.loads(os.environ["OUT"])
-saved_ref_forms = {"do-click", "do-fill", "do-hover", "do-scroll", "do-drag", "do-set-value"}
+saved_ref_forms = {f"do-{action}" for action in json.loads(os.environ["SAVED_REF_ACTIONS"])}
 for form in data["forms"]:
     usage = form.get("usage", "")
     examples = " ".join(form.get("examples", []))

@@ -181,11 +181,11 @@ form is preferred. Bare refs resolve only when unambiguous inside the workspace.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
 Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs run a fresh
-xray validation as dry-run advisory evidence, but real browser saved-ref
-mutation still fails closed with `REF_REVALIDATION_REQUIRED` until page, frame,
-and navigation identity are persisted and checked. Missing, stale, ambiguous,
-disabled, or changed current targets fail closed before that advisory result is
-reported:
+xray validation plus page, frame, navigation, role, title, label, context, and
+enabled-state checks. Dry-run reports `reacquired` when that validation is
+sufficient for real dispatch; non-dry-run then routes through the underlying
+`browser:<session>/<ref>` action target. Missing, stale, ambiguous, disabled,
+changed, or identity-drifted current targets fail closed before dispatch:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
@@ -197,7 +197,7 @@ aos do drag ref:<snapshot-id>:r4 ref:<snapshot-id>:r5 --workspace default --dry-
 ```
 
 Saved-ref browser drag requires two saved browser refs from the same snapshot
-and browser session, and dry-run validates both endpoints without dispatch.
+and browser session, and validates both endpoints before any dispatch.
 Native AX
 `volatile` refs are inspection-only and report known limits instead of claiming
 no-foreground saved-action safety. `focus`, `press`/`open`/`toggle`, browser
@@ -709,9 +709,10 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
 saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and, for browser refs, the fresh xray current-target
-validation result. Browser `snapshot_scoped` refs remain unsafe for real
-mutation even when that advisory validation matches. Non-dry-run mutation
-refuses unsafe resolution classes with machine-readable errors such as
+validation result. Browser `snapshot_scoped` click, fill, hover, scroll, and
+drag refs can dispatch only after page, frame, navigation, and element
+validation pass. Non-dry-run mutation refuses unsafe resolution classes or
+missing validation capability with machine-readable errors such as
 `REF_STALE`, `REF_REVALIDATION_REQUIRED`,
 `REF_AMBIGUOUS`, `REF_NOT_FOUND`, `ACTION_INCOMPATIBLE`,
 `AGENT_WORKSPACE_STATE_CORRUPT`, or `AGENT_WORKSPACE_LOCKED`. Workspace locks

@@ -61,12 +61,13 @@ required. Saved refs use a backend action matrix:
 - AOS canvas `reacquirable` refs may route `click` and `set-value` through the
   current canvas resolver.
 - Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs use fresh
-  xray validation only as advisory dry-run evidence. Real browser saved-ref
-  mutation returns `REF_REVALIDATION_REQUIRED` until page, frame, and navigation
-  identity are persisted and checked. Drag dry-run validates both endpoints and
-  requires the same saved snapshot and browser session. Missing, stale,
-  ambiguous, disabled, or changed current targets fail closed with `REF_STALE`,
-  `REF_AMBIGUOUS`, or `ACTION_INCOMPATIBLE`.
+  xray plus page, frame, navigation, role, title, label, context, and
+  enabled-state validation. Dry-run reports `reacquired` when validation is
+  sufficient for real dispatch. Non-dry-run routes through the underlying
+  `browser:<session>/<ref>` target only after validation passes. Drag validates
+  both endpoints and requires the same saved snapshot and browser session.
+  Missing, stale, ambiguous, disabled, or changed current targets fail closed
+  with `REF_STALE`, `REF_AMBIGUOUS`, or `ACTION_INCOMPATIBLE`.
 - Native AX `volatile` refs are inspection-only and report known limits instead
   of claiming no-foreground saved-action safety.
 - `focus`, `press`/`open`/`toggle`, browser `type`/`key`, and other unsupported

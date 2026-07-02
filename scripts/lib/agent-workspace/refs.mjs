@@ -1,5 +1,9 @@
 import { SCHEMA_VERSION } from './core.mjs';
-import { savedRefSupportedActionsForBackend } from './contracts.mjs';
+import {
+  savedRefActionKnownLimit,
+  savedRefProducerActionsForBrowserElement,
+  savedRefSupportedActionsForBackend,
+} from './contracts.mjs';
 
 function textValue(...values) {
   for (const value of values) {
@@ -46,13 +50,6 @@ function browserSessionFromTarget(target) {
   const remainder = target.slice('browser:'.length);
   if (!remainder) return process.env.PLAYWRIGHT_CLI_SESSION || null;
   return remainder.split('/')[0] || null;
-}
-
-function browserActionsForElement(element) {
-  const role = String(element.role || '').toLowerCase();
-  if (['textbox', 'searchbox', 'combobox', 'input'].includes(role)) return ['click', 'fill', 'hover', 'scroll', 'drag', 'type', 'key'];
-  if (['button', 'link', 'checkbox', 'radio', 'menuitem', 'tab'].includes(role)) return ['click', 'hover', 'scroll', 'drag'];
-  return ['click', 'hover', 'scroll', 'drag'];
 }
 
 function savedRefActions(actions, backend) {
@@ -115,11 +112,13 @@ export function generateRefRecords(capture, context) {
   }
 
   const browserSession = browserSessionFromTarget(context.target);
+  const browserIdentity = context.browser_identity ?? null;
   for (const element of capture.elements ?? []) {
     if (!element.ref && !element.bounds) continue;
     const isBrowser = Boolean(browserSession && element.ref);
     const sourceRef = textValue(element.ref);
     const actionTarget = isBrowser ? `browser:${browserSession}/${sourceRef}` : null;
+    const browserKnownLimit = isBrowser ? savedRefActionKnownLimit('click', 'browser') : null;
     const record = {
       schema_version: SCHEMA_VERSION,
       ref: nextRef(),
@@ -132,12 +131,20 @@ export function generateRefRecords(capture, context) {
       backend: isBrowser ? 'browser' : 'native_ax',
       resolution_class: isBrowser ? 'snapshot_scoped' : 'volatile',
       confidence: isBrowser ? 'medium' : 'low',
-      supported_actions: isBrowser ? savedRefActions(browserActionsForElement(element), 'browser') : [],
+      supported_actions: isBrowser ? savedRefProducerActionsForBrowserElement(element) : [],
       target_summary: [element.role, element.title, element.label, element.value, sourceRef].filter(Boolean).join(' ') || 'element',
       identity_facts: {
         state_id: stateID,
+        session: isBrowser ? browserSession : null,
         source_ref: sourceRef,
+        role: element.role ?? null,
+        title: element.title ?? null,
+        label: element.label ?? null,
         context_path: element.context_path ?? [],
+        page_url: isBrowser ? (browserIdentity?.page_url ?? null) : null,
+        document_title: isBrowser ? (browserIdentity?.document_title ?? null) : null,
+        frame_url: isBrowser ? (browserIdentity?.frame_url ?? null) : null,
+        top_frame_url: isBrowser ? (browserIdentity?.top_frame_url ?? null) : null,
       },
       hint_facts: {
         role: element.role ?? null,
@@ -148,13 +155,14 @@ export function generateRefRecords(capture, context) {
       current_address: {
         action_target: actionTarget,
         bounds: element.bounds ?? null,
+        browser_identity: isBrowser ? browserIdentity : null,
       },
       artifact_refs: artifactRefs,
       warnings: isBrowser
-        ? ['browser refs are snapshot-scoped; real mutation fails closed until page/frame/navigation identity is persisted; dry-run includes advisory current xray validation']
+        ? ['browser refs are snapshot-scoped; real mutation dispatches only after fresh page/frame/navigation and element validation passes']
         : ['native AX element refs are inspection-only; saved-ref actions do not claim no-foreground safety'],
       known_limits: isBrowser
-        ? ['navigation or DOM replacement can stale a browser ref; saved-ref real mutation returns REF_REVALIDATION_REQUIRED even when advisory xray validation matches role/title/label/context']
+        ? [browserKnownLimit].filter(Boolean)
         : [
             'AX titles, labels, bounds, and context paths are hints, not durable identity',
             'native AX saved-ref mutation is disabled until durable AX identity and no-foreground validation are implemented',

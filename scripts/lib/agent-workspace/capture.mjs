@@ -26,6 +26,15 @@ import {
   withWorkspaceLock,
 } from './store.mjs';
 import { generateRefRecords, omittedPayloads, queryMatches, refSummary } from './refs.mjs';
+import {
+  savedCaptureModeFlags,
+  savedCaptureModeKnownLimits,
+  savedCaptureModePolicy,
+} from './contracts.mjs';
+import {
+  browserIdentityComparable,
+  queryBrowserPageIdentity,
+} from './browser-identity.mjs';
 
 function snapshotID(explicit) {
   if (explicit) return validateLocalID(explicit, 'snapshot id');
@@ -246,12 +255,19 @@ export function parseSavedCaptureArgs(args) {
   return parsed;
 }
 
-function captureArgsForMode(args, mode, artifactPath) {
+function browserSessionFromTarget(target) {
+  if (!target?.startsWith?.('browser:')) return null;
+  const remainder = target.slice('browser:'.length);
+  if (!remainder) return process.env.PLAYWRIGHT_CLI_SESSION || null;
+  return remainder.split('/')[0] || null;
+}
+
+function captureArgsForMode(args, mode, artifactPath, target) {
   let out = [...args];
-  if ((mode === 'ax' || mode === 'som') && !hasFlag(out, '--xray') && !hasFlag(out, '--browser-dom-point')) {
-    out.push('--xray');
+  for (const flag of savedCaptureModeFlags(mode, target)) {
+    if (!hasFlag(out, flag) && !hasFlag(out, '--browser-dom-point')) out.push(flag);
   }
-  if (!hasFlag(out, '--base64')) {
+  if (savedCaptureModePolicy(mode)?.requires_image && !hasFlag(out, '--base64')) {
     out = setOrAppendFlag(out, '--out', artifactPath);
   }
   return out;
@@ -328,12 +344,14 @@ function knownLimitsForSnapshot(mode, target) {
   const limits = [
     'workspace snapshots are local control state, not Work Recording evidence storage',
     'state_id remains capture provenance and is not treated as durable identity',
+    ...savedCaptureModeKnownLimits(mode, target),
   ];
   if ((mode === 'ax' || mode === 'som') && !isBrowserTarget) {
     limits.push('non-browser tree modes may include native AX refs; those refs are inspection-only and make no saved-action no-foreground guarantee');
   }
-  if (mode === 'ax' && !isBrowserTarget) limits.push('non-browser ax mode may still require the current native capture primitive until a tree-only native path lands');
-  if (isBrowserTarget) limits.push('browser refs are snapshot-scoped until current-page locator validation is implemented');
+  if (isBrowserTarget && mode !== 'vision') {
+    limits.push('browser refs are snapshot-scoped and require fresh page/frame/navigation plus element validation before real saved-ref dispatch');
+  }
   return limits;
 }
 
@@ -349,7 +367,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       const stagedArtifactsDir = prepared.stagedPaths.artifacts;
       const finalArtifactsDir = prepared.finalPaths.artifacts;
       const captureArtifact = path.join(stagedArtifactsDir, 'capture.png');
-      const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact);
+      const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact, target);
       const createdAt = nowISO();
       const result = spawnSync(aosPath(env), ['__see', 'capture', ...captureArgs], {
         encoding: 'utf8',
@@ -366,11 +384,16 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         ...rewriteBase64Payload(capture, stagedArtifactsDir, finalArtifactsDir),
       ];
       rewriteCaptureFilePaths(capture, stagedArtifactsDir, finalArtifactsDir);
+      const browserSession = browserSessionFromTarget(target);
+      const browserIdentity = browserSession && (capture.elements?.length ?? 0) > 0
+        ? browserIdentityComparable(queryBrowserPageIdentity(browserSession, env))
+        : null;
       const refs = generateRefRecords(capture, {
         workspace_id: workspace,
         snapshot_id: snapID,
         target,
         artifact_refs: artifactRefs,
+        browser_identity: browserIdentity,
       });
       const compactRefs = refs.filter((record) => queryMatches(record, parsed.options.query)).map(refSummary);
       const paths = prepared.finalPaths;
