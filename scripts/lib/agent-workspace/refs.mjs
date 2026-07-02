@@ -158,10 +158,14 @@ export function generateRefRecords(capture, context) {
       artifact_refs: artifactRefs,
       warnings: isBrowser
         ? ['browser refs are snapshot-scoped; mutation requires a fresh xray current-target validation']
-        : ['native AX element refs are inspection-only until durable AX identity and no-foreground validation are implemented'],
+        : ['native AX element refs are inspection-only; saved-ref actions do not claim no-foreground safety'],
       known_limits: isBrowser
         ? ['navigation or DOM replacement can stale a browser ref; saved-ref mutation fails closed when fresh xray validation cannot match the saved role/title/label/context']
-        : ['AX titles, labels, bounds, and context paths are hints, not durable identity'],
+        : [
+            'AX titles, labels, bounds, and context paths are hints, not durable identity',
+            'native AX saved-ref mutation is disabled until durable AX identity and no-foreground validation are implemented',
+            'use direct AX commands only when the caller accepts current AX matching semantics; saved refs fail closed',
+          ],
     };
     records.push(record);
   }

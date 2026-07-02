@@ -191,7 +191,8 @@ aos do drag ref:<snapshot-id>:r4 ref:<snapshot-id>:r5 --workspace default --dry-
 
 Saved-ref browser drag requires two saved browser refs from the same snapshot
 and browser session, and validates both endpoints before dispatch. Native AX
-`volatile` refs are inspection-only. `focus`, `press`/`open`/`toggle`, browser
+`volatile` refs are inspection-only and report known limits instead of claiming
+no-foreground saved-action safety. `focus`, `press`/`open`/`toggle`, browser
 `type`/`key`, and other unsupported saved-ref forms fail closed with structured
 JSON until the action grammar has a backend-owned current target validation
 path. See `shared/schemas/aos-agent-workspace-v0.md` for the full action

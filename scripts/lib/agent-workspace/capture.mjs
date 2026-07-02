@@ -302,12 +302,16 @@ function fileArtifactRefs(capture, artifactsDir) {
 }
 
 function knownLimitsForSnapshot(mode, target) {
+  const isBrowserTarget = target?.startsWith?.('browser:');
   const limits = [
     'workspace snapshots are local control state, not Work Recording evidence storage',
     'state_id remains capture provenance and is not treated as durable identity',
   ];
-  if (mode === 'ax') limits.push('non-browser ax mode may still require the current native capture primitive until a tree-only native path lands');
-  if (target?.startsWith?.('browser:')) limits.push('browser refs are snapshot-scoped until current-page locator validation is implemented');
+  if ((mode === 'ax' || mode === 'som') && !isBrowserTarget) {
+    limits.push('non-browser tree modes may include native AX refs; those refs are inspection-only and make no saved-action no-foreground guarantee');
+  }
+  if (mode === 'ax' && !isBrowserTarget) limits.push('non-browser ax mode may still require the current native capture primitive until a tree-only native path lands');
+  if (isBrowserTarget) limits.push('browser refs are snapshot-scoped until current-page locator validation is implemented');
   return limits;
 }
 

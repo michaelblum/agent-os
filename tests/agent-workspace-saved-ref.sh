@@ -646,7 +646,9 @@ jq -e '
   and (.refs[0].supported_actions | length) == 0
   and (.refs[0].warnings[0] | contains("native AX"))
   and (.refs[0].known_limits[0] | contains("hints"))
+  and any(.refs[0].known_limits[]; contains("no-foreground"))
   and any(.known_limits[]; contains("non-browser ax mode"))
+  and any(.known_limits[]; contains("no saved-action no-foreground guarantee"))
 ' "$NATIVE" >/dev/null || fail "native AX saved-ref reporting drifted: $(cat "$NATIVE")"
 
 NATIVE_ERR="$TMP_DIR/do-native-ref.err"
@@ -654,7 +656,7 @@ if AOS_PATH="$FAKE_AOS" node scripts/aos-do-native.mjs click ref:snapnative:r1 -
     fail "native volatile inspection ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$NATIVE_ERR"
-jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .ref.resolution_class == "volatile"' "$NATIVE_ERR" >/dev/null \
+jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .ref.resolution_class == "volatile" and any(.ref.known_limits[]; contains("no-foreground"))' "$NATIVE_ERR" >/dev/null \
     || fail "native unsupported ref payload drifted: $(cat "$NATIVE_ERR")"
 
 NATIVE_FOCUS_ERR="$TMP_DIR/do-native-focus-ref.err"

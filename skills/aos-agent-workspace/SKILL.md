@@ -65,7 +65,8 @@ required. Saved refs use a backend action matrix:
   requires the same saved snapshot and browser session. Missing, stale,
   ambiguous, disabled, or changed current targets fail closed with `REF_STALE`,
   `REF_AMBIGUOUS`, or `ACTION_INCOMPATIBLE`.
-- Native AX `volatile` refs are inspection-only.
+- Native AX `volatile` refs are inspection-only and report known limits instead
+  of claiming no-foreground saved-action safety.
 - `focus`, `press`/`open`/`toggle`, browser `type`/`key`, and other unsupported
   saved-ref actions fail closed with structured JSON.
 - Unsafe resolution classes that have no current validation path still return
