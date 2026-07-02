@@ -394,6 +394,18 @@ const nativeActionSlashList = ['press', 'focus', 'set-value'].join('/');
 assert.ok(manifest.includes(`stable native AX ${nativeActionSlashList}`), 'manifest save summary must advertise stable native AX saved-ref actions');
 assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary must not describe browser refs as advisory-only');
 
+const doCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['do']));
+assert.ok(doCommand, 'manifest missing do command');
+const doDragForm = doCommand.forms.find((form) => form.id === 'do-drag');
+const doNativeDragForm = doCommand.forms.find((form) => form.id === 'do-drag-native');
+assert.ok(doDragForm, 'manifest missing saved-ref/browser do-drag form');
+assert.ok(doNativeDragForm, 'manifest missing native coordinate do-drag form');
+assert.ok(!doDragForm.usage.includes('--speed'), 'saved-ref drag usage must not advertise native-only --speed');
+assert.ok(!doDragForm.args.some((arg) => arg.token === '--speed'), 'saved-ref drag args must not advertise native-only --speed');
+assert.ok(doNativeDragForm.usage.includes('--speed'), 'native coordinate drag usage must advertise --speed');
+assert.ok(doNativeDragForm.args.some((arg) => arg.token === '--speed'), 'native coordinate drag args must keep --speed');
+assert.ok(!doNativeDragForm.usage.includes('ref:<snapshot-id>'), 'native coordinate drag usage must not advertise saved refs');
+
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
 assert.ok(seeCommand, 'manifest missing see command');
 const captureForm = seeCommand.forms.find((form) => form.id === 'see-capture');

@@ -388,7 +388,16 @@ assert "browser:<session>/<ref>" in scroll["usage"], scroll["usage"]
 drag = next(item for item in data["forms"] if item["id"] == "do-drag")
 drag_tokens = {arg.get("token") for arg in drag["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= drag_tokens, drag_tokens
+assert "--speed" not in drag_tokens, drag_tokens
 assert "browser:<session>/<ref>" in drag["usage"], drag["usage"]
+assert "--speed" not in drag["usage"], drag["usage"]
+assert "x1,y1" not in drag["usage"], drag["usage"]
+native_drag = next(item for item in data["forms"] if item["id"] == "do-drag-native")
+native_drag_tokens = {arg.get("token") for arg in native_drag["args"]}
+assert "--speed" in native_drag_tokens, native_drag_tokens
+assert "--speed N" in native_drag["usage"], native_drag["usage"]
+assert "<x1,y1> <x2,y2>" in native_drag["usage"], native_drag["usage"]
+assert "ref:<snapshot-id>" not in native_drag["usage"], native_drag["usage"]
 PY
 then
     pass "supported saved-ref do actions advertise saved ref targets"

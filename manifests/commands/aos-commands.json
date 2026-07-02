@@ -2715,23 +2715,15 @@
               "id" : "from",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Start target as x,y, saved ref, browser target, or AOS canvas ref target",
+              "summary" : "Start target as saved ref or browser target",
               "value_type" : "string"
             },
             {
               "id" : "to",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Destination target as x,y, saved ref, or browser target",
+              "summary" : "Destination target as saved ref or browser target",
               "value_type" : "string"
-            },
-            {
-              "id" : "speed",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Drag speed in pixels\/sec",
-              "token" : "--speed",
-              "value_type" : "int"
             },
             {
               "id" : "state-id",
@@ -2769,10 +2761,9 @@
           "examples" : [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo\/e1 browser:todo\/e2",
-            "aos do drag 100,100 500,500"
+            "aos do drag browser:todo\/e1 browser:todo\/e2"
           ],
-          "summary" : "Saved-ref drag validates both endpoints before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -2789,7 +2780,71 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x1,y1> <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x2,y2> [--workspace <id>] [--snapshot <id>] [--speed N] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "from",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Start coordinate as x,y",
+              "value_type" : "string"
+            },
+            {
+              "id" : "to",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Destination coordinate as x,y",
+              "value_type" : "string"
+            },
+            {
+              "id" : "speed",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Native coordinate drag speed in pixels\/sec",
+              "token" : "--speed",
+              "value_type" : "int"
+            },
+            {
+              "id" : "state-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Perception state id this action was chosen from",
+              "token" : "--state-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the coordinate drag without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do drag 100,100 500,500",
+            "aos do drag 100,100 500,500 --speed 600"
+          ],
+          "summary" : "Native coordinate drag; --speed applies only to coordinate drag, not saved-ref drag",
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-drag-native",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do drag <x1,y1> <x2,y2> [--speed N] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
