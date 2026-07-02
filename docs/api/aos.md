@@ -131,29 +131,20 @@ The current top-level commands are:
 ### 1. Perceive, Then Act
 
 ```bash
-aos see cursor
-aos see capture main --base64
-aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png
-aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png
-aos do click 500,300
+aos see capture browser:work --save --mode som --workspace default
+aos see refs --workspace default --query Save --json
+aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
+aos do click ref:<snapshot-id>:r2 --workspace default
 ```
 
 Typical consumer loop:
 
-1. Use `aos see` to gather state.
-2. Decide externally.
-3. Use `aos do` or `aos show`.
-4. Re-perceive if needed.
-
-For longer agent loops, save compact local perception state instead of carrying
-full capture payloads through stdout:
-
-```bash
-aos see capture browser:work --save --mode som --workspace default
-aos see snapshots --workspace default --json
-aos see refs --workspace default --query Save --json
-aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
-```
+1. Save compact perception with `aos see capture --save`.
+2. Read compact refs with `aos see refs`.
+3. Dry-run the saved-ref action and inspect `resolution_status`.
+4. Dispatch only if the ref validates or reacquires.
+5. Use `recommended_next_command` after a real mutation when a fresh saved
+   capture is needed before reusing refs from the surface.
 
 Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
@@ -184,8 +175,10 @@ Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs run a fresh
 xray validation plus page, frame, navigation, role, title, label, context, and
 enabled-state checks. Dry-run reports `reacquired` when that validation is
 sufficient for real dispatch; non-dry-run then routes through the underlying
-`browser:<session>/<ref>` action target. Missing, stale, ambiguous, disabled,
-changed, or identity-drifted current targets fail closed before dispatch:
+`browser:<session>/<ref>` action target and returns a saved-ref execution envelope
+with `current_validation`, `underlying_result`, `post_action`, and
+`recommended_next_command`. Missing, stale, ambiguous, disabled, changed, or
+identity-drifted current targets fail closed before dispatch:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
@@ -200,11 +193,24 @@ Saved-ref browser drag requires two saved browser refs from the same snapshot
 and browser session, and validates both endpoints before any dispatch.
 Native AX
 `volatile` refs are inspection-only and report known limits instead of claiming
-no-foreground saved-action safety. `focus`, `press`/`open`/`toggle`, browser
-`type`/`key`, and other unsupported saved-ref forms fail closed with structured
-JSON until the action grammar has a backend-owned current target validation
-path. See `shared/schemas/aos-agent-workspace-v0.md` for the full action
-grammar matrix.
+no-foreground saved-action safety. This V0 foundation does not complete native
+saved-ref mutation or native no-foreground conformance. `focus`,
+`press`/`open`/`toggle`, browser `type`/`key`, and other unsupported saved-ref
+forms fail closed with structured JSON until the action grammar has a
+backend-owned current target validation path. See
+`shared/schemas/aos-agent-workspace-v0.md` for the full action grammar matrix.
+
+Diagnostic and fallback paths are still available when compact saved refs do not
+have parity or when an agent explicitly needs pixels, raw images, or coordinate
+proof:
+
+```bash
+aos see cursor
+aos see capture main --base64
+aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png
+aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png
+aos do click 500,300
+```
 
 Cleanup is explicit:
 

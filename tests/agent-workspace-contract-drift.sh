@@ -61,18 +61,30 @@ const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'u
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
+const manifestJSON = JSON.parse(manifest);
 
 for (const action of requiredActions) {
   assert.ok(schemaDoc.includes(`\`${action}\``) || (action === 'key' && schemaDoc.includes('`type`, `key`')), `schema doc missing ${action}`);
 }
 
 for (const text of [schemaDoc, apiDoc, skill]) {
+  const prose = text.replace(/\s+/g, ' ');
   assert.ok(text.includes('REF_REVALIDATION_REQUIRED'), 'docs/skill must mention REF_REVALIDATION_REQUIRED');
   assert.ok(/page,\s+frame,\s+navigation/.test(text), 'docs/skill must explain browser page/frame/navigation validation');
   assert.ok(text.includes('Dry-run') || text.includes('dry-run'), 'docs/skill must describe browser dry-run validation');
   assert.ok(text.includes('reacquired'), 'docs/skill must describe reacquired dry-run status');
+  assert.ok(prose.includes('saved-ref execution envelope'), 'docs/skill must describe real saved-ref execution envelope');
+  assert.ok(text.includes('underlying_result'), 'docs/skill must describe nested underlying action result');
+  assert.ok(text.includes('recommended_next_command'), 'docs/skill must describe post-action refresh recommendation');
+  assert.ok(/does not complete native|not completion of the full native/.test(prose), 'docs/skill must keep native saved-ref completion as continuation-only');
   assert.ok(!/advisory-only|remains dry-run advisory|no real browser|real mutation fails closed/.test(text), 'docs/skill must not describe browser refs as advisory-only');
 }
+
+assert.ok(
+  apiDoc.indexOf('aos see capture browser:work --save') >= 0
+  && apiDoc.indexOf('aos see capture main --base64') > apiDoc.indexOf('aos see capture browser:work --save'),
+  'API doc must lead with saved capture before base64/pixel fallback examples',
+);
 
 for (const text of [schemaDoc, apiDoc]) {
   assert.ok(text.includes('committed.json'), 'storage docs must mention committed marker');
@@ -83,6 +95,18 @@ for (const text of [schemaDoc, apiDoc]) {
 const browserActionSlashList = SAVED_REF_V0_ACTIONS_BY_BACKEND.browser.join('/');
 assert.ok(manifest.includes(`validated browser ${browserActionSlashList} mutation`), 'manifest save summary must advertise validated browser real mutation from matrix actions');
 assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary must not describe browser refs as advisory-only');
+
+const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
+assert.ok(seeCommand, 'manifest missing see command');
+const captureForm = seeCommand.forms.find((form) => form.id === 'see-capture');
+const captureSaveForm = seeCommand.forms.find((form) => form.id === 'see-capture-save');
+assert.ok(captureForm, 'manifest missing see-capture form');
+assert.ok(captureSaveForm, 'manifest missing see-capture-save form');
+assert.equal(captureForm.execution.mutates_state, false, 'ordinary capture form must not broadly mutate');
+assert.deepEqual(captureForm.execution.mutates_when_flags, ['--save']);
+assert.equal(captureForm.execution.read_only, true, 'ordinary capture form must remain read-style');
+assert.equal(captureSaveForm.execution.mutates_state, true, 'saved capture form must be mutating');
+assert.equal(captureSaveForm.execution.read_only, false, 'saved capture form must not be read-only');
 JS
 
 echo "PASS contract drift"

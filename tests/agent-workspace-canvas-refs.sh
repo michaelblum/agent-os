@@ -43,9 +43,18 @@ CANVAS_ACTION="$TMP_DIR/do-canvas-action.json"
 AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs click ref:snapcanvas:r1 --workspace ws-canvas >"$CANVAS_ACTION"
 jq -e '
   .status == "success"
-  and .execution.backend == "canvas"
-  and .execution.state_id == "see_canvas_fixture"
-  and (.received | index("canvas:canvas-fixture/save-button") != null)
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "click"
+  and .ref.backend == "aos_canvas"
+  and .current_validation == null
+  and .resolved_action.resolution_status == "resolved"
+  and .resolved_action.exit_code == 0
+  and .underlying_exit_code == 0
+  and .underlying_result.execution.backend == "canvas"
+  and .underlying_result.execution.state_id == "see_canvas_fixture"
+  and (.underlying_result.received | index("canvas:canvas-fixture/save-button") != null)
+  and .post_action.verification == "fresh_capture_recommended"
+  and (.recommended_next_command | contains("aos see capture --save --workspace ws-canvas"))
 ' "$CANVAS_ACTION" >/dev/null || fail "AOS canvas ref action drifted: $(cat "$CANVAS_ACTION")"
 
 CANVAS_SET_DRY="$TMP_DIR/do-canvas-set-value-dry-run.json"
@@ -67,18 +76,26 @@ CANVAS_SET_ACTION="$TMP_DIR/do-canvas-set-value-action.json"
 AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 43 >"$CANVAS_SET_ACTION"
 jq -e '
   .status == "success"
-  and .execution.backend == "canvas"
-  and .execution.state_id == "see_canvas_fixture"
-  and .value == "43"
-  and (.received | index("canvas:canvas-fixture/brightness-slider") != null)
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "set-value"
+  and .ref.backend == "aos_canvas"
+  and .resolved_action.resolution_status == "resolved"
+  and .underlying_result.execution.backend == "canvas"
+  and .underlying_result.execution.state_id == "see_canvas_fixture"
+  and .underlying_result.value == "43"
+  and (.underlying_result.received | index("canvas:canvas-fixture/brightness-slider") != null)
+  and .post_action.verification == "fresh_capture_recommended"
+  and (.recommended_next_command | contains("aos see capture --save --workspace ws-canvas"))
 ' "$CANVAS_SET_ACTION" >/dev/null || fail "AOS canvas set-value ref action drifted: $(cat "$CANVAS_SET_ACTION")"
 
 CANVAS_SET_POSITIONAL="$TMP_DIR/do-canvas-set-value-positional.json"
 AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value ref:snapcanvas:r2 44 --workspace ws-canvas >"$CANVAS_SET_POSITIONAL"
 jq -e '
   .status == "success"
-  and .value == "44"
-  and (.received | index("44") != null)
+  and .schema_version == "aos.agent-workspace.v0"
+  and .underlying_result.value == "44"
+  and (.underlying_result.received | index("44") != null)
+  and .post_action.recommended_next_command == "aos see capture --save --workspace ws-canvas"
 ' "$CANVAS_SET_POSITIONAL" >/dev/null || fail "AOS canvas positional set-value ref action drifted: $(cat "$CANVAS_SET_POSITIONAL")"
 
 CANVAS_DIRECT_SET="$TMP_DIR/do-canvas-direct-set-value.json"

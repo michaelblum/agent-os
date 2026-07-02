@@ -195,6 +195,15 @@ function findCommandForm(commandPath, formID) {
   return command?.forms?.find((form) => form.id === formID);
 }
 
+function argvHasFlag(argv, flag) {
+  return argv.some((arg) => arg === flag || String(arg).startsWith(`${flag}=`));
+}
+
+function formMutatesForArgv(form, argv) {
+  if (form.execution?.mutates_state === true) return true;
+  return (form.execution?.mutates_when_flags ?? []).some((flag) => argvHasFlag(argv, flag));
+}
+
 function validateAssertions(assertions, stepID) {
   for (const assertion of assertions) {
     const hasPath = Array.isArray(assertion.path);
@@ -248,12 +257,13 @@ function planRecipe(recipe) {
       if (!Array.isArray(commandPath) || !formID) throw new OpsFailure(`Step ${step.id} must use command.path and command.form_id`, 'INVALID_RECIPE');
       const form = findCommandForm(commandPath, formID);
       if (!form) throw new OpsFailure(`Step ${step.id} references unknown command form ${commandPath.join(' ')}/${formID}`, 'UNKNOWN_COMMAND_FORM');
-      const mutates = Boolean(step.mutates ?? form.execution?.mutates_state) || Boolean(form.execution?.mutates_state);
+      const argv = Array.isArray(step.argv) ? step.argv : [];
+      const mutates = Boolean(step.mutates) || formMutatesForArgv(form, argv);
       return {
         ...base,
         commandPath,
         formID,
-        argv: Array.isArray(step.argv) ? step.argv : [],
+        argv,
         mutates,
         supportsDelegateDryRun: Boolean(form.execution?.supports_dry_run),
       };
@@ -303,8 +313,12 @@ function resourceNeedsCleanup(resource) {
   return resource.type === 'canvas';
 }
 
+function recipePlanMutates(recipe, plan) {
+  return recipe.manifest.mutates === true || plan.some((step) => step.mutates);
+}
+
 function validateOwnedResourcePlan(recipe, plan) {
-  const mutates = recipe.manifest.mutates === true || plan.some((step) => step.mutates);
+  const mutates = recipePlanMutates(recipe, plan);
   const owned = ownedResourceTemplates(recipe);
   const ownedNames = new Set();
   for (const resource of owned) {
@@ -624,7 +638,7 @@ function runRecipe(recipe, plan, asJSON) {
   const runID = cryptoRandomID();
   const resources = resolvedResources(recipe, runID);
   const ownedResources = resolvedOwnedResources(recipe, runID, resources);
-  const mutates = recipe.manifest.mutates === true || plan.some((step) => step.mutates);
+  const mutates = recipePlanMutates(recipe, plan);
   const mainPlan = plan.filter((step) => !step.finally);
   const cleanupPlan = plan.filter((step) => step.finally);
   if (mutates) validateCleanupSafety(cleanupPlan, ownedResources, runID, resources);
@@ -671,7 +685,7 @@ function emitList(recipes, asJSON) {
 
 function emitExplain(recipe, plan, asJSON) {
   if (asJSON) {
-    emitJSON({ status: 'success', surface: publicSurface(), recipe: recipeSummary(recipe), parameters: recipe.manifest.parameters || {}, resources: recipe.manifest.resources || {}, mutates: recipe.manifest.mutates ?? plan.some((step) => step.mutates), steps: plan.map(stepPlanJSON) }, false);
+    emitJSON({ status: 'success', surface: publicSurface(), recipe: recipeSummary(recipe), parameters: recipe.manifest.parameters || {}, resources: recipe.manifest.resources || {}, mutates: recipePlanMutates(recipe, plan), steps: plan.map(stepPlanJSON) }, false);
     return;
   }
   process.stdout.write(`${recipe.id} v${recipe.version}\n`);

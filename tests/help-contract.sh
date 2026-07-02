@@ -300,16 +300,23 @@ import os
 
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
+capture_save_form = next(item for item in capture["forms"] if item["id"] == "see-capture-save")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
+capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
-mode_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--mode")
+mode_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--mode")
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
+assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
 assert mode_values == {"ax", "vision", "som"}, mode_values
-assert any("aos see refs" in item for item in capture_form["examples"]), capture_form["examples"]
-assert capture_form["execution"]["mutates_state"] is True, capture_form["execution"]
-assert capture_form["execution"]["read_only"] is False, capture_form["execution"]
+assert capture_form["examples"][0].startswith("aos see capture") and "--save" in capture_form["examples"][0], capture_form["examples"]
+assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
+assert capture_form["execution"]["mutates_state"] is False, capture_form["execution"]
+assert capture_form["execution"]["mutates_when_flags"] == ["--save"], capture_form["execution"]
+assert capture_form["execution"]["read_only"] is True, capture_form["execution"]
+assert capture_save_form["execution"]["mutates_state"] is True, capture_save_form["execution"]
+assert capture_save_form["execution"]["read_only"] is False, capture_save_form["execution"]
 assert "--save" in capture["summary"], capture["summary"]
 
 refs = json.loads(os.environ["REFS"])

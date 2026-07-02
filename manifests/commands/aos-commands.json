@@ -603,8 +603,11 @@
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
+            "mutates_state" : false,
+            "mutates_when_flags" : [
+              "--save"
+            ],
+            "read_only" : true,
             "requires_permissions" : true,
             "streaming" : false,
             "supports_dry_run" : false
@@ -617,6 +620,96 @@
             "supports_json_flag" : false
           },
           "usage" : "aos see capture <target> [options]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Capture target to persist into an agent workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "save",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs",
+              "token" : "--save",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id; overrides AOS_AGENT_WORKSPACE",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "name",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for a saved capture",
+              "token" : "--name",
+              "value_type" : "string"
+            },
+            {
+              "default_value" : "som",
+              "id" : "mode",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Saved capture mode",
+              "token" : "--mode",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Accessibility or target tree first",
+                    "value" : "ax"
+                  },
+                  {
+                    "summary" : "Image artifact first",
+                    "value" : "vision"
+                  },
+                  {
+                    "summary" : "Set-of-mark style tree plus image pointers",
+                    "value" : "som"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "query",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
+              "token" : "--query",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see refs --workspace default --query Save --json",
+            "aos do click ref:<snapshot-id>:r2 --workspace default --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "see-capture-save",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "summary" : "Persist perception into a local agent workspace and return compact saved refs",
+          "usage" : "aos see capture <target> --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args" : [

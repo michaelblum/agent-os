@@ -64,12 +64,15 @@ required. Saved refs use a backend action matrix:
   xray plus page, frame, navigation, role, title, label, context, and
   enabled-state validation. Dry-run reports `reacquired` when validation is
   sufficient for real dispatch. Non-dry-run routes through the underlying
-  `browser:<session>/<ref>` target only after validation passes. Drag validates
-  both endpoints and requires the same saved snapshot and browser session.
-  Missing, stale, ambiguous, disabled, or changed current targets fail closed
-  with `REF_STALE`, `REF_AMBIGUOUS`, or `ACTION_INCOMPATIBLE`.
+  `browser:<session>/<ref>` target only after validation passes, then returns a
+  saved-ref execution envelope with `current_validation`, `underlying_result`,
+  `post_action`, and `recommended_next_command`. Drag validates both endpoints
+  and requires the same saved snapshot and browser session. Missing, stale,
+  ambiguous, disabled, or changed current targets fail closed with `REF_STALE`,
+  `REF_AMBIGUOUS`, or `ACTION_INCOMPATIBLE`.
 - Native AX `volatile` refs are inspection-only and report known limits instead
-  of claiming no-foreground saved-action safety.
+  of claiming no-foreground saved-action safety. This V0 foundation does not complete
+  native saved-ref mutation or native no-foreground conformance.
 - `focus`, `press`/`open`/`toggle`, browser `type`/`key`, and other unsupported
   saved-ref actions fail closed with structured JSON.
 - Unsafe resolution classes that have no current validation path still return
@@ -77,8 +80,9 @@ required. Saved refs use a backend action matrix:
 - Unsupported or incompatible actions return `REF_UNSUPPORTED` or
   `ACTION_INCOMPATIBLE`.
 
-After any successful mutation, run a fresh `aos see capture --save` before using
-the next ref from that surface.
+After any successful mutation, read `post_action.recommended_next_command`. Run
+the recommended fresh `aos see capture --save` before using the next ref from
+that surface when the response says fresh capture is recommended.
 
 ## Cleanup
 

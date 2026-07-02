@@ -62,9 +62,19 @@ REAL_ACTION="$TMP_DIR/do-ref-real.json"
 ./aos do click "ref:snap1:$REF" --workspace ws-browser >"$REAL_ACTION"
 jq -e '
   .status == "success"
-  and .execution.backend == "playwright"
-  and .execution.strategy == "playwright_click"
-  and (.result.stdout | contains("fake click invoked: -s=todo click e2"))
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "click"
+  and .ref.backend == "browser"
+  and .current_validation.status == "reacquired"
+  and .current_validation.current_target.ref == "e2"
+  and .resolved_action.resolution_status == "reacquired"
+  and .resolved_action.exit_code == 0
+  and .underlying_exit_code == 0
+  and .underlying_result.execution.backend == "playwright"
+  and .underlying_result.execution.strategy == "playwright_click"
+  and (.underlying_result.result.stdout | contains("fake click invoked: -s=todo click e2"))
+  and .post_action.verification == "fresh_capture_recommended"
+  and (.recommended_next_command | contains("aos see capture --save --workspace ws-browser"))
 ' "$REAL_ACTION" >/dev/null || fail "browser saved-ref click did not dispatch after validation: $(cat "$REAL_ACTION")"
 
 HOVER_DRY="$TMP_DIR/do-ref-hover-dry.json"
@@ -79,7 +89,7 @@ jq -e '
 
 HOVER_REAL="$TMP_DIR/do-ref-hover-real.json"
 ./aos do hover "ref:snap1:$REF" --workspace ws-browser >"$HOVER_REAL"
-jq -e '.status == "success" and .execution.strategy == "playwright_hover" and (.result.stdout | contains("fake hover invoked: -s=todo hover e2"))' "$HOVER_REAL" >/dev/null \
+jq -e '.status == "success" and .action == "hover" and .current_validation.status == "reacquired" and .underlying_result.execution.strategy == "playwright_hover" and (.underlying_result.result.stdout | contains("fake hover invoked: -s=todo hover e2")) and .post_action.verification == "fresh_capture_recommended"' "$HOVER_REAL" >/dev/null \
     || fail "browser saved-ref hover did not dispatch after validation: $(cat "$HOVER_REAL")"
 
 SCROLL_DRY="$TMP_DIR/do-ref-scroll-dry.json"
@@ -95,7 +105,7 @@ jq -e '
 
 SCROLL_REAL="$TMP_DIR/do-ref-scroll-real.json"
 ./aos do scroll "ref:snap1:$REF" 0,-200 --workspace ws-browser >"$SCROLL_REAL"
-jq -e '.status == "success" and .execution.strategy == "playwright_mousewheel" and (.result.stdout | contains("fake mousewheel invoked: -s=todo mousewheel e2 0 -200"))' "$SCROLL_REAL" >/dev/null \
+jq -e '.status == "success" and .action == "scroll" and .current_validation.status == "reacquired" and .underlying_result.execution.strategy == "playwright_mousewheel" and (.underlying_result.result.stdout | contains("fake mousewheel invoked: -s=todo mousewheel e2 0 -200")) and (.recommended_next_command | contains("aos see capture --save --workspace ws-browser"))' "$SCROLL_REAL" >/dev/null \
     || fail "browser saved-ref scroll did not dispatch after validation: $(cat "$SCROLL_REAL")"
 
 DRAG_DRY="$TMP_DIR/do-ref-drag-dry.json"
@@ -113,7 +123,7 @@ jq -e '
 
 DRAG_REAL="$TMP_DIR/do-ref-drag-real.json"
 ./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws-browser >"$DRAG_REAL"
-jq -e '.status == "success" and .execution.strategy == "playwright_drag" and (.result.stdout | contains("fake drag invoked: -s=todo drag e2 e3"))' "$DRAG_REAL" >/dev/null \
+jq -e '.status == "success" and .action == "drag" and .current_validation.status == "reacquired" and .secondary_current_validation.status == "reacquired" and .secondary_ref.ref == "r3" and .underlying_result.execution.strategy == "playwright_drag" and (.underlying_result.result.stdout | contains("fake drag invoked: -s=todo drag e2 e3")) and .post_action.recommended_next_command == "aos see capture --save --workspace ws-browser"' "$DRAG_REAL" >/dev/null \
     || fail "browser saved-ref drag did not dispatch after validation: $(cat "$DRAG_REAL")"
 
 cp "$REFS_PATH" "$REFS_PATH.drag-backup"
@@ -208,9 +218,14 @@ FORM_FILL_ACTION="$TMP_DIR/do-form-fill-action.json"
 AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-browser.mjs fill ref:snapform:r1 "hello" --workspace ws-form >"$FORM_FILL_ACTION"
 jq -e '
   .status == "success"
-  and .execution.strategy == "fake_form_fill"
-  and (.received | index("browser:form/e42") != null)
-  and (.received | index("hello") != null)
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "fill"
+  and .current_validation.status == "reacquired"
+  and .current_validation.current_target.ref == "e42"
+  and .underlying_result.execution.strategy == "fake_form_fill"
+  and (.underlying_result.received | index("browser:form/e42") != null)
+  and (.underlying_result.received | index("hello") != null)
+  and .post_action.verification == "fresh_capture_recommended"
 ' "$FORM_FILL_ACTION" >/dev/null || fail "browser fill saved ref did not dispatch after validation: $(cat "$FORM_FILL_ACTION")"
 
 FORM_FILL_STALE_REAL_ERR="$TMP_DIR/do-form-fill-stale-real.err"

@@ -1,466 +1,58 @@
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
 import {
-  DO_VALUE_FLAGS,
-  SCHEMA_VERSION,
-  aosPath,
   exitAgentWorkspaceError,
-  printJSON,
-  runtimeMode,
-  stateRoot,
   validateLocalID,
-  workspaceDir,
   workspaceID,
 } from './core.mjs';
-import { loadSnapshot, readRefsRecord, requireWorkspace } from './store.mjs';
+import {
+  failIncompatibleAction,
+  failUnsupportedRef,
+  loadRefRecord,
+  recommendedRefreshCommand,
+  unsafeResolutionForMutation,
+} from './ref-action-resolution.mjs';
+import {
+  parseRefToken,
+  positionalIndexes,
+  stripWorkspaceFlags,
+} from './ref-action-args.mjs';
+import {
+  loadDragDestinationRecord,
+  validateActionArgs,
+} from './ref-action-grammar.mjs';
+import {
+  appendStateID,
+  dispatchResolvedAction,
+  emitDryRunEnvelope,
+} from './ref-action-execution.mjs';
+import {
+  validateBrowserCurrentRef,
+  validateBrowserDragPair,
+} from './browser-ref-validation.mjs';
 import { refSummary } from './refs.mjs';
-import {
-  savedRefBackendSupportsAction,
-  savedRefBackendSupportsRealMutation,
-  savedRefProducerActionsForBrowserElement,
-} from './contracts.mjs';
-import {
-  browserIdentityComparable,
-  browserIdentityComplete,
-  queryBrowserPageIdentity,
-} from './browser-identity.mjs';
 
-function positionalIndexes(args) {
-  const indexes = [];
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg.startsWith('--')) {
-      if (DO_VALUE_FLAGS.has(arg)) i += 1;
-      continue;
-    }
-    indexes.push(i);
+function assertActionable(record, action, workspace) {
+  if (!record.action_target) {
+    failUnsupportedRef(record, workspace);
   }
-  return indexes;
-}
-
-function parseRefToken(value) {
-  if (!value?.startsWith?.('ref:')) return null;
-  const body = value.slice('ref:'.length);
-  const parts = body.split(':');
-  if (parts.length === 1) return { snapshot_id: null, ref: validateLocalID(parts[0], 'ref id') };
-  if (parts.length === 2) return { snapshot_id: validateLocalID(parts[0], 'snapshot id'), ref: validateLocalID(parts[1], 'ref id') };
-  exitAgentWorkspaceError('ref target must be ref:<id> or ref:<snapshot-id>:<id>', 'INVALID_REF_TARGET');
-}
-
-function stripWorkspaceFlags(args) {
-  const out = [];
-  let workspace = null;
-  let snapshot = null;
-  for (let i = 0; i < args.length; i += 1) {
-    if (args[i] === '--workspace' || args[i] === '--snapshot') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
-        exitAgentWorkspaceError(`${args[i]} requires a value`, 'MISSING_ARG');
-      }
-      if (args[i] === '--workspace') workspace = args[i + 1];
-      if (args[i] === '--snapshot') snapshot = args[i + 1];
-      i += 1;
-      continue;
-    }
-    out.push(args[i]);
-  }
-  return { args: out, workspace, snapshot };
-}
-
-function loadRefRecord(workspace, refToken, explicitSnapshot, env = process.env) {
-  const { index } = requireWorkspace(workspace, env);
-  const snapshotIDValue = refToken.snapshot_id || explicitSnapshot;
-  if (snapshotIDValue) {
-    const loaded = loadSnapshot(workspace, snapshotIDValue, env);
-    const record = (loaded.refs.refs ?? []).find((item) => item.ref === refToken.ref);
-    if (!record) exitAgentWorkspaceError(`Ref '${refToken.ref}' not found in snapshot '${snapshotIDValue}'`, 'REF_NOT_FOUND');
-    return record;
-  }
-
-  const matches = [];
-  for (const snapshot of index.snapshots ?? []) {
-    const refsPath = path.join(workspaceDir(workspace, env), 'snapshots', snapshot.snapshot_id, 'refs.json');
-    const refs = readRefsRecord(refsPath, workspace, snapshot.snapshot_id);
-    if (!refs) continue;
-    const record = (refs?.refs ?? []).find((item) => item.ref === refToken.ref);
-    if (record) matches.push(record);
-  }
-  if (matches.length === 0) exitAgentWorkspaceError(`Ref '${refToken.ref}' not found in workspace '${workspace}'`, 'REF_NOT_FOUND');
-  if (matches.length > 1) {
-    exitAgentWorkspaceError(
-      `Ref '${refToken.ref}' is present in multiple snapshots; pass ref:<snapshot-id>:${refToken.ref} or --snapshot`,
-      'REF_AMBIGUOUS',
-      { status: 'ambiguous', candidates: matches.map(refSummary) },
-    );
-  }
-  return matches[0];
-}
-
-function hasStateIDArg(args) {
-  return args.includes('--state-id');
-}
-
-function appendStateID(args, stateID) {
-  if (!stateID || hasStateIDArg(args)) return args;
-  return [...args, '--state-id', stateID];
-}
-
-function parseBrowserActionTarget(value) {
-  if (!value?.startsWith?.('browser:')) return null;
-  const remainder = value.slice('browser:'.length);
-  const slash = remainder.indexOf('/');
-  if (slash <= 0 || slash === remainder.length - 1) return null;
-  return {
-    session: remainder.slice(0, slash),
-    ref: remainder.slice(slash + 1),
-  };
-}
-
-function compactBrowserElement(element) {
-  return {
-    ref: element.ref ?? null,
-    role: element.role ?? null,
-    title: element.title ?? null,
-    label: element.label ?? null,
-    context_path: element.context_path ?? [],
-    enabled: element.enabled ?? null,
-    supported_actions: savedRefProducerActionsForBrowserElement(element),
-  };
-}
-
-function normalizedText(value) {
-  if (value === null || value === undefined) return null;
-  const text = String(value).trim();
-  return text || null;
-}
-
-function optionalTextMatches(expected, actual) {
-  const saved = normalizedText(expected);
-  if (!saved) return true;
-  return saved === normalizedText(actual);
-}
-
-function contextPathMatches(expected, actual) {
-  if (!Array.isArray(expected) || expected.length === 0) return true;
-  if (!Array.isArray(actual)) return false;
-  return JSON.stringify(expected) === JSON.stringify(actual);
-}
-
-function browserCurrentMismatch(record, current) {
-  if (!optionalTextMatches(record.identity_facts?.role ?? record.hint_facts?.role, current.role)) return 'role_changed';
-  if (!optionalTextMatches(record.identity_facts?.title ?? record.hint_facts?.title, current.title)) return 'title_changed';
-  if (!optionalTextMatches(record.identity_facts?.label ?? record.hint_facts?.label, current.label)) return 'label_changed';
-  if (!contextPathMatches(record.identity_facts?.context_path, current.context_path)) return 'context_changed';
-  return null;
-}
-
-function browserIdentityMismatch(record, currentIdentity) {
-  if (!record.identity_facts?.session) return 'missing_saved_session';
-  if (!browserIdentityComplete(currentIdentity)) return 'missing_current_page_identity';
-  const expected = {
-    session: normalizedText(record.identity_facts.session),
-    page_url: normalizedText(record.identity_facts.page_url),
-    frame_url: normalizedText(record.identity_facts.frame_url),
-    top_frame_url: normalizedText(record.identity_facts.top_frame_url),
-    document_title: normalizedText(record.identity_facts.document_title),
-  };
-  for (const key of ['page_url', 'frame_url', 'top_frame_url']) {
-    if (!expected[key]) return `missing_saved_${key}`;
-    if (expected[key] !== normalizedText(currentIdentity[key])) return `${key}_changed`;
-  }
-  if (expected.session !== normalizedText(currentIdentity.session)) return 'session_changed';
-  if (expected.document_title && expected.document_title !== normalizedText(currentIdentity.document_title)) {
-    return 'document_title_changed';
-  }
-  return null;
-}
-
-function currentBrowserIdentity(session, env, identityCache) {
-  if (identityCache.has(session)) return identityCache.get(session);
-  const identity = browserIdentityComparable(queryBrowserPageIdentity(session, env));
-  identityCache.set(session, identity);
-  return identity;
-}
-
-function currentBrowserCapture(session, workspace, env) {
-  const result = spawnSync(aosPath(env), ['__see', 'capture', `browser:${session}`, '--xray'], {
-    encoding: 'utf8',
-    env: {
-      ...env,
-      AOS_RUNTIME_MODE: runtimeMode(env),
-      AOS_STATE_ROOT: stateRoot(env),
-    },
-    maxBuffer: 100 * 1024 * 1024,
-  });
-  if (result.status !== 0) {
-    exitAgentWorkspaceError('Browser ref validation capture failed', 'REF_REVALIDATION_FAILED', {
-      status: 'known_limit',
-      backend: 'browser',
-      known_limit: 'current browser xray capture failed during saved-ref validation',
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-      stderr: result.stderr || null,
-    });
-  }
-  try {
-    const capture = JSON.parse(result.stdout);
-    if (!Array.isArray(capture.elements)) {
-      exitAgentWorkspaceError('Browser ref validation capture did not include elements', 'REF_REVALIDATION_FAILED', {
-        status: 'known_limit',
-        backend: 'browser',
-        known_limit: 'current browser xray capture returned no element list',
-        safe_next_action: recommendedRefreshCommand(workspace),
-        recommended_next_command: recommendedRefreshCommand(workspace),
-        requires_user_approval: false,
-      });
-    }
-    return capture;
-  } catch (error) {
-    if (isAgentWorkspaceParseError(error)) throw error;
-    exitAgentWorkspaceError('Browser ref validation capture did not return JSON', 'REF_REVALIDATION_FAILED', {
-      status: 'known_limit',
-      backend: 'browser',
-      known_limit: 'current browser xray capture returned invalid JSON',
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
+  if (!(record.supported_actions ?? []).includes(action)) {
+    failIncompatibleAction(record, action, workspace);
   }
 }
 
-function isAgentWorkspaceParseError(error) {
-  return error?.name === 'AgentWorkspaceError';
-}
+function validateCurrentTargets(action, record, secondary, workspace, env) {
+  let currentValidation = null;
+  let secondaryCurrentValidation = null;
+  const browserValidationCaptureCache = new Map();
+  const browserValidationIdentityCache = new Map();
 
-function validateBrowserCurrentRef(record, action, workspace, env, captureCache = new Map(), identityCache = new Map()) {
-  if (!savedRefBackendSupportsAction('browser', action)) return null;
-  const target = parseBrowserActionTarget(record.action_target);
-  const sourceRef = record.identity_facts?.source_ref || target?.ref || null;
-  if (!target || !sourceRef) return null;
-  if (record.identity_facts?.session && record.identity_facts.session !== target.session) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' session identity changed`, 'REF_STALE', {
-      status: 'stale_ref',
-      reason: 'session_changed',
-      backend: 'browser',
-      ref: refSummary(record),
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
+  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
+    currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
+  }
+  if (secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
+    secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
   }
 
-  let capture = captureCache.get(target.session);
-  if (!capture) {
-    capture = currentBrowserCapture(target.session, workspace, env);
-    captureCache.set(target.session, capture);
-  }
-  const pageIdentity = currentBrowserIdentity(target.session, env, identityCache);
-  const identityMismatch = browserIdentityMismatch(record, pageIdentity);
-  if (identityMismatch) {
-    const missingCapability = identityMismatch.startsWith('missing_');
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' failed page/frame/navigation validation: ${identityMismatch}`, missingCapability ? 'REF_REVALIDATION_REQUIRED' : 'REF_STALE', {
-      status: missingCapability ? 'validation_required' : 'stale_ref',
-      reason: identityMismatch,
-      backend: 'browser',
-      ref: refSummary(record),
-      current_identity: pageIdentity,
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-  const matches = capture.elements.filter((element) => element.ref === sourceRef);
-  if (matches.length === 0) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' is stale; current xray no longer contains ${sourceRef}`, 'REF_STALE', {
-      status: 'stale_ref',
-      backend: 'browser',
-      ref: refSummary(record),
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-  if (matches.length > 1) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' is ambiguous in current xray`, 'REF_AMBIGUOUS', {
-      status: 'ambiguous',
-      backend: 'browser',
-      ref: refSummary(record),
-      candidates: matches.map(compactBrowserElement),
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-
-  const current = matches[0];
-  if (current.enabled === false) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' is disabled in current xray`, 'ACTION_INCOMPATIBLE', {
-      status: 'action_incompatible',
-      reason: 'target_disabled',
-      backend: 'browser',
-      ref: refSummary(record),
-      current_target: compactBrowserElement(current),
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-  const mismatch = browserCurrentMismatch(record, current);
-  if (mismatch) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' failed current validation: ${mismatch}`, 'REF_STALE', {
-      status: 'stale_ref',
-      reason: mismatch,
-      backend: 'browser',
-      ref: refSummary(record),
-      current_target: compactBrowserElement(current),
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-
-  const currentSupportedActions = savedRefProducerActionsForBrowserElement(current);
-  if (!currentSupportedActions.includes(action)) {
-    exitAgentWorkspaceError(`Browser ref '${record.ref}' no longer supports ${action}`, 'ACTION_INCOMPATIBLE', {
-      status: 'action_incompatible',
-      reason: 'current_target_action_incompatible',
-      backend: 'browser',
-      ref: refSummary(record),
-      current_target: compactBrowserElement(current),
-      supported_actions: currentSupportedActions,
-      safe_next_action: recommendedRefreshCommand(workspace),
-      recommended_next_command: recommendedRefreshCommand(workspace),
-      requires_user_approval: false,
-    });
-  }
-
-  return {
-    status: 'reacquired',
-    backend: 'browser',
-    capture_state_id: capture.state_id ?? null,
-    current_identity: pageIdentity,
-    current_target: compactBrowserElement(current),
-    validation_command: `aos see capture browser:${target.session} --xray`,
-  };
-}
-
-function unsafeResolutionForMutation(record, action, currentValidation = null) {
-  if (record.resolution_class === 'stable') return null;
-  if (record.resolution_class === 'reacquirable' && record.backend === 'aos_canvas') return null;
-  if (
-    record.resolution_class === 'snapshot_scoped'
-    && savedRefBackendSupportsRealMutation(record.backend, action)
-    && currentValidation?.status === 'reacquired'
-  ) {
-    return null;
-  }
-  return record.resolution_class || 'unsupported';
-}
-
-function recommendedRefreshCommand(workspace) {
-  return `aos see capture --save --workspace ${workspace}`;
-}
-
-function failUnsupportedRef(record, workspace) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {
-    status: 'unsupported',
-    ref: refSummary(record),
-    recommended_next_command: recommendedRefreshCommand(workspace),
-    safe_next_action: recommendedRefreshCommand(workspace),
-    requires_user_approval: false,
-  });
-}
-
-function failIncompatibleAction(record, action, workspace) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' does not support ${action}`, 'ACTION_INCOMPATIBLE', {
-    status: 'action_incompatible',
-    ref: refSummary(record),
-    supported_actions: record.supported_actions ?? [],
-    recommended_next_command: recommendedRefreshCommand(workspace),
-    safe_next_action: recommendedRefreshCommand(workspace),
-    requires_user_approval: false,
-  });
-}
-
-function failIncompatibleDragEndpoint(record, workspace, reason) {
-  exitAgentWorkspaceError(`Ref '${record.ref}' cannot be used as a browser drag endpoint: ${reason}`, 'ACTION_INCOMPATIBLE', {
-    status: 'action_incompatible',
-    reason,
-    ref: refSummary(record),
-    recommended_next_command: recommendedRefreshCommand(workspace),
-    safe_next_action: recommendedRefreshCommand(workspace),
-    requires_user_approval: false,
-  });
-}
-
-function loadDragDestinationRecord(args, targetIndex, workspace, explicitSnapshot, env) {
-  const positions = positionalIndexes(args);
-  const destinationIndex = positions.find((index) => index !== targetIndex);
-  if (destinationIndex === undefined) {
-    exitAgentWorkspaceError('drag requires a destination ref target', 'MISSING_ARG');
-  }
-  const destinationToken = parseRefToken(args[destinationIndex]);
-  if (!destinationToken) {
-    exitAgentWorkspaceError('drag with a saved ref source requires a saved ref destination', 'INVALID_REF_TARGET');
-  }
-  return {
-    index: destinationIndex,
-    record: loadRefRecord(workspace, destinationToken, explicitSnapshot, env),
-  };
-}
-
-function validateBrowserDragPair(sourceRecord, destinationRecord, workspace) {
-  if (sourceRecord.backend !== 'browser') failIncompatibleDragEndpoint(sourceRecord, workspace, 'source_not_browser');
-  if (destinationRecord.backend !== 'browser') failIncompatibleDragEndpoint(destinationRecord, workspace, 'destination_not_browser');
-  if (sourceRecord.snapshot_id !== destinationRecord.snapshot_id) {
-    failIncompatibleDragEndpoint(destinationRecord, workspace, 'snapshot_mismatch');
-  }
-  const sourceTarget = parseBrowserActionTarget(sourceRecord.action_target);
-  const destinationTarget = parseBrowserActionTarget(destinationRecord.action_target);
-  if (!sourceTarget || !destinationTarget) {
-    failIncompatibleDragEndpoint(destinationRecord, workspace, 'missing_browser_action_target');
-  }
-  if (sourceTarget.session !== destinationTarget.session) {
-    failIncompatibleDragEndpoint(destinationRecord, workspace, 'session_mismatch');
-  }
-}
-
-function validateActionArgs(action, args, targetIndex) {
-  if (action === 'set-value') {
-    const valueFlagIndex = args.indexOf('--value');
-    const hasFlagValue = valueFlagIndex >= 0
-      && valueFlagIndex + 1 < args.length
-      && !String(args[valueFlagIndex + 1]).startsWith('--');
-    const positions = positionalIndexes(args);
-    const hasPositionalValue = positions.some((index) => index !== targetIndex);
-    if (!hasFlagValue && !hasPositionalValue) {
-      exitAgentWorkspaceError('set-value requires --value or a positional value', 'MISSING_ARG');
-    }
-  }
-  if (action === 'fill') {
-    const positions = positionalIndexes(args);
-    const hasText = positions.some((index) => index !== targetIndex);
-    if (!hasText) {
-      exitAgentWorkspaceError('fill requires a text argument', 'MISSING_ARG');
-    }
-  }
-  if (action === 'scroll') {
-    const positions = positionalIndexes(args);
-    const delta = positions.find((index) => index !== targetIndex);
-    if (delta === undefined) {
-      exitAgentWorkspaceError('scroll requires a dx,dy argument for saved browser refs', 'MISSING_ARG');
-    }
-    if (!/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(String(args[delta]))) {
-      exitAgentWorkspaceError('scroll dx,dy must use the form x,y', 'INVALID_ARG');
-    }
-  }
-  if (action === 'drag') {
-    const positions = positionalIndexes(args);
-    const destination = positions.find((index) => index !== targetIndex);
-    if (destination === undefined) {
-      exitAgentWorkspaceError('drag requires a destination ref target', 'MISSING_ARG');
-    }
-  }
+  return { currentValidation, secondaryCurrentValidation };
 }
 
 export function maybeRunRefAction(action, args, env = process.env) {
@@ -477,38 +69,20 @@ export function maybeRunRefAction(action, args, env = process.env) {
   const record = loadRefRecord(workspace, refToken, explicitSnapshot, env);
   const dryRun = stripped.args.includes('--dry-run');
   validateActionArgs(action, stripped.args, strippedTargetIndex);
+
   const secondary = action === 'drag'
     ? loadDragDestinationRecord(stripped.args, strippedTargetIndex, workspace, explicitSnapshot, env)
     : null;
 
-  if (!record.action_target) {
-    failUnsupportedRef(record, workspace);
-  }
-  if (!(record.supported_actions ?? []).includes(action)) {
-    failIncompatibleAction(record, action, workspace);
-  }
+  assertActionable(record, action, workspace);
   if (secondary) {
-    if (!secondary.record.action_target) {
-      failUnsupportedRef(secondary.record, workspace);
-    }
-    if (!(secondary.record.supported_actions ?? []).includes(action)) {
-      failIncompatibleAction(secondary.record, action, workspace);
-    }
+    assertActionable(secondary.record, action, workspace);
     validateBrowserDragPair(record, secondary.record, workspace);
   }
 
-  let currentValidation = null;
-  let secondaryCurrentValidation = null;
-  const browserValidationCaptureCache = new Map();
-  const browserValidationIdentityCache = new Map();
-  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
-    currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
-  }
-  if (secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
-    secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache, browserValidationIdentityCache);
-  }
-  let unsafe = unsafeResolutionForMutation(record, action, currentValidation);
-  let secondaryUnsafe = secondary ? unsafeResolutionForMutation(secondary.record, action, secondaryCurrentValidation) : null;
+  const { currentValidation, secondaryCurrentValidation } = validateCurrentTargets(action, record, secondary, workspace, env);
+  const unsafe = unsafeResolutionForMutation(record, action, currentValidation);
+  const secondaryUnsafe = secondary ? unsafeResolutionForMutation(secondary.record, action, secondaryCurrentValidation) : null;
   if (!dryRun && (unsafe || secondaryUnsafe)) {
     const unsafeRecord = unsafe ? record : secondary.record;
     const unsafeStatus = unsafe || secondaryUnsafe;
@@ -525,40 +99,22 @@ export function maybeRunRefAction(action, args, env = process.env) {
   transformed[strippedTargetIndex] = record.action_target;
   if (secondary) transformed[secondary.index] = secondary.record.action_target;
   const actionArgs = appendStateID(transformed.filter((arg) => arg !== '--dry-run'), record.identity_facts?.state_id);
+  const envelopeArgs = {
+    action,
+    actionArgs,
+    workspace,
+    record,
+    secondary,
+    currentValidation,
+    secondaryCurrentValidation,
+    unsafe,
+    secondaryUnsafe,
+  };
+
   if (dryRun) {
-    const validationRequired = unsafe || secondaryUnsafe;
-    const resolutionStatus = !validationRequired && currentValidation && (!secondary || secondaryCurrentValidation)
-      ? 'reacquired'
-      : (validationRequired ? 'validation_required' : 'resolved');
-    printJSON({
-      status: 'dry_run',
-      schema_version: SCHEMA_VERSION,
-      action,
-      workspace_id: workspace,
-      snapshot_id: record.snapshot_id,
-      ref: refSummary(record),
-      secondary_ref: secondary ? refSummary(secondary.record) : null,
-      resolved_action: {
-        command: ['aos', 'do', action, ...actionArgs],
-        resolution_status: resolutionStatus,
-      },
-      current_validation: currentValidation,
-      secondary_current_validation: secondaryCurrentValidation,
-      recommended_next_command: validationRequired ? `aos see capture --save --workspace ${workspace}` : null,
-    });
+    emitDryRunEnvelope(envelopeArgs);
     process.exit(0);
   }
 
-  const result = spawnSync(aosPath(env), ['do', action, ...actionArgs], {
-    encoding: 'utf8',
-    env: {
-      ...env,
-      AOS_RUNTIME_MODE: runtimeMode(env),
-      AOS_STATE_ROOT: stateRoot(env),
-    },
-    maxBuffer: 100 * 1024 * 1024,
-  });
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
-  process.exit(result.status ?? 1);
+  dispatchResolvedAction({ ...envelopeArgs, env });
 }
