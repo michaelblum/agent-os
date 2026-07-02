@@ -175,19 +175,22 @@ Capture modes are explicit:
 Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
-refs can route `click` and `set-value` through the current canvas resolver:
+refs can route `click` and `set-value` through the current canvas resolver.
+Browser `snapshot_scoped` click and fill refs run a fresh xray validation
+before mutation and fail closed on missing, stale, ambiguous, disabled, or
+changed current targets:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
 aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
+aos do fill ref:<snapshot-id>:r3 "buy groceries" --workspace default --dry-run
 ```
 
-Browser `snapshot_scoped` refs may dry-run click but require refreshed
-validation before real action. Native AX `volatile` refs are inspection-only.
-`focus`, `press`/`open`/`toggle`, browser `fill`/`type`/`key`, and other
-saved-ref forms fail closed with structured JSON until a backend-owned current
-target validation path exists. See
-`shared/schemas/aos-agent-workspace-v0.md` for the full action grammar matrix.
+Native AX `volatile` refs are inspection-only. `focus`,
+`press`/`open`/`toggle`, browser `type`/`key`, and other saved-ref forms fail
+closed with structured JSON until a backend-owned current target validation
+path exists. See `shared/schemas/aos-agent-workspace-v0.md` for the full action
+grammar matrix.
 
 Cleanup is explicit:
 
@@ -691,13 +694,13 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 
 Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
 saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
-underlying command and whether current-target validation is still required.
-Non-dry-run mutation refuses unsafe resolution classes with machine-readable
-errors such as `REF_REVALIDATION_REQUIRED`, `REF_AMBIGUOUS`, `REF_NOT_FOUND`,
-`ACTION_INCOMPATIBLE`, `AGENT_WORKSPACE_STATE_CORRUPT`, or
-`AGENT_WORKSPACE_LOCKED`. Workspace locks are transient local control state for
-fail-fast mutation contention; they are not part of the persisted schema
-contract.
+underlying command and, for browser refs, the fresh xray current-target
+validation result. Non-dry-run mutation refuses unsafe resolution classes with
+machine-readable errors such as `REF_STALE`, `REF_REVALIDATION_REQUIRED`,
+`REF_AMBIGUOUS`, `REF_NOT_FOUND`, `ACTION_INCOMPATIBLE`,
+`AGENT_WORKSPACE_STATE_CORRUPT`, or `AGENT_WORKSPACE_LOCKED`. Workspace locks
+are transient local control state for fail-fast mutation contention; they are
+not part of the persisted schema contract.
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass

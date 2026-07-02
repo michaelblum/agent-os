@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click and set-value",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value and browser click/fill with current validation",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -2796,7 +2796,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Browser target (browser:<session>\/<ref>)",
+              "summary" : "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>\/<ref>)",
               "value_type" : "string"
             },
             {
@@ -2805,9 +2805,34 @@
               "required" : true,
               "summary" : "Text to fill into the element",
               "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe a saved-ref fill without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
+              "value_type" : "string"
             }
           ],
           "examples" : [
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
             "aos do fill browser:todo\/e21 \"buy groceries\""
           ],
           "execution" : {
@@ -2817,7 +2842,7 @@
             "read_only" : false,
             "requires_permissions" : true,
             "streaming" : false,
-            "supports_dry_run" : false
+            "supports_dry_run" : true
           },
           "id" : "do-fill",
           "output" : {
@@ -2826,7 +2851,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do fill <browser:<s>\/<ref>> <text>"
+          "usage" : "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>\/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
           "args" : [

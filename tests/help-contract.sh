@@ -247,7 +247,7 @@ import json
 import os
 
 data = json.loads(os.environ["OUT"])
-saved_ref_forms = {"do-click", "do-set-value"}
+saved_ref_forms = {"do-click", "do-fill", "do-set-value"}
 for form in data["forms"]:
     usage = form.get("usage", "")
     examples = " ".join(form.get("examples", []))
@@ -260,9 +260,13 @@ set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
 set_value_tokens = {arg.get("token") for arg in set_value["args"]}
 assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
 assert "canvas:<canvas-id>/<ref>" in set_value["usage"], set_value["usage"]
+fill = next(item for item in data["forms"] if item["id"] == "do-fill")
+fill_tokens = {arg.get("token") for arg in fill["args"]}
+assert {"--workspace", "--snapshot", "--dry-run"} <= fill_tokens, fill_tokens
+assert "browser:<s>/<ref>" in fill["usage"], fill["usage"]
 PY
 then
-    pass "only supported saved-ref do actions advertise saved ref targets"
+    pass "supported saved-ref do actions advertise saved ref targets"
 else
     fail "do saved-ref help advertising drifted"
 fi

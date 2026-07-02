@@ -56,7 +56,7 @@ function browserActionsForElement(element) {
 
 const SAVED_REF_V0_ACTIONS_BY_BACKEND = {
   aos_canvas: new Set(['click', 'set-value']),
-  browser: new Set(['click']),
+  browser: new Set(['click', 'fill']),
   native_ax: new Set(),
 };
 
@@ -157,10 +157,10 @@ export function generateRefRecords(capture, context) {
       },
       artifact_refs: artifactRefs,
       warnings: isBrowser
-        ? ['browser refs are snapshot-scoped in this slice and mutation requires future current-page validation']
+        ? ['browser refs are snapshot-scoped; mutation requires a fresh xray current-target validation']
         : ['native AX element refs are inspection-only until durable AX identity and no-foreground validation are implemented'],
       known_limits: isBrowser
-        ? ['navigation or DOM replacement can stale a browser ref']
+        ? ['navigation or DOM replacement can stale a browser ref; saved-ref mutation fails closed when fresh xray validation cannot match the saved role/title/label/context']
         : ['AX titles, labels, bounds, and context paths are hints, not durable identity'],
     };
     records.push(record);

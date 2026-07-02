@@ -94,6 +94,172 @@ function appendStateID(args, stateID) {
   return [...args, '--state-id', stateID];
 }
 
+function parseBrowserActionTarget(value) {
+  if (!value?.startsWith?.('browser:')) return null;
+  const remainder = value.slice('browser:'.length);
+  const slash = remainder.indexOf('/');
+  if (slash <= 0 || slash === remainder.length - 1) return null;
+  return {
+    session: remainder.slice(0, slash),
+    ref: remainder.slice(slash + 1),
+  };
+}
+
+function compactBrowserElement(element) {
+  return {
+    ref: element.ref ?? null,
+    role: element.role ?? null,
+    title: element.title ?? null,
+    label: element.label ?? null,
+    context_path: element.context_path ?? [],
+    enabled: element.enabled ?? null,
+  };
+}
+
+function normalizedText(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function optionalTextMatches(expected, actual) {
+  const saved = normalizedText(expected);
+  if (!saved) return true;
+  return saved === normalizedText(actual);
+}
+
+function contextPathMatches(expected, actual) {
+  if (!Array.isArray(expected) || expected.length === 0) return true;
+  if (!Array.isArray(actual)) return false;
+  return JSON.stringify(expected) === JSON.stringify(actual);
+}
+
+function browserCurrentMismatch(record, current) {
+  if (!optionalTextMatches(record.hint_facts?.role, current.role)) return 'role_changed';
+  if (!optionalTextMatches(record.hint_facts?.title, current.title)) return 'title_changed';
+  if (!optionalTextMatches(record.hint_facts?.label, current.label)) return 'label_changed';
+  if (!contextPathMatches(record.identity_facts?.context_path, current.context_path)) return 'context_changed';
+  return null;
+}
+
+function currentBrowserCapture(session, workspace, env) {
+  const result = spawnSync(aosPath(env), ['__see', 'capture', `browser:${session}`, '--xray'], {
+    encoding: 'utf8',
+    env: {
+      ...env,
+      AOS_RUNTIME_MODE: runtimeMode(env),
+      AOS_STATE_ROOT: stateRoot(env),
+    },
+    maxBuffer: 100 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    exitAgentWorkspaceError('Browser ref validation capture failed', 'REF_REVALIDATION_FAILED', {
+      status: 'known_limit',
+      backend: 'browser',
+      known_limit: 'current browser xray capture failed during saved-ref validation',
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+      stderr: result.stderr || null,
+    });
+  }
+  try {
+    const capture = JSON.parse(result.stdout);
+    if (!Array.isArray(capture.elements)) {
+      exitAgentWorkspaceError('Browser ref validation capture did not include elements', 'REF_REVALIDATION_FAILED', {
+        status: 'known_limit',
+        backend: 'browser',
+        known_limit: 'current browser xray capture returned no element list',
+        safe_next_action: recommendedRefreshCommand(workspace),
+        recommended_next_command: recommendedRefreshCommand(workspace),
+        requires_user_approval: false,
+      });
+    }
+    return capture;
+  } catch (error) {
+    if (isAgentWorkspaceParseError(error)) throw error;
+    exitAgentWorkspaceError('Browser ref validation capture did not return JSON', 'REF_REVALIDATION_FAILED', {
+      status: 'known_limit',
+      backend: 'browser',
+      known_limit: 'current browser xray capture returned invalid JSON',
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+}
+
+function isAgentWorkspaceParseError(error) {
+  return error?.name === 'AgentWorkspaceError';
+}
+
+function validateBrowserCurrentRef(record, action, workspace, env) {
+  if (!['click', 'fill'].includes(action)) return null;
+  const target = parseBrowserActionTarget(record.action_target);
+  const sourceRef = record.identity_facts?.source_ref || target?.ref || null;
+  if (!target || !sourceRef) return null;
+
+  const capture = currentBrowserCapture(target.session, workspace, env);
+  const matches = capture.elements.filter((element) => element.ref === sourceRef);
+  if (matches.length === 0) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' is stale; current xray no longer contains ${sourceRef}`, 'REF_STALE', {
+      status: 'stale_ref',
+      backend: 'browser',
+      ref: refSummary(record),
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+  if (matches.length > 1) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' is ambiguous in current xray`, 'REF_AMBIGUOUS', {
+      status: 'ambiguous',
+      backend: 'browser',
+      ref: refSummary(record),
+      candidates: matches.map(compactBrowserElement),
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+
+  const current = matches[0];
+  if (current.enabled === false) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' is disabled in current xray`, 'ACTION_INCOMPATIBLE', {
+      status: 'action_incompatible',
+      reason: 'target_disabled',
+      backend: 'browser',
+      ref: refSummary(record),
+      current_target: compactBrowserElement(current),
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+
+  const mismatch = browserCurrentMismatch(record, current);
+  if (mismatch) {
+    exitAgentWorkspaceError(`Browser ref '${record.ref}' failed current validation: ${mismatch}`, 'REF_STALE', {
+      status: 'stale_ref',
+      reason: mismatch,
+      backend: 'browser',
+      ref: refSummary(record),
+      current_target: compactBrowserElement(current),
+      safe_next_action: recommendedRefreshCommand(workspace),
+      recommended_next_command: recommendedRefreshCommand(workspace),
+      requires_user_approval: false,
+    });
+  }
+
+  return {
+    status: 'reacquired',
+    backend: 'browser',
+    capture_state_id: capture.state_id ?? null,
+    current_target: compactBrowserElement(current),
+    validation_command: `aos see capture browser:${target.session} --xray`,
+  };
+}
+
 function unsafeResolutionForMutation(record) {
   if (record.resolution_class === 'stable') return null;
   if (record.resolution_class === 'reacquirable' && record.backend === 'aos_canvas') return null;
@@ -126,15 +292,23 @@ function failIncompatibleAction(record, action, workspace) {
 }
 
 function validateActionArgs(action, args, targetIndex) {
-  if (action !== 'set-value') return;
-  const valueFlagIndex = args.indexOf('--value');
-  const hasFlagValue = valueFlagIndex >= 0
-    && valueFlagIndex + 1 < args.length
-    && !String(args[valueFlagIndex + 1]).startsWith('--');
-  const positions = positionalIndexes(args);
-  const hasPositionalValue = positions.some((index) => index !== targetIndex);
-  if (!hasFlagValue && !hasPositionalValue) {
-    exitAgentWorkspaceError('set-value requires --value or a positional value', 'MISSING_ARG');
+  if (action === 'set-value') {
+    const valueFlagIndex = args.indexOf('--value');
+    const hasFlagValue = valueFlagIndex >= 0
+      && valueFlagIndex + 1 < args.length
+      && !String(args[valueFlagIndex + 1]).startsWith('--');
+    const positions = positionalIndexes(args);
+    const hasPositionalValue = positions.some((index) => index !== targetIndex);
+    if (!hasFlagValue && !hasPositionalValue) {
+      exitAgentWorkspaceError('set-value requires --value or a positional value', 'MISSING_ARG');
+    }
+  }
+  if (action === 'fill') {
+    const positions = positionalIndexes(args);
+    const hasText = positions.some((index) => index !== targetIndex);
+    if (!hasText) {
+      exitAgentWorkspaceError('fill requires a text argument', 'MISSING_ARG');
+    }
   }
 }
 
@@ -160,7 +334,12 @@ export function maybeRunRefAction(action, args, env = process.env) {
     failIncompatibleAction(record, action, workspace);
   }
 
-  const unsafe = unsafeResolutionForMutation(record);
+  let unsafe = unsafeResolutionForMutation(record);
+  let currentValidation = null;
+  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
+    currentValidation = validateBrowserCurrentRef(record, action, workspace, env);
+    if (currentValidation) unsafe = null;
+  }
   if (!dryRun && unsafe) {
     exitAgentWorkspaceError(`Ref '${record.ref}' is ${unsafe}; refresh perception before mutating`, 'REF_REVALIDATION_REQUIRED', {
       status: unsafe,
@@ -184,8 +363,9 @@ export function maybeRunRefAction(action, args, env = process.env) {
       ref: refSummary(record),
       resolved_action: {
         command: ['aos', 'do', action, ...actionArgs],
-        resolution_status: unsafe ? 'validation_required' : 'resolved',
+        resolution_status: currentValidation?.status ?? (unsafe ? 'validation_required' : 'resolved'),
       },
+      current_validation: currentValidation,
       recommended_next_command: unsafe ? `aos see capture --save --workspace ${workspace}` : null,
     });
     process.exit(0);
