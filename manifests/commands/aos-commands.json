@@ -558,6 +558,10 @@
                 "out"
               ],
               [
+                "save",
+                "out"
+              ],
+              [
                 "crop",
                 "region"
               ],

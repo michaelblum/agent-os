@@ -25,7 +25,32 @@ import {
 } from './store.mjs';
 import { queryMatches, refSummary } from './refs.mjs';
 
-function parseReadArgs(args, { requireID = false, workspaceMode = 'default', env = process.env } = {}) {
+const AGENT_WORKSPACE_FLAG_KINDS = new Map([
+  ['--json', 'bool'],
+  ['--dry-run', 'bool'],
+  ['--i-understand-local-artifacts', 'bool'],
+  ['--workspace', 'value'],
+  ['--snapshot', 'value'],
+  ['--query', 'value'],
+  ['--older-than', 'value'],
+]);
+
+const AGENT_WORKSPACE_FLAGS = {
+  workspaces: new Set(['--json']),
+  snapshots: new Set(['--workspace', '--json']),
+  refs: new Set(['--workspace', '--snapshot', '--query', '--json']),
+  workspace: new Set(['--json']),
+  workspacePrune: new Set(['--older-than', '--dry-run', '--i-understand-local-artifacts', '--json']),
+  workspaceDelete: new Set(['--i-understand-local-artifacts', '--json']),
+  snapshotDelete: new Set(['--workspace', '--i-understand-local-artifacts', '--json']),
+};
+
+function parseReadArgs(args, {
+  requireID = false,
+  workspaceMode = 'default',
+  allowedFlags = AGENT_WORKSPACE_FLAGS.refs,
+  env = process.env,
+} = {}) {
   let id = null;
   let workspace = null;
   let snapshot = null;
@@ -36,15 +61,19 @@ function parseReadArgs(args, { requireID = false, workspaceMode = 'default', env
   let olderThan = null;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (arg === '--json') { json = true; continue; }
-    if (arg === '--dry-run') { dryRun = true; continue; }
-    if (arg === '--i-understand-local-artifacts') { acknowledge = true; continue; }
-    if (arg === '--workspace' || arg === '--snapshot' || arg === '--query' || arg === '--older-than') {
+    if (arg.startsWith('--')) {
+      const flagKind = AGENT_WORKSPACE_FLAG_KINDS.get(arg);
+      if (!flagKind || !allowedFlags.has(arg)) {
+        exitAgentWorkspaceError(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+      }
+      if (flagKind === 'bool') {
+        if (arg === '--json') json = true;
+        if (arg === '--dry-run') dryRun = true;
+        if (arg === '--i-understand-local-artifacts') acknowledge = true;
+        continue;
+      }
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
         exitAgentWorkspaceError(`${arg} requires a value`, 'MISSING_ARG');
-      }
-      if (arg === '--workspace' && workspaceMode === 'none') {
-        exitAgentWorkspaceError(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
       }
       if (arg === '--workspace') workspace = args[i + 1];
       if (arg === '--snapshot') snapshot = args[i + 1];
@@ -52,9 +81,6 @@ function parseReadArgs(args, { requireID = false, workspaceMode = 'default', env
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
       continue;
-    }
-    if (arg.startsWith('--')) {
-      exitAgentWorkspaceError(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
     }
     if (id) {
       exitAgentWorkspaceError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
@@ -87,7 +113,7 @@ function assertWorkspaceListState(value, file, label) {
 }
 
 export function workspacesCommand(args, env = process.env) {
-  parseReadArgs(args, { workspaceMode: 'none', env });
+  parseReadArgs(args, { workspaceMode: 'none', allowedFlags: AGENT_WORKSPACE_FLAGS.workspaces, env });
   const root = agentWorkspacesRoot(env);
   const workspaces = [];
   if (fs.existsSync(root)) {
@@ -119,7 +145,7 @@ export function workspacesCommand(args, env = process.env) {
 }
 
 export function snapshotsCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { env });
+  const parsed = parseReadArgs(args, { allowedFlags: AGENT_WORKSPACE_FLAGS.snapshots, env });
   const { index } = requireWorkspace(parsed.workspace, env);
   printJSON({
     status: 'success',
@@ -132,7 +158,7 @@ export function snapshotsCommand(args, env = process.env) {
 }
 
 export function refsCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { env });
+  const parsed = parseReadArgs(args, { allowedFlags: AGENT_WORKSPACE_FLAGS.refs, env });
   const { index } = requireWorkspace(parsed.workspace, env);
   const snapshotIDs = parsed.snapshot
     ? [parsed.snapshot]
@@ -157,7 +183,12 @@ export function workspaceCommand(args, env = process.env) {
   const [subcommand, ...rest] = args;
   if (subcommand === 'delete') return deleteWorkspaceCommand(rest, env);
   if (subcommand === 'prune') return pruneWorkspaceCommand(rest, env);
-  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
+  const parsed = parseReadArgs(args, {
+    requireID: true,
+    workspaceMode: 'none',
+    allowedFlags: AGENT_WORKSPACE_FLAGS.workspace,
+    env,
+  });
   const workspace = validateLocalID(parsed.id, 'workspace id');
   const { dir, metadata, index } = requireWorkspace(workspace, env);
   printJSON({
@@ -178,7 +209,12 @@ export function workspaceCommand(args, env = process.env) {
 }
 
 function deleteWorkspaceCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
+  const parsed = parseReadArgs(args, {
+    requireID: true,
+    workspaceMode: 'none',
+    allowedFlags: AGENT_WORKSPACE_FLAGS.workspaceDelete,
+    env,
+  });
   const workspace = validateLocalID(parsed.id, 'workspace id');
   if (!parsed.acknowledge) {
     exitAgentWorkspaceError('workspace delete requires --i-understand-local-artifacts', 'ACK_REQUIRED');
@@ -202,7 +238,12 @@ function parseDurationMs(value) {
 }
 
 function pruneWorkspaceCommand(args, env = process.env) {
-  const parsed = parseReadArgs(args, { requireID: true, workspaceMode: 'none', env });
+  const parsed = parseReadArgs(args, {
+    requireID: true,
+    workspaceMode: 'none',
+    allowedFlags: AGENT_WORKSPACE_FLAGS.workspacePrune,
+    env,
+  });
   if (!parsed.olderThan) exitAgentWorkspaceError('workspace prune requires --older-than <duration>', 'MISSING_ARG');
   if (!parsed.dryRun && !parsed.acknowledge) {
     exitAgentWorkspaceError('workspace prune requires --dry-run or --i-understand-local-artifacts', 'ACK_REQUIRED');
@@ -230,7 +271,11 @@ export function snapshotCommand(args, env = process.env) {
   if (subcommand !== 'delete') {
     exitAgentWorkspaceError(`Unknown snapshot subcommand: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
   }
-  const parsed = parseReadArgs(rest, { requireID: true, env });
+  const parsed = parseReadArgs(rest, {
+    requireID: true,
+    allowedFlags: AGENT_WORKSPACE_FLAGS.snapshotDelete,
+    env,
+  });
   if (!parsed.acknowledge) {
     exitAgentWorkspaceError('snapshot delete requires --i-understand-local-artifacts', 'ACK_REQUIRED');
   }

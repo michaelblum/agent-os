@@ -274,9 +274,11 @@ import os
 capture = json.loads(os.environ["CAPTURE"])
 capture_form = next(item for item in capture["forms"] if item["id"] == "see-capture")
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
+capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
 mode_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--mode")
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
+assert {"save", "out"} in capture_conflicts, capture_conflicts
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert any("aos see refs" in item for item in capture_form["examples"]), capture_form["examples"]
 assert capture_form["execution"]["mutates_state"] is True, capture_form["execution"]

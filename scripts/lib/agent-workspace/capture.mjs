@@ -212,6 +212,9 @@ export function parseCaptureArgs(args) {
   if (seen.has('--window') && seen.has('--region')) validationError(errors, '--region and --window cannot be used together');
   const surfaceSelectors = ['--region', '--canvas', '--channel'].filter((flag) => seen.has(flag));
   if (surfaceSelectors.length > 1) validationError(errors, 'Use only one of --region, --canvas, or --channel');
+  if (options.save && seen.has('--out')) {
+    validationError(errors, '--out cannot be used with --save; saved captures write artifacts under the workspace snapshot');
+  }
   if (!options.save) {
     for (const flag of ['--workspace', '--name', '--mode', '--query']) {
       if (seen.has(flag)) validationError(errors, `${flag} requires --save`);

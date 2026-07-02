@@ -27,6 +27,18 @@ expect_error_code() {
         || fail "expected error code $expected, got: $(cat "$err_file")"
 }
 
+expect_command_error_code() {
+    local expected="$1"
+    local label="$2"
+    shift 2
+    local out_file="$TMP_DIR/$label.out"
+    local err_file="$TMP_DIR/$label.err"
+    if "$@" >"$out_file" 2>"$err_file"; then
+        fail "$label unexpectedly succeeded"
+    fi
+    expect_error_code "$expected" "$err_file"
+}
+
 expect_corrupt_state() {
     local expected_path="$1"
     local err_file="$2"
@@ -67,6 +79,17 @@ echo "unexpected failing aos invocation: $*" >&2
 exit 2
 SH
 chmod +x "$FAILING_AOS"
+
+CONFLICT_OUT="$TMP_DIR/save-out-conflict.png"
+CONFLICT_WORKSPACE="$AOS_STATE_ROOT/repo/agent-workspaces/ws-out-conflict"
+expect_command_error_code \
+    "INVALID_ARG" \
+    "save-out-conflict" \
+    ./aos see capture browser:todo --save --mode ax --workspace ws-out-conflict --name snapout --out "$CONFLICT_OUT"
+[[ ! -e "$CONFLICT_WORKSPACE" ]] \
+    || fail "save/out conflict created workspace state: $CONFLICT_WORKSPACE"
+[[ ! -e "$CONFLICT_OUT" ]] \
+    || fail "save/out conflict wrote caller output path: $CONFLICT_OUT"
 
 FAILED_CAPTURE_ERR="$TMP_DIR/failing-capture.err"
 if AOS_PATH="$FAILING_AOS" node scripts/aos-see-native.mjs capture --save --mode ax --workspace ws-fail --name snapfail >"$TMP_DIR/failing-capture.out" 2>"$FAILED_CAPTURE_ERR"; then
@@ -263,6 +286,12 @@ if AOS_AGENT_WORKSPACE=bad/id node scripts/aos-agent-workspace.mjs workspace mis
     fail "missing workspace unexpectedly succeeded with bad env default"
 fi
 expect_error_code "WORKSPACE_NOT_FOUND" "$BAD_ENV_WORKSPACE_ERR"
+
+expect_command_error_code "UNKNOWN_FLAG" "workspaces-dry-run-flag" ./aos see workspaces --dry-run --json
+expect_command_error_code "UNKNOWN_FLAG" "workspaces-older-than-flag" ./aos see workspaces --older-than 7d --json
+expect_command_error_code "UNKNOWN_FLAG" "workspaces-ack-flag" ./aos see workspaces --i-understand-local-artifacts --json
+expect_command_error_code "UNKNOWN_FLAG" "workspace-read-ack-flag" ./aos see workspace ws1 --i-understand-local-artifacts --json
+expect_command_error_code "UNKNOWN_FLAG" "refs-older-than-flag" ./aos see refs --older-than 7d --json
 
 DRY="$TMP_DIR/do-ref-dry-run.json"
 ./aos do click "ref:snap1:$REF" --workspace ws1 --dry-run >"$DRY"
