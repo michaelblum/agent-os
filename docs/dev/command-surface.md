@@ -23,6 +23,20 @@ binary:
 - `docs/dev/workflow-rules.json` tells agents which checks to run after command
   metadata, external-route manifest, implementation, schema, or test changes.
 
+Registry metadata must distinguish direct maintainability from consumer
+discovery. A command with `consumer_discovery: false` remains addressable by
+direct help paths such as `./aos help dev --json`, but root help and the full
+consumer JSON registry filter it out. This keeps maintainer routes reachable
+without advertising them as the normal agent API.
+
+When a form's output changes under a flag, record that in
+`output.conditional_modes` instead of relying on prose or sibling-form
+inference. Each entry must name declared `when_flags`, the conditional
+`default_mode`, and a summary. Rendered text help should show the conditional
+mode, for example `[output: none; with --save: json]`. If a mostly read-only
+form mutates state only under specific flags, set `execution.mutates_when_flags`
+so rendered help can show the conditional mutation surface.
+
 The broker may expose privileged facts, privileged actions, and privileged
 streams through private stable primitives. External layers interpret and compose
 those primitives into public command behavior. See
@@ -115,5 +129,9 @@ node --test tests/schemas/*.test.mjs
 ```
 
 Swift source changes still require the repo-mode build and post-permission
-readiness path, but command metadata and external implementation changes should
-not require rebuilding the TCC-sensitive binary.
+readiness path. Treat a rebuilt repo-mode `./aos` binary as invalidating prior
+TCC/live-proof evidence for that binary: reset or repair the repo-mode TCC grant
+as directed by the permission workflow, then prove readiness again with
+`./aos ready --post-permission` before relying on native live behavior. Command
+metadata and external implementation changes should not require rebuilding the
+TCC-sensitive binary.

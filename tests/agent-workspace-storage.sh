@@ -7,6 +7,8 @@ agent_workspace_test_setup
 
 FAILING_AOS="$TMP_DIR/failing-aos"
 write_failing_capture_aos "$FAILING_AOS"
+NATIVE_FILE_AOS="$TMP_DIR/native-file-aos"
+write_native_file_capture_aos "$NATIVE_FILE_AOS"
 
 CONFLICT_OUT="$TMP_DIR/save-out-conflict.png"
 CONFLICT_WORKSPACE="$AOS_STATE_ROOT/repo/agent-workspaces/ws-out-conflict"
@@ -41,6 +43,28 @@ if [[ -f "$FAILED_WORKSPACE/index.json" ]]; then
         || fail "failing primitive left index entry: $(cat "$FAILED_WORKSPACE/index.json")"
 fi
 
+NATIVE_FILE_CAPTURE="$TMP_DIR/native-file-capture.json"
+AOS_PATH="$NATIVE_FILE_AOS" node scripts/aos-see-native.mjs capture main --save --mode ax --workspace ws-native-file --name snapnativefile >"$NATIVE_FILE_CAPTURE"
+NATIVE_FILE_ARTIFACT="$(jq -r '.artifact_refs[0].path' "$NATIVE_FILE_CAPTURE")"
+jq -e '
+  .status == "success"
+  and .capture_mode == "ax"
+  and .capture_target == "main"
+  and .counts.files == 1
+  and .counts.elements == 1
+  and .counts.refs == 1
+  and .artifact_refs[0].role == "capture_image"
+  and .artifact_refs[0].stored_under_workspace == true
+  and (.artifact_refs[0].path | endswith("/snapshots/snapnativefile/artifacts/capture.png"))
+  and .artifact_refs[0].path != "./screenshot.png"
+  and .refs[0].backend == "native_ax"
+  and .refs[0].artifact_refs[0].stored_under_workspace == true
+  and (.omitted.heavy_payloads | index("elements") != null)
+  and (has("elements") | not)
+' "$NATIVE_FILE_CAPTURE" >/dev/null || fail "native saved capture did not keep image artifact under workspace: $(cat "$NATIVE_FILE_CAPTURE")"
+[[ -f "$NATIVE_FILE_ARTIFACT" ]] || fail "native saved capture artifact missing: $NATIVE_FILE_ARTIFACT"
+assert_no_heavy_capture_payloads "$NATIVE_FILE_CAPTURE" "native saved capture output"
+
 CAP1="$TMP_DIR/capture-snap1.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap1 --query button >"$CAP1"
 jq -e '
@@ -50,6 +74,7 @@ jq -e '
   and .snapshot_id == "snap1"
   and .runtime_mode == "repo"
   and .capture_mode == "ax"
+  and .capture_target == "browser:todo"
   and .target == "browser:todo"
   and .query == "button"
   and .counts.files == 0
@@ -58,10 +83,20 @@ jq -e '
   and (.artifact_refs | length) == 0
   and (.refs | length) == 1
   and .refs[0].ref == "r2"
+  and .refs[0].ref_scope == "snapshot"
+  and .refs[0].workspace_id == "ws1"
+  and .refs[0].snapshot_id == "snap1"
+  and .refs[0].capture_target == "browser:todo"
+  and .refs[0].capture_mode == "ax"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
   and .refs[0].confidence == "medium"
   and (.refs[0].supported_actions | index("click") != null)
+  and .refs[0].identity_facts.source_ref == "e2"
+  and .refs[0].identity_facts.page_url == "https://fixture.local/todo"
+  and (.refs[0].hint_facts.role | length > 0)
+  and .refs[0].current_address.action_target == "browser:todo/e2"
+  and (.refs[0].artifact_refs | type == "array")
   and (.refs[0].warnings[0] | contains("real mutation dispatches only after"))
   and (.omitted.heavy_payloads | index("elements") != null)
   and (.paths.capture | endswith("/capture.json"))
@@ -70,6 +105,55 @@ jq -e '
   and (has("semantic_targets") | not)
   and (has("base64") | not)
 ' "$CAP1" >/dev/null || fail "compact saved capture shape drifted: $(cat "$CAP1")"
+assert_no_heavy_capture_payloads "$CAP1" "saved capture output"
+
+CAP1_REFS_BY_CONTEXT="$TMP_DIR/refs-query-context.json"
+./aos see refs --workspace ws1 --snapshot snap1 --query browser:todo --json >"$CAP1_REFS_BY_CONTEXT"
+jq -e '
+  .status == "success"
+  and .schema_version == "aos.agent-workspace.v0"
+  and .workspace_id == "ws1"
+  and .snapshot_id == "snap1"
+  and .query == "browser:todo"
+  and (.refs | length) == 3
+  and all(.refs[];
+    .ref_scope == "snapshot"
+    and .workspace_id == "ws1"
+    and .snapshot_id == "snap1"
+    and .capture_target == "browser:todo"
+    and .capture_mode == "ax"
+    and (.supported_actions | type == "array")
+    and (.identity_facts | has("state_id"))
+    and (.identity_facts | has("source_ref"))
+    and (.current_address | has("action_target"))
+    and (.conformance | has("proof"))
+    and (.conformance | has("no_foreground"))
+    and (.conformance | has("target_uncertainty"))
+    and (has("elements") | not)
+    and (has("semantic_targets") | not)
+    and (has("base64") | not)
+    and (has("short_action_target") | not)
+  )
+' "$CAP1_REFS_BY_CONTEXT" >/dev/null \
+    || fail "ref query did not match compact capture context: $(cat "$CAP1_REFS_BY_CONTEXT")"
+
+CAP1_REFS_BY_PROOF="$TMP_DIR/refs-query-proof.json"
+./aos see refs --workspace ws1 --snapshot snap1 --query deterministic_contract_tests_passed --json >"$CAP1_REFS_BY_PROOF"
+jq -e '
+  .status == "success"
+  and .workspace_id == "ws1"
+  and .snapshot_id == "snap1"
+  and .query == "deterministic_contract_tests_passed"
+  and (.refs | length) == 3
+  and all(.refs[];
+    .conformance.proof.status == "deterministic_contract_tests_passed"
+    and .conformance.target_uncertainty.status == "requires_current_validation"
+    and (has("elements") | not)
+    and (has("semantic_targets") | not)
+    and (has("base64") | not)
+  )
+' "$CAP1_REFS_BY_PROOF" >/dev/null \
+    || fail "ref query did not match model-facing proof metadata: $(cat "$CAP1_REFS_BY_PROOF")"
 
 CAPTURE_PATH="$(jq -r '.paths.capture' "$CAP1")"
 SUMMARY_PATH="$(jq -r '.paths.summary' "$CAP1")"
@@ -87,10 +171,18 @@ COMMIT_MARKER="$WORKSPACE_PATH/snapshots/snap1/committed.json"
 [[ -f "$WORKSPACE_PATH/index.json" ]] || fail "missing workspace index: $WORKSPACE_PATH/index.json"
 jq -e '.workspace_id == "ws1" and .snapshot_id == "snap1" and .snapshot_record == "snapshot.json"' "$COMMIT_MARKER" >/dev/null \
     || fail "committed marker shape drifted: $(cat "$COMMIT_MARKER")"
+jq -e '.query == "button"' "$SNAPSHOT_RECORD_PATH" >/dev/null \
+    || fail "snapshot record omitted saved query: $(cat "$SNAPSHOT_RECORD_PATH")"
 jq -e 'has("current_snapshot_id") | not' "$WORKSPACE_PATH/workspace.json" >/dev/null \
     || fail "workspace metadata must not own current_snapshot_id"
 jq -e '.current_snapshot_id == "snap1" and (.snapshots | length) == 1' "$WORKSPACE_PATH/index.json" >/dev/null \
     || fail "workspace index did not rebuild to snap1"
+jq -e '
+  .snapshots[0].snapshot_id == "snap1"
+  and .snapshots[0].capture_target == "browser:todo"
+  and .snapshots[0].target == "browser:todo"
+  and .snapshots[0].query == "button"
+' "$WORKSPACE_PATH/index.json" >/dev/null || fail "workspace index omitted compact target/query readback: $(cat "$WORKSPACE_PATH/index.json")"
 jq -e '(.elements | length == 3) and ((.files // []) | all(contains("/.staging/") | not))' "$CAPTURE_PATH" >/dev/null \
     || fail "full capture retained staged artifact paths: $(cat "$CAPTURE_PATH")"
 jq -e '(has("elements") | not) and (has("semantic_targets") | not) and (has("base64") | not)' "$SUMMARY_PATH" >/dev/null \
@@ -107,6 +199,19 @@ validate_agent_workspace_schema \
 BAD_REFS="$TMP_DIR/bad-refs-missing-state-id.json"
 jq 'del(.refs[0].identity_facts.state_id)' "$REFS_PATH" >"$BAD_REFS"
 expect_agent_workspace_schema_rejects "$BAD_REFS"
+
+BAD_SNAPSHOT_MISSING_QUERY="$TMP_DIR/bad-snapshot-missing-query.json"
+jq 'del(.query)' "$SNAPSHOT_RECORD_PATH" >"$BAD_SNAPSHOT_MISSING_QUERY"
+expect_agent_workspace_schema_rejects "$BAD_SNAPSHOT_MISSING_QUERY"
+cp "$SNAPSHOT_RECORD_PATH" "$SNAPSHOT_RECORD_PATH.valid-test-backup"
+cp "$BAD_SNAPSHOT_MISSING_QUERY" "$SNAPSHOT_RECORD_PATH"
+BAD_SNAPSHOT_QUERY_ERR="$TMP_DIR/bad-snapshot-missing-query.err"
+if ./aos see refs --workspace ws1 --snapshot snap1 --json >"$TMP_DIR/bad-snapshot-missing-query.out" 2>"$BAD_SNAPSHOT_QUERY_ERR"; then
+    mv "$SNAPSHOT_RECORD_PATH.valid-test-backup" "$SNAPSHOT_RECORD_PATH"
+    fail "runtime accepted snapshot record missing query"
+fi
+expect_corrupt_state "$SNAPSHOT_RECORD_PATH" "$BAD_SNAPSHOT_QUERY_ERR"
+mv "$SNAPSHOT_RECORD_PATH.valid-test-backup" "$SNAPSHOT_RECORD_PATH"
 
 BAD_BACKEND_REFS="$TMP_DIR/bad-refs-backend.json"
 jq '.refs[0].backend = "surprise_backend"' "$REFS_PATH" >"$BAD_BACKEND_REFS"
@@ -129,6 +234,9 @@ REBUILT_SNAPS="$TMP_DIR/rebuilt-snapshots.json"
 ./aos see snapshots --workspace ws1 --json >"$REBUILT_SNAPS"
 jq -e '.status == "success" and .current_snapshot_id == "snap1" and (.snapshots | length) == 1 and .snapshots[0].snapshot_id == "snap1"' "$REBUILT_SNAPS" >/dev/null \
     || fail "corrupt index did not derive from committed snapshot: $(cat "$REBUILT_SNAPS")"
+jq -e '.snapshots[0].capture_target == "browser:todo" and .snapshots[0].target == "browser:todo" and .snapshots[0].query == "button"' "$REBUILT_SNAPS" >/dev/null \
+    || fail "snapshots readback did not expose compact target/query: $(cat "$REBUILT_SNAPS")"
+assert_no_heavy_capture_payloads "$REBUILT_SNAPS" "snapshots readback"
 [[ "$(cat "$WORKSPACE_PATH/index.json")" == "{" ]] \
     || fail "read-only snapshots command rewrote corrupt index: $(cat "$WORKSPACE_PATH/index.json")"
 
@@ -140,6 +248,28 @@ NO_INDEX_REFS="$TMP_DIR/no-index-refs.json"
 ./aos see refs --workspace ws1 --snapshot snap1 --json >"$NO_INDEX_REFS"
 jq -e '.status == "success" and .snapshot_id == "snap1" and (.refs | length) == 3' "$NO_INDEX_REFS" >/dev/null \
     || fail "refs read without index did not derive committed state: $(cat "$NO_INDEX_REFS")"
+jq -e '
+  .schema_version == "aos.agent-workspace.v0"
+  and .workspace_id == "ws1"
+  and .query == null
+  and all(.refs[];
+    .ref_scope == "snapshot"
+    and .workspace_id == "ws1"
+    and .snapshot_id == "snap1"
+    and .capture_target == "browser:todo"
+    and .capture_mode == "ax"
+    and (.supported_actions | type == "array")
+    and (.identity_facts | has("state_id"))
+    and (.identity_facts | has("source_ref"))
+    and (.current_address | has("action_target"))
+    and (.conformance | has("proof"))
+    and (.conformance | has("no_foreground"))
+    and (.conformance | has("target_uncertainty"))
+    and (has("short_action_target") | not)
+  )
+' "$NO_INDEX_REFS" >/dev/null \
+    || fail "refs read without index did not expose compact ref summaries: $(cat "$NO_INDEX_REFS")"
+assert_no_heavy_capture_payloads "$NO_INDEX_REFS" "refs readback without index"
 [[ ! -e "$WORKSPACE_PATH/index.json" ]] \
     || fail "read-only refs command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
 
@@ -147,6 +277,9 @@ NO_INDEX_WORKSPACE="$TMP_DIR/no-index-workspace.json"
 ./aos see workspace ws1 --json >"$NO_INDEX_WORKSPACE"
 jq -e '.status == "success" and .index_health.current_snapshot_id == "snap1" and .index_health.snapshot_count == 1' "$NO_INDEX_WORKSPACE" >/dev/null \
     || fail "workspace read without index did not derive committed state: $(cat "$NO_INDEX_WORKSPACE")"
+jq -e '.index_health.current_snapshot.capture_target == "browser:todo" and .index_health.current_snapshot.query == "button"' "$NO_INDEX_WORKSPACE" >/dev/null \
+    || fail "workspace read did not expose compact current snapshot target/query: $(cat "$NO_INDEX_WORKSPACE")"
+assert_no_heavy_capture_payloads "$NO_INDEX_WORKSPACE" "workspace readback"
 [[ ! -e "$WORKSPACE_PATH/index.json" ]] \
     || fail "read-only workspace command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
 
@@ -154,6 +287,7 @@ NO_INDEX_WORKSPACES="$TMP_DIR/no-index-workspaces.json"
 ./aos see workspaces --json >"$NO_INDEX_WORKSPACES"
 jq -e '.status == "success" and any(.workspaces[]; .workspace_id == "ws1" and .current_snapshot_id == "snap1" and .snapshot_count == 1)' "$NO_INDEX_WORKSPACES" >/dev/null \
     || fail "workspaces read without index did not derive committed state: $(cat "$NO_INDEX_WORKSPACES")"
+assert_no_heavy_capture_payloads "$NO_INDEX_WORKSPACES" "workspaces readback"
 [[ ! -e "$WORKSPACE_PATH/index.json" ]] \
     || fail "read-only workspaces command recreated index: $(cat "$WORKSPACE_PATH/index.json")"
 
@@ -164,7 +298,11 @@ jq -e '
   and .current_snapshot_id == "snap1"
   and (.snapshots | length) == 1
   and ([.snapshots[].snapshot_id] | index("snap1") != null and index("partial-one") == null and index("staged-one") == null)
+  and .snapshots[0].capture_target == "browser:todo"
+  and .snapshots[0].target == "browser:todo"
+  and .snapshots[0].query == "button"
 ' "$RECONCILED_SNAPS" >/dev/null || fail "index rebuild included uncommitted snapshots: $(cat "$RECONCILED_SNAPS")"
+assert_no_heavy_capture_payloads "$RECONCILED_SNAPS" "missing-index snapshots readback"
 [[ ! -e "$WORKSPACE_PATH/index.json" ]] \
     || fail "read-only snapshots command recreated missing index: $(cat "$WORKSPACE_PATH/index.json")"
 
@@ -188,12 +326,17 @@ jq -e '.status == "success" and .snapshot_id == "snap2" and .capture_mode == "ax
     || fail "second capture failed: $(cat "$CAP2")"
 jq -e '(.current_snapshot_id == "snap2") and ([.snapshots[].snapshot_id] | index("snap1") != null and index("snap2") != null and index("partial-one") == null)' "$WORKSPACE_PATH/index.json" >/dev/null \
     || fail "sequential saves did not preserve committed snapshot index entries: $(cat "$WORKSPACE_PATH/index.json")"
+jq -e '
+  any(.snapshots[]; .snapshot_id == "snap1" and .capture_target == "browser:todo" and .query == "button")
+  and any(.snapshots[]; .snapshot_id == "snap2" and .capture_target == "browser:todo" and .query == null)
+' "$WORKSPACE_PATH/index.json" >/dev/null || fail "sequential saves did not preserve compact snapshot target/query entries: $(cat "$WORKSPACE_PATH/index.json")"
 
 VISION="$TMP_DIR/capture-vision.json"
 ./aos see capture browser:todo --save --mode vision --workspace ws-vision --name snapv >"$VISION"
 ARTIFACT="$(jq -r '.artifact_refs[0].path' "$VISION")"
 jq -e '.status == "success" and .capture_mode == "vision" and .counts.files == 1 and .counts.refs == 0' "$VISION" >/dev/null \
     || fail "vision saved capture shape drifted: $(cat "$VISION")"
+assert_no_heavy_capture_payloads "$VISION" "vision saved capture output"
 [[ -f "$ARTIFACT" ]] || fail "vision capture did not keep screenshot file-backed at final path: $ARTIFACT"
 
 SOM="$TMP_DIR/capture-som.json"
@@ -201,6 +344,7 @@ SOM="$TMP_DIR/capture-som.json"
 SOM_ARTIFACT="$(jq -r '.artifact_refs[0].path' "$SOM")"
 jq -e '.status == "success" and .capture_mode == "som" and .counts.files == 1 and .counts.elements == 3 and .counts.refs == 3 and (.omitted.heavy_payloads | index("annotations") != null)' "$SOM" >/dev/null \
     || fail "som saved capture did not combine browser refs and image pointers: $(cat "$SOM")"
+assert_no_heavy_capture_payloads "$SOM" "som saved capture output"
 [[ -f "$SOM_ARTIFACT" ]] || fail "som capture did not keep screenshot file-backed at final path: $SOM_ARTIFACT"
 
 BAD_MODE_ERR="$TMP_DIR/bad-mode.err"

@@ -17,6 +17,10 @@ developer command surfaces.
 
 - Keep manifest entries strict, discoverable, and synchronized with help output
   and tests.
+- When one command form has alternative required argument sets, express them in
+  `constraints.required_groups` so JSON help and rendered help can explain the
+  valid choices without marking direct-form-only flags as unconditionally
+  required.
 - Do not add commands that bypass the sanctioned `./aos` control surface unless
   the lower-level adapter is the explicit subject.
 

@@ -592,6 +592,45 @@ test('json-capable registry forms expose json flag metadata', async () => {
   }
 });
 
+test('registry conditional output modes reference declared form flags', async () => {
+  const registry = await loadJson(registryPath);
+  const validDefaultModes = new Set(['none', 'text', 'json', 'ndjson']);
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const conditionalModes = form.output?.conditional_modes ?? [];
+      if (!conditionalModes.length) continue;
+      assert.ok(Array.isArray(conditionalModes), `${form.id} output.conditional_modes must be an array`);
+
+      const declaredFlags = new Set(
+        form.args
+          .filter((arg) => arg.kind === 'flag')
+          .map((arg) => arg.token),
+      );
+
+      for (const mode of conditionalModes) {
+        assert.ok(validDefaultModes.has(mode.default_mode), `${form.id} conditional output default_mode is invalid`);
+        assert.ok(typeof mode.summary === 'string' && mode.summary.length > 0, `${form.id} conditional output summary is required`);
+        assert.ok(Array.isArray(mode.when_flags) && mode.when_flags.length > 0, `${form.id} conditional output must declare when_flags`);
+        assert.notEqual(mode.default_mode, form.output.default_mode, `${form.id} conditional output must differ from the default output mode`);
+        for (const flag of mode.when_flags) {
+          assert.ok(declaredFlags.has(flag), `${form.id} conditional output references undeclared flag ${flag}`);
+        }
+      }
+    }
+  }
+});
+
+test('command surface docs describe registry visibility and conditional output metadata', async () => {
+  const docs = await fs.readFile(path.join(repoRoot, 'docs/dev/command-surface.md'), 'utf8');
+
+  assert.match(docs, /consumer_discovery: false/, 'command-surface docs must describe consumer discovery filtering');
+  assert.match(docs, /direct help paths/, 'command-surface docs must keep direct maintainer help reachable');
+  assert.match(docs, /output\.conditional_modes/, 'command-surface docs must describe conditional output metadata');
+  assert.match(docs, /when_flags/, 'command-surface docs must require conditional output flags');
+  assert.match(docs, /execution\.mutates_when_flags/, 'command-surface docs must describe conditional mutation metadata');
+});
+
 test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);

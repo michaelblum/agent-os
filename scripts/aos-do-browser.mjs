@@ -83,6 +83,10 @@ function getArg(args, flag) {
   return index >= 0 && index + 1 < args.length ? args[index + 1] : undefined;
 }
 
+function hasExplicitSavedRefScope(args) {
+  return args.includes('--workspace') || args.includes('--snapshot');
+}
+
 function ensureVersion() {
   const result = spawnSync(aosPath(), ['browser', '_check-version', '--json'], {
     encoding: 'utf8',
@@ -235,9 +239,10 @@ function dragCommand(args) {
 
 try {
   const [command, ...args] = process.argv.slice(2);
-  if (['click', 'fill', 'type', 'key', 'hover', 'scroll', 'drag'].includes(command)) {
+  if (['click', 'fill', 'hover', 'scroll', 'drag'].includes(command)) {
     maybeRunRefAction(command, args);
   }
+  if (['type', 'key'].includes(command) && hasExplicitSavedRefScope(args)) maybeRunRefAction(command, args);
   if (command === 'fill') fillCommand(args);
   else if (command === 'navigate') navigateCommand(args);
   else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);

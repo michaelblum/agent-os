@@ -236,15 +236,90 @@ struct BoundsJSON: Codable {
     let height: Int
 }
 
+struct NativeFocusCursorSpaceBaselineJSON: Encodable {
+    let captured: Bool
+    let focus: String
+    let cursor: String
+    let space: String
+}
+
 struct AXElementJSON: Encodable {
+    let app_pid: Int?
+    let app_name: String?
+    let window_id: Int?
     let role: String
     let title: String?
     let label: String?
+    let identifier: String?
     let value: String?
     let enabled: Bool
+    let action_names: [String]?
+    let permission_state: String?
+    let focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON?
+    let window_state: String?
+    let space_state: String?
+    let control_kind: String?
+    let surface_kind: String?
+    let focus_state: String?
+    let minimized: Bool?
+    let off_space: Bool?
+    let custom_control: Bool?
+    let canvas_surface: Bool?
     let context_path: [String]
     let bounds: BoundsJSON?
     let ref: String?
+
+    init(
+        app_pid: Int? = nil,
+        app_name: String? = nil,
+        window_id: Int? = nil,
+        role: String,
+        title: String?,
+        label: String?,
+        identifier: String? = nil,
+        value: String?,
+        enabled: Bool,
+        action_names: [String]? = nil,
+        permission_state: String? = nil,
+        focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON? = nil,
+        window_state: String? = nil,
+        space_state: String? = nil,
+        control_kind: String? = nil,
+        surface_kind: String? = nil,
+        focus_state: String? = nil,
+        minimized: Bool? = nil,
+        off_space: Bool? = nil,
+        custom_control: Bool? = nil,
+        canvas_surface: Bool? = nil,
+        context_path: [String],
+        bounds: BoundsJSON?,
+        ref: String?
+    ) {
+        self.app_pid = app_pid
+        self.app_name = app_name
+        self.window_id = window_id
+        self.role = role
+        self.title = title
+        self.label = label
+        self.identifier = identifier
+        self.value = value
+        self.enabled = enabled
+        self.action_names = action_names
+        self.permission_state = permission_state
+        self.focus_cursor_space_baseline = focus_cursor_space_baseline
+        self.window_state = window_state
+        self.space_state = space_state
+        self.control_kind = control_kind
+        self.surface_kind = surface_kind
+        self.focus_state = focus_state
+        self.minimized = minimized
+        self.off_space = off_space
+        self.custom_control = custom_control
+        self.canvas_surface = canvas_surface
+        self.context_path = context_path
+        self.bounds = bounds
+        self.ref = ref
+    }
 }
 
 // MARK: - AOS-owned Canvas Semantic Target Output

@@ -21,6 +21,7 @@ export function appendStateID(args, stateID) {
 export function resolutionStatusFor(currentValidation, secondaryCurrentValidation, unsafe, secondaryUnsafe, secondary) {
   const validationRequired = unsafe || secondaryUnsafe;
   if (validationRequired) return 'validation_required';
+  if (currentValidation?.status === 'direct_ax_current_matching_required') return 'direct_ax_ready';
   if (currentValidation && (!secondary || secondaryCurrentValidation)) return 'reacquired';
   return 'resolved';
 }
@@ -55,7 +56,7 @@ export function emitDryRunEnvelope({
     },
     current_validation: currentValidation,
     secondary_current_validation: secondaryCurrentValidation,
-    recommended_next_command: validationRequired ? recommendedRefreshCommand(workspace) : null,
+    recommended_next_command: validationRequired ? recommendedRefreshCommand(workspace, unsafe ? record : secondary?.record) : null,
   });
 }
 
@@ -85,7 +86,7 @@ function actionEnvelope({
   const exitCode = result.status ?? 1;
   const parsedStdout = parseJSONOutput(result.stdout);
   const parsedStderr = parseJSONOutput(result.stderr);
-  const recommendation = recommendedRefreshCommand(workspace);
+  const recommendation = recommendedRefreshCommand(workspace, record);
   return {
     status,
     schema_version: SCHEMA_VERSION,

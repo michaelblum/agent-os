@@ -40,3 +40,5 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 
 - `aos_agents/` contains the AOS-owned project-agent runner.
 - `lib/` contains shared script helper modules.
+- `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,
+  compact readback, saved-ref validation, and backend action dispatch.

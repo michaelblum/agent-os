@@ -132,6 +132,7 @@ The current top-level commands are:
 
 ```bash
 aos see capture browser:work --save --mode som --workspace default
+aos see snapshots --workspace default --json
 aos see refs --workspace default --query Save --json
 aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
 aos do click ref:<snapshot-id>:r2 --workspace default
@@ -140,17 +141,23 @@ aos do click ref:<snapshot-id>:r2 --workspace default
 Typical consumer loop:
 
 1. Save compact perception with `aos see capture --save`.
-2. Read compact refs with `aos see refs`.
-3. Dry-run the saved-ref action and inspect `resolution_status`.
-4. Dispatch only if the ref validates or reacquires.
-5. Use `recommended_next_command` after a real mutation when a fresh saved
+2. Read compact snapshots with `aos see snapshots` when choosing prior saved
+   state; snapshot entries include `capture_target`, `target`, and saved
+   `query` without opening heavy payloads.
+3. Read compact refs with `aos see refs`.
+4. Dry-run the saved-ref action and inspect `resolution_status`.
+5. Dispatch only if the ref validates or reacquires.
+6. Use `recommended_next_command` after a real mutation when a fresh saved
    capture is needed before reusing refs from the surface.
 
 Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
 `$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
 root is overridden. Compact stdout includes counts, artifact refs, compact refs,
-resolution classes, backend confidence, warnings, known limits, and file paths.
+`capture_target`, `capture_mode`, resolution classes, backend confidence,
+identity facts, hint facts, current address facts, warnings, known limits, and
+structured `conformance` including native `no_foreground` claim fields and
+`target_uncertainty`, plus file paths.
 Full capture JSON, screenshots, base64 payloads, AX/browser element arrays, and
 semantic target arrays stay file-backed under the snapshot directory. The saved
 workspace contract is `aos.agent-workspace.v0`; see
@@ -169,16 +176,23 @@ Capture modes are explicit:
 
 Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
+`REF_AMBIGUOUS` returns candidate snapshot refs plus safe `aos see refs ...`
+inspection commands; `REF_NOT_FOUND` returns the relevant refs inspection
+command. These resolver failures happen before mutation and do not require user
+approval.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
 Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs run a fresh
 xray validation plus page, frame, navigation, role, title, label, context, and
-enabled-state checks. Dry-run reports `reacquired` when that validation is
-sufficient for real dispatch; non-dry-run then routes through the underlying
-`browser:<session>/<ref>` action target and returns a saved-ref execution envelope
-with `current_validation`, `underlying_result`, `post_action`, and
-`recommended_next_command`. Missing, stale, ambiguous, disabled, changed, or
-identity-drifted current targets fail closed before dispatch:
+enabled-state checks. `current_validation.current_target` includes current
+bounds when xray provides them; bounds movement alone is tolerated when the
+saved page/frame/navigation and element identity facts still validate. Dry-run
+reports `reacquired` when that validation is sufficient for real dispatch;
+non-dry-run then routes through the underlying `browser:<session>/<ref>` action
+target and returns a saved-ref execution envelope with `current_validation`,
+`underlying_result`, `post_action`, and `recommended_next_command`. Missing,
+stale, ambiguous, disabled, changed, or identity-drifted current targets fail
+closed before dispatch:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
@@ -187,18 +201,110 @@ aos do fill ref:<snapshot-id>:r3 "buy groceries" --workspace default --dry-run
 aos do hover ref:<snapshot-id>:r4 --workspace default --dry-run
 aos do scroll ref:<snapshot-id>:r4 0,-200 --workspace default --dry-run
 aos do drag ref:<snapshot-id>:r4 ref:<snapshot-id>:r5 --workspace default --dry-run
+aos do press ref:<snapshot-id>:r6 --workspace default --dry-run
+aos do focus ref:<snapshot-id>:r6 --workspace default --dry-run
 ```
+
+After a dry-run returns a safe status such as `reacquired`, `resolved`, or
+`direct_ax_ready`, dispatch by rerunning the exact saved-ref command without
+`--dry-run`; do not remove `--dry-run` for validation-required, blocked,
+unsupported, or low-confidence refs.
 
 Saved-ref browser drag requires two saved browser refs from the same snapshot
 and browser session, and validates both endpoints before any dispatch.
 Native AX
 `volatile` refs are inspection-only and report known limits instead of claiming
-no-foreground saved-action safety. This V0 foundation does not complete native
-saved-ref mutation or native no-foreground conformance. `focus`,
-`press`/`open`/`toggle`, browser `type`/`key`, and other unsupported saved-ref
-forms fail closed with structured JSON until the action grammar has a
-backend-owned current target validation path. See
+no-foreground saved-action safety. This V0 foundation is not completion of the
+full native saved-ref proof or native no-foreground conformance.
+`conformance.no_foreground.claim` is `not_claimed` for those refs; focus,
+cursor, and Space preservation are `unverified`; permission state is the
+captured native permission value when present, otherwise `unknown`; and fallback
+flags are false because volatile native refs do not attempt saved-ref mutation.
+Native AX refs also report `target_uncertainty.status:
+blocked_missing_native_identity` until saved capture includes durable identity
+and validation facts such as app PID, window id, an actual AX identifier,
+enabled state, action names, permission state, and a captured baseline for
+focus, cursor, and Space state.
+Their `identity_facts` preserve the strongest available captured native hints,
+including `role`, `title`, `label`, `value`, `enabled`, `bounds`,
+`context_path`, `app_pid`, `app_name`, `window_id`,
+`ax_identifier_or_stable_path`, `action_names`, `permission_state`, `app_hint`,
+and `window_hint`; these may be listed in `available_identity_facts`, but they
+are not durable enough for saved-ref mutation while the focus/cursor/Space
+baseline is missing.
+The corresponding missing-fact identifiers are `app_pid`, `window_id`,
+`ax_identifier`, `enabled`, `action_names`,
+`permission_state`, and `focus_cursor_space_baseline`; `enabled` is
+unsatisfied unless the captured value is `true`, and `permission_state` is
+unsatisfied unless the captured value is `granted`.
+When a native capture already includes that full durable identity contract with
+`enabled: true`, `permission_state: granted`, and a captured baseline, the
+saved ref can become `stable` and support only capture-declared native
+`press`, `focus`, and `set-value`. Those actions convert the saved facts to the
+existing direct AX selector flags, report
+`direct_ax_ready` / `requires_direct_ax_current_matching`, and return the
+direct AX wrapper response under `underlying_result`. They still report
+`not_claimed` no-foreground safety and do not count as completed native proof
+until the approval-gated live proof runs.
+Stable native saved-ref dispatch preserves `fallback_used` and
+`foreground_fallback_required` from the direct AX wrapper inside
+`underlying_result.conformance.no_foreground`; fallback success remains
+foreground fallback evidence, not no-foreground proof.
+Path-only `stable_path` evidence remains inspection/readback evidence in v0; it
+does not make a native saved ref stable until the native action selector grows a
+real path-matching primitive.
+When durable native identity facts are present but the captured native
+`action_names` do not map to v0 `press`, `focus`, or `set-value`, the ref
+remains `volatile` with
+`native_action_matrix_unsupported` and
+`blocked_unsupported_native_action` rather than reporting missing identity.
+When those durable facts are present but the capture reports an off-Space
+window, minimized window, custom control, canvas/game surface, or focus mismatch,
+the ref remains `volatile` with
+`native_known_limit_blocked` and `blocked_native_known_limit`. The captured
+native known-limit fields are preserved in `identity_facts` when present:
+`space_state`, `off_space`, `window_state`, `minimized`, `control_kind`,
+`custom_control`, `surface_kind`, `canvas_surface`, `focus_state`, and
+`focus_cursor_space_baseline.focus`. Those states fail closed until a
+backend-owned validation path and approval-gated live proof can defend them.
+Saved-ref `conformance.proof` records the backend proof story. Browser and AOS
+canvas supported refs report `deterministic_contract_tests_passed` with local
+test evidence. Native AX saved refs and direct AX wrapper responses report
+`approval_gated_live_proof_not_run`; their `approval_gates` name the blocked
+live proof, including HITL live smoke, TCC/manual runtime flow, native
+repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline
+verification.
+
+Backend conformance levels are intentionally explicit:
+
+| backend/path | supported saved-ref surface | conformance level | proof status | evidence or gate |
+| --- | --- | --- | --- | --- |
+| `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
+| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
+| `native_ax` stable saved refs | durable-identity `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |
+| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus the same approval gates |
+| `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus the same approval gates |
+| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in browser, AOS canvas, and native saved-ref tests |
+
+Native `open`/`toggle`, explicit `type`/`key` saved-ref attempts that include
+`--workspace` or `--snapshot`, and other unsupported saved-ref forms fail closed
+with structured JSON until the action grammar has a backend-owned current target
+validation path. Plain native `type` / `key` arguments such as literal
+`ref:...` text remain direct command input unless the caller supplies an
+explicit saved-ref scope. See
 `shared/schemas/aos-agent-workspace-v0.md` for the full action grammar matrix.
+
+Post-action and revalidation recommendations are target-aware. A saved browser
+ref captured from `browser:todo` in `som` mode recommends:
+
+```bash
+aos see capture browser:todo --save --workspace <workspace> --mode som
+```
+
+If the saved capture stored a query, the recommendation carries the same
+`--query` value. `coordinate_fallback` is a diagnostic/fallback-only resolution
+class in this slice; normal saved capture generation does not emit coordinate
+fallback refs, and coordinate-backed saved-ref mutation must warn or refuse.
 
 Diagnostic and fallback paths are still available when compact saved refs do not
 have parity or when an agent explicitly needs pixels, raw images, or coordinate
@@ -561,7 +667,9 @@ capture-pipeline cursor response uses the same raw AX element fields when it can
 resolve the element explicitly under the cursor.
 
 `--xray` returns raw visible bounded AX elements in `elements`; the daemon does
-not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
+not role-whitelist them into an "interactive" vocabulary. Display, region, and
+surface captures traverse visible app windows that intersect the captured region;
+window captures stay scoped to the captured window owner. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
 use the canonical `agent_ui_target` envelope: top-level `ref`, `state_id`,
@@ -717,7 +825,12 @@ saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and, for browser refs, the fresh xray current-target
 validation result. Browser `snapshot_scoped` click, fill, hover, scroll, and
 drag refs can dispatch only after page, frame, navigation, and element
-validation pass. Non-dry-run mutation refuses unsafe resolution classes or
+validation pass. Saved-ref grammar rejects missing, invalid, extra, or unknown
+action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
+`UNKNOWN_FLAG`.
+Refs with `confidence: low` are readback-only for saved-ref mutation and fail
+closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run
+validation or dispatch. Non-dry-run mutation refuses unsafe resolution classes or
 missing validation capability with machine-readable errors such as
 `REF_STALE`, `REF_REVALIDATION_REQUIRED`,
 `REF_AMBIGUOUS`, `REF_NOT_FOUND`, `ACTION_INCOMPATIBLE`,
@@ -759,6 +872,23 @@ family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), a
 `fallback_used` is reserved for paths that intentionally degrade from a
 preferred semantic strategy. `duration_ms` remains the top-level timing field on
 session responses.
+
+Direct AX `press`, `focus`, and `set-value --pid ... --role ...` responses also
+include a top-level `conformance` block from the external wrapper. The wrapper
+does not claim no-foreground safety: `conformance.no_foreground.claim` is
+`not_claimed`, focus/cursor/Space preservation are `unverified`, permission
+state is `unknown`, and `conformance.target_uncertainty.status` is
+`direct_ax_current_matching`. If the underlying native result reports
+`fallback_used` or `foreground_fallback_required`, those flags are preserved in
+`conformance.no_foreground`; a foreground fallback success is still not
+no-foreground proof. These direct AX actions use current pid/role/filter
+matching, report `direct_ax_current_matching_semantics`, and do not satisfy the
+saved-ref durable identity contract; their
+`target_uncertainty.missing_identity_facts` still includes saved-ref-only facts
+such as `enabled`, `action_names`, `permission_state`, and
+`focus_cursor_space_baseline` when the direct call did not prove them. Their
+`conformance.proof.status` is `approval_gated_live_proof_not_run` until the
+approval-gated live proof and native rebuild gates are explicitly run.
 
 Canvas ref click responses also include the resolved target details, including
 the target dialect, canvas id, ref, local semantic-target center, global click

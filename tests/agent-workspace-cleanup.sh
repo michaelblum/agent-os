@@ -47,6 +47,8 @@ jq -e '
   and .current_snapshot_id == "snap1"
   and (.snapshots | length) == 1
   and .snapshots[0].snapshot_id == "snap1"
+  and .snapshots[0].capture_target == "browser:todo"
+  and .snapshots[0].query == null
   and (.snapshots[0].paths.snapshot_record | endswith("/snapshot.json"))
 ' "$SNAPS" >/dev/null || fail "snapshot readback shape drifted: $(cat "$SNAPS")"
 
@@ -89,6 +91,7 @@ CURRENT_AFTER_DELETE="$TMP_DIR/refs-current-after-delete.json"
 ./aos see refs --workspace ws1 --query button --json >"$CURRENT_AFTER_DELETE"
 jq -e '.status == "success" and .snapshot_id == "snap1"' "$CURRENT_AFTER_DELETE" >/dev/null \
     || fail "current refs did not resolve through index after deleting snap2: $(cat "$CURRENT_AFTER_DELETE")"
+assert_no_heavy_capture_payloads "$CURRENT_AFTER_DELETE" "current refs after delete readback"
 
 ACK_ERR="$TMP_DIR/workspace-delete-no-ack.err"
 if ./aos see workspace delete ws1 >"$TMP_DIR/workspace-delete-no-ack.out" 2>"$ACK_ERR"; then

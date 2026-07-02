@@ -195,6 +195,7 @@ export function workspaceCommand(args, env = process.env) {
   });
   const workspace = validateLocalID(parsed.id, 'workspace id');
   const { dir, metadata, index } = requireWorkspace(workspace, env);
+  const currentSnapshot = (index.snapshots ?? []).find((snapshot) => snapshot.snapshot_id === index.current_snapshot_id) ?? null;
   printJSON({
     status: 'success',
     schema_version: SCHEMA_VERSION,
@@ -205,6 +206,7 @@ export function workspaceCommand(args, env = process.env) {
     index_health: {
       current_snapshot_id: index.current_snapshot_id ?? null,
       snapshot_count: index.snapshots?.length ?? 0,
+      current_snapshot: currentSnapshot,
       warnings: [],
     },
     retention: metadata.retention ?? defaultWorkspaceMetadata(workspace, env).retention,

@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value and validated browser click/fill/hover/scroll/drag mutation",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag mutation, and stable native AX press/focus/set-value",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -591,6 +591,7 @@
           },
           "examples" : [
             "aos see capture browser:work --save --mode som --workspace default",
+            "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out \/tmp\/screen.png",
             "aos see main --base64 --format jpg",
@@ -614,6 +615,15 @@
           },
           "id" : "see-capture",
           "output" : {
+            "conditional_modes" : [
+              {
+                "default_mode" : "json",
+                "summary" : "Saved capture returns compact JSON refs after persisting local workspace perception",
+                "when_flags" : [
+                  "--save"
+                ]
+              }
+            ],
             "default_mode" : "none",
             "error_mode" : "json_stderr",
             "streaming" : false,
@@ -634,7 +644,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : true,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof for the documented saved-ref action matrix",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -689,8 +699,8 @@
           ],
           "examples" : [
             "aos see capture browser:work --save --mode som --workspace default",
-            "aos see refs --workspace default --query Save --json",
-            "aos do click ref:<snapshot-id>:r2 --workspace default --dry-run"
+            "aos see snapshots --workspace default",
+            "aos see refs --workspace default --query Save"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -708,7 +718,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Persist perception into a local agent workspace and return compact saved refs",
+          "summary" : "Persist perception into a local agent workspace and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions",
           "usage" : "aos see capture <target> --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
@@ -855,6 +865,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "List compact saved snapshots for an agent workspace without opening heavy capture payloads",
           "usage" : "aos see snapshots [--workspace <id>] [--json]"
         },
         {
@@ -912,6 +923,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "Inspect compact saved refs by workspace, snapshot, or query before acting on ref targets",
           "usage" : "aos see refs [--workspace <id>] [--snapshot <id>] [--query <text>] [--json]"
         },
         {
@@ -944,6 +956,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "List local agent workspaces and their current saved snapshots",
           "usage" : "aos see workspaces [--json]"
         },
         {
@@ -983,6 +996,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "Inspect one local agent workspace and its compact snapshot index",
           "usage" : "aos see workspace <id> [--json]"
         },
         {
@@ -1046,6 +1060,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "Prune local saved workspace snapshots by age, with dry-run preview and explicit artifact acknowledgement",
           "usage" : "aos see workspace prune <id> --older-than <duration> [--dry-run] [--i-understand-local-artifacts] [--json]"
         },
         {
@@ -1093,6 +1108,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "Delete one local agent workspace after explicit local-artifact acknowledgement",
           "usage" : "aos see workspace delete <id> --i-understand-local-artifacts [--json]"
         },
         {
@@ -1148,6 +1164,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
+          "summary" : "Delete one saved snapshot from a local agent workspace after explicit local-artifact acknowledgement",
           "usage" : "aos see snapshot delete <snapshot-id> [--workspace <id>] --i-understand-local-artifacts [--json]"
         }
       ],
@@ -2539,7 +2556,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Coordinates as x,y, an AOS canvas ref target, or a browser ref target",
+              "summary" : "Saved ref, coordinates as x,y, an AOS canvas ref target, or a browser ref target",
               "value_type" : "string"
             },
             {
@@ -2601,10 +2618,12 @@
           ],
           "examples" : [
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
+            "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
             "aos do click canvas:subject-browser\/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
             "aos do click browser:todo\/e21"
           ],
+          "summary" : "Saved-ref click validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -2621,7 +2640,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>\/<ref>|browser:<session>\/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--dwell N] [--state-id id]"
+          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>\/<ref>|browser:<session>\/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--dwell N] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2667,9 +2686,11 @@
           ],
           "examples" : [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
+            "aos do hover ref:<snapshot-id>:r2 --workspace default",
             "aos do hover browser:todo\/e21",
             "aos do hover 500,300"
           ],
+          "summary" : "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -2686,7 +2707,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id]"
+          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2747,9 +2768,11 @@
           ],
           "examples" : [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
+            "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
             "aos do drag browser:todo\/e1 browser:todo\/e2",
             "aos do drag 100,100 500,500"
           ],
+          "summary" : "Saved-ref drag validates both endpoints before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -2835,9 +2858,11 @@
           ],
           "examples" : [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
+            "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
             "aos do scroll browser:todo\/e21 0,-200",
             "aos do scroll 500,300 --dy -3"
           ],
+          "summary" : "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -2854,7 +2879,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id]"
+          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2979,8 +3004,10 @@
           ],
           "examples" : [
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
             "aos do fill browser:todo\/e21 \"buy groceries\""
           ],
+          "summary" : "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3040,18 +3067,33 @@
         {
           "args" : [
             {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Stable saved native AX ref; omit for direct --pid/--role form",
+              "value_type" : "string"
+            },
+            {
               "id" : "pid",
               "kind" : "flag",
-              "required" : true,
+              "required" : false,
               "summary" : "Process ID",
               "token" : "--pid",
               "value_type" : "int"
             },
             {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Window ID carried as saved native identity context",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
-              "required" : true,
-              "summary" : "AX role to match",
+              "required" : false,
+              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -3118,11 +3160,55 @@
               "summary" : "Timeout in ms",
               "token" : "--timeout",
               "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the saved-ref or direct AX action without executing it; response includes no_foreground conformance/proof",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
+              "value_type" : "string"
             }
           ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary" : "target source"
+              }
+            ]
+          },
           "examples" : [
+            "aos do press ref:<snapshot-id>:r1 --workspace default --dry-run",
+            "aos do press ref:<snapshot-id>:r1 --workspace default",
+            "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
+          "summary" : "Saved-ref press validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3130,7 +3216,7 @@
             "read_only" : false,
             "requires_permissions" : true,
             "streaming" : false,
-            "supports_dry_run" : false
+            "supports_dry_run" : true
           },
           "id" : "do-press",
           "output" : {
@@ -3139,7 +3225,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do press --pid <pid> --role <role> [filters]"
+          "usage" : "aos do press <ref-target> [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do press --pid <pid> --role <role> [filters] [--dry-run]"
         },
         {
           "args" : [
@@ -3159,19 +3245,34 @@
               "value_type" : "int"
             },
             {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Window ID carried as saved native identity context",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "AX role to match",
+              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
               "token" : "--role",
               "value_type" : "string"
             },
             {
               "id" : "value",
               "kind" : "flag",
-              "required" : true,
-              "summary" : "Value to set",
+              "required" : false,
+              "summary" : "Value to set; required as --value or a positional value",
               "token" : "--value",
+              "value_type" : "string"
+            },
+            {
+              "id" : "value-text",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Positional value alternative to --value",
               "value_type" : "string"
             },
             {
@@ -3234,7 +3335,7 @@
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Validate and describe the ref/canvas action without executing it",
+              "summary" : "Validate and describe the ref/canvas/direct AX action without executing it; direct AX responses include no_foreground conformance/proof",
               "token" : "--dry-run",
               "value_type" : "bool"
             },
@@ -3263,11 +3364,40 @@
               "value_type" : "int"
             }
           ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary" : "target source"
+              },
+              {
+                "one_of" : [
+                  [
+                    "value"
+                  ],
+                  [
+                    "value-text"
+                  ]
+                ],
+                "summary" : "value source"
+              }
+            ]
+          },
           "examples" : [
             "aos do set-value ref:<snapshot-id>:r2 --workspace default --value \"42\" --dry-run",
+            "aos do set-value ref:<snapshot-id>:r2 --workspace default --value \"42\"",
             "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
+          "summary" : "Saved-ref set-value validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3284,23 +3414,38 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do set-value <ref:<snapshot-id>:<ref>|canvas:<canvas-id>/<ref>|--pid <pid> --role <role>> (--value <value>|<value>) [--workspace <id>] [--snapshot <id>] [filters]"
+          "usage" : "aos do set-value <ref-target|canvas:<canvas-id>/<ref>> (--value <value>|<value>) [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do set-value --pid <pid> --role <role> (--value <value>|<value>) [filters] [--dry-run]"
         },
         {
           "args" : [
             {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Stable saved native AX ref; omit for direct --pid/--role form",
+              "value_type" : "string"
+            },
+            {
               "id" : "pid",
               "kind" : "flag",
-              "required" : true,
+              "required" : false,
               "summary" : "Process ID",
               "token" : "--pid",
               "value_type" : "int"
             },
             {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Window ID carried as saved native identity context",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
               "id" : "role",
               "kind" : "flag",
-              "required" : true,
-              "summary" : "AX role to match",
+              "required" : false,
+              "summary" : "AX role to match in the direct --pid form; saved refs carry role in identity facts",
               "token" : "--role",
               "value_type" : "string"
             },
@@ -3367,11 +3512,55 @@
               "summary" : "Timeout in ms",
               "token" : "--timeout",
               "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the saved-ref or direct AX action without executing it; response includes no_foreground conformance/proof",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
+              "value_type" : "string"
             }
           ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary" : "target source"
+              }
+            ]
+          },
           "examples" : [
+            "aos do focus ref:<snapshot-id>:r1 --workspace default --dry-run",
+            "aos do focus ref:<snapshot-id>:r1 --workspace default",
+            "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
+          "summary" : "Saved-ref focus validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3379,7 +3568,7 @@
             "read_only" : false,
             "requires_permissions" : true,
             "streaming" : false,
-            "supports_dry_run" : false
+            "supports_dry_run" : true
           },
           "id" : "do-focus",
           "output" : {
@@ -3388,7 +3577,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do focus --pid <pid> --role <role> [filters]"
+          "usage" : "aos do focus <ref-target> [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do focus --pid <pid> --role <role> [filters] [--dry-run]"
         },
         {
           "args" : [
@@ -6302,6 +6491,7 @@
       "summary" : "Package\/sign\/install the stable AOS.app runtime"
     },
     {
+      "consumer_discovery" : false,
       "forms" : [
         {
           "args" : [

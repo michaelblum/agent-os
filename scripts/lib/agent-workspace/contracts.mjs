@@ -2,11 +2,213 @@ export const AGENT_WORKSPACE_SCHEMA_VERSION = 'aos.agent-workspace.v0';
 
 export const CAPTURE_MODE_VALUES = ['ax', 'vision', 'som'];
 export const SAVED_REF_BACKENDS = ['aos_canvas', 'browser', 'native_ax'];
+export const NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS = Object.freeze([
+  'app_pid',
+  'window_id',
+  'ax_identifier',
+  'enabled',
+  'action_names',
+  'permission_state',
+  'focus_cursor_space_baseline',
+]);
+
+function present(value) {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return String(value).length > 0;
+}
+
+export function nativeFocusCursorSpaceBaselinePresent(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (value.captured === true) return true;
+  return String(value.status ?? '').toLowerCase() === 'captured';
+}
+
+export function nativePermissionStateGranted(value) {
+  return String(value ?? '').toLowerCase() === 'granted';
+}
+
+export function nativeEnabledStatePresent(value) {
+  return value === true || String(value ?? '').toLowerCase() === 'true';
+}
+
+function nativeIdentityFactPresent(facts, fact) {
+  if (!facts || typeof facts !== 'object') return false;
+  if (fact === 'ax_identifier') {
+    return present(facts.ax_identifier) || present(facts.identifier);
+  }
+  if (fact === 'ax_identifier_or_stable_path') {
+    return present(facts.ax_identifier_or_stable_path)
+      || present(facts.ax_identifier)
+      || present(facts.identifier)
+      || present(facts.stable_path)
+      || present(facts.ax_path);
+  }
+  if (fact === 'focus_cursor_space_baseline') {
+    return nativeFocusCursorSpaceBaselinePresent(facts.focus_cursor_space_baseline);
+  }
+  if (fact === 'permission_state') {
+    return nativePermissionStateGranted(facts.permission_state);
+  }
+  if (fact === 'enabled') {
+    return nativeEnabledStatePresent(facts.enabled);
+  }
+  return present(facts[fact]);
+}
+
+export function nativeAxSavedRefMissingIdentityFacts(facts) {
+  return NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS.filter((fact) => !nativeIdentityFactPresent(facts, fact));
+}
+
+export function nativeAxSavedRefHasRequiredIdentity(facts) {
+  return nativeAxSavedRefMissingIdentityFacts(facts).length === 0;
+}
+
+function normalizedString(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function nativeFlagTrue(...values) {
+  return values.some((value) => value === true || ['true', 'yes', '1'].includes(normalizedString(value)));
+}
+
+export function nativeAxSavedRefBlockedKnownLimitReasons(facts = {}) {
+  const reasons = [];
+  const windowState = normalizedString(facts.window_state);
+  const spaceState = normalizedString(facts.space_state);
+  const controlKind = normalizedString(facts.control_kind);
+  const surfaceKind = normalizedString(facts.surface_kind);
+  const focusState = normalizedString(facts.focus_state);
+  const baselineFocus = normalizedString(facts.focus_cursor_space_baseline?.focus);
+
+  if (nativeFlagTrue(facts.off_space) || ['off_space', 'offspace', 'different_space'].includes(spaceState)) {
+    reasons.push('native AX target was captured off-Space; saved-ref mutation is blocked until Space preservation is live-proven');
+  }
+  if (nativeFlagTrue(facts.minimized) || windowState === 'minimized') {
+    reasons.push('native AX target was captured in a minimized window; saved-ref mutation is blocked until minimized-window behavior is live-proven');
+  }
+  if (nativeFlagTrue(facts.custom_control) || controlKind.includes('custom')) {
+    reasons.push('native AX target is a custom control; saved-ref mutation is blocked until control-specific AX action behavior is proven');
+  }
+  if (nativeFlagTrue(facts.canvas_surface) || ['canvas', 'game', 'game_canvas'].includes(surfaceKind)) {
+    reasons.push('native AX target belongs to a canvas/game surface; use AOS canvas semantic targets or fresh perception instead of native label/bounds mutation');
+  }
+  if (['mismatch', 'changed', 'not_focused', 'different'].includes(focusState) || ['changed', 'mismatch', 'different'].includes(baselineFocus)) {
+    reasons.push('native AX focus baseline reports mismatch; saved-ref mutation cannot claim focus preservation');
+  }
+  return reasons;
+}
+
+export function nativeAxSavedRefHasBlockingKnownLimit(facts = {}) {
+  return nativeAxSavedRefBlockedKnownLimitReasons(facts).length > 0;
+}
+
+export function nativeAxNoForegroundConformance(options = {}) {
+  return {
+    claim: 'not_claimed',
+    focus_preservation: options.focusPreservation ?? 'unverified',
+    cursor_preservation: options.cursorPreservation ?? 'unverified',
+    space_preservation: options.spacePreservation ?? 'unverified',
+    fallback_used: options.fallbackUsed === true,
+    foreground_fallback_required: options.foregroundFallbackRequired === true,
+    permission_state: options.permissionState ?? 'unknown',
+  };
+}
+
+export function notApplicableNoForegroundConformance() {
+  return {
+    claim: 'not_applicable',
+    focus_preservation: 'not_applicable',
+    cursor_preservation: 'not_applicable',
+    space_preservation: 'not_applicable',
+    fallback_used: false,
+    foreground_fallback_required: false,
+    permission_state: 'not_applicable',
+  };
+}
+
+export const NATIVE_AX_LIVE_PROOF_APPROVAL_GATES = Object.freeze([
+  'HITL live smoke',
+  'TCC/manual runtime flow',
+  'native repo-mode artifact rebuild',
+  'explicit no-foreground/focus/cursor/Space baseline verification',
+]);
+
+function proofStory(level, status, evidence, approvalGates = []) {
+  return {
+    level,
+    status,
+    evidence: [...evidence],
+    approval_gates: [...approvalGates],
+  };
+}
+
+export function savedRefProofStory(backend, resolutionClass, hasMutation) {
+  if (resolutionClass === 'coordinate_fallback') {
+    return proofStory(
+      'known_limit_contract',
+      'known_limit_refusal_tested',
+      ['tests/agent-workspace-native-refs.sh'],
+    );
+  }
+
+  if (backend === 'browser' && hasMutation) {
+    return proofStory(
+      'deterministic_contract_tests',
+      'deterministic_contract_tests_passed',
+      ['tests/agent-workspace-browser-refs.sh', 'tests/agent-workspace-saved-ref.sh'],
+    );
+  }
+
+  if (backend === 'aos_canvas' && hasMutation) {
+    return proofStory(
+      'deterministic_contract_tests',
+      'deterministic_contract_tests_passed',
+      ['tests/agent-workspace-canvas-refs.sh', 'tests/agent-workspace-saved-ref.sh'],
+    );
+  }
+
+  if (backend === 'native_ax' && hasMutation) {
+    return proofStory(
+      'native_saved_ref_contract_tests_plus_approval_gates',
+      'approval_gated_live_proof_not_run',
+      ['tests/agent-workspace-native-refs.sh'],
+      NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+    );
+  }
+
+  if (backend === 'native_ax') {
+    return proofStory(
+      'known_limit_contract',
+      'approval_gated_live_proof_not_run',
+      ['tests/agent-workspace-native-refs.sh'],
+      NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+    );
+  }
+
+  return proofStory(
+    'known_limit_contract',
+    'known_limit_contract_tested',
+    ['tests/agent-workspace-contract-drift.sh'],
+  );
+}
+
+export function directNativeAxProofStory() {
+  return proofStory(
+    'native_primitive_response_plus_wrapper_contract',
+    'approval_gated_live_proof_not_run',
+    ['tests/agent-workspace-native-refs.sh'],
+    NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+  );
+}
+
 export const SAVED_REF_RESOLUTION_CLASSES = [
   'stable',
   'reacquirable',
   'snapshot_scoped',
   'volatile',
+  'coordinate_fallback',
   'unsupported',
 ];
 export const SAVED_REF_CONFIDENCE_VALUES = ['high', 'medium', 'low'];
@@ -58,14 +260,14 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
       browser: true,
     },
     required_args: ['ref target'],
-    optional_args: ['--right', '--double', '--dwell'],
+    optional_args: ['--right', '--double', 'aos_canvas --dwell'],
     mutation_risk: 'medium',
     validation: 'canvas refs use current canvas target resolution; browser refs require fresh page/frame/navigation identity and exactly one enabled matching current xray element before real dispatch',
     known_limits: {
       browser: 'browser saved refs fail closed when page, frame, navigation, role, title, label, context, enabled state, or uniqueness validation fails',
       aos_canvas: 'canvas refs are re-read from the current canvas; missing, disabled, segmented, or ambiguous current targets fail closed',
     },
-    statuses: ['dry_run', 'success', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   fill: {
     supported_backends: {
@@ -82,7 +284,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     known_limits: {
       browser: 'browser fill is allowed only after page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation pass',
     },
-    statuses: ['dry_run', 'success', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   hover: {
     supported_backends: {
@@ -99,7 +301,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     known_limits: {
       browser: 'browser hover is allowed only after page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation pass',
     },
-    statuses: ['dry_run', 'success', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   scroll: {
     supported_backends: {
@@ -116,7 +318,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     known_limits: {
       browser: 'browser scroll is allowed only after page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation pass',
     },
-    statuses: ['dry_run', 'success', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'INVALID_ARG'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'INVALID_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   drag: {
     supported_backends: {
@@ -133,46 +335,61 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     known_limits: {
       browser: 'browser drag is allowed only after both endpoints pass same-session, same-snapshot, page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation',
     },
-    statuses: ['dry_run', 'success', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'INVALID_REF_TARGET'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'INVALID_REF_TARGET', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   'set-value': {
     supported_backends: {
       aos_canvas: ['reacquirable'],
+      native_ax: ['stable'],
     },
     dry_run: true,
     real_mutation: {
       aos_canvas: true,
+      native_ax: true,
     },
     required_args: ['ref target', '--value or positional value'],
     optional_args: [],
     mutation_risk: 'medium',
-    validation: 'canvas refs use current canvas target resolution',
+    validation: 'canvas refs use current canvas target resolution; native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
     known_limits: {
       aos_canvas: 'only current single-value canvas controls with existing semantic value handling are supported',
+      native_ax: 'native AX set-value saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
     },
-    statuses: ['dry_run', 'success', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'MISSING_ARG'],
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'MISSING_ARG', 'INVALID_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
   focus: {
-    supported_backends: {},
-    dry_run: false,
-    real_mutation: {},
+    supported_backends: {
+      native_ax: ['stable'],
+    },
+    dry_run: true,
+    real_mutation: {
+      native_ax: true,
+    },
     required_args: ['ref target'],
     optional_args: [],
     mutation_risk: 'medium',
-    validation: 'unsupported for saved refs in v0',
-    known_limits: {},
-    statuses: ['REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE'],
+    validation: 'native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
+    known_limits: {
+      native_ax: 'native AX focus saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
+    },
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
   press: {
-    supported_backends: {},
-    dry_run: false,
-    real_mutation: {},
+    supported_backends: {
+      native_ax: ['stable'],
+    },
+    dry_run: true,
+    real_mutation: {
+      native_ax: true,
+    },
     required_args: ['ref target'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'unsupported for saved refs in v0',
-    known_limits: {},
-    statuses: ['REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE'],
+    validation: 'native AX refs require durable saved native identity facts and route through direct AX current matching semantics',
+    known_limits: {
+      native_ax: 'native AX press saved refs require durable pid/window/AX identifier/enabled-state/action/permission/baseline facts, block captured off-Space/minimized/custom/canvas-game/focus-mismatch states, and still do not claim no-foreground proof',
+    },
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
   type: {
     supported_backends: {},
@@ -183,7 +400,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     mutation_risk: 'high',
     validation: 'unsupported for saved refs in v0; ref:* can be literal typed text for native type paths',
     known_limits: {},
-    statuses: ['ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
+    statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
   },
   key: {
     supported_backends: {},
@@ -194,7 +411,7 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     mutation_risk: 'high',
     validation: 'unsupported for saved refs in v0',
     known_limits: {},
-    statuses: ['ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
+    statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
   },
 };
 

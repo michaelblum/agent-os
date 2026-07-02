@@ -139,7 +139,8 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_create'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.agents'));
+  assert.ok(!profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
 
   for (const profileName of ['foreman']) {
     const allowed = profiles.get(profileName).allowed_capabilities;
@@ -151,18 +152,18 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
     assert.ok(allowed.includes('dev.github.pr_checks'), `${profileName} should allow PR check reads`);
   }
 
-  assert.equal(profiles.get('foreman').metadata.execution_topology, 'team_root');
+  assert.equal(profiles.get('foreman').metadata.execution_topology, 'aos_owned_runner_root');
   assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
-  assert.equal(profiles.get('foreman').metadata.subagent_team.extensible, true);
+  assert.equal(profiles.get('foreman').metadata.agent_runner_team.extensible, true);
   assert.deepEqual(
-    profiles.get('foreman').metadata.subagent_team.registered_agents,
+    profiles.get('foreman').metadata.agent_runner_team.registered_agents,
     ['architect', 'implementer', 'reviewer', 'validator', 'operator', 'explorer', 'steward', 'historian'],
   );
   assert.equal(
-    profiles.get('foreman').metadata.subagent_team.model_policy,
-    'native_agent_config_declares_model_and_effort',
+    profiles.get('foreman').metadata.agent_runner_team.model_policy,
+    'provider_role_material_declares_model_and_effort',
   );
-  assert.equal(profiles.get('foreman').metadata.subagent_team.inherits_foreman_model, false);
+  assert.equal(profiles.get('foreman').metadata.agent_runner_team.inherits_foreman_model, false);
 
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
 });

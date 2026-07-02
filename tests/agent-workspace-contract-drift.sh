@@ -10,6 +10,14 @@ import assert from 'node:assert/strict';
 import {
   AGENT_WORKSPACE_SCHEMA_VERSION,
   CAPTURE_MODE_VALUES,
+  NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
+  NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+  nativeAxSavedRefBlockedKnownLimitReasons,
+  nativeAxSavedRefHasBlockingKnownLimit,
+  nativeAxSavedRefMissingIdentityFacts,
+  nativeEnabledStatePresent,
+  nativeFocusCursorSpaceBaselinePresent,
+  nativePermissionStateGranted,
   SAVED_REF_BACKENDS,
   SAVED_REF_CONFIDENCE_VALUES,
   SAVED_REF_RESOLUTION_CLASSES,
@@ -25,6 +33,19 @@ assert.deepEqual(defs.capture_mode.enum, CAPTURE_MODE_VALUES);
 assert.deepEqual(defs.backend.enum, SAVED_REF_BACKENDS);
 assert.deepEqual(defs.resolution_class.enum, SAVED_REF_RESOLUTION_CLASSES);
 assert.deepEqual(defs.confidence.enum, SAVED_REF_CONFIDENCE_VALUES);
+assert.ok(SAVED_REF_RESOLUTION_CLASSES.includes('coordinate_fallback'), 'resolution classes must include diagnostic coordinate_fallback');
+assert.ok(defs.ref_summary.required.includes('conformance'), 'ref summaries must include conformance');
+assert.ok(defs.conformance.required.includes('proof'), 'conformance must include proof story');
+assert.ok(defs.conformance.required.includes('no_foreground'), 'conformance must include no_foreground fields');
+assert.ok(defs.conformance.required.includes('target_uncertainty'), 'conformance must include target_uncertainty fields');
+assert.deepEqual(defs.conformance.properties.proof.required, ['level', 'status', 'evidence', 'approval_gates']);
+assert.ok(defs.no_foreground_conformance.required.includes('focus_preservation'), 'no_foreground conformance must report focus preservation');
+assert.ok(defs.no_foreground_conformance.required.includes('cursor_preservation'), 'no_foreground conformance must report cursor preservation');
+assert.ok(defs.no_foreground_conformance.required.includes('space_preservation'), 'no_foreground conformance must report Space preservation');
+const workspaceIndexSnapshotRequired = defs.workspace_index.properties.snapshots.items.required;
+assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace index snapshots must expose compact capture target readback');
+assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');
+assert.ok(defs.snapshot_record.required.includes('query'), 'snapshot records must persist nullable saved query readback');
 
 for (const [backend, actions] of Object.entries(SAVED_REF_V0_ACTIONS_BY_BACKEND)) {
   for (const action of actions) {
@@ -33,7 +54,91 @@ for (const [backend, actions] of Object.entries(SAVED_REF_V0_ACTIONS_BY_BACKEND)
 }
 assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.aos_canvas.includes('click'));
 assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.aos_canvas.includes('set-value'));
-assert.ok(SAVED_REF_V0_ACTIONS_BY_BACKEND.native_ax.length === 0);
+assert.deepEqual(
+  [...SAVED_REF_V0_ACTIONS_BY_BACKEND.native_ax].sort(),
+  ['focus', 'press', 'set-value'],
+  'native AX saved refs must expose only durable direct-AX bridge actions',
+);
+assert.deepEqual(
+  NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
+  [
+    'app_pid',
+    'window_id',
+    'ax_identifier',
+    'enabled',
+    'action_names',
+    'permission_state',
+    'focus_cursor_space_baseline',
+  ],
+  'native AX saved refs must keep a concrete durable-identity prerequisite list',
+);
+assert.equal(nativeFocusCursorSpaceBaselinePresent({ captured: true }), true);
+assert.equal(nativeFocusCursorSpaceBaselinePresent({ status: 'captured' }), true);
+assert.equal(nativeFocusCursorSpaceBaselinePresent({ focus: 'not_changed', cursor: 'not_changed', space: 'not_changed' }), false);
+assert.equal(nativePermissionStateGranted('granted'), true);
+assert.equal(nativePermissionStateGranted('denied'), false);
+assert.equal(nativeEnabledStatePresent(true), true);
+assert.equal(nativeEnabledStatePresent(false), false);
+assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
+  app_pid: 4242,
+  window_id: 5150,
+  ax_identifier: 'install-button',
+  enabled: true,
+  action_names: ['AXPress'],
+  permission_state: 'denied',
+  focus_cursor_space_baseline: { captured: true },
+}), ['permission_state']);
+assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
+  app_pid: 4242,
+  window_id: 5150,
+  ax_identifier: 'install-button',
+  enabled: false,
+  action_names: ['AXPress'],
+  permission_state: 'granted',
+  focus_cursor_space_baseline: { captured: true },
+}), ['enabled']);
+assert.deepEqual(nativeAxSavedRefMissingIdentityFacts({
+  app_pid: 4242,
+  window_id: 5150,
+  stable_path: 'AXWindow[0]/AXButton[2]',
+  ax_identifier_or_stable_path: 'AXWindow[0]/AXButton[2]',
+  enabled: true,
+  action_names: ['AXPress'],
+  permission_state: 'granted',
+  focus_cursor_space_baseline: { captured: true },
+}), ['ax_identifier'], 'path-only native evidence must not satisfy the v0 direct AX identifier selector requirement');
+assert.equal(nativeAxSavedRefHasBlockingKnownLimit({
+  app_pid: 4242,
+  window_id: 5150,
+  ax_identifier: 'install-button',
+  enabled: true,
+  action_names: ['AXPress'],
+  permission_state: 'granted',
+  focus_cursor_space_baseline: { captured: true },
+}), false, 'ordinary durable native identity should not be known-limit blocked');
+assert.deepEqual(nativeAxSavedRefBlockedKnownLimitReasons({
+  space_state: 'off_space',
+  minimized: true,
+  control_kind: 'custom_control',
+  surface_kind: 'game_canvas',
+  focus_cursor_space_baseline: { captured: true, focus: 'changed' },
+}).map((reason) => reason.replace(/\s+/g, ' ')), [
+  'native AX target was captured off-Space; saved-ref mutation is blocked until Space preservation is live-proven',
+  'native AX target was captured in a minimized window; saved-ref mutation is blocked until minimized-window behavior is live-proven',
+  'native AX target is a custom control; saved-ref mutation is blocked until control-specific AX action behavior is proven',
+  'native AX target belongs to a canvas/game surface; use AOS canvas semantic targets or fresh perception instead of native label/bounds mutation',
+  'native AX focus baseline reports mismatch; saved-ref mutation cannot claim focus preservation',
+], 'native known-limit blockers must be explicit and stable');
+assert.deepEqual(
+  NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+  [
+    'HITL live smoke',
+    'TCC/manual runtime flow',
+    'native repo-mode artifact rebuild',
+    'explicit no-foreground/focus/cursor/Space baseline verification',
+  ],
+  'native AX live proof must keep explicit approval gates',
+);
 for (const action of SAVED_REF_V0_ACTIONS_BY_BACKEND.browser) {
   assert.ok(savedRefBackendSupportsRealMutation('browser', action), `browser ${action} must allow real mutation after validation`);
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('success'), `browser ${action} must document success status`);
@@ -42,6 +147,18 @@ for (const action of SAVED_REF_V0_ACTIONS_BY_BACKEND.browser) {
 const requiredActions = ['click', 'set-value', 'fill', 'hover', 'scroll', 'drag', 'focus', 'press', 'type', 'key'];
 for (const action of requiredActions) {
   assert.ok(SAVED_REF_V0_ACTION_MATRIX[action], `missing matrix action ${action}`);
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('REF_NOT_FOUND'), `${action} must document resolver REF_NOT_FOUND`);
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('REF_AMBIGUOUS'), `${action} must document resolver REF_AMBIGUOUS`);
+}
+for (const action of ['fill', 'hover', 'scroll']) {
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('REF_UNSUPPORTED'), `${action} must document unsupported saved-ref targets`);
+}
+for (const action of ['click', 'fill', 'hover', 'scroll', 'drag', 'set-value', 'focus', 'press']) {
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('UNKNOWN_ARG'), `${action} must document saved-ref grammar UNKNOWN_ARG`);
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('UNKNOWN_FLAG'), `${action} must document saved-ref grammar UNKNOWN_FLAG`);
+}
+for (const action of ['set-value', 'scroll']) {
+  assert.ok(SAVED_REF_V0_ACTION_MATRIX[action].statuses.includes('INVALID_ARG'), `${action} must document saved-ref grammar INVALID_ARG`);
 }
 
 for (const [action, contract] of Object.entries(SAVED_REF_V0_ACTION_MATRIX)) {
@@ -62,28 +179,157 @@ const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
 const manifestJSON = JSON.parse(manifest);
+const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
+const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
+
+function skillFrontmatter(text) {
+  assert.ok(text.startsWith('---\n'), 'skill must start with YAML frontmatter');
+  const end = text.indexOf('\n---', 4);
+  assert.ok(end > 4, 'skill frontmatter must be closed');
+  const entries = {};
+  for (const line of text.slice(4, end).split(/\r?\n/)) {
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (match) entries[match[1]] = match[2];
+  }
+  return entries;
+}
+
+const aosSkillFrontmatter = skillFrontmatter(skill);
+assert.equal(aosSkillFrontmatter.name, 'aos-agent-workspace', 'AOS workspace skill must keep its installable name');
+assert.ok(
+  /saved AOS perception workspaces/.test(aosSkillFrontmatter.description)
+  && /aos see capture --save/.test(aosSkillFrontmatter.description)
+  && /aos see snapshots/.test(aosSkillFrontmatter.description)
+  && /aos see refs/.test(aosSkillFrontmatter.description)
+  && /aos do \.\.\. ref:<snapshot-id>:<ref>/.test(aosSkillFrontmatter.description),
+  'AOS workspace skill description must trigger on saved capture/ref loops',
+);
+assert.ok(skill.split(/\r?\n/).length < 500, 'AOS workspace skill should stay within single-file skill body budget');
+const skillReferencePaths = [...skill.matchAll(/^- [^:]+: `([^`]+)`$/gm)].map((match) => match[1]);
+assert.deepEqual(
+  skillReferencePaths,
+  ['docs/api/aos.md', 'shared/schemas/aos-agent-workspace-v0.md', 'tests/agent-workspace-saved-ref.sh'],
+  'AOS workspace skill references must stay explicit and minimal',
+);
+for (const referencePath of skillReferencePaths) {
+  assert.ok(fs.existsSync(referencePath), `AOS workspace skill reference does not exist: ${referencePath}`);
+}
 
 for (const action of requiredActions) {
   assert.ok(schemaDoc.includes(`\`${action}\``) || (action === 'key' && schemaDoc.includes('`type`, `key`')), `schema doc missing ${action}`);
 }
+function schemaDocActionRow(action) {
+  if (action === 'key') {
+    return schemaDoc.split(/\r?\n/).find((line) => line.startsWith('| `type`, `key`'));
+  }
+  return schemaDoc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\``));
+}
+
+for (const [action, contract] of Object.entries(SAVED_REF_V0_ACTION_MATRIX)) {
+  const row = schemaDocActionRow(action);
+  assert.ok(row, `schema doc missing action matrix row for ${action}`);
+  for (const status of contract.statuses) {
+    assert.ok(row.includes(status), `schema doc ${action} row missing status ${status}`);
+  }
+  if (Object.values(contract.real_mutation).some(Boolean)) {
+    assert.ok(row.includes('recommended_next_command'), `schema doc ${action} row missing post-action recommended_next_command`);
+  }
+}
+assert.ok(schemaDoc.includes('current_target_not_found'), 'schema doc must name browser missing-current-target reason');
+assert.ok(schemaDoc.includes('current_target_ambiguous'), 'schema doc must name browser ambiguous-current-target reason');
 
 for (const text of [schemaDoc, apiDoc, skill]) {
   const prose = text.replace(/\s+/g, ' ');
   assert.ok(text.includes('REF_REVALIDATION_REQUIRED'), 'docs/skill must mention REF_REVALIDATION_REQUIRED');
+  assert.ok(text.includes('REF_NOT_FOUND'), 'docs/skill must mention resolver REF_NOT_FOUND');
+  assert.ok(text.includes('UNKNOWN_ARG'), 'docs/skill must mention saved-ref grammar UNKNOWN_ARG');
+  assert.ok(text.includes('UNKNOWN_FLAG'), 'docs/skill must mention saved-ref grammar UNKNOWN_FLAG');
   assert.ok(/page,\s+frame,\s+navigation/.test(text), 'docs/skill must explain browser page/frame/navigation validation');
   assert.ok(text.includes('Dry-run') || text.includes('dry-run'), 'docs/skill must describe browser dry-run validation');
   assert.ok(text.includes('reacquired'), 'docs/skill must describe reacquired dry-run status');
+  assert.ok(
+    prose.includes('dispatch by rerunning the exact saved-ref command without `--dry-run`'),
+    'docs/skill must explain how to turn a safe dry-run into real dispatch',
+  );
   assert.ok(prose.includes('saved-ref execution envelope'), 'docs/skill must describe real saved-ref execution envelope');
   assert.ok(text.includes('underlying_result'), 'docs/skill must describe nested underlying action result');
   assert.ok(text.includes('recommended_next_command'), 'docs/skill must describe post-action refresh recommendation');
+  assert.ok(text.includes('conformance'), 'docs/skill must describe saved-ref conformance fields');
+  assert.ok(text.includes('proof'), 'docs/skill must describe saved-ref proof fields');
+  assert.ok(text.includes('approval_gated_live_proof_not_run'), 'docs/skill must name approval-gated live proof status');
+  assert.ok(text.includes('deterministic_contract_tests_passed'), 'docs/skill must name deterministic proof status');
+  assert.ok(text.includes('deterministic_contract_tests'), 'docs/skill must name deterministic proof level');
+  assert.ok(text.includes('native_saved_ref_contract_tests_plus_approval_gates'), 'docs/skill must name stable native saved-ref proof level');
+  assert.ok(text.includes('native_primitive_response_plus_wrapper_contract'), 'docs/skill must name direct AX wrapper proof level');
+  assert.ok(text.includes('known_limit_refusal_tested'), 'docs/skill must name coordinate fallback refusal proof status');
+  assert.ok(text.includes('no_foreground'), 'docs/skill must describe native no_foreground conformance fields');
+  assert.ok(text.includes('fallback_used'), 'docs/skill must describe native fallback_used conformance');
+  assert.ok(text.includes('foreground_fallback_required'), 'docs/skill must describe native foreground_fallback_required conformance');
+  assert.ok(
+    prose.includes('Stable native saved-ref dispatch preserves `fallback_used` and `foreground_fallback_required`'),
+    'docs/skill must explain stable native saved-ref fallback reporting',
+  );
+  assert.ok(text.includes('target_uncertainty'), 'docs/skill must describe target uncertainty fields');
+  assert.ok(text.includes('confidence'), 'docs/skill must describe saved-ref confidence');
+  assert.ok(text.includes('confidence: low'), 'docs/skill must describe low-confidence saved refs');
+  assert.ok(text.includes('low_confidence_target'), 'docs/skill must name low-confidence refusal reason');
+  assert.ok(text.includes('capture_target'), 'docs/skill must describe compact snapshot capture_target readback');
+  assert.ok(text.includes('query'), 'docs/skill must describe compact saved query readback');
+  assert.ok(text.includes('blocked_missing_native_identity'), 'docs/skill must name the native missing-identity blocker');
+  assert.ok(text.includes('blocked_unsupported_native_action'), 'docs/skill must name the native unsupported-action blocker');
+  assert.ok(text.includes('blocked_native_known_limit'), 'docs/skill must name the native known-limit blocker');
+  assert.ok(text.includes('native_action_matrix_unsupported'), 'docs/skill must name unsupported native action validation');
+  assert.ok(text.includes('native_known_limit_blocked'), 'docs/skill must name native known-limit validation');
+  for (const term of ['off-Space', 'minimized', 'custom control', 'canvas/game', 'focus mismatch']) {
+    assert.ok(text.includes(term), `docs/skill missing native known-limit term ${term}`);
+  }
+  for (const fact of ['space_state', 'off_space', 'window_state', 'minimized', 'control_kind', 'custom_control', 'surface_kind', 'canvas_surface', 'focus_state']) {
+    assert.ok(text.includes(fact), `docs/skill missing native known-limit fact ${fact}`);
+  }
+  assert.ok(text.includes('captured baseline'), 'docs/skill must require a captured native baseline');
+  assert.ok(text.includes('stable'), 'docs/skill must describe stable native AX saved refs');
+  assert.ok(text.includes('aos do press ref:<snapshot-id>'), 'docs/skill must include stable native press saved-ref example');
+  assert.ok(text.includes('aos do focus ref:<snapshot-id>'), 'docs/skill must include stable native focus saved-ref example');
+  assert.ok(text.includes('direct_ax_ready'), 'docs/skill must describe native direct AX saved-ref dry-run status');
+  assert.ok(text.includes('requires_direct_ax_current_matching'), 'docs/skill must describe native saved-ref current matching status');
+  assert.ok(text.includes('app_hint'), 'docs/skill must describe native app hint evidence');
+  assert.ok(text.includes('window_hint'), 'docs/skill must describe native window hint evidence');
+  assert.ok(text.includes('enabled'), 'docs/skill must describe captured native enabled evidence');
+  assert.ok(text.includes('inspection'), 'docs/skill must keep captured native hints inspection-scoped');
+  assert.ok(text.includes('direct_ax_current_matching'), 'docs/skill must describe direct AX current matching uncertainty');
+  assert.ok(text.includes('direct_ax_current_matching_semantics'), 'docs/skill must describe direct AX matching validation semantics');
+  for (const fact of NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS) {
+    assert.ok(text.includes(fact), `docs/skill missing native required fact ${fact}`);
+  }
+  assert.ok(text.includes('coordinate_fallback'), 'docs/skill must document diagnostic coordinate_fallback');
+  assert.ok(/diagnostic\/fallback-only|diagnostic\/fallback only/.test(text), 'docs/skill must mark coordinate_fallback as diagnostic/fallback-only');
   assert.ok(/does not complete native|not completion of the full native/.test(prose), 'docs/skill must keep native saved-ref completion as continuation-only');
+  assert.ok(!/does not complete native saved-ref mutation|no native saved-ref mutation is attempted|non-browser native AX refs are inspection-first in this slice/.test(prose), 'docs/skill must not deny stable native saved-ref mutation support');
   assert.ok(!/advisory-only|remains dry-run advisory|no real browser|real mutation fails closed/.test(text), 'docs/skill must not describe browser refs as advisory-only');
+}
+
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
+  'API doc must name backend-wide coordinate fallback refusal evidence',
+);
+
+for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
+  assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
+}
+for (const needle of ['nativeAXSavedActionNames', 'AXUIElementCopyActionNames', 'AXSetValue', 'AXFocus', 'axWindowID', 'AXIsProcessTrusted() ? "granted" : "unknown"', 'contextPath: ["app:\\(appName)"]']) {
+  assert.ok(swiftAXTraversal.includes(needle), `native AX traversal must preserve ${needle}`);
 }
 
 assert.ok(
   apiDoc.indexOf('aos see capture browser:work --save') >= 0
   && apiDoc.indexOf('aos see capture main --base64') > apiDoc.indexOf('aos see capture browser:work --save'),
   'API doc must lead with saved capture before base64/pixel fallback examples',
+);
+assert.ok(
+  skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run') >= 0
+  && skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run')
+  && skill.indexOf('aos see capture <capture_target> --save --mode <capture_mode> --workspace default') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n'),
+  'AOS workspace skill quick-start must show dry-run, real action, and post-action saved capture refresh',
 );
 
 for (const text of [schemaDoc, apiDoc]) {
@@ -94,6 +340,8 @@ for (const text of [schemaDoc, apiDoc]) {
 
 const browserActionSlashList = SAVED_REF_V0_ACTIONS_BY_BACKEND.browser.join('/');
 assert.ok(manifest.includes(`validated browser ${browserActionSlashList} mutation`), 'manifest save summary must advertise validated browser real mutation from matrix actions');
+const nativeActionSlashList = ['press', 'focus', 'set-value'].join('/');
+assert.ok(manifest.includes(`stable native AX ${nativeActionSlashList}`), 'manifest save summary must advertise stable native AX saved-ref actions');
 assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary must not describe browser refs as advisory-only');
 
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
@@ -105,6 +353,11 @@ assert.ok(captureSaveForm, 'manifest missing see-capture-save form');
 assert.equal(captureForm.execution.mutates_state, false, 'ordinary capture form must not broadly mutate');
 assert.deepEqual(captureForm.execution.mutates_when_flags, ['--save']);
 assert.equal(captureForm.execution.read_only, true, 'ordinary capture form must remain read-style');
+assert.deepEqual(captureForm.output.conditional_modes, [{
+  default_mode: 'json',
+  summary: 'Saved capture returns compact JSON refs after persisting local workspace perception',
+  when_flags: ['--save'],
+}], 'ordinary capture form must expose --save conditional JSON output');
 assert.equal(captureSaveForm.execution.mutates_state, true, 'saved capture form must be mutating');
 assert.equal(captureSaveForm.execution.read_only, false, 'saved capture form must not be read-only');
 JS

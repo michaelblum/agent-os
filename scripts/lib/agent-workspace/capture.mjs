@@ -267,7 +267,9 @@ function captureArgsForMode(args, mode, artifactPath, target) {
   for (const flag of savedCaptureModeFlags(mode, target)) {
     if (!hasFlag(out, flag) && !hasFlag(out, '--browser-dom-point')) out.push(flag);
   }
-  if (savedCaptureModePolicy(mode)?.requires_image && !hasFlag(out, '--base64')) {
+  const isBrowserTarget = target?.startsWith?.('browser:');
+  const needsWorkspaceArtifact = savedCaptureModePolicy(mode)?.requires_image || !isBrowserTarget;
+  if (needsWorkspaceArtifact && !hasFlag(out, '--base64')) {
     out = setOrAppendFlag(out, '--out', artifactPath);
   }
   return out;
@@ -347,12 +349,41 @@ function knownLimitsForSnapshot(mode, target) {
     ...savedCaptureModeKnownLimits(mode, target),
   ];
   if ((mode === 'ax' || mode === 'som') && !isBrowserTarget) {
-    limits.push('non-browser tree modes may include native AX refs; those refs are inspection-only and make no saved-action no-foreground guarantee');
+    limits.push('non-browser tree modes may include native AX refs; stable saved-ref actions require durable native identity facts and still make no saved-action no-foreground guarantee');
   }
   if (isBrowserTarget && mode !== 'vision') {
     limits.push('browser refs are snapshot-scoped and require fresh page/frame/navigation plus element validation before real saved-ref dispatch');
   }
   return limits;
+}
+
+function commandToken(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_./:=,@+-]+$/.test(text)) return text;
+  return `'${text.replaceAll("'", "'\\''")}'`;
+}
+
+function sampleActionCommand(workspace, snapshotIDValue, refs) {
+  const display = process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos';
+  const refTarget = (record) => `ref:${snapshotIDValue}:${record.ref}`;
+  const byPreferredAction = (action) => refs.find((record) => record.action_target && (record.supported_actions ?? []).includes(action));
+  for (const action of ['click', 'set-value', 'fill', 'hover', 'scroll', 'press', 'focus']) {
+    const record = byPreferredAction(action);
+    if (!record) continue;
+    if (action === 'click' || action === 'hover' || action === 'press' || action === 'focus') {
+      return `${display} do ${action} ${refTarget(record)} --workspace ${workspace} --dry-run`;
+    }
+    if (action === 'set-value') {
+      return `${display} do set-value ${refTarget(record)} --workspace ${workspace} --value 42 --dry-run`;
+    }
+    if (action === 'fill') {
+      return `${display} do fill ${refTarget(record)} ${commandToken('sample text')} --workspace ${workspace} --dry-run`;
+    }
+    if (action === 'scroll') {
+      return `${display} do scroll ${refTarget(record)} 0,-200 --workspace ${workspace} --dry-run`;
+    }
+  }
+  return null;
 }
 
 export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArgs(rawArgs), env = process.env) {
@@ -392,10 +423,14 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         workspace_id: workspace,
         snapshot_id: snapID,
         target,
+        capture_target: target,
+        capture_mode: parsed.options.mode,
+        query: parsed.options.query,
         artifact_refs: artifactRefs,
         browser_identity: browserIdentity,
       });
-      const compactRefs = refs.filter((record) => queryMatches(record, parsed.options.query)).map(refSummary);
+      const matchingRefs = refs.filter((record) => queryMatches(record, parsed.options.query));
+      const compactRefs = matchingRefs.map(refSummary);
       const paths = prepared.finalPaths;
       const snapshot = {
         schema_version: SCHEMA_VERSION,
@@ -404,6 +439,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         created_at: createdAt,
         runtime_mode: runtimeMode(env),
         capture_mode: parsed.options.mode,
+        capture_target: target,
         ref_scope_grammar: 'scoped refs are ref:<snapshot-id>:<ref>; bare ref:<ref> resolves only when unambiguous in the workspace',
         target,
         query: parsed.options.query,
@@ -423,6 +459,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         snapshot_id: snapID,
         runtime_mode: runtimeMode(env),
         capture_mode: parsed.options.mode,
+        capture_target: target,
         target,
         query: parsed.options.query,
         state_id: capture.state_id ?? null,
@@ -441,7 +478,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         },
         recommended_next_commands: [
           `${process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos'} see refs --workspace ${workspace} --snapshot ${snapID} --json`,
-          refs.length ? `${process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos'} do click ref:${snapID}:${refs[0].ref} --workspace ${workspace} --dry-run` : null,
+          sampleActionCommand(workspace, snapID, matchingRefs),
         ].filter(Boolean),
         known_limits: snapshot.known_limits,
       };

@@ -55,6 +55,21 @@ check_missing_arg() {
   fi
 }
 
+check_invalid_arg() {
+  local label="$1"
+  shift
+  local err="$STATE_ROOT/${label}.err"
+  if "$@" 2>"$err"; then
+    echo "FAIL: $label accepted invalid argument" >&2
+    exit 1
+  fi
+  if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+    echo "FAIL: $label did not use INVALID_ARG" >&2
+    cat "$err" >&2
+    exit 1
+  fi
+}
+
 check_unknown_flag inspect ./aos inspect --bogus
 check_unknown_flag status ./aos status --bogus
 check_unknown_flag doctor ./aos doctor --bogus
@@ -180,14 +195,21 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
 fi
 check_missing_arg do-native-press-pid-missing ./aos do press --dry-run
 check_missing_arg do-native-press-pid-invalid ./aos do press --pid nope --dry-run
+check_missing_arg do-native-press-role-missing ./aos do press --pid 123 --dry-run
+check_unknown_arg do-native-press-extra-positional ./aos do press stray --pid 123 --role AXButton --dry-run
 check_missing_arg do-native-set-value-pid-missing ./aos do set-value --role AXTextField --value hello --dry-run
 check_missing_arg do-native-set-value-pid-invalid ./aos do set-value --pid nope --role AXTextField --value hello --dry-run
 check_missing_arg do-native-set-value-role-missing ./aos do set-value --pid 123 --value hello --dry-run
 check_missing_arg do-native-set-value-value-missing ./aos do set-value --pid 123 --role AXTextField --dry-run
+check_invalid_arg do-native-set-value-both-value-sources ./aos do set-value --pid 123 --role AXTextField hello --value world --dry-run
+check_invalid_arg do-native-set-value-canvas-both-value-sources ./aos do set-value canvas:fixture/slider hello --value world --dry-run
+check_invalid_arg do-native-set-value-canvas-both-target-sources ./aos do set-value canvas:fixture/slider --pid 123 --role AXTextField --value hello --dry-run
 check_missing_arg do-native-focus-role-missing ./aos do focus --pid 123 --dry-run
 check_missing_arg do-native-focus-pid-invalid ./aos do focus --pid nope --role AXTextField --dry-run
+check_unknown_arg do-native-focus-extra-positional ./aos do focus stray --pid 123 --role AXTextField --dry-run
 check_missing_arg do-native-raise-pid-missing ./aos do raise --dry-run
 check_missing_arg do-native-raise-pid-invalid ./aos do raise --pid nope --dry-run
+check_unknown_arg do-native-raise-extra-positional ./aos do raise stray --pid 123 --dry-run
 err="$STATE_ROOT/do-native-raise-window-invalid.err"
 if ./aos do raise --pid 123 --window nope --dry-run 2>"$err"; then
   echo "FAIL: do native raise accepted invalid --window value" >&2
@@ -200,6 +222,7 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
 fi
 check_missing_arg do-native-move-to-missing ./aos do move --pid 123 --dry-run
 check_missing_arg do-native-move-pid-invalid ./aos do move --pid nope --to 1,2 --dry-run
+check_unknown_arg do-native-move-extra-positional ./aos do move stray --pid 123 --to 1,2 --dry-run
 err="$STATE_ROOT/do-native-move-to-invalid.err"
 if ./aos do move --pid 123 --to 1x2 --dry-run 2>"$err"; then
   echo "FAIL: do native move accepted invalid --to value" >&2
@@ -212,6 +235,7 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
 fi
 check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
 check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 300,200 --dry-run
+check_unknown_arg do-native-resize-extra-positional ./aos do resize stray --pid 123 --to 300,200 --dry-run
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected

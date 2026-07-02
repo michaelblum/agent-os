@@ -35,7 +35,7 @@
       "enum": ["aos_canvas", "browser", "native_ax"]
     },
     "resolution_class": {
-      "enum": ["stable", "reacquirable", "snapshot_scoped", "volatile", "unsupported"]
+      "enum": ["stable", "reacquirable", "snapshot_scoped", "volatile", "coordinate_fallback", "unsupported"]
     },
     "confidence": {
       "enum": ["high", "medium", "low"]
@@ -72,6 +72,75 @@
         "action_target": { "$ref": "#/$defs/nullable_string" }
       }
     },
+    "no_foreground_conformance": {
+      "type": "object",
+      "required": [
+        "claim",
+        "focus_preservation",
+        "cursor_preservation",
+        "space_preservation",
+        "fallback_used",
+        "foreground_fallback_required",
+        "permission_state"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "claim": { "$ref": "#/$defs/non_empty_string" },
+        "focus_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "cursor_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "space_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "fallback_used": { "type": "boolean" },
+        "foreground_fallback_required": { "type": "boolean" },
+        "permission_state": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "required": [
+        "actionability",
+        "mutation",
+        "validation",
+        "proof_level",
+        "proof",
+        "no_foreground",
+        "target_uncertainty"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "actionability": { "$ref": "#/$defs/non_empty_string" },
+        "mutation": { "$ref": "#/$defs/non_empty_string" },
+        "validation": { "$ref": "#/$defs/non_empty_string" },
+        "proof_level": { "$ref": "#/$defs/non_empty_string" },
+        "proof": {
+          "type": "object",
+          "required": ["level", "status", "evidence", "approval_gates"],
+          "additionalProperties": true,
+          "properties": {
+            "level": { "$ref": "#/$defs/non_empty_string" },
+            "status": { "$ref": "#/$defs/non_empty_string" },
+            "evidence": { "$ref": "#/$defs/string_array" },
+            "approval_gates": { "$ref": "#/$defs/string_array" }
+          }
+        },
+        "no_foreground": { "$ref": "#/$defs/no_foreground_conformance" },
+        "target_uncertainty": {
+          "type": "object",
+          "required": [
+            "status",
+            "reasons",
+            "missing_identity_facts",
+            "available_identity_facts"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "$ref": "#/$defs/non_empty_string" },
+            "reasons": { "$ref": "#/$defs/string_array" },
+            "missing_identity_facts": { "$ref": "#/$defs/string_array" },
+            "available_identity_facts": { "$ref": "#/$defs/string_array" }
+          }
+        }
+      }
+    },
     "paths": {
       "type": "object",
       "required": ["workspace", "snapshot", "snapshot_record", "capture", "summary", "refs", "artifacts"],
@@ -90,6 +159,11 @@
       "type": "object",
       "required": [
         "ref",
+        "ref_scope",
+        "workspace_id",
+        "snapshot_id",
+        "capture_target",
+        "capture_mode",
         "action_target",
         "copyable_action_target",
         "backend",
@@ -97,12 +171,22 @@
         "confidence",
         "supported_actions",
         "target_summary",
+        "identity_facts",
+        "hint_facts",
+        "current_address",
+        "artifact_refs",
+        "conformance",
         "warnings",
         "known_limits"
       ],
       "additionalProperties": true,
       "properties": {
         "ref": { "$ref": "#/$defs/local_id" },
+        "ref_scope": { "const": "snapshot" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_mode": { "$ref": "#/$defs/capture_mode" },
         "action_target": { "$ref": "#/$defs/nullable_string" },
         "copyable_action_target": { "$ref": "#/$defs/nullable_string" },
         "backend": { "$ref": "#/$defs/backend" },
@@ -110,6 +194,14 @@
         "confidence": { "$ref": "#/$defs/confidence" },
         "supported_actions": { "$ref": "#/$defs/string_array" },
         "target_summary": { "$ref": "#/$defs/non_empty_string" },
+        "identity_facts": { "$ref": "#/$defs/identity_facts" },
+        "hint_facts": { "type": "object" },
+        "current_address": { "$ref": "#/$defs/current_address" },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "conformance": { "$ref": "#/$defs/conformance" },
         "warnings": { "$ref": "#/$defs/string_array" },
         "known_limits": { "$ref": "#/$defs/string_array" }
       }
@@ -132,7 +224,8 @@
             "identity_facts",
             "hint_facts",
             "current_address",
-            "artifact_refs"
+            "artifact_refs",
+            "conformance"
           ],
           "additionalProperties": true,
           "properties": {
@@ -147,7 +240,8 @@
             "artifact_refs": {
               "type": "array",
               "items": { "$ref": "#/$defs/artifact_ref" }
-            }
+            },
+            "conformance": { "$ref": "#/$defs/conformance" }
           }
         }
       ]
@@ -161,6 +255,7 @@
         "snapshot_id",
         "runtime_mode",
         "capture_mode",
+        "capture_target",
         "target",
         "paths",
         "counts",
@@ -178,6 +273,7 @@
         "snapshot_id": { "$ref": "#/$defs/local_id" },
         "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
         "capture_mode": { "$ref": "#/$defs/capture_mode" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
         "target": { "$ref": "#/$defs/non_empty_string" },
         "query": { "$ref": "#/$defs/nullable_string" },
         "state_id": { "$ref": "#/$defs/nullable_string" },
@@ -238,8 +334,10 @@
         "created_at",
         "runtime_mode",
         "capture_mode",
+        "capture_target",
         "ref_scope_grammar",
         "target",
+        "query",
         "artifact_refs",
         "ref_count",
         "paths",
@@ -254,6 +352,7 @@
         "created_at": { "$ref": "#/$defs/non_empty_string" },
         "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
         "capture_mode": { "$ref": "#/$defs/capture_mode" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
         "ref_scope_grammar": { "$ref": "#/$defs/non_empty_string" },
         "target": { "$ref": "#/$defs/non_empty_string" },
         "query": { "$ref": "#/$defs/nullable_string" },
@@ -312,13 +411,15 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["snapshot_id", "created_at", "capture_mode", "target", "ref_count", "artifact_count", "paths"],
+            "required": ["snapshot_id", "created_at", "capture_mode", "capture_target", "target", "query", "ref_count", "artifact_count", "paths"],
             "additionalProperties": true,
             "properties": {
               "snapshot_id": { "$ref": "#/$defs/local_id" },
               "created_at": { "$ref": "#/$defs/non_empty_string" },
               "capture_mode": { "$ref": "#/$defs/capture_mode" },
+              "capture_target": { "$ref": "#/$defs/non_empty_string" },
               "target": { "$ref": "#/$defs/non_empty_string" },
+              "query": { "$ref": "#/$defs/nullable_string" },
               "ref_count": { "type": "integer", "minimum": 0 },
               "artifact_count": { "type": "integer", "minimum": 0 },
               "paths": { "$ref": "#/$defs/paths" }

@@ -551,6 +551,55 @@ func globalCaptureRect(display: CaptureDisplayEntry, windowFrame: CGRect?, cropR
     )
 }
 
+func xrayAppsIntersectingCapture(
+    windows: [SCWindow],
+    captureRect: CGRect,
+    mapper: CoordinateMapper,
+    imageSize: CGSize,
+    preferredPID: pid_t? = nil
+) -> [AXElementJSON] {
+    struct Candidate {
+        let pid: pid_t
+        let appName: String
+        let area: CGFloat
+        let preferred: Bool
+    }
+
+    var candidatesByPID: [pid_t: Candidate] = [:]
+    for window in windows {
+        guard
+            window.frame.width > 0,
+            window.frame.height > 0,
+            window.frame.intersects(captureRect),
+            let app = window.owningApplication
+        else { continue }
+
+        let pid = app.processID
+        let intersection = window.frame.intersection(captureRect)
+        let area = max(0, intersection.width) * max(0, intersection.height)
+        let candidate = Candidate(
+            pid: pid,
+            appName: app.applicationName,
+            area: area,
+            preferred: preferredPID != nil && pid == preferredPID
+        )
+        if let current = candidatesByPID[pid] {
+            candidatesByPID[pid] = candidate.area > current.area ? candidate : current
+        } else {
+            candidatesByPID[pid] = candidate
+        }
+    }
+
+    let candidates = candidatesByPID.values.sorted {
+        if $0.preferred != $1.preferred { return $0.preferred && !$1.preferred }
+        if $0.area != $1.area { return $0.area > $1.area }
+        return $0.appName < $1.appName
+    }
+    return candidates.flatMap { candidate in
+        xrayApp(pid: candidate.pid, appName: candidate.appName, mapper: mapper, imageSize: imageSize)
+    }
+}
+
 func localCursorInCapture(topology: SpatialTopology, captureRect: CGRect, scaleFactor: Double) -> CursorJSON? {
     let point = CGPoint(x: topology.cursor.x, y: topology.cursor.y)
     guard captureRect.contains(point) else { return nil }
@@ -2127,7 +2176,13 @@ func captureCommand(args: [String]) async {
                     imageSize: imageSize
                 )
             } else {
-                responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
+                responseElements = xrayAppsIntersectingCapture(
+                    windows: content.windows,
+                    captureRect: surface.globalBounds,
+                    mapper: mapper,
+                    imageSize: imageSize,
+                    preferredPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                )
             }
             if surface.kind == "canvas", let canvasID = surface.id {
                 responseSemanticTargets = collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: captureScale)
@@ -2271,6 +2326,7 @@ func captureCommand(args: [String]) async {
                 windowFrame: windowFrame
             )
             let imageSize = CGSize(width: image.width, height: image.height)
+            let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
             if responseWindow == nil, let sw = capturedWindow {
                 responseWindow = CaptureWindowJSON(
                     window_id: Int(sw.windowID),
@@ -2310,7 +2366,13 @@ func captureCommand(args: [String]) async {
                         mapper: mapper, imageSize: imageSize
                     )
                 } else {
-                    responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
+                    responseElements = xrayAppsIntersectingCapture(
+                        windows: content.windows,
+                        captureRect: captureRect,
+                        mapper: mapper,
+                        imageSize: imageSize,
+                        preferredPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    )
                 }
             }
 
@@ -2345,7 +2407,6 @@ func captureCommand(args: [String]) async {
                         segments: [CaptureSurfaceSegmentSelection(display: entry, globalBounds: sw.frame.integral)]
                     )
                 }
-                let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
                 return CaptureSurfaceSelection(
                     kind: "display",
                     id: opts.target == "all" ? "display-\(entry.ordinal)" : opts.target,
@@ -2358,7 +2419,6 @@ func captureCommand(args: [String]) async {
             responseSurfaces.append(surfaceJSON)
 
             if let topology = topologySnapshot {
-                let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
                 responsePerceptions.append(
                     capturePerceptionSnapshot(
                         topology: topology,
