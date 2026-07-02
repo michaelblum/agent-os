@@ -369,6 +369,40 @@ jq -e '
   and (.result.stdout | contains("fake mousewheel invoked: -s=todo mousewheel e2 0 -200"))
 ' "$SCROLL_ACTION" >/dev/null || fail "browser saved-ref scroll did not validate and execute: $(cat "$SCROLL_ACTION")"
 
+DRAG_DRY="$TMP_DIR/do-ref-drag-dry.json"
+./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws1 --dry-run >"$DRAG_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "drag"
+  and .resolved_action.resolution_status == "reacquired"
+  and .current_validation.current_target.ref == "e2"
+  and .secondary_ref.ref == "r3"
+  and .secondary_current_validation.current_target.ref == "e3"
+  and (.resolved_action.command | index("browser:todo/e2") != null)
+  and (.resolved_action.command | index("browser:todo/e3") != null)
+' "$DRAG_DRY" >/dev/null || fail "browser drag saved-ref dry-run drifted: $(cat "$DRAG_DRY")"
+
+DRAG_ACTION="$TMP_DIR/do-ref-drag-action.json"
+./aos do drag "ref:snap1:$REF" ref:snap1:r3 --workspace ws1 >"$DRAG_ACTION"
+jq -e '
+  .status == "success"
+  and .execution.backend == "playwright"
+  and .execution.strategy == "playwright_drag"
+  and (.result.stdout | contains("fake drag invoked: -s=todo drag e2 e3"))
+' "$DRAG_ACTION" >/dev/null || fail "browser saved-ref drag did not validate and execute: $(cat "$DRAG_ACTION")"
+
+DRAG_MISSING_ERR="$TMP_DIR/do-ref-drag-missing.err"
+if ./aos do drag "ref:snap1:$REF" --workspace ws1 --dry-run >"$TMP_DIR/do-ref-drag-missing.out" 2>"$DRAG_MISSING_ERR"; then
+    fail "browser saved-ref drag without destination unexpectedly succeeded"
+fi
+expect_error_code "MISSING_ARG" "$DRAG_MISSING_ERR"
+
+DRAG_INVALID_ERR="$TMP_DIR/do-ref-drag-invalid.err"
+if ./aos do drag "ref:snap1:$REF" browser:todo/e3 --workspace ws1 --dry-run >"$TMP_DIR/do-ref-drag-invalid.out" 2>"$DRAG_INVALID_ERR"; then
+    fail "browser saved-ref drag with non-ref destination unexpectedly succeeded"
+fi
+expect_error_code "INVALID_REF_TARGET" "$DRAG_INVALID_ERR"
+
 SCROLL_MISSING_ERR="$TMP_DIR/do-ref-scroll-missing.err"
 if ./aos do scroll "ref:snap1:$REF" --workspace ws1 --dry-run >"$TMP_DIR/do-ref-scroll-missing.out" 2>"$SCROLL_MISSING_ERR"; then
     fail "browser saved-ref scroll without delta unexpectedly succeeded"
@@ -468,7 +502,7 @@ jq -e '
   .status == "success"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
-  and (.refs[0].supported_actions == ["click", "fill", "hover", "scroll"])
+  and (.refs[0].supported_actions == ["click", "fill", "hover", "scroll", "drag"])
   and (.refs[0].supported_actions | index("type") | not)
   and (.refs[0].supported_actions | index("key") | not)
   and .refs[0].action_target == "browser:form/e42"

@@ -176,9 +176,9 @@ Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
-Browser `snapshot_scoped` click, fill, hover, and scroll refs run a fresh xray
-validation before action and fail closed on missing, stale, ambiguous, disabled,
-or changed current targets:
+Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs run a fresh
+xray validation before action and fail closed on missing, stale, ambiguous,
+disabled, or changed current targets:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
@@ -186,13 +186,16 @@ aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
 aos do fill ref:<snapshot-id>:r3 "buy groceries" --workspace default --dry-run
 aos do hover ref:<snapshot-id>:r4 --workspace default --dry-run
 aos do scroll ref:<snapshot-id>:r4 0,-200 --workspace default --dry-run
+aos do drag ref:<snapshot-id>:r4 ref:<snapshot-id>:r5 --workspace default --dry-run
 ```
 
-Native AX `volatile` refs are inspection-only. `focus`,
-`press`/`open`/`toggle`, browser `type`/`key`, `drag`, and other saved-ref forms
-fail closed with structured JSON until the action grammar has a backend-owned
-current target validation path. See `shared/schemas/aos-agent-workspace-v0.md`
-for the full action grammar matrix.
+Saved-ref browser drag requires two saved browser refs from the same snapshot
+and browser session, and validates both endpoints before dispatch. Native AX
+`volatile` refs are inspection-only. `focus`, `press`/`open`/`toggle`, browser
+`type`/`key`, and other unsupported saved-ref forms fail closed with structured
+JSON until the action grammar has a backend-owned current target validation
+path. See `shared/schemas/aos-agent-workspace-v0.md` for the full action
+grammar matrix.
 
 Cleanup is explicit:
 
@@ -671,7 +674,7 @@ Primary public verbs:
 | --- | --- |
 | `click` | click coordinates, browser refs, or AOS canvas semantic refs |
 | `hover` | move cursor |
-| `drag` | drag between coordinates or AOS canvas semantic refs |
+| `drag` | drag between coordinates, browser refs, or AOS canvas semantic refs |
 | `scroll` | scroll at a point |
 | `type` | type text |
 | `key` | key combo |

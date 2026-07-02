@@ -247,7 +247,7 @@ import json
 import os
 
 data = json.loads(os.environ["OUT"])
-saved_ref_forms = {"do-click", "do-fill", "do-hover", "do-scroll", "do-set-value"}
+saved_ref_forms = {"do-click", "do-fill", "do-hover", "do-scroll", "do-drag", "do-set-value"}
 for form in data["forms"]:
     usage = form.get("usage", "")
     examples = " ".join(form.get("examples", []))
@@ -272,6 +272,10 @@ scroll = next(item for item in data["forms"] if item["id"] == "do-scroll")
 scroll_tokens = {arg.get("token") for arg in scroll["args"]}
 assert {"--workspace", "--snapshot", "--dry-run"} <= scroll_tokens, scroll_tokens
 assert "browser:<session>/<ref>" in scroll["usage"], scroll["usage"]
+drag = next(item for item in data["forms"] if item["id"] == "do-drag")
+drag_tokens = {arg.get("token") for arg in drag["args"]}
+assert {"--workspace", "--snapshot", "--dry-run"} <= drag_tokens, drag_tokens
+assert "browser:<session>/<ref>" in drag["usage"], drag["usage"]
 PY
 then
     pass "supported saved-ref do actions advertise saved ref targets"
