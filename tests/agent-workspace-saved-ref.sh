@@ -292,6 +292,9 @@ expect_command_error_code "UNKNOWN_FLAG" "workspaces-older-than-flag" ./aos see 
 expect_command_error_code "UNKNOWN_FLAG" "workspaces-ack-flag" ./aos see workspaces --i-understand-local-artifacts --json
 expect_command_error_code "UNKNOWN_FLAG" "workspace-read-ack-flag" ./aos see workspace ws1 --i-understand-local-artifacts --json
 expect_command_error_code "UNKNOWN_FLAG" "refs-older-than-flag" ./aos see refs --older-than 7d --json
+expect_command_error_code "UNKNOWN_ARG" "workspaces-stray-arg" ./aos see workspaces stray --json
+expect_command_error_code "UNKNOWN_ARG" "snapshots-stray-arg" ./aos see snapshots stray --workspace ws1 --json
+expect_command_error_code "UNKNOWN_ARG" "refs-stray-arg" ./aos see refs stray --workspace ws1 --json
 
 DRY="$TMP_DIR/do-ref-dry-run.json"
 ./aos do click "ref:snap1:$REF" --workspace ws1 --dry-run >"$DRY"

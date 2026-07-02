@@ -47,6 +47,7 @@ const AGENT_WORKSPACE_FLAGS = {
 
 function parseReadArgs(args, {
   requireID = false,
+  allowID = requireID,
   workspaceMode = 'default',
   allowedFlags = AGENT_WORKSPACE_FLAGS.refs,
   env = process.env,
@@ -81,6 +82,9 @@ function parseReadArgs(args, {
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
       continue;
+    }
+    if (!allowID) {
+      exitAgentWorkspaceError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
     }
     if (id) {
       exitAgentWorkspaceError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
