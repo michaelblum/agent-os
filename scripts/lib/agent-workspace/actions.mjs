@@ -14,6 +14,7 @@ import {
 } from './core.mjs';
 import { loadSnapshot, readRefsRecord, requireWorkspace } from './store.mjs';
 import { refSummary } from './refs.mjs';
+import { savedRefBackendSupportsAction } from './contracts.mjs';
 
 function positionalIndexes(args) {
   const indexes = [];
@@ -194,7 +195,7 @@ function isAgentWorkspaceParseError(error) {
 }
 
 function validateBrowserCurrentRef(record, action, workspace, env, captureCache = new Map()) {
-  if (!['click', 'fill', 'hover', 'scroll', 'drag'].includes(action)) return null;
+  if (!savedRefBackendSupportsAction('browser', action)) return null;
   const target = parseBrowserActionTarget(record.action_target);
   const sourceRef = record.identity_facts?.source_ref || target?.ref || null;
   if (!target || !sourceRef) return null;
@@ -415,13 +416,11 @@ export function maybeRunRefAction(action, args, env = process.env) {
   let currentValidation = null;
   let secondaryCurrentValidation = null;
   const browserValidationCaptureCache = new Map();
-  if (record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
+  if (dryRun && record.backend === 'browser' && record.resolution_class === 'snapshot_scoped') {
     currentValidation = validateBrowserCurrentRef(record, action, workspace, env, browserValidationCaptureCache);
-    if (currentValidation) unsafe = null;
   }
-  if (secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
+  if (dryRun && secondary?.record.backend === 'browser' && secondary.record.resolution_class === 'snapshot_scoped') {
     secondaryCurrentValidation = validateBrowserCurrentRef(secondary.record, action, workspace, env, browserValidationCaptureCache);
-    if (secondaryCurrentValidation) secondaryUnsafe = null;
   }
   if (!dryRun && (unsafe || secondaryUnsafe)) {
     const unsafeRecord = unsafe ? record : secondary.record;

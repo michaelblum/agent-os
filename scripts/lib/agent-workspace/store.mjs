@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  SAFE_ID,
   SCHEMA_VERSION,
   assertUnderWorkspacesRoot,
   defaultWorkspaceMetadata,
   directoryBytes,
   exitAgentWorkspaceError,
   nowISO,
+  randomToken,
   readJSONExisting,
   runtimeMode,
   sessionMetadata,
@@ -15,8 +17,15 @@ import {
   workspaceDir,
   writeJSONAtomic,
 } from './core.mjs';
+import {
+  isSavedRefBackend,
+  isSavedRefConfidence,
+  isSavedRefResolutionClass,
+} from './contracts.mjs';
 
 const LOCK_DIRNAME = '.write-lock';
+const STAGING_DIRNAME = '.staging';
+const COMMITTED_MARKER = 'committed.json';
 
 function assertPlainObject(value, file, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -152,9 +161,9 @@ function assertRefRecord(record, file, workspace, snapshotIDValue) {
     || !isNonEmptyString(record.short_action_target)
     || !isNullableString(record.action_target)
     || !isNullableString(record.copyable_action_target)
-    || !isNonEmptyString(record.backend)
-    || !isNonEmptyString(record.resolution_class)
-    || !isNonEmptyString(record.confidence)
+    || !isSavedRefBackend(record.backend)
+    || !isSavedRefResolutionClass(record.resolution_class)
+    || !isSavedRefConfidence(record.confidence)
     || !isNonEmptyString(record.target_summary)
   ) {
     exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
@@ -200,6 +209,127 @@ export function readRefsRecord(file, workspace, snapshotIDValue) {
 
 function workspaceLockDir(dir) {
   return path.join(dir, LOCK_DIRNAME);
+}
+
+function snapshotsRoot(dir) {
+  return path.join(dir, 'snapshots');
+}
+
+function committedMarkerPath(snapshotDir) {
+  return path.join(snapshotDir, COMMITTED_MARKER);
+}
+
+function snapshotFilePaths(dir, snapshotIDValue, snapshotDir = path.join(snapshotsRoot(dir), snapshotIDValue)) {
+  const artifactsDir = path.join(snapshotDir, 'artifacts');
+  return {
+    workspace: dir,
+    snapshot: snapshotDir,
+    snapshot_record: path.join(snapshotDir, 'snapshot.json'),
+    capture: path.join(snapshotDir, 'capture.json'),
+    summary: path.join(snapshotDir, 'summary.json'),
+    refs: path.join(snapshotDir, 'refs.json'),
+    artifacts: artifactsDir,
+  };
+}
+
+function readCommittedMarker(file, workspace, snapshotIDValue, { optional = false } = {}) {
+  const marker = readJSONExisting(file);
+  if (!marker && optional) return null;
+  if (!marker) return null;
+  assertSchemaVersion(marker, file, 'snapshot commit marker');
+  if (
+    marker.workspace_id !== workspace
+    || marker.snapshot_id !== snapshotIDValue
+    || !isNonEmptyString(marker.committed_at)
+    || marker.snapshot_record !== 'snapshot.json'
+  ) {
+    exitAgentWorkspaceError(`snapshot commit marker is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+  return marker;
+}
+
+function isCommittedSnapshotDir(snapshotDir, workspace, snapshotIDValue) {
+  return Boolean(readCommittedMarker(committedMarkerPath(snapshotDir), workspace, snapshotIDValue, { optional: true }));
+}
+
+function snapshotIndexEntry(snapshot) {
+  return {
+    snapshot_id: snapshot.snapshot_id,
+    created_at: snapshot.created_at,
+    capture_mode: snapshot.capture_mode,
+    target: snapshot.target,
+    ref_count: snapshot.ref_count,
+    artifact_count: snapshot.artifact_refs.length,
+    paths: snapshot.paths,
+  };
+}
+
+function sortSnapshotEntries(entries) {
+  return entries.sort((a, b) => {
+    const at = Date.parse(a.created_at ?? '');
+    const bt = Date.parse(b.created_at ?? '');
+    if (Number.isFinite(at) && Number.isFinite(bt) && at !== bt) return bt - at;
+    return String(b.snapshot_id).localeCompare(String(a.snapshot_id));
+  });
+}
+
+function committedSnapshotIndexEntries(dir, workspace) {
+  const root = snapshotsRoot(dir);
+  if (!fs.existsSync(root)) return [];
+  const entries = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === STAGING_DIRNAME) continue;
+    if (!SAFE_ID.test(entry.name)) continue;
+    const snapshotDir = path.join(root, entry.name);
+    if (!isCommittedSnapshotDir(snapshotDir, workspace, entry.name)) continue;
+    const snapshot = readSnapshotRecord(path.join(snapshotDir, 'snapshot.json'), workspace, entry.name);
+    readRefsRecord(path.join(snapshotDir, 'refs.json'), workspace, entry.name);
+    entries.push(snapshotIndexEntry(snapshot));
+  }
+  return sortSnapshotEntries(entries);
+}
+
+function readWorkspaceIndexForReconcile(indexFile, workspace) {
+  try {
+    return readWorkspaceIndex(indexFile, workspace, { optional: true });
+  } catch (error) {
+    if (error?.code === 'AGENT_WORKSPACE_STATE_CORRUPT') return null;
+    throw error;
+  }
+}
+
+function indexMatchesCommitted(index, next) {
+  if (!index) return false;
+  return index.schema_version === next.schema_version
+    && index.workspace_id === next.workspace_id
+    && index.runtime_mode === next.runtime_mode
+    && index.current_snapshot_id === next.current_snapshot_id
+    && JSON.stringify(index.snapshots ?? []) === JSON.stringify(next.snapshots ?? []);
+}
+
+function reconcileWorkspaceIndex(workspace, current, env = process.env, { preferredCurrentSnapshotID = null } = {}) {
+  const entries = committedSnapshotIndexEntries(current.dir, workspace);
+  const hasPreferred = preferredCurrentSnapshotID && entries.some((item) => item.snapshot_id === preferredCurrentSnapshotID);
+  const hasExistingCurrent = current.index?.current_snapshot_id
+    && entries.some((item) => item.snapshot_id === current.index.current_snapshot_id);
+  const currentSnapshotID = hasPreferred
+    ? preferredCurrentSnapshotID
+    : (hasExistingCurrent ? current.index.current_snapshot_id : (entries[0]?.snapshot_id ?? null));
+  const next = {
+    schema_version: SCHEMA_VERSION,
+    workspace_id: workspace,
+    runtime_mode: runtimeMode(env),
+    current_snapshot_id: currentSnapshotID,
+    snapshots: entries,
+    updated_at: current.index?.updated_at ?? nowISO(),
+  };
+  if (!indexMatchesCommitted(current.index, next)) {
+    next.updated_at = nowISO();
+    writeJSONAtomic(current.indexFile, next);
+    refreshWorkspaceMetadata(workspace, current, env);
+  }
+  return next;
 }
 
 export function workspaceLockState(dir) {
@@ -256,7 +386,7 @@ export function ensureWorkspace(workspace, env = process.env) {
   const dir = assertUnderWorkspacesRoot(workspaceDir(workspace, env), env);
   const workspaceFile = path.join(dir, 'workspace.json');
   const indexFile = path.join(dir, 'index.json');
-  fs.mkdirSync(path.join(dir, 'snapshots'), { recursive: true });
+  fs.mkdirSync(snapshotsRoot(dir), { recursive: true });
 
   let metadata = readWorkspaceMetadata(workspaceFile, workspace, { optional: true });
   if (!metadata) {
@@ -268,18 +398,8 @@ export function ensureWorkspace(workspace, env = process.env) {
     writeJSONAtomic(workspaceFile, metadata);
   }
 
-  let index = readWorkspaceIndex(indexFile, workspace, { optional: true });
-  if (!index) {
-    index = {
-      schema_version: SCHEMA_VERSION,
-      workspace_id: workspace,
-      runtime_mode: runtimeMode(env),
-      current_snapshot_id: null,
-      snapshots: [],
-      updated_at: nowISO(),
-    };
-    writeJSONAtomic(indexFile, index);
-  }
+  let index = readWorkspaceIndexForReconcile(indexFile, workspace);
+  index = reconcileWorkspaceIndex(workspace, { dir, workspaceFile, indexFile, metadata, index }, env);
 
   return { dir, workspaceFile, indexFile, metadata, index };
 }
@@ -300,41 +420,69 @@ export function refreshWorkspaceMetadata(workspace, current, env = process.env) 
   return nextMetadata;
 }
 
+export function prepareSnapshotWrite(workspace, snapshotIDValue, env = process.env) {
+  const snapshotID = validateLocalID(snapshotIDValue, 'snapshot id');
+  const current = ensureWorkspace(workspace, env);
+  const finalDir = path.join(snapshotsRoot(current.dir), snapshotID);
+  if (fs.existsSync(finalDir)) {
+    if (isCommittedSnapshotDir(finalDir, workspace, snapshotID)) {
+      exitAgentWorkspaceError(`Snapshot '${snapshotID}' already exists in workspace '${workspace}'`, 'SNAPSHOT_EXISTS');
+    }
+    fs.rmSync(finalDir, { recursive: true, force: true });
+  }
+  const stagingRoot = path.join(snapshotsRoot(current.dir), STAGING_DIRNAME);
+  const stagingDir = path.join(stagingRoot, `${snapshotID}.${process.pid}.${randomToken()}`);
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  fs.mkdirSync(path.join(stagingDir, 'artifacts'), { recursive: true });
+  return {
+    current,
+    snapshot_id: snapshotID,
+    finalDir,
+    stagingDir,
+    finalPaths: snapshotFilePaths(current.dir, snapshotID, finalDir),
+    stagedPaths: snapshotFilePaths(current.dir, snapshotID, stagingDir),
+  };
+}
+
+export function cleanupStagedSnapshot(prepared) {
+  if (prepared?.stagingDir) fs.rmSync(prepared.stagingDir, { recursive: true, force: true });
+}
+
+export function commitStagedSnapshot(workspace, snapshot, prepared, env = process.env) {
+  writeJSONAtomic(path.join(prepared.stagingDir, COMMITTED_MARKER), {
+    schema_version: SCHEMA_VERSION,
+    workspace_id: workspace,
+    snapshot_id: snapshot.snapshot_id,
+    committed_at: nowISO(),
+    snapshot_record: 'snapshot.json',
+    session: sessionMetadata(env),
+  });
+  fs.renameSync(prepared.stagingDir, prepared.finalDir);
+  return saveSnapshotToIndex(workspace, snapshot, env, { lockHeld: true });
+}
+
 export function saveSnapshotToIndex(workspace, snapshot, env = process.env, { lockHeld = false } = {}) {
   const write = () => {
     const current = ensureWorkspace(workspace, env);
-    const withoutOld = (current.index.snapshots ?? []).filter((item) => item.snapshot_id !== snapshot.snapshot_id);
-    const nextIndex = {
-      ...current.index,
-      schema_version: SCHEMA_VERSION,
-      workspace_id: workspace,
-      runtime_mode: runtimeMode(env),
-      current_snapshot_id: snapshot.snapshot_id,
-      updated_at: nowISO(),
-      snapshots: [
-        {
-          snapshot_id: snapshot.snapshot_id,
-          created_at: snapshot.created_at,
-          capture_mode: snapshot.capture_mode,
-          target: snapshot.target,
-          ref_count: snapshot.ref_count,
-          artifact_count: snapshot.artifact_refs.length,
-          paths: snapshot.paths,
-        },
-        ...withoutOld,
-      ],
-    };
-    writeJSONAtomic(current.indexFile, nextIndex);
-    refreshWorkspaceMetadata(workspace, current, env);
-    return nextIndex;
+    return reconcileWorkspaceIndex(workspace, current, env, { preferredCurrentSnapshotID: snapshot.snapshot_id });
   };
   return lockHeld ? write() : withWorkspaceLock(workspace, write, env);
 }
 
 export function loadWorkspaceIndex(workspace, env = process.env) {
   const dir = workspaceDir(workspace, env);
-  const index = readWorkspaceIndex(path.join(dir, 'index.json'), workspace);
-  const metadata = readWorkspaceMetadata(path.join(dir, 'workspace.json'), workspace);
+  const workspaceFile = path.join(dir, 'workspace.json');
+  const indexFile = path.join(dir, 'index.json');
+  const metadata = readWorkspaceMetadata(workspaceFile, workspace, { optional: true });
+  if (!metadata) return { dir, index: null, metadata: null };
+  fs.mkdirSync(snapshotsRoot(dir), { recursive: true });
+  const index = reconcileWorkspaceIndex(workspace, {
+    dir,
+    workspaceFile,
+    indexFile,
+    metadata,
+    index: readWorkspaceIndexForReconcile(indexFile, workspace),
+  }, env);
   return { dir, index, metadata };
 }
 
@@ -350,6 +498,9 @@ export function loadSnapshot(workspace, snapshotIDValue, env = process.env) {
   const workspaceData = requireWorkspace(workspace, env);
   const snapshotID = validateLocalID(snapshotIDValue, 'snapshot id');
   const snapshotDir = path.join(workspaceData.dir, 'snapshots', snapshotID);
+  if (!isCommittedSnapshotDir(snapshotDir, workspace, snapshotID)) {
+    exitAgentWorkspaceError(`Snapshot '${snapshotIDValue}' not found in workspace '${workspace}'`, 'SNAPSHOT_NOT_FOUND');
+  }
   const snapshot = readSnapshotRecord(path.join(snapshotDir, 'snapshot.json'), workspace, snapshotID);
   const refs = readRefsRecord(path.join(snapshotDir, 'refs.json'), workspace, snapshotID);
   if (!snapshot || !refs) {
@@ -358,39 +509,24 @@ export function loadSnapshot(workspace, snapshotIDValue, env = process.env) {
   return { workspaceData, snapshotDir, snapshot, refs };
 }
 
-function writeIndexAfterSnapshotRemoval(workspace, current, removedSnapshotIDs, env = process.env) {
-  const removed = new Set(removedSnapshotIDs);
-  const kept = (current.index.snapshots ?? []).filter((snapshot) => !removed.has(snapshot.snapshot_id));
-  const currentSnapshotID = kept.some((snapshot) => snapshot.snapshot_id === current.index.current_snapshot_id)
-    ? current.index.current_snapshot_id
-    : kept[0]?.snapshot_id ?? null;
-  const nextIndex = {
-    ...current.index,
-    schema_version: SCHEMA_VERSION,
-    workspace_id: workspace,
-    runtime_mode: runtimeMode(env),
-    current_snapshot_id: currentSnapshotID,
-    snapshots: kept,
-    updated_at: nowISO(),
-  };
-  writeJSONAtomic(path.join(current.dir, 'index.json'), nextIndex);
-  refreshWorkspaceMetadata(workspace, {
+function writeIndexAfterSnapshotRemoval(workspace, current, env = process.env) {
+  return reconcileWorkspaceIndex(workspace, {
     ...current,
     workspaceFile: path.join(current.dir, 'workspace.json'),
+    indexFile: path.join(current.dir, 'index.json'),
   }, env);
-  return nextIndex;
 }
 
 export function deleteSnapshot(workspace, snapshot, env = process.env) {
   return withWorkspaceLock(workspace, () => {
     const current = requireWorkspace(workspace, env);
     const snapshotDir = path.join(current.dir, 'snapshots', validateLocalID(snapshot, 'snapshot id'));
-    if (!fs.existsSync(snapshotDir)) {
+    if (!fs.existsSync(snapshotDir) || !isCommittedSnapshotDir(snapshotDir, workspace, snapshot)) {
       exitAgentWorkspaceError(`Snapshot '${snapshot}' not found in workspace '${workspace}'`, 'SNAPSHOT_NOT_FOUND');
     }
     const bytes = directoryBytes(snapshotDir);
     fs.rmSync(snapshotDir, { recursive: true, force: true });
-    writeIndexAfterSnapshotRemoval(workspace, current, [snapshot], env);
+    writeIndexAfterSnapshotRemoval(workspace, current, env);
     return { snapshotDir, bytes };
   }, env);
 }
@@ -407,7 +543,7 @@ export function pruneSnapshots(workspace, candidates, { dryRun = false } = {}, e
       if (!dryRun) fs.rmSync(snapshotDir, { recursive: true, force: true });
     }
     if (!dryRun && candidates.length) {
-      writeIndexAfterSnapshotRemoval(workspace, current, candidates.map((candidate) => candidate.snapshot_id), env);
+      writeIndexAfterSnapshotRemoval(workspace, current, env);
     }
     return { removed, bytes };
   };

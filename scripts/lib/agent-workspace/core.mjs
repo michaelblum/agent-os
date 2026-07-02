@@ -1,10 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  AGENT_WORKSPACE_SCHEMA_VERSION,
+  CAPTURE_MODE_VALUES,
+} from './contracts.mjs';
 
-export const SCHEMA_VERSION = 'aos.agent-workspace.v0';
+export const SCHEMA_VERSION = AGENT_WORKSPACE_SCHEMA_VERSION;
 export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-export const CAPTURE_MODES = new Set(['ax', 'vision', 'som']);
+export const CAPTURE_MODES = new Set(CAPTURE_MODE_VALUES);
 export const JSON_SPACING = 2;
 
 export const DO_VALUE_FLAGS = new Set([

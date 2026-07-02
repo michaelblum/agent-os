@@ -16,10 +16,9 @@ import {
 import {
   deleteSnapshot,
   deleteWorkspace,
+  loadWorkspaceIndex,
   loadSnapshot,
   pruneSnapshots,
-  readWorkspaceIndex,
-  readWorkspaceMetadata,
   requireWorkspace,
   workspaceLockState,
 } from './store.mjs';
@@ -126,8 +125,9 @@ export function workspacesCommand(args, env = process.env) {
       if (!SAFE_ID.test(entry.name)) continue;
       const metadataPath = path.join(root, entry.name, 'workspace.json');
       const indexPath = path.join(root, entry.name, 'index.json');
-      const metadata = fs.existsSync(metadataPath) ? readWorkspaceMetadata(metadataPath, entry.name) : null;
-      const index = fs.existsSync(indexPath) ? readWorkspaceIndex(indexPath, entry.name) : null;
+      const loaded = fs.existsSync(metadataPath) ? loadWorkspaceIndex(entry.name, env) : { metadata: null, index: null };
+      const metadata = loaded.metadata;
+      const index = loaded.index;
       assertWorkspaceListState(metadata, metadataPath, 'workspace metadata');
       assertWorkspaceListState(index, indexPath, 'workspace index');
       workspaces.push({

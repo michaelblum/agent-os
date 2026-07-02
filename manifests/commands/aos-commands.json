@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value and browser click/fill/hover/scroll/drag with current validation",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value mutation while browser click/fill/hover/scroll/drag remains dry-run advisory until stronger identity lands",
               "token" : "--save",
               "value_type" : "bool"
             },

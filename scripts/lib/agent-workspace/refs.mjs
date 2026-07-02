@@ -1,4 +1,5 @@
 import { SCHEMA_VERSION } from './core.mjs';
+import { savedRefSupportedActionsForBackend } from './contracts.mjs';
 
 function textValue(...values) {
   for (const value of values) {
@@ -54,15 +55,8 @@ function browserActionsForElement(element) {
   return ['click', 'hover', 'scroll', 'drag'];
 }
 
-const SAVED_REF_V0_ACTIONS_BY_BACKEND = {
-  aos_canvas: new Set(['click', 'set-value']),
-  browser: new Set(['click', 'fill', 'hover', 'scroll', 'drag']),
-  native_ax: new Set(),
-};
-
 function savedRefActions(actions, backend) {
-  const allowed = SAVED_REF_V0_ACTIONS_BY_BACKEND[backend] ?? new Set();
-  return [...new Set((actions ?? []).filter((action) => allowed.has(action)))];
+  return [...new Set(savedRefSupportedActionsForBackend(backend, actions))];
 }
 
 export function generateRefRecords(capture, context) {
@@ -157,10 +151,10 @@ export function generateRefRecords(capture, context) {
       },
       artifact_refs: artifactRefs,
       warnings: isBrowser
-        ? ['browser refs are snapshot-scoped; mutation requires a fresh xray current-target validation']
+        ? ['browser refs are snapshot-scoped; real mutation fails closed until page/frame/navigation identity is persisted; dry-run includes advisory current xray validation']
         : ['native AX element refs are inspection-only; saved-ref actions do not claim no-foreground safety'],
       known_limits: isBrowser
-        ? ['navigation or DOM replacement can stale a browser ref; saved-ref mutation fails closed when fresh xray validation cannot match the saved role/title/label/context']
+        ? ['navigation or DOM replacement can stale a browser ref; saved-ref real mutation returns REF_REVALIDATION_REQUIRED even when advisory xray validation matches role/title/label/context']
         : [
             'AX titles, labels, bounds, and context paths are hints, not durable identity',
             'native AX saved-ref mutation is disabled until durable AX identity and no-foreground validation are implemented',

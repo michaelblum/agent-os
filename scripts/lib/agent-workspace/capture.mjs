@@ -19,7 +19,12 @@ import {
   writeJSONAtomic,
   writeTextAtomic,
 } from './core.mjs';
-import { ensureWorkspace, saveSnapshotToIndex, withWorkspaceLock } from './store.mjs';
+import {
+  cleanupStagedSnapshot,
+  commitStagedSnapshot,
+  prepareSnapshotWrite,
+  withWorkspaceLock,
+} from './store.mjs';
 import { generateRefRecords, omittedPayloads, queryMatches, refSummary } from './refs.mjs';
 
 function snapshotID(explicit) {
@@ -269,15 +274,31 @@ function parsePrimitiveJSON(result, label) {
   }
 }
 
-function rewriteBase64Payload(capture, artifactsDir) {
+function rewriteArtifactPath(value, stagedArtifactsDir, finalArtifactsDir) {
+  const stagedRoot = path.resolve(stagedArtifactsDir);
+  const resolved = path.resolve(value);
+  if (resolved === stagedRoot || resolved.startsWith(`${stagedRoot}${path.sep}`)) {
+    return path.join(finalArtifactsDir, path.relative(stagedRoot, resolved));
+  }
+  return value;
+}
+
+function rewriteCaptureFilePaths(capture, stagedArtifactsDir, finalArtifactsDir) {
+  if (Array.isArray(capture.files)) {
+    capture.files = capture.files.map((file) => rewriteArtifactPath(file, stagedArtifactsDir, finalArtifactsDir));
+  }
+}
+
+function rewriteBase64Payload(capture, artifactsDir, finalArtifactsDir = artifactsDir) {
   const artifactRefs = [];
   if (!Array.isArray(capture.base64)) return artifactRefs;
   capture.base64.forEach((payload, index) => {
     const file = path.join(artifactsDir, `base64-${index + 1}.txt`);
+    const finalFile = path.join(finalArtifactsDir, `base64-${index + 1}.txt`);
     writeTextAtomic(file, `${payload}\n`);
     artifactRefs.push({
       role: 'base64',
-      path: file,
+      path: finalFile,
       bytes: Buffer.byteLength(String(payload), 'utf8'),
     });
   });
@@ -286,16 +307,17 @@ function rewriteBase64Payload(capture, artifactsDir) {
   return artifactRefs;
 }
 
-function fileArtifactRefs(capture, artifactsDir) {
+function fileArtifactRefs(capture, artifactsDir, finalArtifactsDir = artifactsDir) {
   const refs = [];
   for (const file of capture.files ?? []) {
     let stat = null;
     try { stat = fs.statSync(file); } catch {}
+    const finalPath = rewriteArtifactPath(file, artifactsDir, finalArtifactsDir);
     refs.push({
       role: 'capture_image',
-      path: file,
+      path: finalPath,
       bytes: stat?.size ?? null,
-      stored_under_workspace: path.resolve(file).startsWith(path.resolve(artifactsDir)),
+      stored_under_workspace: path.resolve(finalPath).startsWith(path.resolve(finalArtifactsDir)),
     });
   }
   return refs;
@@ -320,19 +342,15 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
   const snapID = snapshotID(parsed.options.name);
   const target = parsed.target;
   return withWorkspaceLock(workspace, () => {
-    const current = ensureWorkspace(workspace, env);
-    const snapshotDir = path.join(current.dir, 'snapshots', snapID);
-    if (fs.existsSync(snapshotDir)) {
-      exitAgentWorkspaceError(`Snapshot '${snapID}' already exists in workspace '${workspace}'`, 'SNAPSHOT_EXISTS');
-    }
-    fs.mkdirSync(path.join(snapshotDir, 'artifacts'), { recursive: true });
-
-    const artifactsDir = path.join(snapshotDir, 'artifacts');
-    const captureArtifact = path.join(artifactsDir, 'capture.png');
-    const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact);
-    const createdAt = nowISO();
+    let prepared = null;
 
     try {
+      prepared = prepareSnapshotWrite(workspace, snapID, env);
+      const stagedArtifactsDir = prepared.stagedPaths.artifacts;
+      const finalArtifactsDir = prepared.finalPaths.artifacts;
+      const captureArtifact = path.join(stagedArtifactsDir, 'capture.png');
+      const captureArgs = captureArgsForMode(parsed.passthrough, parsed.options.mode, captureArtifact);
+      const createdAt = nowISO();
       const result = spawnSync(aosPath(env), ['__see', 'capture', ...captureArgs], {
         encoding: 'utf8',
         env: {
@@ -344,9 +362,10 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       });
       const capture = parsePrimitiveJSON(result, 'aos __see capture');
       const artifactRefs = [
-        ...fileArtifactRefs(capture, artifactsDir),
-        ...rewriteBase64Payload(capture, artifactsDir),
+        ...fileArtifactRefs(capture, stagedArtifactsDir, finalArtifactsDir),
+        ...rewriteBase64Payload(capture, stagedArtifactsDir, finalArtifactsDir),
       ];
+      rewriteCaptureFilePaths(capture, stagedArtifactsDir, finalArtifactsDir);
       const refs = generateRefRecords(capture, {
         workspace_id: workspace,
         snapshot_id: snapID,
@@ -354,15 +373,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         artifact_refs: artifactRefs,
       });
       const compactRefs = refs.filter((record) => queryMatches(record, parsed.options.query)).map(refSummary);
-      const paths = {
-        workspace: current.dir,
-        snapshot: snapshotDir,
-        snapshot_record: path.join(snapshotDir, 'snapshot.json'),
-        capture: path.join(snapshotDir, 'capture.json'),
-        summary: path.join(snapshotDir, 'summary.json'),
-        refs: path.join(snapshotDir, 'refs.json'),
-        artifacts: artifactsDir,
-      };
+      const paths = prepared.finalPaths;
       const snapshot = {
         schema_version: SCHEMA_VERSION,
         workspace_id: workspace,
@@ -412,20 +423,20 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         known_limits: snapshot.known_limits,
       };
 
-      writeJSONAtomic(paths.capture, capture);
-      writeJSONAtomic(paths.refs, {
+      writeJSONAtomic(prepared.stagedPaths.capture, capture);
+      writeJSONAtomic(prepared.stagedPaths.refs, {
         schema_version: SCHEMA_VERSION,
         workspace_id: workspace,
         snapshot_id: snapID,
         created_at: createdAt,
         refs,
       });
-      writeJSONAtomic(paths.snapshot_record, snapshot);
-      writeJSONAtomic(paths.summary, summary);
-      saveSnapshotToIndex(workspace, snapshot, env, { lockHeld: true });
+      writeJSONAtomic(prepared.stagedPaths.snapshot_record, snapshot);
+      writeJSONAtomic(prepared.stagedPaths.summary, summary);
+      commitStagedSnapshot(workspace, snapshot, prepared, env);
       printJSON(summary);
     } catch (error) {
-      fs.rmSync(snapshotDir, { recursive: true, force: true });
+      cleanupStagedSnapshot(prepared);
       if (isAgentWorkspaceError(error)) throw error;
       if (error?.code || error?.message) {
         exitAgentWorkspaceError(error.message || String(error), error.code || 'AGENT_WORKSPACE_SAVE_FAILED');
