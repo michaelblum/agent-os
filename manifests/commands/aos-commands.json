@@ -498,7 +498,7 @@
               "id" : "save",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value and browser click/fill with current validation",
+              "summary" : "Persist full perception in a local agent workspace and return compact JSON refs; saved-ref actions support canvas click/set-value and browser click/fill/hover/scroll with current validation",
               "token" : "--save",
               "value_type" : "bool"
             },
@@ -2533,10 +2533,10 @@
         {
           "args" : [
             {
-              "id" : "coords",
+              "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Target coordinates as x,y",
+              "summary" : "Coordinates, saved ref, or browser target",
               "value_type" : "string"
             },
             {
@@ -2545,6 +2545,22 @@
               "required" : false,
               "summary" : "Perception state id this action was chosen from",
               "token" : "--state-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
               "value_type" : "string"
             },
             {
@@ -2557,6 +2573,8 @@
             }
           ],
           "examples" : [
+            "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
+            "aos do hover browser:todo\/e21",
             "aos do hover 500,300"
           ],
           "execution" : {
@@ -2575,7 +2593,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do hover <x,y> [--state-id id]"
+          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id]"
         },
         {
           "args" : [
@@ -2642,10 +2660,17 @@
         {
           "args" : [
             {
-              "id" : "coords",
+              "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Scroll position as x,y",
+              "summary" : "Coordinates, saved ref, or browser target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "delta",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Browser saved-ref scroll delta as dx,dy",
               "value_type" : "string"
             },
             {
@@ -2673,6 +2698,22 @@
               "value_type" : "string"
             },
             {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Agent workspace id for ref:<id> targets",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Snapshot id for ambiguous bare ref:<id> targets",
+              "token" : "--snapshot",
+              "value_type" : "string"
+            },
+            {
               "id" : "dry-run",
               "kind" : "flag",
               "required" : false,
@@ -2681,15 +2722,9 @@
               "value_type" : "bool"
             }
           ],
-          "constraints" : {
-            "one_of" : [
-              [
-                "dx",
-                "dy"
-              ]
-            ]
-          },
           "examples" : [
+            "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
+            "aos do scroll browser:todo\/e21 0,-200",
             "aos do scroll 500,300 --dy -3"
           ],
           "execution" : {
@@ -2708,7 +2743,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do scroll <x,y> [--dx N] [--dy N] [--state-id id]"
+          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id]"
         },
         {
           "args" : [

@@ -194,7 +194,7 @@ function isAgentWorkspaceParseError(error) {
 }
 
 function validateBrowserCurrentRef(record, action, workspace, env) {
-  if (!['click', 'fill'].includes(action)) return null;
+  if (!['click', 'fill', 'hover', 'scroll'].includes(action)) return null;
   const target = parseBrowserActionTarget(record.action_target);
   const sourceRef = record.identity_facts?.source_ref || target?.ref || null;
   if (!target || !sourceRef) return null;
@@ -308,6 +308,16 @@ function validateActionArgs(action, args, targetIndex) {
     const hasText = positions.some((index) => index !== targetIndex);
     if (!hasText) {
       exitAgentWorkspaceError('fill requires a text argument', 'MISSING_ARG');
+    }
+  }
+  if (action === 'scroll') {
+    const positions = positionalIndexes(args);
+    const delta = positions.find((index) => index !== targetIndex);
+    if (delta === undefined) {
+      exitAgentWorkspaceError('scroll requires a dx,dy argument for saved browser refs', 'MISSING_ARG');
+    }
+    if (!/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(String(args[delta]))) {
+      exitAgentWorkspaceError('scroll dx,dy must use the form x,y', 'INVALID_ARG');
     }
   }
 }

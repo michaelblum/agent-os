@@ -49,14 +49,14 @@ function browserSessionFromTarget(target) {
 
 function browserActionsForElement(element) {
   const role = String(element.role || '').toLowerCase();
-  if (['textbox', 'searchbox', 'combobox', 'input'].includes(role)) return ['click', 'fill', 'type', 'key'];
-  if (['button', 'link', 'checkbox', 'radio', 'menuitem', 'tab'].includes(role)) return ['click'];
-  return ['click'];
+  if (['textbox', 'searchbox', 'combobox', 'input'].includes(role)) return ['click', 'fill', 'hover', 'scroll', 'type', 'key'];
+  if (['button', 'link', 'checkbox', 'radio', 'menuitem', 'tab'].includes(role)) return ['click', 'hover', 'scroll'];
+  return ['click', 'hover', 'scroll'];
 }
 
 const SAVED_REF_V0_ACTIONS_BY_BACKEND = {
   aos_canvas: new Set(['click', 'set-value']),
-  browser: new Set(['click', 'fill']),
+  browser: new Set(['click', 'fill', 'hover', 'scroll']),
   native_ax: new Set(),
 };
 

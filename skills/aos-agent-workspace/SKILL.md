@@ -15,6 +15,8 @@ aos see refs --workspace default --query Save --json
 aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
 aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run
 aos do fill ref:<snapshot-id>:r4 "updated text" --workspace default --dry-run
+aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run
+aos do scroll ref:<snapshot-id>:r5 0,-200 --workspace default --dry-run
 ```
 
 ## Contract
@@ -57,13 +59,13 @@ required. Saved refs use a backend action matrix:
 
 - AOS canvas `reacquirable` refs may route `click` and `set-value` through the
   current canvas resolver.
-- Browser `snapshot_scoped` click and fill refs run a fresh xray validation
-  before mutation. Missing, stale, ambiguous, disabled, or changed current
-  targets fail closed with `REF_STALE`, `REF_AMBIGUOUS`, or
+- Browser `snapshot_scoped` click, fill, hover, and scroll refs run a fresh
+  xray validation before action. Missing, stale, ambiguous, disabled, or
+  changed current targets fail closed with `REF_STALE`, `REF_AMBIGUOUS`, or
   `ACTION_INCOMPATIBLE`.
 - Native AX `volatile` refs are inspection-only.
-- `focus`, `press`/`open`/`toggle`, browser `type`/`key`, and other unsupported
-  saved-ref actions fail closed with structured JSON.
+- `focus`, `press`/`open`/`toggle`, browser `type`/`key`, `drag`, and other
+  unsupported saved-ref actions fail closed with structured JSON.
 - Unsafe resolution classes that have no current validation path still return
   `REF_REVALIDATION_REQUIRED` rather than mutating.
 - Unsupported or incompatible actions return `REF_UNSUPPORTED` or

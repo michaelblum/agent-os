@@ -330,6 +330,57 @@ jq -e '
   and (.result.stdout | contains("fake click invoked: -s=todo click e2"))
 ' "$REAL_ACTION" >/dev/null || fail "browser saved-ref click did not validate and execute: $(cat "$REAL_ACTION")"
 
+HOVER_DRY="$TMP_DIR/do-ref-hover-dry.json"
+./aos do hover "ref:snap1:$REF" --workspace ws1 --dry-run >"$HOVER_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "hover"
+  and .resolved_action.resolution_status == "reacquired"
+  and .current_validation.current_target.ref == "e2"
+  and (.resolved_action.command | index("browser:todo/e2") != null)
+' "$HOVER_DRY" >/dev/null || fail "browser hover saved-ref dry-run drifted: $(cat "$HOVER_DRY")"
+
+HOVER_ACTION="$TMP_DIR/do-ref-hover-action.json"
+./aos do hover "ref:snap1:$REF" --workspace ws1 >"$HOVER_ACTION"
+jq -e '
+  .status == "success"
+  and .execution.backend == "playwright"
+  and .execution.strategy == "playwright_hover"
+  and (.result.stdout | contains("fake hover invoked: -s=todo hover e2"))
+' "$HOVER_ACTION" >/dev/null || fail "browser saved-ref hover did not validate and execute: $(cat "$HOVER_ACTION")"
+
+SCROLL_DRY="$TMP_DIR/do-ref-scroll-dry.json"
+./aos do scroll "ref:snap1:$REF" 0,-200 --workspace ws1 --dry-run >"$SCROLL_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "scroll"
+  and .resolved_action.resolution_status == "reacquired"
+  and .current_validation.current_target.ref == "e2"
+  and (.resolved_action.command | index("browser:todo/e2") != null)
+  and (.resolved_action.command | index("0,-200") != null)
+' "$SCROLL_DRY" >/dev/null || fail "browser scroll saved-ref dry-run drifted: $(cat "$SCROLL_DRY")"
+
+SCROLL_ACTION="$TMP_DIR/do-ref-scroll-action.json"
+./aos do scroll "ref:snap1:$REF" 0,-200 --workspace ws1 >"$SCROLL_ACTION"
+jq -e '
+  .status == "success"
+  and .execution.backend == "playwright"
+  and .execution.strategy == "playwright_mousewheel"
+  and (.result.stdout | contains("fake mousewheel invoked: -s=todo mousewheel e2 0 -200"))
+' "$SCROLL_ACTION" >/dev/null || fail "browser saved-ref scroll did not validate and execute: $(cat "$SCROLL_ACTION")"
+
+SCROLL_MISSING_ERR="$TMP_DIR/do-ref-scroll-missing.err"
+if ./aos do scroll "ref:snap1:$REF" --workspace ws1 --dry-run >"$TMP_DIR/do-ref-scroll-missing.out" 2>"$SCROLL_MISSING_ERR"; then
+    fail "browser saved-ref scroll without delta unexpectedly succeeded"
+fi
+expect_error_code "MISSING_ARG" "$SCROLL_MISSING_ERR"
+
+SCROLL_INVALID_ERR="$TMP_DIR/do-ref-scroll-invalid.err"
+if ./aos do scroll "ref:snap1:$REF" nope --workspace ws1 --dry-run >"$TMP_DIR/do-ref-scroll-invalid.out" 2>"$SCROLL_INVALID_ERR"; then
+    fail "browser saved-ref scroll with invalid delta unexpectedly succeeded"
+fi
+expect_error_code "INVALID_ARG" "$SCROLL_INVALID_ERR"
+
 MALFORMED_REFS_BACKUP="$REFS_PATH.valid-test-backup"
 cp "$REFS_PATH" "$MALFORMED_REFS_BACKUP"
 jq 'del(.refs[0].identity_facts.state_id)' "$MALFORMED_REFS_BACKUP" >"$REFS_PATH"
@@ -417,7 +468,7 @@ jq -e '
   .status == "success"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
-  and (.refs[0].supported_actions == ["click", "fill"])
+  and (.refs[0].supported_actions == ["click", "fill", "hover", "scroll"])
   and (.refs[0].supported_actions | index("type") | not)
   and (.refs[0].supported_actions | index("key") | not)
   and .refs[0].action_target == "browser:form/e42"

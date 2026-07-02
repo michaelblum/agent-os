@@ -176,21 +176,23 @@ Saved refs use `ref:<snapshot-id>:<ref-id>` or bare `ref:<ref-id>`. The scoped
 form is preferred. Bare refs resolve only when unambiguous inside the workspace.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
-Browser `snapshot_scoped` click and fill refs run a fresh xray validation
-before mutation and fail closed on missing, stale, ambiguous, disabled, or
-changed current targets:
+Browser `snapshot_scoped` click, fill, hover, and scroll refs run a fresh xray
+validation before action and fail closed on missing, stale, ambiguous, disabled,
+or changed current targets:
 
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
 aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
 aos do fill ref:<snapshot-id>:r3 "buy groceries" --workspace default --dry-run
+aos do hover ref:<snapshot-id>:r4 --workspace default --dry-run
+aos do scroll ref:<snapshot-id>:r4 0,-200 --workspace default --dry-run
 ```
 
 Native AX `volatile` refs are inspection-only. `focus`,
-`press`/`open`/`toggle`, browser `type`/`key`, and other saved-ref forms fail
-closed with structured JSON until a backend-owned current target validation
-path exists. See `shared/schemas/aos-agent-workspace-v0.md` for the full action
-grammar matrix.
+`press`/`open`/`toggle`, browser `type`/`key`, `drag`, and other saved-ref forms
+fail closed with structured JSON until the action grammar has a backend-owned
+current target validation path. See `shared/schemas/aos-agent-workspace-v0.md`
+for the full action grammar matrix.
 
 Cleanup is explicit:
 
