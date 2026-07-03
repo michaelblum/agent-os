@@ -207,6 +207,22 @@ test('public API docs preserve the current target and handle ladder', async () =
   assert.doesNotMatch(section, /`ax:</);
 });
 
+test('README gives the simplified target handle ladder without new grammar', async () => {
+  const readme = await text('README.md');
+  const section = readme.split('## Target Handles', 2)[1].split('## Track-2 consumers', 1)[0];
+
+  assert.match(section, /saved refs from `aos see capture --save`/);
+  assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
+  assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
+  assert.match(section, /raw `x,y` plus `--state-id <id>`/);
+  assert.match(section, /selector flags such as `--pid` and `--role`/);
+  assert.match(section, /not a public `ax:`\s+target grammar/);
+  assert.match(section, /Semantic Targets are perception records/);
+  assert.match(section, /not another address system/);
+  assert.doesNotMatch(section, /`screen:/);
+  assert.doesNotMatch(section, /`ax:<`/);
+});
+
 test('grand unification plan qualifies screen and AX target-model vocabulary', async () => {
   const plan = await text('docs/design/aos-grand-unification-plan.md');
 

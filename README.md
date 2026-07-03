@@ -25,6 +25,17 @@ commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 
 See [docs/api/aos.md](docs/api/aos.md) for the full consumer command table.
 
+## Target Handles
+
+Normal observe-act loops should use saved refs from `aos see capture --save`:
+`ref:<snapshot-id>:<ref-id>`. Direct live refs such as
+`browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>` are current-host
+addresses for diagnostics, provenance, direct execution, and placement anchors.
+Coordinate fallback remains raw `x,y` plus `--state-id <id>`; native AX direct
+actions use selector flags such as `--pid` and `--role`, not a public `ax:`
+target grammar. Semantic Targets are perception records that contain refs and
+facts, not another address system.
+
 ## Track-2 consumers
 
 | Package | Role |
