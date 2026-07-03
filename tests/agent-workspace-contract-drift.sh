@@ -27,6 +27,8 @@ import {
   SAVED_REF_V0_ACTION_MATRIX,
   SAVED_REF_V0_ACTION_MATRIX_ROWS,
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
+  directNativeAxProofStory,
+  savedRefProofStory,
   savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
 import { AGENT_WORKSPACE_V0_CONTRACT_COVERAGE } from './tests/lib/agent-workspace-contract-coverage.mjs';
@@ -282,13 +284,24 @@ function backendConformanceRows(doc, marker) {
 }
 
 const expectedBackendConformanceRows = [
-  '| `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |',
-  '| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |',
-  '| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |',
-  '| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus the same approval gates |',
-  '| `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus the same approval gates |',
-  '| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in browser, AOS canvas, and native saved-ref tests |',
-];
+  ['`aos_canvas`', '`reacquirable` `click` and `set-value`', savedRefProofStory('aos_canvas', 'reacquirable', true)],
+  ['`browser`', '`snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag`', savedRefProofStory('browser', 'snapshot_scoped', true)],
+  ['`native_ax` stable saved refs', 'durable-identity plus producer-verdict `press`, `focus`, and `set-value`', savedRefProofStory('native_ax', 'stable', true)],
+  ['direct AX one-shot wrappers', '`--pid` / `--role` `press`, `focus`, and `set-value`', directNativeAxProofStory()],
+  ['`native_ax` volatile or known-limit refs', 'inspection/readback only', savedRefProofStory('native_ax', 'volatile', false)],
+  ['`coordinate_fallback`', 'diagnostic/fallback-only refs', savedRefProofStory('aos_canvas', 'coordinate_fallback', false)],
+].map(([label, surface, proof]) => {
+  const evidence = proof.evidence.map((item) => `\`${item}\``).join(' and ');
+  const gates = proof.approval_gates.length > 0
+    ? ` plus ${proof.approval_gates.join(', ')}`
+    : '';
+  const evidenceOrGate = label === '`native_ax` volatile or known-limit refs'
+    ? `known-limit assertions in ${evidence}${gates}`
+    : label === '`coordinate_fallback`'
+      ? `refused-before-dispatch assertions in ${evidence}`
+      : `${evidence}${gates}`;
+  return `| ${label} | ${surface} | \`${proof.level}\` | \`${proof.status}\` | ${evidenceOrGate} |`;
+});
 
 assert.deepEqual(
   backendConformanceRows(schemaDoc, '## Backend Conformance Levels'),
@@ -553,18 +566,14 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(!/advisory-only|remains dry-run advisory|no real browser|real mutation fails closed/.test(text), 'docs/skill must not describe browser refs as advisory-only');
 }
 
-assert.ok(
-  apiDoc.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
-  'API doc must name backend-wide coordinate fallback refusal evidence',
-);
-assert.ok(
-  schemaDoc.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
-  'schema doc must name backend-wide coordinate fallback refusal evidence',
-);
-assert.ok(
-  skill.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
-  'skill must name backend-wide coordinate fallback refusal evidence',
-);
+for (const [label, text] of Object.entries({ apiDoc, schemaDoc, skill })) {
+  for (const evidencePath of savedRefProofStory('aos_canvas', 'coordinate_fallback', false).evidence) {
+    assert.ok(
+      text.includes(evidencePath),
+      `${label} must name coordinate fallback refusal evidence ${evidencePath}`,
+    );
+  }
+}
 assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require stable `native_ax` refs'),
   'API saved-ref examples must mark press/focus as stable native AX only',
