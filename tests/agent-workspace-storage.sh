@@ -365,6 +365,17 @@ jq -e '
   and any(.snapshots[]; .snapshot_id == "snap2" and .capture_target == "browser:todo" and .query == null)
 ' "$WORKSPACE_PATH/index.json" >/dev/null || fail "sequential saves did not preserve compact snapshot target/query entries: $(cat "$WORKSPACE_PATH/index.json")"
 
+mkdir -p "$WORKSPACE_PATH/.write-lock"
+printf '{' >"$WORKSPACE_PATH/.write-lock/owner.json"
+STALE_LOCK_CAPTURE="$TMP_DIR/capture-after-stale-lock.json"
+AOS_AGENT_WORKSPACE_STALE_LOCK_MS=0 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap-stale-lock >"$STALE_LOCK_CAPTURE"
+jq -e '.status == "success" and .snapshot_id == "snap-stale-lock"' "$STALE_LOCK_CAPTURE" >/dev/null \
+    || fail "ownerless stale workspace lock was not reaped before mutation: $(cat "$STALE_LOCK_CAPTURE")"
+[[ ! -e "$WORKSPACE_PATH/.write-lock" ]] \
+    || fail "stale workspace lock remained after successful mutation"
+jq -e '(.current_snapshot_id == "snap-stale-lock") and ([.snapshots[].snapshot_id] | index("snap-stale-lock") != null)' "$WORKSPACE_PATH/index.json" >/dev/null \
+    || fail "stale-lock recovery capture did not update workspace index: $(cat "$WORKSPACE_PATH/index.json")"
+
 VISION="$TMP_DIR/capture-vision.json"
 ./aos see capture browser:todo --save --mode vision --workspace ws-vision --name snapv >"$VISION"
 ARTIFACT="$(jq -r '.artifact_refs[0].path' "$VISION")"
