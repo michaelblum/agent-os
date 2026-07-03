@@ -167,9 +167,11 @@ Typical consumer loop:
    `target`, and saved `query` without opening heavy payloads.
 3. Read compact refs with `aos see refs`; use its structured
    `recommended_next` descriptors for the scoped dry-run action.
-4. Dry-run the saved-ref action and inspect `resolution_status`.
-5. Dispatch only if the ref validates or reacquires.
-6. Use structured `recommended_next` descriptors and
+4. Compare saved snapshots with `aos see refs --diff <from>..<to>` when a
+   compact ref-level post-action check is enough.
+5. Dry-run the saved-ref action and inspect `resolution_status`.
+6. Dispatch only if the ref validates or reacquires.
+7. Use structured `recommended_next` descriptors and
    `recommended_next_command` when a fresh saved capture is needed before
    reusing refs from the surface.
 
@@ -208,14 +210,16 @@ commands require explicit workspace or snapshot ids. This keeps parallel agents
 from mutating hidden shared workspace state. Any future session-bound default
 must first define a multi-agent-safe contract.
 
-Current wait/diff/assertion boundary: saved workspaces do not expose
+Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,
-`aos see refs --diff`, or `aos see assert`. Use structured
-`recommended_next` descriptors and `recommended_next_command` plus a fresh saved
-capture for re-perception, `aos show wait` only for canvas readiness, Recipe
-assertions only for command JSON checks, and Work Record postconditions for
-durable evidence checks. Future saved wait/diff/assert commands need manifest
-help, parser, schema/doc, and drift tests before public use.
+or `aos see assert`. Use structured `recommended_next` descriptors and
+`recommended_next_command` plus a fresh saved capture for re-perception. Use
+`aos see refs --diff <from>..<to>` only for compact saved-ref comparison between
+two existing snapshots; it is not a wait loop or full assertion engine. Use
+`aos show wait` only for canvas readiness, Recipe assertions only for command
+JSON checks, and Work Record postconditions for durable evidence checks. Future
+saved wait/assert commands need manifest help, parser, schema/doc, and drift
+tests before public use.
 
 Capture modes are explicit:
 

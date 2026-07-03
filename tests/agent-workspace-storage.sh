@@ -378,6 +378,68 @@ jq -e '
   and any(.snapshots[]; .snapshot_id == "snap2" and .capture_target == "browser:todo" and .query == null)
 ' "$WORKSPACE_PATH/index.json" >/dev/null || fail "sequential saves did not preserve compact snapshot target/query entries: $(cat "$WORKSPACE_PATH/index.json")"
 
+SNAP2_REFS="$WORKSPACE_PATH/snapshots/snap2/refs.json"
+SNAP2_REFS_BACKUP="$SNAP2_REFS.valid-test-backup"
+cp "$SNAP2_REFS" "$SNAP2_REFS_BACKUP"
+jq '
+  .refs as $refs
+  | .refs = (
+      [$refs[]
+        | select(.ref != "r1")
+        | if .ref == "r2" then .confidence = "high" else . end
+      ]
+      + [
+        ($refs[]
+          | select(.ref == "r3")
+          | .ref = "r4"
+          | .identity_facts.source_ref = "e4"
+          | .current_address.action_target = "browser:todo/e4"
+          | .hint_facts.name = "Added diff target")
+      ]
+    )
+' "$SNAP2_REFS_BACKUP" >"$SNAP2_REFS"
+REF_DIFF="$TMP_DIR/refs-diff.json"
+./aos see refs --workspace ws1 --diff snap1..snap2 --json >"$REF_DIFF"
+jq -e '
+  .status == "success"
+  and .workspace_id == "ws1"
+  and .snapshot_id == "snap2"
+  and .diff.from_snapshot_id == "snap1"
+  and .diff.to_snapshot_id == "snap2"
+  and .diff.counts.from_refs == 3
+  and .diff.counts.to_refs == 3
+  and .diff.counts.added == 1
+  and .diff.counts.removed == 1
+  and .diff.counts.changed == 1
+  and .diff.counts.unchanged == 1
+  and .diff.added[0].ref == "r4"
+  and .diff.removed[0].ref == "r1"
+  and .diff.changed[0].ref == "r2"
+  and .diff.changed[0].before.confidence == "medium"
+  and .diff.changed[0].after.confidence == "high"
+  and .diff.unchanged[0].ref == "r3"
+  and (.refs | length) == 3
+  and .recommended_next[0].kind == "inspect_saved_refs"
+  and (.recommended_next_commands | index("aos see refs --workspace ws1 --snapshot snap2 --json") != null)
+  and (has("elements") | not)
+  and (has("semantic_targets") | not)
+  and (has("base64") | not)
+' "$REF_DIFF" >/dev/null || fail "refs diff did not expose compact snapshot comparison: $(cat "$REF_DIFF")"
+assert_no_heavy_capture_payloads "$REF_DIFF" "refs diff readback"
+REF_DIFF_QUERY="$TMP_DIR/refs-diff-query.json"
+./aos see refs --workspace ws1 --diff snap1..snap2 --query "Added diff target" --json >"$REF_DIFF_QUERY"
+jq -e '
+  .status == "success"
+  and .query == "Added diff target"
+  and .diff.counts.from_refs == 0
+  and .diff.counts.to_refs == 1
+  and .diff.counts.added == 1
+  and .diff.added[0].ref == "r4"
+' "$REF_DIFF_QUERY" >/dev/null || fail "refs diff query did not filter before comparison: $(cat "$REF_DIFF_QUERY")"
+expect_command_error_code "INVALID_ARG" "refs-diff-with-snapshot" ./aos see refs --workspace ws1 --snapshot snap1 --diff snap1..snap2 --json
+expect_command_error_code "INVALID_ARG" "refs-diff-malformed" ./aos see refs --workspace ws1 --diff snap1 --json
+mv "$SNAP2_REFS_BACKUP" "$SNAP2_REFS"
+
 mkdir -p "$WORKSPACE_PATH/.write-lock"
 printf '{' >"$WORKSPACE_PATH/.write-lock/owner.json"
 STALE_LOCK_CAPTURE="$TMP_DIR/capture-after-stale-lock.json"
