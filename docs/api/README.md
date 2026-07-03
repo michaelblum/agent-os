@@ -30,6 +30,11 @@ If a change affects a consumer-facing interface, update these docs in the same c
 That includes:
 
 - adding, removing, or renaming top-level `aos` commands or notable subcommands
+- changing command forms, usage strings, flags, examples, side-effect metadata,
+  or consumer discovery; edit `manifests/commands/source/`, regenerate with
+  `scripts/generate-command-manifests.mjs`, and run
+  `tests/command-manifest-generation.sh`, `tests/help-contract.sh`, and the
+  relevant dispatch/parser drift test
 - changing the JSON success/error contract
 - changing toolkit import paths or exported functions
 - changing the `Content` / `Manifest` / `ContentHost` contract
