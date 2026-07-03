@@ -9,8 +9,9 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {
   AGENT_WORKSPACE_SCHEMA_VERSION,
-  AGENT_WORKSPACE_V0_CONTRACT_COVERAGE,
   CAPTURE_MODE_VALUES,
+  CAPTURE_SOURCE_KIND_VALUES,
+  CAPTURE_SOURCE_VALUE_FLAGS,
   NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
   NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
   nativeAxSavedRefBlockedKnownLimitReasons,
@@ -28,6 +29,7 @@ import {
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
   savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
+import { AGENT_WORKSPACE_V0_CONTRACT_COVERAGE } from './tests/lib/agent-workspace-contract-coverage.mjs';
 import { parseCaptureArgs } from './scripts/lib/agent-workspace/capture.mjs';
 import { recommendedRefreshCommand } from './scripts/lib/agent-workspace/ref-action-resolution.mjs';
 import { workspaceID } from './scripts/lib/agent-workspace/core.mjs';
@@ -36,7 +38,7 @@ const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0
 const defs = schema.$defs;
 assert.equal(defs.schema_version.const, AGENT_WORKSPACE_SCHEMA_VERSION);
 assert.deepEqual(defs.capture_mode.enum, CAPTURE_MODE_VALUES);
-assert.deepEqual(defs.capture_source.properties.kind.enum, AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.capture_source.kinds);
+assert.deepEqual(defs.capture_source.properties.kind.enum, CAPTURE_SOURCE_KIND_VALUES);
 assert.deepEqual(defs.backend.enum, SAVED_REF_BACKENDS);
 assert.deepEqual(defs.resolution_class.enum, SAVED_REF_RESOLUTION_CLASSES);
 assert.deepEqual(defs.confidence.enum, SAVED_REF_CONFIDENCE_VALUES);
@@ -54,7 +56,7 @@ assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace 
 assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');
 assert.ok(defs.snapshot_record.required.includes('query'), 'snapshot records must persist nullable saved query readback');
 assert.ok(defs.capture_source, 'schema must describe durable saved capture source argv');
-assert.deepEqual(defs.capture_source.properties.kind.enum, ['default_target', 'target', 'source_flags'], 'schema must not publish a target-plus-source hybrid capture_source kind');
+assert.deepEqual(defs.capture_source.properties.kind.enum, CAPTURE_SOURCE_KIND_VALUES, 'schema must not publish a target-plus-source hybrid capture_source kind');
 assert.ok(defs.ref_summary.properties.capture_source, 'ref summaries must allow compact capture source readback');
 assert.ok(defs.summary.properties.capture_source, 'saved capture summaries must allow compact capture source readback');
 assert.ok(defs.snapshot_record.properties.capture_source, 'snapshot records must allow compact capture source readback');
@@ -530,13 +532,20 @@ assert.ok(doNativeDragForm.usage.includes('--speed'), 'native coordinate drag us
 assert.ok(doNativeDragForm.args.some((arg) => arg.token === '--speed'), 'native coordinate drag args must keep --speed');
 assert.ok(!doNativeDragForm.usage.includes('ref:<snapshot-id>'), 'native coordinate drag usage must not advertise saved refs');
 assert.ok(!doNativeDragForm.usage.includes('canvas:<canvas-id>'), 'native coordinate drag usage must not advertise canvas targets');
-const canvasDragRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-canvas-drag.mjs');
-assert.equal(canvasDragRoute?.when?.prefix, 'canvas:', 'direct canvas drag must route through a dedicated canvas parser');
+for (const action of ['click', 'drag', 'set-value']) {
+  const canvasRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === `node scripts/aos-do-canvas.mjs ${action}`);
+  assert.equal(canvasRoute?.when?.prefix, 'canvas:', `direct canvas ${action} must route through the dedicated canvas parser`);
+}
+const nativeClickRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-native.mjs click');
+assert.deepEqual(nativeClickRoute?.when?.excluded_prefixes, ['browser:', 'ref:', 'canvas:'], 'native click route must not catch canvas targets');
 const nativeDragRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-native.mjs drag');
 assert.deepEqual(nativeDragRoute?.when?.excluded_prefixes, ['browser:', 'ref:', 'canvas:'], 'native drag route must not catch canvas targets');
+const nativeSetValueRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-native.mjs set-value');
+assert.deepEqual(nativeSetValueRoute?.when?.excluded_prefixes, ['ref:', 'canvas:'], 'native set-value route must not catch canvas targets');
 assert.ok(!nativeDoWrapper.includes("'--by'"), 'native wrapper must not globally own direct-canvas --by');
 assert.ok(!nativeDoWrapper.includes("'--to-value'"), 'native wrapper must not globally own direct-canvas --to-value');
 assert.ok(!nativeDoWrapper.includes("'--playback'"), 'native wrapper must not globally own direct-canvas --playback');
+assert.ok(!nativeDoWrapper.includes("startsWith('canvas:')"), 'native wrapper must not branch on direct canvas targets');
 
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
 assert.ok(seeCommand, 'manifest missing see command');
@@ -594,7 +603,7 @@ const parsedMultipleSources = parseCaptureArgs(['--region', '0,0,10,10', '--canv
 assert.equal(parsedMultipleSources.errors[0]?.code, 'INVALID_ARG', 'capture parser must reject multiple source-flag forms');
 assert.match(parsedMultipleSources.errors[0]?.error ?? '', /exactly one source/, 'capture parser must explain source-flag exclusivity');
 assert.equal(parsedMultipleSources.capture_source, null, 'invalid multiple-source forms must not synthesize combined capture_source');
-for (const sourceFlag of captureSourceCoverage.source_flags) {
+for (const sourceFlag of CAPTURE_SOURCE_VALUE_FLAGS) {
   const parsedMissingSourceValue = parseCaptureArgs([sourceFlag, '--save']);
   assert.equal(parsedMissingSourceValue.errors[0]?.code, 'MISSING_ARG', `${sourceFlag} must fail closed when its value is missing`);
   assert.equal(parsedMissingSourceValue.capture_source, null, `${sourceFlag} missing value must not synthesize capture_source`);

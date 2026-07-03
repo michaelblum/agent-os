@@ -201,6 +201,9 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
 fi
 check_missing_arg do-canvas-drag-mode-missing ./aos do drag canvas:fixture/drag-handle --dry-run
 check_invalid_arg do-canvas-drag-both-modes ./aos do drag canvas:fixture/drag-handle --by 1,1 --to-value 0.7 --dry-run
+check_invalid_arg do-canvas-drag-duplicate-by ./aos do drag canvas:fixture/drag-handle --by 1,1 --by 2,2 --dry-run
+check_invalid_arg do-canvas-drag-duplicate-to-value ./aos do drag canvas:fixture/drag-handle --to-value 0.7 --to-value 0.8 --dry-run
+check_invalid_arg do-canvas-drag-duplicate-playback ./aos do drag canvas:fixture/drag-handle --by 1,1 --playback human --playback auto --dry-run
 check_invalid_arg do-canvas-drag-by-invalid ./aos do drag canvas:fixture/drag-handle --by nope --dry-run
 check_invalid_arg do-canvas-drag-to-value-invalid ./aos do drag canvas:fixture/drag-handle --to-value nope --dry-run
 check_unknown_flag do-canvas-drag-speed ./aos do drag canvas:fixture/drag-handle --by 1,1 --speed 600 --dry-run
@@ -234,8 +237,8 @@ check_missing_arg do-native-set-value-pid-invalid ./aos do set-value --pid nope 
 check_missing_arg do-native-set-value-role-missing ./aos do set-value --pid 123 --value hello --dry-run
 check_missing_arg do-native-set-value-value-missing ./aos do set-value --pid 123 --role AXTextField --dry-run
 check_invalid_arg do-native-set-value-both-value-sources ./aos do set-value --pid 123 --role AXTextField hello --value world --dry-run
-check_invalid_arg do-native-set-value-canvas-both-value-sources ./aos do set-value canvas:fixture/slider hello --value world --dry-run
-check_invalid_arg do-native-set-value-canvas-both-target-sources ./aos do set-value canvas:fixture/slider --pid 123 --role AXTextField --value hello --dry-run
+check_invalid_arg do-canvas-set-value-both-value-sources ./aos do set-value canvas:fixture/slider hello --value world --dry-run
+check_invalid_arg do-canvas-set-value-both-target-sources ./aos do set-value canvas:fixture/slider --pid 123 --role AXTextField --value hello --dry-run
 check_missing_arg do-native-focus-role-missing ./aos do focus --pid 123 --dry-run
 check_missing_arg do-native-focus-pid-invalid ./aos do focus --pid nope --role AXTextField --dry-run
 check_unknown_arg do-native-focus-extra-positional ./aos do focus stray --pid 123 --role AXTextField --dry-run

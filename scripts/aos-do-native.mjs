@@ -100,12 +100,6 @@ function validateFlagTypes(args) {
   }
 }
 
-function setValueTargetEntry(positionalEntries) {
-  const first = positionalEntries[0];
-  if (first?.value?.startsWith('canvas:')) return first;
-  return null;
-}
-
 function setValueSource(args, targetIndex = null) {
   const valueFlagIndexes = flagIndexes(args, '--value');
   if (valueFlagIndexes.length > 1) {
@@ -131,8 +125,7 @@ function setValueSource(args, targetIndex = null) {
 
 function normalizeSetValueArgs(args) {
   const positionalEntries = positionalArgEntries(args);
-  const target = setValueTargetEntry(positionalEntries);
-  const source = setValueSource(args, target?.index ?? null);
+  const source = setValueSource(args);
   if (!source || source.kind === 'flag') return args;
   return [
     ...args.slice(0, source.index),
@@ -148,7 +141,7 @@ function validate(verb, args) {
   switch (verb) {
     case 'click':
       if (pos[0]?.startsWith('browser:')) error('native do click does not accept browser targets', 'INVALID_TARGET');
-      if (!(pos[0] && (isCoord(pos[0]) || pos[0].startsWith('canvas:')))) error('click requires coordinates (x,y) or canvas:<canvas-id>/<ref>', 'MISSING_ARG');
+      if (!(pos[0] && isCoord(pos[0]))) error('click requires coordinates (x,y)', 'MISSING_ARG');
       if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'hover':
@@ -158,7 +151,6 @@ function validate(verb, args) {
       break;
     case 'drag':
       if (pos.some((arg) => arg.startsWith('browser:'))) error('native do drag does not accept browser targets', 'INVALID_TARGET');
-      if (pos.some((arg) => arg.startsWith('canvas:'))) error('native do drag does not accept canvas targets', 'INVALID_TARGET');
       if (!(pos.length >= 2 && isCoord(pos[0]) && isCoord(pos[1]))) error('drag requires two coordinate pairs (x1,y1 x2,y2)', 'MISSING_ARG');
       if (pos.length > 2) unknownArg(pos[2]);
       break;
@@ -184,15 +176,6 @@ function validate(verb, args) {
       requireFlag(args, '--role', 'press requires --role');
       break;
     case 'set-value':
-      const setValuePositions = positionalArgEntries(args);
-      const setValueTarget = setValueTargetEntry(setValuePositions);
-      if (setValueTarget) {
-        if (flagPresence(args, '--pid') || flagPresence(args, '--role')) {
-          error('set-value accepts exactly one target source: target or --pid/--role', 'INVALID_ARG');
-        }
-        if (!setValueSource(args, setValueTarget.index)) error('set-value requires --value or a positional value', 'MISSING_ARG');
-        break;
-      }
       requireFlag(args, '--pid', 'set-value requires --pid', isInt);
       requireFlag(args, '--role', 'set-value requires --role');
       if (!setValueSource(args)) error('set-value requires --value or a positional value', 'MISSING_ARG');
@@ -331,8 +314,6 @@ function mergeKnownLimits(existing, next) {
 
 function isDirectNativeAXAction(verb, args) {
   if (!['press', 'set-value', 'focus'].includes(verb)) return false;
-  const pos = positionalArgs(args);
-  if (verb === 'set-value' && (pos[0]?.startsWith('canvas:'))) return false;
   return args.includes('--pid');
 }
 
