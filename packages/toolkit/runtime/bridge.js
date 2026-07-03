@@ -7,20 +7,31 @@
 const handlers = []
 
 export function wireBridge(handler) {
-  if (typeof handler === 'function') handlers.push(handler)
-  if (window.headsup && window.headsup.receive) return  // already wired
-  window.headsup = window.headsup || {}
-  window.headsup.receive = function (b64) {
-    let msg
-    try {
-      msg = JSON.parse(atob(b64))
-    } catch (e) {
-      console.error('[runtime] bridge decode error', e)
-      return
+  let active = false
+  if (typeof handler === 'function') {
+    handlers.push(handler)
+    active = true
+  }
+  if (!window.headsup || !window.headsup.receive) {
+    window.headsup = window.headsup || {}
+    window.headsup.receive = function (b64) {
+      let msg
+      try {
+        msg = JSON.parse(atob(b64))
+      } catch (e) {
+        console.error('[runtime] bridge decode error', e)
+        return
+      }
+      for (const h of handlers) {
+        try { h(msg) } catch (e) { console.error('[runtime] handler error', e) }
+      }
     }
-    for (const h of handlers) {
-      try { h(msg) } catch (e) { console.error('[runtime] handler error', e) }
-    }
+  }
+  return () => {
+    if (!active) return
+    active = false
+    const index = handlers.indexOf(handler)
+    if (index >= 0) handlers.splice(index, 1)
   }
 }
 

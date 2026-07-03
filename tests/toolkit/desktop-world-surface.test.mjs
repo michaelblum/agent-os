@@ -19,6 +19,10 @@ const segments = [
   { display_id: 11, index: 1, dw_bounds: [100, 0, 100, 100], native_bounds: [80, 0, 100, 100] },
 ]
 
+function encodeBridgeMessage(message) {
+  return Buffer.from(JSON.stringify(message), 'utf8').toString('base64')
+}
+
 test('isPrimary reflects index === 0 and runOnPrimary gates work', async () => {
   const adapter = new StubAdapter({
     canvasId: 'avatar',
@@ -99,3 +103,59 @@ test('feedInput maps native input into DesktopWorld coordinates', () => {
   assert.equal(seen.length, 1)
 })
 
+test('stop removes global bridge handler before restart', async () => {
+  const previousWindow = globalThis.window
+  globalThis.window = { headsup: {} }
+  const calls = []
+  const adapter = new StubAdapter({ canvasId: 'avatar' })
+  const message = {
+    type: 'canvas_lifecycle',
+    event: 'canvas_topology_settled',
+    canvas_id: 'avatar',
+    segments,
+  }
+
+  try {
+    const firstStart = adapter.start({
+      onInit: () => calls.push('init:first'),
+      onTopologyChange: () => calls.push('topology:first'),
+    })
+    globalThis.window.headsup.receive(encodeBridgeMessage(message))
+    await firstStart
+
+    adapter.stop()
+    globalThis.window.headsup.receive(encodeBridgeMessage(message))
+
+    const secondStart = adapter.start({
+      onInit: () => calls.push('init:second'),
+      onTopologyChange: () => calls.push('topology:second'),
+    })
+    globalThis.window.headsup.receive(encodeBridgeMessage(message))
+    await secondStart
+
+    assert.deepEqual(calls, ['init:first', 'init:second'])
+  } finally {
+    adapter.stop()
+    globalThis.window = previousWindow
+  }
+})
+
+test('concurrent starts share the first topology settlement', async () => {
+  const callbacks = []
+  const calls = []
+  const adapter = new StubAdapter({
+    canvasId: 'avatar',
+    host: {
+      subscribe: () => ({ on: (handler) => callbacks.push(handler) }),
+    },
+  })
+
+  const firstStart = adapter.start({ onInit: () => calls.push('init:first') })
+  const secondStart = adapter.start({ onInit: () => calls.push('init:second') })
+  callbacks[0]({ type: 'canvas_lifecycle', event: 'canvas_topology_settled', canvas_id: 'avatar', segments })
+
+  await Promise.all([firstStart, secondStart])
+
+  assert.deepEqual(calls, ['init:second'])
+  assert.equal(adapter.segment.display_id, 10)
+})
