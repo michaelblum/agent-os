@@ -32,6 +32,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
   ['--workspace', 'value'],
   ['--snapshot', 'value'],
   ['--diff', 'value'],
+  ['--expect', 'value'],
   ['--query', 'value'],
   ['--older-than', 'value'],
 ]);
@@ -39,7 +40,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
 const AGENT_WORKSPACE_FLAGS = {
   workspaces: new Set(['--json']),
   snapshots: new Set(['--workspace', '--json']),
-  refs: new Set(['--workspace', '--snapshot', '--diff', '--query', '--json']),
+  refs: new Set(['--workspace', '--snapshot', '--diff', '--expect', '--query', '--json']),
   workspace: new Set(['--json']),
   workspacePrune: new Set(['--older-than', '--dry-run', '--i-understand-local-artifacts', '--json']),
   workspaceDelete: new Set(['--i-understand-local-artifacts', '--json']),
@@ -57,6 +58,7 @@ function parseReadArgs(args, {
   let workspace = null;
   let snapshot = null;
   let diff = null;
+  let expect = null;
   let query = null;
   let json = false;
   let dryRun = false;
@@ -81,6 +83,7 @@ function parseReadArgs(args, {
       if (arg === '--workspace') workspace = args[i + 1];
       if (arg === '--snapshot') snapshot = args[i + 1];
       if (arg === '--diff') diff = args[i + 1];
+      if (arg === '--expect') expect = args[i + 1];
       if (arg === '--query') query = args[i + 1];
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
@@ -105,12 +108,22 @@ function parseReadArgs(args, {
     workspace: resolvedWorkspace,
     snapshot: snapshot ? validateLocalID(snapshot, 'snapshot id') : null,
     diff,
+    expect,
     query,
     json,
     dryRun,
     acknowledge,
     olderThan,
   };
+}
+
+function parseDiffExpectation(value) {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  if (!['change', 'no-change'].includes(normalized)) {
+    exitAgentWorkspaceError('--expect must be change or no-change', 'INVALID_ARG');
+  }
+  return normalized;
 }
 
 function parseSnapshotDiff(value) {
@@ -187,6 +200,22 @@ function compactRefsDiff(fromRefs, toRefs) {
   };
 }
 
+function refsDiffHasChange(comparison) {
+  return (comparison.counts.added + comparison.counts.removed + comparison.counts.changed) > 0;
+}
+
+function refsDiffExpectation(expectation, comparison) {
+  if (!expectation) return null;
+  const actualChange = refsDiffHasChange(comparison);
+  const expectedChange = expectation === 'change';
+  return {
+    mode: expectation,
+    status: actualChange === expectedChange ? 'passed' : 'failed',
+    expected_change: expectedChange,
+    actual_change: actualChange,
+  };
+}
+
 function assertWorkspaceListState(value, file, label) {
   if (!value) return;
   if (typeof value !== 'object' || Array.isArray(value) || value.schema_version !== SCHEMA_VERSION) {
@@ -248,13 +277,15 @@ export function refsCommand(args, env = process.env) {
   const { index } = requireWorkspace(parsed.workspace, env);
   if (parsed.diff) {
     const diff = parseSnapshotDiff(parsed.diff);
+    const expectationMode = parseDiffExpectation(parsed.expect);
     const fromLoaded = loadSnapshot(parsed.workspace, diff.from, env);
     const toLoaded = loadSnapshot(parsed.workspace, diff.to, env);
     const fromRefs = (fromLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const toRefs = (toLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const comparison = compactRefsDiff(fromRefs, toRefs);
+    const expectation = refsDiffExpectation(expectationMode, comparison);
     const nextRecommendations = compactNextRecommendations(parsed.workspace, diff.to, toRefs, env);
-    printJSON({
+    const payload = {
       status: 'success',
       schema_version: SCHEMA_VERSION,
       workspace_id: parsed.workspace,
@@ -264,13 +295,32 @@ export function refsCommand(args, env = process.env) {
       diff: {
         from_snapshot_id: diff.from,
         to_snapshot_id: diff.to,
+        ...(expectation ? { expectation } : {}),
         ...comparison,
       },
       refs: toRefs,
       recommended_next: nextRecommendations,
       recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
-    });
+    };
+    if (expectation?.status === 'failed') {
+      exitAgentWorkspaceError(`refs diff expectation failed: expected ${expectation.mode}`, 'REF_DIFF_EXPECTATION_FAILED', {
+        status: 'expectation_failed',
+        schema_version: SCHEMA_VERSION,
+        workspace_id: parsed.workspace,
+        runtime_mode: runtimeMode(env),
+        snapshot_id: diff.to,
+        query: parsed.query,
+        diff: payload.diff,
+        refs: toRefs,
+        recommended_next: nextRecommendations,
+        recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
+      });
+    }
+    printJSON(payload);
     return;
+  }
+  if (parsed.expect) {
+    exitAgentWorkspaceError('--expect requires --diff', 'INVALID_ARG');
   }
   const snapshotIDs = parsed.snapshot
     ? [parsed.snapshot]

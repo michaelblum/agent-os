@@ -426,6 +426,43 @@ jq -e '
   and (has("base64") | not)
 ' "$REF_DIFF" >/dev/null || fail "refs diff did not expose compact snapshot comparison: $(cat "$REF_DIFF")"
 assert_no_heavy_capture_payloads "$REF_DIFF" "refs diff readback"
+REF_DIFF_EXPECT_CHANGE="$TMP_DIR/refs-diff-expect-change.json"
+./aos see refs --workspace ws1 --diff snap1..snap2 --expect change --json >"$REF_DIFF_EXPECT_CHANGE"
+jq -e '
+  .status == "success"
+  and .diff.expectation.mode == "change"
+  and .diff.expectation.status == "passed"
+  and .diff.expectation.expected_change == true
+  and .diff.expectation.actual_change == true
+  and .diff.counts.changed == 1
+' "$REF_DIFF_EXPECT_CHANGE" >/dev/null || fail "refs diff change expectation did not pass: $(cat "$REF_DIFF_EXPECT_CHANGE")"
+REF_DIFF_EXPECT_NO_CHANGE="$TMP_DIR/refs-diff-expect-no-change.json"
+./aos see refs --workspace ws1 --diff snap2..snap2 --expect no-change --json >"$REF_DIFF_EXPECT_NO_CHANGE"
+jq -e '
+  .status == "success"
+  and .diff.expectation.mode == "no-change"
+  and .diff.expectation.status == "passed"
+  and .diff.expectation.expected_change == false
+  and .diff.expectation.actual_change == false
+  and .diff.counts.added == 0
+  and .diff.counts.removed == 0
+  and .diff.counts.changed == 0
+' "$REF_DIFF_EXPECT_NO_CHANGE" >/dev/null || fail "refs diff no-change expectation did not pass: $(cat "$REF_DIFF_EXPECT_NO_CHANGE")"
+REF_DIFF_EXPECT_FAIL_ERR="$TMP_DIR/refs-diff-expect-fail.err"
+if ./aos see refs --workspace ws1 --diff snap1..snap2 --expect no-change --json >"$TMP_DIR/refs-diff-expect-fail.out" 2>"$REF_DIFF_EXPECT_FAIL_ERR"; then
+    fail "refs diff failed expectation unexpectedly succeeded"
+fi
+expect_error_code "REF_DIFF_EXPECTATION_FAILED" "$REF_DIFF_EXPECT_FAIL_ERR"
+jq -e '
+  .status == "expectation_failed"
+  and .diff.expectation.mode == "no-change"
+  and .diff.expectation.status == "failed"
+  and .diff.expectation.expected_change == false
+  and .diff.expectation.actual_change == true
+  and .diff.counts.added == 1
+  and .diff.counts.removed == 1
+  and .diff.counts.changed == 1
+' "$REF_DIFF_EXPECT_FAIL_ERR" >/dev/null || fail "refs diff expectation failure payload drifted: $(cat "$REF_DIFF_EXPECT_FAIL_ERR")"
 REF_DIFF_QUERY="$TMP_DIR/refs-diff-query.json"
 ./aos see refs --workspace ws1 --diff snap1..snap2 --query "Added diff target" --json >"$REF_DIFF_QUERY"
 jq -e '
@@ -438,6 +475,8 @@ jq -e '
 ' "$REF_DIFF_QUERY" >/dev/null || fail "refs diff query did not filter before comparison: $(cat "$REF_DIFF_QUERY")"
 expect_command_error_code "INVALID_ARG" "refs-diff-with-snapshot" ./aos see refs --workspace ws1 --snapshot snap1 --diff snap1..snap2 --json
 expect_command_error_code "INVALID_ARG" "refs-diff-malformed" ./aos see refs --workspace ws1 --diff snap1 --json
+expect_command_error_code "INVALID_ARG" "refs-diff-invalid-expect" ./aos see refs --workspace ws1 --diff snap1..snap2 --expect maybe --json
+expect_command_error_code "INVALID_ARG" "refs-diff-expect-without-diff" ./aos see refs --workspace ws1 --snapshot snap1 --expect change --json
 mv "$SNAP2_REFS_BACKUP" "$SNAP2_REFS"
 
 mkdir -p "$WORKSPACE_PATH/.write-lock"

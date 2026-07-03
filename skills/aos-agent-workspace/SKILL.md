@@ -98,8 +98,10 @@ the returned `recommended_next`, `recommended_next_commands`, or
   and saved `query` fields so you do not need to open heavy capture payloads
   just to recover the saved scope.
 - Use `aos see refs --workspace <id> --diff <from>..<to> --json` for compact
-  ref-level snapshot comparison after a verification capture. Treat it as a
-  saved-ref diff, not a complete visual assertion.
+  ref-level snapshot comparison after a verification capture. Add
+  `--expect change|no-change` when a recipe or shell should fail with
+  `REF_DIFF_EXPECTATION_FAILED` on mismatch. Treat it as a saved-ref diff gate,
+  not a complete visual assertion.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

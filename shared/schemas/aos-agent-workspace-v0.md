@@ -60,7 +60,9 @@ or `aos see assert`.
 Use structured `recommended_next` descriptors and `recommended_next_command`
 plus a fresh saved capture for re-perception. Use
 `aos see refs --diff <from>..<to>` only for compact saved-ref comparison between
-two existing snapshots; it is not a wait loop or full assertion engine. Use
+two existing snapshots. `--expect change|no-change` makes that compact diff a
+machine-checkable gate with `REF_DIFF_EXPECTATION_FAILED` on mismatch; it is
+still not a wait loop or full assertion engine. Use
 `aos show wait` only for canvas readiness, Recipe assertions only for command
 JSON checks, and Work Record postconditions for durable evidence checks. Future
 saved wait/assert commands need manifest help, parser, schema/doc, and drift
