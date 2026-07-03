@@ -222,6 +222,7 @@ fi
 if OUT="$(./aos help listen --json 2>/dev/null)" TEXT="$(./aos help listen 2>/dev/null)" python3 - <<'PY'
 import json
 import os
+from pathlib import Path
 
 data = json.loads(os.environ["OUT"])
 assert "channels or direct sessions" in data["summary"], data["summary"]
@@ -239,6 +240,10 @@ for form_id in ["listen-read", "listen-follow"]:
     assert any("--session-id" in item for item in form.get("examples", [])), form
 text = os.environ["TEXT"]
 assert text.count("requires one listen source: <channel> OR --session-id") == 2, text
+api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
+assert "STT/dictation is planned as a future" in api_doc, "missing planned listen source boundary"
+assert "current public surface only reads channels" in api_doc, "missing current listen source boundary"
+assert "direct-session messages" in api_doc, "missing direct-session listen boundary"
 PY
 then
     pass "listen help exposes channel or direct-session source alternatives"

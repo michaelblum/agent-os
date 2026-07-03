@@ -1256,7 +1256,10 @@ aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 aos listen --channels
 ```
 
-One-shot reads return a JSON envelope with a `messages` array. `--follow` emits one message per line as NDJSON.
+One-shot reads return a JSON envelope with a `messages` array. `--follow` emits
+one message per line as NDJSON. STT/dictation is planned as a future
+`aos listen` source, but the current public surface only reads channels and
+direct-session messages.
 
 ## `aos wiki`
 
