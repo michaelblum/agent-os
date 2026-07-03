@@ -56,11 +56,11 @@ refs fail closed for those actions.
   postconditions for durable evidence checks.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
-  ref. Use structured `recommended_next` descriptors or
-  `recommended_next_commands` to choose a scoped ref. If the command returns
-  `REF_AMBIGUOUS`, use its candidate snapshots and `recommended_next_commands`
-  to choose a scoped ref. If it returns `REF_NOT_FOUND`, run the returned refs
-  inspection command before retrying.
+  ref. `aos see refs` returns structured `recommended_next` descriptors and
+  `recommended_next_commands` for scoped dry-runs. If a saved-ref command
+  returns `REF_AMBIGUOUS`, use its candidate snapshots and
+  `recommended_next_commands` to choose a scoped ref. If it returns
+  `REF_NOT_FOUND`, run the returned refs inspection command before retrying.
 - Treat compact stdout as the model-facing payload. Full capture JSON,
   screenshots, base64, AX trees, browser elements, and semantic target arrays
   stay file-backed under the snapshot directory.

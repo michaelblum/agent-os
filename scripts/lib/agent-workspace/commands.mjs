@@ -23,6 +23,7 @@ import {
   workspaceLockState,
 } from './store.mjs';
 import { queryMatches, refSummary } from './refs.mjs';
+import { compactNextRecommendations } from './recommendations.mjs';
 
 const AGENT_WORKSPACE_FLAG_KINDS = new Map([
   ['--json', 'bool'],
@@ -172,6 +173,9 @@ export function refsCommand(args, env = process.env) {
     const loaded = loadSnapshot(parsed.workspace, snap, env);
     refs.push(...(loaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary));
   }
+  const nextRecommendations = parsed.snapshot || index.current_snapshot_id
+    ? compactNextRecommendations(parsed.workspace, parsed.snapshot ?? index.current_snapshot_id, refs, env)
+    : [];
   printJSON({
     status: 'success',
     schema_version: SCHEMA_VERSION,
@@ -180,6 +184,8 @@ export function refsCommand(args, env = process.env) {
     snapshot_id: parsed.snapshot ?? index.current_snapshot_id ?? null,
     query: parsed.query,
     refs,
+    recommended_next: nextRecommendations,
+    recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
   });
 }
 
