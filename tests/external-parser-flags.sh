@@ -305,6 +305,14 @@ const multiSource = parseCaptureArgs(['--region', '0,0,10,10', '--canvas', 'surf
 assert.deepEqual(multiSource.errors.map((item) => item.code), ['INVALID_ARG']);
 assert.match(multiSource.errors[0].error, /exactly one source/);
 assert.equal(multiSource.capture_source, null);
+for (const sourceFlag of ['--region', '--canvas', '--channel']) {
+  const missing = parseCaptureArgs([sourceFlag, '--save']);
+  assert.deepEqual(missing.errors.map((item) => item.code), ['MISSING_ARG']);
+  assert.equal(missing.capture_source, null);
+}
+const completeThenMissing = parseCaptureArgs(['--region', '0,0,10,10', '--channel']);
+assert.deepEqual(completeThenMissing.errors.map((item) => item.code), ['MISSING_ARG']);
+assert.equal(completeThenMissing.capture_source, null);
 
 const { readFileSync } = await import('node:fs');
 const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));
@@ -328,6 +336,8 @@ check_invalid_arg see-capture-save-out-conflict ./aos see capture main --save --
 check_invalid_arg see-capture-save-mode-invalid ./aos see capture main --save --mode bogus
 check_missing_arg see-capture-out-missing ./aos see capture main --out
 check_missing_arg see-capture-region-missing ./aos see capture main --region
+check_missing_arg see-capture-canvas-missing ./aos see capture --canvas --save
+check_missing_arg see-capture-channel-missing ./aos see capture --region 0,0,10,10 --channel
 check_missing_arg see-capture-draw-rect-color-missing ./aos see capture main --draw-rect 1,2,3,4
 err="$STATE_ROOT/see-capture-radius-invalid.err"
 if ./aos see capture mouse --radius nope 2>"$err"; then

@@ -130,6 +130,7 @@ function parseCaptureSource(targetArgv, sourceFlagEntries, errors) {
 export function parseCaptureArgs(args) {
   const passthrough = [];
   const sourceFlagEntries = [];
+  let invalidSourceFlag = false;
   const seen = new Set();
   const errors = [];
   let target = null;
@@ -190,6 +191,10 @@ export function parseCaptureArgs(args) {
         values.push(value);
         i += 1;
       }
+      if (values.length < arity) {
+        validationError(errors, `${arg} requires a value`, 'MISSING_ARG');
+        if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg)) invalidSourceFlag = true;
+      }
       if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg) && values.length === arity) {
         sourceFlagEntries.push({ flag: arg, argv: [arg, ...values] });
       }
@@ -215,7 +220,7 @@ export function parseCaptureArgs(args) {
   if (options.save && seen.has('--out')) {
     validationError(errors, '--out cannot be used with --save; saved captures write artifacts under the workspace snapshot');
   }
-  const captureSource = parseCaptureSource(targetArgv, sourceFlagEntries, errors);
+  const captureSource = invalidSourceFlag ? null : parseCaptureSource(targetArgv, sourceFlagEntries, errors);
   if (!options.save) {
     for (const flag of ['--workspace', '--name', '--mode', '--query']) {
       if (seen.has(flag)) validationError(errors, `${flag} requires --save`);

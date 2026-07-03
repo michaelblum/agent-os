@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {
   AGENT_WORKSPACE_SCHEMA_VERSION,
+  AGENT_WORKSPACE_V0_CONTRACT_COVERAGE,
   CAPTURE_MODE_VALUES,
   NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
   NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
@@ -35,6 +36,7 @@ const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0
 const defs = schema.$defs;
 assert.equal(defs.schema_version.const, AGENT_WORKSPACE_SCHEMA_VERSION);
 assert.deepEqual(defs.capture_mode.enum, CAPTURE_MODE_VALUES);
+assert.deepEqual(defs.capture_source.properties.kind.enum, AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.capture_source.kinds);
 assert.deepEqual(defs.backend.enum, SAVED_REF_BACKENDS);
 assert.deepEqual(defs.resolution_class.enum, SAVED_REF_RESOLUTION_CLASSES);
 assert.deepEqual(defs.confidence.enum, SAVED_REF_CONFIDENCE_VALUES);
@@ -229,21 +231,26 @@ const manifestJSON = JSON.parse(manifest);
 const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
 const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
 
+function assertIncludesAll(text, needles, label) {
+  for (const needle of needles) {
+    assert.ok(text.includes(needle), `${label} missing ${needle}`);
+  }
+}
+
+function actionTableRow(doc, action) {
+  return doc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\` |`)) ?? '';
+}
+
+const workspaceSelectionCoverage = AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.workspace_selection;
 for (const [label, text] of Object.entries({ schemaDoc, apiDoc, skill })) {
   const prose = text.replace(/\s+/g, ' ');
-  assert.ok(prose.includes('Workspace selection is command-scoped'), `${label} must describe command-scoped workspace selection`);
-  assert.ok(text.includes('AOS_AGENT_WORKSPACE'), `${label} must describe the environment workspace default`);
-  assert.ok(prose.includes('`--workspace <id>`') && prose.includes('AOS uses `default`'), `${label} must document flag/env/default precedence`);
-  assert.ok(prose.includes('No daemon-held current workspace exists'), `${label} must reject daemon-held current workspace state`);
-  assert.ok(prose.includes('`aos see workspace use <id>` is not a current command'), `${label} must reject workspace use command as current contract`);
-  assert.ok(/parallel agents|parallel-session/.test(prose), `${label} must tie workspace selection to multi-agent safety`);
-  assert.ok(prose.includes('Current wait/diff/assertion boundary'), `${label} must describe saved wait/diff/assertion boundary`);
-  for (const unsupported of ['aos see capture --wait-for-change', 'aos see capture --until-stable', 'aos see refs --diff', 'aos see assert']) {
+  assertIncludesAll(prose, workspaceSelectionCoverage.required_doc_terms, `${label} workspace selection coverage`);
+  for (const pattern of workspaceSelectionCoverage.required_doc_patterns) {
+    assert.match(prose, pattern, `${label} workspace selection coverage missing ${pattern}`);
+  }
+  for (const unsupported of workspaceSelectionCoverage.unsupported_saved_workspace_commands) {
     assert.ok(text.includes(unsupported), `${label} must name unsupported saved workspace command ${unsupported}`);
   }
-  assert.ok(text.includes('recommended_next_command'), `${label} must point re-perception to recommended_next_command`);
-  assert.ok(text.includes('aos show wait'), `${label} must keep show wait scoped to canvas readiness`);
-  assert.ok(prose.includes('Work Record postconditions'), `${label} must route durable evidence checks to Work Record postconditions`);
 }
 
 function skillFrontmatter(text) {
@@ -412,20 +419,14 @@ assert.ok(
   && apiDoc.indexOf('aos see capture main --base64') > apiDoc.indexOf('aos see capture browser:work --save'),
   'API doc must lead with saved capture before base64/pixel fallback examples',
 );
-assert.ok(
-  apiDoc.includes('Saved capture uses the same capture-source contract as ordinary capture')
-  && apiDoc.includes('defaults to `main`')
-  && apiDoc.includes('source forms are')
-  && apiDoc.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`')
-  && skill.includes('A saved capture source can be a positional target')
-  && skill.includes('capture defaults to')
-  && skill.includes('source forms are mutually exclusive')
-  && schemaDoc.includes('or the default `main` target when no')
-  && schemaDoc.includes('Positional target and source-flag forms')
-  && schemaDoc.includes('exclusive')
-  && skill.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`'),
-  'API doc, schema doc, and workspace skill must describe saved capture source alternatives and default main behavior',
-);
+const captureSourceCoverage = AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.capture_source;
+assertIncludesAll(apiDoc, captureSourceCoverage.api_terms, 'API capture source coverage');
+assertIncludesAll(schemaDoc, captureSourceCoverage.schema_terms, 'schema capture source coverage');
+assertIncludesAll(skill, captureSourceCoverage.skill_terms, 'skill capture source coverage');
+for (const usage of captureSourceCoverage.source_flag_usage) {
+  assert.ok(apiDoc.includes(usage), `API doc missing capture source usage ${usage}`);
+  assert.ok(skill.includes(usage), `skill missing capture source usage ${usage}`);
+}
 assert.ok(
   skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run') >= 0
   && skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run')
@@ -508,16 +509,14 @@ const doNativeDragForm = doCommand.forms.find((form) => form.id === 'do-drag-nat
 assert.ok(doDragForm, 'manifest missing saved-ref/browser do-drag form');
 assert.ok(doCanvasDragForm, 'manifest missing direct canvas do-drag form');
 assert.ok(doNativeDragForm, 'manifest missing native coordinate do-drag form');
-assert.ok(apiDoc.includes('| `click` | click coordinates, saved refs, direct browser targets, or AOS canvas semantic refs |'), 'API do table must name saved refs and direct browser targets for click');
-assert.ok(apiDoc.includes('| `hover` | saved/browser hover or coordinate hover |'), 'API do table must name saved/browser and coordinate hover tiers');
-assert.ok(apiDoc.includes('| `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |'), 'API do table must split drag grammar tiers');
-assert.ok(!apiDoc.includes('| `drag` | drag between coordinates, browser refs, or AOS canvas semantic refs |'), 'API do table must not collapse drag grammar tiers');
-assert.ok(apiDoc.includes('| `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |'), 'API do table must split saved/browser and coordinate scroll tiers');
-assert.ok(apiDoc.includes('| `type` | literal native text input or direct browser target text; no saved-ref action |'), 'API do table must keep type out of saved-ref actions while naming the direct browser route');
-assert.ok(apiDoc.includes('| `key` | literal native key combo or direct browser target key press; no saved-ref action |'), 'API do table must keep key out of saved-ref actions while naming the direct browser route');
-assert.ok(apiDoc.includes('| `press` | saved native AX press or direct `--pid` / `--role` AX press |'), 'API do table must split saved native AX and direct AX press');
-assert.ok(apiDoc.includes('| `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |'), 'API do table must name saved refs, direct AX, and canvas set-value');
-assert.ok(apiDoc.includes('| `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |'), 'API do table must split saved native AX and direct AX focus');
+for (const tier of AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.do_action_tiers) {
+  const row = actionTableRow(apiDoc, tier.action);
+  assert.ok(row, `API do table missing ${tier.action}`);
+  assertIncludesAll(row, tier.api_terms, `API do table ${tier.action}`);
+  for (const forbidden of tier.api_forbidden_terms ?? []) {
+    assert.equal(apiDoc.includes(forbidden), false, `API do table must not collapse ${tier.action} into ${forbidden}`);
+  }
+}
 assert.ok(!doDragForm.usage.includes('--speed'), 'saved-ref drag usage must not advertise native-only --speed');
 assert.ok(!doDragForm.args.some((arg) => arg.token === '--speed'), 'saved-ref drag args must not advertise native-only --speed');
 assert.ok(!doDragForm.usage.includes('--by'), 'saved-ref drag usage must not advertise direct-canvas --by');
@@ -595,6 +594,14 @@ const parsedMultipleSources = parseCaptureArgs(['--region', '0,0,10,10', '--canv
 assert.equal(parsedMultipleSources.errors[0]?.code, 'INVALID_ARG', 'capture parser must reject multiple source-flag forms');
 assert.match(parsedMultipleSources.errors[0]?.error ?? '', /exactly one source/, 'capture parser must explain source-flag exclusivity');
 assert.equal(parsedMultipleSources.capture_source, null, 'invalid multiple-source forms must not synthesize combined capture_source');
+for (const sourceFlag of captureSourceCoverage.source_flags) {
+  const parsedMissingSourceValue = parseCaptureArgs([sourceFlag, '--save']);
+  assert.equal(parsedMissingSourceValue.errors[0]?.code, 'MISSING_ARG', `${sourceFlag} must fail closed when its value is missing`);
+  assert.equal(parsedMissingSourceValue.capture_source, null, `${sourceFlag} missing value must not synthesize capture_source`);
+}
+const parsedCompleteThenMissingSource = parseCaptureArgs(['--region', '0,0,10,10', '--channel']);
+assert.equal(parsedCompleteThenMissingSource.errors[0]?.code, 'MISSING_ARG', 'incomplete second source flag must fail closed');
+assert.equal(parsedCompleteThenMissingSource.capture_source, null, 'incomplete second source flag must not preserve the completed source');
 assert.equal(
   recommendedRefreshCommand('default', {
     capture_target: 'main',
