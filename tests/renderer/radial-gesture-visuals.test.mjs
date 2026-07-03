@@ -507,6 +507,33 @@ test('closing radial visuals reverse their ingress animation before disappearing
   assert.equal(visuals.group.visible, false)
 })
 
+test('glTF radial item missing source installs fallback glyph without throwing', () => {
+  const scene = new Object3D()
+  const visuals = createSigilRadialGestureVisuals({
+    scene,
+    projectPoint: (point) => new Vector3(point.x, point.y, 0),
+    projectRadius: () => 0.3,
+  })
+
+  assert.doesNotThrow(() => visuals.update({
+    phase: 'radial',
+    menuProgress: 1,
+    origin: { x: 0, y: 0 },
+    pointer: { x: 0, y: 0 },
+    items: [{
+      id: 'missing-model',
+      center: { x: 100, y: 0 },
+      hitRadius: 20,
+      visualRadius: 20,
+      geometry: { type: 'gltf' },
+    }],
+  }, { time: 0 }))
+
+  const glyph = visuals.group.children[0]
+  assert.equal(glyph.userData.geometryStatus, 'missing-src')
+  assert.ok(glyph.children.length > 0)
+})
+
 test('Sigil radial item modules own fallback glyph creation hooks', async () => {
   const { resolveSigilRadialItemModule } = await import('../../apps/sigil/renderer/radial-menu/item-registry.js')
   const moduleDef = resolveSigilRadialItemModule({ id: 'avatar-controls' })
