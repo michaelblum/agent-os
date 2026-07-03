@@ -188,7 +188,8 @@ export function assertGuidedUserSignalSessionId(id) {
 }
 
 export function createGuidedUserSignalSession(input = {}, options = {}) {
-  const now = isoNow(options.now || input.lifecycle?.created_at || input.created_at || Date.now());
+  const now = isoNow(options.now || Date.now());
+  const createdAt = isoNow(input.lifecycle?.created_at || input.created_at || now);
   const sessionId = text(input.session_id, `guided-signal-${randomUUID()}`);
   assertGuidedUserSignalSessionId(sessionId);
   const state = GUIDED_USER_SIGNAL_TERMINAL_STATES.has(input.lifecycle?.state)
@@ -206,7 +207,7 @@ export function createGuidedUserSignalSession(input = {}, options = {}) {
     linked_artifacts: normalizeLinks(input.linked_artifacts || input.links),
     lifecycle: {
       state,
-      created_at: now,
+      created_at: createdAt,
       updated_at: isoNow(input.lifecycle?.updated_at || input.updated_at || now),
       terminal_at: input.lifecycle?.terminal_at || (GUIDED_USER_SIGNAL_TERMINAL_STATES.has(state) ? now : null),
       terminal_outcome: input.lifecycle?.terminal_outcome || (GUIDED_USER_SIGNAL_TERMINAL_STATES.has(state) ? state : null),

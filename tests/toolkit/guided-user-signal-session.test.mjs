@@ -172,6 +172,22 @@ test('guided user signal terminal completion is idempotent', () => {
   assert.equal(second.session.lifecycle.terminal_at, CAPTURED_AT);
 });
 
+test('guided user signal completion preserves original created_at', () => {
+  const pending = createGuidedUserSignalSession(input(), { now: CREATED_AT });
+  const completed = completeGuidedUserSignalSession(pending, {
+    state: 'captured',
+    capture_result: {
+      kind: 'click',
+      captured_at: CAPTURED_AT,
+      point: { x: 50, y: 60 },
+    },
+  }, { now: CAPTURED_AT });
+
+  assert.equal(completed.session.lifecycle.created_at, CREATED_AT);
+  assert.equal(completed.session.lifecycle.updated_at, CAPTURED_AT);
+  assert.equal(completed.session.lifecycle.terminal_at, CAPTURED_AT);
+});
+
 test('guided user signal store honors isolated runtime state root', async () => {
   const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-guided-user-signal-'));
   const store = new GuidedUserSignalSessionStore({ env: { AOS_RUNTIME_MODE: 'repo', AOS_STATE_ROOT: stateRoot } });
