@@ -78,6 +78,14 @@ class DaemonEventStream {
         if currentFD >= 0 { close(currentFD) }
     }
 
+    private func clearConnectedFD(_ expectedFD: Int32) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard fd == expectedFD else { return false }
+        fd = -1
+        return true
+    }
+
     var isRunning: Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -121,8 +129,9 @@ class DaemonEventStream {
 
             guard session.sendAndReceive(subscribeMessage) != nil else {
                 fputs("event-stream: subscribe failed, retrying...\n", stderr)
-                close(sockFD)
-                lock.lock(); fd = -1; lock.unlock()
+                if clearConnectedFD(sockFD) {
+                    close(sockFD)
+                }
                 usleep(UInt32(backoff * 1_000_000))
                 continue  // defer fires here: session.fd = -1 (already -1 is fine)
             }
@@ -141,10 +150,9 @@ class DaemonEventStream {
             readLoop(sockFD)
 
             // Connection lost
-            close(sockFD)
-            lock.lock()
-            fd = -1
-            lock.unlock()
+            if clearConnectedFD(sockFD) {
+                close(sockFD)
+            }
 
             onDisconnect?()
             fputs("event-stream: connection lost, reconnecting...\n", stderr)
