@@ -10,6 +10,7 @@ import { registerAdapter, getAdapter } from './provider/adapter.ts';
 import { readFileTool } from './tools/read-file.ts';
 import { listFilesTool } from './tools/list-files.ts';
 import { shellExecTool } from './tools/shell-exec.ts';
+import { ActiveStreamRegistry } from './active-streams.ts';
 import type { StreamEvent } from './types.ts';
 
 function getStateDir(): string {
@@ -36,7 +37,7 @@ async function main() {
   registry.register(listFilesTool.definition, listFilesTool.executor);
   registry.register(shellExecTool.definition, shellExecTool.executor);
 
-  const activeStreams = new Map<string, AbortController>();
+  const activeStreams = new ActiveStreamRegistry();
 
   const handler = async (
     method: string,
@@ -59,23 +60,21 @@ async function main() {
           maxIterations: (params.maxIterations as number) ?? 25,
         });
 
-        const controller = new AbortController();
-        activeStreams.set(sessionId, controller);
+        const controller = activeStreams.begin(sessionId);
 
         try {
           for await (const event of loop.send(sessionId, text, controller.signal)) {
             streamCallback(event);
           }
         } finally {
-          activeStreams.delete(sessionId);
+          activeStreams.finish(sessionId, controller);
         }
         return { ok: true };
       }
 
       case 'chat.stop': {
         const { sessionId } = params as { sessionId: string };
-        const controller = activeStreams.get(sessionId);
-        if (controller) controller.abort();
+        activeStreams.stop(sessionId);
         return { ok: true };
       }
 
@@ -98,9 +97,7 @@ async function main() {
 
   const shutdown = async () => {
     console.log('Shutting down...');
-    for (const controller of activeStreams.values()) {
-      controller.abort();
-    }
+    activeStreams.abortAll();
     await server.close();
     store.close();
     process.exit(0);
