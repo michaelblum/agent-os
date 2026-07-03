@@ -145,6 +145,19 @@ PY
     exit 0
 fi
 
+if [[ "${1:-}" == "__do" && "${2:-}" == "click" && "${3:-}" == "canvas:canvas-fixture/save-button" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "dry_run_passthrough",
+    "received": sys.argv[1:]
+}))
+PY
+    exit 0
+fi
+
 if [[ "${1:-}" == "__do" && "${2:-}" == "drag" && "${3:-}" == canvas:* ]]; then
     python3 - "$@" <<'PY'
 import json

@@ -27,6 +27,7 @@ import {
 } from './store.mjs';
 import { generateRefRecords, omittedPayloads, queryMatches, refSummary } from './refs.mjs';
 import {
+  CAPTURE_SOURCE_VALUE_FLAGS,
   savedCaptureModeFlags,
   savedCaptureModeKnownLimits,
   savedCaptureModePolicy,
@@ -42,7 +43,7 @@ function snapshotID(explicit) {
 }
 
 const WORKSPACE_CAPTURE_VALUE_FLAGS = new Set(['--workspace', '--name', '--mode', '--query']);
-const CAPTURE_SOURCE_VALUE_FLAGS = new Set(['--region', '--canvas', '--channel']);
+const CAPTURE_SOURCE_VALUE_FLAG_SET = new Set(CAPTURE_SOURCE_VALUE_FLAGS);
 const PRIMITIVE_CAPTURE_VALUE_ARITY = new Map([
   ['--out', 1],
   ['--crop', 1],
@@ -193,9 +194,9 @@ export function parseCaptureArgs(args) {
       }
       if (values.length < arity) {
         validationError(errors, `${arg} requires a value`, 'MISSING_ARG');
-        if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg)) invalidSourceFlag = true;
+          if (CAPTURE_SOURCE_VALUE_FLAG_SET.has(arg)) invalidSourceFlag = true;
       }
-      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg) && values.length === arity) {
+      if (CAPTURE_SOURCE_VALUE_FLAG_SET.has(arg) && values.length === arity) {
         sourceFlagEntries.push({ flag: arg, argv: [arg, ...values] });
       }
       continue;

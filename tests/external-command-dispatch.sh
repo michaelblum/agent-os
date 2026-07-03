@@ -218,17 +218,22 @@ for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "s
     assert native[0]["executable"] == "/usr/bin/env", native[0]
     assert native[0]["env"]["AOS_PATH"] == "$AOS_PATH", native[0]
     if primitive in ["click", "hover", "drag", "scroll", "type", "key"]:
-        expected_excluded = ["browser:", "ref:", "canvas:"] if primitive == "drag" else ["browser:", "ref:"]
+        expected_excluded = ["browser:", "ref:", "canvas:"] if primitive in ["click", "drag"] else ["browser:", "ref:"]
         assert native[0]["when"]["excluded_prefixes"] == expected_excluded, native[0]
         browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive]]
         assert len(browser) == 1, (primitive, browser)
         assert browser[0]["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive], browser[0]
         assert browser[0]["when"]["prefix"] == "browser:", browser[0]
-        if primitive == "drag":
-            canvas = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", "drag") and item["argv_prefix"] == ["node", "scripts/aos-do-canvas-drag.mjs"]]
+        if primitive in ["click", "drag"]:
+            canvas = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-canvas.mjs", primitive]]
             assert len(canvas) == 1, canvas
             assert canvas[0]["when"]["prefix"] == "canvas:", canvas[0]
-    if primitive in ["press", "set-value", "focus"]:
+    if primitive == "set-value":
+        assert native[0]["when"]["excluded_prefixes"] == ["ref:", "canvas:"], native[0]
+        canvas = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", "set-value") and item["argv_prefix"] == ["node", "scripts/aos-do-canvas.mjs", "set-value"]]
+        assert len(canvas) == 1, canvas
+        assert canvas[0]["when"]["prefix"] == "canvas:", canvas[0]
+    if primitive in ["press", "focus"]:
         assert native[0]["when"]["excluded_prefixes"] == ["ref:"], native[0]
 for action in ["click", "hover", "drag", "scroll", "type", "key", "fill", "press", "set-value", "focus"]:
     ref = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", action) and item["argv_prefix"] == ["node", "scripts/aos-do-ref.mjs", action]]

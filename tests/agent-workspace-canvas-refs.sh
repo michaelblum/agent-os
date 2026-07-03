@@ -159,6 +159,17 @@ jq -e '
   and .recommended_next_command == "aos see capture main --save --workspace ws-canvas --mode som"
 ' "$CANVAS_ACTION" >/dev/null || fail "AOS canvas ref action drifted: $(cat "$CANVAS_ACTION")"
 
+CANVAS_DIRECT_CLICK="$TMP_DIR/do-canvas-direct-click.json"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs click canvas:canvas-fixture/save-button --state-id see_canvas_fixture --dry-run >"$CANVAS_DIRECT_CLICK"
+jq -e '
+  .status == "dry_run_passthrough"
+  and (.received | index("__do") != null)
+  and (.received | index("click") != null)
+  and (.received | index("canvas:canvas-fixture/save-button") != null)
+  and (.received | index("--state-id") != null)
+  and (.received | index("see_canvas_fixture") != null)
+' "$CANVAS_DIRECT_CLICK" >/dev/null || fail "direct canvas click wrapper validation drifted: $(cat "$CANVAS_DIRECT_CLICK")"
+
 CANVAS_SET_DRY="$TMP_DIR/do-canvas-set-value-dry-run.json"
 AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs set-value ref:snapcanvas:r2 --workspace ws-canvas --value 42 --dry-run >"$CANVAS_SET_DRY"
 jq -e '
@@ -204,7 +215,7 @@ jq -e '
 ' "$CANVAS_SET_POSITIONAL" >/dev/null || fail "AOS canvas positional set-value ref action drifted: $(cat "$CANVAS_SET_POSITIONAL")"
 
 CANVAS_DIRECT_SET="$TMP_DIR/do-canvas-direct-set-value.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value canvas:canvas-fixture/brightness-slider --value 45 --dry-run >"$CANVAS_DIRECT_SET"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs set-value canvas:canvas-fixture/brightness-slider --value 45 --dry-run >"$CANVAS_DIRECT_SET"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -213,7 +224,7 @@ jq -e '
 ' "$CANVAS_DIRECT_SET" >/dev/null || fail "direct canvas set-value wrapper validation drifted: $(cat "$CANVAS_DIRECT_SET")"
 
 CANVAS_DIRECT_SET_POSITIONAL="$TMP_DIR/do-canvas-direct-set-value-positional.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value canvas:canvas-fixture/brightness-slider 46 --dry-run >"$CANVAS_DIRECT_SET_POSITIONAL"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs set-value canvas:canvas-fixture/brightness-slider 46 --dry-run >"$CANVAS_DIRECT_SET_POSITIONAL"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -224,7 +235,7 @@ jq -e '
 ' "$CANVAS_DIRECT_SET_POSITIONAL" >/dev/null || fail "direct canvas positional set-value wrapper normalization drifted: $(cat "$CANVAS_DIRECT_SET_POSITIONAL")"
 
 CANVAS_DIRECT_DRAG_BY="$TMP_DIR/do-canvas-direct-drag-by.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/canvas-fixture:drag-handle --by 80,40 --dry-run --state-id see_canvas_fixture >"$CANVAS_DIRECT_DRAG_BY"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs drag canvas:canvas-fixture/canvas-fixture:drag-handle --by 80,40 --dry-run --state-id see_canvas_fixture >"$CANVAS_DIRECT_DRAG_BY"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -235,7 +246,7 @@ jq -e '
 ' "$CANVAS_DIRECT_DRAG_BY" >/dev/null || fail "direct canvas drag --by wrapper validation drifted: $(cat "$CANVAS_DIRECT_DRAG_BY")"
 
 CANVAS_DIRECT_DRAG_TO_VALUE="$TMP_DIR/do-canvas-direct-drag-to-value.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/brightness-slider --to-value 0.7 --playback human --dry-run >"$CANVAS_DIRECT_DRAG_TO_VALUE"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs drag canvas:canvas-fixture/brightness-slider --to-value 0.7 --playback human --dry-run >"$CANVAS_DIRECT_DRAG_TO_VALUE"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -248,7 +259,7 @@ jq -e '
 ' "$CANVAS_DIRECT_DRAG_TO_VALUE" >/dev/null || fail "direct canvas drag --to-value wrapper validation drifted: $(cat "$CANVAS_DIRECT_DRAG_TO_VALUE")"
 
 CANVAS_DIRECT_DRAG_BOTH_MODES_ERR="$TMP_DIR/do-canvas-direct-drag-both-modes.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/brightness-slider --by 1,1 --to-value 0.7 >"$TMP_DIR/do-canvas-direct-drag-both-modes.out" 2>"$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs drag canvas:canvas-fixture/brightness-slider --by 1,1 --to-value 0.7 >"$TMP_DIR/do-canvas-direct-drag-both-modes.out" 2>"$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"; then
     fail "direct canvas drag with both drag modes unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"
@@ -256,7 +267,7 @@ jq -e '.error | contains("exactly one of --by or --to-value")' "$CANVAS_DIRECT_D
     || fail "direct canvas drag both-mode error did not explain one-mode rule: $(cat "$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR")"
 
 CANVAS_DIRECT_SET_BOTH_VALUE_SOURCES_ERR="$TMP_DIR/do-canvas-direct-set-value-both-sources.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value canvas:canvas-fixture/brightness-slider 46 --value 47 >"$TMP_DIR/do-canvas-direct-set-value-both-sources.out" 2>"$CANVAS_DIRECT_SET_BOTH_VALUE_SOURCES_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs set-value canvas:canvas-fixture/brightness-slider 46 --value 47 >"$TMP_DIR/do-canvas-direct-set-value-both-sources.out" 2>"$CANVAS_DIRECT_SET_BOTH_VALUE_SOURCES_ERR"; then
     fail "direct canvas set-value with both value sources unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$CANVAS_DIRECT_SET_BOTH_VALUE_SOURCES_ERR"
@@ -264,7 +275,7 @@ jq -e '.error | contains("exactly one value source")' "$CANVAS_DIRECT_SET_BOTH_V
     || fail "direct canvas set-value both-source error did not explain one-source rule: $(cat "$CANVAS_DIRECT_SET_BOTH_VALUE_SOURCES_ERR")"
 
 CANVAS_DIRECT_SET_BOTH_TARGET_SOURCES_ERR="$TMP_DIR/do-canvas-direct-set-value-both-target-sources.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs set-value canvas:canvas-fixture/brightness-slider --pid 4242 --role AXTextField --value 47 >"$TMP_DIR/do-canvas-direct-set-value-both-target-sources.out" 2>"$CANVAS_DIRECT_SET_BOTH_TARGET_SOURCES_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas.mjs set-value canvas:canvas-fixture/brightness-slider --pid 4242 --role AXTextField --value 47 >"$TMP_DIR/do-canvas-direct-set-value-both-target-sources.out" 2>"$CANVAS_DIRECT_SET_BOTH_TARGET_SOURCES_ERR"; then
     fail "direct canvas set-value with both target sources unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$CANVAS_DIRECT_SET_BOTH_TARGET_SOURCES_ERR"

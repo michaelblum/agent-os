@@ -18,6 +18,7 @@ import {
   writeJSONAtomic,
 } from './core.mjs';
 import {
+  CAPTURE_SOURCE_KIND_VALUES,
   isSavedRefBackend,
   isSavedRefConfidence,
   isSavedRefResolutionClass,
@@ -51,7 +52,7 @@ function assertCaptureSource(value, file, label) {
   if (value === undefined) return;
   assertPlainObject(value, file, label);
   if (
-    !['default_target', 'target', 'source_flags'].includes(value.kind)
+    !CAPTURE_SOURCE_KIND_VALUES.includes(value.kind)
     || !Array.isArray(value.argv)
     || value.argv.length === 0
     || value.argv.some((item) => !isNonEmptyString(item))

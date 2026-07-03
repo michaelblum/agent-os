@@ -115,6 +115,29 @@
         "do",
         "click"
       ],
+      "summary": "Click a current canvas semantic target through the external do canvas command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-canvas.mjs",
+        "click"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "click"
+      ],
       "summary": "Click a native input target through the external do native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
@@ -127,7 +150,8 @@
         "child_arg_index": 0,
         "excluded_prefixes": [
           "browser:",
-          "ref:"
+          "ref:",
+          "canvas:"
         ]
       },
       "env": {
@@ -261,11 +285,12 @@
         "do",
         "drag"
       ],
-      "summary": "Drag a current canvas semantic target through the external do canvas drag command.",
+      "summary": "Drag a current canvas semantic target through the external do canvas command.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-do-canvas-drag.mjs"
+        "scripts/aos-do-canvas.mjs",
+        "drag"
       ],
       "cwd": "repo",
       "when": {
@@ -687,6 +712,29 @@
         "do",
         "set-value"
       ],
+      "summary": "Set a current canvas semantic value through the external do canvas command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-canvas.mjs",
+        "set-value"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "set-value"
+      ],
       "summary": "Set a native field value through the external do native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
@@ -698,7 +746,8 @@
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": [
-          "ref:"
+          "ref:",
+          "canvas:"
         ]
       },
       "env": {
