@@ -117,6 +117,22 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
 });
 
+test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
+  const architecture = await text('ARCHITECTURE.md');
+  const aosApi = await text('docs/api/aos.md');
+  const readme = await text('README.md');
+  const maintained = `${architecture}\n${aosApi}\n${readme}`;
+
+  assert.match(architecture, /`aos say` direct TTS convenience/);
+  assert.match(architecture, /`aos voice` registry\/catalog\/assignments\/providers\/final-response speech ingress/);
+  assert.match(architecture, /STT audio capture is a planned `aos listen` source, not a separate public primitive/);
+  assert.match(aosApi, /`aos say` is a direct TTS convenience path/);
+  assert.match(aosApi, /`aos tell human \.\.\.` is daemon-routed communication/);
+  assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads and follow today; STT and broader sources planned \|/);
+  assert.doesNotMatch(maintained, /`aos listen` or similar/);
+  assert.doesNotMatch(maintained, /say.*sugar for tell human/i);
+});
+
 test('Skills and Plugins are packaging activation concepts outside the execution ladder', async () => {
   const context = await text('CONTEXT.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');

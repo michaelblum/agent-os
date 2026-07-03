@@ -168,7 +168,7 @@ broker command surface.
 | `aos` perception | **Perception** - screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production |
 | `aos` action | **Action** - multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
 | `aos` display | **Projection** - display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML to bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
-| `aos` voice | **Audio** - `aos say` (TTS), daemon-driven announcements, config-driven voice/rate, registry-backed provider-pluggable voice selection. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
+| `aos` voice | **Audio** - `aos say` direct TTS convenience, `aos voice` registry/catalog/assignments/providers/final-response speech ingress, daemon-driven announcements, and config-driven voice/rate. STT audio capture is a planned `aos listen` source, not a separate public primitive | AVFoundation / NSSpeechSynthesizer | Production (TTS + registry); STT planned |
 | `aos` communication | **Communication** - `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
 
 Privileged native capability ships through the unified `aos` broker
@@ -261,7 +261,7 @@ agent-os/
     display/             ← `aos show` — WKWebView canvases, overlays, render mode
     commands/, shared/   ← external command dispatch and shared CLI helpers
     act/                 ← `aos do` — AX + CGEvent + AppleScript actuator
-    voice/               ← `aos say` — TTS, daemon announcements (STT planned)
+    voice/               ← `aos say` / `aos voice` — TTS, registry, assignments, final-response ingress
     content/             ← HTTP file server for WKWebView canvases
     daemon/              ← `aos serve` — UnifiedDaemon: socket, routing, autonomic
     commands/, shared/
@@ -290,7 +290,7 @@ agent-os/
 | `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS |
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
 | `aos recipe` | Execution model | Swift dispatcher + Node recipe engine + JSON manifests | `manifests/commands/aos-external-commands.json`, `scripts/aos-ops.mjs`, `recipes/`, `shared/schemas/ops-*.schema.json` | v1 scaffold | Source-backed executable recipes that agents can list, explain, statically dry-run, and run; includes read-only `runtime/status-snapshot` plus owned-cleanup canvas smoke `canvas/window-level-smoke`. `aos ops` is a compatibility alias with the removal gate in ADR-0013. |
-| `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT + persona planned |
+| `aos` voice | OS | Swift | `src/voice/` | Production (TTS + registry) | `aos say`, `aos voice`, config-driven voice/rate, daemon event announcements, final-response ingress; STT audio capture remains a planned `aos listen` source |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
