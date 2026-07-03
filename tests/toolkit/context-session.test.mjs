@@ -137,6 +137,50 @@ test('active target can be an ancestor while acquisition preserves the clicked l
   assert.equal(artifact.acquisition.selected_node_id, windowNode.id)
 })
 
+test('context session normalizers tolerate explicit null nested fields', () => {
+  const artifact = normalizeContextArtifact({
+    id: 'context-artifact:nulls',
+    path: null,
+    acquisition: null,
+    anchors: null,
+    metadata: null,
+    source_session_ref: null,
+  }, { now: '2026-05-28T12:00:00.000Z' })
+  const keyframe = createContextKeyframe({
+    artifacts: null,
+    artifact_ids: null,
+    asset_refs: null,
+    metadata: null,
+  }, { now: '2026-05-28T12:00:01.000Z' })
+  const recording = createContextRecording({
+    keyframes: null,
+    events: null,
+    asset_refs: null,
+    source_metadata: null,
+    metadata: null,
+  }, { now: '2026-05-28T12:00:02.000Z' })
+  const session = createContextSession({
+    artifacts: null,
+    keyframes: null,
+    source_annotation_session: null,
+    metadata: null,
+    updated_at: '2026-05-28T12:00:03.000Z',
+  })
+
+  assert.equal(artifact.acquisition.mode, 'unknown')
+  assert.deepEqual(artifact.anchors, [])
+  assert.deepEqual(artifact.metadata, {})
+  assert.deepEqual(keyframe.artifacts, [])
+  assert.deepEqual(keyframe.artifact_ids, [])
+  assert.deepEqual(keyframe.asset_refs, {})
+  assert.deepEqual(recording.keyframes, [])
+  assert.deepEqual(recording.events, [])
+  assert.deepEqual(recording.asset_refs, {})
+  assert.deepEqual(session.artifacts, [])
+  assert.deepEqual(session.keyframes, [])
+  assert.deepEqual(session.metadata, {})
+})
+
 test('comments attach to path nodes while anchor comment_text remains compatible', () => {
   let session = createAnnotationSession({ active: true })
   const target = subject('button', ['display:1', 'window', 'button'], { subject_kind: 'button' })

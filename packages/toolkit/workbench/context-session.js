@@ -18,6 +18,14 @@ function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value))
 }
 
+function object(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+function array(value) {
+  return Array.isArray(value) ? value : []
+}
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').trim()
   return normalized || fallback
@@ -48,6 +56,7 @@ function normalizeActor(actor = DEFAULT_ACTOR) {
 }
 
 function normalizeComment(comment = {}, options = {}) {
+  comment = object(comment)
   const created = isoNow(comment.created_at || comment.updated_at || options.now || Date.now())
   return {
     id: text(comment.id, stableId('comment', [options.node_id, created, comment.text || comment.comment_text])),
@@ -60,7 +69,8 @@ function normalizeComment(comment = {}, options = {}) {
 }
 
 function commentsFromInput(input = {}, options = {}) {
-  const comments = Array.isArray(input.comments) ? input.comments : []
+  input = object(input)
+  const comments = array(input.comments)
   const normalized = comments.map((comment) => (
     typeof comment === 'string'
       ? normalizeComment({ id: comment, text: '' }, options)
@@ -85,6 +95,7 @@ function blockerFromProjection(projection = null, explicit = undefined) {
 }
 
 export function normalizeContextPathNode(node = {}, options = {}) {
+  node = object(node)
   const contextSubject = node.subject?.address || node.subject?.adapter_id ? node.subject : null
   const topLevelSubject = !contextSubject && (
     node.adapter_id || node.root_id || node.subject_id || node.projection || node.source_metadata
@@ -134,6 +145,7 @@ function normalizePointer(pointer = null) {
 }
 
 function normalizeAcquisition(acquisition = {}, { path = [], activeTargetNodeId = '' } = {}) {
+  acquisition = object(acquisition)
   const leaf = path.at(-1)
   return {
     mode: text(acquisition.mode, 'unknown'),
@@ -147,6 +159,7 @@ function normalizeAcquisition(acquisition = {}, { path = [], activeTargetNodeId 
 }
 
 function normalizeAnchor(anchor = {}, { pathNodesByAddress = new Map(), pathNodesById = new Map(), now = Date.now() } = {}) {
+  anchor = object(anchor)
   const nodeId = text(anchor.node_id || anchor.path_node_id)
   const node = pathNodesById.get(nodeId)
     || pathNodesByAddress.get(text(anchor.address))
@@ -167,8 +180,9 @@ function normalizeAnchor(anchor = {}, { pathNodesByAddress = new Map(), pathNode
 }
 
 export function normalizeContextArtifact(artifact = {}, options = {}) {
+  artifact = object(artifact)
   const now = options.now || artifact.updated_at || artifact.created_at || Date.now()
-  const path = (Array.isArray(artifact.path) ? artifact.path : [])
+  const path = array(artifact.path)
     .map((node, index) => normalizeContextPathNode(node, { now, index }))
   const pathNodesByAddress = new Map(path.map((node) => [node.address, node]))
   const pathNodesById = new Map(path.map((node) => [node.id, node]))
@@ -183,7 +197,7 @@ export function normalizeContextArtifact(artifact = {}, options = {}) {
     path,
     active_target_node_id: activeTargetNodeId,
     acquisition: normalizeAcquisition(artifact.acquisition, { path, activeTargetNodeId }),
-    anchors: (Array.isArray(artifact.anchors) ? artifact.anchors : [])
+    anchors: array(artifact.anchors)
       .map((anchor) => normalizeAnchor(anchor, { pathNodesByAddress, pathNodesById, now })),
     metadata: clone(artifact.metadata || {}),
     source_session_ref: artifact.source_session_ref ? clone(artifact.source_session_ref) : null,
@@ -191,6 +205,7 @@ export function normalizeContextArtifact(artifact = {}, options = {}) {
 }
 
 function sourceAnnotationSessionSummary(session = {}) {
+  session = object(session)
   const normalized = createAnnotationSession(session)
   return {
     schema: ANNOTATION_SESSION_SCHEMA,
@@ -274,7 +289,7 @@ function rejectEmbeddedAssetRef(key, value) {
 }
 
 function normalizeAssetRefs(assetRefs = {}) {
-  const source = assetRefs && typeof assetRefs === 'object' ? assetRefs : {}
+  const source = object(assetRefs)
   return Object.fromEntries(Object.entries(source).map(([key, value]) => {
     rejectEmbeddedAssetRef(key, value)
     return [key, clone(value)]
@@ -282,6 +297,7 @@ function normalizeAssetRefs(assetRefs = {}) {
 }
 
 function isAnnotationSessionSummary(input = {}) {
+  input = object(input)
   return input?.schema === ANNOTATION_SESSION_SCHEMA
     && Array.isArray(input.committed_scope_addresses)
     && Array.isArray(input.preview_scope_addresses)
@@ -289,6 +305,7 @@ function isAnnotationSessionSummary(input = {}) {
 }
 
 function normalizeAnnotationSessionSummary(input = {}) {
+  input = object(input)
   if (!isAnnotationSessionSummary(input)) return sourceAnnotationSessionSummary(input)
   return {
     schema: ANNOTATION_SESSION_SCHEMA,
@@ -306,6 +323,7 @@ function normalizeAnnotationSessionSummary(input = {}) {
 }
 
 export function createContextKeyframe(keyframe = {}, options = {}) {
+  keyframe = object(keyframe)
   const capturedAt = isoNow(keyframe.captured_at || options.captured_at || options.now || Date.now())
   return {
     schema: CONTEXT_KEYFRAME_SCHEMA,
@@ -313,8 +331,8 @@ export function createContextKeyframe(keyframe = {}, options = {}) {
     id: text(keyframe.id, stableId('keyframe', [capturedAt, keyframe.trigger])),
     captured_at: capturedAt,
     trigger: text(keyframe.trigger || options.trigger, 'manual'),
-    artifact_ids: Array.isArray(keyframe.artifact_ids) ? keyframe.artifact_ids.map((id) => text(id)).filter(Boolean) : [],
-    artifacts: Array.isArray(keyframe.artifacts) ? keyframe.artifacts.map((artifact) => normalizeContextArtifact(artifact, options)) : [],
+    artifact_ids: array(keyframe.artifact_ids).map((id) => text(id)).filter(Boolean),
+    artifacts: array(keyframe.artifacts).map((artifact) => normalizeContextArtifact(artifact, options)),
     session_summary: keyframe.session_summary ? clone(keyframe.session_summary) : null,
     asset_refs: normalizeAssetRefs(keyframe.asset_refs),
     metadata: clone(keyframe.metadata || {}),
@@ -322,6 +340,7 @@ export function createContextKeyframe(keyframe = {}, options = {}) {
 }
 
 function normalizeRecordingEvent(event = {}, options = {}) {
+  event = object(event)
   const occurredAt = isoNow(event.occurred_at || event.created_at || options.now || Date.now())
   return {
     id: text(event.id, stableId('event', [event.kind, occurredAt, event.after_keyframe_id])),
@@ -338,11 +357,10 @@ function normalizeRecordingEvent(event = {}, options = {}) {
 }
 
 export function createContextRecording(recording = {}, options = {}) {
+  recording = object(recording)
   const updatedAt = isoNow(recording.updated_at || options.updated_at || options.now || Date.now())
   const createdAt = isoNow(recording.created_at || options.created_at || updatedAt)
-  const keyframes = Array.isArray(recording.keyframes)
-    ? recording.keyframes.map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt }))
-    : []
+  const keyframes = array(recording.keyframes).map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt }))
   return {
     schema: CONTEXT_RECORDING_SCHEMA,
     version: CONTEXT_SESSION_VERSION,
@@ -351,9 +369,7 @@ export function createContextRecording(recording = {}, options = {}) {
     updated_at: updatedAt,
     source_session_ref: recording.source_session_ref ? clone(recording.source_session_ref) : null,
     keyframes,
-    events: Array.isArray(recording.events)
-      ? recording.events.map((event) => normalizeRecordingEvent(event, { now: updatedAt }))
-      : [],
+    events: array(recording.events).map((event) => normalizeRecordingEvent(event, { now: updatedAt })),
     asset_refs: normalizeAssetRefs(recording.asset_refs),
     source_metadata: clone(recording.source_metadata || {}),
     metadata: clone(recording.metadata || {}),
@@ -361,11 +377,10 @@ export function createContextRecording(recording = {}, options = {}) {
 }
 
 export function createContextSession(input = {}) {
+  input = object(input)
   const updatedAt = isoNow(input.updated_at || input.now || Date.now())
   const createdAt = isoNow(input.created_at || updatedAt)
-  const artifacts = Array.isArray(input.artifacts)
-    ? input.artifacts.map((artifact) => normalizeContextArtifact(artifact, { now: updatedAt }))
-    : []
+  const artifacts = array(input.artifacts).map((artifact) => normalizeContextArtifact(artifact, { now: updatedAt }))
   return {
     schema: CONTEXT_SESSION_SCHEMA,
     version: CONTEXT_SESSION_VERSION,
@@ -379,9 +394,7 @@ export function createContextSession(input = {}) {
       : null,
     artifacts,
     active_artifact_id: text(input.active_artifact_id || artifacts[0]?.id),
-    keyframes: Array.isArray(input.keyframes)
-      ? input.keyframes.map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt }))
-      : [],
+    keyframes: array(input.keyframes).map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt })),
     metadata: clone(input.metadata || {}),
   }
 }
