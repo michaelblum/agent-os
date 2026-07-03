@@ -12,6 +12,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // SDK lives at packages/gateway/sdk/aos-sdk.js
 // From src/engine/ that's ../../sdk/, from dist/engine/ that's also ../../sdk/
 const SDK_PATH = resolve(__dirname, '..', '..', 'sdk', 'aos-sdk.js');
+const SDK_TIMEOUT_GRACE_MS = 250;
+
+function sdkCallTimeoutMs(scriptTimeoutMs: number): number {
+  return Math.max(1, scriptTimeoutMs - SDK_TIMEOUT_GRACE_MS);
+}
 
 export class NodeSubprocessEngine implements ScriptEngine {
   readonly name = 'node-subprocess';
@@ -31,8 +36,12 @@ export class NodeSubprocessEngine implements ScriptEngine {
     const js = bodyMatch ? bodyMatch[1] : strippedWrapped;
     const resultFile = join(tmpdir(), `aos-result-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
 
+    const sdkConfig = {
+      ...request.context,
+      sdkCallTimeoutMs: sdkCallTimeoutMs(request.timeout),
+    };
     const wrapper = `
-globalThis.__aos_config = ${JSON.stringify(request.context)};
+globalThis.__aos_config = ${JSON.stringify(sdkConfig)};
 ${readFileSync(SDK_PATH, 'utf-8')}
 const params = ${JSON.stringify(request.params)};
 (async () => {

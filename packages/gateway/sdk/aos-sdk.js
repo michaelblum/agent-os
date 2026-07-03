@@ -3,12 +3,29 @@
 // Zero npm dependencies. Communicates with gateway via Unix socket NDJSON.
 
 const net = require('node:net');
+const DEFAULT_CALL_TIMEOUT_MS = 10000;
 let _conn = null;
 let _reqId = 0;
 const _pending = new Map();
 
+function callTimeoutMs() {
+  const raw = globalThis.__aos_config?.sdkCallTimeoutMs ?? globalThis.__aos_config?.callTimeoutMs;
+  const timeoutMs = Number(raw);
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_CALL_TIMEOUT_MS;
+}
+
+function settlePending(id, type, value) {
+  const pending = _pending.get(id);
+  if (!pending) return false;
+  _pending.delete(id);
+  clearTimeout(pending.timeout);
+  pending[type](value);
+  return true;
+}
+
 function rejectPending(error) {
   for (const pending of _pending.values()) {
+    clearTimeout(pending.timeout);
     pending.reject(error);
   }
   _pending.clear();
@@ -28,11 +45,7 @@ function getConnection() {
       buffer = buffer.slice(idx + 1);
       try {
         const resp = JSON.parse(line);
-        const pending = _pending.get(resp.id);
-        if (pending) {
-          _pending.delete(resp.id);
-          pending.resolve(resp.result);
-        }
+        settlePending(resp.id, 'resolve', resp.result);
       } catch {}
     }
   });
@@ -49,11 +62,21 @@ function getConnection() {
 function call(domain, method, params) {
   return new Promise((resolve, reject) => {
     const id = String(++_reqId);
-    _pending.set(id, { resolve, reject });
-    const conn = getConnection();
+    let conn;
+    try {
+      conn = getConnection();
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const timeoutMs = callTimeoutMs();
+    const timeout = setTimeout(() => {
+      settlePending(id, 'reject', new Error(`AOS SDK call timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    _pending.set(id, { resolve, reject, timeout });
     conn.write(JSON.stringify({ id, domain, method, params }) + '\n', (error) => {
       if (!error) return;
-      if (_pending.delete(id)) reject(error);
+      settlePending(id, 'reject', error);
     });
   });
 }

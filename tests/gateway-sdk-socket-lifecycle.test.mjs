@@ -60,3 +60,46 @@ ${sdkSource}
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('gateway SDK rejects pending calls when the socket stays open without a response', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'aos-gateway-sdk-'));
+  const socketPath = path.join(dir, 'gateway.sock');
+  const resultPath = path.join(dir, 'result.json');
+  const scriptPath = path.join(dir, 'sdk-timeout-test.cjs');
+  const sdkSource = readFileSync(sdkPath, 'utf8');
+  const sockets = new Set();
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    socket.on('data', () => {});
+  });
+
+  try {
+    await new Promise((resolve) => server.listen(socketPath, resolve));
+    writeFileSync(scriptPath, `
+globalThis.__aos_config = { gatewaySocket: ${JSON.stringify(socketPath)}, sdkCallTimeoutMs: 50 };
+${sdkSource}
+(async () => {
+  try {
+    await globalThis.aos.doctor();
+    require('node:fs').writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({ ok: true }));
+  } catch (error) {
+    require('node:fs').writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({ ok: false, error: error.message }));
+  } finally {
+    globalThis.__aos_cleanup?.();
+  }
+})();
+`);
+
+    await runNode(scriptPath);
+
+    assert.deepEqual(JSON.parse(readFileSync(resultPath, 'utf8')), {
+      ok: false,
+      error: 'AOS SDK call timed out after 50ms',
+    });
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
