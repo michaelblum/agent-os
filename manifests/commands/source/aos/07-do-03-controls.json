@@ -340,7 +340,7 @@
             "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
-          "summary": "Saved-ref set-value validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Set saved refs, direct canvas semantic refs, or direct AX targets; saved-ref set-value validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

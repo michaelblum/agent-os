@@ -466,6 +466,11 @@ for (const action of ['press', 'focus']) {
   const targetArg = form.args.find((arg) => arg.id === 'target');
   assert.ok(targetArg.summary.includes('Stable saved native AX ref'), `manifest do-${action} target arg must mark saved refs as stable native AX only`);
 }
+const doSetValueForm = doFormsByID.get('do-set-value');
+assert.ok(
+  doSetValueForm.summary.includes('saved refs, direct canvas semantic refs, or direct AX targets'),
+  'manifest do-set-value summary must distinguish saved refs, direct canvas refs, and direct AX targets',
+);
 const savedRefSupportedMatrixActions = actionMatrixRows
   .filter((row) => Object.keys(row.supported_backends).length > 0)
   .map((row) => row.action);
