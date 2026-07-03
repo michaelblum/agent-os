@@ -9,6 +9,8 @@ function usage() {
   return `Usage:
   aos gate ask "Prompt title"
   aos gate ask --preset approve_deny --title "Run test?" --timeout 30 [--store-response]
+  aos gate ask --preset single_choice --title "Pick one" --choice fast=Fast --choice safe=Safe
+  aos gate ask --preset multi_choice --title "Pick many" --option docs --option tests
   aos gate ask --store-response --preset freetext --title "Why?"
   aos gate ask --request gate-request.json
   aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_with_escape"}}'
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     timeoutSeconds: null,
     requestFile: null,
     json: null,
+    choices: [],
     storeResponse: false,
   };
   const positional = [];
@@ -58,6 +61,10 @@ function parseArgs(argv) {
       [parsed.title, index] = nextValue(index, arg);
     } else if (arg === '--message' || arg === '--body') {
       [parsed.message, index] = nextValue(index, arg);
+    } else if (arg === '--choice' || arg === '--option') {
+      let value;
+      [value, index] = nextValue(index, arg);
+      parsed.choices.push(parseChoice(value));
     } else if (arg === '--timeout') {
       let value;
       [value, index] = nextValue(index, arg);
@@ -75,7 +82,18 @@ function parseArgs(argv) {
   if (parsed.preset !== null && !PRESETS.has(parsed.preset)) {
     throw new Error(`--preset must be one of: ${[...PRESETS].join(', ')}`);
   }
+  if ((parsed.preset === 'single_choice' || parsed.preset === 'multi_choice') && parsed.choices.length === 0 && !parsed.requestFile && !parsed.json) {
+    throw new Error(`--preset ${parsed.preset} requires at least one --choice`);
+  }
   return parsed;
+}
+
+function parseChoice(input) {
+  const [rawValue, ...labelParts] = String(input).split('=');
+  const value = rawValue.trim();
+  const label = labelParts.join('=').trim() || value;
+  if (!value) throw new Error('--choice requires a non-empty value');
+  return { value, label };
 }
 
 async function requestFromArgs(args) {
@@ -91,6 +109,7 @@ async function requestFromArgs(args) {
   return withStoreResponse({
     schema_version: 'aos.gate.request.v1',
     prompt: { title: args.title, body: args.message ?? null },
+    choices: args.choices,
     ui: { variant: args.preset || 'yes_no_with_escape' },
     timeout_ms: Number.isFinite(args.timeoutSeconds) ? args.timeoutSeconds * 1000 : 20000,
     source: { surface: 'aos-cli' },
