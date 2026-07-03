@@ -1299,8 +1299,18 @@ For `human` delivery, `--from-session-id` lets the daemon resolve that
 session's leased voice, and `--purpose final_response` applies the configured
 final-response shaping policy before speaking.
 
-Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
-Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
+`aos tell` is daemon-routed communication, not an app-control synonym for
+`aos do tell`. Messages flow through the daemon coordination bus into named
+channels or direct canonical-session channels. Session presence is daemon state
+mirrored into `~/.config/aos/{mode}/coordination/sessions.json`; channel
+messages remain daemon-owned bounded queues instead of model-context history.
+
+Direct routing should prefer canonical session ids. Human-readable names remain
+display metadata for `aos tell --who` and operator ergonomics. Presence is
+lease-based and restored from the runtime snapshot after daemon restart.
+Discover peers with `aos tell --who`, then keep using direct `--session-id`
+routing once a peer id is known; direct session messaging does not require
+`--who` to be non-empty at send time.
 
 Docked role sessions are ordinary registered sessions. Supervisors should
 register each role before launch with stable ids such as `<run-id>:gdi`,
@@ -1329,9 +1339,11 @@ aos listen --channels
 ```
 
 One-shot reads return a JSON envelope with a `messages` array. `--follow` emits
-one message per line as NDJSON. STT/dictation is planned as a future
-`aos listen` source, but the current public surface only reads channels and
-direct-session messages.
+one message per line as NDJSON. `--channels` lists the daemon-known channel
+names; it is discovery for existing daemon communication state, not a workspace
+or transcript index. STT/dictation is planned as a future `aos listen` source.
+Stdin ingestion is also planned as a future `aos listen` source, but the
+current public surface only reads channels and direct-session messages.
 
 ## `aos wiki`
 
