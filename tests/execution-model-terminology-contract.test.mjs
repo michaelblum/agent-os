@@ -274,6 +274,44 @@ test('work record action evidence docs preserve selected action target vocabular
   assert.doesNotMatch(schemaDoc, /selected Target-with-Ref/);
 });
 
+test('show anchors stay placement roles instead of target dialects', async () => {
+  const context = await text('CONTEXT.md');
+  const architecture = await text('ARCHITECTURE.md');
+  const aosApi = await text('docs/api/aos.md');
+  const manifest = JSON.parse(await text('manifests/commands/aos-commands.json'));
+  const showCommand = manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(['show'])
+  ));
+  const showCreateForm = showCommand?.forms?.find((form) => form.id === 'show-create');
+  const showUpdateForm = showCommand?.forms?.find((form) => form.id === 'show-update');
+  const showSection = aosApi.split('## `aos show`', 2)[1].split('## `aos recipe`', 1)[0];
+  const anchorConflict = ['anchor-window', 'anchor-channel', 'anchor-browser'];
+
+  assert.match(context, /\*\*Anchor \(role\)\*\*:/);
+  assert.match(context, /A role played by a Target-with-Ref when `aos show` uses it as a placement reference/);
+  assert.match(context, /not a parallel target dialect/);
+  assert.match(context, /\*\*Anchor Binding\*\*:/);
+  assert.match(context, /resolved, stored representation of an Anchor inside the display subsystem/);
+  assert.match(context, /re-resolve an Anchor Binding without changing the original Target-with-Ref string/);
+  assert.match(architecture, /Overlays anchored to browser elements still take direct Target-with-Ref input/);
+  assert.match(architecture, /not page scroll/);
+  assert.match(architecture, /re-issue `aos show update --anchor-browser/);
+  assert.match(showSection, /Anchor flags are placement roles, not separate target dialects/);
+  assert.match(showSection, /`--anchor-browser` consumes a browser Target-with-Ref/);
+  assert.match(showSection, /`--anchor-window`\s+and `--anchor-channel` consume resource ids/);
+  assert.match(showSection, /resolves the\s+input into an Anchor Binding for placement/);
+  assert.ok(showCreateForm?.args?.some((arg) => arg.id === 'anchor-browser' && /browser target/.test(arg.summary)));
+  assert.ok(showUpdateForm?.args?.some((arg) => arg.id === 'anchor-browser' && /anchor browser target/.test(arg.summary)));
+  assert.ok(showCreateForm?.constraints?.conflicts?.some((group) => (
+    JSON.stringify(group) === JSON.stringify(anchorConflict)
+  )));
+  assert.ok(showUpdateForm?.constraints?.conflicts?.some((group) => (
+    JSON.stringify(group) === JSON.stringify(anchorConflict)
+  )));
+  assert.doesNotMatch(`${context}\n${showSection}`, /Anchor flags are separate target dialects/);
+  assert.doesNotMatch(`${context}\n${showSection}`, /anchor:<|browser-anchor:/);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
