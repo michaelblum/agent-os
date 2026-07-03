@@ -123,7 +123,9 @@ function activeSurfaceInspectorFramePath(state = {}) {
   const pinsById = new Map(activeSurfaceInspectorPins(state).map((pin) => [pin.id, pin]))
   let cursor = pinsById.get(state.active_frame_id)
   const path = []
-  while (cursor) {
+  const visited = new Set()
+  while (cursor && !visited.has(cursor.id)) {
+    visited.add(cursor.id)
     path.unshift(cursor)
     cursor = cursor.parent_pin_id ? pinsById.get(cursor.parent_pin_id) : null
   }
@@ -570,9 +572,10 @@ export function recordSurfaceInspectorAnnotationSnapshotSuccess(state, options =
 export function pinSurfaceInspectorFrame(state, node = {}, options = {}) {
   const next = createSurfaceInspectorAnnotationState(state)
   const subjectPath = subjectPathFromNode(node)
-  const parentPinId = (options.parent_pin_id ?? next.active_frame_id) || null
+  const requestedParentPinId = (options.parent_pin_id ?? next.active_frame_id) || null
   const rootId = text(options.root_id || node.root_id || node.display_id || node.root_label, 'main')
   const id = text(options.id, stableId('pin', [rootId, ...subjectPath]))
+  const parentPinId = requestedParentPinId === id ? null : requestedParentPinId
   const existingIndex = next.pins.findIndex((pin) => pin.id === id)
   const pin = normalizePinRecord({
     id,
@@ -657,7 +660,9 @@ export function jumpSurfaceInspectorAnnotationScope(state, pinId = '') {
   if (!pin) return next
   const stack = []
   let cursor = pin
-  while (cursor) {
+  const visited = new Set()
+  while (cursor && !visited.has(cursor.id)) {
+    visited.add(cursor.id)
     stack.unshift(scopeFrameFromPin(cursor))
     cursor = cursor.parent_pin_id ? pinsById.get(cursor.parent_pin_id) : null
   }
@@ -913,7 +918,9 @@ export function computeSurfaceInspectorActiveEdge(state) {
   if (!active) return { edge_id: '', frame_path: [], comments: [] }
   const path = []
   let cursor = active
-  while (cursor) {
+  const visited = new Set()
+  while (cursor && !visited.has(cursor.id)) {
+    visited.add(cursor.id)
     path.unshift(cursor)
     cursor = cursor.parent_pin_id ? pinById.get(cursor.parent_pin_id) : null
   }
@@ -951,10 +958,13 @@ export function buildSurfaceInspectorAnnotationTreeRows(state) {
   const collapseAnchorChain = (pin) => {
     const chain = [pin]
     let cursor = pin
+    const visited = new Set([pin.id])
     while ((commentsByPin.get(cursor.id) || []).length === 0) {
       const children = (childrenByParent.get(cursor.id) || []).filter((child) => child.status !== 'removed').sort(pinSort)
       if (children.length !== 1) break
+      if (visited.has(children[0].id)) break
       cursor = children[0]
+      visited.add(cursor.id)
       chain.push(cursor)
     }
     return chain
