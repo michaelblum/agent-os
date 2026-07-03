@@ -273,7 +273,7 @@
               ],
               "id" : "target",
               "kind" : "positional",
-              "required" : true,
+              "required" : false,
               "summary" : "Capture target",
               "value_type" : "string"
             },
@@ -591,7 +591,26 @@
               "label" : [
                 "xray"
               ]
-            }
+            },
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "target"
+                  ],
+                  [
+                    "region"
+                  ],
+                  [
+                    "canvas"
+                  ],
+                  [
+                    "channel"
+                  ]
+                ],
+                "summary" : "capture source"
+              }
+            ]
           },
           "examples" : [
             "aos see capture browser:work --save --mode som --workspace default",
