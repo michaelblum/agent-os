@@ -419,6 +419,14 @@ assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('Direct browser `type` and `key` are current-host routes'),
   'API doc must distinguish direct browser type/key from saved-ref actions',
 );
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('Browser focus and text assertions are not separate public actions in this slice'),
+  'API doc must explicitly reject standalone browser focus/text assertion actions',
+);
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('`aos do focus` is native AX only, and saved workspaces do not expose `aos see assert`'),
+  'API doc must route browser focus/assertion gaps to the current native/saved-workspace boundaries',
+);
 
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
