@@ -830,8 +830,8 @@ Primary public verbs:
 | `hover` | saved/browser hover or coordinate hover |
 | `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |
 | `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |
-| `type` | literal native text input, not a saved-ref target form |
-| `key` | literal native key combo, not a saved-ref target form |
+| `type` | literal native text input or direct browser target text; no saved-ref action |
+| `key` | literal native key combo or direct browser target key press; no saved-ref action |
 | `press` | saved native AX press or direct `--pid` / `--role` AX press |
 | `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |
 | `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |
@@ -859,6 +859,12 @@ drag refs can dispatch only after page, frame, navigation, and element
 validation pass. Saved-ref grammar rejects missing, invalid, extra, or unknown
 action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
 `UNKNOWN_FLAG`.
+Direct browser `type` and `key` are current-host routes when the first action
+argument is `browser:<session>/<ref>` or `browser:<session>`. They live in the
+external command manifest and route to Playwright; they are not saved-ref
+actions. Saved-ref `type` and `key` attempts with `--workspace` or `--snapshot`
+fail closed through the saved-ref resolver until browser keyboard semantics are
+promoted through the action matrix.
 Refs with `confidence: low` are readback-only for saved-ref mutation and fail
 closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run
 validation or dispatch. Non-dry-run mutation refuses unsafe resolution classes or
