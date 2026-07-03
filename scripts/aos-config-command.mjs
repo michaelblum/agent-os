@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
 const DEFAULT_CONFIG = {
@@ -99,17 +99,30 @@ function clone(value) {
 }
 
 async function loadConfig() {
+  const path = configPath();
   try {
-    return JSON.parse(await readFile(configPath(), 'utf8'));
-  } catch {
-    return clone(DEFAULT_CONFIG);
+    return JSON.parse(await readFile(path, 'utf8'));
+  } catch (loadError) {
+    if (loadError?.code === 'ENOENT') return clone(DEFAULT_CONFIG);
+    if (loadError instanceof SyntaxError) {
+      error(`Config file is not valid JSON: ${path}`, 'CONFIG_INVALID');
+    }
+    error(`Unable to read config file: ${path}`, 'CONFIG_READ_FAILED');
   }
 }
 
 async function saveConfig(config) {
   const path = configPath();
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  const dir = dirname(path);
+  const tempPath = join(dir, `.${basename(path)}.${process.pid}.${Date.now()}.tmp`);
+  await mkdir(dir, { recursive: true });
+  try {
+    await writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`);
+    await rename(tempPath, path);
+  } catch (saveError) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    error(`Unable to write config file: ${saveError.message}`, 'CONFIG_WRITE_FAILED');
+  }
 }
 
 function ensureVoicePolicies(config) {
