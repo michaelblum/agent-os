@@ -81,8 +81,28 @@ test('mount and cleanup lifecycle binds and removes tree item listeners', () => 
 
   adapter.cleanupBindings();
 
-  assert.equal(first.getAttribute('role'), null);
-  assert.equal(first.getAttribute('tabindex'), null);
+  assert.equal(first.hasAttribute('role'), false);
+  assert.equal(first.hasAttribute('tabindex'), false);
+  adapter.destroy();
+});
+
+test('cleanup removes generated tree attributes without corrupting string properties', () => {
+  const { adapter, container } = createBoundTree();
+  const first = treeItem(container, 'root');
+
+  assert.equal(first.id, 'test-tree-item-root');
+  assert.equal(first.getAttribute('role'), 'treeitem');
+  assert.equal(first.getAttribute('title'), 'main');
+
+  adapter.cleanupBindings();
+
+  assert.equal(first.id, '');
+  assert.equal(first.hasAttribute('id'), false);
+  assert.equal(first.hasAttribute('role'), false);
+  assert.equal(first.hasAttribute('title'), false);
+  assert.notEqual(first.id, 'false');
+  assert.notEqual(first.getAttribute('role'), 'false');
+  assert.notEqual(first.getAttribute('title'), 'false');
   adapter.destroy();
 });
 

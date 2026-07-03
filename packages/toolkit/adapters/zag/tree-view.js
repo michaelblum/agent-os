@@ -2,6 +2,8 @@ import { mergeProps } from './shared.js';
 
 const ROOT_SELECTOR = '[data-aos-tree-view-root]';
 const ITEM_SELECTOR = '[data-aos-tree-view-item]';
+const TRANSIENT_BOOLEAN_PROPS = new Set(['hidden', 'disabled', 'checked', 'selected', 'open', 'multiple']);
+const REFLECTED_STRING_PROPS = new Set(['id', 'role', 'title', 'tabIndex', 'tabindex', 'className', 'class']);
 
 // AOS-owned tree-view adapter for aos:// hosted toolkit surfaces.
 //
@@ -15,6 +17,21 @@ const ITEM_SELECTOR = '[data-aos-tree-view-item]';
 
 function compactProps(props = {}) {
   return Object.fromEntries(Object.entries(props).filter(([, value]) => value !== undefined));
+}
+
+function applyAttr(element, key, value) {
+  const attr = key === 'className' ? 'class' : key;
+  const prop = attr === 'class' ? 'className' : attr === 'tabindex' ? 'tabIndex' : attr;
+  if (value === false || value === undefined || value === null) {
+    element.removeAttribute?.(attr);
+    if ((TRANSIENT_BOOLEAN_PROPS.has(attr) || attr.includes('-')) && attr in element) element[attr] = false;
+    else if (REFLECTED_STRING_PROPS.has(attr) && prop in element) element[prop] = '';
+  } else if (value === true) {
+    element.setAttribute?.(attr, '');
+    if (TRANSIENT_BOOLEAN_PROPS.has(attr) && attr in element) element[attr] = true;
+  } else {
+    element.setAttribute?.(attr, String(value));
+  }
 }
 
 function itemIdForElement(element, index = 0) {
@@ -37,22 +54,18 @@ function setAttrs(element, props = {}) {
     }
     const attr = key === 'className' ? 'class' : key;
     previous.set(attr, element.getAttribute?.(attr));
-    if (value === false || value === undefined || value === null) {
-      element.removeAttribute?.(attr);
-      if (attr in element) element[attr] = false;
-    } else if (value === true) {
-      element.setAttribute?.(attr, '');
-      if (attr in element) element[attr] = true;
-    } else {
-      element.setAttribute?.(attr, String(value));
-    }
+    applyAttr(element, key, value);
   }
   return () => {
     for (const [key, value] of previous) {
       if (typeof value === 'function') value();
       else if (value === null || value === undefined) {
         element.removeAttribute?.(key);
-        if (key in element) element[key] = false;
+        if ((TRANSIENT_BOOLEAN_PROPS.has(key) || key.includes('-')) && key in element) element[key] = false;
+        else {
+          const prop = key === 'class' ? 'className' : key === 'tabindex' ? 'tabIndex' : key;
+          if (REFLECTED_STRING_PROPS.has(key) && prop in element) element[prop] = '';
+        }
       }
       else element.setAttribute?.(key, value);
     }
@@ -300,14 +313,17 @@ export function createAosZagTreeView(context = {}) {
     const visible = visibleItemIds();
     for (const [itemId, element] of boundItems) {
       const visibleItem = visible.has(itemId);
-      setAttrs(element, {
+      const props = {
         ...Object.fromEntries(
         Object.entries(getItemProps({ id: itemId })).filter(([key]) => !key.startsWith('on'))
         ),
         hidden: visibleItem ? false : true,
         'aria-hidden': visibleItem ? undefined : 'true',
         'data-visible': visibleItem ? '' : undefined,
-      });
+      };
+      for (const [key, value] of Object.entries(props)) {
+        applyAttr(element, key, value);
+      }
     }
   }
 
