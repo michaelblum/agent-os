@@ -138,6 +138,19 @@ test('context glossary distinguishes saved refs from live target refs', async ()
   assert.doesNotMatch(context, /Saved Ref[\s\S]{0,500}is the live wire form/);
 });
 
+test('grand unification plan qualifies screen and AX target-model vocabulary', async () => {
+  const plan = await text('docs/design/aos-grand-unification-plan.md');
+
+  assert.match(plan, /`browser:<session>\/<ref>`: Playwright-backed DOM\/ARIA targets/);
+  assert.match(plan, /`canvas:<canvas-id>\/<ref>`: AOS canvas semantic targets/);
+  assert.match(plan, /Screen coordinate fallback: current CLI actions use raw `x,y` plus optional\s+`--state-id`/);
+  assert.match(plan, /`screen:<state-id>\/<x,y>` remains target-model\/replay\s+vocabulary, not a current CLI target string/);
+  assert.match(plan, /Native AX: current CLI actions select elements through flags such as\s+`--pid` and `--role`/);
+  assert.match(plan, /`ax:<\.\.\.>` remains future first-class target-model\s+vocabulary, not a current CLI target string/);
+  assert.doesNotMatch(plan, /`screen:<state-id>\/<x,y>`: coordinate fallback with state guard/);
+  assert.doesNotMatch(plan, /`ax:<\.\.\.>`: future first-class macOS AX refs/);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
