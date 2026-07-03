@@ -871,8 +871,17 @@ action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
 Direct browser `type` and `key` are current-host routes when the first action
 argument is `browser:<session>/<ref>` or `browser:<session>`. They live in the
 external command manifest and route to Playwright; they are not saved-ref
-actions. Saved-ref `type` and `key` attempts with `--workspace` or `--snapshot`
-fail closed through the saved-ref resolver until browser keyboard semantics are
+actions:
+
+```bash
+aos do type browser:<session>/<ref> "hello world" --state-id <id>
+aos do key browser:<session>/<ref> "Enter" --state-id <id>
+aos do type browser:<session> "hello world"
+aos do key browser:<session> "cmd+s"
+```
+
+Saved-ref `type` and `key` attempts with `--workspace` or `--snapshot` fail
+closed through the saved-ref resolver until browser keyboard semantics are
 promoted through the action matrix.
 Refs with `confidence: low` are readback-only for saved-ref mutation and fail
 closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run

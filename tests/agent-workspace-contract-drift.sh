@@ -413,6 +413,12 @@ assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require stable `native_ax` refs'),
   'API saved-ref examples must mark press/focus as stable native AX only',
 );
+assert.ok(apiDoc.includes('aos do type browser:<session>/<ref> "hello world" --state-id <id>'), 'API doc must include direct browser type example');
+assert.ok(apiDoc.includes('aos do key browser:<session>/<ref> "Enter" --state-id <id>'), 'API doc must include direct browser key example');
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('Direct browser `type` and `key` are current-host routes'),
+  'API doc must distinguish direct browser type/key from saved-ref actions',
+);
 
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
