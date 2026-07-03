@@ -336,7 +336,7 @@ Stock `mountChrome()` headers are also semantic drag targets. The header carries
 `data-aos-ref="<canvas-or-panel-surface>:drag-handle"`,
 `data-semantic-target-id="drag-handle"`, `data-aos-action="panel_drag"`,
 `data-aos-actions="drag"`, and an accessible drag label. Agents should use the
-reported `semantic_targets[].do_target` with
+reported `semantic_targets[].provenance.do_target` with
 `aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>` instead of
 choosing header pixels.
 

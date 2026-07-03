@@ -226,6 +226,7 @@ for (const { action, ...contract } of actionMatrixRows) {
 const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'utf8');
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
+const toolkitPanelWindowDoc = fs.readFileSync('docs/api/toolkit/panel-window.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
 const externalManifestJSON = JSON.parse(fs.readFileSync('manifests/commands/aos-external-commands.json', 'utf8'));
 const nativeDoWrapper = fs.readFileSync('scripts/aos-do-native.mjs', 'utf8');
@@ -426,6 +427,14 @@ assert.ok(
 assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('`aos do focus` is native AX only, and saved workspaces do not expose `aos see assert`'),
   'API doc must route browser focus/assertion gaps to the current native/saved-workspace boundaries',
+);
+assert.ok(
+  toolkitPanelWindowDoc.includes('semantic_targets[].provenance.do_target'),
+  'toolkit panel docs must point agents at provenance.do_target for direct canvas actions',
+);
+assert.ok(
+  !toolkitPanelWindowDoc.includes('semantic_targets[].do_target'),
+  'toolkit panel docs must not imply do_target is a top-level semantic target field',
 );
 
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
