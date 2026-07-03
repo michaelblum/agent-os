@@ -14,7 +14,8 @@ aos see snapshots --workspace default --json
 aos see refs --workspace default --query Save --json
 aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
 aos do click ref:<snapshot-id>:r2 --workspace default
-aos see capture <capture_target> --save --mode <capture_mode> --workspace default
+aos see capture <capture_source> --save --mode <capture_mode> --workspace default
+aos see capture --canvas surface-inspector --save --mode som --workspace default
 aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run
 aos do fill ref:<snapshot-id>:r4 "updated text" --workspace default --dry-run
 aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run
@@ -28,6 +29,9 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
 
 - Use `aos see capture --save` to persist perception into the active runtime
   mode state root: `${AOS_STATE_ROOT:-~/.config/aos}/{repo|installed}/agent-workspaces/`.
+- A saved capture source can be a positional target such as `browser:work` or a
+  source flag such as `--region <rect>`, `--canvas <id>`, or `--channel <id>`.
+  `--save` is the state mutation boundary.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
   ref. If the command returns `REF_AMBIGUOUS`, use its candidate snapshots and
@@ -208,7 +212,7 @@ matrix:
   `ACTION_INCOMPATIBLE`.
 
 After any successful mutation, read `post_action.recommended_next_command`. Run
-the recommended fresh target-aware `aos see capture <capture_target> --save
+the recommended fresh source-aware `aos see capture <capture_source> --save
 --workspace <workspace> --mode <capture_mode>` before using the next ref from
 that surface when the response says fresh capture is recommended. If the saved
 capture stored a query, the recommendation should include `--query <query>`.

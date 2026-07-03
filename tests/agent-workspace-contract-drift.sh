@@ -376,10 +376,21 @@ assert.ok(
   'API doc must lead with saved capture before base64/pixel fallback examples',
 );
 assert.ok(
+  apiDoc.includes('Saved capture uses the same capture-source contract as ordinary capture')
+  && apiDoc.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`')
+  && skill.includes('A saved capture source can be a positional target')
+  && skill.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`'),
+  'API doc and workspace skill must describe saved capture source alternatives',
+);
+assert.ok(
   skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run') >= 0
   && skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run')
-  && skill.indexOf('aos see capture <capture_target> --save --mode <capture_mode> --workspace default') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n'),
+  && skill.indexOf('aos see capture <capture_source> --save --mode <capture_mode> --workspace default') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n'),
   'AOS workspace skill quick-start must show dry-run, real action, and post-action saved capture refresh',
+);
+assert.ok(
+  skill.indexOf('aos see capture --canvas surface-inspector --save --mode som --workspace default') > skill.indexOf('aos see capture <capture_source> --save --mode <capture_mode> --workspace default'),
+  'AOS workspace skill quick-start must include a saved source-flag capture example',
 );
 
 for (const text of [schemaDoc, apiDoc]) {
