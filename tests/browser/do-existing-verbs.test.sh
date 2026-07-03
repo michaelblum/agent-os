@@ -38,6 +38,7 @@ assert_error_code UNKNOWN_ARG do type "browser:todo" "hello" unexpected
 assert_error_code UNKNOWN_ARG do key "browser:todo" "Enter" unexpected
 assert_error_code UNKNOWN_ARG do drag "browser:todo/e1" "browser:todo/e2" unexpected
 assert_error_code UNKNOWN_FLAG do click "browser:todo/e21" --bogus
+assert_error_code UNKNOWN_FLAG do click "browser:todo/e21" --dwell 25
 assert_error_code MISSING_ARG do click "browser:todo/e21" --state-id --double
 
 echo "PASS"

@@ -402,6 +402,10 @@ assert "browser:<session>/<ref>" in usage, usage
 assert "--state-id" in tokens, tokens
 assert "--workspace" in tokens, tokens
 assert "--snapshot" in tokens, tokens
+dwell = next(arg for arg in form["args"] if arg.get("id") == "dwell")
+assert "coordinate/native and AOS canvas" in dwell["summary"], dwell
+assert "browser targets reject --dwell" in dwell["summary"], dwell
+assert "--dwell N for x,y or canvas targets" in usage, usage
 PY
 then
     pass "do click help exposes ref target forms"
