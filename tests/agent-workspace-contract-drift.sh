@@ -27,6 +27,7 @@ import {
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
   savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
+import { workspaceID } from './scripts/lib/agent-workspace/core.mjs';
 
 const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0.schema.json', 'utf8'));
 const defs = schema.$defs;
@@ -48,6 +49,14 @@ const workspaceIndexSnapshotRequired = defs.workspace_index.properties.snapshots
 assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace index snapshots must expose compact capture target readback');
 assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');
 assert.ok(defs.snapshot_record.required.includes('query'), 'snapshot records must persist nullable saved query readback');
+assert.equal(workspaceID(null, {}), 'default', 'workspace fallback must be command-local default');
+assert.equal(workspaceID(undefined, { AOS_AGENT_WORKSPACE: 'env-ws' }), 'env-ws', 'AOS_AGENT_WORKSPACE must supply command-local workspace default');
+assert.equal(workspaceID('flag-ws', { AOS_AGENT_WORKSPACE: 'env-ws' }), 'flag-ws', '--workspace must override AOS_AGENT_WORKSPACE');
+assert.throws(
+  () => workspaceID(null, { AOS_AGENT_WORKSPACE: 'bad/id' }),
+  { name: 'AgentWorkspaceError', code: 'INVALID_ID' },
+  'AOS_AGENT_WORKSPACE default must stay validated like an explicit workspace id',
+);
 
 for (const [backend, actions] of Object.entries(SAVED_REF_V0_ACTIONS_BY_BACKEND)) {
   for (const action of actions) {
@@ -209,6 +218,16 @@ const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8')
 const manifestJSON = JSON.parse(manifest);
 const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
 const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
+
+for (const [label, text] of Object.entries({ schemaDoc, apiDoc, skill })) {
+  const prose = text.replace(/\s+/g, ' ');
+  assert.ok(prose.includes('Workspace selection is command-scoped'), `${label} must describe command-scoped workspace selection`);
+  assert.ok(text.includes('AOS_AGENT_WORKSPACE'), `${label} must describe the environment workspace default`);
+  assert.ok(prose.includes('`--workspace <id>`') && prose.includes('AOS uses `default`'), `${label} must document flag/env/default precedence`);
+  assert.ok(prose.includes('No daemon-held current workspace exists'), `${label} must reject daemon-held current workspace state`);
+  assert.ok(prose.includes('`aos see workspace use <id>` is not a current command'), `${label} must reject workspace use command as current contract`);
+  assert.ok(/parallel agents|parallel-session/.test(prose), `${label} must tie workspace selection to multi-agent safety`);
+}
 
 function skillFrontmatter(text) {
   assert.ok(text.startsWith('---\n'), 'skill must start with YAML frontmatter');
@@ -439,6 +458,11 @@ assert.ok(!doNativeDragForm.usage.includes('canvas:<canvas-id>'), 'native coordi
 
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
 assert.ok(seeCommand, 'manifest missing see command');
+const workspaceUseForms = manifestJSON.commands.flatMap((command) => (command.forms ?? []).filter((form) => (
+  form.id === 'see-workspace-use'
+  || /\bworkspace use\b/.test(form.usage ?? '')
+)));
+assert.deepEqual(workspaceUseForms, [], 'manifest must not advertise a daemon-held workspace use command');
 const captureForm = seeCommand.forms.find((form) => form.id === 'see-capture');
 const captureSaveForm = seeCommand.forms.find((form) => form.id === 'see-capture-save');
 assert.ok(captureForm, 'manifest missing see-capture form');

@@ -173,6 +173,15 @@ Saved capture writes are staged under `snapshots/.staging/`, marked with
 Readback and `index.json` rebuilds only use committed snapshots, so partial or
 staged writes do not become valid workspace state.
 
+Workspace selection is command-scoped. For saved workspace reads and actions,
+`--workspace <id>` wins; otherwise `AOS_AGENT_WORKSPACE` selects a workspace;
+otherwise AOS uses `default`. No daemon-held current workspace exists, and
+`aos see workspace use <id>` is not a current command. `aos see workspaces`
+lists all local workspaces without consulting `AOS_AGENT_WORKSPACE`; cleanup
+commands require explicit workspace or snapshot ids. This keeps parallel agents
+from mutating hidden shared workspace state. Any future session-bound default
+must first define a multi-agent-safe contract.
+
 Capture modes are explicit:
 
 - `--mode ax`: tree-oriented refs where the backend can supply them.
