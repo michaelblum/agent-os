@@ -26,9 +26,21 @@ fi
 grep -q '"code":[[:space:]]*"MISSING_ARG"' "$tmproot/graph-windows-display-missing.err" \
     || { echo "FAIL graph display missing code: $(cat "$tmproot/graph-windows-display-missing.err")" >&2; exit 1; }
 
+if ./aos focus create --id bad-target --target not-a-url 2>"$tmproot/focus-create-bad-target.err"; then
+    echo "FAIL malformed target: expected error" >&2; exit 1
+fi
+grep -q '"code":[[:space:]]*"INVALID_ARG"' "$tmproot/focus-create-bad-target.err" \
+    || { echo "FAIL malformed target code: $(cat "$tmproot/focus-create-bad-target.err")" >&2; exit 1; }
+
 # Case 1: create attach extension
 out=$(./aos focus create --id test-attach --target browser://attach --extension 2>&1)
 echo "$out" | grep -q '"status":[[:space:]]*"success"' || { echo "FAIL create: $out" >&2; exit 1; }
+
+if ./aos focus create --id test-attach --target browser://new 2>"$tmproot/focus-create-duplicate.err"; then
+    echo "FAIL duplicate id: expected error" >&2; exit 1
+fi
+grep -q '"code":[[:space:]]*"DUPLICATE_ID"' "$tmproot/focus-create-duplicate.err" \
+    || { echo "FAIL duplicate id code: $(cat "$tmproot/focus-create-duplicate.err")" >&2; exit 1; }
 
 # Case 2: list includes browser kind
 out=$(./aos focus list)
@@ -64,6 +76,14 @@ echo "$out" | grep -q '"status":[[:space:]]*"success"' || { echo "FAIL launched:
 out=$(./aos focus list)
 echo "$out" | jq -e '[.channels[]? // .data.channels[]? | select(.id == "test-attach")] | length == 0' >/dev/null \
     || { echo "FAIL remove: $out" >&2; exit 1; }
+
+printf '{not-json\n' > "$tmproot/repo/browser/sessions.json"
+if ./aos focus list 2>"$tmproot/focus-list-corrupt.err"; then
+    echo "FAIL corrupt registry: expected error" >&2; exit 1
+fi
+grep -q '"code":[[:space:]]*"FOCUS_REGISTRY_INVALID"' "$tmproot/focus-list-corrupt.err" \
+    || { echo "FAIL corrupt registry code: $(cat "$tmproot/focus-list-corrupt.err")" >&2; exit 1; }
+printf '[]\n' > "$tmproot/repo/browser/sessions.json"
 
 # Case 5: --target and --window mutually exclusive
 if ./aos focus create --id oops --target browser://new --window 12345 2>/dev/null; then
