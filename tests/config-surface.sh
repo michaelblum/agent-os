@@ -130,4 +130,21 @@ grep -q '"error": "Unknown argument: extra"' "$STATE_ROOT/config-set-extra.err" 
 }
 pass "config set rejects extra positional args with JSON error"
 
+CORRUPT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-config-corrupt.XXXXXX")"
+mkdir -p "$CORRUPT_ROOT/repo"
+printf '{not-json\n' >"$CORRUPT_ROOT/repo/config.json"
+if AOS_STATE_ROOT="$CORRUPT_ROOT" ./aos config set voice.enabled false >"$CORRUPT_ROOT/config-set-corrupt.out" 2>"$CORRUPT_ROOT/config-set-corrupt.err"; then
+  fail "config set accepted corrupt existing config"
+fi
+grep -q '"code": "CONFIG_INVALID"' "$CORRUPT_ROOT/config-set-corrupt.err" || {
+  cat "$CORRUPT_ROOT/config-set-corrupt.err"
+  fail "config set corrupt config did not use CONFIG_INVALID"
+}
+grep -q '{not-json' "$CORRUPT_ROOT/repo/config.json" || {
+  cat "$CORRUPT_ROOT/repo/config.json"
+  fail "config set corrupt config overwrote the existing file"
+}
+rm -rf "$CORRUPT_ROOT"
+pass "config set refuses to overwrite corrupt existing config"
+
 echo "config-surface: all checks passed"
