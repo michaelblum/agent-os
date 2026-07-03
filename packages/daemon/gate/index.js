@@ -112,34 +112,35 @@ export function createGateService({
     const elapsedMs = Date.now() - entry.startedAt;
     try {
       await entry.receptor.dismiss(entry.handle);
-    } finally {
-      log('gate.resolved', { gate_id: id, resolution, elapsed_ms: elapsedMs });
-      if (recordStore) {
-        try {
-          await recordStore.append(createGateRecord({
-            request: entry.request,
-            receptorName: entry.receptor.constructor?.name ?? null,
-            presentedAt: entry.presentedAt,
-            resolvedAt,
-            elapsedMs,
-            resolution,
-            value,
-            error: rejectError,
-          }));
-        } catch (error) {
-          const recordError = createGateError(
-            GATE_ERROR_CODES.recordWriteFailed,
-            `failed to write gate record: ${error.message}`,
-            { cause: error },
-          );
-          if (rejectError) entry.reject(rejectError);
-          else entry.reject(recordError);
-          return;
-        }
-      }
-      if (rejectError) entry.reject(rejectError);
-      else entry.resolve(value);
+    } catch (error) {
+      log('gate.dismiss_failed', { gate_id: id, error: error instanceof Error ? error.message : String(error) });
     }
+    log('gate.resolved', { gate_id: id, resolution, elapsed_ms: elapsedMs });
+    if (recordStore) {
+      try {
+        await recordStore.append(createGateRecord({
+          request: entry.request,
+          receptorName: entry.receptor.constructor?.name ?? null,
+          presentedAt: entry.presentedAt,
+          resolvedAt,
+          elapsedMs,
+          resolution,
+          value,
+          error: rejectError,
+        }));
+      } catch (error) {
+        const recordError = createGateError(
+          GATE_ERROR_CODES.recordWriteFailed,
+          `failed to write gate record: ${error.message}`,
+          { cause: error },
+        );
+        if (rejectError) entry.reject(rejectError);
+        else entry.reject(recordError);
+        return;
+      }
+    }
+    if (rejectError) entry.reject(rejectError);
+    else entry.resolve(value);
   }
 
   const callbacks = {
