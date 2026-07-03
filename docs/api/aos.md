@@ -809,14 +809,14 @@ Primary public verbs:
 | Subcommand | Purpose |
 | --- | --- |
 | `click` | click coordinates, saved refs, direct browser targets, or AOS canvas semantic refs |
-| `hover` | move cursor |
+| `hover` | saved/browser hover or coordinate hover |
 | `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |
-| `scroll` | scroll at a point |
-| `type` | type text |
-| `key` | key combo |
-| `press` | semantic AX press |
-| `set-value` | semantic AX or AOS canvas semantic set-value |
-| `focus` | semantic AX focus |
+| `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |
+| `type` | literal native text input, not a saved-ref target form |
+| `key` | literal native key combo, not a saved-ref target form |
+| `press` | saved native AX press or direct `--pid` / `--role` AX press |
+| `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |
+| `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |
 | `raise` | raise an app/window |
 | `move` | move a window |
 | `resize` | resize a window |
