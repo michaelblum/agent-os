@@ -150,6 +150,12 @@ jq -e '
   and .snapshot_id == "snap1"
   and .query == "browser:todo"
   and (.refs | length) == 3
+  and .recommended_next[0].kind == "inspect_saved_refs"
+  and .recommended_next[0].argv == ["aos","see","refs","--workspace","ws1","--snapshot","snap1","--json"]
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].ref == "r1"
+  and .recommended_next[1].argv == ["aos","do","click","ref:snap1:r1","--workspace","ws1","--dry-run"]
+  and (.recommended_next_commands | index("aos do click ref:snap1:r1 --workspace ws1 --dry-run") != null)
   and all(.refs[];
     .ref_scope == "snapshot"
     and .workspace_id == "ws1"
@@ -180,6 +186,8 @@ jq -e '
   and .snapshot_id == "snap1"
   and .query == "deterministic_contract_tests_passed"
   and (.refs | length) == 3
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].action == "click"
   and all(.refs[];
     .conformance.proof.status == "deterministic_contract_tests_passed"
     and .conformance.target_uncertainty.status == "requires_current_validation"

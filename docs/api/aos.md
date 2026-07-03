@@ -165,7 +165,8 @@ Typical consumer loop:
 2. Read compact snapshots with `aos see snapshots` when choosing prior saved
    state; snapshot entries include `capture_source`, `capture_target`,
    `target`, and saved `query` without opening heavy payloads.
-3. Read compact refs with `aos see refs`.
+3. Read compact refs with `aos see refs`; use its structured
+   `recommended_next` descriptors for the scoped dry-run action.
 4. Dry-run the saved-ref action and inspect `resolution_status`.
 5. Dispatch only if the ref validates or reacquires.
 6. Use structured `recommended_next` descriptors and
