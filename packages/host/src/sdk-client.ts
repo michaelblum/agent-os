@@ -109,10 +109,21 @@ export class HostClient {
 
   private call(method: string, params: Record<string, unknown>): Promise<unknown> {
     return new Promise((resolve, reject) => {
+      const socket = this.activeSocket();
+      if (!socket) {
+        reject(new Error('Host socket is not connected'));
+        return;
+      }
       const id = ulid();
       this.pending.set(id, { resolve, reject });
       const req: SocketRequest = { id, method, params };
-      this.socket!.write(JSON.stringify(req) + '\n');
+      socket.write(JSON.stringify(req) + '\n', (error) => {
+        if (!error) return;
+        const handler = this.pending.get(id);
+        if (!handler) return;
+        this.pending.delete(id);
+        handler.reject(error);
+      });
     });
   }
 
@@ -122,10 +133,25 @@ export class HostClient {
     onStream: (event: StreamEvent) => void,
   ): Promise<unknown> {
     return new Promise((resolve, reject) => {
+      const socket = this.activeSocket();
+      if (!socket) {
+        reject(new Error('Host socket is not connected'));
+        return;
+      }
       const id = ulid();
       this.pending.set(id, { resolve, reject, onStream });
       const req: SocketRequest = { id, method, params };
-      this.socket!.write(JSON.stringify(req) + '\n');
+      socket.write(JSON.stringify(req) + '\n', (error) => {
+        if (!error) return;
+        const handler = this.pending.get(id);
+        if (!handler) return;
+        this.pending.delete(id);
+        handler.reject(error);
+      });
     });
+  }
+
+  private activeSocket(): net.Socket | null {
+    return this.socket && !this.socket.destroyed ? this.socket : null;
   }
 }

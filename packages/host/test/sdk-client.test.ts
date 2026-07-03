@@ -69,4 +69,33 @@ describe('HostClient', () => {
       /Host socket disconnected/,
     );
   });
+
+  it('rejects calls made before connect instead of throwing from socket access', async () => {
+    const socketPath = path.join(os.tmpdir(), `aos-host-client-unconnected-${process.pid}-${Date.now()}.sock`);
+    const client = new HostClient(socketPath);
+
+    await assert.rejects(
+      () => client.listTools(),
+      /Host socket is not connected/,
+    );
+  });
+
+  it('rejects a pending call when socket write reports an error', async () => {
+    const client = new HostClient('unused');
+    const writeError = new Error('write failed');
+    const fakeSocket = {
+      destroyed: false,
+      write(_data: string, callback: (error?: Error) => void): boolean {
+        callback(writeError);
+        return false;
+      },
+    };
+
+    (client as unknown as { socket: typeof fakeSocket }).socket = fakeSocket;
+
+    await assert.rejects(
+      () => client.listSessions(),
+      /write failed/,
+    );
+  });
 });
