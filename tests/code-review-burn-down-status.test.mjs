@@ -108,6 +108,100 @@ test('July 3 code review burn-down keeps critical and high findings dispositione
   );
 });
 
+test('July 3 material medium blocker clusters stay dispositioned with evidence', async () => {
+  const report = await text(burnDownPath);
+  const requiredRows = [
+    {
+      cluster: 'Config data loss on corrupt/interrupted write',
+      paths: ['scripts/aos-config-command.mjs', 'tests/config-surface.sh'],
+    },
+    {
+      cluster: 'Wiki reindex data loss on read failure',
+      paths: ['scripts/aos-wiki-reindex.py', 'tests/wiki-reindex-external.sh'],
+    },
+    {
+      cluster: 'Stale workspace write locks',
+      paths: [
+        'scripts/lib/agent-workspace/store.mjs',
+        'tests/agent-workspace-storage.sh',
+        'tests/agent-workspace-cleanup.sh',
+      ],
+    },
+    {
+      cluster: 'Focus registry corrupt/non-atomic writes and malformed URL launch',
+      paths: ['scripts/aos-focus-graph.mjs', 'tests/browser/focus-browser.test.sh'],
+    },
+    {
+      cluster: 'Checkpoint overwrite data loss',
+      paths: [
+        'scripts/workbench-human-checkpoint-annotate.mjs',
+        'tests/workbench-human-checkpoint-annotate.test.mjs',
+      ],
+    },
+    {
+      cluster: 'Swift `runProcess` pipe deadlock',
+      paths: ['src/shared/helpers.swift', 'tests/run-process-drain-contract.test.mjs'],
+    },
+    {
+      cluster: 'Event-stream double-close',
+      paths: ['shared/swift/ipc/event-stream.swift', 'tests/event-stream-fd-ownership-contract.test.mjs'],
+    },
+    {
+      cluster: '`AosSchemeHandler` main-thread blocking',
+      paths: ['src/display/canvas.swift', 'tests/daemon/aos-scheme-handler-nonblocking.test.mjs'],
+    },
+    {
+      cluster: '`refreshChannel` stale writes',
+      paths: ['src/perceive/spatial.swift', 'tests/daemon/spatial-refresh-stale-write.test.mjs'],
+    },
+    {
+      cluster: 'Host and gateway socket lifecycle hangs',
+      paths: [
+        'packages/host/src/sdk-client.ts',
+        'packages/gateway/sdk/aos-sdk.js',
+        'packages/gateway/src/engine/node-subprocess.ts',
+        'packages/host/test/sdk-client.test.ts',
+        'tests/gateway-sdk-socket-lifecycle.test.mjs',
+        'packages/gateway/test/engine.test.ts',
+      ],
+    },
+    {
+      cluster: 'Gateway localhost broker origin and script containment',
+      paths: [
+        'packages/gateway/src/integrations/http-api.ts',
+        'packages/gateway/src/scripts.ts',
+        'packages/gateway/test/integration-broker.test.ts',
+        'packages/gateway/test/scripts.test.ts',
+      ],
+    },
+    {
+      cluster: 'Host tool resource bounds',
+      paths: [
+        'packages/host/src/tools/read-file.ts',
+        'packages/host/src/tools/list-files.ts',
+        'packages/host/test/tools/read-file.test.ts',
+        'packages/host/test/tools/list-files.test.ts',
+      ],
+    },
+    {
+      cluster: 'UTF-8 open-message and wiki readbacks',
+      paths: [
+        'packages/toolkit/components/open-message-encoding.js',
+        'tests/toolkit/open-message-encoding.test.mjs',
+        'tests/aos-agents-runner.sh',
+      ],
+    },
+  ];
+
+  for (const row of requiredRows) {
+    assert.match(report, new RegExp(`\\| ${row.cluster.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\| fixed \\|`));
+    for (const evidencePath of row.paths) {
+      assert.match(report, new RegExp(evidencePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      await assertPath(evidencePath);
+    }
+  }
+});
+
 test('PerceptionEngine shared-state race remains plan-gated, not silently closed', async () => {
   const report = await text(burnDownPath);
   const plan = await text(perceptionPlanPath);
