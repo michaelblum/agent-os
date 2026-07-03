@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { externalRouteConditionSamples, externalRouteMatches } from '../../scripts/lib/external-command-routes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -78,33 +79,6 @@ function exampleFlags(form) {
         .map((match) => match[0]),
     ),
   ];
-}
-
-function externalRouteMatches(command, args) {
-  if (args.length < command.path.length) return false;
-  if (!command.path.every((part, index) => args[index] === part)) return false;
-  if (!command.when) return true;
-  const childArgs = args.slice(command.path.length);
-  const childArgIndex = command.when.child_arg_index;
-  if (childArgIndex === undefined) return true;
-  const childArg = childArgs[childArgIndex];
-  if (childArg === undefined) return command.when.child_arg_missing === true;
-  if (command.when.child_arg_missing === true) return false;
-  if (command.when.prefix !== undefined && !childArg.startsWith(command.when.prefix)) return false;
-  if (command.when.excluded_prefixes?.some((prefix) => childArg.startsWith(prefix))) return false;
-  if (command.when.excluded_values?.includes(childArg)) return false;
-  return true;
-}
-
-function routeConditionSamples(routes) {
-  const samples = new Set(['__missing__', 'example']);
-  for (const route of routes) {
-    if (!route.when) continue;
-    if (route.when.prefix) samples.add(`${route.when.prefix}sample`);
-    for (const prefix of route.when.excluded_prefixes ?? []) samples.add(`${prefix}sample`);
-    for (const value of route.when.excluded_values ?? []) samples.add(value);
-  }
-  return [...samples];
 }
 
 function collectManifestPlaceholders(value, out = new Set()) {
@@ -446,7 +420,7 @@ test('duplicate external command routes do not overlap for representative child 
   for (const [key, routes] of byPath) {
     if (routes.length <= 1) continue;
     const pathArgs = key.split('\0');
-    for (const sample of routeConditionSamples(routes)) {
+    for (const sample of externalRouteConditionSamples(routes)) {
       const args = sample === '__missing__' ? pathArgs : [...pathArgs, sample];
       const matches = routes.filter((route) => externalRouteMatches(route, args));
       assert.ok(

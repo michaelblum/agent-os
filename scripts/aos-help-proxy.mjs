@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { externalRouteMatches } from './lib/external-command-routes.mjs';
 
 function prettyJSON(value) {
   return JSON.stringify(value, null, 2).replace(/":/g, '" :');
@@ -119,22 +120,6 @@ function findCommand(commands, pathArgs) {
 
 function arrayEqual(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function externalRouteMatches(command, args) {
-  if (args.length < command.path.length) return false;
-  if (!command.path.every((part, index) => args[index] === part)) return false;
-  if (!command.when) return true;
-  const childArgs = args.slice(command.path.length);
-  const childArgIndex = command.when.child_arg_index;
-  if (childArgIndex === undefined) return true;
-  const childArg = childArgs[childArgIndex];
-  if (childArg === undefined) return command.when.child_arg_missing === true;
-  if (command.when.child_arg_missing === true) return false;
-  if (command.when.prefix !== undefined && !childArg.startsWith(command.when.prefix)) return false;
-  if (command.when.excluded_prefixes?.some((prefix) => childArg.startsWith(prefix))) return false;
-  if (command.when.excluded_values?.includes(childArg)) return false;
-  return true;
 }
 
 function findHelpPassthrough(pathArgs) {
