@@ -230,6 +230,8 @@ const toolkitPanelWindowDoc = fs.readFileSync('docs/api/toolkit/panel-window.md'
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
 const externalManifestJSON = JSON.parse(fs.readFileSync('manifests/commands/aos-external-commands.json', 'utf8'));
 const nativeDoWrapper = fs.readFileSync('scripts/aos-do-native.mjs', 'utf8');
+const canvasRefActionsTest = fs.readFileSync('tests/aos-canvas-ref-actions.sh', 'utf8');
+const runPuckHitlPlan = fs.readFileSync('tests/run-puck-hitl-plan.sh', 'utf8');
 const manifestJSON = JSON.parse(manifest);
 const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
 const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
@@ -436,6 +438,10 @@ assert.ok(
   !toolkitPanelWindowDoc.includes('semantic_targets[].do_target'),
   'toolkit panel docs must not imply do_target is a top-level semantic target field',
 );
+assert.ok(canvasRefActionsTest.includes('.[0].provenance.do_target'), 'canvas ref action test must read provenance.do_target');
+assert.ok(!canvasRefActionsTest.includes('.[0].do_target'), 'canvas ref action test must not read top-level do_target');
+assert.ok(runPuckHitlPlan.includes('provenance.get("do_target")'), 'run puck HITL plan must read provenance.do_target');
+assert.ok(!runPuckHitlPlan.includes('target.get("do_target")'), 'run puck HITL plan must not read top-level do_target');
 
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
