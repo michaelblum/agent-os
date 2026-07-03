@@ -313,6 +313,26 @@ descriptor. The builder stores the selected action target in
 `evidence[]`, and ties the post-action Postcondition to the after-perception
 evidence.
 
+### Saved Refs, Evidence, And Post-Action Proof
+
+Saved Ref is evidence provenance, not Work Record object identity. When an
+action comes from `ref:<snapshot-id>:<ref-id>`, the Work Record should preserve
+both the Saved Ref and resolved underlying target metadata in the selected
+action target, evidence metadata, or adjacent execution-map metadata. The Saved
+Ref proves which saved perception workspace supplied the action candidate; the
+resolved target metadata records what was actually dispatched through browser,
+canvas, or native bridge action code.
+
+Post-action proof is the after-perception evidence evaluated through a
+post-action Postcondition and its `claim_results[]` entry. Do not invent a raw
+JSON diff protocol to prove the result. If a ref, selector,
+Postcondition check, or artifact route drifts, repair the execution map under an
+explicit workflow/repair gate and keep the evidence immutable. Do not rewrite
+Claim text to chase selector drift, do not mutate `evidence[]`, and do not
+replay, repair, or macro-play back from a Work Record unless
+`execution_map.replay_policy` authorizes that behavior through the required
+workflow gates. The v0 verifier and harness remain report-only.
+
 This is the bridge for the Step Descriptor contract:
 a gated harness can emit the same saved evidence envelope after it runs `see`,
 resolves a target, executes `do`, and captures `see` again. The
