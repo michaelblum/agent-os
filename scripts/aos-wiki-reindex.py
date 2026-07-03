@@ -54,10 +54,11 @@ def connect():
 
 
 def reset_schema(conn):
-    conn.executescript("""
-        DROP TABLE IF EXISTS links;
-        DROP TABLE IF EXISTS pages;
-        DROP TABLE IF EXISTS plugins;
+    for statement in [
+        "DROP TABLE IF EXISTS links",
+        "DROP TABLE IF EXISTS pages",
+        "DROP TABLE IF EXISTS plugins",
+        """
         CREATE TABLE pages (
             path TEXT PRIMARY KEY,
             type TEXT NOT NULL,
@@ -66,14 +67,18 @@ def reset_schema(conn):
             tags TEXT,
             plugin TEXT,
             modified_at INTEGER NOT NULL
-        );
+        )
+        """,
+        """
         CREATE TABLE links (
             source_path TEXT NOT NULL,
             target_path TEXT NOT NULL,
             UNIQUE(source_path, target_path)
-        );
-        CREATE INDEX idx_links_source ON links(source_path);
-        CREATE INDEX idx_links_target ON links(target_path);
+        )
+        """,
+        "CREATE INDEX idx_links_source ON links(source_path)",
+        "CREATE INDEX idx_links_target ON links(target_path)",
+        """
         CREATE TABLE plugins (
             name TEXT PRIMARY KEY,
             version TEXT,
@@ -82,8 +87,10 @@ def reset_schema(conn):
             triggers TEXT,
             requires TEXT,
             modified_at INTEGER NOT NULL
-        );
-    """)
+        )
+        """,
+    ]:
+        conn.execute(statement)
 
 
 def wiki_namespaced_dir(kind):
@@ -251,83 +258,93 @@ def reindex():
         (root / wiki_namespaced_dir(subdir)).mkdir(parents=True, exist_ok=True)
 
     conn = connect()
-    reset_schema(conn)
 
     page_count = 0
     link_count = 0
     plugin_count = 0
 
-    indexed_plugins = set()
-    for plugins_relative_dir in candidate_dirs("plugins"):
-        plugins_dir = root / plugins_relative_dir
-        for plugin_dir in sorted([item for item in plugins_dir.iterdir() if item.is_dir() and not item.name.startswith(".")]):
-            if plugin_dir.name in indexed_plugins:
-                continue
-            indexed_plugins.add(plugin_dir.name)
-            skill_path = plugin_dir / "SKILL.md"
-            if not skill_path.exists():
-                continue
-            content = skill_path.read_text(encoding="utf-8")
-            frontmatter, body = parse_frontmatter(content)
-            relative_path = f"{plugins_relative_dir}/{plugin_dir.name}/SKILL.md"
-            modified_at = file_mtime(skill_path)
-            insert_plugin(conn, plugin_dir.name, frontmatter, modified_at)
-            plugin_count += 1
-            insert_page(
-                conn,
-                relative_path,
-                "workflow",
-                frontmatter.get("name") or plugin_dir.name,
-                frontmatter.get("description"),
-                parse_yaml_array(frontmatter.get("tags")),
-                plugin_dir.name,
-                modified_at,
-            )
-            page_count += 1
-            link_count += insert_links(conn, relative_path, body, f"{plugins_relative_dir}/{plugin_dir.name}")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        reset_schema(conn)
 
-            refs_dir = plugin_dir / "references"
-            if refs_dir.is_dir():
-                for ref_path in sorted(ref for ref in refs_dir.iterdir() if ref.is_file() and ref.name.endswith(".md")):
-                    ref_relative = f"{plugins_relative_dir}/{plugin_dir.name}/references/{ref_path.name}"
+        indexed_plugins = set()
+        for plugins_relative_dir in candidate_dirs("plugins"):
+            plugins_dir = root / plugins_relative_dir
+            for plugin_dir in sorted([item for item in plugins_dir.iterdir() if item.is_dir() and not item.name.startswith(".")]):
+                if plugin_dir.name in indexed_plugins:
+                    continue
+                indexed_plugins.add(plugin_dir.name)
+                skill_path = plugin_dir / "SKILL.md"
+                if not skill_path.exists():
+                    continue
+                content = skill_path.read_text(encoding="utf-8")
+                frontmatter, body = parse_frontmatter(content)
+                relative_path = f"{plugins_relative_dir}/{plugin_dir.name}/SKILL.md"
+                modified_at = file_mtime(skill_path)
+                insert_plugin(conn, plugin_dir.name, frontmatter, modified_at)
+                plugin_count += 1
+                insert_page(
+                    conn,
+                    relative_path,
+                    "workflow",
+                    frontmatter.get("name") or plugin_dir.name,
+                    frontmatter.get("description"),
+                    parse_yaml_array(frontmatter.get("tags")),
+                    plugin_dir.name,
+                    modified_at,
+                )
+                page_count += 1
+                link_count += insert_links(conn, relative_path, body, f"{plugins_relative_dir}/{plugin_dir.name}")
+
+                refs_dir = plugin_dir / "references"
+                if refs_dir.is_dir():
+                    for ref_path in sorted(ref for ref in refs_dir.iterdir() if ref.is_file() and ref.name.endswith(".md")):
+                        ref_relative = f"{plugins_relative_dir}/{plugin_dir.name}/references/{ref_path.name}"
+                        link_count += index_markdown_page(
+                            conn,
+                            ref_path,
+                            ref_relative,
+                            "concept",
+                            plugin=plugin_dir.name,
+                            fallback_name=ref_path.name.removesuffix(".md"),
+                        )
+                        page_count += 1
+
+        for dir_type, inferred_type in [("entities", "entity"), ("concepts", "concept")]:
+            indexed_files = set()
+            for type_relative_dir in candidate_dirs(dir_type):
+                type_dir = root / type_relative_dir
+                for file_path in sorted(type_dir.iterdir()):
+                    if file_path.name in indexed_files:
+                        continue
+                    if not file_path.is_file() or not file_path.name.endswith(".md") or file_path.name.startswith("."):
+                        continue
+                    indexed_files.add(file_path.name)
+                    relative_path = f"{type_relative_dir}/{file_path.name}"
                     link_count += index_markdown_page(
                         conn,
-                        ref_path,
-                        ref_relative,
-                        "concept",
-                        plugin=plugin_dir.name,
-                        fallback_name=ref_path.name.removesuffix(".md"),
+                        file_path,
+                        relative_path,
+                        inferred_type,
+                        fallback_name=file_path.name.removesuffix(".md"),
                     )
                     page_count += 1
 
-    for dir_type, inferred_type in [("entities", "entity"), ("concepts", "concept")]:
-        indexed_files = set()
-        for type_relative_dir in candidate_dirs(dir_type):
-            type_dir = root / type_relative_dir
-            for file_path in sorted(type_dir.iterdir()):
-                if file_path.name in indexed_files:
-                    continue
-                if not file_path.is_file() or not file_path.name.endswith(".md") or file_path.name.startswith("."):
-                    continue
-                indexed_files.add(file_path.name)
-                relative_path = f"{type_relative_dir}/{file_path.name}"
-                link_count += index_markdown_page(
-                    conn,
-                    file_path,
-                    relative_path,
-                    inferred_type,
-                    fallback_name=file_path.name.removesuffix(".md"),
-                )
-                page_count += 1
-
-    conn.commit()
-    conn.close()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return {"status": "ok", "pages": page_count, "links": link_count, "plugins": plugin_count}
 
 
 def main():
     options = parse_args(sys.argv[1:])
-    result = reindex()
+    try:
+        result = reindex()
+    except Exception as exc:
+        fail(f"Wiki reindex failed: {exc}", "WIKI_REINDEX_FAILED")
     if options["json"]:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
