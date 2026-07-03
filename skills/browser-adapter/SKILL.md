@@ -63,8 +63,9 @@ aos do navigate browser:work https://example.com
 ```
 
 Direct browser `type` and `key` are current-host routes from the external
-command manifest. Saved-ref `type` and `key` are not supported; use saved refs
-for click, fill, hover, scroll, and drag after dry-run validation.
+command manifest. Saved-ref `type` and `key` are supported for text-compatible
+browser refs when the producer exposes the action in `supported_actions`; use
+dry-run validation before dispatch.
 
 **Label elements visually.**
 

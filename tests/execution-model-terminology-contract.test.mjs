@@ -142,15 +142,19 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
 
   assert.match(architecture, /For normal observe-act loops, agents capture `aos see capture browser:<session> --save --mode som --workspace <id>`/);
   assert.match(architecture, /saved-ref dispatch validates the current browser target/);
-  assert.match(aosApi, /Direct browser `type` and `key` are current-host routes/);
-  assert.match(aosApi, /Saved-ref `type` and `key` attempts[\s\S]*fail\s+closed through the saved-ref resolver/);
+  assert.match(aosApi, /Direct browser `type` and `key` remain current-host routes/);
+  assert.match(aosApi, /Saved browser `type` and `key` are text-compatible saved-ref actions/);
+  assert.match(aosApi, /producer exposes the action in `supported_actions`/);
   assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work/);
   assert.match(browserSkill, /Direct browser refs are volatile/);
   assert.match(browserSkill, /Direct browser `type` and `key` are current-host routes/);
+  assert.match(browserSkill, /Saved-ref `type` and `key` are supported for text-compatible\s+browser refs/);
+  assert.match(browserSkill, /dry-run validation before dispatch/);
   assert.match(seeDo, /public CLI now documents browser targets through `docs\/api\/aos\.md`/);
   assert.match(seeDo, /Collection workers should prefer saved refs for normal loops/);
   assert.match(seeDo, /direct\s+`browser:<session>\/<ref>` targets as current\s+diagnostic\/provenance handles/);
   assert.match(seeDo, /external command manifest conditionally dispatches direct browser forms for\nclick, hover, drag, scroll, type, and key/);
+  assert.match(seeDo, /saved-ref `fill`, `type`, and\s+`key` validate current page\/frame\/navigation and element identity/);
   assert.match(seeDo, /should not assume typed SDK parity with CLI browser\s+refs/);
   assert.match(browserSkill, /docs\/archive\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
   for (const action of ['type', 'key']) {
@@ -166,6 +170,7 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   assert.doesNotMatch(seeDo, /`docs\/api\/aos\.md` does not document browser target usage/);
   assert.doesNotMatch(seeDo, /target discovery\/examples do not show `browser:<session>`/);
   assert.doesNotMatch(seeDo, /browser\s+forms of existing verbs .* are not clear/);
+  assert.doesNotMatch(browserSkill, /Saved-ref `type` and `key` are not supported/);
   assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
 });
 

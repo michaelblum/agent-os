@@ -79,9 +79,12 @@ the returned `recommended_next`, `recommended_next_commands`, or
   or `aos see assert`. Use structured `recommended_next` descriptors and
   `recommended_next_command` plus a fresh saved capture for re-perception. Use
   `aos see refs --diff <from>..<to>` only for compact saved-ref comparison
-  between two existing snapshots; it is not a wait loop or full assertion
-  engine. Use `aos show wait` only for canvas readiness, Recipe assertions only
-  for command JSON checks, and Work Record postconditions for durable evidence
+  between two existing snapshots. `--expect change|no-change` gates the whole
+  compact diff, and repeatable
+  `--expect-ref <ref>=added|removed|changed|unchanged|present|missing` gates
+  saved refs inside the diff. Neither is a wait loop or full assertion engine.
+  Use `aos show wait` only for canvas readiness, Recipe assertions only for
+  command JSON checks, and Work Record postconditions for durable evidence
   checks.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
@@ -100,8 +103,10 @@ the returned `recommended_next`, `recommended_next_commands`, or
 - Use `aos see refs --workspace <id> --diff <from>..<to> --json` for compact
   ref-level snapshot comparison after a verification capture. Add
   `--expect change|no-change` when a recipe or shell should fail with
-  `REF_DIFF_EXPECTATION_FAILED` on mismatch. Treat it as a saved-ref diff gate,
-  not a complete visual assertion.
+  `REF_DIFF_EXPECTATION_FAILED` on whole-diff mismatch. Repeat
+  `--expect-ref <ref>=changed` or another ref state when postconditions are
+  about specific handles. Treat these as saved-ref diff gates, not complete
+  visual assertions.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

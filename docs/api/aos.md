@@ -170,7 +170,9 @@ Typical consumer loop:
 4. Compare saved snapshots with `aos see refs --diff <from>..<to>` when a
    compact ref-level post-action check is enough; add
    `--expect change|no-change` when a recipe or shell needs a non-zero exit on
-   mismatch.
+   mismatch, or repeat
+   `--expect-ref <ref>=added|removed|changed|unchanged|present|missing` for
+   ref postconditions.
 5. Dry-run the saved-ref action and inspect `resolution_status`.
 6. Dispatch only if the ref validates or reacquires.
 7. Use structured `recommended_next` descriptors and
@@ -218,8 +220,12 @@ or `aos see assert`. Use structured `recommended_next` descriptors and
 `recommended_next_command` plus a fresh saved capture for re-perception. Use
 `aos see refs --diff <from>..<to>` only for compact saved-ref comparison between
 two existing snapshots. `--expect change|no-change` makes that compact diff a
-machine-checkable gate with `REF_DIFF_EXPECTATION_FAILED` on mismatch; it is
-still not a wait loop or full assertion engine. Use
+machine-checkable gate with `REF_DIFF_EXPECTATION_FAILED` on mismatch;
+`--expect-ref <ref>=added|removed|changed|unchanged|present|missing` gates one
+saved ref inside the same compact diff and can be repeated. A single ref gate
+reports `diff.ref_expectation`; multiple ref gates report
+`diff.ref_expectations[]`. These expectations are still not a wait loop or full
+assertion engine. Use
 `aos show wait` only for canvas readiness, Recipe assertions only for command
 JSON checks, and Work Record postconditions for durable evidence checks. Future
 saved wait/assert commands need manifest help, parser, schema/doc, and drift
@@ -892,6 +898,14 @@ resolves declared resources, verifies external help-manifest command
 references and static repo shell script paths, and returns the planned blocks,
 resource ownership, parameters, and cleanup plan. Without `--json`, it emits a
 concise text plan.
+
+Recipes may use repeatable
+`aos see refs --diff <from>..<to> --expect-ref <ref>=...` gates as compact
+postcondition steps after a fresh saved capture. That command remains a
+saved-ref diff gate over two existing snapshots; recipe assertions can inspect
+`diff.ref_expectation` or `diff.ref_expectations[]`, while Work Records should
+cite the command output as immutable evidence rather than treating the recipe as
+replay or repair authority.
 
 `recipe run` supports read-only recipes, mutating canvas recipes with explicit
 owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.
