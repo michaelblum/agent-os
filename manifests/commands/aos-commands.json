@@ -5023,7 +5023,7 @@
               ],
               "id" : "audience",
               "kind" : "positional",
-              "required" : true,
+              "required" : false,
               "summary" : "Target: human, channel name, or canonical session id",
               "value_type" : "string"
             },
@@ -5077,6 +5077,19 @@
             }
           ],
           "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "audience"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary" : "tell target"
+              }
+            ],
             "one_of" : [
               [
                 "text",
