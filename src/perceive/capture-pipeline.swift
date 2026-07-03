@@ -1222,7 +1222,7 @@ func resolveUTType(for format: String) -> UTType {
     case "png":          return .png
     case "jpg", "jpeg":  return .jpeg
     case "heic":         return .heic
-    default: exitError("Unknown format: '\(format)'. Use png, jpg, or heic.", code: "INVALID_FORMAT")
+    default: exitError("Unknown format: '\(format)'. Use png, jpg/jpeg, or heic.", code: "INVALID_FORMAT")
     }
 }
 

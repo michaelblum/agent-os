@@ -105,6 +105,12 @@ fi
 
 echo "Compiling aos ($BUILD_MODE)..."
 swiftc "${SWIFTC_FLAGS[@]}" "${SOURCES[@]}" "${SHARED_IPC[@]}"
+if command -v codesign >/dev/null 2>&1; then
+    if ! CODESIGN_OUTPUT="$(codesign --force --sign - "$OUTPUT_PATH" 2>&1)"; then
+        printf '%s\n' "$CODESIGN_OUTPUT" >&2
+        exit 1
+    fi
+fi
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
