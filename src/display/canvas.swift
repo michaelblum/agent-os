@@ -484,6 +484,8 @@ window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.
     }
 
     func close() {
+        onMessage = nil
+        onTTLExpired = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
         ttlTimer?.cancel()
         ttlTimer = nil

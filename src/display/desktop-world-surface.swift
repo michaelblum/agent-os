@@ -276,9 +276,12 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     }
 
     func close() {
+        onMessage = nil
+        onTTLExpired = nil
         ttlTimer?.cancel()
         ttlTimer = nil
         for segment in segments {
+            segment.messageHandler.onMessage = nil
             segment.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
             segment.window.orderOut(nil)
             segment.window.close()
