@@ -15,15 +15,8 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     private var stopped = Set<ObjectIdentifier>()
     private let lock = NSLock()
 
-    private func waitForPort(timeoutMs: Int = 10000, pollMs: Int = 25) -> UInt16 {
-        var port = portProvider()
-        if port > 0 { return port }
-        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
-        while port == 0 && Date() < deadline {
-            Thread.sleep(forTimeInterval: Double(pollMs) / 1000)
-            port = portProvider()
-        }
-        return port
+    private func currentContentPort() -> UInt16 {
+        return portProvider()
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
@@ -34,7 +27,7 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        let port = waitForPort()
+        let port = currentContentPort()
         guard port > 0 else {
             fputs("[aos-scheme] content server unavailable for \(url.absoluteString)\n", stderr)
             let html = "<html><body style=\"font-family:system-ui;color:#fff;background:#1a1a2e;padding:2em\"><h2>aos:// content server unavailable</h2><pre>aos content status --json</pre><p>\(url.absoluteString)</p></body></html>"
