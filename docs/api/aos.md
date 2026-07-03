@@ -896,6 +896,13 @@ references and static repo shell script paths, and returns the planned blocks,
 resource ownership, parameters, and cleanup plan. Without `--json`, it emits a
 concise text plan.
 
+Recipes may use `aos see refs --diff <from>..<to> --expect-ref <ref>=...` as a
+compact postcondition step after a fresh saved capture. That command remains a
+saved-ref diff gate over two existing snapshots; recipe assertions can inspect
+`diff.ref_expectation`, while Work Records should cite the command output as
+immutable evidence rather than treating the recipe as replay or repair
+authority.
+
 `recipe run` supports read-only recipes, mutating canvas recipes with explicit
 owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.
 Owned resources that require cleanup, such as canvases, must be cleaned by

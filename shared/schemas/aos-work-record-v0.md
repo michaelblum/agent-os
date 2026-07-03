@@ -333,6 +333,15 @@ replay, repair, or macro-play back from a Work Record unless
 `execution_map.replay_policy` authorizes that behavior through the required
 workflow gates. The v0 verifier and harness remain report-only.
 
+When a source-backed recipe uses
+`aos see refs --diff <from>..<to> --expect-ref <ref>=...` as a compact
+postcondition step, the Work Record boundary stays the same. The recipe result
+or command stdout can be stored as immutable evidence, the Postcondition can
+reference the expected `diff.ref_expectation` fields, and the Claim Result can
+cite that evidence. The Work Record must not treat the recipe step as a
+portable replay instruction, repair a stale ref automatically, or replace
+after-perception evidence with an untracked assertion string.
+
 This is the bridge for the Step Descriptor contract:
 a gated harness can emit the same saved evidence envelope after it runs `see`,
 resolves a target, executes `do`, and captures `see` again. The
