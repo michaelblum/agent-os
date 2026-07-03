@@ -4194,7 +4194,7 @@
       "path" : [
         "say"
       ],
-      "summary" : "Voice — speak text aloud (sugar for tell human)"
+      "summary" : "Voice — direct TTS convenience aligned with tell human"
     },
     {
       "forms" : [

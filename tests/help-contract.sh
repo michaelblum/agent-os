@@ -291,6 +291,8 @@ if echo "$OUT" | grep -q '"token" : "--voice-slot"' &&
    echo "$OUT" | grep -q '"token" : "--language"' &&
    echo "$OUT" | grep -q '"token" : "--gender"' &&
    echo "$OUT" | grep -q '"token" : "--quality-tier"' &&
+   echo "$OUT" | grep -q 'direct TTS convenience aligned with tell human' &&
+   ! echo "$OUT" | grep -qi 'sugar for tell human' &&
    echo "$OUT" | grep -q 'aos say \[--voice id\] \[--voice-slot n\] \[--language value\] \[--gender value\] \[--quality-tier value\] \[--rate wpm\] <text>' &&
    echo "$OUT" | grep -q 'resolved after filters'; then
     pass "say help exposes filtered voice-slot selection"
