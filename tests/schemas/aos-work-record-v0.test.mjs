@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-work-record-v0.schema.json');
+const contractPath = path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
 
 async function jsonFiles(dir) {
@@ -189,4 +190,63 @@ test('invalid Work Record v0 fixtures are rejected by the schema', async () => {
     const result = validate(fixture);
     assert.notEqual(result.status, 0, `${path.relative(repoRoot, fixture)} should fail validation`);
   }
+});
+
+test('Work Record contract keeps saved refs, evidence, proof, and replay boundaries distinct', async () => {
+  const contract = await fs.readFile(contractPath, 'utf8');
+  const normalizedContract = contract.replace(/\s+/g, ' ').toLowerCase();
+
+  for (const phrase of [
+    'Saved Refs, Evidence, And Post-Action Proof',
+    'Saved Ref is evidence provenance, not Work Record object identity.',
+    'preserve both the Saved Ref and resolved underlying target metadata',
+    'Post-action proof is the after-perception evidence',
+    'post-action Postcondition',
+    'claim_results[]',
+    'do not invent a raw JSON diff protocol',
+    'repair the execution map under an explicit workflow/repair gate',
+    'do not mutate `evidence[]`',
+    'do not replay, repair, or macro-play back from a Work Record',
+    'The v0 verifier and harness remain report-only.',
+  ]) {
+    assert.ok(
+      normalizedContract.includes(phrase.toLowerCase()),
+      `contract should include: ${phrase}`,
+    );
+  }
+
+  const record = await loadJson(
+    path.join(fixtureRoot, 'valid/aos-browser-click-status.json'),
+  );
+  const afterEvidence = record.evidence.find(
+    (evidence) => evidence.id === 'evidence:aos-browser-click-status-after-see',
+  );
+  assert.ok(afterEvidence, 'fixture must include after-perception evidence');
+  assert.equal(afterEvidence.metadata.phase, 'after');
+
+  const postcondition = record.execution_map.postconditions.find(
+    (item) => item.id === 'postcondition:aos-browser-click-status-after-status',
+  );
+  assert.ok(postcondition, 'fixture must include a post-action Postcondition');
+  assert.deepEqual(postcondition.evidence_refs, [afterEvidence.id]);
+
+  const claimResult = record.claim_results.find(
+    (result) => result.claim_id === 'claim:aos-browser-click-status-2026-05-06-post-action-state-observed',
+  );
+  assert.ok(claimResult, 'fixture must include a Claim Result for the post-action Claim');
+  assert.equal(claimResult.status, 'verified');
+  assert.deepEqual(claimResult.evidence_refs, [afterEvidence.id]);
+  assert.deepEqual(claimResult.postcondition_results, [
+    {
+      postcondition_id: postcondition.id,
+      status: 'passed',
+      evidence_refs: [afterEvidence.id],
+      reason: 'The after perception semantic target e3 has value Action recorded.',
+    },
+  ]);
+
+  assert.equal(record.execution_map.replay_policy.mode, 'report_only');
+  assert.equal(record.execution_map.replay_policy.replay_requires_workflow_gate, true);
+  assert.equal(record.execution_map.replay_policy.repair_requires_workflow_gate, true);
+  assert.match(record.execution_map.replay_policy.notes, /does not authorize autonomous replay or repair/);
 });
