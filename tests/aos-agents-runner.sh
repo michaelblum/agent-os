@@ -225,6 +225,30 @@ git -C "$FIXTURE" commit -qm "fixture baseline"
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
+ACTIVE_PROFILE_PATH="$FIXTURE/.docks/profiles/active-profile.json"
+mv "$ACTIVE_PROFILE_PATH" "$ACTIVE_PROFILE_PATH.bak"
+set +e
+ERR="$(python3 scripts/aos_agents/runner.py --repo-root "$FIXTURE" --runtime-info 2>&1 >/dev/null)"
+RC=$?
+set -e
+mv "$ACTIVE_PROFILE_PATH.bak" "$ACTIVE_PROFILE_PATH"
+if [[ "$RC" -eq 0 ]]; then
+    fail "runner accepted missing active-profile.json"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "error", data
+assert "active-profile.json" in data["error"], data
+PY
+then
+    pass "runner reports missing active profile as structured JSON"
+else
+    echo "$ERR" >&2
+    fail "runner missing active profile error was not structured JSON"
+fi
+
 if INTEGRATION_SKIP="$(bash tests/aos-agents-runner-integration.sh)"; then
     if grep -q "SKIP: set AOS_AGENT_PROVIDER_SDK_SMOKE=1" <<<"$INTEGRATION_SKIP"; then
         pass "provider SDK integration smoke is opt-in and skips by default"

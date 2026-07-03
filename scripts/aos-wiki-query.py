@@ -221,7 +221,7 @@ def search_file_content(query, excluding):
                 if rel in excluding or rel in seen:
                     continue
                 seen.add(rel)
-                content = file.read_text(encoding="utf-8")
+                content = file.read_text(encoding="utf-8", errors="replace")
                 if lower not in content.lower():
                     continue
                 frontmatter, _ = parse_frontmatter(content)

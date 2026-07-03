@@ -59,6 +59,23 @@ pages = json.loads(os.environ["OUT"])
 assert any(page["path"] == "aos/concepts/ipc-protocol.md" for page in pages), pages
 PY
 
+python3 - <<'PY'
+from pathlib import Path
+import os
+
+path = Path(os.environ["AOS_STATE_ROOT"]) / "repo/wiki/aos/entities/non-utf8-search.md"
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_bytes(b"---\ntype: entity\nname: Non UTF8 Search\n---\ninvalid-byte-query \xff\n")
+PY
+OUT="$(./aos wiki search invalid-byte-query --json)"
+OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+pages = json.loads(os.environ["OUT"])
+assert any(page["path"] == "aos/entities/non-utf8-search.md" for page in pages), pages
+PY
+
 OUT="$(./aos wiki list --orphans --json)"
 OUT="$OUT" python3 - <<'PY'
 import json

@@ -196,7 +196,7 @@ def graph_snapshot(include_raw):
         if include_raw:
             page_path = root / item["path"]
             if page_path.exists():
-                raw[item["path"]] = page_path.read_text(encoding="utf-8")
+                raw[item["path"]] = page_path.read_text(encoding="utf-8", errors="replace")
 
     return {
         "nodes": nodes,

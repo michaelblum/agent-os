@@ -236,7 +236,9 @@ def load_patch_output_spec(root: pathlib.Path, role: str) -> AgentSpec:
 def load_active_profile(root: pathlib.Path) -> ActiveProfile:
     path = root / ".docks" / "profiles" / "active-profile.json"
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise RunnerError(f"Unable to read active profile {path}: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise RunnerError(f"{path} is not valid JSON: {exc}") from exc
 
@@ -255,7 +257,7 @@ def load_active_profile(root: pathlib.Path) -> ActiveProfile:
         pack_path = root / ".docks" / "profiles" / pack_name / "profile.md"
         if not pack_path.is_file():
             raise RunnerError(f"Profile pack {pack_name!r} is missing {pack_path}")
-        packs.append(ProfilePack(name=pack_name, path=pack_path, markdown=pack_path.read_text()))
+        packs.append(ProfilePack(name=pack_name, path=pack_path, markdown=pack_path.read_text(encoding="utf-8")))
 
     return ActiveProfile(
         path=path,
