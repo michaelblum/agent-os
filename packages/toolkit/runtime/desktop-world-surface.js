@@ -74,14 +74,19 @@ export class DesktopWorldSurfaceAdapter {
     this._appHandlers = {}
     this._started = false
     this._firstSettled = null
+    this._startPromise = null
     this._stopHostListener = null
+    this._stopBridgeListener = null
   }
 
   async start(appHandlers = {}) {
     this._appHandlers = appHandlers
+    if (this._startPromise) return this._startPromise
+    if (this._started) return this
     const firstSettled = new Promise((resolve) => {
       this._firstSettled = resolve
     })
+    this._startPromise = firstSettled
     if (!this._started) {
       this._started = true
       this._wireMessages()
@@ -93,9 +98,12 @@ export class DesktopWorldSurfaceAdapter {
   stop() {
     this._stopHostListener?.()
     this._stopHostListener = null
+    this._stopBridgeListener?.()
+    this._stopBridgeListener = null
     if (!this.host?.subscribe) unsubscribe(['canvas_lifecycle'])
     this._started = false
     this._firstSettled = null
+    this._startPromise = null
   }
 
   handleMessage(message) {
@@ -113,7 +121,7 @@ export class DesktopWorldSurfaceAdapter {
       return
     }
     if (this.host?.subscribe) return
-    wireBridge((message) => this.handleMessage(message))
+    this._stopBridgeListener = wireBridge((message) => this.handleMessage(message))
   }
 
   _subscribeLifecycle() {
@@ -133,6 +141,7 @@ export class DesktopWorldSurfaceAdapter {
     const priorSegment = this.segment
     const firstSettled = this._firstSettled
     this._firstSettled = null
+    this._startPromise = null
 
     this.topology = normalizeTopology(segments)
     this.segment = this._identifyOwnSegment(this.topology)

@@ -385,18 +385,22 @@ it does not own radial pointer geometry, drag-to-handoff state, or per-frame
 
 ### `wireBridge(handler)`
 
-Installs an inbound message handler for daemon-to-canvas messages.
+Installs an inbound message handler for daemon-to-canvas messages and returns
+an unsubscribe function for removing that handler.
 
 ```js
-wireBridge((msg) => {
+const unsubscribe = wireBridge((msg) => {
   if (msg.type === 'hello') console.log(msg.payload)
 })
+unsubscribe()
 ```
 
 Notes:
 
 - safe to call more than once
 - each handler is retained and invoked for every inbound message
+- call the returned unsubscribe before tearing down or restarting a reusable
+  adapter
 - inbound messages arrive through `window.headsup.receive(base64Json)`
 
 ### `emit(type, payload?)`
