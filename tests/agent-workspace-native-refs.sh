@@ -413,6 +413,10 @@ jq -e '
   and .underlying_result.conformance.target_uncertainty.status == "direct_ax_current_matching"
   and any(.underlying_result.known_limits[]; contains("HITL proof"))
   and .post_action.verification == "fresh_capture_recommended"
+  and .post_action.recommended_next.kind == "fresh_saved_capture"
+  and .post_action.recommended_next.argv == ["aos","see","capture","main","--save","--workspace","ws-native","--mode","ax"]
+  and .post_action.recommended_next.capture_target == "main"
+  and .post_action.recommended_next.query == null
   and .post_action.recommended_next_command == "aos see capture main --save --workspace ws-native --mode ax"
   and .recommended_next_command == "aos see capture main --save --workspace ws-native --mode ax"
 ' "$DURABLE_PRESS" >/dev/null || fail "durable native AX press dispatch drifted: $(cat "$DURABLE_PRESS")"

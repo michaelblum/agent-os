@@ -238,7 +238,8 @@ saved page/frame/navigation and element identity facts still validate. Dry-run
 reports `reacquired` when that validation is sufficient for real dispatch;
 non-dry-run then routes through the underlying `browser:<session>/<ref>` action
 target and returns a saved-ref execution envelope with `current_validation`,
-`underlying_result`, `post_action`, and `recommended_next_command`. Missing,
+`underlying_result`, `post_action`, structured `post_action.recommended_next`,
+and `recommended_next_command`. Missing,
 stale, ambiguous, disabled, changed, or identity-drifted current targets fail
 closed before dispatch:
 

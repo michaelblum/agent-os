@@ -112,6 +112,10 @@ jq -e '
   and .underlying_result.execution.strategy == "playwright_click"
   and (.underlying_result.result.stdout | contains("fake click invoked: -s=todo click e2"))
   and .post_action.verification == "fresh_capture_recommended"
+  and .post_action.recommended_next.kind == "fresh_saved_capture"
+  and .post_action.recommended_next.argv == ["aos","see","capture","browser:todo","--save","--workspace","ws-browser","--mode","ax","--query","Click me"]
+  and .post_action.recommended_next.capture_target == "browser:todo"
+  and .post_action.recommended_next.query == "Click me"
   and .post_action.recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
   and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
 ' "$REAL_ACTION" >/dev/null || fail "browser saved-ref click did not dispatch after validation: $(cat "$REAL_ACTION")"

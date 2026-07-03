@@ -25,6 +25,18 @@ function captureSourceToken(record = null) {
   return target ? captureTargetToken(target) : null;
 }
 
+function captureSourceArgv(record = null) {
+  const sourceArgv = record?.capture_source?.argv;
+  if (Array.isArray(sourceArgv) && sourceArgv.length > 0) {
+    return sourceArgv.map((arg) => String(arg));
+  }
+  const target = record?.capture_target;
+  if (!target) return null;
+  const externalMatch = String(target).match(/^external ([1-9]\d*)$/);
+  if (externalMatch) return ['external', externalMatch[1]];
+  return [String(target)];
+}
+
 export function recommendedRefreshCommand(workspace, record = null) {
   const source = captureSourceToken(record);
   const mode = record?.capture_mode;
@@ -41,6 +53,36 @@ export function recommendedRefreshCommand(workspace, record = null) {
     commandToken(mode),
     record.query ? `--query ${commandToken(record.query)}` : null,
   ].filter(Boolean).join(' ');
+}
+
+export function recommendedRefreshDescriptor(workspace, record = null) {
+  const sourceArgv = captureSourceArgv(record);
+  const mode = record?.capture_mode;
+  const command = recommendedRefreshCommand(workspace, record);
+  if (!sourceArgv || !mode || !command) return null;
+  const argv = [
+    'aos',
+    'see',
+    'capture',
+    ...sourceArgv,
+    '--save',
+    '--workspace',
+    String(workspace),
+    '--mode',
+    String(mode),
+  ];
+  if (record?.query) argv.push('--query', String(record.query));
+  return {
+    kind: 'fresh_saved_capture',
+    reason: 're-perceive after saved-ref mutation before asserting state',
+    command,
+    argv,
+    workspace_id: String(workspace),
+    capture_mode: String(mode),
+    capture_target: record?.capture_target ?? null,
+    capture_source: record?.capture_source ?? null,
+    query: record?.query ?? null,
+  };
 }
 
 function recommendedRefsCommand(workspace, snapshot = null) {
