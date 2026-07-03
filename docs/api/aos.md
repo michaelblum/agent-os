@@ -808,9 +808,9 @@ Primary public verbs:
 
 | Subcommand | Purpose |
 | --- | --- |
-| `click` | click coordinates, browser refs, or AOS canvas semantic refs |
+| `click` | click coordinates, saved refs, direct browser targets, or AOS canvas semantic refs |
 | `hover` | move cursor |
-| `drag` | drag between coordinates, browser refs, or AOS canvas semantic refs |
+| `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |
 | `scroll` | scroll at a point |
 | `type` | type text |
 | `key` | key combo |
