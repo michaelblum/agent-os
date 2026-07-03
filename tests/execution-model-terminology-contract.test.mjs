@@ -143,7 +143,7 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   assert.match(architecture, /For normal observe-act loops, agents capture `aos see capture browser:<session> --save --mode som --workspace <id>`/);
   assert.match(architecture, /saved-ref dispatch validates the current browser target/);
   assert.match(aosApi, /Direct browser `type` and `key` are current-host routes/);
-  assert.match(aosApi, /Saved-ref `type` and `key` attempts[\s\S]*fail closed through the saved-ref resolver/);
+  assert.match(aosApi, /Saved-ref `type` and `key` attempts[\s\S]*fail\s+closed through the saved-ref resolver/);
   assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work/);
   assert.match(browserSkill, /Direct browser refs are volatile/);
   assert.match(browserSkill, /Direct browser `type` and `key` are current-host routes/);
@@ -188,6 +188,23 @@ test('context glossary distinguishes saved refs from live target refs', async ()
   assert.match(workspaceSchema, /originating capture source and mode/);
   assert.doesNotMatch(workspaceSchema, /originating saved target/);
   assert.doesNotMatch(context, /Saved Ref[\s\S]{0,500}is the live wire form/);
+});
+
+test('public API docs preserve the current target and handle ladder', async () => {
+  const aosApi = await text('docs/api/aos.md');
+  const section = aosApi.split('## Target And Handle Ladder', 2)[1].split('## Core Usage Patterns', 1)[0];
+
+  assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
+  assert.match(section, /bare `ref:<ref-id>` only when the\s+workspace can resolve it unambiguously/);
+  assert.match(section, /`browser:<session>\/<ref>` and `canvas:<canvas-id>\/<ref>`/);
+  assert.match(section, /raw `x,y` plus `--state-id <id>`/);
+  assert.match(section, /selector flags such as `--pid`, `--role`, and\s+filters/);
+  assert.match(section, /no current public `ax:` CLI target grammar/);
+  assert.match(section, /Semantic Targets are structured perception records/);
+  assert.match(section, /not a separate address grammar/);
+  assert.match(section, /Window, channel, browser, and\s+canvas ids remain resource ids or role-flag values/);
+  assert.doesNotMatch(section, /`screen:/);
+  assert.doesNotMatch(section, /`ax:</);
 });
 
 test('grand unification plan qualifies screen and AX target-model vocabulary', async () => {

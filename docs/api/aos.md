@@ -127,6 +127,26 @@ The current top-level commands are:
 | `aos inspect` | live AX inspector overlay |
 | `aos log` | log overlay |
 
+## Target And Handle Ladder
+
+Use the narrowest handle that preserves semantic identity:
+
+1. Saved refs are the primary model-facing handles for normal observe-act
+   loops: `ref:<snapshot-id>:<ref-id>`, with bare `ref:<ref-id>` only when the
+   workspace can resolve it unambiguously.
+2. Direct current-host refs address live browser and canvas targets:
+   `browser:<session>/<ref>` and `canvas:<canvas-id>/<ref>`.
+3. Coordinate fallback uses raw `x,y` plus `--state-id <id>` when an action was
+   chosen from a prior perception state.
+4. Native AX direct actions use selector flags such as `--pid`, `--role`, and
+   filters; there is no current public `ax:` CLI target grammar.
+
+Semantic Targets are structured perception records that contain refs, bounds,
+roles, names, state, and provenance. They report what can be resolved inside a
+target; they are not a separate address grammar. Window, channel, browser, and
+canvas ids remain resource ids or role-flag values, not competing target
+dialects.
+
 ## Core Usage Patterns
 
 ### 1. Perceive, Then Act
