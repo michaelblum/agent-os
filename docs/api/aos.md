@@ -151,6 +151,11 @@ Typical consumer loop:
 6. Use `recommended_next_command` after a real mutation when a fresh saved
    capture is needed before reusing refs from the surface.
 
+Saved capture uses the same capture-source contract as ordinary capture: supply
+a positional target such as `browser:work` or a source flag such as
+`--region <rect>`, `--canvas <id>`, or `--channel <id>`. `--save` is the
+mutation switch that persists local workspace state.
+
 Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
 `$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
