@@ -653,7 +653,9 @@ assert.ok(doCommand, 'manifest missing do command');
 const doFormsByID = new Map(doCommand.forms.map((form) => [form.id, form]));
 for (const action of ['press', 'focus']) {
   const form = doFormsByID.get(`do-${action}`);
-  assert.ok(form.summary.includes(`Stable native AX saved-ref ${action}`), `manifest do-${action} summary must mark saved refs as stable native AX only`);
+  assert.ok(form.summary.includes(`stable native AX saved refs or direct AX targets`), `manifest do-${action} summary must distinguish stable saved refs from direct AX targets`);
+  assert.ok(form.summary.includes('direct AX uses current matching'), `manifest do-${action} summary must disclose direct AX current matching`);
+  assert.ok(form.summary.includes('no_foreground proof still not claimed'), `manifest do-${action} summary must avoid claiming direct AX no-foreground proof`);
   const targetArg = form.args.find((arg) => arg.id === 'target');
   assert.ok(targetArg.summary.includes('Stable saved native AX ref'), `manifest do-${action} target arg must mark saved refs as stable native AX only`);
 }
