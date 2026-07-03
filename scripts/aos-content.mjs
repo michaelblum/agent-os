@@ -120,27 +120,39 @@ function startDaemon() {
 function sendEnvelope(socket, service, action, data = {}) {
   return new Promise((resolve) => {
     let buffer = '';
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      socket.off('data', onData);
+      socket.off('error', onError);
+    };
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
     const timer = setTimeout(() => {
       socket.destroy();
-      resolve(null);
+      finish(null);
     }, 3000);
-    socket.on('data', (chunk) => {
+    const onData = (chunk) => {
       buffer += chunk.toString('utf8');
       const newline = buffer.indexOf('\n');
       if (newline < 0) return;
-      clearTimeout(timer);
       const line = buffer.slice(0, newline);
       try {
-        resolve(JSON.parse(line));
+        finish(JSON.parse(line));
       } catch {
-        resolve(null);
+        finish(null);
       }
+    };
+    const onError = () => finish(null);
+    socket.on('data', onData);
+    socket.once('error', onError);
+    socket.write(`${JSON.stringify({ v: 1, service, action, data })}\n`, (error) => {
+      if (error) finish(null);
     });
-    socket.once('error', () => {
-      clearTimeout(timer);
-      resolve(null);
-    });
-    socket.write(`${JSON.stringify({ v: 1, service, action, data })}\n`);
   });
 }
 
