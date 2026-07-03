@@ -283,6 +283,10 @@ mutation must warn or refuse before dispatching any coordinate-backed action.
 
 ## Saved-Ref Action Grammar Matrix
 
+The `press` and `focus` examples require stable `native_ax` refs with durable
+native identity facts and an actionable producer verdict; browser and AOS canvas
+refs fail closed for those actions.
+
 | action | command form | backend(s) | resolution classes | required args | dry-run | mutation risk | validation / reacquisition | statuses | post-action evidence | known limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `click` | `aos do click ref:<snapshot-id>:<ref> --workspace <id>` | `aos_canvas`; browser | `reacquirable` for canvas, `snapshot_scoped` for browser | ref target; optional `--right`, `--double`; `aos_canvas` also accepts `--dwell` | yes | medium; pointer activation | load saved ref, require unambiguous scope, require supported action, resolve current canvas target; browser refs require page/frame/navigation identity and exactly one enabled matching current xray element before dispatch | `dry_run`, `success`, `REF_NOT_FOUND`, `REF_STALE`, `REF_REVALIDATION_REQUIRED`, `REF_UNSUPPORTED`, `ACTION_INCOMPATIBLE`, `REF_AMBIGUOUS`, `REF_REVALIDATION_FAILED`, `UNKNOWN_ARG`, `UNKNOWN_FLAG` | real dispatch returns a saved-ref execution envelope with adapter output nested under `underlying_result` and a fresh-capture `recommended_next_command` | browser validation fails closed on page, frame, navigation, role, title, label, context, enabled-state, or uniqueness drift; native AX refs are not click-actionable and make no saved-action no-foreground guarantee |

@@ -25,6 +25,10 @@ aos do press ref:<snapshot-id>:r7 --workspace default --dry-run
 aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
 ```
 
+The `press` and `focus` examples require stable `native_ax` refs with durable
+native identity facts and an actionable producer verdict; browser and AOS canvas
+refs fail closed for those actions.
+
 ## Contract
 
 - Use `aos see capture --save` to persist perception into the active runtime

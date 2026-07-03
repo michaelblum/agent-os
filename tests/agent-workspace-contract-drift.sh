@@ -386,6 +386,7 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('stable'), 'docs/skill must describe stable native AX saved refs');
   assert.ok(text.includes('aos do press ref:<snapshot-id>'), 'docs/skill must include stable native press saved-ref example');
   assert.ok(text.includes('aos do focus ref:<snapshot-id>'), 'docs/skill must include stable native focus saved-ref example');
+  assert.ok(prose.includes('`press` and `focus` examples require stable `native_ax` refs'), 'docs/skill must mark press/focus examples as stable native AX only');
   assert.ok(text.includes('direct_ax_ready'), 'docs/skill must describe native direct AX saved-ref dry-run status');
   assert.ok(text.includes('requires_direct_ax_current_matching'), 'docs/skill must describe native saved-ref current matching status');
   assert.ok(text.includes('app_hint'), 'docs/skill must describe native app hint evidence');
@@ -407,6 +408,10 @@ for (const text of [schemaDoc, apiDoc, skill]) {
 assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
   'API doc must name backend-wide coordinate fallback refusal evidence',
+);
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require stable `native_ax` refs'),
+  'API saved-ref examples must mark press/focus as stable native AX only',
 );
 
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
@@ -455,6 +460,12 @@ assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary
 const doCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['do']));
 assert.ok(doCommand, 'manifest missing do command');
 const doFormsByID = new Map(doCommand.forms.map((form) => [form.id, form]));
+for (const action of ['press', 'focus']) {
+  const form = doFormsByID.get(`do-${action}`);
+  assert.ok(form.summary.includes(`Stable native AX saved-ref ${action}`), `manifest do-${action} summary must mark saved refs as stable native AX only`);
+  const targetArg = form.args.find((arg) => arg.id === 'target');
+  assert.ok(targetArg.summary.includes('Stable saved native AX ref'), `manifest do-${action} target arg must mark saved refs as stable native AX only`);
+}
 const savedRefSupportedMatrixActions = actionMatrixRows
   .filter((row) => Object.keys(row.supported_backends).length > 0)
   .map((row) => row.action);
