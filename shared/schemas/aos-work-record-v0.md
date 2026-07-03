@@ -304,8 +304,11 @@ The second producer is also narrow:
 `buildWorkRecordV0FromAosActionEvidence()` turns one saved AOS action evidence
 source into the same completed v0 shape. Its source records one
 `see -> do -> see` slice with before perception, AOS action metadata, after
-perception, target dialect, Target-with-Ref, State IDs where available, and
-immutable artifact refs. The builder stores the selected action target in
+perception, target dialect, selected action target, State IDs where available,
+and immutable artifact refs. Direct browser/canvas evidence may store a
+Target-with-Ref, saved-ref evidence should preserve the Saved Ref plus resolved
+underlying target, and native AX evidence should preserve its selector bridge
+descriptor. The builder stores the selected action target in
 `execution_map.steps[].action`, stores before/action/after receipts in
 `evidence[]`, and ties the post-action Postcondition to the after-perception
 evidence.
@@ -323,9 +326,10 @@ The Step Descriptor bridge keeps that split explicit:
 `aos.step_descriptor` descriptor with one saved AOS action evidence source. The
 gated harness or containing Workflow contributes `origin.kind: "workflow"` and
 `origin.ref`; the step descriptor contributes target-resolution metadata, step
-repair hints, workflow gate refs, and claim-promotion metadata. The action evidence still contributes the
-immutable before/action/after receipts, State IDs, selected Target-with-Ref,
-Claim Results, Verifier Report, and Health. This bridge does not make Playbook
+repair hints, workflow gate refs, and claim-promotion metadata. The action
+evidence still contributes the immutable before/action/after receipts, State
+IDs, selected action target, Claim Results, Verifier Report, and Health. This
+bridge does not make Playbook
 the executable substrate and does not execute or replay the descriptor.
 
 The first harness layer above that bridge is
@@ -341,7 +345,9 @@ module API above the daemon instead of a broad public CLI. Its boundary is:
   evidence. The harness rejects missing or undeclared gates before action code
   runs.
 - **Work Record evidence:** immutable before/action/after receipts and the
-  selected Target-with-Ref for what actually happened during the run.
+  selected action target for what actually happened during the run. A selected
+  action target may be a direct Target-with-Ref, a Saved Ref with resolved
+  underlying target metadata, or a native bridge descriptor.
 - **Verifier diagnostics:** report-only classifications such as target/ref
   drift, precondition failure, action failure, postcondition failure, evidence
   ref drift, and State ID inconsistency. Diagnostics do not mutate the Work
