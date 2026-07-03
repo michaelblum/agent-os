@@ -817,6 +817,40 @@ input into an Anchor Binding for placement. `show update` accepts the same
 anchor flags when a surface needs to be re-anchored after browser scroll,
 navigation, or layout changes.
 
+### Show/See/Do Surface Loop
+
+Use `aos show create`, `aos show update`, and `aos show remove` for persistent
+canvas lifecycle. Use `aos show render` for one-shot image rendering without a
+persistent canvas or action handle.
+
+To inspect and act on a live AOS surface, capture the current canvas host and
+carry the returned target handle forward:
+
+```bash
+aos see capture --canvas <id> --xray --save --workspace <workspace>
+aos do click canvas:<canvas-id>/<ref> --state-id <id>
+aos do set-value canvas:<canvas-id>/<ref> --value <value>
+aos do drag canvas:<canvas-id>/<ref> --by <dx>,<dy>
+```
+
+`semantic_targets[].provenance.do_target` is the direct current-host action
+handle when present. Saved workspace refs from the same capture use
+`ref:<snapshot-id>:<ref-id> --workspace <workspace>` for replayable model-facing
+handles. Both paths use the same target ladder; there is no separate `show:`,
+`surface:`, or `anchor:` action grammar.
+
+Verify through a fresh `aos see capture --canvas <id> --xray --save
+--workspace <workspace>` when the proof is about model-visible state. `aos show
+eval --id <id> --js ...` is a developer diagnostic bridge for repo-owned canvas
+state; show eval is not a target dialect and is not a substitute for semantic
+target evidence unless the check is intentionally reading that owned state.
+
+Surface Inspector and annotation support surfaces must carry the same evidence
+model. Bundles such as `annotation-snapshot.json` can record Surface Inspector
+context and semantic target projections, but they should point back to
+`semantic_targets`, `provenance.do_target`, saved refs, and capture artifacts
+instead of inventing private surface addresses.
+
 ## `aos recipe`
 
 `recipe` is the source-backed executable recipe surface. It sits above

@@ -312,6 +312,61 @@ test('show anchors stay placement roles instead of target dialects', async () =>
   assert.doesNotMatch(`${context}\n${showSection}`, /anchor:<|browser-anchor:/);
 });
 
+test('show surface loop uses canvas targets and saved refs instead of private locators', async () => {
+  const aosApi = await text('docs/api/aos.md');
+  const manifest = JSON.parse(await text('manifests/commands/aos-commands.json'));
+  const commandByPath = (segments) => manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(segments)
+  ));
+  const showCommand = commandByPath(['show']);
+  const showCreateForm = showCommand?.forms?.find((form) => form.id === 'show-create');
+  const showUpdateForm = showCommand?.forms?.find((form) => form.id === 'show-update');
+  const showRemoveForm = showCommand?.forms?.find((form) => form.id === 'show-remove');
+  const showRenderForm = showCommand?.forms?.find((form) => form.id === 'show-render');
+  const showEvalForm = showCommand?.forms?.find((form) => form.id === 'show-eval');
+  const seeCommand = commandByPath(['see']);
+  const seeCaptureForm = seeCommand?.forms?.find((form) => (
+    form.id === 'see-capture-save' && /--canvas <id>/.test(form.usage ?? '')
+  ));
+  const doCommand = commandByPath(['do']);
+  const doDragCommand = commandByPath(['do', 'drag']);
+  const doClickForm = doCommand?.forms?.find((form) => form.id === 'do-click');
+  const doSetValueForm = doCommand?.forms?.find((form) => form.id === 'do-set-value');
+  const doDragCanvasForm = doDragCommand?.forms?.find((form) => form.id === 'do-drag-canvas')
+    ?? doCommand?.forms?.find((form) => form.id === 'do-drag-canvas');
+  const showSection = aosApi.split('## `aos show`', 2)[1].split('## `aos recipe`', 1)[0];
+
+  assert.match(showSection, /### Show\/See\/Do Surface Loop/);
+  assert.match(showSection, /`aos show create`, `aos show update`, and `aos show remove`/);
+  assert.match(showSection, /`aos show render` for one-shot image rendering/);
+  assert.match(showSection, /aos see capture --canvas <id> --xray --save --workspace <workspace>/);
+  assert.match(showSection, /aos do click canvas:<canvas-id>\/<ref> --state-id <id>/);
+  assert.match(showSection, /aos do set-value canvas:<canvas-id>\/<ref> --value <value>/);
+  assert.match(showSection, /aos do drag canvas:<canvas-id>\/<ref> --by <dx>,<dy>/);
+  assert.match(showSection, /`semantic_targets\[\]\.provenance\.do_target` is the direct current-host action\s+handle/);
+  assert.match(showSection, /`ref:<snapshot-id>:<ref-id> --workspace <workspace>`/);
+  assert.match(showSection, /there is no separate `show:`,\s+`surface:`, or `anchor:` action grammar/);
+  assert.match(showSection, /Verify through a fresh `aos see capture --canvas <id> --xray --save\s+--workspace <workspace>`/);
+  assert.match(showSection, /`aos show\s+eval --id <id> --js \.\.\.` is a developer diagnostic bridge/);
+  assert.match(showSection, /show eval is not a target dialect/);
+  assert.match(showSection, /Surface Inspector and annotation support surfaces/);
+  assert.match(showSection, /`annotation-snapshot\.json`/);
+  assert.match(showSection, /instead of inventing private surface addresses/);
+
+  assert.match(showCreateForm?.usage ?? '', /aos show create --id <name>/);
+  assert.match(showUpdateForm?.usage ?? '', /aos show update --id <name>/);
+  assert.match(showRemoveForm?.usage ?? '', /aos show remove --id <name>/);
+  assert.match(showRenderForm?.usage ?? '', /aos show render/);
+  assert.match(showEvalForm?.usage ?? '', /aos show eval --id <name> --js <javascript>/);
+  assert.match(seeCaptureForm?.usage ?? '', /--canvas <id>/);
+  assert.match(seeCaptureForm?.usage ?? '', /--save/);
+  assert.match(doClickForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.match(doSetValueForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.match(doDragCanvasForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.doesNotMatch(showSection, /(?:show|surface|anchor):<canvas-id>/);
+  assert.doesNotMatch(showSection, /private surface locator/i);
+});
+
 test('canvas host docs keep lifecycle, current targets, and saved refs distinct', async () => {
   const aosApi = await text('docs/api/aos.md');
   const toolkitRuntime = await text('docs/api/toolkit/runtime.md');
