@@ -433,6 +433,16 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.match(architecture, /\| `listen` \| Receive communication \| Channels and direct sessions today; STT, stdin, and aggregated sources planned \|/);
   assert.match(aosApi, /`aos say` is a direct TTS convenience path/);
   assert.match(aosApi, /`aos tell human \.\.\.` is daemon-routed communication/);
+  assert.match(aosApi, /`aos tell` is daemon-routed communication, not an app-control synonym for\s+`aos do tell`/);
+  assert.match(aosApi, /Messages flow through the daemon coordination bus into named\s+channels or direct canonical-session channels/);
+  assert.match(aosApi, /Session presence is daemon state\s+mirrored into `~\/\.config\/aos\/\{mode\}\/coordination\/sessions\.json`/);
+  assert.match(aosApi, /channel\s+messages remain daemon-owned bounded queues instead of model-context history/);
+  assert.match(aosApi, /Direct routing should prefer canonical session ids/);
+  assert.match(aosApi, /This keeps `aos tell --who`, `aos voice assignments`, and docked\s+session status aligned around the same role session identity/);
+  assert.match(aosApi, /`--channels` lists the daemon-known channel\s+names/);
+  assert.match(aosApi, /not a workspace\s+or transcript index/);
+  assert.match(aosApi, /STT\/dictation is planned as a future `aos listen` source/);
+  assert.match(aosApi, /Stdin ingestion is also planned as a future `aos listen` source/);
   assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads and follow today; STT and broader sources planned \|/);
   assert.match(sayCommand?.summary ?? '', /direct TTS convenience aligned with tell human/);
   assert.match(tellCommand?.summary ?? '', /send to human, channel, or session/);
@@ -455,6 +465,8 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.doesNotMatch(maintained, /\| `listen` \| Receive communication \| Aggregates STT/);
   assert.doesNotMatch(maintained, /`aos listen` or similar/);
   assert.doesNotMatch(maintained, /say.*sugar for tell human/i);
+  assert.doesNotMatch(maintained, /session names are canonical/i);
+  assert.doesNotMatch(maintained, /channels are workspace transcripts/i);
 });
 
 test('Skills and Plugins are packaging activation concepts outside the execution ladder', async () => {
