@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { ScriptRegistry } from '../src/scripts.js';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -47,5 +47,19 @@ describe('ScriptRegistry', () => {
     const filtered = registry.list({ intent: 'perception' });
     assert.ok(filtered.some(s => s.name === 'percep'));
     assert.ok(!filtered.some(s => s.intent !== 'perception'));
+  });
+
+  it('rejects traversal and absolute script names without writing outside the script dir', () => {
+    const outside = join(dir, '..', 'escape.ts');
+
+    assert.throws(() => {
+      registry.save('../escape', 'return 1;', { description: 'bad', intent: 'mixed' });
+    }, /Invalid script name/);
+    assert.throws(() => {
+      registry.save('/tmp/escape', 'return 1;', { description: 'bad', intent: 'mixed' });
+    }, /Invalid script name/);
+    assert.throws(() => registry.load('../escape'), /Invalid script name/);
+
+    assert.equal(existsSync(outside), false);
   });
 });

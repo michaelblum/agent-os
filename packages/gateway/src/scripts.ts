@@ -14,14 +14,27 @@ export interface ScriptMeta {
   note?: string;
 }
 
+const SCRIPT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 export class ScriptRegistry {
-  constructor(private dir: string) {
+  private dir: string;
+
+  constructor(dir: string) {
+    this.dir = dir;
     mkdirSync(dir, { recursive: true });
   }
 
+  private safeName(name: string): string {
+    if (typeof name !== 'string' || !SCRIPT_NAME_PATTERN.test(name)) {
+      throw new Error('Invalid script name. Use letters, numbers, dots, underscores, or dashes.');
+    }
+    return name;
+  }
+
   save(name: string, script: string, meta: ScriptMeta, overwrite = false, sessionId?: string) {
-    const scriptPath = join(this.dir, `${name}.ts`);
-    const metaPath = join(this.dir, `${name}.meta.json`);
+    const safeName = this.safeName(name);
+    const scriptPath = join(this.dir, `${safeName}.ts`);
+    const metaPath = join(this.dir, `${safeName}.meta.json`);
 
     if (existsSync(scriptPath) && !overwrite) {
       throw new Error(`Script "${name}" already exists. Use overwrite: true to update.`);
@@ -38,7 +51,7 @@ export class ScriptRegistry {
       changelog = existing.changelog ?? [];
       createdAt = existing.createdAt ?? createdAt;
       createdBy = existing.createdBy ?? createdBy;
-      renameSync(scriptPath, join(this.dir, `${name}.prev.ts`));
+      renameSync(scriptPath, join(this.dir, `${safeName}.prev.ts`));
     }
 
     const now = new Date().toISOString();
@@ -49,7 +62,7 @@ export class ScriptRegistry {
     if (changelog.length > 20) changelog = changelog.slice(-20);
 
     const metaJson = {
-      name, description: meta.description, intent: meta.intent,
+      name: safeName, description: meta.description, intent: meta.intent,
       portable: meta.portable ?? true, version,
       parameters: meta.parameters,
       createdBy, createdAt,
@@ -62,7 +75,8 @@ export class ScriptRegistry {
   }
 
   load(name: string): string {
-    const p = join(this.dir, `${name}.ts`);
+    const safeName = this.safeName(name);
+    const p = join(this.dir, `${safeName}.ts`);
     if (!existsSync(p)) throw new Error(`Script "${name}" not found.`);
     return readFileSync(p, 'utf-8');
   }
