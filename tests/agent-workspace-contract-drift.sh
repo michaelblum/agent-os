@@ -408,6 +408,22 @@ function schemaDocActionRow(action) {
 for (const { action, ...contract } of actionMatrixRows) {
   const row = schemaDocActionRow(action);
   assert.ok(row, `schema doc missing action matrix row for ${action}`);
+  const rowCells = row.split('|').slice(1, -1).map((cell) => cell.trim());
+  assert.ok(rowCells.length >= 4, `schema doc ${action} row must keep action, command, backend, and resolution columns`);
+  const backendCell = rowCells[2];
+  const resolutionCell = rowCells[3];
+  const supportedBackendEntries = Object.entries(contract.supported_backends);
+  if (supportedBackendEntries.length === 0) {
+    assert.equal(backendCell, 'none', `schema doc ${action} row must document no saved-ref backends`);
+    assert.equal(resolutionCell, 'none', `schema doc ${action} row must document no saved-ref resolution classes`);
+  } else {
+    for (const [backend, resolutionClasses] of supportedBackendEntries) {
+      assert.ok(backendCell.includes(backend), `schema doc ${action} row missing backend ${backend}`);
+      for (const resolutionClass of resolutionClasses) {
+        assert.ok(resolutionCell.includes(resolutionClass), `schema doc ${action} row missing resolution class ${resolutionClass}`);
+      }
+    }
+  }
   for (const status of contract.statuses) {
     assert.ok(row.includes(status), `schema doc ${action} row missing status ${status}`);
   }
