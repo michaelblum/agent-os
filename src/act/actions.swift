@@ -126,6 +126,11 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
     let profile = state.profile
+    let clickCount = req.count ?? 1
+
+    guard clickCount > 0 else {
+        return errorResponse("click", state: state, message: "Click count must be greater than zero", code: "INVALID_COUNT")
+    }
 
     // Resolve click position: explicit coords, channel element, or current cursor
     let clickPoint: CGPoint
@@ -157,7 +162,6 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let downType: CGEventType = isRight ? .rightMouseDown : .leftMouseDown
     let upType: CGEventType = isRight ? .rightMouseUp : .leftMouseUp
     let cgButton: CGMouseButton = isRight ? .right : .left
-    let clickCount = req.count ?? 1
 
     let source = CGEventSource(stateID: .hidSystemState)
     let flags = currentFlags(state)
