@@ -22,6 +22,9 @@ commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 | `aos recipe` | Higher-order | Source-backed executable procedures built from primitive commands; `aos ops` is the compatibility alias |
 | `aos ready` | Runtime/ops | Front-door readiness gate for agents before runtime work |
 | `aos serve` / `aos service` | Runtime/ops | Unified daemon lifecycle: one socket, one CGEventTap, shared state |
+| `aos status` / `aos doctor` | Runtime/ops | Runtime, permission, and readiness diagnostics |
+| `aos permissions` | Runtime/ops | Permission preflight, onboarding, and reset guidance |
+| `aos clean` / `aos reset` | Runtime/ops | Explicit stale-resource cleanup and state reset workflows |
 
 See [docs/api/aos.md](docs/api/aos.md) for the full consumer command table.
 
