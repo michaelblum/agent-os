@@ -39,6 +39,18 @@ fi
 expect_error_code "AGENT_WORKSPACE_LOCKED" "$LOCKED_DELETE_ERR"
 rm -rf "$WORKSPACE_PATH/.write-lock"
 
+mkdir "$WORKSPACE_PATH/.write-lock"
+cat >"$WORKSPACE_PATH/.write-lock/owner.json" <<'JSON'
+{"pid":999999999,"owner":"stale-test"}
+JSON
+STALE_LOCK_CAPTURE="$TMP_DIR/stale-lock-capture.json"
+./aos see capture browser:todo --save --mode ax --workspace ws1 --name stale-lock-save >"$STALE_LOCK_CAPTURE"
+jq -e '.status == "success" and .workspace_id == "ws1" and .snapshot_id == "stale-lock-save"' "$STALE_LOCK_CAPTURE" >/dev/null \
+    || fail "save did not recover from stale workspace lock: $(cat "$STALE_LOCK_CAPTURE")"
+[[ ! -e "$WORKSPACE_PATH/.write-lock" ]] \
+    || fail "stale workspace lock was not cleaned after recovered save"
+./aos see snapshot delete stale-lock-save --workspace ws1 --i-understand-local-artifacts --json >"$TMP_DIR/stale-lock-delete.json"
+
 SNAPS="$TMP_DIR/snapshots.json"
 ./aos see snapshots --workspace ws1 --json >"$SNAPS"
 jq -e '

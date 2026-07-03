@@ -425,6 +425,32 @@ export function workspaceLockState(dir) {
   return { status: 'locked', path: lockDir, owner };
 }
 
+function ownerPID(lockDir) {
+  try {
+    const owner = JSON.parse(fs.readFileSync(path.join(lockDir, 'owner.json'), 'utf8'));
+    const pid = Number(owner?.pid);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function processIsGone(pid) {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return error?.code === 'ESRCH';
+  }
+}
+
+function reapStaleWorkspaceLock(lockDir) {
+  const pid = ownerPID(lockDir);
+  if (!pid || !processIsGone(pid)) return false;
+  fs.rmSync(lockDir, { recursive: true, force: true });
+  return true;
+}
+
 export function withWorkspaceLock(workspace, callback, env = process.env, { create = false } = {}) {
   const dir = assertUnderWorkspacesRoot(workspaceDir(workspace, env), env);
   if (create) {
@@ -439,15 +465,25 @@ export function withWorkspaceLock(workspace, callback, env = process.env, { crea
     lockHeld = true;
   } catch (error) {
     if (error?.code === 'EEXIST') {
-      exitAgentWorkspaceError(`Workspace '${workspace}' is locked for mutation: ${lockDir}`, 'AGENT_WORKSPACE_LOCKED', {
-        workspace_id: workspace,
-        lock_path: lockDir,
-      });
-    }
-    if (error?.code === 'ENOENT') {
+      if (reapStaleWorkspaceLock(lockDir)) {
+        try {
+          fs.mkdirSync(lockDir);
+          lockHeld = true;
+        } catch (retryError) {
+          if (retryError?.code !== 'EEXIST') throw retryError;
+        }
+      }
+      if (!lockHeld) {
+        exitAgentWorkspaceError(`Workspace '${workspace}' is locked for mutation: ${lockDir}`, 'AGENT_WORKSPACE_LOCKED', {
+          workspace_id: workspace,
+          lock_path: lockDir,
+        });
+      }
+    } else if (error?.code === 'ENOENT') {
       exitAgentWorkspaceError(`Workspace '${workspace}' not found`, 'WORKSPACE_NOT_FOUND');
+    } else {
+      throw error;
     }
-    throw error;
   }
   try {
     writeJSONAtomic(path.join(lockDir, 'owner.json'), {
