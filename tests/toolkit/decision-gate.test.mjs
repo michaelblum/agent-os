@@ -51,6 +51,22 @@ function flushAsyncSubmit() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function nodeListLike(items) {
+  const list = {
+    length: items.length,
+    item(index) {
+      return items[index] || null;
+    },
+    *[Symbol.iterator]() {
+      yield* items;
+    },
+  };
+  items.forEach((item, index) => {
+    list[index] = item;
+  });
+  return list;
+}
+
 test('renders title', () => {
   const { container } = mount(baseRequest({ prompt: { title: 'Pick a path', body: null } }));
 
@@ -214,6 +230,9 @@ test('Escape resolves no-answer envelope', () => {
 
 test('Tab cycles through fields and action buttons', () => {
   const { container, document } = mount(baseRequest({ ui: { variant: 'freetext' } }));
+  const root = container.children[0];
+  const querySelectorAll = root.querySelectorAll.bind(root);
+  root.querySelectorAll = (selector) => nodeListLike(querySelectorAll(selector));
   const dismiss = container.querySelector('.aos-gate-dismiss');
   const submit = container.querySelector('.aos-gate-submit');
 

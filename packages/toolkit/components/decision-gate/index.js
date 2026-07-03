@@ -196,8 +196,7 @@ export function createDecisionGate(container, options = {}) {
       return;
     }
     if (event.key === 'Tab') {
-      const focusable = root
-        .querySelectorAll('button,input,select,textarea,[tabindex]')
+      const focusable = Array.from(root.querySelectorAll('button,input,select,textarea,[tabindex]'))
         .filter((element) => !element.disabled && !hasHiddenAncestor(element, root));
       if (!focusable.length) return;
       const currentIndex = focusable.indexOf(doc.activeElement);
