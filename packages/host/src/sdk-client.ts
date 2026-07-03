@@ -17,15 +17,40 @@ export class HostClient {
     this.socketPath = socketPath;
   }
 
+  private rejectPending(error: Error): void {
+    for (const handler of this.pending.values()) {
+      handler.reject(error);
+    }
+    this.pending.clear();
+  }
+
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.socket = net.createConnection(this.socketPath);
+      const socket = net.createConnection(this.socketPath);
+      this.socket = socket;
       let buffer = '';
 
-      this.socket.on('connect', resolve);
-      this.socket.once('error', reject);
+      const onConnectError = (error: Error) => {
+        if (this.socket === socket) this.socket = null;
+        reject(error);
+      };
 
-      this.socket.on('data', (data) => {
+      socket.once('error', onConnectError);
+      socket.once('connect', () => {
+        socket.off('error', onConnectError);
+        resolve();
+      });
+
+      socket.on('error', (error) => {
+        this.rejectPending(error);
+      });
+
+      socket.on('close', () => {
+        this.rejectPending(new Error('Host socket closed'));
+        if (this.socket === socket) this.socket = null;
+      });
+
+      socket.on('data', (data) => {
         buffer += data.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
@@ -53,6 +78,7 @@ export class HostClient {
   }
 
   disconnect(): void {
+    this.rejectPending(new Error('Host socket disconnected'));
     this.socket?.destroy();
     this.socket = null;
   }
