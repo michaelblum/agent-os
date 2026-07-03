@@ -110,6 +110,18 @@ describe('AgentLoop', () => {
 
     const textDeltas = events.filter(e => e.type === 'text-delta');
     assert.ok(textDeltas.length > 0);
+
+    const messages = store.getMessages(session.id);
+    const toolMessage = messages.find(message => message.role === 'tool');
+    assert.ok(toolMessage);
+    assert.deepEqual(JSON.parse(toolMessage.content), [
+      {
+        type: 'tool_result',
+        tool_use_id: 'tc1',
+        tool_name: 'echo',
+        content: 'echoed: test',
+      },
+    ]);
   });
 
   it('denies tool calls without permission', async () => {

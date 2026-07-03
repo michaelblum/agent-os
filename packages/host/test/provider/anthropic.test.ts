@@ -1,7 +1,7 @@
 // packages/host/test/provider/anthropic.test.ts
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { AnthropicAdapter } from '../../src/provider/anthropic.ts';
+import { AnthropicAdapter, toAnthropicCoreMessages } from '../../src/provider/anthropic.ts';
 import type { StreamEvent } from '../../src/types.ts';
 
 describe('AnthropicAdapter', () => {
@@ -18,6 +18,55 @@ describe('AnthropicAdapter', () => {
   it('has correct id', () => {
     const a = new AnthropicAdapter();
     assert.equal(a.id, 'anthropic');
+  });
+
+  it('converts tool results to AI SDK tool messages with tool names', () => {
+    const messages = toAnthropicCoreMessages([
+      { role: 'user', content: [{ type: 'text', text: 'echo test' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tc1', name: 'echo', input: { text: 'test' } },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          { type: 'tool_result', tool_use_id: 'tc1', tool_name: 'echo', content: 'echoed: test' },
+        ],
+      },
+    ]);
+
+    assert.equal(messages[2].role, 'tool');
+    assert.deepEqual(messages[2].content, [
+      {
+        type: 'tool-result',
+        toolCallId: 'tc1',
+        toolName: 'echo',
+        result: 'echoed: test',
+        isError: undefined,
+      },
+    ]);
+  });
+
+  it('infers tool names for legacy stored user-role tool results', () => {
+    const messages = toAnthropicCoreMessages([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'tc1', name: 'read_file', input: { path: '/tmp/test.txt' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: 'tc1', content: 'contents' },
+        ],
+      },
+    ]);
+
+    assert.equal(messages[1].role, 'tool');
+    assert.equal(messages[1].content[0].toolName, 'read_file');
   });
 
   it('streams a simple text response', async () => {

@@ -28,14 +28,45 @@ export class SessionStore {
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL REFERENCES sessions(id),
-        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool')),
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        token_count INTEGER
+      );
+    `);
+
+    this.migrateMessagesRoleConstraint();
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_messages_session
+        ON messages(session_id, created_at);
+    `);
+  }
+
+  private migrateMessagesRoleConstraint(): void {
+    const row = this.db.prepare(`
+      SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages'
+    `).get() as { sql?: string } | undefined;
+    if (!row?.sql || row.sql.includes("'tool'")) return;
+
+    this.db.exec(`
+      DROP INDEX IF EXISTS idx_messages_session;
+
+      CREATE TABLE messages_new (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool')),
         content TEXT NOT NULL,
         created_at TEXT NOT NULL,
         token_count INTEGER
       );
 
-      CREATE INDEX IF NOT EXISTS idx_messages_session
-        ON messages(session_id, created_at);
+      INSERT INTO messages_new (id, session_id, role, content, created_at, token_count)
+      SELECT id, session_id, role, content, created_at, token_count
+      FROM messages;
+
+      DROP TABLE messages;
+      ALTER TABLE messages_new RENAME TO messages;
     `);
   }
 
@@ -89,7 +120,7 @@ export class SessionStore {
 
   appendMessage(
     sessionId: string,
-    role: 'user' | 'assistant',
+    role: 'user' | 'assistant' | 'tool',
     content: unknown[],
     tokenCount?: number
   ): StoredMessage {

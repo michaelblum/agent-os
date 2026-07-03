@@ -1,6 +1,7 @@
 // packages/host/test/session-store.test.ts
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
 import { SessionStore } from '../src/session-store.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -80,6 +81,53 @@ describe('SessionStore', () => {
       store.appendMessage(session.id, 'user', [{ type: 'text', text: 'hello' }], 10);
       const messages = store.getMessages(session.id);
       assert.equal(messages[0].tokenCount, 10);
+    });
+
+    it('stores tool role messages', () => {
+      const session = store.createSession({});
+      store.appendMessage(session.id, 'tool', [
+        { type: 'tool_result', tool_use_id: 'tc1', tool_name: 'echo', content: 'ok' },
+      ]);
+
+      const messages = store.getMessages(session.id);
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0].role, 'tool');
+    });
+
+    it('migrates existing message tables to allow tool role messages', () => {
+      store.close();
+      try { fs.unlinkSync(dbPath); } catch {}
+
+      const db = new Database(dbPath);
+      db.exec(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          provider TEXT NOT NULL DEFAULT 'anthropic',
+          model TEXT NOT NULL DEFAULT 'claude-sonnet-4-20250514',
+          system TEXT,
+          tool_profile TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL REFERENCES sessions(id),
+          role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+          content TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          token_count INTEGER
+        );
+      `);
+      db.close();
+
+      store = new SessionStore(dbPath);
+      const session = store.createSession({});
+      store.appendMessage(session.id, 'tool', [
+        { type: 'tool_result', tool_use_id: 'tc1', tool_name: 'echo', content: 'ok' },
+      ]);
+
+      const messages = store.getMessages(session.id);
+      assert.equal(messages[0].role, 'tool');
     });
 
     it('returns empty array for session with no messages', () => {
