@@ -5,7 +5,11 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProcessStderr } from '../packages/toolkit/components/agent-terminal/bridge-server.mjs';
+import {
+  appendProcessStderr,
+  childStdinOpen,
+  writeChildStdin,
+} from '../packages/toolkit/components/agent-terminal/bridge-server.mjs';
 
 const toolkitBridgeServer = 'packages/toolkit/components/agent-terminal/bridge-server.mjs';
 const toolkitPtyProxy = 'packages/toolkit/components/agent-terminal/pty-proxy.py';
@@ -322,6 +326,46 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.deepEqual(snapshot.terminal, { cols: 80, rows: 24 });
     assert.match(snapshot.text, new RegExp(escapeRegExp(marker)));
     assert.match(snapshot.text, /\[process exited:/);
+  });
+
+  it('rejects writes to exited or broken child stdin without throwing', () => {
+    const exitedChild = {
+      exitCode: 0,
+      signalCode: null,
+      stdin: {
+        destroyed: false,
+        writableEnded: false,
+        closed: false,
+        write() {
+          throw new Error('should not write after exit');
+        },
+      },
+    };
+    assert.equal(childStdinOpen(exitedChild), false);
+    assert.deepEqual(writeChildStdin(exitedChild, 'late-input'), {
+      bytes: Buffer.byteLength('late-input'),
+      accepted: false,
+    });
+
+    const brokenChild = {
+      exitCode: null,
+      signalCode: null,
+      stdin: {
+        destroyed: false,
+        writableEnded: false,
+        closed: false,
+        write() {
+          const error = new Error('write EPIPE');
+          error.code = 'EPIPE';
+          throw error;
+        },
+      },
+    };
+    assert.equal(childStdinOpen(brokenChild), true);
+    assert.deepEqual(writeChildStdin(brokenChild, Buffer.from('queued-key')), {
+      bytes: Buffer.byteLength('queued-key'),
+      accepted: false,
+    });
   });
 
   it('submits process-driver /input text with Enter to the PTY', async () => {
