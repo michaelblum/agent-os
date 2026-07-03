@@ -135,14 +135,22 @@ test('browser capture remains a projection, not a taxonomy source', async () => 
 test('browser target guidance prefers saved refs and keeps direct refs volatile', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const browserSkill = await text('skills/browser-adapter/SKILL.md');
-  const maintained = `${architecture}\n${browserSkill}`;
+  const seeDo = await text('docs/design/see-do-grammar-trace-connections.md');
+  const maintained = `${architecture}\n${browserSkill}\n${seeDo}`;
 
   assert.match(architecture, /For normal observe-act loops, agents capture `aos see capture browser:<session> --save --mode som --workspace <id>`/);
   assert.match(architecture, /saved-ref dispatch validates the current browser target/);
   assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work/);
   assert.match(browserSkill, /Direct browser refs are volatile/);
+  assert.match(seeDo, /public CLI now documents browser targets through `docs\/api\/aos\.md`/);
+  assert.match(seeDo, /Collection workers should prefer saved refs for normal loops/);
+  assert.match(seeDo, /direct\s+`browser:<session>\/<ref>` targets as current diagnostic\/provenance handles/);
+  assert.match(seeDo, /should not assume typed SDK parity with CLI browser\s+refs/);
   assert.match(browserSkill, /docs\/archive\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
   assert.doesNotMatch(maintained, /refs come from `aos see capture browser:<session> --xray`/);
+  assert.doesNotMatch(seeDo, /`docs\/api\/aos\.md` does not document browser target usage/);
+  assert.doesNotMatch(seeDo, /target discovery\/examples do not show `browser:<session>`/);
+  assert.doesNotMatch(seeDo, /browser\s+forms of existing verbs .* are not clear/);
   assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
 });
 
