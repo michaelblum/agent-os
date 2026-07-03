@@ -189,6 +189,16 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   cat "$err" >&2
   exit 1
 fi
+err="$STATE_ROOT/do-native-click-dwell-negative.err"
+if ./aos do click 10,10 --dwell -1 --dry-run 2>"$err"; then
+  echo "FAIL: do native click accepted negative --dwell value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native click negative --dwell value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 err="$STATE_ROOT/do-native-drag-speed-invalid.err"
 if ./aos do drag 10,10 20,20 --speed fast --dry-run 2>"$err"; then
   echo "FAIL: do native drag accepted invalid --speed value" >&2
@@ -196,6 +206,26 @@ if ./aos do drag 10,10 20,20 --speed fast --dry-run 2>"$err"; then
 fi
 if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   echo "FAIL: do native drag invalid --speed value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/do-native-drag-speed-zero.err"
+if ./aos do drag 10,10 20,20 --speed 0 --dry-run 2>"$err"; then
+  echo "FAIL: do native drag accepted zero --speed value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native drag zero --speed value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/do-native-type-variance-negative.err"
+if ./aos do type hello --variance -0.5 --dry-run 2>"$err"; then
+  echo "FAIL: do native type accepted negative --variance value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native type negative --variance value did not use INVALID_ARG" >&2
   cat "$err" >&2
   exit 1
 fi
