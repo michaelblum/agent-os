@@ -970,6 +970,11 @@ if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,buc
     echo '[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]'
     exit 0
 fi
+if [[ "$cmd" == "pr checks 299 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
+    echo '[{"name":"lint","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/988","workflow":"CI"}]'
+    echo "checks failed" >&2
+    exit 1
+fi
 if [[ "$cmd" == pr\ create\ --repo\ michaelblum/agent-os\ --base\ main\ --head\ foreman/dev-gh-pr-create-v0\ --title\ Add\ PR\ create\ --body-file\ * ]]; then
     body_file="${cmd##* --body-file }"
     cat "$body_file" >> "$GH_BODY_LOG"
@@ -987,6 +992,10 @@ if [[ "$cmd" == pr\ merge\ 410\ --repo\ michaelblum/agent-os\ --merge\ --match-h
 fi
 if [[ "$cmd" == "run view 987 --repo michaelblum/agent-os --log-failed" ]]; then
     echo "unit failed log"
+    exit 0
+fi
+if [[ "$cmd" == "run view 988 --repo michaelblum/agent-os --log-failed" ]]; then
+    echo "lint failed log"
     exit 0
 fi
 if [[ "$1" == "api" && "${2:-}" == "graphql" ]]; then
@@ -1513,6 +1522,25 @@ then
     pass "dev gh ci inspect captures failed GitHub Actions logs"
 else
     fail "dev gh ci inspect did not capture failed Actions logs"
+fi
+
+if OUT="$(./aos dev gh ci inspect --pr 299 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["checks_exit_code"] == 1, data
+assert "checks failed" in data["checks_stderr"], data
+assert data["checks"][0]["name"] == "lint", data
+assert data["failed_logs"][0]["source"] == "github_actions", data
+assert data["failed_logs"][0]["run_id"] == "988", data
+assert "lint failed log" in data["failed_logs"][0]["stdout"], data
+PY
+then
+    pass "dev gh ci inspect captures logs when pr checks exits non-zero with JSON"
+else
+    fail "dev gh ci inspect skipped logs after non-zero pr checks"
 fi
 
 if OUT="$(./aos dev gh review-comments --json 2>/dev/null)"; then

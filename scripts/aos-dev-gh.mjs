@@ -863,8 +863,9 @@ function ciCommand(args) {
   appendRepo(checksArgs, repoFullName);
   checksArgs.push('--json', 'name,state,bucket,link,startedAt,completedAt,workflow');
   const checksResult = runGh(checksArgs, repoRoot);
-  if (checksResult.status !== 0) emitCompositeErrorAndExit(checksArgs, checksResult, options.json);
-  const checks = parseJSON(checksResult.stdout) ?? [];
+  const parsedChecks = parseJSON(checksResult.stdout);
+  if (checksResult.status !== 0 && !Array.isArray(parsedChecks)) emitCompositeErrorAndExit(checksArgs, checksResult, options.json);
+  const checks = Array.isArray(parsedChecks) ? parsedChecks : [];
   const failedLogs = [];
   for (const check of checks.filter(checkFailed)) {
     const runID = actionsRunID(check.link);
@@ -891,6 +892,8 @@ function ciCommand(args) {
     authority: 'gh_cli',
     pr: prNumber,
     repository: repoFullName,
+    checks_exit_code: checksResult.status,
+    checks_stderr: checksResult.stderr,
     checks,
     failed_logs: failedLogs,
   };
