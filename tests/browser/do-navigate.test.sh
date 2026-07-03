@@ -20,6 +20,13 @@ stdout=$(echo "$out" | jq -r '.result.stdout')
 echo "$stdout" | grep -q "fake goto invoked: -s=todo goto https://example.com" \
     || { echo "FAIL: $out" >&2; exit 1; }
 
+# Element refs are not valid navigation targets; navigation is session-level.
+if out=$(./aos do navigate "browser:todo/e21" "https://example.com" 2>&1); then
+    echo "FAIL element ref target: expected error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_TARGET"' \
+    || { echo "FAIL element ref target code: $out" >&2; exit 1; }
+
 # Missing url errors
 if out=$(./aos do navigate "browser:todo" 2>&1); then
     if echo "$out" | grep -q '"status":"success"'; then
