@@ -76,7 +76,11 @@ class SpatialModel {
 
             if windowMoved {
                 channelsLock.lock()
-                channels[id]?.lastBounds = newBounds
+                if var current = channels[id] {
+                    current.lastBounds = newBounds
+                    current.revision += 1
+                    channels[id] = current
+                }
                 channelsLock.unlock()
                 refreshChannel(id: id)
                 onWindowMoved?(state.windowID, newBounds)
@@ -130,12 +134,14 @@ class SpatialModel {
 
     func updateChannel(id: String, subtree: ChannelSubtree?, depth: Int?) -> SpatialResponse {
         channelsLock.lock()
-        guard channels[id] != nil else {
+        guard var state = channels[id] else {
             channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
-        if let s = subtree { channels[id]!.subtree = s }
-        if let d = depth { channels[id]!.depth = d }
+        if let s = subtree { state.subtree = s }
+        if let d = depth { state.depth = d }
+        state.revision += 1
+        channels[id] = state
         channelsLock.unlock()
         refreshChannel(id: id)
         return .ok
@@ -305,6 +311,7 @@ class SpatialModel {
             state.depth = state.depth + 2
         }
 
+        state.revision += 1
         channels[id] = state
         channelsLock.unlock()
         refreshChannel(id: id)
@@ -342,6 +349,7 @@ class SpatialModel {
             state.subtree = nil
         }
 
+        state.revision += 1
         channels[id] = state
         channelsLock.unlock()
         refreshChannel(id: id)
@@ -359,16 +367,16 @@ class SpatialModel {
 
     func refreshChannel(id: String) {
         channelsLock.lock()
-        guard var state = channels[id] else {
+        guard let state = channels[id] else {
             channelsLock.unlock()
             return
         }
+        let refreshRevision = state.revision
         channelsLock.unlock()
 
         // Get current window bounds
         guard let winInfo = windowInfoForID(state.windowID) else { return }
         let bounds = winInfo.bounds
-        state.lastBounds = bounds
 
         // Traverse AX tree for channel elements
         let elements = traverseForChannel(
@@ -379,28 +387,32 @@ class SpatialModel {
             scaleFactor: state.scaleFactor
         )
 
-        state.lastElementCount = elements.count
-        state.lastUpdated = iso8601Now()
-
         channelsLock.lock()
-        channels[id] = state
+        guard var current = channels[id], current.revision == refreshRevision else {
+            channelsLock.unlock()
+            return
+        }
+        current.lastBounds = bounds
+        current.lastElementCount = elements.count
+        current.lastUpdated = iso8601Now()
+        channels[id] = current
         channelsLock.unlock()
 
         // Build channel file using ChannelData from display/channel.swift
         let file = ChannelData(
             channel_id: id,
             created_by: "aos",
-            created_at: state.createdAt,
-            updated_at: state.lastUpdated,
+            created_at: current.createdAt,
+            updated_at: current.lastUpdated,
             target: ChannelTarget(
-                pid: state.pid,
-                app: state.app,
-                bundle_id: state.bundleID,
-                window_id: state.windowID,
-                display: state.display,
-                scale_factor: state.scaleFactor
+                pid: current.pid,
+                app: current.app,
+                bundle_id: current.bundleID,
+                window_id: current.windowID,
+                display: current.display,
+                scale_factor: current.scaleFactor
             ),
-            focus: ChannelFocus(subtree: state.subtree, depth: state.depth),
+            focus: ChannelFocus(subtree: current.subtree, depth: current.depth),
             window_bounds: bounds,
             elements: elements
         )
@@ -690,6 +702,7 @@ struct ChannelState {
     var lastBounds: ChannelBounds
     var lastElementCount: Int = 0
     var lastUpdated: String = ""
+    var revision: UInt64 = 0
     let createdAt: String
 }
 
