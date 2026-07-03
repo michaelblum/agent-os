@@ -272,6 +272,25 @@ struct ProcessOutput {
     let stderr: String
 }
 
+private final class ProcessPipeBuffer {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func readToEnd(from handle: FileHandle) {
+        let output = handle.readDataToEndOfFile()
+        lock.lock()
+        data = output
+        lock.unlock()
+    }
+
+    func value() -> Data {
+        lock.lock()
+        let output = data
+        lock.unlock()
+        return output
+    }
+}
+
 @discardableResult
 func runProcess(_ executable: String, arguments: [String], environment: [String: String]? = nil) -> ProcessOutput {
     let process = Process()
@@ -288,19 +307,31 @@ func runProcess(_ executable: String, arguments: [String], environment: [String:
     }
     process.standardOutput = stdout
     process.standardError = stderr
+    let stdoutBuffer = ProcessPipeBuffer()
+    let stderrBuffer = ProcessPipeBuffer()
+    let pipeReaders = DispatchGroup()
 
     do {
         try process.run()
+        pipeReaders.enter()
+        DispatchQueue.global(qos: .utility).async {
+            stdoutBuffer.readToEnd(from: stdout.fileHandleForReading)
+            pipeReaders.leave()
+        }
+        pipeReaders.enter()
+        DispatchQueue.global(qos: .utility).async {
+            stderrBuffer.readToEnd(from: stderr.fileHandleForReading)
+            pipeReaders.leave()
+        }
         process.waitUntilExit()
+        pipeReaders.wait()
     } catch {
         return ProcessOutput(exitCode: 1, stdout: "", stderr: "\(error)")
     }
 
-    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
     return ProcessOutput(
         exitCode: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+        stdout: String(data: stdoutBuffer.value(), encoding: .utf8) ?? "",
+        stderr: String(data: stderrBuffer.value(), encoding: .utf8) ?? ""
     )
 }
