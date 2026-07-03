@@ -163,6 +163,7 @@ function navigateCommand(args) {
   const [targetString, url] = args;
   if (!targetString.startsWith('browser:')) error('aos do navigate is browser-only in v1.', 'BROWSER_ONLY');
   const target = parseBrowserTarget(targetString);
+  if (target.ref) error('aos do navigate targets a browser session, not an element ref (use browser:<session>).', 'INVALID_TARGET');
   ensureVersion();
   const result = runPlaywright(target.session, 'goto', [url]);
   requireSuccess(result, 'goto');
