@@ -92,6 +92,35 @@ test('createSlider handles internal AOS semantic set-value events', () => {
   assert.equal(control.getAttribute('aria-valuenow'), '0.8');
 });
 
+test('destroy removes slider semantic-action listener', () => {
+  const document = createPatchedDocument();
+  const slider = createSlider({
+    document,
+    id: 'opacity',
+    value: 0.25,
+    min: 0,
+    max: 1,
+  });
+  const control = slider.el.querySelector('[data-aos-slider-control]');
+  const changes = [];
+  const commits = [];
+
+  slider.on('change', (value) => changes.push(value));
+  slider.on('commit', (value) => commits.push(value));
+  slider.destroy();
+
+  const event = new FakeEvent('aos:semantic-action', {
+    bubbles: true,
+    detail: { action: 'set-value', value: 0.8 },
+  });
+  control.dispatchEvent(event);
+
+  assert.equal(event.defaultPrevented, false);
+  assert.equal(slider.getValue(), 0.25);
+  assert.deepEqual(changes, []);
+  assert.deepEqual(commits, []);
+});
+
 test('createSlider updates value from pointer drag on the control', () => {
   const document = createPatchedDocument();
   const slider = createSlider({

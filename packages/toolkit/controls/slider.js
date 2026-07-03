@@ -265,7 +265,7 @@ export function createSlider(config = {}) {
   syncSemanticMetadata();
   bindAll();
 
-  el.addEventListener('aos:semantic-action', (event) => {
+  function handleSemanticAction(event) {
     const detail = event?.detail || {};
     const action = detail.action || detail.primitive;
     if (disabled || values.length !== 1) return;
@@ -287,7 +287,9 @@ export function createSlider(config = {}) {
     bindAll();
     emitChange();
     emitCommit();
-  });
+  }
+
+  el.addEventListener('aos:semantic-action', handleSemanticAction);
 
   return {
     el,
@@ -317,6 +319,7 @@ export function createSlider(config = {}) {
       return type === 'change' || type === 'commit' ? hub.on(type, callback) : () => {};
     },
     destroy() {
+      el.removeEventListener('aos:semantic-action', handleSemanticAction);
       adapter.destroy();
       hub.clear();
     },
