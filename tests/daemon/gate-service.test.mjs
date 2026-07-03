@@ -25,6 +25,7 @@ class ManualReceptor extends GateReceptor {
     super(callbacks);
     this.handles = [];
     this.dismissed = [];
+    this.dismissError = null;
   }
 
   async present(gateRequest) {
@@ -35,6 +36,7 @@ class ManualReceptor extends GateReceptor {
 
   async dismiss(handle) {
     this.dismissed.push(handle?.id);
+    if (this.dismissError) throw this.dismissError;
   }
 }
 
@@ -140,6 +142,33 @@ test('ask resolves no-answer envelope on service timeout', async () => {
   assert.deepEqual(await promise, { result: null, status: 'timeout' });
   assert.equal(service.pending.size, 0);
   assert.deepEqual(receptor.dismissed, ['gate-timeout']);
+});
+
+test('settle logs dismiss failures without rejecting the settlement task', async () => {
+  const harness = timeoutHarness();
+  const events = [];
+  let receptor;
+  const service = createGateService({
+    receptorFactory(callbacks) {
+      receptor = new ManualReceptor(callbacks);
+      return receptor;
+    },
+    logger(event) {
+      events.push(event);
+    },
+    ...harness,
+  });
+
+  const promise = service.ask(request('gate-dismiss-failure'));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptor.dismissError = new Error('canvas already removed');
+
+  await assert.doesNotReject(() => service.resolve('gate-dismiss-failure', { decision: true }));
+  assert.deepEqual(await promise, { decision: true });
+  assert.equal(service.pending.size, 0);
+  assert.deepEqual(receptor.dismissed, ['gate-dismiss-failure']);
+  assert.equal(events.some((event) => event.event === 'gate.dismiss_failed'), true);
+  assert.equal(events.some((event) => event.event === 'gate.resolved'), true);
 });
 
 test('ask resolves no-answer envelope on human dismissal', async () => {
