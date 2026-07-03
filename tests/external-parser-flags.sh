@@ -428,6 +428,8 @@ fi
 check_unknown_flag listen-unknown-flag ./aos listen channel --bogus
 check_unknown_arg listen-extra ./aos listen channel unexpected
 check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
+check_code listen-session-id-read-reaches-daemon DAEMON_UNREACHABLE ./aos listen --session-id parser-session --limit 1
+check_code listen-session-id-follow-reaches-daemon DAEMON_UNREACHABLE ./aos listen --session-id parser-session --follow
 err="$STATE_ROOT/tell-register-role-invalid.err"
 if ./aos tell --register --session-id parser-test --role admin 2>"$err"; then
   echo "FAIL: tell register accepted invalid --role value" >&2
