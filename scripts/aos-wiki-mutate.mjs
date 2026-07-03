@@ -54,6 +54,16 @@ function emitJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function containedPath(root, ...parts) {
+  const base = path.resolve(root);
+  const absolute = path.resolve(base, ...parts);
+  const relative = path.relative(base, absolute);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    error('Wiki path must stay inside the wiki root', 'WIKI_INVALID_PATH');
+  }
+  return { relative: relative.split(path.sep).join('/'), absolute };
+}
+
 function runAOS(args, capture = false) {
   const result = spawnSync(aosPath(), args, {
     encoding: 'utf8',
@@ -87,12 +97,12 @@ function bareNameCandidates(arg) {
 
 function resolveWikiPath(arg) {
   if (arg.includes('/') || arg.includes('.md')) {
-    const absolute = path.join(wikiRoot(), arg);
-    return fs.existsSync(absolute) ? { relative: arg, absolute } : null;
+    const resolved = containedPath(wikiRoot(), arg);
+    return fs.existsSync(resolved.absolute) ? resolved : null;
   }
   for (const relative of bareNameCandidates(arg)) {
-    const absolute = path.join(wikiRoot(), relative);
-    if (fs.existsSync(absolute)) return { relative, absolute };
+    const resolved = containedPath(wikiRoot(), relative);
+    if (fs.existsSync(resolved.absolute)) return resolved;
   }
   return null;
 }
@@ -120,8 +130,8 @@ function createPlugin(args) {
   const name = positional[0];
   if (!name) error('wiki create-plugin requires a name. Usage: aos wiki create-plugin <name>', 'MISSING_ARG');
   if (positional.length > 1) unknownArg(positional[1]);
-  const pluginDir = path.join(wikiRoot(), namespace, 'plugins', name);
-  const skillPath = path.join(pluginDir, 'SKILL.md');
+  const pluginDir = containedPath(wikiRoot(), namespace, 'plugins', name).absolute;
+  const skillPath = containedPath(pluginDir, 'SKILL.md').absolute;
   if (fs.existsSync(skillPath)) error(`Plugin '${name}' already exists at ${pluginDir}`, 'WIKI_PLUGIN_EXISTS');
 
   fs.mkdirSync(path.join(pluginDir, 'references'), { recursive: true });
@@ -166,7 +176,7 @@ function addPage(args) {
   const [typeArg, name] = positional;
   if (!['entity', 'concept'].includes(typeArg)) error(`Type must be 'entity' or 'concept', got '${typeArg}'`, 'WIKI_INVALID_TYPE');
   const dirName = typeArg === 'entity' ? 'entities' : 'concepts';
-  const filePath = path.join(wikiRoot(), namespace, dirName, `${name}.md`);
+  const filePath = containedPath(wikiRoot(), namespace, dirName, `${name}.md`).absolute;
   if (fs.existsSync(filePath)) error(`Page '${name}' already exists at ${filePath}`, 'WIKI_PAGE_EXISTS');
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
