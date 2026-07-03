@@ -213,13 +213,40 @@ export function buildHtmlWorkbenchSemanticTargetsPayload(state, {
   }
 }
 
-function expressionBodyHtml(html) {
+const BLOCKED_HTML_EXPRESSION_ELEMENTS = [
+  'script',
+  'iframe',
+  'object',
+  'embed',
+  'base',
+  'meta[http-equiv="refresh"]',
+  'link[rel="import"]',
+]
+
+const URL_HTML_EXPRESSION_ATTRIBUTES = new Set(['href', 'src', 'xlink:href', 'formaction'])
+
+function unsafeHtmlExpressionUrl(value = '') {
+  const normalized = String(value).trim().replace(/[\u0000-\u001f\u007f\s]+/g, '').toLowerCase()
+  return normalized.startsWith('javascript:')
+    || normalized.startsWith('vbscript:')
+    || normalized.startsWith('data:text/html')
+    || normalized.startsWith('data:application/xhtml+xml')
+}
+
+export function expressionBodyHtml(html) {
   const parser = new DOMParser()
   const document_ = parser.parseFromString(String(html || ''), 'text/html')
-  document_.querySelectorAll('script').forEach((node) => node.remove())
+  document_.querySelectorAll(BLOCKED_HTML_EXPRESSION_ELEMENTS.join(',')).forEach((node) => node.remove())
   document_.querySelectorAll('*').forEach((node) => {
     for (const attribute of [...node.attributes]) {
-      if (/^on/i.test(attribute.name)) node.removeAttribute(attribute.name)
+      const name = String(attribute.name || '').toLowerCase()
+      if (/^on/i.test(name) || name === 'srcdoc') {
+        node.removeAttribute(attribute.name)
+        continue
+      }
+      if (URL_HTML_EXPRESSION_ATTRIBUTES.has(name) && unsafeHtmlExpressionUrl(attribute.value)) {
+        node.removeAttribute(attribute.name)
+      }
     }
   })
   return document_.body?.innerHTML || '<p>HTML expression content was not provided.</p>'

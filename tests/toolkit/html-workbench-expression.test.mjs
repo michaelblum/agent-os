@@ -14,6 +14,7 @@ import {
   buildHtmlWorkbenchSemanticTargetsPayload,
   createHtmlWorkbenchExpressionState,
   default as HtmlWorkbenchExpression,
+  expressionBodyHtml,
   htmlWorkbenchExpressionSnapshot,
   openHtmlWorkbenchExpression,
   revealHtmlWorkbenchSemanticTarget,
@@ -21,6 +22,67 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
+
+class ParsedHtmlNode {
+  constructor(tagName, attrs = {}, text = '') {
+    this.tagName = tagName.toLowerCase();
+    this.attrMap = new Map(Object.entries(attrs));
+    this.text = text;
+    this.removed = false;
+  }
+
+  get attributes() {
+    return [...this.attrMap.entries()].map(([name, value]) => ({ name, value }));
+  }
+
+  removeAttribute(name) {
+    this.attrMap.delete(name);
+  }
+
+  remove() {
+    this.removed = true;
+  }
+
+  matches(selector) {
+    if (selector.includes(',')) return selector.split(',').some((part) => this.matches(part.trim()));
+    const attrMatch = selector.match(/^([a-z]+)\[([^=]+)="([^"]+)"\]$/i);
+    if (attrMatch) {
+      const [, tagName, attrName, attrValue] = attrMatch;
+      return this.tagName === tagName.toLowerCase()
+        && String(this.attrMap.get(attrName) || '').toLowerCase() === attrValue.toLowerCase();
+    }
+    return this.tagName === selector.toLowerCase();
+  }
+
+  get outerHTML() {
+    const attrs = [...this.attrMap.entries()].map(([name, value]) => ` ${name}="${value}"`).join('');
+    return `<${this.tagName}${attrs}>${this.text}</${this.tagName}>`;
+  }
+}
+
+function withParsedHtmlNodes(nodes, callback) {
+  const priorDOMParser = globalThis.DOMParser;
+  globalThis.DOMParser = class {
+    parseFromString() {
+      return {
+        body: {
+          get innerHTML() {
+            return nodes.filter((node) => !node.removed).map((node) => node.outerHTML).join('');
+          },
+        },
+        querySelectorAll(selector) {
+          if (selector === '*') return nodes.filter((node) => !node.removed);
+          return nodes.filter((node) => !node.removed && node.matches(selector));
+        },
+      };
+    }
+  };
+  try {
+    return callback();
+  } finally {
+    globalThis.DOMParser = priorDOMParser;
+  }
+}
 
 const sampleWorkCard = `# Sample Work Card
 
@@ -46,6 +108,22 @@ node --test tests/toolkit/html-workbench-expression.test.mjs
 
 [bad](javascript:alert(1))
 `;
+
+test('HTML expression body sanitizer removes nested executable surfaces and script URLs', () => {
+  const html = withParsedHtmlNodes([
+    new ParsedHtmlNode('section', { onclick: 'steal()', 'data-safe': 'yes' }, 'Keep'),
+    new ParsedHtmlNode('iframe', { srcdoc: '<script>steal()</script>' }, ''),
+    new ParsedHtmlNode('object', { data: 'payload.html' }, ''),
+    new ParsedHtmlNode('a', { href: 'javascript:alert(1)' }, 'bad link'),
+    new ParsedHtmlNode('img', { src: 'data:text/html,<script>steal()</script>', alt: 'bad image' }, ''),
+    new ParsedHtmlNode('script', {}, 'steal()'),
+  ], () => expressionBodyHtml('<section>ignored by parser double</section>'));
+
+  assert.match(html, /<section data-safe="yes">Keep<\/section>/);
+  assert.match(html, /<a>bad link<\/a>/);
+  assert.match(html, /<img alt="bad image"><\/img>/);
+  assert.doesNotMatch(html, /onclick|javascript:|srcdoc|data:text\/html|<script|<iframe|<object/);
+});
 
 test('Markdown work-card adapter emits safe HTML, metadata, semantic targets, and source maps', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
