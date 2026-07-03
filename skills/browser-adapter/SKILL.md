@@ -1,6 +1,6 @@
 ---
 name: browser-adapter
-description: Drive browsers (tabs, forms, clicks, navigation) through aos verbs. Trigger when a task requires reading or acting on web content — filling forms, extracting data, observing page state — and you want ref-based interaction that survives scroll.
+description: Drive browsers (tabs, forms, clicks, navigation) through aos verbs. Trigger when a task requires reading or acting on web content — filling forms, extracting data, observing page state — and you want saved or direct ref-based interaction.
 ---
 
 # Browser Adapter
@@ -32,7 +32,8 @@ The `<id>` you pick is both the aos focus channel id and the `playwright-cli -s=
 ## Addressing
 
 - `browser:<session>` — current tab of the session
-- `browser:<session>/<ref>` — a specific element; refs come from `aos see capture browser:<session> --xray`
+- `browser:<session>/<ref>` — a volatile direct target for a specific element; refs come from current browser perception and are the underlying action/anchor target for saved browser refs
+- `ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work; refs come from `aos see capture browser:<session> --save --mode som --workspace <id>` plus `aos see refs`
 - Bare `browser:` resolves to `browser:$PLAYWRIGHT_CLI_SESSION` when the env var is set
 
 ## Common patterns
@@ -40,11 +41,19 @@ The `<id>` you pick is both the aos focus channel id and the `playwright-cli -s=
 **Look at a page.**
 
 ```bash
-aos see capture browser:work --xray
-# Returns elements with role, title, ref. bounds is absent.
+aos see capture browser:work --save --mode som --workspace default
+aos see refs --workspace default --json
+# Returns compact saved refs and file-backed browser perception artifacts.
 ```
 
 **Interact with an element.**
+
+```bash
+aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
+aos do click ref:<snapshot-id>:r2 --workspace default
+```
+
+**Use a direct browser target when you already have a fresh adapter ref.**
 
 ```bash
 aos do click browser:work/e21
@@ -80,11 +89,11 @@ aos show create --id explainer --anchor-browser browser:work/e21 --offset 0,0,40
 
 ## Gotchas
 
-- Refs are valid until the next structural DOM change. Re-snapshot if the page mutates.
+- Direct browser refs are volatile and can drift after structural DOM changes. Prefer saved refs for normal loops; they validate the current page/frame/navigation and element identity before dispatch.
 - `show` anchoring requires a local visible browser window. Headless sessions and remote `--cdp=<url>` error with `BROWSER_HEADLESS` / `BROWSER_NOT_LOCAL`.
 - Overlays do not follow scroll. Design for static anchors or re-issue `show update` on scroll.
 - Multiple simultaneous `aos` invocations against one session serialize inside `playwright-cli`; aos does no additional coordination.
 
 ## See also
-- Spec: `docs/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
+- Spec: `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
 - Escape-hatch reference: https://github.com/microsoft/playwright-cli

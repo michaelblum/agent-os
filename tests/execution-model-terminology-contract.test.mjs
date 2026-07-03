@@ -103,6 +103,20 @@ test('browser capture remains a projection, not a taxonomy source', async () => 
   assert.match(adr, /downstream projections, not the source of truth/);
 });
 
+test('browser target guidance prefers saved refs and keeps direct refs volatile', async () => {
+  const architecture = await text('ARCHITECTURE.md');
+  const browserSkill = await text('skills/browser-adapter/SKILL.md');
+  const maintained = `${architecture}\n${browserSkill}`;
+
+  assert.match(architecture, /For normal observe-act loops, agents capture `aos see capture browser:<session> --save --mode som --workspace <id>`/);
+  assert.match(architecture, /saved-ref dispatch validates the current browser target/);
+  assert.match(browserSkill, /`ref:<snapshot-id>:<ref>` — the preferred observe-act target for normal browser work/);
+  assert.match(browserSkill, /Direct browser refs are volatile/);
+  assert.match(browserSkill, /docs\/archive\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
+  assert.doesNotMatch(maintained, /refs come from `aos see capture browser:<session> --xray`/);
+  assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
+});
+
 test('Skills and Plugins are packaging activation concepts outside the execution ladder', async () => {
   const context = await text('CONTEXT.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
