@@ -290,6 +290,12 @@ assert.deepEqual(
 JS
 check_code see-capture-unknown-flag UNKNOWN_OPTION ./aos see capture main --bogus
 check_code see-capture-extra UNKNOWN_OPTION ./aos see capture main unexpected
+check_invalid_arg see-capture-workspace-without-save ./aos see capture main --workspace default
+check_invalid_arg see-capture-name-without-save ./aos see capture main --name snap
+check_invalid_arg see-capture-mode-without-save ./aos see capture main --mode som
+check_invalid_arg see-capture-query-without-save ./aos see capture main --query Save
+check_invalid_arg see-capture-save-out-conflict ./aos see capture main --save --out /tmp/snapshot.png
+check_invalid_arg see-capture-save-mode-invalid ./aos see capture main --save --mode bogus
 check_missing_arg see-capture-out-missing ./aos see capture main --out
 check_missing_arg see-capture-region-missing ./aos see capture main --region
 check_missing_arg see-capture-draw-rect-color-missing ./aos see capture main --draw-rect 1,2,3,4
