@@ -485,6 +485,37 @@ test('active edge selection computes frame path and opacity ladder', () => {
   assert.deepEqual(edge.comments.map((comment) => comment.id), ['comment-leaf'])
 })
 
+test('re-pinning the active frame does not create a self-parent loop', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  const target = node('root', ['main', 'root'])
+  state = pinSurfaceInspectorFrame(state, target, { id: 'pin-root' })
+  state = pinSurfaceInspectorFrame(state, target, { id: 'pin-root' })
+
+  assert.equal(state.pins.length, 1)
+  assert.equal(state.pins[0].id, 'pin-root')
+  assert.equal(state.pins[0].parent_pin_id, null)
+  const edge = computeSurfaceInspectorActiveEdge(state)
+  assert.deepEqual(edge.frame_path.map((pin) => pin.id), ['pin-root'])
+})
+
+test('malformed self-parent pins do not hang active-edge or scope traversal', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('loop', ['main', 'loop']), { id: 'pin-loop' })
+  state = {
+    ...state,
+    pins: state.pins.map((pin) => ({ ...pin, parent_pin_id: pin.id })),
+  }
+
+  const edge = computeSurfaceInspectorActiveEdge(state)
+  assert.deepEqual(edge.frame_path.map((pin) => pin.id), ['pin-loop'])
+
+  const jumped = jumpSurfaceInspectorAnnotationScope(state, 'pin-loop')
+  assert.deepEqual(jumped.annotation_scope_stack.map((frame) => frame.pin_id), ['pin-loop'])
+
+  const session = surfaceInspectorAnnotationStateToSession(state)
+  assert.equal(session.preview_scope_stack.length, 1)
+})
+
 test('unpin/prune requires confirmation when descendants or comments exist', () => {
   let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
   state = pinSurfaceInspectorFrame(state, node('root'), { id: 'pin-root' })
