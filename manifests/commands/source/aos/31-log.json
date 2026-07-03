@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "id": "log",
+  "path_prefix": [
+    "log"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "at",
+              "kind": "flag",
+              "required": false,
+              "summary": "Log panel position as x,y,w,h",
+              "token": "--at",
+              "value_type": "string"
+            },
+            {
+              "id": "level",
+              "kind": "flag",
+              "required": false,
+              "summary": "Log level filter",
+              "token": "--level",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "All messages",
+                    "value": "debug"
+                  },
+                  {
+                    "summary": "Info and above",
+                    "value": "info"
+                  },
+                  {
+                    "summary": "Warnings and errors",
+                    "value": "warn"
+                  },
+                  {
+                    "summary": "Errors only",
+                    "value": "error"
+                  }
+                ]
+              }
+            }
+          ],
+          "examples": [
+            "echo 'hello' | aos log",
+            "tail -f /var/log/app.log | aos log"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "log-stream",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "text",
+            "supported": true,
+            "used_when": "streaming mode (default)"
+          },
+          "usage": "echo lines | aos log [--at x,y,w,h] [--level level]"
+        },
+        {
+          "args": [
+            {
+              "id": "message",
+              "kind": "positional",
+              "required": true,
+              "summary": "Log message",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "default_value": "info",
+              "id": "level",
+              "kind": "flag",
+              "required": false,
+              "summary": "Log level",
+              "token": "--level",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Debug level",
+                    "value": "debug"
+                  },
+                  {
+                    "summary": "Info level (default)",
+                    "value": "info"
+                  },
+                  {
+                    "summary": "Warning level",
+                    "value": "warn"
+                  },
+                  {
+                    "summary": "Error level",
+                    "value": "error"
+                  }
+                ]
+              }
+            }
+          ],
+          "examples": [
+            "aos log push \"test message\"",
+            "aos log push \"error occurred\" --level error"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "log-push",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos log push <message> [--level level]"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos log clear"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "log-clear",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos log clear"
+        }
+      ],
+      "path": [
+        "log"
+      ],
+      "summary": "Display log console panel"
+    }
+  ]
+}

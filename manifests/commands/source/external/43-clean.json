@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "clean",
+  "commands": [
+    {
+      "path": [
+        "clean"
+      ],
+      "summary": "Clean stale AOS daemons and canvases from an external command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-clean.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    }
+  ]
+}

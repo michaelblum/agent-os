@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "daemon-snapshot",
+  "commands": [
+    {
+      "path": [
+        "daemon-snapshot"
+      ],
+      "summary": "Read daemon snapshots through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-focus-graph.mjs",
+        "daemon-snapshot"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

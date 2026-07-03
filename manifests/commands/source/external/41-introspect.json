@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "introspect",
+  "commands": [
+    {
+      "path": [
+        "introspect"
+      ],
+      "summary": "Validate introspect subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-family-router.mjs",
+        "introspect",
+        "UNKNOWN_SUBCOMMAND",
+        "introspect subcommand"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": [
+        "introspect",
+        "review"
+      ],
+      "summary": "Review recent AOS usage from the external introspection command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-introspect-review.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_SESSION_ID": "$AOS_SESSION_KEY",
+        "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME"
+      }
+    }
+  ]
+}

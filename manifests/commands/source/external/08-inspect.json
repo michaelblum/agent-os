@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "inspect",
+  "commands": [
+    {
+      "path": [
+        "inspect"
+      ],
+      "summary": "Run the live AX inspector overlay through the external inspect command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-inspect.mjs"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    }
+  ]
+}

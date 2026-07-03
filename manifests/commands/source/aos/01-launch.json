@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "id": "launch",
+  "path_prefix": [
+    "launch"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "app",
+              "kind": "positional",
+              "required": true,
+              "summary": "Source app id",
+              "value_type": "string"
+            },
+            {
+              "id": "entry",
+              "kind": "positional",
+              "required": false,
+              "summary": "Launch entry",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable launch result",
+              "token": "--json",
+              "value_type": "bool"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Plan launch without mutating runtime state",
+              "token": "--dry-run",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos launch <app>",
+            "aos launch <app> <entry>",
+            "aos launch <app> --json",
+            "aos launch <app> --dry-run --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "launch-app",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos launch <app> [entry] [--json] [--dry-run]"
+        }
+      ],
+      "path": [
+        "launch"
+      ],
+      "summary": "Launch source-owned apps through one manifest-backed AOS app launcher"
+    }
+  ]
+}

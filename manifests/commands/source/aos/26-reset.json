@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "reset",
+  "path_prefix": [
+    "reset"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "default_value": "current",
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Cleanup scope",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Current runtime mode only",
+                    "value": "current"
+                  },
+                  {
+                    "summary": "Repo mode state",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed mode state",
+                    "value": "installed"
+                  },
+                  {
+                    "summary": "All modes",
+                    "value": "all"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos reset",
+            "aos reset --mode all --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "reset",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos reset [--mode current|repo|installed|all] [--json]"
+        }
+      ],
+      "path": [
+        "reset"
+      ],
+      "summary": "Deterministic cleanup for repo/installed runtime state"
+    }
+  ]
+}

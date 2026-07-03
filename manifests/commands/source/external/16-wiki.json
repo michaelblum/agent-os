@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "id": "wiki",
+  "commands": [
+    {
+      "path": [
+        "wiki"
+      ],
+      "summary": "Validate wiki subcommand routing through the external wiki router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-router.mjs"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "wiki",
+        "migrate-namespaces"
+      ],
+      "summary": "Run the wiki namespace migration through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-migrate-namespaces.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "seed"
+      ],
+      "summary": "Seed wiki content through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-seed.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "create-plugin"
+      ],
+      "summary": "Create wiki plugin scaffolds through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-mutate.mjs",
+        "create-plugin"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "add"
+      ],
+      "summary": "Add wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-mutate.mjs",
+        "add"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "rm"
+      ],
+      "summary": "Remove wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-mutate.mjs",
+        "rm"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "link"
+      ],
+      "summary": "Link wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-mutate.mjs",
+        "link"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "show"
+      ],
+      "summary": "Show wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-read.mjs",
+        "show"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "invoke"
+      ],
+      "summary": "Bundle wiki plugins through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-read.mjs",
+        "invoke"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "reindex"
+      ],
+      "summary": "Rebuild the wiki index through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos-wiki-reindex.py"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "lint"
+      ],
+      "summary": "Lint wiki index consistency through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos-wiki-lint.py"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "project-docs"
+      ],
+      "summary": "Project repo docs into the runtime wiki through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-project-docs.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "graph"
+      ],
+      "summary": "Emit the wiki graph payload through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos-wiki-graph.py"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "list"
+      ],
+      "summary": "List wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos-wiki-query.py",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
+        "search"
+      ],
+      "summary": "Search wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos-wiki-query.py",
+        "search"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

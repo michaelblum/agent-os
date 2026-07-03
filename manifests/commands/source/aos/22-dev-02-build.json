@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "dev-02-build",
+  "path_prefix": [
+    "dev"
+  ],
+  "commands": [
+    {
+      "consumer_discovery": false,
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "release",
+              "kind": "flag",
+              "required": false,
+              "summary": "Build optimized release binary",
+              "token": "--release",
+              "value_type": "bool"
+            },
+            {
+              "id": "force",
+              "kind": "flag",
+              "required": false,
+              "summary": "Force rebuild even when inputs appear current",
+              "token": "--force",
+              "value_type": "bool"
+            },
+            {
+              "id": "no-restart",
+              "kind": "flag",
+              "required": false,
+              "summary": "Do not restart the managed daemon after building",
+              "token": "--no-restart",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable build result",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos dev build --no-restart",
+            "aos dev build --no-restart --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "dev-build",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos dev build [--release] [--force] [--no-restart] [--json]"
+        }
+      ],
+      "path": [
+        "dev"
+      ],
+      "summary": "Repo development workflow router and build surface"
+    }
+  ]
+}

@@ -1,0 +1,903 @@
+{
+  "schema_version": 1,
+  "id": "show",
+  "path_prefix": [
+    "show"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "at",
+              "kind": "flag",
+              "required": false,
+              "summary": "Position as x,y,w,h",
+              "token": "--at",
+              "value_type": "string"
+            },
+            {
+              "id": "html",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inline HTML content",
+              "token": "--html",
+              "value_type": "string"
+            },
+            {
+              "id": "file",
+              "kind": "flag",
+              "required": false,
+              "summary": "HTML file path",
+              "token": "--file",
+              "value_type": "string"
+            },
+            {
+              "id": "url",
+              "kind": "flag",
+              "required": false,
+              "summary": "URL to load (supports aos:// scheme)",
+              "token": "--url",
+              "value_type": "string"
+            },
+            {
+              "id": "interactive",
+              "kind": "flag",
+              "required": false,
+              "summary": "Allow mouse interaction",
+              "token": "--interactive",
+              "value_type": "bool"
+            },
+            {
+              "id": "window-level",
+              "kind": "flag",
+              "required": false,
+              "summary": "Native window layer",
+              "token": "--window-level",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Default for interactive/noninteractive canvases",
+                    "value": "automatic"
+                  },
+                  {
+                    "summary": "Floating utility level",
+                    "value": "floating"
+                  },
+                  {
+                    "summary": "Status-bar overlay level",
+                    "value": "status_bar"
+                  },
+                  {
+                    "summary": "Above menu bar and system UI",
+                    "value": "screen_saver"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "focus",
+              "kind": "flag",
+              "required": false,
+              "summary": "Focus the canvas",
+              "token": "--focus",
+              "value_type": "bool"
+            },
+            {
+              "id": "ttl",
+              "kind": "flag",
+              "required": false,
+              "summary": "Time to live (e.g. 5s, 10m, none)",
+              "token": "--ttl",
+              "value_type": "string"
+            },
+            {
+              "default_value": "global",
+              "id": "scope",
+              "kind": "flag",
+              "required": false,
+              "summary": "Canvas scope",
+              "token": "--scope",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Removed when client disconnects",
+                    "value": "connection"
+                  },
+                  {
+                    "summary": "Persists after disconnect",
+                    "value": "global"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "auto-project",
+              "kind": "flag",
+              "required": false,
+              "summary": "Auto-projection mode",
+              "token": "--auto-project",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Fading cursor trail across displays",
+                    "value": "cursor_trail"
+                  },
+                  {
+                    "summary": "Highlight the focused subtree for an anchor channel",
+                    "value": "highlight_focused"
+                  },
+                  {
+                    "summary": "Label elements for an anchor channel",
+                    "value": "label_elements"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "track",
+              "kind": "flag",
+              "required": false,
+              "summary": "Track target",
+              "token": "--track",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Track display union bounds",
+                    "value": "union"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "surface",
+              "kind": "flag",
+              "required": false,
+              "summary": "Logical drawing surface",
+              "token": "--surface",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Draw across DesktopWorld",
+                    "value": "desktop-world"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "anchor-window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Anchor to window ID",
+              "token": "--anchor-window",
+              "value_type": "string"
+            },
+            {
+              "id": "anchor-channel",
+              "kind": "flag",
+              "required": false,
+              "summary": "Anchor to focus channel ID",
+              "token": "--anchor-channel",
+              "value_type": "string"
+            },
+            {
+              "id": "anchor-browser",
+              "kind": "flag",
+              "required": false,
+              "summary": "Anchor to browser target (browser:<s>[/<ref>])",
+              "token": "--anchor-browser",
+              "value_type": "string"
+            },
+            {
+              "id": "offset",
+              "kind": "flag",
+              "required": false,
+              "summary": "Offset from anchor as x,y,w,h",
+              "token": "--offset",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "at",
+                "track",
+                "surface",
+                "anchor-window",
+                "anchor-channel",
+                "anchor-browser"
+              ],
+              [
+                "html",
+                "file",
+                "url"
+              ],
+              [
+                "anchor-window",
+                "anchor-channel",
+                "anchor-browser"
+              ]
+            ]
+          },
+          "examples": [
+            "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
+            "aos show create --id surface --url aos://demo/surface/index.html --surface desktop-world",
+            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world",
+            "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-create",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show create --id <name> [positioning] [content] [options]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "at",
+              "kind": "flag",
+              "required": false,
+              "summary": "New position as x,y,w,h",
+              "token": "--at",
+              "value_type": "string"
+            },
+            {
+              "id": "html",
+              "kind": "flag",
+              "required": false,
+              "summary": "New HTML content",
+              "token": "--html",
+              "value_type": "string"
+            },
+            {
+              "id": "file",
+              "kind": "flag",
+              "required": false,
+              "summary": "New HTML file path",
+              "token": "--file",
+              "value_type": "string"
+            },
+            {
+              "id": "url",
+              "kind": "flag",
+              "required": false,
+              "summary": "New URL",
+              "token": "--url",
+              "value_type": "string"
+            },
+            {
+              "id": "window-level",
+              "kind": "flag",
+              "required": false,
+              "summary": "New native window layer",
+              "token": "--window-level",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Default for interactive/noninteractive canvases",
+                    "value": "automatic"
+                  },
+                  {
+                    "summary": "Floating utility level",
+                    "value": "floating"
+                  },
+                  {
+                    "summary": "Status-bar overlay level",
+                    "value": "status_bar"
+                  },
+                  {
+                    "summary": "Above menu bar and system UI",
+                    "value": "screen_saver"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "focus",
+              "kind": "flag",
+              "required": false,
+              "summary": "Focus the canvas",
+              "token": "--focus",
+              "value_type": "bool"
+            },
+            {
+              "id": "ttl",
+              "kind": "flag",
+              "required": false,
+              "summary": "New TTL (e.g. 5s, 10m, none)",
+              "token": "--ttl",
+              "value_type": "string"
+            },
+            {
+              "id": "track",
+              "kind": "flag",
+              "required": false,
+              "summary": "New track target",
+              "token": "--track",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Track display union bounds",
+                    "value": "union"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "anchor-window",
+              "kind": "flag",
+              "required": false,
+              "summary": "New anchor window",
+              "token": "--anchor-window",
+              "value_type": "string"
+            },
+            {
+              "id": "anchor-channel",
+              "kind": "flag",
+              "required": false,
+              "summary": "New anchor channel",
+              "token": "--anchor-channel",
+              "value_type": "string"
+            },
+            {
+              "id": "anchor-browser",
+              "kind": "flag",
+              "required": false,
+              "summary": "New anchor browser target (browser:<s>[/<ref>])",
+              "token": "--anchor-browser",
+              "value_type": "string"
+            },
+            {
+              "id": "offset",
+              "kind": "flag",
+              "required": false,
+              "summary": "New offset",
+              "token": "--offset",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "anchor-window",
+                "anchor-browser"
+              ]
+            ]
+          },
+          "examples": [
+            "aos show update --id ball --at 200,200,200,200"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-update",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show update --id <name> [options]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show remove --id ball"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-remove",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show remove --id <name>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos show remove-all"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-remove-all",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show remove-all"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos show list"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show list"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable audit output",
+              "token": "--json",
+              "value_type": "bool"
+            },
+            {
+              "id": "point",
+              "kind": "flag",
+              "required": false,
+              "summary": "Evaluate native input target at x,y",
+              "token": "--point",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show audit --json",
+            "aos show audit --json --point 90,100"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-audit",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos show audit [--json] [--point x,y]"
+        },
+        {
+          "args": [
+            {
+              "id": "html",
+              "kind": "flag",
+              "required": false,
+              "summary": "HTML to render",
+              "token": "--html",
+              "value_type": "string"
+            },
+            {
+              "default_value": 800,
+              "id": "width",
+              "kind": "flag",
+              "required": false,
+              "summary": "Image width in pixels",
+              "token": "--width",
+              "value_type": "int"
+            },
+            {
+              "default_value": 600,
+              "id": "height",
+              "kind": "flag",
+              "required": false,
+              "summary": "Image height in pixels",
+              "token": "--height",
+              "value_type": "int"
+            },
+            {
+              "default_value": "./render.png",
+              "id": "out",
+              "kind": "flag",
+              "required": false,
+              "summary": "Output file path",
+              "token": "--out",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show render --html \"<h1>Hi</h1>\" --out /tmp/test.png"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-render",
+          "output": {
+            "default_mode": "none",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "html",
+            "supported": true,
+            "used_when": "no --html provided"
+          },
+          "usage": "aos show render [--html <html>] [--width N] [--height N] [--out path]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "js",
+              "kind": "flag",
+              "required": true,
+              "summary": "JavaScript to execute",
+              "token": "--js",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show eval --id surface --js \"document.title\""
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-eval",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show eval --id <name> --js <javascript>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos show listen"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "show-listen",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "usage": "aos show listen"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos show ping"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-ping",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show ping"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "manifest",
+              "kind": "flag",
+              "required": false,
+              "summary": "Expected manifest name",
+              "token": "--manifest",
+              "value_type": "string"
+            },
+            {
+              "id": "js",
+              "kind": "flag",
+              "required": false,
+              "summary": "Additional JavaScript readiness condition",
+              "token": "--js",
+              "value_type": "string"
+            },
+            {
+              "default_value": "5s",
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Maximum wait duration",
+              "token": "--timeout",
+              "value_type": "string"
+            },
+            {
+              "id": "auto-start",
+              "kind": "flag",
+              "required": false,
+              "summary": "Auto-start the daemon if needed",
+              "token": "--auto-start",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit JSON output",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos show wait --id surface-inspector --manifest surface-inspector",
+            "aos show wait --id workbench --js '!!document.querySelector(\".surface-frame\")'"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-wait",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos show wait --id <name> [--manifest <name>] [--js <condition>] [--timeout <dur>] [--auto-start] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show exists --id surface"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-exists",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show exists --id <name>"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show get --id surface"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-get",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show get --id <name>"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos show to-front --id surface"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-to-front",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show to-front --id <name>"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canvas identifier",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "event",
+              "kind": "flag",
+              "required": true,
+              "summary": "JSON event payload to post",
+              "token": "--event",
+              "value_type": "json"
+            }
+          ],
+          "examples": [
+            "aos show post --id surface --event '{\"type\":\"update\"}'"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "show-post",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos show post --id <name> --event <json>"
+        }
+      ],
+      "path": [
+        "show"
+      ],
+      "summary": "Display — manage overlays and render"
+    }
+  ]
+}

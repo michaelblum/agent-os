@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "id": "help",
+  "path_prefix": [
+    "help"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos help",
+            "aos help --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "help-full",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos help [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "command-path",
+              "kind": "positional",
+              "required": true,
+              "summary": "Command path to look up (e.g. show create)",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos help show",
+            "aos help show create --json",
+            "aos help do click --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "help-command",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos help <command-path...> [--json]"
+        }
+      ],
+      "path": [
+        "help"
+      ],
+      "summary": "Show help for commands"
+    }
+  ]
+}

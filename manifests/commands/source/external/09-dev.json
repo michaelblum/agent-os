@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "id": "dev",
+  "commands": [
+    {
+      "path": [
+        "dev"
+      ],
+      "summary": "Validate unknown dev subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-family-router.mjs",
+        "dev",
+        "UNKNOWN_SUBCOMMAND",
+        "dev subcommand"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "afk-dry-run"
+      ],
+      "summary": "Run the AFK dry-run command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/afk-dry-run-prototype.mjs"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "dev",
+        "afk-launch-attempt"
+      ],
+      "summary": "Run the AFK launch-attempt command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/afk-launch-attempt-prototype.mjs"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "dev",
+        "afk-session-trigger"
+      ],
+      "summary": "Run the AFK session-trigger command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/afk-session-trigger-prototype.mjs"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "dev",
+        "gh"
+      ],
+      "summary": "Run GitHub workflow helpers through the external dev gh command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-gh.mjs"
+      ],
+      "help_passthrough": true,
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "situation"
+      ],
+      "summary": "Aggregate sourced live orientation facts through the external dev situation command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-situation.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "drift-lint"
+      ],
+      "summary": "Run the heuristic durable-status drift tripwire through the external dev drift-lint command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-drift-lint.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "build"
+      ],
+      "summary": "Run the AOS build wrapper from the external dev build command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-build.mjs",
+        "build"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "classify"
+      ],
+      "summary": "Classify changed files through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "classify"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "recommend"
+      ],
+      "summary": "Recommend workflow commands through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "recommend"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "audit"
+      ],
+      "summary": "Audit dev workflow grammar through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "audit"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "capabilities"
+      ],
+      "summary": "Inspect dev capability envelopes through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "capabilities"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "docks"
+      ],
+      "summary": "Inspect dock profiles through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "docks"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "agents"
+      ],
+      "summary": "Run the AOS-owned agent runtime contract surface, provider execution, explicit native diagnostics, and patch artifact gate.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "python3",
+        "scripts/aos_agents/runner.py"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": [
+        "dev",
+        "subagent"
+      ],
+      "summary": "Plan and validate fail-closed native Codex subagent dispatch contracts.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-dev-workflow.mjs",
+        "subagent"
+      ],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    }
+  ]
+}

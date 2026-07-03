@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "id": "do-05-script-session",
+  "path_prefix": [
+    "do"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "app",
+              "kind": "positional",
+              "required": true,
+              "summary": "Application name",
+              "value_type": "string"
+            },
+            {
+              "id": "script",
+              "kind": "positional",
+              "required": true,
+              "summary": "AppleScript body",
+              "value_type": "string",
+              "variadic": true
+            }
+          ],
+          "examples": [
+            "aos do tell \"Finder\" \"open POSIX file \\\"/tmp\\\"\""
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-tell",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do tell <app> <script>"
+        },
+        {
+          "args": [
+            {
+              "default_value": "natural",
+              "id": "profile",
+              "kind": "flag",
+              "required": false,
+              "summary": "Behavior profile name",
+              "token": "--profile",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos do session",
+            "aos do session --profile precise"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": true,
+            "mutates_state": false,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "do-session",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "usage": "aos do session [--profile name]"
+        },
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": false,
+              "summary": "Profile name to show details",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos do profiles",
+            "aos do profiles natural"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-profiles",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do profiles [name]"
+        }
+      ],
+      "path": [
+        "do"
+      ],
+      "summary": "Action — execute mouse, keyboard, AX actions"
+    }
+  ]
+}

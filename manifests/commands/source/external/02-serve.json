@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "serve",
+  "commands": [
+    {
+      "path": [
+        "serve"
+      ],
+      "summary": "Run the AOS daemon through the native serve primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": [
+        "__serve"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit"
+    }
+  ]
+}

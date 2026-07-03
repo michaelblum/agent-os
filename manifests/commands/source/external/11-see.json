@@ -1,0 +1,390 @@
+{
+  "schema_version": 1,
+  "id": "see",
+  "commands": [
+    {
+      "path": [
+        "see"
+      ],
+      "summary": "Print see command help when no subcommand is provided.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-help-proxy.mjs",
+        "see"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see"
+      ],
+      "summary": "Route legacy see capture shorthand through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-native.mjs",
+        "capture"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": [
+          "capture",
+          "observe",
+          "cursor",
+          "list",
+          "selection",
+          "snapshots",
+          "refs",
+          "workspaces",
+          "workspace",
+          "snapshot",
+          "zone"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "capture"
+      ],
+      "summary": "Capture screen or browser targets through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-native.mjs",
+        "capture"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "snapshots"
+      ],
+      "summary": "List saved agent-workspace snapshots through external workspace composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "snapshots"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "refs"
+      ],
+      "summary": "List compact saved refs through external agent-workspace composition; saved-ref mutation follows the backend action matrix.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "refs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "workspaces"
+      ],
+      "summary": "List local AOS agent workspaces through external workspace composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "workspaces"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "workspace"
+      ],
+      "summary": "Inspect a local AOS agent workspace, including transient write-lock state.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "workspace"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "workspace",
+        "prune"
+      ],
+      "summary": "Preview or prune saved AOS agent workspace snapshots with fail-fast workspace locking.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "workspace",
+        "prune"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "workspace",
+        "delete"
+      ],
+      "summary": "Delete a local AOS agent workspace.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "workspace",
+        "delete"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "snapshot",
+        "delete"
+      ],
+      "summary": "Delete a saved AOS agent-workspace snapshot.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-agent-workspace.mjs",
+        "snapshot",
+        "delete"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "observe"
+      ],
+      "summary": "Subscribe to perception events through the external observe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-observe.mjs"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "cursor"
+      ],
+      "summary": "Read cursor metadata through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-native.mjs",
+        "cursor"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "list"
+      ],
+      "summary": "Read spatial topology through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-native.mjs",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "selection"
+      ],
+      "summary": "Read selected text through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-native.mjs",
+        "selection"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "zone"
+      ],
+      "summary": "Validate see zone subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "see zone",
+        "MISSING_SUBCOMMAND",
+        "see zone requires a subcommand. Usage: aos see zone <save|define|list|delete> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "see zone subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "see",
+        "zone",
+        "list"
+      ],
+      "summary": "List named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-zone.mjs",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "zone",
+        "save"
+      ],
+      "summary": "Save named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-zone.mjs",
+        "save"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "zone",
+        "define"
+      ],
+      "summary": "Define named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-zone.mjs",
+        "define"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "zone",
+        "delete"
+      ],
+      "summary": "Delete named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-see-zone.mjs",
+        "delete"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

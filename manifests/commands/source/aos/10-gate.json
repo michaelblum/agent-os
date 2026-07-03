@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "id": "gate",
+  "path_prefix": [
+    "gate"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "prompt",
+              "kind": "positional",
+              "required": false,
+              "summary": "Prompt title",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "preset",
+              "kind": "flag",
+              "required": false,
+              "summary": "Gate preset",
+              "token": "--preset",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Yes / No with escape text",
+                    "value": "yes_no_with_escape"
+                  },
+                  {
+                    "summary": "Approve / Deny",
+                    "value": "approve_deny"
+                  },
+                  {
+                    "summary": "Choose one option",
+                    "value": "single_choice"
+                  },
+                  {
+                    "summary": "Choose many options",
+                    "value": "multi_choice"
+                  },
+                  {
+                    "summary": "Free text response",
+                    "value": "freetext"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Prompt title",
+              "token": "--title",
+              "value_type": "string"
+            },
+            {
+              "id": "message",
+              "kind": "flag",
+              "required": false,
+              "summary": "Prompt body",
+              "token": "--message",
+              "value_type": "string"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Timeout in seconds",
+              "token": "--timeout",
+              "value_type": "float"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inline aos.gate.request.v1 JSON",
+              "token": "--json",
+              "value_type": "string"
+            },
+            {
+              "id": "request",
+              "kind": "flag",
+              "required": false,
+              "summary": "Path to aos.gate.request.v1 JSON file",
+              "token": "--request",
+              "value_type": "string"
+            },
+            {
+              "id": "store-response",
+              "kind": "flag",
+              "required": false,
+              "summary": "Persist the resolved answer payload in the gate record",
+              "token": "--store-response",
+              "value_type": "bool"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "json",
+                "request"
+              ]
+            ]
+          },
+          "examples": [
+            "aos gate ask \"Continue?\"",
+            "aos gate ask --preset approve_deny --title \"Run disruptive test?\" --timeout 30",
+            "aos gate ask --request gate-request.json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": true,
+            "mutates_state": false,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "gate-ask",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "aos.gate.request.v1 JSON",
+            "supported": true,
+            "used_when": "no prompt, --json, or --request"
+          },
+          "usage": "aos gate ask [prompt] [--preset name] [--title text] [--timeout seconds] [--json request] [--request file] [--store-response]"
+        },
+        {
+          "args": [
+            {
+              "id": "request",
+              "kind": "flag",
+              "required": false,
+              "summary": "Path to aos.gate.request.v1 JSON file",
+              "token": "--request",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit JSON, or provide inline aos.gate.request.v1 JSON",
+              "token": "--json",
+              "value_type": "string"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Original provider session id",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "harness",
+              "kind": "flag",
+              "required": true,
+              "summary": "Harness/provider hint, such as codex",
+              "token": "--harness",
+              "value_type": "string"
+            },
+            {
+              "id": "dock",
+              "kind": "flag",
+              "required": false,
+              "summary": "Dock or role name when known",
+              "token": "--dock",
+              "value_type": "string"
+            },
+            {
+              "id": "cwd",
+              "kind": "flag",
+              "required": false,
+              "summary": "Working directory to capture in session metadata",
+              "token": "--cwd",
+              "value_type": "string"
+            },
+            {
+              "default_value": "manual",
+              "id": "resume-policy",
+              "kind": "flag",
+              "required": false,
+              "summary": "Resume handling policy",
+              "token": "--resume-policy",
+              "value_type": "string"
+            },
+            {
+              "default_value": "codex_exec",
+              "id": "adapter-hint",
+              "kind": "flag",
+              "required": false,
+              "summary": "Provider adapter hint",
+              "token": "--adapter-hint",
+              "value_type": "string"
+            },
+            {
+              "default_value": "codex_exec_adapter",
+              "id": "entrypoint",
+              "kind": "flag",
+              "required": false,
+              "summary": "Resume adapter identifier metadata, not an executable path",
+              "token": "--entrypoint",
+              "value_type": "string"
+            },
+            {
+              "id": "show",
+              "kind": "flag",
+              "required": false,
+              "summary": "Open a deferred DecisionGate surface that can submit after this command exits",
+              "token": "--show",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos gate defer --request gate-request.json --session-id codex-123 --harness codex --show --json",
+            "aos gate defer --json '{\"prompt\":{\"title\":\"Continue?\"},\"ui\":{\"variant\":\"approve_deny\"}}' --session-id codex-123 --harness codex"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "gate-defer",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos gate defer (--request file|--json request) --session-id id --harness name [--show] --json"
+        },
+        {
+          "args": [
+            {
+              "id": "continuation-id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Continuation id to submit",
+              "token": "--continuation-id",
+              "value_type": "string"
+            },
+            {
+              "id": "request",
+              "kind": "flag",
+              "required": false,
+              "summary": "Path to submission JSON",
+              "token": "--request",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit JSON, or provide inline submission JSON",
+              "token": "--json",
+              "value_type": "string"
+            },
+            {
+              "id": "store-response",
+              "kind": "flag",
+              "required": false,
+              "summary": "Persist the submitted answer payload in the continuation, resume event, and gate record",
+              "token": "--store-response",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos gate submit --continuation-id gate-cont-123 --request submission.json --json",
+            "aos gate submit --continuation-id gate-cont-123 --json '{\"decision\":\"approve\"}'"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "gate-submit",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos gate submit --continuation-id id (--request file|--json submission) --json [--store-response]"
+        },
+        {
+          "args": [
+            {
+              "default_value": 50,
+              "id": "limit",
+              "kind": "flag",
+              "required": false,
+              "summary": "Maximum recent continuations to return",
+              "token": "--limit",
+              "value_type": "int"
+            },
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by continuation id",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "status",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by lifecycle state",
+              "token": "--status",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Pending continuations",
+                    "value": "pending"
+                  },
+                  {
+                    "summary": "Submitted continuations",
+                    "value": "submitted"
+                  },
+                  {
+                    "summary": "Cancelled continuations",
+                    "value": "cancelled"
+                  },
+                  {
+                    "summary": "Expired continuations",
+                    "value": "expired"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": true,
+              "summary": "Emit JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos gate continuations --json",
+            "aos gate continuations --status pending --json",
+            "aos gate continuations --id gate-cont-abc123 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "gate-continuations",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos gate continuations [--limit N] [--id continuation_id] [--status status] --json"
+        },
+        {
+          "args": [
+            {
+              "default_value": 20,
+              "id": "limit",
+              "kind": "flag",
+              "required": false,
+              "summary": "Maximum recent records to return",
+              "token": "--limit",
+              "value_type": "int"
+            },
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by gate id",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "status",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by resolution or no-answer status",
+              "token": "--status",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Answered gates",
+                    "value": "answered"
+                  },
+                  {
+                    "summary": "Dismissed gates",
+                    "value": "dismissed"
+                  },
+                  {
+                    "summary": "Timed-out gates",
+                    "value": "timeout"
+                  },
+                  {
+                    "summary": "Operational failures",
+                    "value": "error"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": true,
+              "summary": "Emit JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos gate records --json",
+            "aos gate records --limit 20 --json",
+            "aos gate records --id gate-abc123 --json",
+            "aos gate records --status answered --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "gate-records",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos gate records [--limit N] [--id gate_id] [--status status] --json"
+        }
+      ],
+      "path": [
+        "gate"
+      ],
+      "summary": "Request a bounded structured human decision"
+    }
+  ]
+}

@@ -110,6 +110,30 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "command-surface-manifests" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/command-manifest-generation.sh",
+    "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes command source and generator edits to manifest generation checks"
+else
+    fail "dev recommend command source/generator routing drifted"
+fi
+
 if OUT="$(./aos dev recommend --json --files scripts/aos_agents/runner.py 2>/dev/null)" python3 - <<'PY'
 import json
 import os

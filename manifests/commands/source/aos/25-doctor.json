@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "id": "doctor",
+  "path_prefix": [
+    "doctor"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos doctor --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "doctor",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos doctor [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Doctor target (must be 'gateway')",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "aos-gateway MCP + broker",
+                    "value": "gateway"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "quick",
+              "kind": "flag",
+              "required": false,
+              "summary": "Skip SQLite open and row counts",
+              "token": "--quick",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Force JSON output",
+              "token": "--json",
+              "value_type": "bool"
+            },
+            {
+              "id": "pretty",
+              "kind": "flag",
+              "required": false,
+              "summary": "Force human-readable output",
+              "token": "--pretty",
+              "value_type": "bool"
+            },
+            {
+              "id": "tail",
+              "kind": "flag",
+              "required": false,
+              "summary": "Include last N log lines per role",
+              "token": "--tail",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos doctor gateway",
+            "aos doctor gateway --json --tail 20",
+            "aos doctor gateway --quick"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "doctor-gateway",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos doctor gateway [--quick] [--json|--pretty] [--tail N]"
+        }
+      ],
+      "path": [
+        "doctor"
+      ],
+      "summary": "Detailed runtime and permission diagnostics"
+    }
+  ]
+}

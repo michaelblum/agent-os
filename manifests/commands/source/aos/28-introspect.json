@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "introspect",
+  "path_prefix": [
+    "introspect"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "session",
+              "kind": "flag",
+              "required": false,
+              "summary": "Override session key for review",
+              "token": "--session",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos introspect review",
+            "aos introspect review --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "introspect-review",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos introspect review [--session <key>] [--json]"
+        }
+      ],
+      "path": [
+        "introspect"
+      ],
+      "summary": "Review recent ./aos usage for this session"
+    }
+  ]
+}

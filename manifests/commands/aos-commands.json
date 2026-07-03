@@ -279,7 +279,7 @@
               "value_type" : "string"
             },
             {
-              "default_value" : ".\/screenshot.png",
+              "default_value" : "./screenshot.png",
               "id" : "out",
               "kind" : "flag",
               "required" : false,
@@ -604,12 +604,12 @@
             "aos see capture browser:work --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
-            "aos see capture main --out \/tmp\/screen.png",
+            "aos see capture main --out /tmp/screen.png",
             "aos see main --base64 --format jpg",
             "aos see capture user_active --window --xray",
-            "aos see capture --canvas surface-inspector --perception --out \/tmp\/inspector.png",
-            "aos see capture --channel slack-msgs --perception --out \/tmp\/messages.png",
-            "aos see capture --region 1172,442,320,480 --perception --out \/tmp\/inspector.png",
+            "aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png",
+            "aos see capture --channel slack-msgs --perception --out /tmp/messages.png",
+            "aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png",
             "aos see mouse --radius 200"
           ],
           "execution" : {
@@ -1413,7 +1413,7 @@
               "id" : "url",
               "kind" : "flag",
               "required" : false,
-              "summary" : "URL to load (supports aos:\/\/ scheme)",
+              "summary" : "URL to load (supports aos:// scheme)",
               "token" : "--url",
               "value_type" : "string"
             },
@@ -1434,7 +1434,7 @@
               "value_type" : {
                 "enum" : [
                   {
-                    "summary" : "Default for interactive\/noninteractive canvases",
+                    "summary" : "Default for interactive/noninteractive canvases",
                     "value" : "automatic"
                   },
                   {
@@ -1561,7 +1561,7 @@
               "id" : "anchor-browser",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Anchor to browser target (browser:<s>[\/<ref>])",
+              "summary" : "Anchor to browser target (browser:<s>[/<ref>])",
               "token" : "--anchor-browser",
               "value_type" : "string"
             },
@@ -1597,10 +1597,10 @@
             ]
           },
           "examples" : [
-            "aos show create --id ball --at 100,100,200,200 --html \"<div>hello<\/div>\"",
-            "aos show create --id surface --url aos:\/\/demo\/surface\/index.html --surface desktop-world",
-            "aos show create --id overlay --url aos:\/\/demo\/overlay\/index.html --surface desktop-world",
-            "aos show create --id annot --anchor-browser browser:todo\/e21 --html \"<div class='badge'>42<\/div>\""
+            "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
+            "aos show create --id surface --url aos://demo/surface/index.html --surface desktop-world",
+            "aos show create --id overlay --url aos://demo/overlay/index.html --surface desktop-world",
+            "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1671,7 +1671,7 @@
               "value_type" : {
                 "enum" : [
                   {
-                    "summary" : "Default for interactive\/noninteractive canvases",
+                    "summary" : "Default for interactive/noninteractive canvases",
                     "value" : "automatic"
                   },
                   {
@@ -1740,7 +1740,7 @@
               "id" : "anchor-browser",
               "kind" : "flag",
               "required" : false,
-              "summary" : "New anchor browser target (browser:<s>[\/<ref>])",
+              "summary" : "New anchor browser target (browser:<s>[/<ref>])",
               "token" : "--anchor-browser",
               "value_type" : "string"
             },
@@ -1934,7 +1934,7 @@
               "value_type" : "int"
             },
             {
-              "default_value" : ".\/render.png",
+              "default_value" : "./render.png",
               "id" : "out",
               "kind" : "flag",
               "required" : false,
@@ -1944,7 +1944,7 @@
             }
           ],
           "examples" : [
-            "aos show render --html \"<h1>Hi<\/h1>\" --out \/tmp\/test.png"
+            "aos show render --html \"<h1>Hi</h1>\" --out /tmp/test.png"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2329,7 +2329,7 @@
             }
           ],
           "examples" : [
-            "aos ops explain runtime\/status-snapshot --json"
+            "aos ops explain runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2368,7 +2368,7 @@
             }
           ],
           "examples" : [
-            "aos ops dry-run runtime\/status-snapshot --json"
+            "aos ops dry-run runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2407,7 +2407,7 @@
             }
           ],
           "examples" : [
-            "aos ops run runtime\/status-snapshot --json"
+            "aos ops run runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2487,7 +2487,7 @@
             }
           ],
           "examples" : [
-            "aos recipe explain runtime\/status-snapshot --json"
+            "aos recipe explain runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2526,7 +2526,7 @@
             }
           ],
           "examples" : [
-            "aos recipe dry-run runtime\/status-snapshot --json"
+            "aos recipe dry-run runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2565,7 +2565,7 @@
             }
           ],
           "examples" : [
-            "aos recipe run runtime\/status-snapshot --json"
+            "aos recipe run runtime/status-snapshot --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -2663,8 +2663,8 @@
             "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run",
             "aos do click ref:<snapshot-id>:r1 --workspace default",
             "aos do click 500,300",
-            "aos do click canvas:subject-browser\/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
-            "aos do click browser:todo\/e21"
+            "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
+            "aos do click browser:todo/e21"
           ],
           "summary" : "Saved-ref click validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
@@ -2683,7 +2683,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>\/<ref>|browser:<session>\/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--dwell N] [--state-id id] [--dry-run]"
+          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--dwell N] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2730,7 +2730,7 @@
           "examples" : [
             "aos do hover ref:<snapshot-id>:r2 --workspace default --dry-run",
             "aos do hover ref:<snapshot-id>:r2 --workspace default",
-            "aos do hover browser:todo\/e21",
+            "aos do hover browser:todo/e21",
             "aos do hover 500,300"
           ],
           "summary" : "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
@@ -2750,7 +2750,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage" : "aos do hover <ref:<snapshot-id>:<ref>|browser:<session>/<ref>|x,y> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2804,7 +2804,7 @@
           "examples" : [
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default --dry-run",
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
-            "aos do drag browser:todo\/e1 browser:todo\/e2"
+            "aos do drag browser:todo/e1 browser:todo/e2"
           ],
           "summary" : "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
@@ -2823,7 +2823,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2913,8 +2913,8 @@
             ]
           },
           "examples" : [
-            "aos do drag canvas:surface\/surface:drag-handle --by 80,40 --dry-run",
-            "aos do drag canvas:settings\/brightness-slider --to-value 42 --playback human"
+            "aos do drag canvas:surface/surface:drag-handle --by 80,40 --dry-run",
+            "aos do drag canvas:settings/brightness-slider --to-value 42 --playback human"
           ],
           "summary" : "Direct current canvas semantic drag; separate from saved-ref drag and native coordinate drag",
           "execution" : {
@@ -2933,7 +2933,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do drag <canvas:<canvas-id>\/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--state-id id] [--dry-run]"
+          "usage" : "aos do drag <canvas:<canvas-id>/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -2955,7 +2955,7 @@
               "id" : "speed",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Native coordinate drag speed in pixels\/sec",
+              "summary" : "Native coordinate drag speed in pixels/sec",
               "token" : "--speed",
               "value_type" : "int"
             },
@@ -3067,7 +3067,7 @@
           "examples" : [
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default --dry-run",
             "aos do scroll ref:<snapshot-id>:r2 0,-200 --workspace default",
-            "aos do scroll browser:todo\/e21 0,-200",
+            "aos do scroll browser:todo/e21 0,-200",
             "aos do scroll 500,300 --dy -3"
           ],
           "summary" : "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
@@ -3087,7 +3087,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>\/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id] [--dry-run]"
+          "usage" : "aos do scroll <ref:<snapshot-id>:<ref>|browser:<session>/<ref>> <dx,dy> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run] | aos do scroll <x,y> [--dx N] [--dy N] [--state-id id] [--dry-run]"
         },
         {
           "args" : [
@@ -3175,7 +3175,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>\/<ref>)",
+              "summary" : "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>/<ref>)",
               "value_type" : "string"
             },
             {
@@ -3213,7 +3213,7 @@
           "examples" : [
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
-            "aos do fill browser:todo\/e21 \"buy groceries\""
+            "aos do fill browser:todo/e21 \"buy groceries\""
           ],
           "summary" : "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution" : {
@@ -3232,7 +3232,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>\/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
+          "usage" : "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
           "args" : [
@@ -3252,7 +3252,7 @@
             }
           ],
           "examples" : [
-            "aos do navigate browser:todo https:\/\/example.com"
+            "aos do navigate browser:todo https://example.com"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -3942,7 +3942,7 @@
             }
           ],
           "examples" : [
-            "aos do tell \"Finder\" \"open POSIX file \\\"\/tmp\\\"\""
+            "aos do tell \"Finder\" \"open POSIX file \\\"/tmp\\\"\""
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -4400,7 +4400,7 @@
             }
           ],
           "examples" : [
-            "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice:\/\/system\/com.apple.voice.enhanced.en-US.Evan",
+            "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan",
             "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --gender female --language en",
             "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
           ],
@@ -4475,7 +4475,7 @@
               "id" : "harness",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Harness\/provider name (for example: codex, claude-code, gemini)",
+              "summary" : "Harness/provider name (for example: codex, claude-code, gemini)",
               "token" : "--harness",
               "value_type" : "string"
             }
@@ -4534,11 +4534,11 @@
               "value_type" : {
                 "enum" : [
                   {
-                    "summary" : "Yes \/ No with escape text",
+                    "summary" : "Yes / No with escape text",
                     "value" : "yes_no_with_escape"
                   },
                   {
-                    "summary" : "Approve \/ Deny",
+                    "summary" : "Approve / Deny",
                     "value" : "approve_deny"
                   },
                   {
@@ -4671,7 +4671,7 @@
               "id" : "harness",
               "kind" : "flag",
               "required" : true,
-              "summary" : "Harness\/provider hint, such as codex",
+              "summary" : "Harness/provider hint, such as codex",
               "token" : "--harness",
               "value_type" : "string"
             },
@@ -5672,7 +5672,7 @@
               "id" : "target",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Target URI: browser:\/\/attach or browser:\/\/new (mutually exclusive with --window)",
+              "summary" : "Target URI: browser://attach or browser://new (mutually exclusive with --window)",
               "token" : "--target",
               "value_type" : "string"
             },
@@ -5720,7 +5720,7 @@
               "id" : "extension",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Attach via browser extension (browser:\/\/attach)",
+              "summary" : "Attach via browser extension (browser://attach)",
               "token" : "--extension",
               "value_type" : "bool"
             },
@@ -5728,7 +5728,7 @@
               "id" : "cdp",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Attach via CDP endpoint (browser:\/\/attach)",
+              "summary" : "Attach via CDP endpoint (browser://attach)",
               "token" : "--cdp",
               "value_type" : "string"
             },
@@ -5736,7 +5736,7 @@
               "id" : "headless",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Launch browser headless (browser:\/\/new)",
+              "summary" : "Launch browser headless (browser://new)",
               "token" : "--headless",
               "value_type" : "bool"
             },
@@ -5744,7 +5744,7 @@
               "id" : "url",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Initial URL for launched browser (browser:\/\/new)",
+              "summary" : "Initial URL for launched browser (browser://new)",
               "token" : "--url",
               "value_type" : "string"
             },
@@ -5752,7 +5752,7 @@
               "id" : "persistent",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Reuse a persistent browser profile (browser:\/\/new)",
+              "summary" : "Reuse a persistent browser profile (browser://new)",
               "token" : "--persistent",
               "value_type" : "bool"
             }
@@ -5773,8 +5773,8 @@
           },
           "examples" : [
             "aos focus create --id work --window 1234 --depth 2",
-            "aos focus create --id todo --target browser:\/\/attach --extension",
-            "aos focus create --id scratch --target browser:\/\/new --headless --url https:\/\/example.com"
+            "aos focus create --id todo --target browser://attach --extension",
+            "aos focus create --id scratch --target browser://new --headless --url https://example.com"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -5792,7 +5792,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos focus create --id <name> (--window <wid> | --target browser:\/\/<kind>) [options]"
+          "usage" : "aos focus create --id <name> (--window <wid> | --target browser://<kind>) [options]"
         },
         {
           "args" : [
@@ -6088,7 +6088,7 @@
       "path" : [
         "graph"
       ],
-      "summary" : "Graph navigation — display\/window\/depth control"
+      "summary" : "Graph navigation — display/window/depth control"
     },
     {
       "forms" : [
@@ -6739,7 +6739,7 @@
       "path" : [
         "runtime"
       ],
-      "summary" : "Package\/sign\/install the stable AOS.app runtime"
+      "summary" : "Package/sign/install the stable AOS.app runtime"
     },
     {
       "consumer_discovery" : false,
@@ -6764,7 +6764,7 @@
               "variadic" : true
             },
             {
-              "default_value" : "docs\/dev\/workflow-rules.json",
+              "default_value" : "docs/dev/workflow-rules.json",
               "id" : "manifest",
               "kind" : "flag",
               "required" : false,
@@ -6807,7 +6807,7 @@
           ],
           "examples" : [
             "aos dev classify --json",
-            "aos dev classify --paths src\/main.swift,packages\/toolkit\/runtime\/canvas.js --json"
+            "aos dev classify --paths src/main.swift,packages/toolkit/runtime/canvas.js --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -6847,7 +6847,7 @@
               "variadic" : true
             },
             {
-              "default_value" : "docs\/dev\/workflow-rules.json",
+              "default_value" : "docs/dev/workflow-rules.json",
               "id" : "manifest",
               "kind" : "flag",
               "required" : false,
@@ -6890,7 +6890,7 @@
           ],
           "examples" : [
             "aos dev recommend --json",
-            "aos dev recommend src\/commands\/dev.swift --json"
+            "aos dev recommend src/commands/dev.swift --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -7166,8 +7166,8 @@
             }
           ],
           "examples" : [
-            "aos dev afk-dry-run --packet \/tmp\/manual-afk-packet.json --provider codex --dock gdi --json",
-            "aos dev afk-dry-run --packet \/tmp\/manual-afk-packet.json --json"
+            "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
+            "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -7303,8 +7303,8 @@
             }
           ],
           "examples" : [
-            "aos dev afk-launch-attempt --packet \/tmp\/manual-afk-packet.json --provider codex --dock gdi --json",
-            "aos dev afk-launch-attempt --packet \/tmp\/manual-afk-packet.json --json"
+            "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
+            "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -7378,7 +7378,7 @@
               "id" : "supervised-live-launch",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Guarded supervised live launch intent for Codex\/GDI source receipts",
+              "summary" : "Guarded supervised live launch intent for Codex/GDI source receipts",
               "token" : "--supervised-live-launch",
               "value_type" : "bool"
             },
@@ -7490,7 +7490,7 @@
               "id" : "replacement-for",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Explicit replacement\/supersession id for retrying a prior rejected or failed attempt",
+              "summary" : "Explicit replacement/supersession id for retrying a prior rejected or failed attempt",
               "token" : "--replacement-for",
               "value_type" : "string"
             },
@@ -7498,7 +7498,7 @@
               "id" : "bridge-visibility-fixture",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Deterministic supervised bridge\/provider visibility fixture for trigger launch evidence",
+              "summary" : "Deterministic supervised bridge/provider visibility fixture for trigger launch evidence",
               "token" : "--bridge-visibility-fixture",
               "value_type" : "string"
             },
@@ -7552,9 +7552,9 @@
             }
           ],
           "examples" : [
-            "aos dev afk-session-trigger --packet \/tmp\/manual-afk-packet.json --provider codex --dock gdi --dry-run --json",
-            "aos dev afk-session-trigger --packet \/tmp\/manual-afk-packet.json --provider codex --dock gdi --afk-live-launch --afk-authorization \/tmp\/authorization.json --json --out \/tmp\/receipt.json",
-            "aos dev afk-session-trigger --afk-work-queue \/tmp\/queue.json --provider codex --dock gdi --afk-live-launch --afk-authorization \/tmp\/authorization.json --json --out \/tmp\/receipt.json"
+            "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --dry-run --json",
+            "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --afk-live-launch --afk-authorization /tmp/authorization.json --json --out /tmp/receipt.json",
+            "aos dev afk-session-trigger --afk-work-queue /tmp/queue.json --provider codex --dock gdi --afk-live-launch --afk-authorization /tmp/authorization.json --json --out /tmp/receipt.json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -7577,7 +7577,7 @@
         {
           "args" : [
             {
-              "default_value" : "docs\/dev\/workflow-rules.json",
+              "default_value" : "docs/dev/workflow-rules.json",
               "id" : "manifest",
               "kind" : "flag",
               "required" : false,
@@ -7640,7 +7640,7 @@
               "value_type" : "string"
             },
             {
-              "default_value" : "docs\/dev\/agent-capabilities.json",
+              "default_value" : "docs/dev/agent-capabilities.json",
               "id" : "manifest",
               "kind" : "flag",
               "required" : false,
@@ -7731,7 +7731,7 @@
               "value_type" : "string"
             },
             {
-              "default_value" : "docs\/dev\/agent-capabilities.json",
+              "default_value" : "docs/dev/agent-capabilities.json",
               "id" : "capabilities-manifest",
               "kind" : "flag",
               "required" : false,
@@ -7985,7 +7985,7 @@
               "value_type" : "string"
             },
             {
-              "default_value" : "ai-agents\/providers\/codex",
+              "default_value" : "ai-agents/providers/codex",
               "id" : "agents-root",
               "kind" : "flag",
               "required" : false,
@@ -8084,7 +8084,7 @@
               "id" : "repo",
               "kind" : "flag",
               "required" : false,
-              "summary" : "GitHub repository in owner\/name form",
+              "summary" : "GitHub repository in owner/name form",
               "token" : "--repo",
               "value_type" : "string"
             },
@@ -8213,7 +8213,7 @@
             "aos dev gh context --json",
             "aos dev gh issue list --state open --limit 50 --milestone v0 --json",
             "aos dev gh issue view 298 --json",
-            "aos dev gh issue comment 298 --body-file \/tmp\/comment.md",
+            "aos dev gh issue comment 298 --body-file /tmp/comment.md",
             "aos dev gh pr list --state all --limit 30 --json",
             "aos dev gh ci inspect --pr 298 --json",
             "aos dev gh review-comments --pr 298 --json"
@@ -8234,7 +8234,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--milestone <name>] [--base <branch>] [--head <branch>] [--draft]"
+          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--milestone <name>] [--base <branch>] [--head <branch>] [--draft]"
         }
       ],
       "path" : [
@@ -8281,7 +8281,7 @@
       "path" : [
         "status"
       ],
-      "summary" : "Primary runtime\/session status entrypoint"
+      "summary" : "Primary runtime/session status entrypoint"
     },
     {
       "forms" : [
@@ -8299,7 +8299,7 @@
               "id" : "repair",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the longer restart\/recheck repair path before reporting blockers and human instructions",
+              "summary" : "Run the longer restart/recheck repair path before reporting blockers and human instructions",
               "token" : "--repair",
               "value_type" : "bool"
             },
@@ -8339,7 +8339,7 @@
       "path" : [
         "ready"
       ],
-      "summary" : "Start\/check AOS, reconcile common daemon drift, and report the readiness gate"
+      "summary" : "Start/check AOS, reconcile common daemon drift, and report the readiness gate"
     },
     {
       "forms" : [
@@ -8520,7 +8520,7 @@
       "path" : [
         "reset"
       ],
-      "summary" : "Deterministic cleanup for repo\/installed runtime state"
+      "summary" : "Deterministic cleanup for repo/installed runtime state"
     },
     {
       "forms" : [
@@ -8618,7 +8618,7 @@
       "path" : [
         "introspect"
       ],
-      "summary" : "Review recent .\/aos usage for this session"
+      "summary" : "Review recent ./aos usage for this session"
     },
     {
       "forms" : [
@@ -8737,7 +8737,7 @@
               "value_type" : {
                 "enum" : [
                   {
-                    "summary" : "Repo-mode .\/aos identity",
+                    "summary" : "Repo-mode ./aos identity",
                     "value" : "repo"
                   },
                   {
@@ -8751,7 +8751,7 @@
               "id" : "allow-service-reset",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Emergency-only: allow service-wide Accessibility\/ListenEvent\/PostEvent reset after explicit human request",
+              "summary" : "Emergency-only: allow service-wide Accessibility/ListenEvent/PostEvent reset after explicit human request",
               "token" : "--allow-service-reset",
               "value_type" : "bool"
             },
@@ -8899,7 +8899,7 @@
           ],
           "examples" : [
             "echo 'hello' | aos log",
-            "tail -f \/var\/log\/app.log | aos log"
+            "tail -f /var/log/app.log | aos log"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -9647,7 +9647,7 @@
           ],
           "examples" : [
             "aos wiki project-docs --dry-run --json",
-            "aos wiki project-docs --manifest docs\/wiki\/repo-docs-projection-v0.json"
+            "aos wiki project-docs --manifest docs/wiki/repo-docs-projection-v0.json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -9714,12 +9714,12 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Target string to parse (e.g. 'browser:todo\/e21')",
+              "summary" : "Target string to parse (e.g. 'browser:todo/e21')",
               "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos browser _parse-target browser:todo\/e21"
+            "aos browser _parse-target browser:todo/e21"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -9823,7 +9823,7 @@
             }
           ],
           "examples" : [
-            "aos browser _parse-snapshot \/tmp\/snap.md"
+            "aos browser _parse-snapshot /tmp/snap.md"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10002,7 +10002,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : true,
-              "summary" : "Browser target (browser:<session>[\/<ref>])",
+              "summary" : "Browser target (browser:<session>[/<ref>])",
               "value_type" : "string"
             },
             {
@@ -10015,7 +10015,7 @@
             }
           ],
           "examples" : [
-            "aos browser _resolve-anchor browser:todo\/e21 --json"
+            "aos browser _resolve-anchor browser:todo/e21 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

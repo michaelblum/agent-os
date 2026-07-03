@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "content",
+  "path_prefix": [
+    "content"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos content status",
+            "aos content status --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "content-status",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos content status [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Required content root (repeatable)",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "default_value": "10s",
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Maximum wait duration",
+              "token": "--timeout",
+              "value_type": "string"
+            },
+            {
+              "id": "auto-start",
+              "kind": "flag",
+              "required": false,
+              "summary": "Auto-start the daemon if needed",
+              "token": "--auto-start",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit JSON output",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos content wait --root toolkit --auto-start",
+            "aos content wait --root toolkit --root app --timeout 10s"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "content-wait",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos content wait [--root <name> ...] [--timeout <dur>] [--auto-start] [--json]"
+        }
+      ],
+      "path": [
+        "content"
+      ],
+      "summary": "Content server management"
+    }
+  ]
+}

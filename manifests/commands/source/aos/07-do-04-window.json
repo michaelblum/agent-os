@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "id": "do-04-window",
+  "path_prefix": [
+    "do"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": true,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID",
+              "token": "--window",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos do raise --pid 1234"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-raise",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do raise --pid <pid> [--window id]"
+        },
+        {
+          "args": [
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": true,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "to",
+              "kind": "flag",
+              "required": true,
+              "summary": "Target position as x,y",
+              "token": "--to",
+              "value_type": "string"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID",
+              "token": "--window",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos do move --pid 1234 --to 100,100"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-move",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do move --pid <pid> --to <x,y> [--window id]"
+        },
+        {
+          "args": [
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": true,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "to",
+              "kind": "flag",
+              "required": true,
+              "summary": "Target size as w,h",
+              "token": "--to",
+              "value_type": "string"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID",
+              "token": "--window",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos do resize --pid 1234 --to 800,600"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-resize",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do resize --pid <pid> --to <w,h> [--window id]"
+        }
+      ],
+      "path": [
+        "do"
+      ],
+      "summary": "Action — execute mouse, keyboard, AX actions"
+    }
+  ]
+}

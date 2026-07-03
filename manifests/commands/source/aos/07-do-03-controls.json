@@ -1,0 +1,532 @@
+{
+  "schema_version": 1,
+  "id": "do-03-controls",
+  "path_prefix": [
+    "do"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": false,
+              "summary": "Stable saved native AX ref with actionable producer verdict; omit for direct --pid/--role form",
+              "value_type": "string"
+            },
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": false,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID carried as saved native identity context",
+              "token": "--window",
+              "value_type": "int"
+            },
+            {
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "token": "--role",
+              "value_type": "string"
+            },
+            {
+              "id": "title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by title",
+              "token": "--title",
+              "value_type": "string"
+            },
+            {
+              "id": "label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by label",
+              "token": "--label",
+              "value_type": "string"
+            },
+            {
+              "id": "identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by identifier",
+              "token": "--identifier",
+              "value_type": "string"
+            },
+            {
+              "id": "index",
+              "kind": "flag",
+              "required": false,
+              "summary": "Match by index",
+              "token": "--index",
+              "value_type": "int"
+            },
+            {
+              "id": "near",
+              "kind": "flag",
+              "required": false,
+              "summary": "Prefer element near x,y",
+              "token": "--near",
+              "value_type": "string"
+            },
+            {
+              "id": "match",
+              "kind": "flag",
+              "required": false,
+              "summary": "Regex match on value",
+              "token": "--match",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX traversal depth",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Timeout in ms",
+              "token": "--timeout",
+              "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the saved-ref or direct AX action without executing it; response includes no_foreground conformance/proof",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id for ref:<id> targets",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "snapshot",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "token": "--snapshot",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary": "target source"
+              }
+            ]
+          },
+          "examples": [
+            "aos do press ref:<snapshot-id>:r1 --workspace default --dry-run",
+            "aos do press ref:<snapshot-id>:r1 --workspace default",
+            "aos do press --pid 1234 --role AXButton --title Save --dry-run",
+            "aos do press --pid 1234 --role AXButton --title Save"
+          ],
+          "summary": "Saved-ref press validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "do-press",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do press <ref-target> [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do press --pid <pid> --role <role> [filters] [--dry-run]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": false,
+              "summary": "Saved ref or canvas target; omit for AX --pid/--role form",
+              "value_type": "string"
+            },
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": false,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID carried as saved native identity context",
+              "token": "--window",
+              "value_type": "int"
+            },
+            {
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "token": "--role",
+              "value_type": "string"
+            },
+            {
+              "id": "value",
+              "kind": "flag",
+              "required": false,
+              "summary": "Value to set; required as --value or a positional value",
+              "token": "--value",
+              "value_type": "string"
+            },
+            {
+              "id": "value-text",
+              "kind": "positional",
+              "required": false,
+              "summary": "Positional value alternative to --value",
+              "value_type": "string"
+            },
+            {
+              "id": "title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by title",
+              "token": "--title",
+              "value_type": "string"
+            },
+            {
+              "id": "label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by label",
+              "token": "--label",
+              "value_type": "string"
+            },
+            {
+              "id": "identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by identifier",
+              "token": "--identifier",
+              "value_type": "string"
+            },
+            {
+              "id": "index",
+              "kind": "flag",
+              "required": false,
+              "summary": "Match by index",
+              "token": "--index",
+              "value_type": "int"
+            },
+            {
+              "id": "near",
+              "kind": "flag",
+              "required": false,
+              "summary": "Prefer element near x,y",
+              "token": "--near",
+              "value_type": "string"
+            },
+            {
+              "id": "match",
+              "kind": "flag",
+              "required": false,
+              "summary": "Regex match on value",
+              "token": "--match",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX traversal depth",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the ref/canvas/direct AX action without executing it; direct AX responses include no_foreground conformance/proof",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id for ref:<id> targets",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "snapshot",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "token": "--snapshot",
+              "value_type": "string"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Timeout in ms",
+              "token": "--timeout",
+              "value_type": "int"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary": "target source"
+              },
+              {
+                "one_of": [
+                  [
+                    "value"
+                  ],
+                  [
+                    "value-text"
+                  ]
+                ],
+                "summary": "value source"
+              }
+            ]
+          },
+          "examples": [
+            "aos do set-value ref:<snapshot-id>:r2 --workspace default --value \"42\" --dry-run",
+            "aos do set-value ref:<snapshot-id>:r2 --workspace default --value \"42\"",
+            "aos do set-value canvas:settings/brightness-slider --value \"42\"",
+            "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
+          ],
+          "summary": "Saved-ref set-value validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "do-set-value",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do set-value <ref-target|canvas:<canvas-id>/<ref>> (--value <value>|<value>) [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do set-value --pid <pid> --role <role> (--value <value>|<value>) [filters] [--dry-run]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": false,
+              "summary": "Stable saved native AX ref with actionable producer verdict; omit for direct --pid/--role form",
+              "value_type": "string"
+            },
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": false,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID carried as saved native identity context",
+              "token": "--window",
+              "value_type": "int"
+            },
+            {
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX role to match in the direct --pid form; saved refs carry role in identity facts",
+              "token": "--role",
+              "value_type": "string"
+            },
+            {
+              "id": "title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by title",
+              "token": "--title",
+              "value_type": "string"
+            },
+            {
+              "id": "label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by label",
+              "token": "--label",
+              "value_type": "string"
+            },
+            {
+              "id": "identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by identifier",
+              "token": "--identifier",
+              "value_type": "string"
+            },
+            {
+              "id": "index",
+              "kind": "flag",
+              "required": false,
+              "summary": "Match by index",
+              "token": "--index",
+              "value_type": "int"
+            },
+            {
+              "id": "near",
+              "kind": "flag",
+              "required": false,
+              "summary": "Prefer element near x,y",
+              "token": "--near",
+              "value_type": "string"
+            },
+            {
+              "id": "match",
+              "kind": "flag",
+              "required": false,
+              "summary": "Regex match on value",
+              "token": "--match",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX traversal depth",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Timeout in ms",
+              "token": "--timeout",
+              "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the saved-ref or direct AX action without executing it; response includes no_foreground conformance/proof",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id for ref:<id> targets",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "snapshot",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "token": "--snapshot",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "target"
+                  ],
+                  [
+                    "pid",
+                    "role"
+                  ]
+                ],
+                "summary": "target source"
+              }
+            ]
+          },
+          "examples": [
+            "aos do focus ref:<snapshot-id>:r1 --workspace default --dry-run",
+            "aos do focus ref:<snapshot-id>:r1 --workspace default",
+            "aos do focus --pid 1234 --role AXTextField --dry-run",
+            "aos do focus --pid 1234 --role AXTextField"
+          ],
+          "summary": "Saved-ref focus validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "do-focus",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do focus <ref-target> [--workspace <id>] [--snapshot <id>] [--dry-run] | aos do focus --pid <pid> --role <role> [filters] [--dry-run]"
+        }
+      ],
+      "path": [
+        "do"
+      ],
+      "summary": "Action — execute mouse, keyboard, AX actions"
+    }
+  ]
+}

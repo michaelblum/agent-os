@@ -300,6 +300,11 @@ assert.deepEqual(savedRegion.capture_source, {
 const hybridSource = parseCaptureArgs(['main', '--canvas', 'surface-inspector']);
 assert.deepEqual(hybridSource.errors.map((item) => item.code), ['INVALID_ARG']);
 assert.match(hybridSource.errors[0].error, /exactly one source/);
+assert.equal(hybridSource.capture_source, null);
+const multiSource = parseCaptureArgs(['--region', '0,0,10,10', '--canvas', 'surface-inspector']);
+assert.deepEqual(multiSource.errors.map((item) => item.code), ['INVALID_ARG']);
+assert.match(multiSource.errors[0].error, /exactly one source/);
+assert.equal(multiSource.capture_source, null);
 
 const { readFileSync } = await import('node:fs');
 const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));

@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "id": "say",
+  "path_prefix": [
+    "say"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "discovery": [
+                {
+                  "command": {
+                    "form_id": "say-list-voices",
+                    "path": [
+                      "say"
+                    ]
+                  }
+                }
+              ],
+              "id": "voice",
+              "kind": "flag",
+              "required": false,
+              "summary": "Voice identifier",
+              "token": "--voice",
+              "value_type": "string"
+            },
+            {
+              "id": "voice-slot",
+              "kind": "flag",
+              "required": false,
+              "summary": "1-based speakable voice slot resolved after filters in registry order",
+              "token": "--voice-slot",
+              "value_type": "int"
+            },
+            {
+              "id": "language",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter voice-slot candidates by language",
+              "token": "--language",
+              "value_type": "string"
+            },
+            {
+              "id": "gender",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter voice-slot candidates by gender",
+              "token": "--gender",
+              "value_type": "string"
+            },
+            {
+              "id": "quality-tier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter voice-slot candidates by quality tier; repeat or use comma-separated values",
+              "token": "--quality-tier",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "rate",
+              "kind": "flag",
+              "required": false,
+              "summary": "Speech rate in WPM",
+              "token": "--rate",
+              "value_type": "int"
+            },
+            {
+              "id": "text",
+              "kind": "positional",
+              "required": false,
+              "summary": "Text to speak",
+              "value_type": "string",
+              "variadic": true
+            }
+          ],
+          "examples": [
+            "aos say \"Hello, I'm your agent\"",
+            "aos say --voice-slot 1 --language en --quality-tier premium,enhanced \"Done\"",
+            "echo 'status' | aos say"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "say-text",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "text",
+            "supported": true,
+            "used_when": "no text args provided"
+          },
+          "usage": "aos say [--voice id] [--voice-slot n] [--language value] [--gender value] [--quality-tier value] [--rate wpm] <text>"
+        },
+        {
+          "args": [
+            {
+              "id": "list-voices",
+              "kind": "flag",
+              "required": true,
+              "summary": "List available system voices",
+              "token": "--list-voices",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos say --list-voices"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "say-list-voices",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos say --list-voices"
+        }
+      ],
+      "path": [
+        "say"
+      ],
+      "summary": "Voice — direct TTS convenience aligned with tell human"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "listen",
+  "commands": [
+    {
+      "path": [
+        "listen"
+      ],
+      "summary": "Read daemon-routed coordination messages through the external listen command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-tell-listen.mjs",
+        "listen"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

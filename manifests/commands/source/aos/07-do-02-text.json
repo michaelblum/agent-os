@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "id": "do-02-text",
+  "path_prefix": [
+    "do"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "text",
+              "kind": "positional",
+              "required": true,
+              "summary": "Text to type",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "delay",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inter-key delay in ms",
+              "token": "--delay",
+              "value_type": "int"
+            },
+            {
+              "id": "variance",
+              "kind": "flag",
+              "required": false,
+              "summary": "Delay variance for natural cadence",
+              "token": "--variance",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos do type \"hello world\""
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-type",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do type <text> [--delay ms] [--variance N]"
+        },
+        {
+          "args": [
+            {
+              "id": "combo",
+              "kind": "positional",
+              "required": true,
+              "summary": "Key combination (e.g. cmd+s, ctrl+shift+tab)",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos do key \"cmd+s\"",
+            "aos do key \"ctrl+shift+tab\""
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-key",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do key <combo>"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Saved ref or browser target (ref:<snapshot-id>:<ref> or browser:<session>/<ref>)",
+              "value_type": "string"
+            },
+            {
+              "id": "text",
+              "kind": "positional",
+              "required": true,
+              "summary": "Text to fill into the element",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe a saved-ref fill without executing it",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id for ref:<id> targets",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "snapshot",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for ambiguous bare ref:<id> targets",
+              "token": "--snapshot",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
+            "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
+            "aos do fill browser:todo/e21 \"buy groceries\""
+          ],
+          "summary": "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "do-fill",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Browser target (browser:<session>)",
+              "value_type": "string"
+            },
+            {
+              "id": "url",
+              "kind": "positional",
+              "required": true,
+              "summary": "URL to navigate to",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos do navigate browser:todo https://example.com"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "do-navigate",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos do navigate <browser:<s>> <url>"
+        }
+      ],
+      "path": [
+        "do"
+      ],
+      "summary": "Action — execute mouse, keyboard, AX actions"
+    }
+  ]
+}

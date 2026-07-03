@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "id": "tell",
+  "path_prefix": [
+    "tell"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "discovery": [
+                {
+                  "static": [
+                    "human"
+                  ]
+                },
+                {
+                  "command": {
+                    "form_id": "listen-channels",
+                    "path": [
+                      "listen"
+                    ]
+                  }
+                },
+                {
+                  "command": {
+                    "form_id": "tell-who",
+                    "path": [
+                      "tell"
+                    ]
+                  }
+                }
+              ],
+              "id": "audience",
+              "kind": "positional",
+              "required": false,
+              "summary": "Target: human, channel name, or canonical session id",
+              "value_type": "string"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Directly target a canonical session id",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Structured JSON payload",
+              "token": "--json",
+              "value_type": "json"
+            },
+            {
+              "id": "from",
+              "kind": "flag",
+              "required": false,
+              "summary": "Sender name",
+              "token": "--from",
+              "value_type": "string"
+            },
+            {
+              "id": "from-session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Canonical sending session id for human delivery or channel metadata",
+              "token": "--from-session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "purpose",
+              "kind": "flag",
+              "required": false,
+              "summary": "Delivery purpose (for example: final_response)",
+              "token": "--purpose",
+              "value_type": "string"
+            },
+            {
+              "id": "text",
+              "kind": "positional",
+              "required": false,
+              "summary": "Message text",
+              "value_type": "string",
+              "variadic": true
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "audience"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary": "tell target"
+              }
+            ],
+            "one_of": [
+              [
+                "text",
+                "stdin",
+                "json"
+              ]
+            ]
+          },
+          "examples": [
+            "aos tell human \"Found the bug\"",
+            "printf '%s' \"$FINAL\" | aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response",
+            "aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c \"status update\"",
+            "aos tell handoff \"task complete\" --from my-session",
+            "echo 'update' | aos tell handoff"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "tell-message",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "text",
+            "supported": true,
+            "used_when": "no text and no --json"
+          },
+          "usage": "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text> | stdin]"
+        },
+        {
+          "args": [
+            {
+              "id": "register",
+              "kind": "flag",
+              "required": true,
+              "summary": "Register session presence",
+              "token": "--register",
+              "value_type": "bool"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Canonical session id (preferred)",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "name",
+              "kind": "flag",
+              "required": false,
+              "summary": "Human-readable display name",
+              "token": "--name",
+              "value_type": "string"
+            },
+            {
+              "default_value": "worker",
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "Session role",
+              "token": "--role",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Default worker session",
+                    "value": "worker"
+                  },
+                  {
+                    "summary": "Orchestrating session",
+                    "value": "coordinator"
+                  },
+                  {
+                    "summary": "Read-only monitoring session",
+                    "value": "observer"
+                  }
+                ]
+              }
+            },
+            {
+              "default_value": "unknown",
+              "id": "harness",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent harness identifier",
+              "token": "--harness",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name canvas-runtime",
+            "aos tell --register builder --role worker --harness claude-code"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "tell-register",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos tell --register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]"
+        },
+        {
+          "args": [
+            {
+              "id": "unregister",
+              "kind": "flag",
+              "required": true,
+              "summary": "Remove session presence",
+              "token": "--unregister",
+              "value_type": "bool"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Canonical session id (preferred)",
+              "token": "--session-id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos tell --unregister --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
+            "aos tell --unregister my-session"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "tell-unregister",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos tell --unregister [<legacy-name>] [--session-id <id>]"
+        },
+        {
+          "args": [
+            {
+              "id": "who",
+              "kind": "flag",
+              "required": true,
+              "summary": "List online sessions",
+              "token": "--who",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos tell --who"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "tell-who",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos tell --who"
+        }
+      ],
+      "path": [
+        "tell"
+      ],
+      "summary": "Communication — send to human, channel, or session"
+    }
+  ]
+}

@@ -14,14 +14,40 @@ Public command behavior, help metadata, argument shape, workflow policy,
 recovery policy, next actions, and presentation text belong outside the Swift
 binary:
 
-- `manifests/commands/aos-commands.json` is the discoverable external help
-  manifest and command metadata source of truth;
-- `manifests/commands/aos-external-commands.json` maps public command paths to
-  external implementations;
+- `manifests/commands/source/aos/*.json` are the authoring source for
+  discoverable help metadata and command forms;
+- `manifests/commands/source/external/*.json` are the authoring source for
+  external command route metadata;
+- `manifests/commands/aos-commands.json` is the generated discoverable external
+  help manifest and command metadata compatibility artifact;
+- `manifests/commands/aos-external-commands.json` is the generated compatibility
+  artifact that maps public command paths to external implementations;
 - `scripts/aos-*.mjs`, Python helpers, shell wrappers, packages, and recipes
   contain command implementation logic and public workflow composition;
 - `docs/dev/workflow-rules.json` tells agents which checks to run after command
   metadata, external-route manifest, implementation, schema, or test changes.
+
+Registry source file `id` values name an authoring slice, not necessarily a
+public command family. Each registry source file declares a `path_prefix`, and
+every command fragment in that file must stay under that prefix. Multiple
+source files may contribute forms to the same public command path when their
+non-form metadata matches; the generator merges those fragments in source-file
+order. Split large command families by real subdomain instead of growing a
+single top-level family file.
+
+Edit command source files first, then run:
+
+```bash
+node scripts/generate-command-manifests.mjs
+```
+
+The generator validates source shape, registry prefix ownership, mergeable
+command fragments, duplicate form IDs, external route shape, duplicate route
+predicates, representative route overlap, and registry-to-route coverage before
+writing the two generated artifacts. Keep the generated top-level files checked
+in because runtime dispatch and help still load those stable paths, and because
+`AOS_COMMAND_REGISTRY` /
+`AOS_EXTERNAL_COMMAND_MANIFEST` override those artifact paths directly.
 
 Registry metadata must distinguish direct maintainability from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by
@@ -117,6 +143,8 @@ For command surface changes, run the workflow recommendation first:
 The usual hot-swappable command-surface checks are:
 
 ```bash
+node scripts/generate-command-manifests.mjs --check
+bash tests/command-manifest-generation.sh
 node --test tests/schemas/aos-external-command-manifest-v0.test.mjs
 bash tests/external-command-dispatch.sh
 bash tests/help-contract.sh

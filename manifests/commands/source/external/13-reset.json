@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "reset",
+  "commands": [
+    {
+      "path": [
+        "reset"
+      ],
+      "summary": "Run deterministic runtime cleanup through the external reset command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-reset.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    }
+  ]
+}

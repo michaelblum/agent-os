@@ -99,25 +99,37 @@ function setOrAppendFlag(args, flag, value) {
   return out;
 }
 
-function captureSourceModel(targetArgv, sourceFlagArgv) {
-  const argv = [
-    ...(targetArgv ?? []),
-    ...sourceFlagArgv,
-  ];
-  const normalizedArgv = argv.length > 0 ? argv : ['main'];
-  let kind = 'default_target';
-  if (sourceFlagArgv.length > 0) kind = 'source_flags';
-  else if (targetArgv?.length > 0) kind = 'target';
+function renderCaptureSource(source) {
+  if (!source) return null;
+  const normalizedArgv = source.argv.length > 0 ? source.argv : ['main'];
   return {
-    kind,
+    kind: source.kind,
     argv: normalizedArgv,
     display: normalizedArgv.map(commandToken).join(' '),
   };
 }
 
+function parseCaptureSource(targetArgv, sourceFlagEntries, errors) {
+  let invalid = false;
+  if (targetArgv && sourceFlagEntries.length > 0) {
+    validationError(errors, 'capture accepts exactly one source: positional target or --region/--canvas/--channel', 'INVALID_ARG');
+    invalid = true;
+  }
+  if (sourceFlagEntries.length > 1) {
+    validationError(errors, 'capture accepts exactly one source: --region, --canvas, and --channel cannot be combined', 'INVALID_ARG');
+    invalid = true;
+  }
+  if (invalid) return null;
+  if (sourceFlagEntries.length === 1) {
+    return { kind: 'source_flags', argv: sourceFlagEntries[0].argv };
+  }
+  if (targetArgv) return { kind: 'target', argv: targetArgv };
+  return { kind: 'default_target', argv: ['main'] };
+}
+
 export function parseCaptureArgs(args) {
   const passthrough = [];
-  const sourceFlagArgv = [];
+  const sourceFlagEntries = [];
   const seen = new Set();
   const errors = [];
   let target = null;
@@ -178,7 +190,9 @@ export function parseCaptureArgs(args) {
         values.push(value);
         i += 1;
       }
-      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg) && values.length === arity) sourceFlagArgv.push(arg, ...values);
+      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg) && values.length === arity) {
+        sourceFlagEntries.push({ flag: arg, argv: [arg, ...values] });
+      }
       continue;
     }
     if (arg.startsWith('--')) {
@@ -201,9 +215,7 @@ export function parseCaptureArgs(args) {
   if (options.save && seen.has('--out')) {
     validationError(errors, '--out cannot be used with --save; saved captures write artifacts under the workspace snapshot');
   }
-  if (targetArgv && sourceFlagArgv.length > 0) {
-    validationError(errors, 'capture accepts exactly one source: positional target or --region/--canvas/--channel', 'INVALID_ARG');
-  }
+  const captureSource = parseCaptureSource(targetArgv, sourceFlagEntries, errors);
   if (!options.save) {
     for (const flag of ['--workspace', '--name', '--mode', '--query']) {
       if (seen.has(flag)) validationError(errors, `${flag} requires --save`);
@@ -213,7 +225,7 @@ export function parseCaptureArgs(args) {
   if (options.name) validateLocalID(options.name, 'snapshot id');
   return {
     target: target ?? 'main',
-    capture_source: captureSourceModel(targetArgv, sourceFlagArgv),
+    capture_source: renderCaptureSource(captureSource),
     passthrough,
     options,
     requested_out: options.requested_out,

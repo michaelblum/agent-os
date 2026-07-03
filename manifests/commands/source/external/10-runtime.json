@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "id": "runtime",
+  "commands": [
+    {
+      "path": [
+        "runtime"
+      ],
+      "summary": "Validate runtime subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "runtime",
+        "MISSING_SUBCOMMAND",
+        "runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "runtime subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "runtime",
+        "install"
+      ],
+      "summary": "Package and install the stable AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/aos-runtime-install"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "runtime",
+        "status"
+      ],
+      "summary": "Inspect the installed AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/aos-runtime-status"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "runtime",
+        "path"
+      ],
+      "summary": "Print the installed AOS.app runtime path from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/aos-runtime-path"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "runtime",
+        "sign"
+      ],
+      "summary": "Sign the packaged AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/sign-aos-runtime"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "runtime",
+        "display-union"
+      ],
+      "summary": "Print the active display union from an external runtime script.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/aos-runtime-display-union"
+      ],
+      "cwd": "repo"
+    }
+  ]
+}

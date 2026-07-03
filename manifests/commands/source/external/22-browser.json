@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "id": "browser",
+  "commands": [
+    {
+      "path": [
+        "browser"
+      ],
+      "summary": "Validate hidden browser command routing through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_parse-target"
+      ],
+      "summary": "Parse browser targets through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_parse-target"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_registry"
+      ],
+      "summary": "Manage browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_registry"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_registry",
+        "list"
+      ],
+      "summary": "List browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_registry",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_registry",
+        "add"
+      ],
+      "summary": "Add browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_registry",
+        "add"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_registry",
+        "remove"
+      ],
+      "summary": "Remove browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_registry",
+        "remove"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_registry",
+        "find"
+      ],
+      "summary": "Find browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_registry",
+        "find"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "browser",
+        "_run"
+      ],
+      "summary": "Run Playwright CLI through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_run"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "browser",
+        "_check-version"
+      ],
+      "summary": "Check Playwright CLI version through the external browser helper.",
+      "executable": "/bin/bash",
+      "argv_prefix": [
+        "scripts/aos-browser-check-version"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "browser",
+        "_parse-snapshot"
+      ],
+      "summary": "Parse Playwright snapshot markdown through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_parse-snapshot"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "browser",
+        "_resolve-anchor"
+      ],
+      "summary": "Resolve browser anchors through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-browser-internal.mjs",
+        "_resolve-anchor"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

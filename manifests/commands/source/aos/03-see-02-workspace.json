@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "id": "see-02-workspace",
+  "path_prefix": [
+    "see"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see snapshots --workspace default --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-snapshots",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "List compact saved snapshots for an agent workspace without opening heavy capture payloads",
+          "usage": "aos see snapshots [--workspace <id>] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "snapshot",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id; defaults to current snapshot",
+              "token": "--snapshot",
+              "value_type": "string"
+            },
+            {
+              "id": "query",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter compact refs by text",
+              "token": "--query",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see refs --workspace default --snapshot snap-20260701-120000Z-demo --json",
+            "aos see refs --workspace default --query Save"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-refs",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "Inspect compact saved refs by workspace, snapshot, or query before acting on ref targets",
+          "usage": "aos see refs [--workspace <id>] [--snapshot <id>] [--query <text>] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see workspaces --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-workspaces",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "List local agent workspaces and their current saved snapshots",
+          "usage": "aos see workspaces [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "positional",
+              "required": true,
+              "summary": "Agent workspace id",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see workspace default --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-workspace",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "Inspect one local agent workspace and its compact snapshot index",
+          "usage": "aos see workspace <id> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "positional",
+              "required": true,
+              "summary": "Agent workspace id",
+              "value_type": "string"
+            },
+            {
+              "id": "older-than",
+              "kind": "flag",
+              "required": true,
+              "summary": "Duration threshold such as 7d, 12h, 30m, or 60s",
+              "token": "--older-than",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Preview cleanup without deleting files",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "ack",
+              "kind": "flag",
+              "required": false,
+              "summary": "Acknowledge deletion of local artifacts",
+              "token": "--i-understand-local-artifacts",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see workspace prune default --older-than 7d --dry-run --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "see-workspace-prune",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "Prune local saved workspace snapshots by age, with dry-run preview and explicit artifact acknowledgement",
+          "usage": "aos see workspace prune <id> --older-than <duration> [--dry-run] [--i-understand-local-artifacts] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "positional",
+              "required": true,
+              "summary": "Agent workspace id",
+              "value_type": "string"
+            },
+            {
+              "id": "ack",
+              "kind": "flag",
+              "required": true,
+              "summary": "Acknowledge deletion of local artifacts",
+              "token": "--i-understand-local-artifacts",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see workspace delete default --i-understand-local-artifacts --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-workspace-delete",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "Delete one local agent workspace after explicit local-artifact acknowledgement",
+          "usage": "aos see workspace delete <id> --i-understand-local-artifacts [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "positional",
+              "required": true,
+              "summary": "Snapshot id",
+              "value_type": "string"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "ack",
+              "kind": "flag",
+              "required": true,
+              "summary": "Acknowledge deletion of local artifacts",
+              "token": "--i-understand-local-artifacts",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see snapshot delete snap-20260701-120000Z-demo --workspace default --i-understand-local-artifacts --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-snapshot-delete",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "summary": "Delete one saved snapshot from a local agent workspace after explicit local-artifact acknowledgement",
+          "usage": "aos see snapshot delete <snapshot-id> [--workspace <id>] --i-understand-local-artifacts [--json]"
+        }
+      ],
+      "path": [
+        "see"
+      ],
+      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
+    }
+  ]
+}

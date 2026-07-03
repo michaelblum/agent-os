@@ -8,7 +8,7 @@
 .mcp.json
 
 # Build artifacts
-aos
+/aos
 .build/
 dist/
 packages/hand-off/hand-off

@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "id": "service",
+  "path_prefix": [
+    "service"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos service install",
+            "aos service install --mode repo --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-install",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos service install [--mode repo|installed] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos service start"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-start",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos service start [--mode repo|installed] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos service stop"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-stop",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos service stop [--mode repo|installed] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos service restart"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-restart",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos service restart [--mode repo|installed] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos service status --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-status",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos service status [--mode repo|installed] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Development repo mode",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app mode",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "tail",
+              "kind": "flag",
+              "required": false,
+              "summary": "Number of lines to show",
+              "token": "--tail",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos service logs --tail 50"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "service-logs",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos service logs [--mode repo|installed] [--tail N]"
+        }
+      ],
+      "path": [
+        "service"
+      ],
+      "summary": "Manage the daemon as a launchd service"
+    }
+  ]
+}

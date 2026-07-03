@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "id": "gate",
+  "commands": [
+    {
+      "path": [
+        "gate"
+      ],
+      "summary": "Validate gate subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-family-router.mjs",
+        "gate",
+        "UNKNOWN_SUBCOMMAND",
+        "gate subcommand"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": [
+        "gate",
+        "ask"
+      ],
+      "summary": "Run the gate ask verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "packages/cli/verbs/gate-ask.js"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "gate",
+        "defer"
+      ],
+      "summary": "Run the gate defer verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "packages/cli/verbs/gate-defer.js"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "gate",
+        "submit"
+      ],
+      "summary": "Run the gate submit verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "packages/cli/verbs/gate-submit.js"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "gate",
+        "continuations"
+      ],
+      "summary": "Run the gate continuations verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "packages/cli/verbs/gate-continuations.js"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "gate",
+        "records"
+      ],
+      "summary": "Run the gate records verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "packages/cli/verbs/gate-records.js"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    }
+  ]
+}

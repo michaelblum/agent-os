@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "serve",
+  "path_prefix": [
+    "serve"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "default_value": "5m",
+              "id": "idle-timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Idle timeout (e.g. 5m, none)",
+              "token": "--idle-timeout",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos serve",
+            "aos serve --idle-timeout none"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "serve",
+          "output": {
+            "default_mode": "none",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos serve [--idle-timeout duration]"
+        }
+      ],
+      "path": [
+        "serve"
+      ],
+      "summary": "Start the unified daemon"
+    }
+  ]
+}

@@ -1,0 +1,659 @@
+{
+  "schema_version": 1,
+  "id": "see-01-capture",
+  "path_prefix": [
+    "see"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [],
+          "examples": [
+            "aos see cursor"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-cursor",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see cursor"
+        },
+        {
+          "args": [
+            {
+              "default_value": "main",
+              "discovery": [
+                {
+                  "static": [
+                    "main",
+                    "external",
+                    "user_active",
+                    "selfie",
+                    "mouse",
+                    "all"
+                  ]
+                },
+                {
+                  "command": {
+                    "form_id": "zone-list",
+                    "path": [
+                      "see",
+                      "zone"
+                    ]
+                  }
+                }
+              ],
+              "id": "target",
+              "kind": "positional",
+              "required": false,
+              "summary": "Capture target; defaults to main when omitted",
+              "value_type": "string"
+            },
+            {
+              "default_value": "./screenshot.png",
+              "id": "out",
+              "kind": "flag",
+              "required": false,
+              "summary": "Output file path",
+              "token": "--out",
+              "value_type": "string"
+            },
+            {
+              "id": "base64",
+              "kind": "flag",
+              "required": false,
+              "summary": "Output base64 instead of file",
+              "token": "--base64",
+              "value_type": "bool"
+            },
+            {
+              "default_value": "png",
+              "id": "format",
+              "kind": "flag",
+              "required": false,
+              "summary": "Image format",
+              "token": "--format",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Lossless PNG (default)",
+                    "value": "png"
+                  },
+                  {
+                    "summary": "Lossy JPEG (.jpg)",
+                    "value": "jpg"
+                  },
+                  {
+                    "summary": "JPEG alias; output path uses .jpg",
+                    "value": "jpeg"
+                  },
+                  {
+                    "summary": "HEIC format",
+                    "value": "heic"
+                  }
+                ]
+              }
+            },
+            {
+              "default_value": "high",
+              "id": "quality",
+              "kind": "flag",
+              "required": false,
+              "summary": "Image quality",
+              "token": "--quality",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Full resolution (default)",
+                    "value": "high"
+                  },
+                  {
+                    "summary": "Medium resolution",
+                    "value": "med"
+                  },
+                  {
+                    "summary": "Low resolution",
+                    "value": "low"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Capture window only",
+              "token": "--window",
+              "value_type": "bool"
+            },
+            {
+              "id": "crop",
+              "kind": "flag",
+              "required": false,
+              "summary": "Crop spec: x,y,w,h or named region (top-half, etc.)",
+              "token": "--crop",
+              "value_type": "string"
+            },
+            {
+              "id": "region",
+              "kind": "flag",
+              "required": false,
+              "summary": "Global CG region in points: x,y,w,h",
+              "token": "--region",
+              "value_type": "string"
+            },
+            {
+              "id": "canvas",
+              "kind": "flag",
+              "required": false,
+              "summary": "Capture a canvas by id",
+              "token": "--canvas",
+              "value_type": "string"
+            },
+            {
+              "id": "channel",
+              "kind": "flag",
+              "required": false,
+              "summary": "Capture a focus channel by id",
+              "token": "--channel",
+              "value_type": "string"
+            },
+            {
+              "id": "grid",
+              "kind": "flag",
+              "required": false,
+              "summary": "Grid overlay (e.g. 4x3)",
+              "token": "--grid",
+              "value_type": "string"
+            },
+            {
+              "id": "xray",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX element traversal overlay",
+              "token": "--xray",
+              "value_type": "bool"
+            },
+            {
+              "id": "browser-dom-point",
+              "kind": "flag",
+              "required": false,
+              "summary": "Browser DOM viewport point hit test for browser:<session> targets: x,y",
+              "token": "--browser-dom-point",
+              "value_type": "string"
+            },
+            {
+              "id": "browser-content-rect",
+              "kind": "flag",
+              "required": false,
+              "summary": "Proven browser content rect in DesktopWorld coordinates: x,y,w,h",
+              "token": "--browser-content-rect",
+              "value_type": "string"
+            },
+            {
+              "id": "label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Badge annotations (implies --xray)",
+              "token": "--label",
+              "value_type": "bool"
+            },
+            {
+              "id": "perception",
+              "kind": "flag",
+              "required": false,
+              "summary": "Include topology + resolved surface geometry for the capture (segments when spanning displays)",
+              "token": "--perception",
+              "value_type": "bool"
+            },
+            {
+              "id": "show-cursor",
+              "kind": "flag",
+              "required": false,
+              "summary": "Include cursor in capture",
+              "token": "--show-cursor",
+              "value_type": "bool"
+            },
+            {
+              "id": "highlight-cursor",
+              "kind": "flag",
+              "required": false,
+              "summary": "Highlight cursor position",
+              "token": "--highlight-cursor",
+              "value_type": "bool"
+            },
+            {
+              "id": "radius",
+              "kind": "flag",
+              "required": false,
+              "summary": "Radius for mouse target capture",
+              "token": "--radius",
+              "value_type": "int"
+            },
+            {
+              "id": "delay",
+              "kind": "flag",
+              "required": false,
+              "summary": "Delay before capture in seconds",
+              "token": "--delay",
+              "value_type": "float"
+            },
+            {
+              "id": "clipboard",
+              "kind": "flag",
+              "required": false,
+              "summary": "Also copy to clipboard",
+              "token": "--clipboard",
+              "value_type": "bool"
+            },
+            {
+              "id": "draw-rect",
+              "kind": "flag",
+              "required": false,
+              "summary": "Draw rectangle overlay: x,y,w,h color",
+              "token": "--draw-rect",
+              "value_type": "string"
+            },
+            {
+              "id": "interactive",
+              "kind": "flag",
+              "required": false,
+              "summary": "Native selection rectangle",
+              "token": "--interactive",
+              "value_type": "bool"
+            },
+            {
+              "id": "wait-for-click",
+              "kind": "flag",
+              "required": false,
+              "summary": "Wait for click then capture",
+              "token": "--wait-for-click",
+              "value_type": "bool"
+            },
+            {
+              "id": "save",
+              "kind": "flag",
+              "required": false,
+              "summary": "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag mutation, and stable native AX press/focus/set-value when producer verdict is actionable",
+              "token": "--save",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id; overrides AOS_AGENT_WORKSPACE",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "name",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for a saved capture",
+              "token": "--name",
+              "value_type": "string"
+            },
+            {
+              "default_value": "som",
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Saved capture mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Accessibility or target tree first",
+                    "value": "ax"
+                  },
+                  {
+                    "summary": "Image artifact first",
+                    "value": "vision"
+                  },
+                  {
+                    "summary": "Set-of-mark style tree plus image pointers",
+                    "value": "som"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "query",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
+              "token": "--query",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "base64",
+                "out"
+              ],
+              [
+                "save",
+                "out"
+              ],
+              [
+                "crop",
+                "region"
+              ],
+              [
+                "window",
+                "region"
+              ],
+              [
+                "window",
+                "canvas"
+              ],
+              [
+                "window",
+                "channel"
+              ],
+              [
+                "target",
+                "region",
+                "canvas",
+                "channel"
+              ],
+              [
+                "region",
+                "canvas",
+                "channel"
+              ]
+            ],
+            "implies": {
+              "label": [
+                "xray"
+              ]
+            }
+          },
+          "examples": [
+            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see snapshots --workspace default",
+            "aos see refs --workspace default",
+            "aos see capture main --out /tmp/screen.png",
+            "aos see main --base64 --format jpg",
+            "aos see capture user_active --window --xray",
+            "aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png",
+            "aos see capture --channel slack-msgs --perception --out /tmp/messages.png",
+            "aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png",
+            "aos see mouse --radius 200"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "mutates_when_flags": [
+              "--save"
+            ],
+            "read_only": true,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-capture",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see capture [<target>] [options]"
+        },
+        {
+          "args": [
+            {
+              "default_value": "main",
+              "id": "target",
+              "kind": "positional",
+              "required": false,
+              "summary": "Capture target to persist into an agent workspace; defaults to main when omitted",
+              "value_type": "string"
+            },
+            {
+              "id": "region",
+              "kind": "flag",
+              "required": false,
+              "summary": "Global CG region in points: x,y,w,h",
+              "token": "--region",
+              "value_type": "string"
+            },
+            {
+              "id": "canvas",
+              "kind": "flag",
+              "required": false,
+              "summary": "Capture a canvas by id",
+              "token": "--canvas",
+              "value_type": "string"
+            },
+            {
+              "id": "channel",
+              "kind": "flag",
+              "required": false,
+              "summary": "Capture a focus channel by id",
+              "token": "--channel",
+              "value_type": "string"
+            },
+            {
+              "id": "save",
+              "kind": "flag",
+              "required": true,
+              "summary": "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof for the documented saved-ref action matrix",
+              "token": "--save",
+              "value_type": "bool"
+            },
+            {
+              "id": "workspace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent workspace id; overrides AOS_AGENT_WORKSPACE",
+              "token": "--workspace",
+              "value_type": "string"
+            },
+            {
+              "id": "name",
+              "kind": "flag",
+              "required": false,
+              "summary": "Snapshot id for a saved capture",
+              "token": "--name",
+              "value_type": "string"
+            },
+            {
+              "default_value": "som",
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Saved capture mode",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Accessibility or target tree first",
+                    "value": "ax"
+                  },
+                  {
+                    "summary": "Image artifact first",
+                    "value": "vision"
+                  },
+                  {
+                    "summary": "Set-of-mark style tree plus image pointers",
+                    "value": "som"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "query",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter compact saved refs by text; saved-ref mutation is limited to the documented backend action matrix",
+              "token": "--query",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "target",
+                "region",
+                "canvas",
+                "channel"
+              ],
+              [
+                "region",
+                "canvas",
+                "channel"
+              ]
+            ]
+          },
+          "examples": [
+            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture --canvas surface-inspector --save --mode som --workspace default",
+            "aos see snapshots --workspace default",
+            "aos see refs --workspace default --query Save"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-capture-save",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "summary": "Persist perception into a local agent workspace and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
+          "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+        },
+        {
+          "args": [
+            {
+              "default_value": 1,
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX traversal depth 0-3",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "rate",
+              "kind": "flag",
+              "required": false,
+              "summary": "Stream rate",
+              "token": "--rate",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Continuous updates",
+                    "value": "continuous"
+                  },
+                  {
+                    "summary": "Only on change",
+                    "value": "on-change"
+                  },
+                  {
+                    "summary": "After cursor settles",
+                    "value": "on-settle"
+                  }
+                ]
+              }
+            }
+          ],
+          "examples": [
+            "aos see observe --depth 2"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": true,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "see-observe",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "usage": "aos see observe [--depth N] [--rate mode]"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos see list"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see list"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos see selection"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": true,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "see-selection",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see selection"
+        }
+      ],
+      "path": [
+        "see"
+      ],
+      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
+    }
+  ]
+}

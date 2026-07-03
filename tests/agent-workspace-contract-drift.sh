@@ -539,6 +539,11 @@ assert.deepEqual(parsedCanvasSave.capture_source, {
 const parsedHybridSource = parseCaptureArgs(['main', '--canvas', 'surface-inspector']);
 assert.equal(parsedHybridSource.errors[0]?.code, 'INVALID_ARG', 'capture parser must reject target plus source-flag hybrids');
 assert.match(parsedHybridSource.errors[0]?.error ?? '', /exactly one source/, 'capture parser must explain source alternatives');
+assert.equal(parsedHybridSource.capture_source, null, 'invalid target/source hybrids must not synthesize durable capture_source');
+const parsedMultipleSources = parseCaptureArgs(['--region', '0,0,10,10', '--canvas', 'surface-inspector']);
+assert.equal(parsedMultipleSources.errors[0]?.code, 'INVALID_ARG', 'capture parser must reject multiple source-flag forms');
+assert.match(parsedMultipleSources.errors[0]?.error ?? '', /exactly one source/, 'capture parser must explain source-flag exclusivity');
+assert.equal(parsedMultipleSources.capture_source, null, 'invalid multiple-source forms must not synthesize combined capture_source');
 assert.equal(
   recommendedRefreshCommand('default', {
     capture_target: 'main',

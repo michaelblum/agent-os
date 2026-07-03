@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "id": "config",
+  "path_prefix": [
+    "config"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [],
+          "examples": [
+            "aos config"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "config-dump",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos config"
+        },
+        {
+          "args": [
+            {
+              "id": "key",
+              "kind": "positional",
+              "required": true,
+              "summary": "Config key (for example: voice.enabled, content.port, see.canvas_inspector_bundle.output.mode)",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit JSON for the value",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos config get voice.enabled",
+            "aos config get content.port --json",
+            "aos config get see.canvas_inspector_bundle --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "config-get",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos config get <key> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "key",
+              "kind": "positional",
+              "required": true,
+              "summary": "Config key (for example: voice.enabled, perception.default_depth, see.canvas_inspector_bundle.output.mode)",
+              "value_type": "string"
+            },
+            {
+              "id": "value",
+              "kind": "positional",
+              "required": true,
+              "summary": "New value",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos config set voice.enabled true",
+            "aos config set perception.default_depth 2",
+            "aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x",
+            "aos config set see.canvas_inspector_bundle.output.mode clipboard_payload"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "config-set",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos config set <key> <value>"
+        }
+      ],
+      "path": [
+        "config"
+      ],
+      "summary": "Configuration — inspect and mutate runtime config"
+    }
+  ]
+}

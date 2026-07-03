@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "inspect",
+  "path_prefix": [
+    "inspect"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "at",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inspector position as x,y,w,h",
+              "token": "--at",
+              "value_type": "string"
+            },
+            {
+              "id": "size",
+              "kind": "flag",
+              "required": false,
+              "summary": "Inspector size as w,h",
+              "token": "--size",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos inspect",
+            "aos inspect --at 0,0,400,300"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": true,
+            "mutates_state": false,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "inspect",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "usage": "aos inspect [--at x,y,w,h] [--size w,h]"
+        }
+      ],
+      "path": [
+        "inspect"
+      ],
+      "summary": "Live AX element inspector overlay"
+    }
+  ]
+}

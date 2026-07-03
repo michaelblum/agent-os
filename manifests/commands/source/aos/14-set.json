@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "id": "set",
+  "path_prefix": [
+    "set"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "key",
+              "kind": "positional",
+              "required": true,
+              "summary": "Config key (e.g. voice.enabled, perception.default_depth, see.canvas_inspector_bundle.output.mode)",
+              "value_type": "string"
+            },
+            {
+              "id": "value",
+              "kind": "positional",
+              "required": true,
+              "summary": "New value",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos set voice.enabled true",
+            "aos set perception.default_depth 2",
+            "aos set see.canvas_inspector_bundle.include.xray true",
+            "aos set see.canvas_inspector_bundle.output.mode bundle_path"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "set-value",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos set <key> <value>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos set"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "set-dump",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos set"
+        }
+      ],
+      "path": [
+        "set"
+      ],
+      "summary": "Configure autonomic settings"
+    }
+  ]
+}

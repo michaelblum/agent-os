@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "clean",
+  "path_prefix": [
+    "clean"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Show what would be cleaned without doing it",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos clean",
+            "aos clean --dry-run --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true
+          },
+          "id": "clean",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos clean [--dry-run] [--json]"
+        }
+      ],
+      "path": [
+        "clean"
+      ],
+      "summary": "Explicit stale-resource cleanup (stale daemons, orphaned canvases)"
+    }
+  ]
+}

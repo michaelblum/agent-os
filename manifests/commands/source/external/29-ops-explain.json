@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "ops-explain",
+  "commands": [
+    {
+      "path": [
+        "ops",
+        "explain"
+      ],
+      "summary": "Compatibility route for explaining source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-ops.mjs",
+        "explain"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    }
+  ]
+}

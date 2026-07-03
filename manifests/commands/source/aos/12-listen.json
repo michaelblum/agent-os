@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "id": "listen",
+  "path_prefix": [
+    "listen"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "discovery": [
+                {
+                  "command": {
+                    "form_id": "listen-channels",
+                    "path": [
+                      "listen"
+                    ]
+                  }
+                }
+              ],
+              "id": "channel",
+              "kind": "positional",
+              "required": false,
+              "summary": "Channel to read from",
+              "value_type": "string"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Read direct messages for a canonical session id",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "since",
+              "kind": "flag",
+              "required": false,
+              "summary": "Read messages after this ID",
+              "token": "--since",
+              "value_type": "string"
+            },
+            {
+              "default_value": 50,
+              "id": "limit",
+              "kind": "flag",
+              "required": false,
+              "summary": "Max messages to return",
+              "token": "--limit",
+              "value_type": "int"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "channel"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary": "listen source"
+              }
+            ]
+          },
+          "examples": [
+            "aos listen handoff",
+            "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
+            "aos listen handoff --limit 10"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "listen-read",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos listen <channel>|--session-id <id> [--since id] [--limit N]"
+        },
+        {
+          "args": [
+            {
+              "id": "channel",
+              "kind": "positional",
+              "required": false,
+              "summary": "Channel to follow",
+              "value_type": "string"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Follow direct messages for a canonical session id",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "follow",
+              "kind": "flag",
+              "required": true,
+              "summary": "Stream messages in real-time",
+              "token": "--follow",
+              "value_type": "bool"
+            },
+            {
+              "id": "since",
+              "kind": "flag",
+              "required": false,
+              "summary": "Start after this message ID",
+              "token": "--since",
+              "value_type": "string"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              {
+                "one_of": [
+                  [
+                    "channel"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary": "listen source"
+              }
+            ]
+          },
+          "examples": [
+            "aos listen handoff --follow",
+            "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "listen-follow",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "usage": "aos listen <channel>|--session-id <id> --follow [--since id]"
+        },
+        {
+          "args": [
+            {
+              "id": "channels",
+              "kind": "flag",
+              "required": true,
+              "summary": "List known channels",
+              "token": "--channels",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos listen --channels"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "listen-channels",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos listen --channels"
+        }
+      ],
+      "path": [
+        "listen"
+      ],
+      "summary": "Communication — receive from channels or direct sessions"
+    }
+  ]
+}

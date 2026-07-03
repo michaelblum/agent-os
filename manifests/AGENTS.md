@@ -9,7 +9,13 @@ developer command surfaces.
 
 ## Ownership
 
-- `commands/` owns external command routing metadata.
+- `commands/source/aos/` owns command help/registry authoring files. In those
+  files, `id` names the source slice and `path_prefix` owns the public command
+  family; split large families into multiple mergeable source slices.
+- `commands/source/external/` owns external route authoring files.
+- `commands/aos-commands.json` and `commands/aos-external-commands.json` are
+  generated compatibility artifacts consumed by help, dispatch, tests, and
+  package/runtime surfaces.
 - Schema shape belongs in `shared/schemas/`.
 - Runtime adapters live in `scripts/` or `src/` depending on the boundary.
 
@@ -17,6 +23,12 @@ developer command surfaces.
 
 - Keep manifest entries strict, discoverable, and synchronized with help output
   and tests.
+- Edit source manifests first, then run
+  `node scripts/generate-command-manifests.mjs` so the generated top-level
+  artifacts stay byte-stable.
+- Preserve the generated artifact paths; runtime/help consumers and
+  `AOS_COMMAND_REGISTRY` / `AOS_EXTERNAL_COMMAND_MANIFEST` overrides depend on
+  those files.
 - When one command form has alternative required argument sets, express them in
   `constraints.required_groups` so JSON help and rendered help can explain the
   valid choices without marking direct-form-only flags as unconditionally
@@ -31,7 +43,12 @@ developer command surfaces.
 - Use `bash tests/external-command-dispatch.sh` and
   `node --test tests/schemas/aos-external-command-manifest-v0.test.mjs` for
   command manifest changes.
+- Use `bash tests/command-manifest-generation.sh` for command source/generator
+  drift checks.
+- Use `./aos dev recommend --json --paths <changed-paths>` to confirm source
+  manifests and generator edits route to command-surface verification.
 
 ## Child DOX Index
 
-- `commands/` contains external command manifests.
+- `commands/` contains command source manifests and generated compatibility
+  manifests.

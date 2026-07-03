@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "ready",
+  "path_prefix": [
+    "ready"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable readiness response",
+              "token": "--json",
+              "value_type": "bool"
+            },
+            {
+              "id": "repair",
+              "kind": "flag",
+              "required": false,
+              "summary": "Run the longer restart/recheck repair path before reporting blockers and human instructions",
+              "token": "--repair",
+              "value_type": "bool"
+            },
+            {
+              "id": "post-permission",
+              "kind": "flag",
+              "required": false,
+              "summary": "Bounded handoff check after the human re-adds macOS permissions",
+              "token": "--post-permission",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos ready",
+            "aos ready --repair",
+            "aos ready --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "ready",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos ready [--json] [--repair] [--post-permission]"
+        }
+      ],
+      "path": [
+        "ready"
+      ],
+      "summary": "Start/check AOS, reconcile common daemon drift, and report the readiness gate"
+    }
+  ]
+}

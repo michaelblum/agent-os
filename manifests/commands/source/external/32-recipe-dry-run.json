@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "recipe-dry-run",
+  "commands": [
+    {
+      "path": [
+        "recipe",
+        "dry-run"
+      ],
+      "summary": "Dry-run source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-ops.mjs",
+        "dry-run"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    }
+  ]
+}

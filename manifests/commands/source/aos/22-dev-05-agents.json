@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "id": "dev-05-agents",
+  "path_prefix": [
+    "dev"
+  ],
+  "commands": [
+    {
+      "consumer_discovery": false,
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "self-test",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate role/profile parsing without SDK or provider calls",
+              "token": "--self-test",
+              "value_type": "bool"
+            },
+            {
+              "id": "runtime-info",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report provider runtime contract and dependency status without executing agents",
+              "token": "--runtime-info",
+              "value_type": "bool"
+            },
+            {
+              "id": "list-runs",
+              "kind": "flag",
+              "required": false,
+              "summary": "List existing runtime summaries without SDK or provider calls",
+              "token": "--list-runs",
+              "value_type": "bool"
+            },
+            {
+              "id": "read-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Read summary.json and result.json for an output directory under the runtime root",
+              "token": "--read-run",
+              "value_type": "string"
+            },
+            {
+              "id": "native-dispatch",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired native-codex import flag; fails closed for agent-os",
+              "token": "--native-dispatch",
+              "value_type": "string"
+            },
+            {
+              "id": "complete-native-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired native-codex import flag; fails closed for agent-os",
+              "token": "--complete-native-run",
+              "value_type": "string"
+            },
+            {
+              "id": "result-file",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired native-codex result flag; fails closed for agent-os",
+              "token": "--result-file",
+              "value_type": "string"
+            },
+            {
+              "id": "check-patch",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate an implementer patch-output run and run git apply --check without applying it",
+              "token": "--check-patch",
+              "value_type": "string"
+            },
+            {
+              "id": "apply-patch",
+              "kind": "flag",
+              "required": false,
+              "summary": "Apply an existing implementer patch-output run after explicit checkout-mutation approval",
+              "token": "--apply-patch",
+              "value_type": "string"
+            },
+            {
+              "id": "i-approve-checkout-mutation",
+              "kind": "flag",
+              "required": false,
+              "summary": "Required approval for --apply-patch to mutate the checkout",
+              "token": "--i-approve-checkout-mutation",
+              "value_type": "bool"
+            },
+            {
+              "default_value": "provider-sdk",
+              "id": "engine",
+              "kind": "flag",
+              "required": false,
+              "summary": "Agent engine: provider-sdk. native-codex is retired for agent-os",
+              "token": "--engine",
+              "value_type": "string"
+            },
+            {
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "Read-only role to plan, execute, or filter readback: explorer, reviewer, validator, or historian",
+              "token": "--role",
+              "value_type": "string"
+            },
+            {
+              "id": "task",
+              "kind": "flag",
+              "required": false,
+              "summary": "Task text for path planning and explicit execution",
+              "token": "--task",
+              "value_type": "string"
+            },
+            {
+              "id": "execute",
+              "kind": "flag",
+              "required": false,
+              "summary": "Execute the selected engine after validation; provider-sdk is the only local executable engine",
+              "token": "--execute",
+              "value_type": "bool"
+            },
+            {
+              "id": "patch-output",
+              "kind": "flag",
+              "required": false,
+              "summary": "Allow implementer to produce patch.diff artifacts only; provider-sdk requires --execute",
+              "token": "--patch-output",
+              "value_type": "bool"
+            },
+            {
+              "id": "context-file",
+              "kind": "flag",
+              "required": false,
+              "summary": "Repo-relative file to include as bounded source context for --patch-output",
+              "token": "--context-file",
+              "value_type": "string"
+            },
+            {
+              "default_value": 1,
+              "id": "max-turns",
+              "kind": "flag",
+              "required": false,
+              "summary": "Maximum provider turns for --execute",
+              "token": "--max-turns",
+              "value_type": "int"
+            },
+            {
+              "id": "repo",
+              "kind": "flag",
+              "required": false,
+              "summary": "Repository root path",
+              "token": "--repo",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Accepted for command-surface consistency; output is JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos dev agents --self-test --json",
+            "aos dev agents --runtime-info --json",
+            "aos dev agents --role explorer --task \"inspect the active profile\" --json",
+            "aos dev agents --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
+            "aos dev agents --engine provider-sdk --role explorer --task \"inspect the active profile\" --execute --max-turns 1 --json",
+            "aos dev agents --engine provider-sdk --role implementer --task \"produce a patch artifact\" --context-file scripts/aos_agents/README.md --patch-output --execute --max-turns 1 --json",
+            "aos dev agents --list-runs --json",
+            "aos dev agents --read-run .runtime/dev/aos-agents/runs/explorer/<run-dir> --json",
+            "aos dev agents --check-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --json",
+            "aos dev agents --apply-patch .runtime/dev/aos-agents/runs/implementer/<run-dir> --i-approve-checkout-mutation --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "dev-agents",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos dev agents [--self-test] [--runtime-info] [--list-runs] [--read-run <output-dir>] [--native-dispatch <output-dir>] [--complete-native-run <output-dir> --result-file <path>] [--check-patch <output-dir>] [--apply-patch <output-dir> --i-approve-checkout-mutation] [--engine <provider-sdk>] [--role <role>] [--task <text>] [--execute] [--patch-output] [--context-file <path>] [--max-turns n] [--repo <path>] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "action",
+              "kind": "positional",
+              "required": true,
+              "summary": "Retired subagent helper action; command fails closed for agent-os",
+              "value_type": "string"
+            },
+            {
+              "default_value": "ai-agents/providers/codex",
+              "id": "agents-root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired native agent root flag; ignored because dev subagent is retired",
+              "token": "--agents-root",
+              "value_type": "string"
+            },
+            {
+              "id": "role",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired subagent role flag; use ./aos dev agents roles instead",
+              "token": "--role",
+              "value_type": "string"
+            },
+            {
+              "id": "prompt",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired subagent prompt text flag",
+              "token": "--prompt",
+              "value_type": "string"
+            },
+            {
+              "id": "prompt-file",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired subagent prompt-file flag",
+              "token": "--prompt-file",
+              "value_type": "string"
+            },
+            {
+              "id": "transcript",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired subagent transcript flag",
+              "token": "--transcript",
+              "value_type": "string"
+            },
+            {
+              "id": "transcript-file",
+              "kind": "flag",
+              "required": false,
+              "summary": "Retired subagent transcript-file flag",
+              "token": "--transcript-file",
+              "value_type": "string"
+            },
+            {
+              "id": "repo",
+              "kind": "flag",
+              "required": false,
+              "summary": "Repository root path",
+              "token": "--repo",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit retired-command error JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos dev subagent list --json # retired; fails closed"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "dev-subagent",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos dev subagent <list|plan|validate-proof> [--json] [retired; fails closed]"
+        }
+      ],
+      "path": [
+        "dev"
+      ],
+      "summary": "Repo development workflow router and build surface"
+    }
+  ]
+}

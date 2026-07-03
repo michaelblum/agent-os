@@ -1,0 +1,698 @@
+{
+  "schema_version": 1,
+  "id": "wiki",
+  "path_prefix": [
+    "wiki"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Plugin name",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki create-plugin my-flow"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-create-plugin",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki create-plugin <name> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "type",
+              "kind": "positional",
+              "required": true,
+              "summary": "Page type",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Entity page (thing in the system)",
+                    "value": "entity"
+                  },
+                  {
+                    "summary": "Concept page (idea or pattern)",
+                    "value": "concept"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Page name",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki add entity gateway"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-add",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki add <type> <name> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "path",
+              "kind": "positional",
+              "required": true,
+              "summary": "Page path or name",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki rm gateway"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-rm",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki rm <path> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "type",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by page type",
+              "token": "--type",
+              "value_type": "string"
+            },
+            {
+              "id": "plugin",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by plugin",
+              "token": "--plugin",
+              "value_type": "string"
+            },
+            {
+              "id": "links-to",
+              "kind": "flag",
+              "required": false,
+              "summary": "Pages linking to this path",
+              "token": "--links-to",
+              "value_type": "string"
+            },
+            {
+              "id": "links-from",
+              "kind": "flag",
+              "required": false,
+              "summary": "Pages linked from this path",
+              "token": "--links-from",
+              "value_type": "string"
+            },
+            {
+              "id": "orphans",
+              "kind": "flag",
+              "required": false,
+              "summary": "Show orphaned pages",
+              "token": "--orphans",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki list",
+            "aos wiki list --type workflow --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-list",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki list [--type type] [--plugin name] [--links-to path] [--links-from path] [--orphans] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "query",
+              "kind": "positional",
+              "required": true,
+              "summary": "Search query",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "type",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by page type",
+              "token": "--type",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki search \"IPC protocol\""
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-search",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki search <query> [--type type] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Page path or name",
+              "value_type": "string"
+            },
+            {
+              "id": "raw",
+              "kind": "flag",
+              "required": false,
+              "summary": "Show raw markdown",
+              "token": "--raw",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki show gateway --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-show",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki show <name> [--raw] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "raw",
+              "kind": "flag",
+              "required": false,
+              "summary": "Include raw markdown content for each page",
+              "token": "--raw",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki graph --json",
+            "aos wiki graph --raw --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-graph",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki graph [--raw] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "from",
+              "kind": "positional",
+              "required": true,
+              "summary": "Source page path",
+              "value_type": "string"
+            },
+            {
+              "id": "to",
+              "kind": "positional",
+              "required": true,
+              "summary": "Target page path",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki link gateway daemon"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-link",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki link <from> <to> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "plugin",
+              "kind": "positional",
+              "required": true,
+              "summary": "Plugin name to invoke",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki invoke self-check"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-invoke",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki invoke <plugin> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki reindex"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-reindex",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki reindex [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki lint",
+            "aos wiki lint --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-lint",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki lint [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "fix",
+              "kind": "flag",
+              "required": true,
+              "summary": "Auto-fix issues (reindexes)",
+              "token": "--fix",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki lint --fix --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-lint-fix",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki lint --fix [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "force",
+              "kind": "flag",
+              "required": false,
+              "summary": "Overwrite existing pages",
+              "token": "--force",
+              "value_type": "bool"
+            },
+            {
+              "id": "namespace",
+              "kind": "flag",
+              "required": false,
+              "summary": "Target namespace",
+              "token": "--namespace",
+              "value_type": "string"
+            },
+            {
+              "id": "file",
+              "kind": "flag",
+              "required": false,
+              "summary": "File mappings (name:path)",
+              "token": "--file",
+              "value_type": "string",
+              "variadic": true
+            },
+            {
+              "id": "from",
+              "kind": "flag",
+              "required": false,
+              "summary": "Source directory path",
+              "token": "--from",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki seed",
+            "aos wiki seed --force --namespace project"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-seed",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki seed [--force] [--namespace ns] [--file name:path ...] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "manifest",
+              "kind": "flag",
+              "required": false,
+              "summary": "Projection manifest path",
+              "token": "--manifest",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Plan projection without writing generated pages or reindexing",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki project-docs --dry-run --json",
+            "aos wiki project-docs --manifest docs/wiki/repo-docs-projection-v0.json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-project-docs",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki project-docs [--manifest path] [--dry-run] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos wiki migrate-namespaces"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "wiki-migrate-namespaces",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos wiki migrate-namespaces [--json]"
+        }
+      ],
+      "path": [
+        "wiki"
+      ],
+      "summary": "Knowledge base — browse, search, invoke workflow plugins"
+    }
+  ]
+}

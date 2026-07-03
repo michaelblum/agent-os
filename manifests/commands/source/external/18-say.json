@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "say",
+  "commands": [
+    {
+      "path": [
+        "say"
+      ],
+      "summary": "Speak text through the external say command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-say.mjs"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

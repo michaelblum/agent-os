@@ -139,8 +139,11 @@
       "summary": "Command metadata or external command manifest changed.",
       "patterns": [
         "manifests/commands/*.json",
+        "manifests/commands/source/**",
+        "scripts/generate-command-manifests.mjs",
         "shared/schemas/aos-external-command-manifest-v0.schema.json",
         "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+        "tests/command-manifest-generation.sh",
         "tests/aos-dev-gh-help-parity.test.mjs",
         "tests/external-command-dispatch.sh",
         "tests/help-contract.sh"
@@ -157,6 +160,11 @@
       "hot_swappable": true,
       "tcc_identity_sensitive": false,
       "commands": [
+        {
+          "id": "command-manifest-generation",
+          "command": "bash tests/command-manifest-generation.sh",
+          "reason": "Source command manifests and generated compatibility artifacts must stay in sync."
+        },
         {
           "id": "external-command-manifest-schema",
           "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",

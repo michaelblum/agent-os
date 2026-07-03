@@ -1,0 +1,341 @@
+{
+  "schema_version": 1,
+  "id": "browser",
+  "path_prefix": [
+    "browser"
+  ],
+  "commands": [
+    {
+      "consumer_discovery": false,
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Target string to parse (e.g. 'browser:todo/e21')",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos browser _parse-target browser:todo/e21"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-parse-target",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _parse-target <target>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos browser _check-version"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-check-version",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _check-version"
+        },
+        {
+          "args": [
+            {
+              "id": "session",
+              "kind": "flag",
+              "required": true,
+              "summary": "playwright-cli session name",
+              "token": "--session",
+              "value_type": "string"
+            },
+            {
+              "id": "verb",
+              "kind": "flag",
+              "required": true,
+              "summary": "playwright-cli verb",
+              "token": "--verb",
+              "value_type": "string"
+            },
+            {
+              "id": "with-filename",
+              "kind": "flag",
+              "required": false,
+              "summary": "Allocate and pass --filename=<tmp>",
+              "token": "--with-filename",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos browser _run --session=todo --verb=attach"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-run",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _run --session=<s> --verb=<v> [--with-filename]"
+        },
+        {
+          "args": [
+            {
+              "id": "path",
+              "kind": "positional",
+              "required": true,
+              "summary": "Path to a playwright-cli snapshot markdown file",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos browser _parse-snapshot /tmp/snap.md"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-parse-snapshot",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _parse-snapshot <markdown-file>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos browser _registry list"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-registry-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _registry list"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Session id",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": true,
+              "summary": "attach|launched",
+              "token": "--mode",
+              "value_type": "string"
+            },
+            {
+              "id": "attach-kind",
+              "kind": "flag",
+              "required": false,
+              "summary": "extension|cdp (attach mode only)",
+              "token": "--attach-kind",
+              "value_type": "string"
+            },
+            {
+              "id": "headless",
+              "kind": "flag",
+              "required": false,
+              "summary": "Headless flag (launched mode only)",
+              "token": "--headless",
+              "value_type": "bool"
+            },
+            {
+              "id": "browser-window-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "CGWindowID for local+visible windows",
+              "token": "--browser-window-id",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos browser _registry add --id=sess-a --mode=attach --attach-kind=extension"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-registry-add",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _registry add --id=<s> --mode=<m> [--attach-kind=<k>] [--headless=<b>] [--browser-window-id=<n>]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Session id",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos browser _registry remove --id=sess-a"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-registry-remove",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _registry remove --id=<s>"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Session id",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos browser _registry find --id=sess-a"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-registry-find",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos browser _registry find --id=<s>"
+        },
+        {
+          "args": [
+            {
+              "id": "target",
+              "kind": "positional",
+              "required": true,
+              "summary": "Browser target (browser:<session>[/<ref>])",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable anchor resolution",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos browser _resolve-anchor browser:todo/e21 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "browser-resolve-anchor",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos browser _resolve-anchor <target> [--json]"
+        }
+      ],
+      "path": [
+        "browser"
+      ],
+      "summary": "Internal browser-adapter debug helpers (not user-facing)"
+    }
+  ]
+}

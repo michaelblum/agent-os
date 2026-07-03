@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "id": "permissions",
+  "path_prefix": [
+    "permissions"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos permissions check --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "permissions-check",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos permissions check [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos permissions preflight --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "permissions-preflight",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos permissions preflight [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "once",
+              "kind": "flag",
+              "required": false,
+              "summary": "Run only if not already completed",
+              "token": "--once",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos permissions setup --once"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": true,
+            "mutates_state": false,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "permissions-setup",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos permissions setup [--once] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": false,
+              "summary": "Runtime identity to reset",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  {
+                    "summary": "Repo-mode ./aos identity",
+                    "value": "repo"
+                  },
+                  {
+                    "summary": "Installed AOS.app identity",
+                    "value": "installed"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "allow-service-reset",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emergency-only: allow service-wide Accessibility/ListenEvent/PostEvent reset after explicit human request",
+              "token": "--allow-service-reset",
+              "value_type": "bool"
+            },
+            {
+              "id": "emergency-ack-other-apps",
+              "kind": "flag",
+              "required": false,
+              "summary": "Required with --allow-service-reset; acknowledges other apps may need re-approval",
+              "token": "--emergency-ack-other-apps",
+              "value_type": "bool"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Print planned daemon stop and tccutil reset without changing state",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit machine-readable JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos permissions reset-runtime --mode repo",
+            "aos permissions reset-runtime --mode repo --dry-run --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "permissions-reset-runtime",
+          "output": {
+            "default_mode": "text",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]"
+        }
+      ],
+      "path": [
+        "permissions"
+      ],
+      "summary": "Permission preflight and one-time onboarding"
+    }
+  ]
+}

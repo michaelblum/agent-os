@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "id": "graph",
+  "path_prefix": [
+    "graph"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [],
+          "examples": [
+            "aos graph displays"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "graph-displays",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos graph displays"
+        },
+        {
+          "args": [
+            {
+              "id": "display",
+              "kind": "flag",
+              "required": false,
+              "summary": "Display index",
+              "token": "--display",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos graph windows"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "graph-windows",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos graph windows [--display N]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Node ID to expand",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "Depth increment",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "subtree-role",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by role",
+              "token": "--subtree-role",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by title",
+              "token": "--subtree-title",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by identifier",
+              "token": "--subtree-identifier",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos graph deepen --id node-1 --depth 2"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "graph-deepen",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos graph deepen --id <id> [options]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Node ID to collapse",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "Depth decrement",
+              "token": "--depth",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "aos graph collapse --id node-1"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "graph-collapse",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos graph collapse --id <id> [--depth N]"
+        }
+      ],
+      "path": [
+        "graph"
+      ],
+      "summary": "Graph navigation — display/window/depth control"
+    }
+  ]
+}

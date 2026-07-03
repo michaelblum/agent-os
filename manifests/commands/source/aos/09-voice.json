@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "id": "voice",
+  "path_prefix": [
+    "voice"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "list",
+              "kind": "positional",
+              "required": false,
+              "summary": "List discovered voices from the registry",
+              "value_type": "string"
+            },
+            {
+              "id": "provider",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter to one provider name",
+              "token": "--provider",
+              "value_type": "string"
+            },
+            {
+              "id": "speakable-only",
+              "kind": "flag",
+              "required": false,
+              "summary": "Show only enabled voices that can actually synthesize",
+              "token": "--speakable-only",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos voice list",
+            "aos voice list --provider system",
+            "aos voice list --speakable-only"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice list [--provider <name>] [--speakable-only]"
+        },
+        {
+          "args": [
+            {
+              "id": "assignments",
+              "kind": "positional",
+              "required": false,
+              "summary": "List session-centric voice assignments",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos voice assignments"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-assignments",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice assignments"
+        },
+        {
+          "args": [
+            {
+              "id": "refresh",
+              "kind": "positional",
+              "required": false,
+              "summary": "Re-enumerate voices from all providers",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos voice refresh"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-refresh",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice refresh"
+        },
+        {
+          "args": [
+            {
+              "id": "providers",
+              "kind": "positional",
+              "required": false,
+              "summary": "List voice providers with availability and voice counts",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos voice providers"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-providers",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice providers"
+        },
+        {
+          "args": [
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canonical session id",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "voice",
+              "kind": "flag",
+              "required": false,
+              "summary": "Exact voice identifier from `aos voice list` (URI or bare id)",
+              "token": "--voice",
+              "value_type": "string"
+            },
+            {
+              "id": "provider",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection to one provider",
+              "token": "--provider",
+              "value_type": "string"
+            },
+            {
+              "id": "gender",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by gender",
+              "token": "--gender",
+              "value_type": "string"
+            },
+            {
+              "id": "tag",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by tag; repeatable",
+              "token": "--tag",
+              "value_type": "string"
+            },
+            {
+              "id": "kind",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by kind",
+              "token": "--kind",
+              "value_type": "string"
+            },
+            {
+              "id": "locale",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by locale",
+              "token": "--locale",
+              "value_type": "string"
+            },
+            {
+              "id": "language",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by language",
+              "token": "--language",
+              "value_type": "string"
+            },
+            {
+              "id": "region",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by region",
+              "token": "--region",
+              "value_type": "string"
+            },
+            {
+              "id": "quality-tier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter random selection by quality tier",
+              "token": "--quality-tier",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan",
+            "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --gender female --language en",
+            "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-bind",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice bind --session-id <id> [--voice <voice-id>] [--provider <name>] [--gender <value>] [--tag <tag>] [--kind <value>] [--locale <value>] [--language <value>] [--region <value>] [--quality-tier <value>]"
+        },
+        {
+          "args": [
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canonical session id",
+              "token": "--session-id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos voice next --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-next",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos voice next --session-id <id>"
+        },
+        {
+          "args": [
+            {
+              "id": "final-response",
+              "kind": "positional",
+              "required": false,
+              "summary": "Relay a harness final-response event into the daemon speech system",
+              "value_type": "string"
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Canonical session id when known",
+              "token": "--session-id",
+              "value_type": "string"
+            },
+            {
+              "id": "harness",
+              "kind": "flag",
+              "required": false,
+              "summary": "Harness/provider name (for example: codex, claude-code, gemini)",
+              "token": "--harness",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "printf '%s' \"$HOOK_JSON\" | aos voice final-response --harness codex --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
+            "printf '%s' \"$HOOK_JSON\" | aos voice final-response --harness claude-code"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "voice-final-response",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "json",
+            "supported": true,
+            "used_when": "reading the raw hook JSON payload from stdin"
+          },
+          "usage": "aos voice final-response [--session-id <id>] [--harness <name>]"
+        }
+      ],
+      "path": [
+        "voice"
+      ],
+      "summary": "Voice system — inspect the registry-backed catalog, assignments, providers, and speech ingress"
+    }
+  ]
+}

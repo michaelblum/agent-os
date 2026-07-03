@@ -100,6 +100,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.deepEqual(
     rules.get('command-surface-manifests')?.commands?.map((step) => step.command),
     [
+      'bash tests/command-manifest-generation.sh',
       'node --test tests/schemas/aos-external-command-manifest-v0.test.mjs',
       'bash tests/external-command-dispatch.sh',
       'node --test tests/aos-dev-gh-help-parity.test.mjs',
@@ -107,6 +108,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/source/**'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('scripts/generate-command-manifests.mjs'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/command-manifest-generation.sh'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
   assert.deepEqual(

@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "id": "focus",
+  "path_prefix": [
+    "focus"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Channel name",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "window",
+              "kind": "flag",
+              "required": false,
+              "summary": "Window ID to track (mutually exclusive with --target)",
+              "token": "--window",
+              "value_type": "int"
+            },
+            {
+              "id": "target",
+              "kind": "flag",
+              "required": false,
+              "summary": "Target URI: browser://attach or browser://new (mutually exclusive with --window)",
+              "token": "--target",
+              "value_type": "string"
+            },
+            {
+              "id": "pid",
+              "kind": "flag",
+              "required": false,
+              "summary": "Process ID",
+              "token": "--pid",
+              "value_type": "int"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "AX traversal depth",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "subtree-role",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by AX role",
+              "token": "--subtree-role",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-title",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by title",
+              "token": "--subtree-title",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "Filter by identifier",
+              "token": "--subtree-identifier",
+              "value_type": "string"
+            },
+            {
+              "id": "extension",
+              "kind": "flag",
+              "required": false,
+              "summary": "Attach via browser extension (browser://attach)",
+              "token": "--extension",
+              "value_type": "bool"
+            },
+            {
+              "id": "cdp",
+              "kind": "flag",
+              "required": false,
+              "summary": "Attach via CDP endpoint (browser://attach)",
+              "token": "--cdp",
+              "value_type": "string"
+            },
+            {
+              "id": "headless",
+              "kind": "flag",
+              "required": false,
+              "summary": "Launch browser headless (browser://new)",
+              "token": "--headless",
+              "value_type": "bool"
+            },
+            {
+              "id": "url",
+              "kind": "flag",
+              "required": false,
+              "summary": "Initial URL for launched browser (browser://new)",
+              "token": "--url",
+              "value_type": "string"
+            },
+            {
+              "id": "persistent",
+              "kind": "flag",
+              "required": false,
+              "summary": "Reuse a persistent browser profile (browser://new)",
+              "token": "--persistent",
+              "value_type": "bool"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "window",
+                "target"
+              ]
+            ],
+            "one_of": [
+              [
+                "window",
+                "target"
+              ]
+            ]
+          },
+          "examples": [
+            "aos focus create --id work --window 1234 --depth 2",
+            "aos focus create --id todo --target browser://attach --extension",
+            "aos focus create --id scratch --target browser://new --headless --url https://example.com"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "focus-create",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos focus create --id <name> (--window <wid> | --target browser://<kind>) [options]"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Channel name",
+              "token": "--id",
+              "value_type": "string"
+            },
+            {
+              "id": "depth",
+              "kind": "flag",
+              "required": false,
+              "summary": "New traversal depth",
+              "token": "--depth",
+              "value_type": "int"
+            },
+            {
+              "id": "subtree-role",
+              "kind": "flag",
+              "required": false,
+              "summary": "New role filter",
+              "token": "--subtree-role",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-title",
+              "kind": "flag",
+              "required": false,
+              "summary": "New title filter",
+              "token": "--subtree-title",
+              "value_type": "string"
+            },
+            {
+              "id": "subtree-identifier",
+              "kind": "flag",
+              "required": false,
+              "summary": "New identifier filter",
+              "token": "--subtree-identifier",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos focus update --id work --depth 3"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "focus-update",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos focus update --id <name> [options]"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos focus list"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "focus-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos focus list"
+        },
+        {
+          "args": [
+            {
+              "id": "id",
+              "kind": "flag",
+              "required": true,
+              "summary": "Channel name",
+              "token": "--id",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos focus remove --id work"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "focus-remove",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos focus remove --id <name>"
+        }
+      ],
+      "path": [
+        "focus"
+      ],
+      "summary": "Focus channels — track window AX trees"
+    }
+  ]
+}

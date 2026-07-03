@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "id": "see-03-zone",
+  "path_prefix": [
+    "see"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Zone name",
+              "value_type": "string"
+            },
+            {
+              "id": "target",
+              "kind": "flag",
+              "required": false,
+              "summary": "Target display",
+              "token": "--target",
+              "value_type": "string"
+            },
+            {
+              "id": "bounds",
+              "kind": "positional",
+              "required": true,
+              "summary": "Zone bounds as x,y,w,h",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos see zone save header --target main 0,0,1920,100"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "zone-save",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see zone save <name> [--target <display>] <x,y,w,h>"
+        },
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Zone name",
+              "value_type": "string"
+            },
+            {
+              "id": "target",
+              "kind": "flag",
+              "required": false,
+              "summary": "Target display",
+              "token": "--target",
+              "value_type": "string"
+            },
+            {
+              "id": "bounds",
+              "kind": "positional",
+              "required": true,
+              "summary": "Zone bounds as x,y,w,h",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos see zone define header --target main 0,0,1920,100"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "zone-define",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see zone define <name> [--target <display>] <x,y,w,h>"
+        },
+        {
+          "args": [],
+          "examples": [
+            "aos see zone list"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "zone-list",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see zone list"
+        },
+        {
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Zone name",
+              "value_type": "string"
+            }
+          ],
+          "examples": [
+            "aos see zone delete header"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "zone-delete",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos see zone delete <name>"
+        }
+      ],
+      "path": [
+        "see",
+        "zone"
+      ],
+      "summary": "Manage named capture zones"
+    }
+  ]
+}

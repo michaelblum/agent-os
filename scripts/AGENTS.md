@@ -27,6 +27,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - For shell scripts, preserve macOS Bash 3.2 compatibility.
 - For Node scripts, use existing repo helper modules before inventing new
   parsing or routing conventions.
+- Treat `generate-command-manifests.mjs` as command-surface infrastructure:
+  source files stay under `manifests/commands/source/`, and top-level command
+  manifests remain generated artifacts.
 
 ## Verification
 
@@ -34,7 +37,8 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - For runner changes, use `bash tests/aos-agents-runner.sh` and
   `python3 -m py_compile scripts/aos_agents/runner.py`.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
-  `bash tests/dev-workflow-router.sh`, and `git diff --check` when relevant.
+  `bash tests/dev-workflow-router.sh`, `bash tests/command-manifest-generation.sh`,
+  and `git diff --check` when relevant.
 
 ## Child DOX Index
 

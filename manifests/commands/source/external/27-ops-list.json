@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "ops-list",
+  "commands": [
+    {
+      "path": [
+        "ops",
+        "list"
+      ],
+      "summary": "Compatibility route for listing source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-ops.mjs",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    }
+  ]
+}

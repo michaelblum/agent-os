@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "daemon-snapshot",
+  "path_prefix": [
+    "daemon-snapshot"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [],
+          "examples": [
+            "aos daemon-snapshot"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "daemon-snapshot",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": false
+          },
+          "usage": "aos daemon-snapshot"
+        }
+      ],
+      "path": [
+        "daemon-snapshot"
+      ],
+      "summary": "Detailed daemon spatial snapshot"
+    }
+  ]
+}
