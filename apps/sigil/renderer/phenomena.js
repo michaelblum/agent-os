@@ -40,10 +40,32 @@ function distributeGroupChildren(group, count) {
     }
 }
 
+function disposeMaterial(material, retainedMaterials = []) {
+    if (Array.isArray(material)) {
+        material.forEach((entry) => disposeMaterial(entry, retainedMaterials));
+        return;
+    }
+    if (!material || retainedMaterials.includes(material)) return;
+    material.dispose?.();
+}
+
+function disposeObjectResources(object, retainedMaterials = []) {
+    if (!object) return;
+    object.traverse?.((child) => {
+        child.geometry?.dispose?.();
+        disposeMaterial(child.material, retainedMaterials);
+    });
+    if (!object.traverse) {
+        object.geometry?.dispose?.();
+        disposeMaterial(object.material, retainedMaterials);
+        object.children?.forEach((child) => disposeObjectResources(child, retainedMaterials));
+    }
+}
+
 /**
  * DRY: Shared instance count syncer for phenomena groups.
  */
-function syncGroupInstanceCount(group, count, createItemFn) {
+function syncGroupInstanceCount(group, count, createItemFn, removeItemFn = null) {
     if (!group) return;
     syncInstanceCount(() => group.children.length, count, () => {
         const item = createItemFn();
@@ -51,9 +73,12 @@ function syncGroupInstanceCount(group, count, createItemFn) {
             item.userData.seed = Math.random();
             group.add(item);
         }
-    }, (item) => {
+    }, () => {
         const last = group.children[group.children.length - 1];
-        if (last) group.remove(last);
+        if (last) {
+            group.remove(last);
+            removeItemFn?.(last);
+        }
     });
     distributeGroupChildren(group, count);
 }
@@ -64,7 +89,7 @@ export function updatePulsars(count) {
         if (!state.beamMat) return null;
         const mesh = new THREE.Mesh(new THREE.BufferGeometry(), state.beamMat);
         return mesh;
-    });
+    }, (mesh) => disposeObjectResources(mesh, [state.beamMat]));
     state.pulsarGroup?.children.forEach((mesh) => configureBeamMesh(mesh, {
         minHeight: state.pulsarMinHeight,
         maxHeight: state.pulsarMaxHeight,
@@ -81,7 +106,7 @@ export function updateGammaRays(count) {
         if (!state.gammaBeamMat) return null;
         const mesh = new THREE.Mesh(new THREE.BufferGeometry(), state.gammaBeamMat);
         return mesh;
-    });
+    }, (mesh) => disposeObjectResources(mesh, [state.gammaBeamMat]));
     state.gammaRaysGroup?.children.forEach((mesh) => configureBeamMesh(mesh, {
         minHeight: state.gammaMinHeight,
         maxHeight: state.gammaMaxHeight,
@@ -115,6 +140,9 @@ export function updateAccretion(count) {
             });
         }
         return singleDiskGroup;
+    }, (diskGroup) => {
+        state.accretionRings = state.accretionRings.filter((ring) => ring.mesh?.parent !== diskGroup);
+        disposeObjectResources(diskGroup, [state.diskMat]);
     });
     const minH = Math.min(state.accretionMinHeight, state.accretionMaxHeight);
     const maxH = Math.max(state.accretionMinHeight, state.accretionMaxHeight);
@@ -153,6 +181,9 @@ export function updateNeutrinos(count) {
             });
         }
         return jetGroup;
+    }, (jetGroup) => {
+        state.neutrinoParticles = state.neutrinoParticles.filter((particle) => particle.parentJet !== jetGroup);
+        disposeObjectResources(jetGroup, [state.neutrinoMat]);
     });
 }
 
