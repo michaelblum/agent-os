@@ -109,7 +109,24 @@ test('surface interaction decision tree remains discoverable from toolkit API do
 
   for (const doc of docs) {
     assert.match(doc, escaped(requiredPath));
+    assert.doesNotMatch(doc, /\.\.\/(?:\.\.\/)?recipes\/aos-surface-interaction-decision-tree\.md/);
   }
+});
+
+test('toolkit runtime docs keep canvas host targets separate from saved refs', async () => {
+  const runtime = await text('docs/api/toolkit/runtime.md');
+  const section = runtime.split('## Canvas Host Target Semantics', 2)[1].split('## ', 1)[0];
+
+  assert.match(section, /`aos show --id <canvas-id>` owns canvas resource lifecycle/);
+  assert.match(section, /`aos see capture\s+--canvas <canvas-id>` scopes perception to the current canvas host/);
+  assert.match(section, /`canvas:<canvas-id>\/<ref>` is the direct current Target-with-Ref/);
+  assert.match(section, /Saved workspace refs remain the model-facing durable\s+handle/);
+  assert.match(section, /`ref:<snapshot-id>:<ref-id>`/);
+  assert.match(section, /canvas id as a resource id, not as durable object\s+identity/);
+  assert.match(section, /`provenance\.do_target` provide[s]? the action vocabulary/);
+  assert.match(section, /DesktopWorld surfaces,\s+segmented canvases, passthrough visuals, child hit WebViews, and interactive\s+affordances/);
+  assert.match(section, /daemon primitives own lifecycle,\s+geometry, input routing, and current canvas host state/);
+  assert.match(section, /toolkit policy owns\s+panel\/window behavior, stage affordances, semantic target descriptors/);
 });
 
 test('generated artifact lifecycle policy is discoverable from workbench docs', async () => {

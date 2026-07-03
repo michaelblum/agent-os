@@ -39,7 +39,7 @@ When a toolkit behavior is too heavy in WebView space, add or request a cheaper 
 
 ## Surface Interaction Decision Tree
 
-Before adding a WebView, daemon policy, app-private hit testing, or a new DesktopWorld stage layer, use the canonical decision tree in [docs/guides/aos-surface-interaction-decision-tree.md](../recipes/aos-surface-interaction-decision-tree.md). The short version is:
+Before adding a WebView, daemon policy, app-private hit testing, or a new DesktopWorld stage layer, use the canonical decision tree in [docs/guides/aos-surface-interaction-decision-tree.md](../guides/aos-surface-interaction-decision-tree.md). The short version is:
 
 1. use DOM controls when the visual and hit area already live in the same interactive canvas;
 2. use toolkit panel/windowing primitives for ordinary chrome, placement, minimize, maximize, restore, close, drag, and resize;
@@ -67,4 +67,4 @@ Before adding a WebView, daemon policy, app-private hit testing, or a new Deskto
 
 Keep this page as a map, not a component manual. Detailed contract prose belongs in the scoped files above. If a change affects a consumer-facing toolkit interface, update the scoped file in the same change and add or update a deterministic docs contract test when the routing itself matters.
 
-Do not duplicate the full [surface interaction decision tree](../recipes/aos-surface-interaction-decision-tree.md) in API docs; link to the recipe so it remains canonical. Keep active design or audit status in `docs/design/`, not in this API map.
+Do not duplicate the full [surface interaction decision tree](../guides/aos-surface-interaction-decision-tree.md) in API docs; link to the guide so it remains canonical. Keep active design or audit status in `docs/design/`, not in this API map.

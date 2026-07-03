@@ -121,11 +121,32 @@ pointer, scroll, and cancel events. `normalizeCanvasOriginInputMessage()` then
 adds router aliases such as `x`/`y`, camelCase identity fields, and child-local
 offsets for existing toolkit code.
 
-Use the [surface interaction decision tree](../../recipes/aos-surface-interaction-decision-tree.md)
+Use the [surface interaction decision tree](../../guides/aos-surface-interaction-decision-tree.md)
 (`docs/guides/aos-surface-interaction-decision-tree.md`) before adding a
 region: passive DesktopWorld visuals with small hit areas usually belong behind
 `createStageAffordance`, while ordinary DOM controls should stay inside the
 existing interactive canvas.
+
+## Canvas Host Target Semantics
+
+Toolkit surfaces participate in the same AOS target ladder as the public CLI.
+`aos show --id <canvas-id>` owns canvas resource lifecycle, `aos see capture
+--canvas <canvas-id>` scopes perception to the current canvas host, and
+`canvas:<canvas-id>/<ref>` is the direct current Target-with-Ref for a semantic
+element inside that host. Saved workspace refs remain the model-facing durable
+handle: agents should prefer `ref:<snapshot-id>:<ref-id>` after `aos see capture
+--save`, and use direct canvas targets for current-host actions or diagnostic
+paths where the canvas is live.
+
+Toolkit code should treat a canvas id as a resource id, not as durable object
+identity for a semantic control. Semantic targets exposed through
+`data-aos-ref`, `data-semantic-target-id`, owner metadata, and
+`provenance.do_target` provide the action vocabulary. DesktopWorld surfaces,
+segmented canvases, passthrough visuals, child hit WebViews, and interactive
+affordances should use the same split: daemon primitives own lifecycle,
+geometry, input routing, and current canvas host state; toolkit policy owns
+panel/window behavior, stage affordances, semantic target descriptors, and
+reusable interaction bindings; app code owns product behavior.
 
 Surfaces that inspect ownership rather than handle pointer input can subscribe
 to `input_region` with `{ snapshot: true }`. The daemon replays

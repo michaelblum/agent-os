@@ -3,7 +3,7 @@
 Consumer-facing reference for the default opt-in AOS panel/windowing layer: panel chrome, placement, drag, resize, minimize, maximize, restore, StageAffordance, and stock panel layouts. Runtime bridge primitives live in [runtime.md](./runtime.md).
 
 For interaction mechanism selection, use the canonical
-[surface interaction decision tree](../../recipes/aos-surface-interaction-decision-tree.md)
+[surface interaction decision tree](../../guides/aos-surface-interaction-decision-tree.md)
 (`docs/guides/aos-surface-interaction-decision-tree.md`).
 
 ## StageAffordance
