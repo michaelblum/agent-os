@@ -43,7 +43,7 @@ else
 fi
 rm -f /tmp/aos-root-help.out /tmp/aos-root-help.err /tmp/aos-root-help-flag.out /tmp/aos-root-help-flag.err /tmp/aos-do-help-flag.json /tmp/aos-do-help-flag.err
 
-if ROOT_JSON="$(./aos help --json 2>/dev/null)" ROOT_TEXT="$(./aos 2>/dev/null)" DIRECT_DEV="$(./aos help dev --json 2>/dev/null)" python3 - <<'PY'
+if ROOT_JSON="$(./aos help --json 2>/dev/null)" ROOT_TEXT="$(./aos 2>/dev/null)" DIRECT_DEV="$(./aos help dev --json 2>/dev/null)" DIRECT_BROWSER="$(./aos help browser --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -51,18 +51,31 @@ from pathlib import Path
 root = json.loads(os.environ["ROOT_JSON"])
 manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
 assert all(command["path"] != ["dev"] for command in root["commands"]), root
+assert all(command["path"] != ["browser"] for command in root["commands"]), root
+for command in root["commands"]:
+    summary = command.get("summary", "")
+    assert "not user-facing" not in summary.lower(), command
+    assert "internal" not in summary.lower(), command
+    assert "debug helper" not in summary.lower(), command
 assert "\n  dev" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
+assert "\n  browser" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 direct = json.loads(os.environ["DIRECT_DEV"])
 assert direct["path"] == ["dev"], direct
 assert direct["consumer_discovery"] is False, direct
 assert any(form["id"] == "dev-classify" for form in direct["forms"]), direct
+direct_browser = json.loads(os.environ["DIRECT_BROWSER"])
+assert direct_browser["path"] == ["browser"], direct_browser
+assert direct_browser["consumer_discovery"] is False, direct_browser
+assert any(form["id"] == "browser-parse-target" for form in direct_browser["forms"]), direct_browser
 manifest_dev = next(command for command in manifest["commands"] if command["path"] == ["dev"])
 assert manifest_dev["consumer_discovery"] is False, manifest_dev
+manifest_browser = next(command for command in manifest["commands"] if command["path"] == ["browser"])
+assert manifest_browser["consumer_discovery"] is False, manifest_browser
 PY
 then
-    pass "root consumer help excludes dev while direct dev help resolves"
+    pass "root consumer help excludes internal command groups while direct help resolves"
 else
-    fail "dev demotion from root consumer help drifted"
+    fail "internal command demotion from root consumer help drifted"
 fi
 
 # --- 2. aos help show --json → JSON per-command ---
