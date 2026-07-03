@@ -237,16 +237,15 @@ follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
 - Browser adapter docs say no workflow recording/replay/codegen wrapper exists
   in v1, while workbench notes point to that as future subject/artifact work.
   These are compatible, but the distinction should stay explicit.
-- Gateway scripts cannot currently use browser refs through the typed SDK.
-  A future "gather web source artifacts" worker would either shell out to
-  `./aos`/`playwright-cli` directly or need SDK/browser additions.
-- `docs/api/aos.md` does not document browser target usage even though
-  `ARCHITECTURE.md`, help metadata, and implementation do.
-- `aos help see --json` exposes `browser.adapter` as a capability but the
-  target discovery/examples do not show `browser:<session>`.
-- Existing `do` help shows browser-only `fill`/`navigate`, but the browser
-  forms of existing verbs such as `click browser:<session>/<ref>` are not clear
-  in usage examples.
+- The public CLI now documents browser targets through `docs/api/aos.md`,
+  `aos see capture browser:<session> --save`, and direct `aos do` browser forms
+  such as `click`, `fill`, `hover`, `scroll`, `drag`, and `navigate`.
+  Collection workers should prefer saved refs for normal loops and use direct
+  `browser:<session>/<ref>` targets as current diagnostic/provenance handles.
+- Gateway scripts still should not assume typed SDK parity with CLI browser
+  refs. A future "gather web source artifacts" worker should either shell out to
+  `./aos`, use a named raw Playwright escape hatch, or add an explicit
+  SDK/browser capability with matching help and tests.
 - The implementation plan described internal browser debug helpers as omitted
   from help unless verbose, but the command registry has no internal/verbose
   field and `aos help browser --json` exposes them.
