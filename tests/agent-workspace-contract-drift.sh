@@ -225,6 +225,7 @@ for (const { action, ...contract } of actionMatrixRows) {
 
 const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'utf8');
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
+const readme = fs.readFileSync('README.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
 const toolkitPanelWindowDoc = fs.readFileSync('docs/api/toolkit/panel-window.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
@@ -266,6 +267,21 @@ for (const [label, text] of Object.entries({ schemaDoc, apiDoc, skill })) {
     assert.ok(text.includes(unsupported), `${label} must name unsupported saved workspace command ${unsupported}`);
   }
 }
+const readmeWorkspaceSection = readme.split('## Saved Workspaces', 2)[1].split('## Track-2 consumers', 1)[0].replace(/\s+/g, ' ');
+for (const needle of [
+  '`--workspace <id>` selects a workspace for a command',
+  '`AOS_AGENT_WORKSPACE` is used, then `default`',
+  'There is no daemon-held current workspace',
+  '`aos see workspace use <id>` is not a command',
+  '`post_action.recommended_next_command`',
+]) {
+  assert.ok(readmeWorkspaceSection.includes(needle), `README saved workspace summary missing ${needle}`);
+}
+assert.ok(
+  readmeWorkspaceSection.indexOf('`--workspace <id>`') < readmeWorkspaceSection.indexOf('`AOS_AGENT_WORKSPACE`')
+  && readmeWorkspaceSection.indexOf('`AOS_AGENT_WORKSPACE`') < readmeWorkspaceSection.indexOf('`default`'),
+  'README saved workspace summary must preserve workspace precedence',
+);
 
 function skillFrontmatter(text) {
   assert.ok(text.startsWith('---\n'), 'skill must start with YAML frontmatter');
