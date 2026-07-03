@@ -370,6 +370,8 @@ assert enum_values(create_auto) == ["cursor_trail", "highlight_focused", "label_
 assert form_arg(os.environ["UPDATE"], "show-update", "auto-project") is None
 assert form_arg(os.environ["UPDATE"], "show-update", "anchor-channel") is not None
 assert enum_values(form_arg(os.environ["UPDATE"], "show-update", "track")) == ["union"]
+update_form = next(item for item in json.loads(os.environ["UPDATE"])["forms"] if item["id"] == "show-update")
+assert ["anchor-window", "anchor-channel", "anchor-browser"] in update_form["constraints"]["conflicts"], update_form
 docs = Path("docs/api/aos.md").read_text(encoding="utf-8")
 show_section = docs.split("## `aos show`", 1)[1].split("## `aos recipe`", 1)[0]
 for token in ["--anchor-browser browser:<session>/<ref>", "--anchor-window <id>", "--anchor-channel <id>", "--offset x,y,w,h"]:

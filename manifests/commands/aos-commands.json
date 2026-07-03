@@ -1757,6 +1757,7 @@
             "conflicts" : [
               [
                 "anchor-window",
+                "anchor-channel",
                 "anchor-browser"
               ]
             ]
