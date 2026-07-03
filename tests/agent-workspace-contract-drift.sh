@@ -499,6 +499,10 @@ assert.ok(
   'API doc must name backend-wide coordinate fallback refusal evidence',
 );
 assert.ok(
+  schemaDoc.replace(/\s+/g, ' ').includes('browser, AOS canvas, and native saved-ref tests'),
+  'schema doc must name backend-wide coordinate fallback refusal evidence',
+);
+assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('`press` and `focus` examples require stable `native_ax` refs'),
   'API saved-ref examples must mark press/focus as stable native AX only',
 );

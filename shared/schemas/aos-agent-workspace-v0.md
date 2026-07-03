@@ -205,7 +205,7 @@ marks it actionable with complete known-limit facts.
 | `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |
 | direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus the same approval gates |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus the same approval gates |
-| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-native-refs.sh` |
+| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in browser, AOS canvas, and native saved-ref tests |
 
 Non-dry-run saved-ref mutations return a saved-ref execution envelope rather
 than raw adapter output. The envelope includes the resolved command,
