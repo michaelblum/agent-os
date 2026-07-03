@@ -47,7 +47,8 @@ Saved perception state is local control state under the active runtime mode.
 workspace and `aos see workspace use <id>` is not a command. After a saved-ref
 mutation, use `post_action.recommended_next_command` to run a fresh saved
 capture before reusing refs. Use `aos see refs --diff <from>..<to>` to compare
-compact ref changes between two saved snapshots without opening heavy payloads.
+compact ref changes between two saved snapshots without opening heavy payloads;
+add `--expect change|no-change` when a script needs a non-zero mismatch result.
 
 ## Track-2 consumers
 

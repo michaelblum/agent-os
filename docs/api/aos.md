@@ -168,7 +168,9 @@ Typical consumer loop:
 3. Read compact refs with `aos see refs`; use its structured
    `recommended_next` descriptors for the scoped dry-run action.
 4. Compare saved snapshots with `aos see refs --diff <from>..<to>` when a
-   compact ref-level post-action check is enough.
+   compact ref-level post-action check is enough; add
+   `--expect change|no-change` when a recipe or shell needs a non-zero exit on
+   mismatch.
 5. Dry-run the saved-ref action and inspect `resolution_status`.
 6. Dispatch only if the ref validates or reacquires.
 7. Use structured `recommended_next` descriptors and
@@ -215,7 +217,9 @@ Current wait/assertion boundary: saved workspaces do not expose
 or `aos see assert`. Use structured `recommended_next` descriptors and
 `recommended_next_command` plus a fresh saved capture for re-perception. Use
 `aos see refs --diff <from>..<to>` only for compact saved-ref comparison between
-two existing snapshots; it is not a wait loop or full assertion engine. Use
+two existing snapshots. `--expect change|no-change` makes that compact diff a
+machine-checkable gate with `REF_DIFF_EXPECTATION_FAILED` on mismatch; it is
+still not a wait loop or full assertion engine. Use
 `aos show wait` only for canvas readiness, Recipe assertions only for command
 JSON checks, and Work Record postconditions for durable evidence checks. Future
 saved wait/assert commands need manifest help, parser, schema/doc, and drift
