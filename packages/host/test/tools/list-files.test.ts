@@ -1,7 +1,7 @@
 // packages/host/test/tools/list-files.test.ts
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { listFilesTool } from '../../src/tools/list-files.ts';
+import { MAX_LIST_FILES_ENTRIES, listFilesTool } from '../../src/tools/list-files.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -25,6 +25,7 @@ describe('list_files tool', () => {
   it('has correct definition', () => {
     assert.equal(listFilesTool.definition.name, 'list_files');
     assert.equal(listFilesTool.definition.permissions?.default, 'allow');
+    assert.equal(listFilesTool.definition.timeout, 30_000);
   });
 
   it('lists directory contents', async () => {
@@ -47,5 +48,31 @@ describe('list_files tool', () => {
   it('returns error for missing directory', async () => {
     const result = await listFilesTool.executor({ path: '/nonexistent/dir' }, ctx);
     assert.equal(result.isError, true);
+  });
+
+  it('rejects directories above the entry cap', async () => {
+    const largeDir = path.join(tmpDir, 'large');
+    fs.mkdirSync(largeDir);
+    for (let index = 0; index <= MAX_LIST_FILES_ENTRIES; index++) {
+      fs.writeFileSync(path.join(largeDir, `${index}.txt`), '');
+    }
+
+    const result = await listFilesTool.executor({ path: largeDir }, ctx);
+
+    assert.equal(result.isError, true);
+    assert.match(result.content as string, /exceeds list_files limit/);
+  });
+
+  it('honors an already-aborted tool signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await listFilesTool.executor({ path: tmpDir }, {
+      ...ctx,
+      signal: controller.signal,
+    });
+
+    assert.equal(result.isError, true);
+    assert.equal(result.content, 'List aborted');
   });
 });
