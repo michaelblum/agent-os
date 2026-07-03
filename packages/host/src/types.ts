@@ -83,7 +83,7 @@ export interface SessionConfig {
 export interface StoredMessage {
   id: string;
   sessionId: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string; // JSON-serialized content blocks
   createdAt: string;
   tokenCount?: number;
@@ -98,14 +98,14 @@ export interface ProviderConfig {
 }
 
 export interface ProviderMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: ProviderContentBlock[];
 }
 
 export type ProviderContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: JSONValue }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
+  | { type: 'tool_result'; tool_use_id: string; tool_name?: string; content: string; is_error?: boolean };
 
 export interface ProviderAdapter {
   id: string;

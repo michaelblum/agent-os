@@ -1,11 +1,73 @@
 // packages/host/src/provider/anthropic.ts
 import { streamText, jsonSchema } from 'ai';
-import type { CoreMessage } from 'ai';
+import type { CoreAssistantMessage, CoreMessage, CoreToolMessage, CoreUserMessage } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type {
   ProviderAdapter, ProviderMessage, ProviderConfig,
   ToolDefinition, StreamEvent, JSONValue,
 } from '../types.ts';
+
+export function toAnthropicCoreMessages(messages: ProviderMessage[]): CoreMessage[] {
+  return messages.map((msg, index) => {
+    if (msg.role === 'tool' || msg.content.every(block => block.type === 'tool_result')) {
+      return {
+        role: 'tool',
+        content: msg.content.flatMap(block => {
+          if (block.type !== 'tool_result') return [];
+          return [{
+            type: 'tool-result' as const,
+            toolCallId: block.tool_use_id,
+            toolName: block.tool_name ?? inferToolName(messages, index, block.tool_use_id),
+            result: block.content,
+            isError: block.is_error,
+          }];
+        }),
+      } satisfies CoreToolMessage;
+    }
+
+    if (msg.role === 'assistant') {
+      const content: CoreAssistantMessage['content'] = [];
+      for (const block of msg.content) {
+        if (block.type === 'text') {
+          content.push({ type: 'text', text: block.text });
+        } else if (block.type === 'tool_use') {
+          content.push({
+            type: 'tool-call',
+            toolCallId: block.id,
+            toolName: block.name,
+            args: block.input as Record<string, unknown>,
+          });
+        }
+      }
+      return {
+        role: 'assistant',
+        content,
+      } satisfies CoreAssistantMessage;
+    }
+
+    const content: CoreUserMessage['content'] = [];
+    for (const block of msg.content) {
+      if (block.type === 'text') {
+        content.push({ type: 'text', text: block.text });
+      }
+    }
+    return {
+      role: 'user',
+      content,
+    } satisfies CoreUserMessage;
+  });
+}
+
+function inferToolName(messages: ProviderMessage[], beforeIndex: number, toolCallId: string): string {
+  for (let i = beforeIndex - 1; i >= 0; i--) {
+    for (const block of messages[i]?.content ?? []) {
+      if (block.type === 'tool_use' && block.id === toolCallId) {
+        return block.name;
+      }
+    }
+  }
+  return 'unknown_tool';
+}
 
 export class AnthropicAdapter implements ProviderAdapter {
   readonly id = 'anthropic';
@@ -19,25 +81,7 @@ export class AnthropicAdapter implements ProviderAdapter {
   }): AsyncIterable<StreamEvent> {
     const { messages, tools, system, config } = params;
 
-    // Convert our message format to Vercel AI SDK format
-    const aiMessages = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content.map(block => {
-        if (block.type === 'text') return { type: 'text' as const, text: block.text };
-        if (block.type === 'tool_use') return {
-          type: 'tool-call' as const,
-          toolCallId: block.id,
-          toolName: block.name,
-          args: block.input as Record<string, unknown>,
-        };
-        if (block.type === 'tool_result') return {
-          type: 'tool-result' as const,
-          toolCallId: block.tool_use_id,
-          result: block.content,
-        };
-        return { type: 'text' as const, text: '' };
-      }),
-    }));
+    const aiMessages = toAnthropicCoreMessages(messages);
 
     // Convert tool definitions to Vercel AI SDK format.
     // The SDK requires `parameters` (not `inputSchema`) wrapping the JSON schema

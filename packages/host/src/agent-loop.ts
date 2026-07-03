@@ -133,9 +133,11 @@ export class AgentLoop {
         toolResultBlocks.push({
           type: 'tool_result',
           tool_use_id: tc.toolCallId,
+          tool_name: tc.toolName,
           content: typeof result.content === 'string'
             ? result.content
             : JSON.stringify(result.content),
+          is_error: result.isError,
         });
         yield {
           type: 'tool-result',
@@ -144,8 +146,7 @@ export class AgentLoop {
         };
       }
 
-      // Persist tool results as user message (Anthropic expects tool_result in user turn)
-      this.store.appendMessage(sessionId, 'user', toolResultBlocks);
+      this.store.appendMessage(sessionId, 'tool', toolResultBlocks);
 
       // Rebuild messages for next iteration
       messages = this.buildMessages(sessionId);
