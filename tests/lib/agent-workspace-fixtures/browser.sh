@@ -100,6 +100,34 @@ PY
     exit 0
 fi
 
+if [[ "${1:-}" == "do" && "${2:-}" == "type" && "${3:-}" == "browser:form/e42" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "execution": {"backend": "playwright", "strategy": "fake_form_type"},
+    "received": sys.argv[1:],
+}))
+PY
+    exit 0
+fi
+
+if [[ "${1:-}" == "do" && "${2:-}" == "key" && "${3:-}" == "browser:form/e42" ]]; then
+    python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "status": "success",
+    "execution": {"backend": "playwright", "strategy": "fake_form_key"},
+    "received": sys.argv[1:],
+}))
+PY
+    exit 0
+fi
+
 if [[ "${1:-}" == "do" && "${2:-}" == "click" && "${3:-}" == "browser:form/e42" ]]; then
     python3 - "$@" <<'PY'
 import json

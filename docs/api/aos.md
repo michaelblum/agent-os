@@ -347,7 +347,7 @@ Backend conformance levels are intentionally explicit:
 | backend/path | supported saved-ref surface | conformance level | proof status | evidence or gate |
 | --- | --- | --- | --- | --- |
 | `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
+| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
 | `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
@@ -911,8 +911,8 @@ Primary public verbs:
 | `hover` | saved/browser hover or coordinate hover |
 | `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |
 | `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |
-| `type` | literal native text input or direct browser target text; no saved-ref action |
-| `key` | literal native key combo or direct browser target key press; no saved-ref action |
+| `type` | saved/browser text input, direct browser target text, or literal native text input |
+| `key` | saved/browser key press, direct browser target key press, or literal native key combo |
 | `press` | saved native AX press or direct `--pid` / `--role` AX press |
 | `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |
 | `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |
@@ -939,26 +939,26 @@ forms without native pointer dwell timing.
 Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
 saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and, for browser refs, the fresh xray current-target
-validation result. Browser `snapshot_scoped` click, fill, hover, scroll, and
-drag refs can dispatch only after page, frame, navigation, and element
+validation result. Browser `snapshot_scoped` click, fill, hover, scroll, drag,
+type, and key refs can dispatch only after page, frame, navigation, and element
 validation pass. Saved-ref grammar rejects missing, invalid, extra, or unknown
 action arguments and flags with `MISSING_ARG`, `INVALID_ARG`, `UNKNOWN_ARG`, or
 `UNKNOWN_FLAG`.
-Direct browser `type` and `key` are current-host routes when the first action
-argument is `browser:<session>/<ref>` or `browser:<session>`. They live in the
-external command manifest and route to Playwright; they are not saved-ref
-actions:
+Saved browser `type` and `key` are text-compatible saved-ref actions when the
+producer exposes the action in `supported_actions`; they use the same current
+page/frame/navigation and unique enabled element validation as browser `fill`.
+Direct browser `type` and `key` remain current-host routes when the first action
+argument is `browser:<session>/<ref>` or `browser:<session>`:
 
 ```bash
+aos do type ref:<snapshot-id>:r2 "hello world" --workspace default --dry-run
+aos do key ref:<snapshot-id>:r2 "Enter" --workspace default --dry-run
 aos do type browser:<session>/<ref> "hello world" --state-id <id>
 aos do key browser:<session>/<ref> "Enter" --state-id <id>
 aos do type browser:<session> "hello world"
 aos do key browser:<session> "cmd+s"
 ```
 
-Saved-ref `type` and `key` attempts with `--workspace` or `--snapshot` fail
-closed through the saved-ref resolver until browser keyboard semantics are
-promoted through the action matrix.
 Browser focus and text assertions are not separate public actions in this
 slice: `aos do focus` is native AX only, and saved workspaces do not expose
 `aos see assert`. Use direct browser `click`, `fill`, `type`, or `key` where
