@@ -309,7 +309,7 @@ function setConfigValue(config, key, value) {
   else if (key === 'content.port') {
     ensureContent(config);
     const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 0) throw new Error('content.port must be a non-negative integer');
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) throw new Error('content.port must be an integer from 0 to 65535');
     config.content.port = parsed;
   } else if (key.startsWith('content.roots.')) {
     ensureContent(config);

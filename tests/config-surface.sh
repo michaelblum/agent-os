@@ -77,6 +77,21 @@ OUT="$(./aos config get content.port)"
 [ "$OUT" = "null" ] || fail "expected unset optional content.port=null, got '$OUT'"
 pass "config get returns null for known but unset optional values"
 
+OUT="$(./aos config set content.port 65535)"
+echo "$OUT" | grep -q '"port" : 65535' || fail "config set did not accept max content.port: $OUT"
+pass "config set accepts max content.port"
+
+if ./aos config set content.port 65536 2>"$STATE_ROOT/config-set-port.err"; then
+  fail "config set accepted out-of-range content.port"
+fi
+grep -q 'content.port must be an integer from 0 to 65535' "$STATE_ROOT/config-set-port.err" || {
+  cat "$STATE_ROOT/config-set-port.err"
+  fail "config set content.port range error did not explain UInt16 boundary"
+}
+OUT="$(./aos config get content.port)"
+[ "$OUT" = "65535" ] || fail "out-of-range content.port changed existing config: $OUT"
+pass "config set rejects out-of-range content.port without mutation"
+
 if ./aos config get voice.enabled --bogus 2>"$STATE_ROOT/config-get-bogus.err"; then
   fail "config get accepted unknown flag"
 fi
