@@ -263,6 +263,49 @@ function actionTableRow(doc, action) {
   return doc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\` |`)) ?? '';
 }
 
+function backendConformanceRows(doc, marker) {
+  const section = doc.split(marker, 2)[1];
+  assert.ok(section, `missing backend conformance marker ${marker}`);
+  const rows = [];
+  let inTable = false;
+  for (const line of section.split(/\r?\n/)) {
+    if (!line.startsWith('| ')) {
+      if (inTable) break;
+      continue;
+    }
+    inTable = true;
+    if (!line.startsWith('| backend/path |') && !line.startsWith('| --- |')) {
+      rows.push(line);
+    }
+  }
+  return rows;
+}
+
+const expectedBackendConformanceRows = [
+  '| `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |',
+  '| `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |',
+  '| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline verification |',
+  '| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus the same approval gates |',
+  '| `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus the same approval gates |',
+  '| `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in browser, AOS canvas, and native saved-ref tests |',
+];
+
+assert.deepEqual(
+  backendConformanceRows(schemaDoc, '## Backend Conformance Levels'),
+  expectedBackendConformanceRows,
+  'schema backend conformance table must stay canonical',
+);
+assert.deepEqual(
+  backendConformanceRows(apiDoc, 'Backend conformance levels are intentionally explicit:'),
+  expectedBackendConformanceRows,
+  'API backend conformance table must match schema backend conformance table',
+);
+for (const row of expectedBackendConformanceRows) {
+  for (const match of row.matchAll(/`(tests\/[^`]+\.sh)`/g)) {
+    assert.ok(fs.existsSync(match[1]), `backend conformance table names missing test evidence ${match[1]}`);
+  }
+}
+
 const workspaceSelectionCoverage = AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.workspace_selection;
 for (const [label, text] of Object.entries({ schemaDoc, apiDoc, skill })) {
   const prose = text.replace(/\s+/g, ' ');
