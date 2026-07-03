@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   addMarkdownWorkbenchAnnotation,
   clearMarkdownWorkbenchAnnotations,
@@ -64,34 +64,57 @@ function readAnnotationsFromFile(filePath) {
 
 function writeRecord(record, output) {
   const json = `${JSON.stringify(record, null, 2)}\n`;
-  if (output) fs.writeFileSync(path.resolve(repoRoot, output), json);
+  if (output) writeFileAtomic(path.resolve(repoRoot, output), json);
   else process.stdout.write(json);
 }
 
-const args = parseArgs(process.argv.slice(2));
-if (args.help || !args.checkpoint) {
-  usage();
-  process.exit(args.help ? 0 : 1);
-}
-
-let checkpoint = JSON.parse(fs.readFileSync(path.resolve(repoRoot, args.checkpoint), 'utf8'));
-
-if (args.clear) checkpoint = clearMarkdownWorkbenchAnnotations(checkpoint, { actor: 'operator-cli' });
-
-for (const raw of args.annotationJson) {
-  checkpoint = addMarkdownWorkbenchAnnotation(checkpoint, JSON.parse(raw));
-}
-for (const filePath of args.annotationFiles.filter(Boolean)) {
-  for (const annotation of readAnnotationsFromFile(filePath)) {
-    checkpoint = addMarkdownWorkbenchAnnotation(checkpoint, annotation);
+export function writeFileAtomic(filePath, contents) {
+  const target = path.resolve(filePath);
+  const dir = path.dirname(target);
+  const temp = path.join(dir, `.${path.basename(target)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(temp, contents);
+    fs.renameSync(temp, target);
+  } catch (error) {
+    try {
+      fs.rmSync(temp, { force: true });
+    } catch {
+      // Preserve the original write failure.
+    }
+    throw error;
   }
 }
-for (const id of args.resolve.filter(Boolean)) {
-  checkpoint = resolveMarkdownWorkbenchAnnotation(checkpoint, id, 'resolved');
-}
-for (const id of args.reject.filter(Boolean)) {
-  checkpoint = resolveMarkdownWorkbenchAnnotation(checkpoint, id, 'rejected');
-}
-if (args.commit) checkpoint = commitMarkdownWorkbenchAnnotations(checkpoint);
 
-writeRecord(checkpoint, args.output);
+function main(argv = process.argv.slice(2)) {
+  const args = parseArgs(argv);
+  if (args.help || !args.checkpoint) {
+    usage();
+    process.exit(args.help ? 0 : 1);
+  }
+
+  let checkpoint = JSON.parse(fs.readFileSync(path.resolve(repoRoot, args.checkpoint), 'utf8'));
+
+  if (args.clear) checkpoint = clearMarkdownWorkbenchAnnotations(checkpoint, { actor: 'operator-cli' });
+
+  for (const raw of args.annotationJson) {
+    checkpoint = addMarkdownWorkbenchAnnotation(checkpoint, JSON.parse(raw));
+  }
+  for (const filePath of args.annotationFiles.filter(Boolean)) {
+    for (const annotation of readAnnotationsFromFile(filePath)) {
+      checkpoint = addMarkdownWorkbenchAnnotation(checkpoint, annotation);
+    }
+  }
+  for (const id of args.resolve.filter(Boolean)) {
+    checkpoint = resolveMarkdownWorkbenchAnnotation(checkpoint, id, 'resolved');
+  }
+  for (const id of args.reject.filter(Boolean)) {
+    checkpoint = resolveMarkdownWorkbenchAnnotation(checkpoint, id, 'rejected');
+  }
+  if (args.commit) checkpoint = commitMarkdownWorkbenchAnnotations(checkpoint);
+
+  writeRecord(checkpoint, args.output);
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  main();
+}
