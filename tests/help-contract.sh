@@ -444,6 +444,8 @@ capture_save_form = next(item for item in capture["forms"] if item["id"] == "see
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
+format_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--format")
+format_values = {item["value"] for item in format_arg["value_type"]["enum"]}
 mode_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--mode")
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 save_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--save")
@@ -451,6 +453,8 @@ capture_save_arg = next(arg for arg in capture_save_form["args"] if arg.get("tok
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
+assert format_values == {"png", "jpg", "jpeg", "heic"}, format_values
+assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert "stable native AX press/focus/set-value" in save_arg["summary"], save_arg
 assert "documented saved-ref action matrix" in capture_save_arg["summary"], capture_save_arg

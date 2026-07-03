@@ -276,6 +276,17 @@ const parsed = parseCaptureArgs(['main', '--format', 'jpeg']);
 assert.deepEqual(parsed.errors, [], 'workspace capture parser must delegate primitive --format jpeg grammar to Swift');
 assert.deepEqual(parsed.passthrough, ['main', '--format', 'jpeg']);
 assert.equal(parsed.target, 'main');
+
+const { readFileSync } = await import('node:fs');
+const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));
+const see = help.commands.find((command) => command.path.join(' ') === 'see');
+const capture = see.forms.find((form) => form.id === 'see-capture');
+const format = capture.args.find((arg) => arg.token === '--format');
+assert.deepEqual(
+  new Set(format.value_type.enum.map((item) => item.value)),
+  new Set(['png', 'jpg', 'jpeg', 'heic']),
+  'see capture help must document the primitive jpeg format alias'
+);
 JS
 check_code see-capture-unknown-flag UNKNOWN_OPTION ./aos see capture main --bogus
 check_code see-capture-extra UNKNOWN_OPTION ./aos see capture main unexpected
@@ -309,6 +320,19 @@ if ./aos see capture main --format gif 2>"$err"; then
 fi
 if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_FORMAT"' "$err"; then
   echo "FAIL: see capture invalid --format value did not use INVALID_FORMAT" >&2
+  cat "$err" >&2
+  exit 1
+fi
+if ! python3 - "$err" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+if "Use png, jpg/jpeg, or heic." not in data.get("error", ""):
+    raise SystemExit(1)
+PY
+then
+  echo "FAIL: see capture invalid --format value did not document jpeg alias" >&2
   cat "$err" >&2
   exit 1
 fi

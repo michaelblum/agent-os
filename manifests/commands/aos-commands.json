@@ -308,8 +308,12 @@
                     "value" : "png"
                   },
                   {
-                    "summary" : "Lossy JPEG",
+                    "summary" : "Lossy JPEG (.jpg)",
                     "value" : "jpg"
+                  },
+                  {
+                    "summary" : "JPEG alias; output path uses .jpg",
+                    "value" : "jpeg"
                   },
                   {
                     "summary" : "HEIC format",
