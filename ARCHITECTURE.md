@@ -191,7 +191,7 @@ The verb vocabulary follows an embodied metaphor. Communication is one primitive
 | `do` | Act on the environment | CGEvents, AX actions, AppleScript |
 | `show` | Project visuals | Canvases, overlays, render |
 | `tell` | Communicate outward | Routes to TTS, channels, future sinks |
-| `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
+| `listen` | Receive communication | Channels and direct sessions today; STT, stdin, and aggregated sources planned |
 
 The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to deliver it. This follows the first principle above: agent tokens are for decisions, not plumbing.
 

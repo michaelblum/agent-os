@@ -267,9 +267,11 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.match(architecture, /`aos say` direct TTS convenience/);
   assert.match(architecture, /`aos voice` registry\/catalog\/assignments\/providers\/final-response speech ingress/);
   assert.match(architecture, /STT audio capture is a planned `aos listen` source, not a separate public primitive/);
+  assert.match(architecture, /\| `listen` \| Receive communication \| Channels and direct sessions today; STT, stdin, and aggregated sources planned \|/);
   assert.match(aosApi, /`aos say` is a direct TTS convenience path/);
   assert.match(aosApi, /`aos tell human \.\.\.` is daemon-routed communication/);
   assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads and follow today; STT and broader sources planned \|/);
+  assert.doesNotMatch(maintained, /\| `listen` \| Receive communication \| Aggregates STT/);
   assert.doesNotMatch(maintained, /`aos listen` or similar/);
   assert.doesNotMatch(maintained, /say.*sugar for tell human/i);
 });
