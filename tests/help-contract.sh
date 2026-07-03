@@ -113,7 +113,11 @@ from pathlib import Path
 root = json.loads(os.environ["ROOT_JSON"])
 root_top_level = {command["path"][0] for command in root["commands"]}
 readme = Path("README.md").read_text(encoding="utf-8")
-required = {"see", "do", "show", "tell", "listen", "say", "recipe", "ready", "serve", "service"}
+required = {
+    "see", "do", "show", "tell", "listen",
+    "say", "recipe",
+    "ready", "serve", "service", "status", "doctor", "permissions", "clean", "reset",
+}
 assert required <= root_top_level, sorted(required - root_top_level)
 for command in required:
     assert f"`aos {command}`" in readme, command
@@ -123,6 +127,9 @@ assert re.search(r"\| `aos say` \| Convenience \|.*tell human", readme), readme
 assert re.search(r"\| `aos recipe` \| Higher-order \|.*`aos ops`", readme), readme
 assert re.search(r"\| `aos ready` \| Runtime/ops \|", readme), readme
 assert re.search(r"\| `aos serve` / `aos service` \| Runtime/ops \|", readme), readme
+assert re.search(r"\| `aos status` / `aos doctor` \| Runtime/ops \|.*diagnostics", readme), readme
+assert re.search(r"\| `aos permissions` \| Runtime/ops \|.*Permission", readme), readme
+assert re.search(r"\| `aos clean` / `aos reset` \| Runtime/ops \|.*cleanup", readme), readme
 PY
 then
     pass "README public command model covers primitive, convenience, recipe, and runtime tiers"
