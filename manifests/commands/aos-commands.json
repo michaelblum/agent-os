@@ -9510,6 +9510,7 @@
       "summary" : "Knowledge base — browse, search, invoke workflow plugins"
     },
     {
+      "consumer_discovery" : false,
       "forms" : [
         {
           "args" : [
