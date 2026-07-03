@@ -176,7 +176,7 @@ verification step. After a dry-run returns a safe status such as `reacquired`,
 `resolved`, or `direct_ax_ready`, dispatch by rerunning the exact saved-ref
 command without `--dry-run`; do not remove `--dry-run` for
 validation-required, blocked, unsupported, or low-confidence refs. Refresh
-recommendations point back to the originating saved target and mode:
+recommendations point back to the originating capture target and mode:
 
 ```bash
 aos see capture <capture_target> --save --workspace <workspace> --mode <capture_mode>
