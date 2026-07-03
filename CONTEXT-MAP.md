@@ -23,6 +23,10 @@ source root. This file is a routing map, not a replacement for those sources.
   under `docs/api/`.
 - Schemas and cross-tool contracts: `shared/schemas/`, especially
   `shared/schemas/CONTRACT-GOVERNANCE.md`.
+- Command manifests and help metadata:
+  `manifests/commands/aos-commands.json` and
+  `manifests/commands/aos-external-commands.json`.
+- Agent workflow skill: `skills/aos-agent-workspace/SKILL.md`.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
