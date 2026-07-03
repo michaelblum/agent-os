@@ -883,6 +883,12 @@ aos do key browser:<session> "cmd+s"
 Saved-ref `type` and `key` attempts with `--workspace` or `--snapshot` fail
 closed through the saved-ref resolver until browser keyboard semantics are
 promoted through the action matrix.
+Browser focus and text assertions are not separate public actions in this
+slice: `aos do focus` is native AX only, and saved workspaces do not expose
+`aos see assert`. Use direct browser `click`, `fill`, `type`, or `key` where
+those routes intentionally focus as part of Playwright execution, then verify
+through a fresh saved capture, Recipe JSON assertions, or Work Record
+postconditions.
 Refs with `confidence: low` are readback-only for saved-ref mutation and fail
 closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run
 validation or dispatch. Non-dry-run mutation refuses unsafe resolution classes or
