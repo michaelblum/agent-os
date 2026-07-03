@@ -110,8 +110,10 @@ Backend proof quick read:
   `native_primitive_response_plus_wrapper_contract`
   / `approval_gated_live_proof_not_run`.
 - `coordinate_fallback` uses `known_limit_contract` /
-  `known_limit_refusal_tested`, with browser, AOS canvas, and native saved-ref
-  tests refusing dispatch before mutation.
+  `known_limit_refusal_tested`, with
+  `tests/agent-workspace-browser-refs.sh`,
+  `tests/agent-workspace-canvas-refs.sh`, and
+  `tests/agent-workspace-native-refs.sh` refusing dispatch before mutation.
 
 ## Acting On Refs
 

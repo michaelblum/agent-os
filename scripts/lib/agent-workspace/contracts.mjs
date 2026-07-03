@@ -166,7 +166,11 @@ export function savedRefProofStory(backend, resolutionClass, hasMutation) {
     return proofStory(
       'known_limit_contract',
       'known_limit_refusal_tested',
-      ['tests/agent-workspace-native-refs.sh'],
+      [
+        'tests/agent-workspace-browser-refs.sh',
+        'tests/agent-workspace-canvas-refs.sh',
+        'tests/agent-workspace-native-refs.sh',
+      ],
     );
   }
 
