@@ -341,6 +341,7 @@ fi
 if CREATE="$(./aos help show create --json 2>/dev/null)" UPDATE="$(./aos help show update --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
+from pathlib import Path
 
 
 def form_arg(payload, form_id, arg_id):
@@ -358,6 +359,13 @@ assert enum_values(create_auto) == ["cursor_trail", "highlight_focused", "label_
 assert form_arg(os.environ["UPDATE"], "show-update", "auto-project") is None
 assert form_arg(os.environ["UPDATE"], "show-update", "anchor-channel") is not None
 assert enum_values(form_arg(os.environ["UPDATE"], "show-update", "track")) == ["union"]
+docs = Path("docs/api/aos.md").read_text(encoding="utf-8")
+show_section = docs.split("## `aos show`", 1)[1].split("## `aos recipe`", 1)[0]
+for token in ["--anchor-browser browser:<session>/<ref>", "--anchor-window <id>", "--anchor-channel <id>", "--offset x,y,w,h"]:
+    assert token in show_section, token
+assert "Anchor flags are placement roles, not separate target dialects" in show_section, show_section
+assert "Anchor Binding" in show_section, show_section
+assert "show update" in show_section and "re-anchored after browser scroll" in show_section, show_section
 PY
 then
     pass "show create/update registry matches canvas parser enums"

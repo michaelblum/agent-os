@@ -789,6 +789,10 @@ Primary public verbs:
 - `--scope connection|global` (default: `global`)
 - `--track union`
 - `--surface desktop-world` — canonical alias for `--track union`
+- `--anchor-browser browser:<session>/<ref>`
+- `--anchor-window <id>`
+- `--anchor-channel <id>`
+- `--offset x,y,w,h`
 
 `--surface desktop-world` and legacy `--track union` create one logical
 DesktopWorld surface backed by one physical segment per active display. The
@@ -802,6 +806,13 @@ recreate the canvas so it boots with the segmented backing.
 number or numbers backing a canvas. Perception commands use this to keep
 canvas-scoped captures and `--xray` AX traversal attached to the intended AOS
 surface instead of falling back to the frontmost app.
+
+Anchor flags are placement roles, not separate target dialects.
+`--anchor-browser` consumes a browser Target-with-Ref, while `--anchor-window`
+and `--anchor-channel` consume resource ids. The display subsystem resolves the
+input into an Anchor Binding for placement. `show update` accepts the same
+anchor flags when a surface needs to be re-anchored after browser scroll,
+navigation, or layout changes.
 
 ## `aos recipe`
 
