@@ -124,6 +124,9 @@ matrix:
 - AOS canvas `reacquirable` refs may route `click` and `set-value` through the
   current canvas resolver. Supported canvas refs report
   `conformance.proof.status: deterministic_contract_tests_passed`.
+- Saved AOS canvas `drag` is not supported in the saved-ref action matrix.
+  Direct current-host canvas drag uses `canvas:<canvas-id>/<ref>` with `--by`
+  or `--to-value`; do not turn a saved canvas ref into a saved drag target.
 - Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs use fresh
   xray plus page, frame, navigation, role, title, label, context, and
   enabled-state validation. `current_validation.current_target` includes current

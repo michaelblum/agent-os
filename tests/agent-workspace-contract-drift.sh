@@ -323,7 +323,13 @@ assert.ok(
   && skill.includes('aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run')
   && skill.includes('aos do scroll ref:<snapshot-id>:r5 0,-200 --workspace default --dry-run')
   && skill.includes('aos do drag ref:<snapshot-id>:r5 ref:<snapshot-id>:r6 --workspace default --dry-run'),
-  'AOS workspace skill must show the supported browser/canvas saved-ref action families',
+  'AOS workspace skill must show the supported saved-ref action families',
+);
+assert.ok(
+  skill.includes('Saved AOS canvas `drag` is not supported in the saved-ref action matrix')
+  && skill.includes('Direct current-host canvas drag uses `canvas:<canvas-id>/<ref>` with `--by`')
+  && skill.includes('do not turn a saved canvas ref into a saved drag target'),
+  'AOS workspace skill must keep saved canvas drag distinct from direct canvas drag',
 );
 for (const staleCommand of [
   'aos see workspace use',
