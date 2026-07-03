@@ -102,6 +102,45 @@ test('gate ask rejects flag-shaped values for value flags', async () => {
   assert.match(stderr.text(), /--request requires a value/);
 });
 
+test('gate ask passes single choice options to the gate request', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  let capturedRequest;
+  const service = {
+    async ask(request) {
+      capturedRequest = request;
+      return { decision: 'fast' };
+    },
+  };
+
+  const code = await runGateAsk([
+    '--preset', 'single_choice',
+    '--title', 'Pick mode',
+    '--choice', 'fast=Fast path',
+    '--choice', 'safe',
+  ], { stdout, stderr, service });
+
+  assert.equal(code, 0);
+  assert.equal(stderr.text(), '');
+  assert.equal(stdout.text(), '{"decision":"fast"}\n');
+  assert.equal(capturedRequest.ui.variant, 'single_choice');
+  assert.deepEqual(capturedRequest.choices, [
+    { value: 'fast', label: 'Fast path' },
+    { value: 'safe', label: 'safe' },
+  ]);
+  assert.deepEqual(capturedRequest.fields[0].options, capturedRequest.choices);
+});
+
+test('gate ask requires choices for choice presets', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateAsk(['--preset', 'multi_choice', '--title', 'Pick modes'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--preset multi_choice requires at least one --choice/);
+});
+
 test('ask resolves with user values and cleans up pending gate', async () => {
   const harness = timeoutHarness();
   let receptor;
