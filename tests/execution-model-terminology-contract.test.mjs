@@ -312,6 +312,48 @@ test('show anchors stay placement roles instead of target dialects', async () =>
   assert.doesNotMatch(`${context}\n${showSection}`, /anchor:<|browser-anchor:/);
 });
 
+test('canvas host docs keep lifecycle, current targets, and saved refs distinct', async () => {
+  const aosApi = await text('docs/api/aos.md');
+  const toolkitRuntime = await text('docs/api/toolkit/runtime.md');
+  const context = await text('CONTEXT.md');
+  const manifest = JSON.parse(await text('manifests/commands/aos-commands.json'));
+  const showCommand = manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(['show'])
+  ));
+  const showCreateForm = showCommand?.forms?.find((form) => form.id === 'show-create');
+  const seeCommand = manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(['see'])
+  ));
+  const seeCaptureForm = seeCommand?.forms?.find((form) => form.id === 'see-capture');
+  const doDragCommand = manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(['do', 'drag'])
+  ));
+  const doCommand = manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(['do'])
+  ));
+  const doDragCanvasForm = doDragCommand?.forms?.find((form) => form.id === 'do-drag-canvas')
+    ?? doCommand?.forms?.find((form) => form.id === 'do-drag-canvas');
+  const doClickForm = doCommand?.forms?.find((form) => form.id === 'do-click');
+  const doSetValueForm = doCommand?.forms?.find((form) => form.id === 'do-set-value');
+  const targetLadder = aosApi.split('## Target And Handle Ladder', 2)[1].split('## Core Usage Patterns', 1)[0];
+
+  assert.ok(showCreateForm?.args?.some((arg) => arg.id === 'id' && /Canvas identifier/.test(arg.summary)));
+  assert.ok(seeCaptureForm?.args?.some((arg) => arg.token === '--canvas' && /Capture a canvas by id/.test(arg.summary)));
+  assert.match(doClickForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.match(doSetValueForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.match(doDragCanvasForm?.usage ?? '', /canvas:<canvas-id>\/<ref>/);
+  assert.match(doDragCanvasForm?.usage ?? '', /--by <dx,dy>\|--to-value <value>/);
+  assert.match(context, /Canvas Host[\s\S]*?addressed as `canvas:<canvas-id>\/<ref>`/);
+  assert.match(targetLadder, /Window, channel, browser, and\s+canvas ids remain resource ids or role-flag values/);
+  assert.match(toolkitRuntime, /`aos show --id <canvas-id>` owns canvas resource lifecycle/);
+  assert.match(toolkitRuntime, /`aos see capture\s+--canvas <canvas-id>` scopes perception to the current canvas host/);
+  assert.match(toolkitRuntime, /`canvas:<canvas-id>\/<ref>` is the direct current Target-with-Ref/);
+  assert.match(toolkitRuntime, /Saved workspace refs remain the model-facing durable\s+handle/);
+  assert.match(toolkitRuntime, /canvas id as a resource id, not as durable object\s+identity/);
+  assert.doesNotMatch(`${targetLadder}\n${toolkitRuntime}`, /canvas id is durable object identity/i);
+  assert.doesNotMatch(`${targetLadder}\n${toolkitRuntime}`, /canvas:<canvas-id> is the saved ref/i);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
