@@ -175,11 +175,22 @@ function readRegistry() {
   if (!fs.existsSync(file)) return [];
   const raw = fs.readFileSync(file, 'utf8').trim();
   if (!raw) return [];
-  return JSON.parse(raw);
+  try {
+    const records = JSON.parse(raw);
+    if (!Array.isArray(records)) error(`Focus registry is schema-invalid: ${file}`, 'FOCUS_REGISTRY_INVALID');
+    return records;
+  } catch (parseError) {
+    if (parseError?.code === 'FOCUS_REGISTRY_INVALID') throw parseError;
+    error(`Focus registry is not valid JSON: ${file}`, 'FOCUS_REGISTRY_INVALID');
+  }
 }
 
 function writeRegistry(records) {
-  fs.writeFileSync(registryPath(), `${JSON.stringify(records, null, 2)}\n`);
+  const file = registryPath();
+  const dir = path.dirname(file);
+  const temp = path.join(dir, `.sessions.json.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(temp, `${JSON.stringify(records, null, 2)}\n`);
+  fs.renameSync(temp, file);
 }
 
 function runPlaywright(session, verb, args = []) {
@@ -214,6 +225,10 @@ function addRegistryRecord(record) {
   writeRegistry(records);
 }
 
+function assertRegistryIDAvailable(id) {
+  if (readRegistry().some((item) => item.id === id)) error(`focus channel '${id}' already exists`, 'DUPLICATE_ID');
+}
+
 function removeRegistryRecord(id) {
   const records = readRegistry();
   if (!records.some((item) => item.id === id)) error(`focus channel '${id}' not found`, 'NOT_FOUND');
@@ -245,7 +260,13 @@ async function focusCreate(args) {
   const windowID = numberAfter(args, '--window');
   if (target && windowID !== undefined) error('--target and --window are mutually exclusive', 'INVALID_ARG');
   if (target) {
-    const url = new URL(target);
+    assertRegistryIDAvailable(id);
+    let url;
+    try {
+      url = new URL(target);
+    } catch {
+      error('invalid --target; expected browser://attach or browser://new', 'INVALID_ARG');
+    }
     if (url.protocol !== 'browser:' || !['attach', 'new'].includes(url.hostname)) {
       error('invalid --target; expected browser://attach or browser://new', 'INVALID_ARG');
     }
