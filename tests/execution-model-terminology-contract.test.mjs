@@ -151,6 +151,27 @@ test('grand unification plan qualifies screen and AX target-model vocabulary', a
   assert.doesNotMatch(plan, /`ax:<\.\.\.>`: future first-class macOS AX refs/);
 });
 
+test('design target examples keep screen and AX as bridge or model vocabulary', async () => {
+  const piLessons = await text('docs/design/pi-computer-use-lessons-for-aos-see-do.md');
+  const workRecords = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
+  const compatibilityAudit = await text('docs/design/aos-subject-model-compatibility-audit.md');
+
+  for (const doc of [piLessons, workRecords]) {
+    assert.match(doc, /browser:<session>\/<ref>/);
+    assert.match(doc, /canvas:<canvas-id>\/<[^>]+>/);
+    assert.match(doc, /ref:<snapshot-id>:<ref-id>/);
+    assert.match(doc, /screen coordinate fallback: raw x,y plus --state-id \(current CLI\); screen:<state-id>\/<x,y> is target-model\/replay shorthand/);
+    assert.match(doc, /native AX: selector flags such as --pid and --role \(current CLI\); ax:<\.\.\.> is reserved target-model vocabulary/);
+    assert.doesNotMatch(doc, /^ax:<pid>\/<ref>$/m);
+    assert.doesNotMatch(doc, /^screen:<state-id>\/<x,y>$/m);
+  }
+
+  assert.match(compatibilityAudit, /current coordinate fallback as raw `x,y` plus optional\s+`--state-id`/);
+  assert.match(compatibilityAudit, /`screen:<state-id>\/<x,y>` remains target-model\/replay shorthand,\s+not a current CLI target string/);
+  assert.match(compatibilityAudit, /screen coordinate bridge wording/);
+  assert.doesNotMatch(compatibilityAudit, /update docs to `screen:<state-id>\/<x,y>`/);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');

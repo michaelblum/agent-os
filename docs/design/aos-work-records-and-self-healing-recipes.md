@@ -151,15 +151,18 @@ Examples:
 
 ```text
 browser:<session>/<ref>
-ax:<pid>/<ref>
 canvas:<canvas-id>/<state-scoped-ref>
-screen:<state-id>/<x,y>
+ref:<snapshot-id>:<ref-id>
+screen coordinate fallback: raw x,y plus --state-id (current CLI); screen:<state-id>/<x,y> is target-model/replay shorthand
+native AX: selector flags such as --pid and --role (current CLI); ax:<...> is reserved target-model vocabulary
 ```
 
-The exact grammar can harden later. The important point is that target strings
-are compact current-address handles while the execution map can carry richer
-target descriptors: owner namespace, durable target id, primitive actions,
-state, provenance, and machine-first stale-ref repair hints.
+The exact grammar can harden later. The important point is that direct target
+strings and saved refs stay compact current-address/provenance handles while
+the execution map can carry richer target descriptors: owner namespace, durable
+target id, primitive actions, state, provenance, and machine-first stale-ref
+repair hints. Screen coordinate and native AX bridges should be recorded as
+structured descriptors until they gain first-class live target strings.
 
 ## Playwright And Codegen
 
