@@ -957,6 +957,14 @@
               }
             },
             {
+              "id" : "expect-ref",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Require one ref in a compact refs diff to be added, removed, changed, unchanged, present, or missing",
+              "token" : "--expect-ref",
+              "value_type" : "string"
+            },
+            {
               "id" : "query",
               "kind" : "flag",
               "required" : false,
@@ -977,6 +985,7 @@
             "aos see refs --workspace default --snapshot snap-20260701-120000Z-demo --json",
             "aos see refs --workspace default --diff before..after --json",
             "aos see refs --workspace default --diff before..after --expect change --json",
+            "aos see refs --workspace default --diff before..after --expect-ref save-button=changed --json",
             "aos see refs --workspace default --query Save"
           ],
           "execution" : {
@@ -995,8 +1004,8 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "summary" : "Inspect compact saved refs by workspace, snapshot, query, or snapshot diff before acting on ref targets; --expect gates diff output as change or no-change",
-          "usage" : "aos see refs [--workspace <id>] [--snapshot <id> | --diff <from>..<to> [--expect change|no-change]] [--query <text>] [--json]"
+          "summary" : "Inspect compact saved refs by workspace, snapshot, query, or snapshot diff before acting on ref targets; --expect and --expect-ref gate diff output for scripts and recipes",
+          "usage" : "aos see refs [--workspace <id>] [--snapshot <id> | --diff <from>..<to> [--expect change|no-change] [--expect-ref <ref>=added|removed|changed|unchanged|present|missing]] [--query <text>] [--json]"
         },
         {
           "args" : [

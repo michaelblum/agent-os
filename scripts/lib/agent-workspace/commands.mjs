@@ -33,6 +33,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
   ['--snapshot', 'value'],
   ['--diff', 'value'],
   ['--expect', 'value'],
+  ['--expect-ref', 'value'],
   ['--query', 'value'],
   ['--older-than', 'value'],
 ]);
@@ -40,7 +41,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
 const AGENT_WORKSPACE_FLAGS = {
   workspaces: new Set(['--json']),
   snapshots: new Set(['--workspace', '--json']),
-  refs: new Set(['--workspace', '--snapshot', '--diff', '--expect', '--query', '--json']),
+  refs: new Set(['--workspace', '--snapshot', '--diff', '--expect', '--expect-ref', '--query', '--json']),
   workspace: new Set(['--json']),
   workspacePrune: new Set(['--older-than', '--dry-run', '--i-understand-local-artifacts', '--json']),
   workspaceDelete: new Set(['--i-understand-local-artifacts', '--json']),
@@ -59,6 +60,7 @@ function parseReadArgs(args, {
   let snapshot = null;
   let diff = null;
   let expect = null;
+  let expectRef = null;
   let query = null;
   let json = false;
   let dryRun = false;
@@ -84,6 +86,7 @@ function parseReadArgs(args, {
       if (arg === '--snapshot') snapshot = args[i + 1];
       if (arg === '--diff') diff = args[i + 1];
       if (arg === '--expect') expect = args[i + 1];
+      if (arg === '--expect-ref') expectRef = args[i + 1];
       if (arg === '--query') query = args[i + 1];
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
@@ -109,6 +112,7 @@ function parseReadArgs(args, {
     snapshot: snapshot ? validateLocalID(snapshot, 'snapshot id') : null,
     diff,
     expect,
+    expectRef,
     query,
     json,
     dryRun,
@@ -117,6 +121,8 @@ function parseReadArgs(args, {
   };
 }
 
+const REF_DIFF_EXPECTATION_STATES = new Set(['added', 'removed', 'changed', 'unchanged', 'present', 'missing']);
+
 function parseDiffExpectation(value) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
@@ -124,6 +130,24 @@ function parseDiffExpectation(value) {
     exitAgentWorkspaceError('--expect must be change or no-change', 'INVALID_ARG');
   }
   return normalized;
+}
+
+function parseRefDiffExpectation(value) {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  const separatorIndex = raw.lastIndexOf('=');
+  if (separatorIndex <= 0 || separatorIndex === raw.length - 1) {
+    exitAgentWorkspaceError('--expect-ref must use <ref>=added|removed|changed|unchanged|present|missing', 'INVALID_ARG');
+  }
+  const ref = validateLocalID(raw.slice(0, separatorIndex), 'ref id');
+  const expectedState = raw.slice(separatorIndex + 1);
+  if (!REF_DIFF_EXPECTATION_STATES.has(expectedState)) {
+    exitAgentWorkspaceError('--expect-ref must use added, removed, changed, unchanged, present, or missing', 'INVALID_ARG');
+  }
+  return {
+    ref,
+    expected_state: expectedState,
+  };
 }
 
 function parseSnapshotDiff(value) {
@@ -216,6 +240,36 @@ function refsDiffExpectation(expectation, comparison) {
   };
 }
 
+function refsDiffRefState(ref, comparison) {
+  if (comparison.added.some((record) => record.ref === ref)) return 'added';
+  if (comparison.removed.some((record) => record.ref === ref)) return 'removed';
+  if (comparison.changed.some((record) => record.ref === ref)) return 'changed';
+  if (comparison.unchanged.some((record) => record.ref === ref)) return 'unchanged';
+  return 'missing';
+}
+
+function refsDiffRefExpectation(expectation, comparison) {
+  if (!expectation) return null;
+  const actualState = refsDiffRefState(expectation.ref, comparison);
+  const expectedState = expectation.expected_state;
+  const passed = expectedState === 'present'
+    ? actualState !== 'missing' && actualState !== 'removed'
+    : expectedState === 'missing'
+      ? actualState === 'missing' || actualState === 'removed'
+      : actualState === expectedState;
+  return {
+    ref: expectation.ref,
+    mode: expectedState,
+    status: passed ? 'passed' : 'failed',
+    expected_state: expectedState,
+    actual_state: actualState,
+  };
+}
+
+function diffExpectationFailed(expectation, refExpectation) {
+  return expectation?.status === 'failed' || refExpectation?.status === 'failed';
+}
+
 function assertWorkspaceListState(value, file, label) {
   if (!value) return;
   if (typeof value !== 'object' || Array.isArray(value) || value.schema_version !== SCHEMA_VERSION) {
@@ -278,12 +332,14 @@ export function refsCommand(args, env = process.env) {
   if (parsed.diff) {
     const diff = parseSnapshotDiff(parsed.diff);
     const expectationMode = parseDiffExpectation(parsed.expect);
+    const refExpectationMode = parseRefDiffExpectation(parsed.expectRef);
     const fromLoaded = loadSnapshot(parsed.workspace, diff.from, env);
     const toLoaded = loadSnapshot(parsed.workspace, diff.to, env);
     const fromRefs = (fromLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const toRefs = (toLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const comparison = compactRefsDiff(fromRefs, toRefs);
     const expectation = refsDiffExpectation(expectationMode, comparison);
+    const refExpectation = refsDiffRefExpectation(refExpectationMode, comparison);
     const nextRecommendations = compactNextRecommendations(parsed.workspace, diff.to, toRefs, env);
     const payload = {
       status: 'success',
@@ -296,14 +352,18 @@ export function refsCommand(args, env = process.env) {
         from_snapshot_id: diff.from,
         to_snapshot_id: diff.to,
         ...(expectation ? { expectation } : {}),
+        ...(refExpectation ? { ref_expectation: refExpectation } : {}),
         ...comparison,
       },
       refs: toRefs,
       recommended_next: nextRecommendations,
       recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
     };
-    if (expectation?.status === 'failed') {
-      exitAgentWorkspaceError(`refs diff expectation failed: expected ${expectation.mode}`, 'REF_DIFF_EXPECTATION_FAILED', {
+    if (diffExpectationFailed(expectation, refExpectation)) {
+      const expected = refExpectation?.status === 'failed'
+        ? `${refExpectation.ref}=${refExpectation.mode}`
+        : expectation.mode;
+      exitAgentWorkspaceError(`refs diff expectation failed: expected ${expected}`, 'REF_DIFF_EXPECTATION_FAILED', {
         status: 'expectation_failed',
         schema_version: SCHEMA_VERSION,
         workspace_id: parsed.workspace,
@@ -319,8 +379,8 @@ export function refsCommand(args, env = process.env) {
     printJSON(payload);
     return;
   }
-  if (parsed.expect) {
-    exitAgentWorkspaceError('--expect requires --diff', 'INVALID_ARG');
+  if (parsed.expect || parsed.expectRef) {
+    exitAgentWorkspaceError('--expect and --expect-ref require --diff', 'INVALID_ARG');
   }
   const snapshotIDs = parsed.snapshot
     ? [parsed.snapshot]
