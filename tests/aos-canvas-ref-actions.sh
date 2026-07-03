@@ -95,7 +95,7 @@ STATE_ID="$(printf '%s' "$CAPTURE" | jq -r '.state_id')"
 SLIDER_TARGET="$(printf '%s' "$CAPTURE" | jq -r --arg canvas "$CANVAS_ID" '
   .semantic_targets
   | map(select(
-      .canvas_id == $canvas
+      .provenance.canvas_id == $canvas
       and .ref == "action-contract:opacity"
       and .role == "slider"
       and (.actions | index("set-value"))
@@ -106,7 +106,7 @@ SLIDER_TARGET="$(printf '%s' "$CAPTURE" | jq -r --arg canvas "$CANVAS_ID" '
       and .state.thumb_count == 1
       and (.geometry.control_bounds.width | type == "number")
     ))
-  | if length == 1 then .[0].do_target else empty end
+  | if length == 1 then .[0].provenance.do_target else empty end
 ')"
 
 if [ "$SLIDER_TARGET" != "canvas:${CANVAS_ID}/action-contract:opacity" ]; then
@@ -118,12 +118,12 @@ fi
 DRAG_TARGET="$(printf '%s' "$CAPTURE" | jq -r --arg canvas "$CANVAS_ID" '
   .semantic_targets
   | map(select(
-      .canvas_id == $canvas
+      .provenance.canvas_id == $canvas
       and .ref == ($canvas + ":drag-handle")
-      and .id == "drag-handle"
+      and .target.target_id == "drag-handle"
       and (.actions | index("drag"))
     ))
-  | if length == 1 then .[0].do_target else empty end
+  | if length == 1 then .[0].provenance.do_target else empty end
 ')"
 
 if [ "$DRAG_TARGET" != "canvas:${CANVAS_ID}/${CANVAS_ID}:drag-handle" ]; then

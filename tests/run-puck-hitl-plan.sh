@@ -157,7 +157,8 @@ payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
 canvas_id = sys.argv[2]
 expected = f"canvas:{canvas_id}/run-puck-v0:advance"
 for target in payload.get("semantic_targets") or []:
-    if target.get("do_target") == expected and target.get("enabled") is True:
+    provenance = target.get("provenance") or {}
+    if provenance.get("do_target") == expected and target.get("enabled") is True:
         print(expected)
         raise SystemExit(0)
 raise SystemExit(f"missing enabled run puck advance do_target {expected}")
