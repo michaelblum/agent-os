@@ -36,6 +36,9 @@ backend validation, and local cleanup.
   before dispatch.
 - Workspace state is local control state, not Work Recording evidence storage.
   Preserve runtime-mode isolation and explicit cleanup acknowledgements.
+- Workspace mutation locks must fail closed for live owners, reap dead-owner
+  locks, and age out corrupt or ownerless lock directories through the
+  `AOS_AGENT_WORKSPACE_STALE_LOCK_MS` threshold.
 
 ## Work Guidance
 

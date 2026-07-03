@@ -27,6 +27,7 @@ import {
 const LOCK_DIRNAME = '.write-lock';
 const STAGING_DIRNAME = '.staging';
 const COMMITTED_MARKER = 'committed.json';
+const DEFAULT_STALE_LOCK_MS = 10 * 60 * 1000;
 
 function assertPlainObject(value, file, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -444,9 +445,26 @@ function processIsGone(pid) {
   }
 }
 
-function reapStaleWorkspaceLock(lockDir) {
+function staleLockAgeMs(lockDir) {
+  try {
+    return Date.now() - fs.statSync(lockDir).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+function staleLockThresholdMs(env = process.env) {
+  const configured = Number(env.AOS_AGENT_WORKSPACE_STALE_LOCK_MS);
+  return Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_STALE_LOCK_MS;
+}
+
+function reapStaleWorkspaceLock(lockDir, env = process.env) {
   const pid = ownerPID(lockDir);
-  if (!pid || !processIsGone(pid)) return false;
+  if (pid) {
+    if (!processIsGone(pid)) return false;
+  } else if (staleLockAgeMs(lockDir) < staleLockThresholdMs(env)) {
+    return false;
+  }
   fs.rmSync(lockDir, { recursive: true, force: true });
   return true;
 }
@@ -465,7 +483,7 @@ export function withWorkspaceLock(workspace, callback, env = process.env, { crea
     lockHeld = true;
   } catch (error) {
     if (error?.code === 'EEXIST') {
-      if (reapStaleWorkspaceLock(lockDir)) {
+      if (reapStaleWorkspaceLock(lockDir, env)) {
         try {
           fs.mkdirSync(lockDir);
           lockHeld = true;
