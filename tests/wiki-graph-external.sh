@@ -41,6 +41,14 @@ node = next((item for item in graph["nodes"] if item["path"] == "aos/entities/en
 assert node and node["type"] == "entity", graph
 PY
 
+python3 - <<'PY'
+from pathlib import Path
+import os
+
+path = Path(os.environ["AOS_STATE_ROOT"]) / "repo/wiki/aos/entities/entity-frontmatter-canonical.md"
+path.write_bytes(b"---\ntype: entity\nname: Taxonomy Alignment Test Entity\n---\nraw-invalid-byte \xff\n")
+PY
+
 OUT="$(./aos wiki graph --raw --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
@@ -48,6 +56,7 @@ import os
 
 graph = json.loads(os.environ["OUT"])
 assert graph["raw"]["aos/entities/gateway.md"].startswith("---"), graph["raw"].keys()
+assert "raw-invalid-byte" in graph["raw"]["aos/entities/entity-frontmatter-canonical.md"], graph["raw"]
 PY
 
 if ./aos wiki graph --bogus 2>"$ROOT/wiki-graph-bogus.err"; then
