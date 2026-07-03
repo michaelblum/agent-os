@@ -221,13 +221,18 @@ aos tell <audience> "message"
 aos listen <channel>|--session-id <canonical-session-id>
          ▲
       daemon (arbiter)
-         ├── STT engine         (source = human)
-         ├── channel message    (source = agent)
-         ├── stdin pipe         (source = bash)
-         └── future sources     (webhook, file watch)
+        ├── channel message    (source = agent)
+        ├── direct-session msg (source = session)
+        └── future sources     (STT/dictation, stdin, webhook, file watch)
 ```
 
-The daemon routes based on config (`aos set voice.*`), presence (which sessions are online), and channel state. This is a natural extension of the daemon's existing responsibilities — it already manages voice config, canvases, and perception state.
+The current public `listen` surface reads channels and direct-session messages.
+STT/dictation, stdin ingestion, webhooks, and file-watch inputs are reserved
+future sources; they require explicit help, parser, schema, and daemon contracts
+before agents should rely on them. The daemon routes based on config
+(`aos set voice.*`), presence (which sessions are online), and channel state.
+This is a natural extension of the daemon's existing responsibilities — it
+already manages voice config, canvases, and perception state.
 
 ### Coordination Bus
 

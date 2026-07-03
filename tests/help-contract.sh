@@ -248,9 +248,13 @@ for form_id in ["listen-read", "listen-follow"]:
 text = os.environ["TEXT"]
 assert text.count("requires one listen source: <channel> OR --session-id") == 2, text
 api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
+architecture = Path("ARCHITECTURE.md").read_text(encoding="utf-8")
 assert "STT/dictation is planned as a future" in api_doc, "missing planned listen source boundary"
 assert "current public surface only reads channels" in api_doc, "missing current listen source boundary"
 assert "direct-session messages" in api_doc, "missing direct-session listen boundary"
+assert "The current public `listen` surface reads channels and direct-session messages" in architecture, "missing architecture listen boundary"
+assert "future sources     (STT/dictation, stdin, webhook, file watch)" in architecture, "architecture must keep future listen sources out of current forms"
+assert "stdin pipe         (source = bash)" not in architecture, "architecture must not advertise stdin as a current listen source"
 PY
 then
     pass "listen help exposes channel or direct-session source alternatives"
