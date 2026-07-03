@@ -340,8 +340,8 @@ func setConfigValue(key: String, value: String) {
         config.feedback.sound = (value == "true" || value == "1")
     case "content.port":
         if config.content == nil { config.content = AosConfig.ContentConfig(port: 0, roots: [:]) }
-        if let n = Int(value), n >= 0 { config.content?.port = n }
-        else { exitError("content.port must be a non-negative integer", code: "INVALID_VALUE") }
+        if let n = Int(value), (0...65535).contains(n) { config.content?.port = n }
+        else { exitError("content.port must be an integer from 0 to 65535", code: "INVALID_VALUE") }
     case _ where key.hasPrefix("content.roots."):
         if config.content == nil { config.content = AosConfig.ContentConfig(port: 0, roots: [:]) }
         let rootName = String(key.dropFirst("content.roots.".count))
