@@ -132,6 +132,12 @@ Current interactive behavior:
 
 ## Local HTTP API
 
+The HTTP API is local-only and does not use wildcard CORS. Requests without an
+`Origin` header are accepted for local CLI/server clients. Browser requests must
+come from an AOS-owned surface origin such as `aos://toolkit` or `aos://sigil`,
+or from the same loopback host and port as the broker. Other browser origins are
+rejected before route handling.
+
 ### `GET /health`
 
 Basic readiness check.
