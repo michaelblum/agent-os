@@ -7,6 +7,13 @@ let _conn = null;
 let _reqId = 0;
 const _pending = new Map();
 
+function rejectPending(error) {
+  for (const pending of _pending.values()) {
+    pending.reject(error);
+  }
+  _pending.clear();
+}
+
 function getConnection() {
   if (_conn) return _conn;
   const sockPath = globalThis.__aos_config?.gatewaySocket;
@@ -21,20 +28,33 @@ function getConnection() {
       buffer = buffer.slice(idx + 1);
       try {
         const resp = JSON.parse(line);
-        const resolve = _pending.get(resp.id);
-        if (resolve) { _pending.delete(resp.id); resolve(resp.result); }
+        const pending = _pending.get(resp.id);
+        if (pending) {
+          _pending.delete(resp.id);
+          pending.resolve(resp.result);
+        }
       } catch {}
     }
+  });
+  _conn.on('error', (error) => {
+    rejectPending(error);
+  });
+  _conn.on('close', () => {
+    rejectPending(new Error('AOS SDK socket closed'));
+    _conn = null;
   });
   return _conn;
 }
 
 function call(domain, method, params) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const id = String(++_reqId);
-    _pending.set(id, resolve);
+    _pending.set(id, { resolve, reject });
     const conn = getConnection();
-    conn.write(JSON.stringify({ id, domain, method, params }) + '\n');
+    conn.write(JSON.stringify({ id, domain, method, params }) + '\n', (error) => {
+      if (!error) return;
+      if (_pending.delete(id)) reject(error);
+    });
   });
 }
 
@@ -73,4 +93,8 @@ const aos = {
 
 globalThis.aos = aos;
 globalThis.__aos_call = call;
-globalThis.__aos_cleanup = () => { if (_conn) _conn.destroy(); };
+globalThis.__aos_cleanup = () => {
+  rejectPending(new Error('AOS SDK cleanup'));
+  if (_conn) _conn.destroy();
+  _conn = null;
+};
