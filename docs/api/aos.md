@@ -182,6 +182,15 @@ commands require explicit workspace or snapshot ids. This keeps parallel agents
 from mutating hidden shared workspace state. Any future session-bound default
 must first define a multi-agent-safe contract.
 
+Current wait/diff/assertion boundary: saved workspaces do not expose
+`aos see capture --wait-for-change`, `aos see capture --until-stable`,
+`aos see refs --diff`, or `aos see assert`. Use `recommended_next_command` plus
+a fresh saved capture for re-perception, `aos show wait` only for canvas
+readiness, Recipe assertions only for command JSON checks, and Work Record
+postconditions for durable evidence checks. Future saved wait/diff/assert
+commands need manifest help, parser, schema/doc, and drift tests before public
+use.
+
 Capture modes are explicit:
 
 - `--mode ax`: tree-oriented refs where the backend can supply them.

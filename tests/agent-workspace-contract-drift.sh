@@ -227,6 +227,13 @@ for (const [label, text] of Object.entries({ schemaDoc, apiDoc, skill })) {
   assert.ok(prose.includes('No daemon-held current workspace exists'), `${label} must reject daemon-held current workspace state`);
   assert.ok(prose.includes('`aos see workspace use <id>` is not a current command'), `${label} must reject workspace use command as current contract`);
   assert.ok(/parallel agents|parallel-session/.test(prose), `${label} must tie workspace selection to multi-agent safety`);
+  assert.ok(prose.includes('Current wait/diff/assertion boundary'), `${label} must describe saved wait/diff/assertion boundary`);
+  for (const unsupported of ['aos see capture --wait-for-change', 'aos see capture --until-stable', 'aos see refs --diff', 'aos see assert']) {
+    assert.ok(text.includes(unsupported), `${label} must name unsupported saved workspace command ${unsupported}`);
+  }
+  assert.ok(text.includes('recommended_next_command'), `${label} must point re-perception to recommended_next_command`);
+  assert.ok(text.includes('aos show wait'), `${label} must keep show wait scoped to canvas readiness`);
+  assert.ok(prose.includes('Work Record postconditions'), `${label} must route durable evidence checks to Work Record postconditions`);
 }
 
 function skillFrontmatter(text) {
@@ -463,6 +470,16 @@ const workspaceUseForms = manifestJSON.commands.flatMap((command) => (command.fo
   || /\bworkspace use\b/.test(form.usage ?? '')
 )));
 assert.deepEqual(workspaceUseForms, [], 'manifest must not advertise a daemon-held workspace use command');
+const unsupportedSavedWorkspaceSeeForms = seeCommand.forms.filter((form) => (
+  /see-(refs-)?diff|see-assert|wait-for-change|until-stable/.test(form.id)
+  || /--wait-for-change|--until-stable|\bsee refs\b.*--diff|\bsee assert\b/.test(form.usage ?? '')
+  || (form.args ?? []).some((arg) => ['--wait-for-change', '--until-stable', '--diff'].includes(arg.token))
+));
+assert.deepEqual(
+  unsupportedSavedWorkspaceSeeForms.map((form) => form.id),
+  [],
+  'manifest must not advertise saved workspace wait/diff/assert commands before parser and schema support',
+);
 const captureForm = seeCommand.forms.find((form) => form.id === 'see-capture');
 const captureSaveForm = seeCommand.forms.find((form) => form.id === 'see-capture-save');
 assert.ok(captureForm, 'manifest missing see-capture form');
