@@ -465,6 +465,11 @@ key_browser = next(item for item in data["forms"] if item["id"] == "do-key-brows
 assert "browser:<session>[/<ref>]" in key_browser["usage"], key_browser["usage"]
 assert "--state-id" in {arg.get("token") for arg in key_browser["args"]}, key_browser
 assert "not a saved-ref action" in key_browser["summary"], key_browser
+fill = next(item for item in data["forms"] if item["id"] == "do-fill")
+fill_tokens = {arg.get("token") for arg in fill["args"]}
+assert "--state-id" in fill_tokens, fill
+assert "--state-id id" in fill["usage"], fill["usage"]
+assert any("browser:todo/e21" in example and "--state-id" in example for example in fill["examples"]), fill["examples"]
 set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
 set_value_tokens = {arg.get("token") for arg in set_value["args"]}
 assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
