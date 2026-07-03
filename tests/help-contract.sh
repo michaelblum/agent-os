@@ -78,6 +78,32 @@ else
     fail "internal command demotion from root consumer help drifted"
 fi
 
+if ROOT_JSON="$(./aos help --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+import re
+from pathlib import Path
+
+root = json.loads(os.environ["ROOT_JSON"])
+root_top_level = {command["path"][0] for command in root["commands"]}
+docs = Path("docs/api/aos.md").read_text(encoding="utf-8")
+section = docs.split("The current top-level commands are:", 1)[1].split("## Core Usage Patterns", 1)[0]
+docs_top_level = set()
+for line in section.splitlines():
+    match = re.match(r"\| `aos ([^` ]+)` \|", line)
+    if match:
+        docs_top_level.add(match.group(1))
+assert docs_top_level == root_top_level, {
+    "missing_from_docs": sorted(root_top_level - docs_top_level),
+    "stale_in_docs": sorted(docs_top_level - root_top_level),
+}
+PY
+then
+    pass "public API top-level command table matches root consumer help"
+else
+    fail "public API top-level command table drifted from root consumer help"
+fi
+
 # --- 2. aos help show --json → JSON per-command ---
 OUT=$(./aos help show --json 2>/dev/null)
 if echo "$OUT" | grep -q '"path"'; then

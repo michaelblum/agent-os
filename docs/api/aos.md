@@ -94,6 +94,7 @@ The current top-level commands are:
 
 | Command | Role |
 | --- | --- |
+| `aos launch` | manifest-backed source-owned app launcher |
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
@@ -107,6 +108,7 @@ The current top-level commands are:
 | `aos introspect` | Session self-review over recent `./aos` usage |
 | `aos help` | Registry and command-specific help |
 | `aos say` | Voice output |
+| `aos voice` | registry-backed voice catalog, assignments, providers, and session bindings |
 | `aos tell` | Communication output: human, channel, or direct session routing |
 | `aos listen` | Communication input: channel or direct session reads/follow |
 | `aos wiki` | local knowledge-base workflows |
@@ -117,7 +119,6 @@ The current top-level commands are:
 | `aos service` | launchd lifecycle for the daemon |
 | `aos experience` | active AOS experience-layer status, activation, and deactivation |
 | `aos runtime` | packaged runtime utilities |
-| `aos dev` | repo development workflow classification, recommendations, and build wrapper |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
 | `aos clean` | explicit stale daemon / canvas cleanup |
