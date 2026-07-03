@@ -130,6 +130,11 @@ jq -e '
   and (.omitted.heavy_payloads | index("elements") != null)
   and (.paths.capture | endswith("/capture.json"))
   and (.paths.snapshot_record | endswith("/snapshot.json"))
+  and .recommended_next[0].kind == "inspect_saved_refs"
+  and .recommended_next[0].argv == ["aos","see","refs","--workspace","ws1","--snapshot","snap1","--json"]
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].argv == ["aos","do","click","ref:snap1:r2","--workspace","ws1","--dry-run"]
+  and (.recommended_next_commands | index("aos see refs --workspace ws1 --snapshot snap1 --json") != null)
   and (has("elements") | not)
   and (has("semantic_targets") | not)
   and (has("base64") | not)

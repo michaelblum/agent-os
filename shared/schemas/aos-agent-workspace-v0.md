@@ -136,7 +136,10 @@ Each saved ref records:
   for an unsupported or inspection-only ref. Compact summaries from
   `aos see capture --save`, `aos see refs`, saved-ref action envelopes, and
   ambiguous-ref errors expose the same lightweight model-facing fields while
-  heavy payloads stay file-backed.
+  heavy payloads stay file-backed. Saved-capture summaries include
+  `recommended_next` descriptors with reconstructable `argv` plus legacy
+  `recommended_next_commands` strings so agents can continue the
+  capture/refs/dry-run loop without parsing shell text.
 
 Mutation is fail-closed. Saved-ref actions are the intersection of producer
 actions, backend durability, confidence, and existing `aos do` command behavior.

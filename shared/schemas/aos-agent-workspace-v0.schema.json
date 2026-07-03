@@ -56,6 +56,29 @@
       "type": "array",
       "items": { "$ref": "#/$defs/non_empty_string" }
     },
+    "recommended_next": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "reason", "command", "argv"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": { "$ref": "#/$defs/non_empty_string" },
+          "reason": { "$ref": "#/$defs/non_empty_string" },
+          "command": { "$ref": "#/$defs/non_empty_string" },
+          "argv": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/non_empty_string" }
+          },
+          "workspace_id": { "$ref": "#/$defs/local_id" },
+          "snapshot_id": { "$ref": "#/$defs/local_id" },
+          "ref": { "$ref": "#/$defs/non_empty_string" },
+          "backend": { "$ref": "#/$defs/backend" },
+          "resolution_class": { "$ref": "#/$defs/resolution_class" },
+          "action": { "$ref": "#/$defs/non_empty_string" }
+        }
+      }
+    },
     "artifact_ref": {
       "type": "object",
       "required": ["role", "path"],
@@ -275,6 +298,7 @@
         "artifact_refs",
         "refs",
         "omitted",
+        "recommended_next",
         "recommended_next_commands",
         "known_limits"
       ],
@@ -320,6 +344,7 @@
             "capture_json": { "$ref": "#/$defs/non_empty_string" }
           }
         },
+        "recommended_next": { "$ref": "#/$defs/recommended_next" },
         "recommended_next_commands": { "$ref": "#/$defs/string_array" },
         "known_limits": { "$ref": "#/$defs/string_array" }
       }
