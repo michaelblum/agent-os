@@ -327,8 +327,18 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   with Gates, Signals, Checkpoints, Guides, and Playbooks around that stack.
   `Recipe` means executable source-backed procedure; `docs/guides/` is the
   home for Markdown Guides/SOPs.
-- Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps - they are *harness obligations* around a Workflow-gated run, not Playbook-authored execution steps. Current `aos.step_descriptor` descriptors end at the single action + postcondition. Pending: plan revision.
-- Verifier Report shape — the plan lists `claims`, `verified`, `failed`, `unverified` as four parallel fields. Resolved direction (ADR-0003): use `claim_results[]` as the source of truth; if the four parallel fields persist, they are *derived indexes of Claim IDs*, not independent storage. When a Verifier Report is embedded in a Work Record it should not echo the full `claims` list (single source of truth); when reports travel standalone, they include a `claims_digest` for auditability. The v0 sketch keeps `claim_results[]` top-level and makes report indexes derived.
+- Phase 6 of `aos-grand-unification-plan.md` now treats browser runs as
+  Workflow-gated step evidence rather than Playbook-authored execution.
+  Emitting a Work Record and running the report-only verifier are harness
+  obligations around the run, not primitive step actions. Current
+  `aos.step_descriptor` descriptors end at the single action + postcondition.
+- Verifier Report shape — resolved direction (ADR-0003): use
+  `claim_results[]` as the source of truth, with `verified`, `failed`, and
+  `unverified` as derived indexes of Claim IDs, not independent storage. When a
+  Verifier Report is embedded in a Work Record it should not echo the full
+  `claims` list (single source of truth); when reports travel standalone, they
+  include a `claims_digest` for auditability. The v0 sketch keeps
+  `claim_results[]` top-level and makes report indexes derived.
 - Step descriptors need explicit syntax to *promote* a step Postcondition into a Work Record Claim for the gated harness bridge. The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions.
 - `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a *role flag* whose value is a regular Target-with-Ref, not a parallel target dialect. The plan now says this explicitly; longer-term a generic `--anchor <target>` flag may consolidate them, but that is a future cleanup, not a plan rewrite. See ADR-0004.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.

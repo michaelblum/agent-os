@@ -62,10 +62,8 @@ slices with repo evidence and clear exit criteria.
 - Define verifier report v0:
   - `status`
   - `confidence`
-  - `claims`
-  - `verified`
-  - `failed`
-  - `unverified`
+  - `claim_results[]`
+  - derived indexes: `verified`, `failed`, `unverified`
   - `evidence_refs`
   - `feedback`
 
@@ -162,26 +160,28 @@ slices with repo evidence and clear exit criteria.
 - Auto-feedback may draft findings; any replay/repair loop needs an explicit
   workflow gate.
 
-### Phase 6: Browser Playbooks
+### Phase 6: Browser Step Evidence And Workflow-Gated Runs
 
-- Add "AOS browser playbooks" as recorded, evidence-backed units, not raw macro
-  recordings.
-- A playbook step is:
+- Add browser step descriptors as recorded, evidence-backed units, not raw
+  macro recordings and not Playbook-authored execution.
+- A Workflow-gated harness step is:
   - re-see target
   - resolve semantic ref
   - check precondition
   - execute `aos do`
   - re-see
   - verify postcondition
+- Work Records and verifier reports are harness obligations around the run, not
+  step-authored primitive actions.
 - Keep raw `playwright-cli` traces, screenshots, video, and codegen as attached
   evidence or hints, not canonical truth.
-- First candidate playbook:
+- First candidate Workflow-gated browser run:
   - open browser-hosted wiki browser
   - locate Sigil subject
   - follow the Sigil radial menu facet/resource
   - inspect/edit one object transform
-  - save a work record
-  - run verifier report
+  - emit a Work Record through the harness
+  - run the report-only verifier profile
 
 ### Phase 7: AOS-Native Runtime Surfaces Stay Native
 
