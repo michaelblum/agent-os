@@ -176,3 +176,13 @@ test('markdown source editor leaves native undo and redo key chords alone', asyn
   assert.doesNotMatch(keydownBody, /undo/i);
   assert.doesNotMatch(keydownBody, /redo/i);
 });
+
+test('markdown workbench normalizes typeless messages before graph forwarding', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+
+  assert.match(js, /function messageType\(message = \{\}\) \{/);
+  assert.match(js, /return String\(message\?\.type \|\| message\?\.payload\?\.type \|\| ''\)/);
+  assert.match(js, /const type = messageType\(message\)/);
+  assert.doesNotMatch(js, /const type = message\.type \|\| message\.payload\?\.type/);
+  assert.match(js, /type\.startsWith\('wiki-kb\/'\)/);
+});

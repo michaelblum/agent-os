@@ -38,6 +38,10 @@ function el(tag, className, textContent) {
   return node;
 }
 
+function messageType(message = {}) {
+  return String(message?.type || message?.payload?.type || '');
+}
+
 export default function MarkdownWorkbench(options = {}) {
   let host = null;
   let initialUrlOpenStarted = false;
@@ -826,7 +830,7 @@ export default function MarkdownWorkbench(options = {}) {
   }
 
   function onMessage(message = {}) {
-    const type = message.type || message.payload?.type;
+    const type = messageType(message);
     if (type === 'markdown_document.open') {
       openMarkdownDocument(state, message);
       splitOpen = true;
