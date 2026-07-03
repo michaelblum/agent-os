@@ -1,8 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { createDecisionGate } from '../../packages/toolkit/components/decision-gate/index.js';
 import { expandGatePresetFields } from '../../shared/gate/presets.mjs';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 function baseRequest(overrides = {}) {
   const request = {
@@ -24,6 +29,19 @@ function mount(request) {
   document.body.appendChild(container);
   const gate = createDecisionGate(container, { request });
   return { document, container, gate };
+}
+
+function mountFromSearch(search) {
+  const document = createFakeDocument();
+  document.defaultView.location = { search };
+  const container = document.createElement('section');
+  document.body.appendChild(container);
+  const gate = createDecisionGate(container);
+  return { document, container, gate };
+}
+
+function requestB64(request) {
+  return Buffer.from(JSON.stringify(request), 'utf8').toString('base64');
 }
 
 function timerHarness() {
@@ -71,6 +89,36 @@ test('renders title', () => {
   const { container } = mount(baseRequest({ prompt: { title: 'Pick a path', body: null } }));
 
   assert.equal(container.querySelector('.aos-gate-title')?.textContent, 'Pick a path');
+});
+
+test('malformed location request falls back to default gate form', () => {
+  const { container, document } = mountFromSearch('?requestB64=%');
+
+  assert.equal(container.querySelector('.aos-gate-title')?.textContent, 'Decision required');
+  assert.equal(container.querySelector('.aos-text-input') !== null, true);
+  assert.equal(document.defaultView.__gateResult, undefined);
+});
+
+test('location requestB64 decodes UTF-8 JSON payloads', () => {
+  const request = baseRequest({
+    prompt: { title: 'Approve café - 你好 - 🚀', body: null },
+  });
+  const { container } = mountFromSearch(`?requestB64=${encodeURIComponent(requestB64(request))}`);
+
+  assert.equal(container.querySelector('.aos-gate-title')?.textContent, 'Approve café - 你好 - 🚀');
+});
+
+test('decision gate bootstraps avoid direct atob JSON parsing', async () => {
+  const files = [
+    'packages/toolkit/components/decision-gate/index.js',
+    'packages/toolkit/components/decision-gate/index.html',
+    'packages/toolkit/components/decision-gate/deferred.html',
+  ];
+
+  for (const file of files) {
+    const source = await readFile(path.join(repoRoot, file), 'utf8');
+    assert.doesNotMatch(source, /JSON\.parse\(atob\(/, file);
+  }
 });
 
 test('body omitted when null', () => {

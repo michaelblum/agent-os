@@ -26,22 +26,22 @@
 
     const params = new URLSearchParams(location.search);
     let request = null;
+    function decodeBase64Json(value) {
+      const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
     try {
       if (params.has('requestB64')) {
-        request = JSON.parse(atob(params.get('requestB64')));
+        request = decodeBase64Json(params.get('requestB64'));
       } else if (params.has('request')) {
         request = JSON.parse(decodeURIComponent(params.get('request')));
       }
     } catch (e) {
-      window.__gateResult = JSON.stringify({ result: null, status: 'dismissed' });
+      request = null;
     }
 
-    if (request) {
-      createDecisionGate(document.getElementById('gate-root'), { request });
-      window.setTimeout(() => emitReady(), 100);
-    } else if (window.__gateResult === undefined) {
-      window.__gateResult = JSON.stringify({ result: null, status: 'dismissed' });
-    }
+    createDecisionGate(document.getElementById('gate-root'), { request });
+    window.setTimeout(() => emitReady(), 100);
   </script>
 </body>
 </html>
