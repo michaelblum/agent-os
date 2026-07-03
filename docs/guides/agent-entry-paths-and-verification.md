@@ -84,6 +84,34 @@ fixed. If real input is blocked by macOS permissions, report that explicitly and
 use `./aos ready` / `./aos ready --repair` rather than silently substituting a
 synthetic-only proof.
 
+### Static-First Contract Proof
+
+Contract, manifest, parser, schema, docs, and skill changes should climb the
+proof ladder from static evidence before asking for live runtime proof.
+
+- Level 0: confirm the repo and command surface are readable. Use
+  `./aos help --json` and narrower help output such as
+  `./aos help see --json`, `./aos help do --json`, or
+  `./aos help show --json` when command contracts are in scope.
+- Level 1: run the focused static guard for the changed contract. Common gates
+  include `git diff --check`, `bash tests/help-contract.sh`,
+  `bash tests/command-manifest-generation.sh`,
+  `bash tests/external-parser-flags.sh`,
+  `bash tests/agent-workspace-contract-drift.sh`, schema tests under
+  `tests/schemas/`, and `node --test tests/code-review-burn-down-status.test.mjs`
+  for review burn-down reporting changes.
+- Level 2: run package, route, or integration tests only when static guards do
+  not cover the behavior being changed.
+- Level 3: use `./aos`-backed runtime checks when the contract depends on the
+  daemon, canvases, input streams, display topology, or host routing.
+- Level 4: live UI, native, manual input, service reset, or TCC-sensitive proof
+  requires explicit user approval before it runs. If approval is not granted,
+  report the skipped proof as a known boundary instead of presenting the static
+  result as full live validation.
+
+Batch native rebuilds, TCC recovery, service reset, and other disruptive runtime
+steps into a single checkpoint when they are unavoidable.
+
 ### Visual Diagnostics
 
 For display, canvas placement, or coordinate routing work, add visual diagnostic
@@ -172,15 +200,17 @@ starting point.
 5. Treat raw shell, Node, npm, Python, and arbitrary process execution as
    developer/testing capabilities, not base harness primitives.
 6. Pick the smallest test loop that matches the changed behavior.
-7. For visual/display work, launch the relevant diagnostics instead of relying
+7. For contract, manifest, parser, schema, docs, and skill changes, start from
+   static contract proof before escalating to runtime or live proof.
+8. For visual/display work, launch the relevant diagnostics instead of relying
    on memory or screenshots alone.
-8. When a repo-owned scenario harness exists for the behavior, use that harness
+9. When a repo-owned scenario harness exists for the behavior, use that harness
    before inventing an ad hoc verification path.
-9. For real-input bugs, capture or run at least one real-input verification.
-10. If the task touches runtime knowledge, check whether the AOS wiki needs to be
+10. For real-input bugs, capture or run at least one real-input verification.
+11. If the task touches runtime knowledge, check whether the AOS wiki needs to be
    read or updated in addition to repo docs or code.
-11. Before building a new browser, workbench, editor, inspector, or artifact
+12. Before building a new browser, workbench, editor, inspector, or artifact
     panel, identify the subject's layered expressions. See
     `docs/guides/layered-subject-expressions.md`.
-12. If a lesson should survive the session, place it using the placement rules
+13. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.
