@@ -376,6 +376,12 @@ jq -e '
   and .refs[0].resolution_class == "stable"
   and (.refs[0].supported_actions | index("press") != null)
   and (.refs[0].supported_actions | index("focus") != null)
+  and .recommended_next[0].kind == "inspect_saved_refs"
+  and .recommended_next[0].argv == ["aos","see","refs","--workspace","ws-native","--snapshot","snappressonly","--json"]
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].action == "press"
+  and .recommended_next[1].backend == "native_ax"
+  and .recommended_next[1].argv == ["aos","do","press","ref:snappressonly:r1","--workspace","ws-native","--dry-run"]
   and (.recommended_next_commands | index("aos see refs --workspace ws-native --snapshot snappressonly --json") != null)
   and (.recommended_next_commands | index("aos do press ref:snappressonly:r1 --workspace ws-native --dry-run") != null)
 ' "$PRESS_ONLY_NATIVE" >/dev/null || fail "native press-only saved-ref recommendation drifted: $(cat "$PRESS_ONLY_NATIVE")"

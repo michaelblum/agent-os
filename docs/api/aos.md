@@ -168,8 +168,9 @@ Typical consumer loop:
 3. Read compact refs with `aos see refs`.
 4. Dry-run the saved-ref action and inspect `resolution_status`.
 5. Dispatch only if the ref validates or reacquires.
-6. Use `recommended_next_command` after a real mutation when a fresh saved
-   capture is needed before reusing refs from the surface.
+6. Use structured `recommended_next` descriptors and
+   `recommended_next_command` when a fresh saved capture is needed before
+   reusing refs from the surface.
 
 Saved capture uses the same capture-source contract as ordinary capture: supply
 a positional target such as `browser:work` or a source flag such as

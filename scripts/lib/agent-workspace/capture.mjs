@@ -357,24 +357,57 @@ function commandToken(value) {
   return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
-function sampleActionCommand(workspace, snapshotIDValue, refs) {
+function commandString(argv, displayName = null) {
+  const tokens = argv.map((arg, index) => (index === 0 && displayName ? displayName : arg));
+  return tokens.map(commandToken).join(' ');
+}
+
+function refsRecommendation(workspace, snapshotIDValue) {
+  const display = process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos';
+  const argv = ['aos', 'see', 'refs', '--workspace', String(workspace), '--snapshot', String(snapshotIDValue), '--json'];
+  return {
+    kind: 'inspect_saved_refs',
+    reason: 'read compact refs before choosing a saved-ref action',
+    command: commandString(argv, display),
+    argv,
+    workspace_id: String(workspace),
+    snapshot_id: String(snapshotIDValue),
+  };
+}
+
+function sampleActionRecommendation(workspace, snapshotIDValue, refs) {
   const display = process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos';
   const refTarget = (record) => `ref:${snapshotIDValue}:${record.ref}`;
   const byPreferredAction = (action) => refs.find((record) => record.action_target && (record.supported_actions ?? []).includes(action));
   for (const action of ['click', 'set-value', 'fill', 'hover', 'scroll', 'press', 'focus']) {
     const record = byPreferredAction(action);
     if (!record) continue;
+    const baseArgv = ['aos', 'do', action, refTarget(record)];
+    const descriptor = {
+      kind: 'dry_run_saved_ref_action',
+      reason: 'validate the saved ref before real mutation',
+      action,
+      workspace_id: String(workspace),
+      snapshot_id: String(snapshotIDValue),
+      ref: record.ref,
+      backend: record.backend,
+      resolution_class: record.resolution_class,
+    };
     if (action === 'click' || action === 'hover' || action === 'press' || action === 'focus') {
-      return `${display} do ${action} ${refTarget(record)} --workspace ${workspace} --dry-run`;
+      const argv = [...baseArgv, '--workspace', String(workspace), '--dry-run'];
+      return { ...descriptor, command: commandString(argv, display), argv };
     }
     if (action === 'set-value') {
-      return `${display} do set-value ${refTarget(record)} --workspace ${workspace} --value 42 --dry-run`;
+      const argv = [...baseArgv, '--workspace', String(workspace), '--value', '42', '--dry-run'];
+      return { ...descriptor, command: commandString(argv, display), argv };
     }
     if (action === 'fill') {
-      return `${display} do fill ${refTarget(record)} ${commandToken('sample text')} --workspace ${workspace} --dry-run`;
+      const argv = [...baseArgv, 'sample text', '--workspace', String(workspace), '--dry-run'];
+      return { ...descriptor, command: commandString(argv, display), argv };
     }
     if (action === 'scroll') {
-      return `${display} do scroll ${refTarget(record)} 0,-200 --workspace ${workspace} --dry-run`;
+      const argv = [...baseArgv, '0,-200', '--workspace', String(workspace), '--dry-run'];
+      return { ...descriptor, command: commandString(argv, display), argv };
     }
   }
   return null;
@@ -427,6 +460,10 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
       });
       const matchingRefs = refs.filter((record) => queryMatches(record, parsed.options.query));
       const compactRefs = matchingRefs.map(refSummary);
+      const nextRecommendations = [
+        refsRecommendation(workspace, snapID),
+        sampleActionRecommendation(workspace, snapID, matchingRefs),
+      ].filter(Boolean);
       const paths = prepared.finalPaths;
       const snapshot = {
         schema_version: SCHEMA_VERSION,
@@ -474,10 +511,8 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
           heavy_payloads: omittedPayloads(capture),
           capture_json: paths.capture,
         },
-        recommended_next_commands: [
-          `${process.env.AOS_INVOCATION_DISPLAY_NAME || 'aos'} see refs --workspace ${workspace} --snapshot ${snapID} --json`,
-          sampleActionCommand(workspace, snapID, matchingRefs),
-        ].filter(Boolean),
+        recommended_next: nextRecommendations,
+        recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
         known_limits: snapshot.known_limits,
       };
 

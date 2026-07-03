@@ -55,6 +55,9 @@ assert.deepEqual(defs.conformance.properties.proof.required, ['level', 'status',
 assert.ok(defs.no_foreground_conformance.required.includes('focus_preservation'), 'no_foreground conformance must report focus preservation');
 assert.ok(defs.no_foreground_conformance.required.includes('cursor_preservation'), 'no_foreground conformance must report cursor preservation');
 assert.ok(defs.no_foreground_conformance.required.includes('space_preservation'), 'no_foreground conformance must report Space preservation');
+assert.ok(defs.recommended_next, 'schema must describe structured compact next-step descriptors');
+assert.ok(defs.summary.required.includes('recommended_next'), 'saved capture summaries must require structured next-step descriptors');
+assert.ok(defs.summary.properties.recommended_next, 'saved capture summaries must expose structured next-step descriptors');
 const workspaceIndexSnapshotRequired = defs.workspace_index.properties.snapshots.items.required;
 assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace index snapshots must expose compact capture target readback');
 assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');

@@ -33,6 +33,9 @@ refs fail closed for those actions.
 
 - Use `aos see capture --save` to persist perception into the active runtime
   mode state root: `${AOS_STATE_ROOT:-~/.config/aos}/{repo|installed}/agent-workspaces/`.
+  Read `workspace_id`, `snapshot_id`, `capture_target`, `capture_source`,
+  `query`, `paths`, `refs[]`, `known_limits`, `recommended_next`, and
+  `recommended_next_commands`.
 - A saved capture source can be a positional target such as `browser:work` or a
   source flag such as `--region <rect>`, `--canvas <id>`, or `--channel <id>`.
   These source forms are mutually exclusive. If no positional target or source
@@ -53,9 +56,11 @@ refs fail closed for those actions.
   postconditions for durable evidence checks.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
-  ref. If the command returns `REF_AMBIGUOUS`, use its candidate snapshots and
-  `recommended_next_commands` to choose a scoped ref. If it returns
-  `REF_NOT_FOUND`, run the returned refs inspection command before retrying.
+  ref. Use structured `recommended_next` descriptors or
+  `recommended_next_commands` to choose a scoped ref. If the command returns
+  `REF_AMBIGUOUS`, use its candidate snapshots and `recommended_next_commands`
+  to choose a scoped ref. If it returns `REF_NOT_FOUND`, run the returned refs
+  inspection command before retrying.
 - Treat compact stdout as the model-facing payload. Full capture JSON,
   screenshots, base64, AX trees, browser elements, and semantic target arrays
   stay file-backed under the snapshot directory.

@@ -357,6 +357,9 @@ jq -e '
   and (.refs | length) == 1
   and .refs[0].ref == "r2"
   and (.refs[0].supported_actions == ["set-value"])
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].action == "set-value"
+  and .recommended_next[1].argv == ["aos","do","set-value","ref:snapcanvasq:r2","--workspace","ws-canvas-query","--value","42","--dry-run"]
   and (.recommended_next_commands[] == "aos do set-value ref:snapcanvasq:r2 --workspace ws-canvas-query --value 42 --dry-run")
 ' "$CANVAS_QUERY" >/dev/null || fail "set-value-only compact recommendation drifted: $(cat "$CANVAS_QUERY")"
 
@@ -370,6 +373,9 @@ jq -e '
   and (.refs[0].supported_actions | length) == 0
   and .refs[1].ref == "r2"
   and (.refs[1].supported_actions == ["click"])
+  and .recommended_next[1].kind == "dry_run_saved_ref_action"
+  and .recommended_next[1].ref == "r2"
+  and .recommended_next[1].argv == ["aos","do","click","ref:snapmixed:r2","--workspace","ws-mixed","--dry-run"]
   and (.recommended_next_commands[] == "aos do click ref:snapmixed:r2 --workspace ws-mixed --dry-run")
   and all(.recommended_next_commands[]; contains("ref:snapmixed:r1") | not)
 ' "$MIXED" >/dev/null || fail "unsupported-first compact recommendation drifted: $(cat "$MIXED")"
