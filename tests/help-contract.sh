@@ -444,6 +444,7 @@ for action in ["click", "fill", "hover", "scroll", "drag", "set-value", "press",
 assert "canvas:<canvas-id>/<ref>" in set_value["usage"], set_value["usage"]
 assert set_value["usage"].startswith("aos do set-value <ref-target|canvas:<canvas-id>/<ref>>"), set_value["usage"]
 assert "| aos do set-value --pid <pid> --role <role>" in set_value["usage"], set_value["usage"]
+assert "saved refs, direct canvas semantic refs, or direct AX targets" in set_value["summary"], set_value["summary"]
 assert "ref:<snapshot-id>:" in " ".join(set_value.get("examples", [])), set_value
 set_value_value = next(arg for arg in set_value["args"] if arg.get("id") == "value")
 assert set_value_value["required"] is False, set_value_value
