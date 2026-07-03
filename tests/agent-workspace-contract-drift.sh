@@ -451,6 +451,57 @@ assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary
 
 const doCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['do']));
 assert.ok(doCommand, 'manifest missing do command');
+const doFormsByID = new Map(doCommand.forms.map((form) => [form.id, form]));
+const savedRefSupportedMatrixActions = actionMatrixRows
+  .filter((row) => Object.keys(row.supported_backends).length > 0)
+  .map((row) => row.action);
+const matrixActionIDs = new Set(actionMatrixRows.map((row) => `do-${row.action}`));
+const manifestSavedRefMatrixActions = doCommand.forms
+  .filter((form) => matrixActionIDs.has(form.id))
+  .filter((form) => {
+    const args = new Set((form.args ?? []).map((arg) => arg.id ?? arg.token));
+    return args.has('workspace') || args.has('snapshot') || /ref:<snapshot-id>|<ref-target/.test(form.usage ?? '');
+  })
+  .map((form) => form.id.replace(/^do-/, ''));
+assert.deepEqual(
+  [...manifestSavedRefMatrixActions].sort(),
+  [...savedRefSupportedMatrixActions].sort(),
+  'do saved-ref manifest forms must be derived from the canonical saved-ref action matrix',
+);
+for (const row of actionMatrixRows) {
+  const form = doFormsByID.get(`do-${row.action}`);
+  assert.ok(form, `manifest missing do-${row.action} matrix form`);
+  const args = new Set((form.args ?? []).map((arg) => arg.id ?? arg.token));
+  const usage = form.usage ?? '';
+  const supportsSavedRef = Object.keys(row.supported_backends).length > 0;
+  if (!supportsSavedRef) {
+    assert.equal(args.has('workspace'), false, `${row.action} must not advertise saved-ref workspace selection`);
+    assert.equal(args.has('snapshot'), false, `${row.action} must not advertise saved-ref snapshot selection`);
+    assert.doesNotMatch(usage, /ref:<snapshot-id>|<ref-target/, `${row.action} must not advertise saved-ref targets`);
+    assert.equal(args.has('dry-run'), row.dry_run, `${row.action} dry-run help must follow matrix`);
+    continue;
+  }
+  assert.ok(args.has('workspace'), `${row.action} saved-ref help must advertise --workspace from matrix support`);
+  assert.ok(args.has('snapshot'), `${row.action} saved-ref help must advertise --snapshot from matrix support`);
+  assert.equal(args.has('dry-run'), row.dry_run, `${row.action} dry-run help must follow matrix`);
+  if (Object.hasOwn(row.supported_backends, 'browser')) {
+    assert.ok(usage.includes('browser:'), `${row.action} browser matrix support must be visible in do help`);
+  }
+  if (Object.hasOwn(row.supported_backends, 'aos_canvas')) {
+    assert.ok(usage.includes('canvas:'), `${row.action} AOS canvas matrix support must be visible in do help`);
+  }
+  if (Object.hasOwn(row.supported_backends, 'native_ax')) {
+    assert.ok(/<ref-target|ref:<snapshot-id>/.test(usage), `${row.action} native AX matrix support must advertise a saved-ref target`);
+  }
+  if (row.required_args.includes('ref target')) assert.ok(args.has('target'), `${row.action} must declare target arg from matrix`);
+  if (row.required_args.includes('text')) assert.ok(args.has('text'), `${row.action} must declare text arg from matrix`);
+  if (row.required_args.includes('dx,dy')) assert.ok(args.has('delta'), `${row.action} must declare dx,dy arg from matrix`);
+  if (row.required_args.includes('--value or positional value')) {
+    assert.ok(args.has('value') || args.has('value-text'), `${row.action} must declare value arg from matrix`);
+  }
+  if (row.required_args.includes('source ref target')) assert.ok(args.has('from'), `${row.action} must declare source arg from matrix`);
+  if (row.required_args.includes('destination ref target')) assert.ok(args.has('to'), `${row.action} must declare destination arg from matrix`);
+}
 const doDragForm = doCommand.forms.find((form) => form.id === 'do-drag');
 const doCanvasDragForm = doCommand.forms.find((form) => form.id === 'do-drag-canvas');
 const doNativeDragForm = doCommand.forms.find((form) => form.id === 'do-drag-native');
