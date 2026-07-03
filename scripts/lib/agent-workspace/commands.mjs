@@ -31,6 +31,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
   ['--i-understand-local-artifacts', 'bool'],
   ['--workspace', 'value'],
   ['--snapshot', 'value'],
+  ['--diff', 'value'],
   ['--query', 'value'],
   ['--older-than', 'value'],
 ]);
@@ -38,7 +39,7 @@ const AGENT_WORKSPACE_FLAG_KINDS = new Map([
 const AGENT_WORKSPACE_FLAGS = {
   workspaces: new Set(['--json']),
   snapshots: new Set(['--workspace', '--json']),
-  refs: new Set(['--workspace', '--snapshot', '--query', '--json']),
+  refs: new Set(['--workspace', '--snapshot', '--diff', '--query', '--json']),
   workspace: new Set(['--json']),
   workspacePrune: new Set(['--older-than', '--dry-run', '--i-understand-local-artifacts', '--json']),
   workspaceDelete: new Set(['--i-understand-local-artifacts', '--json']),
@@ -55,6 +56,7 @@ function parseReadArgs(args, {
   let id = null;
   let workspace = null;
   let snapshot = null;
+  let diff = null;
   let query = null;
   let json = false;
   let dryRun = false;
@@ -78,6 +80,7 @@ function parseReadArgs(args, {
       }
       if (arg === '--workspace') workspace = args[i + 1];
       if (arg === '--snapshot') snapshot = args[i + 1];
+      if (arg === '--diff') diff = args[i + 1];
       if (arg === '--query') query = args[i + 1];
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
@@ -101,11 +104,86 @@ function parseReadArgs(args, {
     id,
     workspace: resolvedWorkspace,
     snapshot: snapshot ? validateLocalID(snapshot, 'snapshot id') : null,
+    diff,
     query,
     json,
     dryRun,
     acknowledge,
     olderThan,
+  };
+}
+
+function parseSnapshotDiff(value) {
+  const raw = String(value ?? '');
+  const parts = raw.split('..');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    exitAgentWorkspaceError('--diff must use <from-snapshot>..<to-snapshot>', 'INVALID_ARG');
+  }
+  return {
+    from: validateLocalID(parts[0], 'from snapshot id'),
+    to: validateLocalID(parts[1], 'to snapshot id'),
+  };
+}
+
+function stableRefFingerprint(ref) {
+  const identityFacts = { ...(ref.identity_facts ?? {}) };
+  delete identityFacts.state_id;
+  return JSON.stringify({
+    backend: ref.backend,
+    resolution_class: ref.resolution_class,
+    confidence: ref.confidence,
+    supported_actions: ref.supported_actions,
+    identity_facts: identityFacts,
+    hint_facts: ref.hint_facts,
+    current_address: ref.current_address,
+    warnings: ref.warnings,
+    known_limits: ref.known_limits,
+    conformance: ref.conformance,
+  });
+}
+
+function refsByID(refs) {
+  return new Map(refs.map((ref) => [ref.ref, ref]));
+}
+
+function compactRefsDiff(fromRefs, toRefs) {
+  const from = refsByID(fromRefs);
+  const to = refsByID(toRefs);
+  const added = [];
+  const removed = [];
+  const changed = [];
+  const unchanged = [];
+
+  for (const [ref, toRecord] of to) {
+    const fromRecord = from.get(ref);
+    if (!fromRecord) {
+      added.push(toRecord);
+      continue;
+    }
+    if (stableRefFingerprint(fromRecord) === stableRefFingerprint(toRecord)) {
+      unchanged.push(toRecord);
+    } else {
+      changed.push({ ref, before: fromRecord, after: toRecord });
+    }
+  }
+
+  for (const [ref, fromRecord] of from) {
+    if (!to.has(ref)) removed.push(fromRecord);
+  }
+
+  return {
+    counts: {
+      from_refs: fromRefs.length,
+      to_refs: toRefs.length,
+      added: added.length,
+      removed: removed.length,
+      changed: changed.length,
+      unchanged: unchanged.length,
+    },
+    added,
+    removed,
+    changed,
+    unchanged,
   };
 }
 
@@ -164,7 +242,36 @@ export function snapshotsCommand(args, env = process.env) {
 
 export function refsCommand(args, env = process.env) {
   const parsed = parseReadArgs(args, { allowedFlags: AGENT_WORKSPACE_FLAGS.refs, env });
+  if (parsed.diff && parsed.snapshot) {
+    exitAgentWorkspaceError('--diff cannot be combined with --snapshot', 'INVALID_ARG');
+  }
   const { index } = requireWorkspace(parsed.workspace, env);
+  if (parsed.diff) {
+    const diff = parseSnapshotDiff(parsed.diff);
+    const fromLoaded = loadSnapshot(parsed.workspace, diff.from, env);
+    const toLoaded = loadSnapshot(parsed.workspace, diff.to, env);
+    const fromRefs = (fromLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
+    const toRefs = (toLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
+    const comparison = compactRefsDiff(fromRefs, toRefs);
+    const nextRecommendations = compactNextRecommendations(parsed.workspace, diff.to, toRefs, env);
+    printJSON({
+      status: 'success',
+      schema_version: SCHEMA_VERSION,
+      workspace_id: parsed.workspace,
+      runtime_mode: runtimeMode(env),
+      snapshot_id: diff.to,
+      query: parsed.query,
+      diff: {
+        from_snapshot_id: diff.from,
+        to_snapshot_id: diff.to,
+        ...comparison,
+      },
+      refs: toRefs,
+      recommended_next: nextRecommendations,
+      recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
+    });
+    return;
+  }
   const snapshotIDs = parsed.snapshot
     ? [parsed.snapshot]
     : [index.current_snapshot_id].filter(Boolean);

@@ -651,8 +651,8 @@ refs_form = next(item for item in refs["forms"] if item["id"] == "see-refs")
 refs_tokens = {arg.get("token") for arg in refs_form["args"]}
 assert "Inspect compact saved refs" in refs["summary"], refs["summary"]
 assert "Inspect compact saved refs" in refs_form["summary"], refs_form
-assert refs_form["usage"] == "aos see refs [--workspace <id>] [--snapshot <id>] [--query <text>] [--json]", refs_form
-assert {"--workspace", "--snapshot", "--query", "--json"} <= refs_tokens, refs_tokens
+assert refs_form["usage"] == "aos see refs [--workspace <id>] [--snapshot <id> | --diff <from>..<to>] [--query <text>] [--json]", refs_form
+assert {"--workspace", "--snapshot", "--diff", "--query", "--json"} <= refs_tokens, refs_tokens
 
 snapshots = json.loads(os.environ["SNAPSHOTS"])
 snapshots_form = next(item for item in snapshots["forms"] if item["id"] == "see-snapshots")

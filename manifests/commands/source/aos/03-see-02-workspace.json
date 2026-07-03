@@ -67,6 +67,14 @@
               "value_type": "string"
             },
             {
+              "id": "diff",
+              "kind": "flag",
+              "required": false,
+              "summary": "Compare compact refs between two snapshots as <from>..<to>",
+              "token": "--diff",
+              "value_type": "string"
+            },
+            {
               "id": "query",
               "kind": "flag",
               "required": false,
@@ -85,6 +93,7 @@
           ],
           "examples": [
             "aos see refs --workspace default --snapshot snap-20260701-120000Z-demo --json",
+            "aos see refs --workspace default --diff before..after --json",
             "aos see refs --workspace default --query Save"
           ],
           "execution": {
@@ -103,8 +112,8 @@
             "streaming": false,
             "supports_json_flag": true
           },
-          "summary": "Inspect compact saved refs by workspace, snapshot, or query before acting on ref targets",
-          "usage": "aos see refs [--workspace <id>] [--snapshot <id>] [--query <text>] [--json]"
+          "summary": "Inspect compact saved refs by workspace, snapshot, query, or snapshot diff before acting on ref targets",
+          "usage": "aos see refs [--workspace <id>] [--snapshot <id> | --diff <from>..<to>] [--query <text>] [--json]"
         },
         {
           "args": [

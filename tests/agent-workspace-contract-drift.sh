@@ -432,7 +432,6 @@ for (const staleCommand of [
   'aos see workspace use',
   'aos see capture --wait-for-change',
   'aos see capture --until-stable',
-  'aos see refs --diff',
   'aos see assert',
 ]) {
   assert.ok(
@@ -440,6 +439,11 @@ for (const staleCommand of [
     `AOS workspace skill must name unsupported boundary command ${staleCommand}`,
   );
 }
+assert.ok(
+  skill.includes('aos see refs --workspace <id> --diff <from>..<to> --json')
+  && apiDoc.includes('aos see refs --diff <from>..<to>'),
+  'AOS workspace docs and skill must teach compact refs diff now that it is supported',
+);
 assert.ok(
   skill.replace(/\s+/g, ' ').includes('No daemon-held current workspace exists'),
   'AOS workspace skill must warn agents away from hidden daemon-held workspace state',
@@ -782,14 +786,21 @@ const workspaceUseForms = manifestJSON.commands.flatMap((command) => (command.fo
 )));
 assert.deepEqual(workspaceUseForms, [], 'manifest must not advertise a daemon-held workspace use command');
 const unsupportedSavedWorkspaceSeeForms = seeCommand.forms.filter((form) => (
-  /see-(refs-)?diff|see-assert|wait-for-change|until-stable/.test(form.id)
-  || /--wait-for-change|--until-stable|\bsee refs\b.*--diff|\bsee assert\b/.test(form.usage ?? '')
-  || (form.args ?? []).some((arg) => ['--wait-for-change', '--until-stable', '--diff'].includes(arg.token))
+  /see-assert|wait-for-change|until-stable/.test(form.id)
+  || /--wait-for-change|--until-stable|\bsee assert\b/.test(form.usage ?? '')
+  || (form.args ?? []).some((arg) => ['--wait-for-change', '--until-stable'].includes(arg.token))
 ));
 assert.deepEqual(
   unsupportedSavedWorkspaceSeeForms.map((form) => form.id),
   [],
-  'manifest must not advertise saved workspace wait/diff/assert commands before parser and schema support',
+  'manifest must not advertise saved workspace wait/assert commands before parser and schema support',
+);
+const seeRefsForm = seeCommand.forms.find((form) => form.id === 'see-refs');
+assert.ok(seeRefsForm, 'manifest missing see-refs form');
+assert.ok(
+  seeRefsForm.usage.includes('--diff <from>..<to>')
+  && seeRefsForm.args.some((arg) => arg.token === '--diff'),
+  'see refs manifest must advertise supported compact snapshot diff',
 );
 const captureForm = seeCommand.forms.find((form) => form.id === 'see-capture');
 const captureSaveForm = seeCommand.forms.find((form) => form.id === 'see-capture-save');
