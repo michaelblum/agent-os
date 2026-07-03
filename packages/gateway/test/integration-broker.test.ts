@@ -320,4 +320,61 @@ describe('IntegrationBroker', () => {
       });
     }
   });
+
+  it('rejects foreign browser origins without wildcard CORS', async () => {
+    const { broker } = makeBroker();
+    const http = await startIntegrationHttpServer({
+      broker,
+      host: '127.0.0.1',
+      port: 0,
+    });
+    broker.setBrokerUrl(http.url);
+
+    try {
+      const localSnapshot = await fetch(`${http.url}/api/integrations/snapshot?limit=5`);
+      assert.equal(localSnapshot.status, 200);
+      assert.equal(localSnapshot.headers.get('access-control-allow-origin'), null);
+
+      const aosOrigin = await fetch(`${http.url}/api/integrations/snapshot?limit=5`, {
+        headers: { origin: 'aos://toolkit' },
+      });
+      assert.equal(aosOrigin.status, 200);
+      assert.equal(aosOrigin.headers.get('access-control-allow-origin'), 'aos://toolkit');
+
+      const rejectedPreflight = await fetch(`${http.url}/api/integrations/workflows/queue/launch`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://evil.example',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'content-type',
+        },
+      });
+      assert.equal(rejectedPreflight.status, 403);
+      assert.equal(rejectedPreflight.headers.get('access-control-allow-origin'), null);
+
+      const rejectedLaunch = await fetch(`${http.url}/api/integrations/workflows/queue/launch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          origin: 'https://evil.example',
+        },
+        body: JSON.stringify({
+          provider: 'slack',
+          requester: 'cross-origin-test',
+          fields: {
+            client: 'Acme',
+          },
+        }),
+      });
+      assert.equal(rejectedLaunch.status, 403);
+      assert.equal(rejectedLaunch.headers.get('access-control-allow-origin'), null);
+
+      const snapshot = await broker.getSnapshot(10);
+      assert.equal(snapshot.jobs.some((job) => job.requester === 'cross-origin-test'), false);
+    } finally {
+      await new Promise<void>((resolveClose) => {
+        http.server.close(() => resolveClose());
+      });
+    }
+  });
 });

@@ -10,13 +10,73 @@ interface IntegrationHttpServerOptions {
   port?: number;
 }
 
-function json(res: ServerResponse, status: number, payload: unknown) {
+const AOS_SURFACE_ORIGINS = new Set([
+  'aos://sigil',
+  'aos://toolkit',
+]);
+
+function loopbackHost(value: string): boolean {
+  return value === 'localhost'
+    || value === '127.0.0.1'
+    || value === '::1'
+    || value === '[::1]';
+}
+
+function requestHost(req: IncomingMessage): URL | null {
+  const host = req.headers.host;
+  if (typeof host !== 'string' || !host.trim()) return null;
+  try {
+    return new URL(`http://${host}`);
+  } catch {
+    return null;
+  }
+}
+
+function allowedCorsOrigin(req: IncomingMessage): string | null {
+  const origin = req.headers.origin;
+  if (typeof origin !== 'string' || !origin.trim()) return null;
+  if (AOS_SURFACE_ORIGINS.has(origin)) return origin;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return null;
+  }
+  const host = requestHost(req);
+  if (!host) return null;
+  if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+  if (!loopbackHost(parsed.hostname) || !loopbackHost(host.hostname)) return null;
+  return parsed.port === host.port ? origin : null;
+}
+
+function rejectDisallowedOrigin(req: IncomingMessage, res: ServerResponse): boolean {
+  const origin = req.headers.origin;
+  if (typeof origin !== 'string' || !origin.trim()) return false;
+  if (allowedCorsOrigin(req)) return false;
+  res.writeHead(403, {
+    'content-type': 'application/json; charset=utf-8',
+    vary: 'origin',
+  });
+  res.end(JSON.stringify({ error: 'origin_not_allowed' }, null, 2));
+  return true;
+}
+
+function corsHeaders(req: IncomingMessage): Record<string, string> {
+  const origin = allowedCorsOrigin(req);
+  if (!origin) return { vary: 'origin' };
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    vary: 'origin',
+  };
+}
+
+function json(req: IncomingMessage, res: ServerResponse, status: number, payload: unknown) {
   const body = JSON.stringify(payload, null, 2);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
-    'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'GET,POST,OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    ...corsHeaders(req),
   });
   res.end(body);
 }
@@ -35,15 +95,15 @@ export async function startIntegrationHttpServer(
 ): Promise<{ server: Server; url: string }> {
   const server = createServer(async (req, res) => {
     if (!req.url || !req.method) {
-      json(res, 400, { error: 'missing_request_url' });
+      json(req, res, 400, { error: 'missing_request_url' });
       return;
     }
 
+    if (rejectDisallowedOrigin(req, res)) return;
+
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        'access-control-allow-origin': '*',
-        'access-control-allow-methods': 'GET,POST,OPTIONS',
-        'access-control-allow-headers': 'content-type',
+        ...corsHeaders(req),
       });
       res.end();
       return;
@@ -54,28 +114,28 @@ export async function startIntegrationHttpServer(
 
     try {
       if (req.method === 'GET' && url.pathname === '/health') {
-        json(res, 200, { status: 'ok', broker: 'integration' });
+        json(req, res, 200, { status: 'ok', broker: 'integration' });
         return;
       }
 
       if (req.method === 'GET' && url.pathname === '/api/integrations/snapshot') {
-        json(res, 200, await options.broker.getSnapshot(limit));
+        json(req, res, 200, await options.broker.getSnapshot(limit));
         return;
       }
 
       if (req.method === 'GET' && url.pathname === '/api/integrations/providers') {
         const snapshot = await options.broker.getSnapshot(1);
-        json(res, 200, snapshot.providers);
+        json(req, res, 200, snapshot.providers);
         return;
       }
 
       if (req.method === 'GET' && url.pathname === '/api/integrations/workflows') {
-        json(res, 200, await options.broker.getWorkflowCatalog());
+        json(req, res, 200, await options.broker.getWorkflowCatalog());
         return;
       }
 
       if (req.method === 'GET' && url.pathname === '/api/integrations/jobs') {
-        json(res, 200, await options.broker.listJobs(limit));
+        json(req, res, 200, await options.broker.listJobs(limit));
         return;
       }
 
@@ -87,7 +147,7 @@ export async function startIntegrationHttpServer(
           fields: body.fields && typeof body.fields === 'object' ? body.fields as Record<string, string> : undefined,
           source: 'api',
         };
-        json(res, 200, await options.broker.launchWorkflow({
+        json(req, res, 200, await options.broker.launchWorkflow({
           provider: typeof body.provider === 'string' ? body.provider : 'slack',
           requester: typeof body.requester === 'string' ? body.requester : 'local-operator',
           workflowId: decodeURIComponent(workflowLaunchMatch[1]),
@@ -101,7 +161,7 @@ export async function startIntegrationHttpServer(
       const jobCompleteMatch = url.pathname.match(/^\/api\/integrations\/jobs\/([^/]+)\/complete$/);
       if (req.method === 'POST' && jobCompleteMatch) {
         const body = await readBody(req);
-        json(res, 200, await options.broker.completeJob(decodeURIComponent(jobCompleteMatch[1]), {
+        json(req, res, 200, await options.broker.completeJob(decodeURIComponent(jobCompleteMatch[1]), {
           summary: typeof body.summary === 'string' ? body.summary : 'Workflow completed.',
           lines: Array.isArray(body.lines) ? body.lines.filter((line: unknown): line is string => typeof line === 'string') : undefined,
           resultJson: body.resultJson,
@@ -120,7 +180,7 @@ export async function startIntegrationHttpServer(
       const jobStartMatch = url.pathname.match(/^\/api\/integrations\/jobs\/([^/]+)\/start$/);
       if (req.method === 'POST' && jobStartMatch) {
         const body = await readBody(req);
-        json(res, 200, await options.broker.startJob(decodeURIComponent(jobStartMatch[1]), {
+        json(req, res, 200, await options.broker.startJob(decodeURIComponent(jobStartMatch[1]), {
           summary: typeof body.summary === 'string' ? body.summary : undefined,
           metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata as Record<string, unknown> : undefined,
           notifyRequester: body.notifyRequester === true,
@@ -131,7 +191,7 @@ export async function startIntegrationHttpServer(
       const jobFailMatch = url.pathname.match(/^\/api\/integrations\/jobs\/([^/]+)\/fail$/);
       if (req.method === 'POST' && jobFailMatch) {
         const body = await readBody(req);
-        json(res, 200, await options.broker.failJob(decodeURIComponent(jobFailMatch[1]), {
+        json(req, res, 200, await options.broker.failJob(decodeURIComponent(jobFailMatch[1]), {
           errorText: typeof body.errorText === 'string' ? body.errorText : 'Workflow failed.',
           summary: typeof body.summary === 'string' ? body.summary : undefined,
           lines: Array.isArray(body.lines) ? body.lines.filter((line: unknown): line is string => typeof line === 'string') : undefined,
@@ -150,7 +210,7 @@ export async function startIntegrationHttpServer(
           channel: typeof body.channel === 'string' ? body.channel : 'local',
           thread: typeof body.thread === 'string' ? body.thread : undefined,
         };
-        json(res, 200, await options.broker.handleMessage(message));
+        json(req, res, 200, await options.broker.handleMessage(message));
         return;
       }
     } catch (error) {
@@ -158,11 +218,11 @@ export async function startIntegrationHttpServer(
         ? (error as { statusCode: number }).statusCode
         : 500;
       const message = error instanceof Error ? error.message : String(error);
-      json(res, status, { error: message });
+      json(req, res, status, { error: message });
       return;
     }
 
-    json(res, 404, { error: 'not_found', path: url.pathname });
+    json(req, res, 404, { error: 'not_found', path: url.pathname });
   });
 
   await new Promise<void>((resolve) => {
