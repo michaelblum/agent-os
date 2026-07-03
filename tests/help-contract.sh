@@ -104,6 +104,32 @@ else
     fail "public API top-level command table drifted from root consumer help"
 fi
 
+if ROOT_JSON="$(./aos help --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+import re
+from pathlib import Path
+
+root = json.loads(os.environ["ROOT_JSON"])
+root_top_level = {command["path"][0] for command in root["commands"]}
+readme = Path("README.md").read_text(encoding="utf-8")
+required = {"see", "do", "show", "tell", "listen", "say", "recipe", "ready", "serve", "service"}
+assert required <= root_top_level, sorted(required - root_top_level)
+for command in required:
+    assert f"`aos {command}`" in readme, command
+for command in ["see", "do", "show", "tell", "listen"]:
+    assert re.search(rf"\| `aos {command}` \| Primitive \|", readme), command
+assert re.search(r"\| `aos say` \| Convenience \|.*tell human", readme), readme
+assert re.search(r"\| `aos recipe` \| Higher-order \|.*`aos ops`", readme), readme
+assert re.search(r"\| `aos ready` \| Runtime/ops \|", readme), readme
+assert re.search(r"\| `aos serve` / `aos service` \| Runtime/ops \|", readme), readme
+PY
+then
+    pass "README public command model covers primitive, convenience, recipe, and runtime tiers"
+else
+    fail "README public command model drifted from canonical tiers"
+fi
+
 # --- 2. aos help show --json → JSON per-command ---
 OUT=$(./aos help show --json 2>/dev/null)
 if echo "$OUT" | grep -q '"path"'; then
