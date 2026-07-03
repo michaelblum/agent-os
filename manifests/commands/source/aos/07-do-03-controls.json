@@ -151,7 +151,7 @@
             "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
-          "summary": "Stable native AX saved-ref press validates durable identity before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Press stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for fresh aos see capture --save; direct AX uses current matching with no_foreground proof still not claimed",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -503,7 +503,7 @@
             "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
-          "summary": "Stable native AX saved-ref focus validates durable identity before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Focus stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for fresh aos see capture --save; direct AX uses current matching with no_foreground proof still not claimed",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
