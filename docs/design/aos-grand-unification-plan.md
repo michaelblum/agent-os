@@ -41,8 +41,12 @@ slices with repo evidence and clear exit criteria.
 - Keep target dialects explicit:
   - `browser:<session>/<ref>`: Playwright-backed DOM/ARIA targets.
   - `canvas:<canvas-id>/<ref>`: AOS canvas semantic targets.
-  - `screen:<state-id>/<x,y>`: coordinate fallback with state guard.
-  - `ax:<...>`: future first-class macOS AX refs.
+  - Screen coordinate fallback: current CLI actions use raw `x,y` plus optional
+    `--state-id`; `screen:<state-id>/<x,y>` remains target-model/replay
+    vocabulary, not a current CLI target string.
+  - Native AX: current CLI actions select elements through flags such as
+    `--pid` and `--role`; `ax:<...>` remains future first-class target-model
+    vocabulary, not a current CLI target string.
 - Evolve `aos.workbench.subject` in a compatible way:
   - Add optional `links`, `facets`, `edit_targets`, and `verification` fields
     after design/schema tests prove the shape.
