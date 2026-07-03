@@ -103,6 +103,17 @@ export function createGateService({
     logger?.({ event, ...payload });
   }
 
+  async function dismissReceptor(entry, handle = entry.handle) {
+    try {
+      await entry.receptor.dismiss(handle);
+    } catch (error) {
+      log('gate.dismiss_failed', {
+        gate_id: entry.request.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   async function settle(id, resolution, value, rejectError = null) {
     const entry = pending.get(id);
     if (!entry) return;
@@ -110,11 +121,7 @@ export function createGateService({
     clearTimeoutFn(entry.timer);
     const resolvedAt = new Date();
     const elapsedMs = Date.now() - entry.startedAt;
-    try {
-      await entry.receptor.dismiss(entry.handle);
-    } catch (error) {
-      log('gate.dismiss_failed', { gate_id: id, error: error instanceof Error ? error.message : String(error) });
-    }
+    await dismissReceptor(entry);
     log('gate.resolved', { gate_id: id, resolution, elapsed_ms: elapsedMs });
     if (recordStore) {
       try {
@@ -198,7 +205,8 @@ export function createGateService({
       selectedReceptor.receive(request)
         .then((handle) => {
           if (!pending.has(request.id)) {
-            selectedReceptor.dismiss(handle);
+            const lateEntry = { ...entry, handle };
+            dismissReceptor(lateEntry);
             return;
           }
           entry.handle = handle;

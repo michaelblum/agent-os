@@ -171,6 +171,51 @@ test('settle logs dismiss failures without rejecting the settlement task', async
   assert.equal(events.some((event) => event.event === 'gate.resolved'), true);
 });
 
+test('ask logs late dismiss failures after timeout without unhandled rejection', async () => {
+  const harness = timeoutHarness();
+  const events = [];
+  let releaseReceive;
+  const service = createGateService({
+    receptor: {
+      supports() {
+        return true;
+      },
+      async receive(gateRequest) {
+        await new Promise((resolve) => {
+          releaseReceive = resolve;
+        });
+        return { id: gateRequest.id };
+      },
+      async dismiss() {
+        throw new Error('late canvas already removed');
+      },
+    },
+    logger(event) {
+      events.push(event);
+    },
+    ...harness,
+  });
+
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const promise = service.ask(request('gate-late-dismiss', { timeout_ms: 9000 }));
+    await new Promise((resolve) => setImmediate(resolve));
+    harness.timers[0].callback();
+
+    assert.deepEqual(await promise, { result: null, status: 'timeout' });
+    releaseReceive();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(service.pending.size, 0);
+    assert.equal(events.some((event) => event.event === 'gate.dismiss_failed'), true);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
+
 test('ask resolves no-answer envelope on human dismissal', async () => {
   const harness = timeoutHarness();
   let receptor;
