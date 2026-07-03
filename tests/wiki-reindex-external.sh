@@ -71,6 +71,26 @@ links = json.loads(os.environ["OUT"])
 assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/gateway.md"}], links
 PY
 
+printf '\xff\xfe\x00' > "$ROOT/repo/wiki/aos/entities/reindex-invalid-utf8.md"
+if ./aos wiki reindex --json >"$ROOT/wiki-reindex-invalid.out" 2>"$ROOT/wiki-reindex-invalid.err"; then
+  echo "FAIL: wiki reindex accepted invalid UTF-8 markdown"
+  exit 1
+fi
+grep -q '"code": "WIKI_REINDEX_FAILED"' "$ROOT/wiki-reindex-invalid.err" || {
+  echo "FAIL: wiki reindex invalid markdown did not use structured failure"
+  cat "$ROOT/wiki-reindex-invalid.err"
+  exit 1
+}
+OUT="$(./aos wiki list --links-from aos/entities/reindex-link-source.md --json)"
+OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+links = json.loads(os.environ["OUT"])
+assert links == [{"source_path": "aos/entities/reindex-link-source.md", "target_path": "aos/entities/gateway.md"}], links
+PY
+rm "$ROOT/repo/wiki/aos/entities/reindex-invalid-utf8.md"
+
 if ./aos wiki reindex --bogus 2>"$ROOT/wiki-reindex-bogus.err"; then
   echo "FAIL: wiki reindex accepted unknown flag"
   exit 1
