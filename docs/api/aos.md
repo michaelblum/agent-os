@@ -222,6 +222,11 @@ target and returns a saved-ref execution envelope with `current_validation`,
 stale, ambiguous, disabled, changed, or identity-drifted current targets fail
 closed before dispatch:
 
+The examples below mix backend-specific saved-ref forms. The `press` and
+`focus` examples require stable `native_ax` refs with durable native identity
+facts and an actionable producer verdict; browser and AOS canvas refs fail
+closed for those actions.
+
 ```bash
 aos do click ref:<snapshot-id>:r1 --workspace default --dry-run
 aos do set-value ref:<snapshot-id>:r2 --workspace default --value "42" --dry-run
