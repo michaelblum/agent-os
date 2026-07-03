@@ -188,6 +188,20 @@ canvas targets and the target-model shape for other ref-addressed resolvers as
 they converge.
 _Avoid_: full target (ambiguous), qualified ref.
 
+**Saved Ref**:
+The primary model-facing handle for a persisted perception ref in an agent
+workspace: `ref:<snapshot-id>:<ref-id>`. Saved Refs are produced by
+`aos see capture --save` and read back with `aos see refs`; use them for normal
+observe-act loops. A Saved Ref names a workspace snapshot record, including
+backend, conformance, supported action matrix, and original ref data, and must
+revalidate or reacquire the current target before mutation. It is not a live
+Target-with-Ref: saved browser refs may dispatch through a current
+`browser:<session>/<ref>` target after validation, canvas refs may resolve
+through current canvas semantic refs, stable native AX refs may bridge to
+direct AX flags, and unsupported or volatile refs fail closed. Bare
+`ref:<ref-id>` is permitted only when unambiguous inside the workspace.
+_Avoid_: saved target, locator, permanent object id, direct target.
+
 **Semantic Target**:
 A discovered candidate emitted by perception, typically from `aos see ... --xray`. A structured record carrying ref, name, role, bounds, state, AOS ownership metadata, etc. Not a new address grammar — Semantic Targets *contain* Refs and report what's resolvable inside a Target.
 _Avoid_: hit, candidate, probe result.
@@ -270,7 +284,8 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.
-- A **Target-with-Ref** is the model unit of address for ref-addressed `aos see`/`aos do`/`aos show` operations. Live CLI forms currently expose it for browser and canvas targets. An **Anchor** is one role a Target-with-Ref can play (placement reference for `show`); on resolution it becomes an **Anchor Binding** in the display subsystem.
+- A **Target-with-Ref** is the live direct model unit of address for ref-addressed `aos see`/direct `aos do`/`aos show` operations. Live CLI forms currently expose it for browser and canvas targets. An **Anchor** is one role a Target-with-Ref can play (placement reference for `show`); on resolution it becomes an **Anchor Binding** in the display subsystem.
+- A **Saved Ref** (`ref:<snapshot-id>:<ref-id>`) is the preferred model-facing handle for saved perception workspaces and normal `see --save` -> `do` loops. Saved Refs are separate from direct Target-with-Ref address grammar: they carry snapshot/workspace/conformance/action-matrix data and must revalidate, reacquire, or fail closed before dispatching through browser, canvas, or native bridge actions.
 - Refs are dialect-specific: `browser` and `canvas` live CLI targets carry Refs, and AX model targets identify elements by AX path/filters. Screen coordinate actions carry raw coordinates plus `--state-id` instead.
 - A **Subject** is host-neutral. A **Facet** declares one or more **Hosts** it supports; opening a Facet means picking one of its Hosts and addressing the resulting render through that Host's Target dialect.
 - **Browser-First** is a posture for wiki/editor/artifact Facets; **AOS-Native** is a *requirement* for Facets that depend on AOS runtime privileges. Most Facets fall in between and can declare multiple Hosts.

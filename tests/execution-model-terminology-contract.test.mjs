@@ -117,6 +117,27 @@ test('browser target guidance prefers saved refs and keeps direct refs volatile'
   assert.doesNotMatch(browserSkill, /docs\/superpowers\/specs\/2026-04-24-playwright-browser-adapter-design\.md/);
 });
 
+test('context glossary distinguishes saved refs from live target refs', async () => {
+  const context = await text('CONTEXT.md');
+  const aosApi = await text('docs/api/aos.md');
+  const workspaceSchema = await text('shared/schemas/aos-agent-workspace-v0.md');
+
+  assert.match(context, /\*\*Saved Ref\*\*:/);
+  assert.match(context, /`ref:<snapshot-id>:<ref-id>`/);
+  assert.match(context, /primary model-facing handle/);
+  assert.match(context, /workspace snapshot record/);
+  assert.match(context, /revalidate or reacquire the current target before mutation/);
+  assert.match(context, /not a live\s+Target-with-Ref/);
+  assert.match(context, /Bare\s+`ref:<ref-id>` is permitted only when unambiguous inside the workspace/);
+  assert.match(context, /separate from direct Target-with-Ref address grammar/);
+  assert.match(context, /snapshot\/workspace\/conformance\/action-matrix data/);
+  assert.match(aosApi, /Saved refs use `ref:<snapshot-id>:<ref-id>`/);
+  assert.match(workspaceSchema, /Saved refs are scoped to a snapshot/);
+  assert.match(workspaceSchema, /originating capture target and mode/);
+  assert.doesNotMatch(workspaceSchema, /originating saved target/);
+  assert.doesNotMatch(context, /Saved Ref[\s\S]{0,500}is the live wire form/);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
