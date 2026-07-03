@@ -6,19 +6,24 @@ const DEFAULT_TIMEOUT_MS = 20000;
 const FALLBACK_FIELDS = [{ id: 'text', kind: 'text', placeholder: 'Your response...' }];
 
 function decodeBase64Json(value) {
-  const decode = typeof atob === 'function'
-    ? atob
-    : (input) => Buffer.from(input, 'base64').toString('utf8');
-  return JSON.parse(decode(value));
+  if (typeof atob === 'function') {
+    const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+  return JSON.parse(Buffer.from(value, 'base64').toString('utf8'));
 }
 
 function requestFromLocation(win) {
   const search = win?.location?.search || '';
   if (!search) return null;
-  const params = new URLSearchParams(search);
-  if (params.has('requestB64')) return decodeBase64Json(params.get('requestB64'));
-  if (params.has('request')) return JSON.parse(decodeURIComponent(params.get('request')));
-  return null;
+  try {
+    const params = new URLSearchParams(search);
+    if (params.has('requestB64')) return decodeBase64Json(params.get('requestB64'));
+    if (params.has('request')) return JSON.parse(decodeURIComponent(params.get('request')));
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeRequest(input) {
