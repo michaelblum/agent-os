@@ -431,6 +431,14 @@ assert "aos see capture --save" in click["summary"], click
 click_examples = click.get("examples", [])
 assert "aos do click ref:<snapshot-id>:r1 --workspace default --dry-run" in click_examples, click_examples
 assert "aos do click ref:<snapshot-id>:r1 --workspace default" in click_examples, click_examples
+type_browser = next(item for item in data["forms"] if item["id"] == "do-type-browser")
+assert "browser:<session>[/<ref>]" in type_browser["usage"], type_browser["usage"]
+assert "--state-id" in {arg.get("token") for arg in type_browser["args"]}, type_browser
+assert "not a saved-ref action" in type_browser["summary"], type_browser
+key_browser = next(item for item in data["forms"] if item["id"] == "do-key-browser")
+assert "browser:<session>[/<ref>]" in key_browser["usage"], key_browser["usage"]
+assert "--state-id" in {arg.get("token") for arg in key_browser["args"]}, key_browser
+assert "not a saved-ref action" in key_browser["summary"], key_browser
 set_value = next(item for item in data["forms"] if item["id"] == "do-set-value")
 set_value_tokens = {arg.get("token") for arg in set_value["args"]}
 assert {"--workspace", "--snapshot", "--value", "--dry-run"} <= set_value_tokens, set_value_tokens
