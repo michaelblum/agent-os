@@ -177,6 +177,7 @@ export function createWorkRecordWorkbenchState({ record = null, source = null } 
     savedRecord: cloneJson(initial),
     source: normalizeSource(source),
     dirty: false,
+    pendingPatchRecord: null,
     selectedView: 'intent',
     lastResult: null,
     errors: [],
@@ -188,6 +189,7 @@ export function openWorkRecord(state, message = {}) {
   const record = normalizeRecord(recordFromMessage(message));
   state.record = record;
   state.savedRecord = cloneJson(record);
+  state.pendingPatchRecord = null;
   state.source = normalizeSource(payload.source) || state.source || null;
   state.dirty = false;
   state.lastResult = {
@@ -276,9 +278,13 @@ export function applyWorkRecordPatchResult(state, message = {}) {
   const payload = unwrapMessage(message);
   const status = ['saved', 'applied'].includes(payload.status) ? 'saved' : 'rejected';
   if (status === 'saved') {
-    state.savedRecord = cloneJson(state.record);
-    state.dirty = false;
+    const savedRecord = payload.record && typeof payload.record === 'object'
+      ? normalizeRecord(payload.record)
+      : state.pendingPatchRecord || state.record;
+    state.savedRecord = cloneJson(savedRecord);
+    state.dirty = !recordsEqual(state.record, state.savedRecord);
   }
+  state.pendingPatchRecord = null;
   state.lastResult = {
     type: 'work_record.patch.result',
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
@@ -295,6 +301,8 @@ export function buildWorkRecordPatchRequest(state, {
   if (workRecordIsReadOnly(state.record)) {
     throw new TypeError('read-only Work Records cannot build patch requests');
   }
+  const recordSnapshot = cloneJson(state.record);
+  state.pendingPatchRecord = cloneJson(recordSnapshot);
   return {
     type: 'work_record.patch.requested',
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
@@ -306,7 +314,7 @@ export function buildWorkRecordPatchRequest(state, {
       intent: cloneJson(objectValue(state.record.intent)),
       execution_map: cloneJson(objectValue(state.record.execution_map)),
     },
-    record: cloneJson(state.record),
+    record: recordSnapshot,
   };
 }
 
