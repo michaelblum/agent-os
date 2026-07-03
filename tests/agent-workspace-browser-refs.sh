@@ -267,7 +267,13 @@ if ./aos do click "ref:snap1:$REF" --workspace ws-browser >"$TMP_DIR/do-ref-reva
 fi
 mv "$REFS_PATH.revalidation-backup" "$REFS_PATH"
 expect_error_code "REF_REVALIDATION_REQUIRED" "$REVALIDATION_ERR"
-jq -e '.status == "validation_required" and .reason == "missing_saved_page_url" and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"' "$REVALIDATION_ERR" >/dev/null \
+jq -e '
+  .status == "validation_required"
+  and .reason == "missing_saved_page_url"
+  and .recommended_next.kind == "fresh_saved_capture"
+  and .recommended_next.argv == ["aos","see","capture","browser:todo","--save","--workspace","ws-browser","--mode","ax","--query","Click me"]
+  and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
+' "$REVALIDATION_ERR" >/dev/null \
     || fail "browser revalidation-required recommendation drifted: $(cat "$REVALIDATION_ERR")"
 
 cp "$REFS_PATH" "$REFS_PATH.drag-backup"
@@ -497,6 +503,8 @@ jq -e '
   and .backend == "browser"
   and .ref.ref == "r1"
   and .safe_next_action == "aos see capture browser:form --save --workspace ws-form --mode ax"
+  and .recommended_next.kind == "fresh_saved_capture"
+  and .recommended_next.argv == ["aos","see","capture","browser:form","--save","--workspace","ws-form","--mode","ax"]
   and .recommended_next_command == "aos see capture browser:form --save --workspace ws-form --mode ax"
   and .requires_user_approval == false
 ' "$FORM_FILL_STALE_REAL_ERR" >/dev/null \

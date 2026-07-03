@@ -57,11 +57,12 @@ Current wait/diff/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,
 `aos see refs --diff`, or `aos see assert`.
 
-Use `recommended_next_command` plus a fresh saved capture for re-perception,
-`aos show wait` only for canvas readiness, Recipe assertions only for command
-JSON checks, and Work Record postconditions for durable evidence checks. Future
-saved wait/diff/assert commands need manifest help, parser, schema/doc, and
-drift tests before public use.
+Use structured `recommended_next` descriptors and `recommended_next_command`
+plus a fresh saved capture for re-perception, `aos show wait` only for canvas
+readiness, Recipe assertions only for command JSON checks, and Work Record
+postconditions for durable evidence checks. Future saved wait/diff/assert
+commands need manifest help, parser, schema/doc, and drift tests before public
+use.
 
 `capture.json` intentionally preserves the primitive output shape. The workspace
 schema validates the saved workspace files around that payload, not every

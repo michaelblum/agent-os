@@ -8,7 +8,7 @@ import {
   failLowConfidenceRef,
   failUnsupportedRef,
   loadRefRecord,
-  recommendedRefreshCommand,
+  recommendedRefreshResponseFields,
   unsafeResolutionForMutation,
 } from './ref-action-resolution.mjs';
 import {
@@ -159,8 +159,7 @@ function maybeRunRefAction(action, args, env = process.env) {
     exitAgentWorkspaceError(`Ref '${unsafeRecord.ref}' is ${unsafeStatus}; refresh perception before mutating`, 'REF_REVALIDATION_REQUIRED', {
       status: unsafeStatus,
       ref: refSummary(unsafeRecord),
-      safe_next_action: recommendedRefreshCommand(workspace, unsafeRecord),
-      recommended_next_command: recommendedRefreshCommand(workspace, unsafeRecord),
+      ...recommendedRefreshResponseFields(workspace, unsafeRecord),
       requires_user_approval: false,
     });
   }

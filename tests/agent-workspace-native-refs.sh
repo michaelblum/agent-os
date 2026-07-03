@@ -282,7 +282,17 @@ if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs click ref:snapnative:r1 --wo
 fi
 mv "$NATIVE_REFS_PATH.coordinate-backup" "$NATIVE_REFS_PATH"
 expect_error_code "REF_UNSUPPORTED" "$COORDINATE_FALLBACK_ERR"
-jq -e '.status == "unsupported" and .ref.resolution_class == "coordinate_fallback" and .ref.conformance.actionability == "diagnostic_fallback_refused" and .ref.conformance.proof.status == "known_limit_refusal_tested" and .ref.conformance.target_uncertainty.status == "blocked_coordinate_fallback" and any(.ref.warnings[]; contains("diagnostic-only")) and .recommended_next_command == "aos see capture main --save --workspace ws-native --mode ax"' "$COORDINATE_FALLBACK_ERR" >/dev/null \
+jq -e '
+  .status == "unsupported"
+  and .ref.resolution_class == "coordinate_fallback"
+  and .ref.conformance.actionability == "diagnostic_fallback_refused"
+  and .ref.conformance.proof.status == "known_limit_refusal_tested"
+  and .ref.conformance.target_uncertainty.status == "blocked_coordinate_fallback"
+  and any(.ref.warnings[]; contains("diagnostic-only"))
+  and .recommended_next.kind == "fresh_saved_capture"
+  and .recommended_next.argv == ["aos","see","capture","main","--save","--workspace","ws-native","--mode","ax"]
+  and .recommended_next_command == "aos see capture main --save --workspace ws-native --mode ax"
+' "$COORDINATE_FALLBACK_ERR" >/dev/null \
     || fail "coordinate fallback diagnostic ref did not refuse with warning context: $(cat "$COORDINATE_FALLBACK_ERR")"
 
 NATIVE_FOCUS_ERR="$TMP_DIR/do-native-focus-ref.err"
@@ -290,7 +300,13 @@ if AOS_PATH="$FAKE_AOS" node scripts/aos-do-ref.mjs focus ref:snapnative:r1 --wo
     fail "native focus volatile inspection ref unexpectedly became actionable"
 fi
 expect_error_code "REF_UNSUPPORTED" "$NATIVE_FOCUS_ERR"
-jq -e '.status == "unsupported" and .ref.backend == "native_ax" and .safe_next_action == "aos see capture main --save --workspace ws-native --mode ax"' "$NATIVE_FOCUS_ERR" >/dev/null \
+jq -e '
+  .status == "unsupported"
+  and .ref.backend == "native_ax"
+  and .safe_next_action == "aos see capture main --save --workspace ws-native --mode ax"
+  and .recommended_next.kind == "fresh_saved_capture"
+  and .recommended_next.argv == ["aos","see","capture","main","--save","--workspace","ws-native","--mode","ax"]
+' "$NATIVE_FOCUS_ERR" >/dev/null \
     || fail "native focus unsupported ref payload drifted: $(cat "$NATIVE_FOCUS_ERR")"
 
 NATIVE_PRESS_ERR="$TMP_DIR/do-native-press-ref.err"

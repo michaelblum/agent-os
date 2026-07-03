@@ -291,7 +291,13 @@ if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs focus ref:snapcanvas:
     fail "unsupported AOS canvas focus ref unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_FOCUS_ERR"
-jq -e '.status == "action_incompatible" and .ref.backend == "aos_canvas" and .safe_next_action == "aos see capture main --save --workspace ws-canvas --mode som"' "$CANVAS_FOCUS_ERR" >/dev/null \
+jq -e '
+  .status == "action_incompatible"
+  and .ref.backend == "aos_canvas"
+  and .safe_next_action == "aos see capture main --save --workspace ws-canvas --mode som"
+  and .recommended_next.kind == "fresh_saved_capture"
+  and .recommended_next.argv == ["aos","see","capture","main","--save","--workspace","ws-canvas","--mode","som"]
+' "$CANVAS_FOCUS_ERR" >/dev/null \
     || fail "AOS canvas focus ref did not fail closed through action matrix: $(cat "$CANVAS_FOCUS_ERR")"
 
 CANVAS_PRESS_ERR="$TMP_DIR/do-canvas-press.err"
