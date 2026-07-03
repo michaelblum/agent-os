@@ -894,6 +894,10 @@ aos do click browser:<session>/<ref>
 aos do click canvas:<canvas-id>/<ref> --state-id <id>
 ```
 
+`--dwell` is a coordinate/native and AOS canvas click option. Direct browser
+clicks and browser saved refs reject `--dwell`; use browser click/double/right
+forms without native pointer dwell timing.
+
 Use `ref:<snapshot-id>:<ref>` for refs returned by `aos see refs` or compact
 saved capture output. `aos do <action> ref:<...> --dry-run` reports the resolved
 underlying command and, for browser refs, the fresh xray current-target

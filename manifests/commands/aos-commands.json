@@ -2623,7 +2623,7 @@
               "id" : "dwell",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Dwell time in ms",
+              "summary" : "Dwell time in ms for coordinate/native and AOS canvas click targets; browser targets reject --dwell",
               "token" : "--dwell",
               "value_type" : "int"
             },
@@ -2684,7 +2684,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--dwell N] [--state-id id] [--dry-run]"
+          "usage" : "aos do click <ref:<snapshot-id>:<ref>|x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--workspace <id>] [--snapshot <id>] [--right] [--double] [--state-id id] [--dry-run] [--dwell N for x,y or canvas targets]"
         },
         {
           "args" : [
