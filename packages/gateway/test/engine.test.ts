@@ -79,6 +79,17 @@ describe('NodeSubprocessEngine', () => {
     });
     assert.equal(r.result, false);
   });
+
+  it('passes an SDK call timeout below the subprocess timeout', async () => {
+    const r = await engine.execute({
+      script: 'return globalThis.__aos_config.sdkCallTimeoutMs;',
+      params: {},
+      intent: 'automation',
+      timeout: 1000,
+      context: { gatewaySocket: TEST_SOCK, sessionId: 'test' },
+    });
+    assert.equal(r.result, 750);
+  });
 });
 
 describe('EngineRouter', () => {
