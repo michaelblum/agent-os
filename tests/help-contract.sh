@@ -185,6 +185,31 @@ else
     fail "aos tell with no args did not return MISSING_ARG: $ERR"
 fi
 
+if OUT="$(./aos help tell --json 2>/dev/null)" TEXT="$(./aos help tell 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+form = next(item for item in data["forms"] if item["id"] == "tell-message")
+audience = next(arg for arg in form["args"] if arg["id"] == "audience")
+assert audience["required"] is False, audience
+groups = form.get("constraints", {}).get("required_groups", [])
+assert {
+    tuple(item)
+    for group in groups
+    if group.get("summary") == "tell target"
+    for item in group.get("one_of", [])
+} == {("audience",), ("session-id",)}, groups
+assert any("--session-id" in item for item in form.get("examples", [])), form
+text = os.environ["TEXT"]
+assert "requires one tell target: <audience> OR --session-id" in text, text
+PY
+then
+    pass "tell help exposes audience or direct-session target alternatives"
+else
+    fail "tell help target alternatives drifted"
+fi
+
 # --- 7. aos listen (no channel) → MISSING_ARG on stderr ---
 if ERR=$(./aos listen 2>&1 >/dev/null); then
     fail "aos listen with no args should exit non-zero"

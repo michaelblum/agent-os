@@ -405,6 +405,7 @@ check_unknown_arg ops-list-extra ./aos ops list unexpected
 check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot unexpected
 check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
 check_unknown_arg tell-who-extra ./aos tell --who unexpected
+check_code tell-session-id-message-reaches-daemon DAEMON_UNREACHABLE ./aos tell --session-id parser-session "status update"
 err="$STATE_ROOT/tell-json-missing.err"
 if ./aos tell channel --json --from tester 2>"$err"; then
   echo "FAIL: tell accepted missing --json value" >&2
