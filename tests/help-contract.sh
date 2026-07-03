@@ -503,18 +503,15 @@ assert "stable native AX actions" in capture_save_form["summary"], capture_save_
 assert capture_form["execution"]["mutates_state"] is False, capture_form["execution"]
 assert capture_form["execution"]["mutates_when_flags"] == ["--save"], capture_form["execution"]
 assert capture_form["execution"]["read_only"] is True, capture_form["execution"]
-assert capture_form["output"]["conditional_modes"] == [{
-    "default_mode": "json",
-    "summary": "Saved capture returns compact JSON refs after persisting local workspace perception",
-    "when_flags": ["--save"],
-}], capture_form["output"]
+assert "conditional_modes" not in capture_form["output"], capture_form["output"]
+assert capture_form["output"]["default_mode"] == "json", capture_form["output"]
 assert capture_save_form["execution"]["mutates_state"] is True, capture_save_form["execution"]
 assert capture_save_form["execution"]["read_only"] is False, capture_save_form["execution"]
 assert "--save" in capture["summary"], capture["summary"]
 capture_text = os.environ["CAPTURE_TEXT"]
 assert "[execution: read-only, mutates-with --save, requires-permissions]" in capture_text, capture_text
 assert "[execution: mutates-state, requires-permissions]" in capture_text, capture_text
-assert "[output: none; with --save: json]" in capture_text, capture_text
+assert "[output: json; with --save: json]" not in capture_text, capture_text
 assert "[output: json]" in capture_text, capture_text
 assert "requires one capture source: <target> OR --region OR --canvas OR --channel" in capture_text, capture_text
 

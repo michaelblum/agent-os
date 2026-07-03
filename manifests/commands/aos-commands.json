@@ -638,16 +638,7 @@
           },
           "id" : "see-capture",
           "output" : {
-            "conditional_modes" : [
-              {
-                "default_mode" : "json",
-                "summary" : "Saved capture returns compact JSON refs after persisting local workspace perception",
-                "when_flags" : [
-                  "--save"
-                ]
-              }
-            ],
-            "default_mode" : "none",
+            "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
             "supports_json_flag" : false
