@@ -172,6 +172,23 @@ test('design target examples keep screen and AX as bridge or model vocabulary', 
   assert.doesNotMatch(compatibilityAudit, /update docs to `screen:<state-id>\/<x,y>`/);
 });
 
+test('work record action evidence docs preserve selected action target vocabulary', async () => {
+  const schemaDoc = await text('shared/schemas/aos-work-record-v0.md');
+  const workbenchApi = await text('docs/api/toolkit/workbench.md');
+
+  for (const doc of [schemaDoc, workbenchApi]) {
+    assert.match(doc, /target dialect, selected action target, State IDs/);
+    assert.match(doc, /Direct browser\/canvas evidence may (?:store|use)\s+a\s+Target-with-Ref/);
+    assert.match(doc, /saved-ref evidence should preserve the Saved Ref plus\s+resolved\s+underlying target/);
+    assert.match(doc, /native AX evidence should preserve its selector\s+bridge\s+descriptor/);
+    assert.doesNotMatch(doc, /target dialect, Target-with-Ref, State IDs/);
+  }
+
+  assert.match(schemaDoc, /selected action target for what actually happened during the run/);
+  assert.match(schemaDoc, /may be a direct Target-with-Ref, a Saved Ref with resolved\s+underlying target metadata, or a native bridge descriptor/);
+  assert.doesNotMatch(schemaDoc, /selected Target-with-Ref/);
+});
+
 test('voice and communication guidance keep say, voice, tell, and listen roles distinct', async () => {
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');

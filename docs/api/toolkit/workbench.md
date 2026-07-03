@@ -1407,11 +1407,14 @@ capture builders. `buildWorkRecordV0FromCommandEvidence()` turns one bounded
 repo command evidence source into a completed Work Record v0.
 `buildWorkRecordV0FromAosActionEvidence()` does the same for one saved AOS
 `see -> do -> see` action evidence source, preserving before perception, action
-metadata, after perception, target dialect, Target-with-Ref, State IDs where
-available, immutable evidence refs, Claims, Postconditions, Claim Results, a
-Verifier Report, and Health. This is report-only substrate for later browser,
-canvas, or Step descriptors; it does not add replay, repair, or a broad CLI
-command surface.
+metadata, after perception, target dialect, selected action target, State IDs
+where available, immutable evidence refs, Claims, Postconditions, Claim
+Results, a Verifier Report, and Health. Direct browser/canvas evidence may use
+a Target-with-Ref, saved-ref evidence should preserve the Saved Ref plus
+resolved underlying target, and native AX evidence should preserve its selector
+bridge descriptor. This is report-only substrate for later browser, canvas, or
+Step descriptors; it does not add replay, repair, or a broad CLI command
+surface.
 
 `packages/toolkit/workbench/browser-evidence-capture.js` exposes Browser
 Evidence Capture V0 for local fixture-backed evidence capture. It accepts a local
