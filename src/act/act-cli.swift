@@ -91,6 +91,30 @@ private func playbackMode(args: [String]) -> String {
     }
 }
 
+private func positiveIntArg(_ args: [String], _ flag: String) -> Int? {
+    guard let raw = getArg(args, flag) else { return nil }
+    guard let parsed = parseInt(raw), parsed > 0 else {
+        exitError("\(flag) requires a positive integer", code: "INVALID_ARG")
+    }
+    return parsed
+}
+
+private func positiveDoubleArg(_ args: [String], _ flag: String) -> Double? {
+    guard let raw = getArg(args, flag) else { return nil }
+    guard let parsed = parseDouble(raw), parsed > 0, parsed.isFinite else {
+        exitError("\(flag) requires a positive number", code: "INVALID_ARG")
+    }
+    return parsed
+}
+
+private func varianceArg(_ args: [String], _ flag: String) -> Double? {
+    guard let raw = getArg(args, flag) else { return nil }
+    guard let parsed = parseDouble(raw), parsed >= 0, parsed <= 1, parsed.isFinite else {
+        exitError("\(flag) requires a number from 0 to 1", code: "INVALID_ARG")
+    }
+    return parsed
+}
+
 private func printCanvasTargetActionResult(
     action: String,
     backend: String = "canvas",
@@ -450,7 +474,7 @@ func cliClick(args: [String]) {
     let isDouble = hasFlag(args, "--double")
 
     // Override click dwell from CLI flag
-    if let dwellMs = parseInt(getArg(args, "--dwell")) {
+    if let dwellMs = positiveIntArg(args, "--dwell") {
         state.profile.timing.click_dwell = DelayRange(min: dwellMs, max: dwellMs)
     }
 
@@ -498,7 +522,7 @@ private func cliClickCanvasRef(targetString: String, args: [String]) {
     }
 
     let state = cliSessionState(args: args)
-    if let dwellMs = parseInt(getArg(args, "--dwell")) {
+    if let dwellMs = positiveIntArg(args, "--dwell") {
         state.profile.timing.click_dwell = DelayRange(min: dwellMs, max: dwellMs)
     }
 
@@ -563,7 +587,7 @@ func cliDrag(args: [String]) {
     }
 
     // Override drag speed from CLI flags
-    if let speedPxPerSec = parseDouble(getArg(args, "--speed")) {
+    if let speedPxPerSec = positiveDoubleArg(args, "--speed") {
         state.profile.mouse.pixels_per_second = speedPxPerSec
     }
 
@@ -798,12 +822,12 @@ func cliType(args: [String]) {
     }
 
     // Override typing cadence from CLI flags
-    if let delayMs = parseDouble(getArg(args, "--delay")) {
+    if let delayMs = positiveDoubleArg(args, "--delay") {
         // delay is ms per character -> derive WPM: chars/sec = 1000/delay, WPM = chars_per_sec * 60 / 5
-        let charsPerSec = 1000.0 / max(1.0, delayMs)
+        let charsPerSec = 1000.0 / delayMs
         state.profile.timing.typing_cadence.wpm = max(1, Int(charsPerSec * 60.0 / 5.0))
     }
-    if let variance = parseDouble(getArg(args, "--variance")) {
+    if let variance = varianceArg(args, "--variance") {
         state.profile.timing.typing_cadence.variance = variance
     }
 
