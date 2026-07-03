@@ -112,11 +112,37 @@ func flagsForModifier(_ name: String) -> CGEventFlags? {
 
 // MARK: - Timing Math
 
+func safePositiveDouble(_ value: Double, fallback: Double) -> Double {
+    value.isFinite && value > 0 ? value : fallback
+}
+
+func safeNonNegativeDouble(_ value: Double, fallback: Double = 0) -> Double {
+    value.isFinite && value >= 0 ? value : fallback
+}
+
+func safeUnitInterval(_ value: Double, fallback: Double = 0) -> Double {
+    guard value.isFinite else { return fallback }
+    return min(1.0, max(0.0, value))
+}
+
+func safeMotionStepCount(distance: Double, pixelsPerSecond: Double, stepInterval: Double) -> Int {
+    let safeSpeed = safePositiveDouble(pixelsPerSecond, fallback: 1200.0)
+    let safeInterval = safePositiveDouble(stepInterval, fallback: 0.008)
+    let safeDistance = safeNonNegativeDouble(distance)
+    let duration = safeDistance / safeSpeed
+    let rawSteps = duration / safeInterval
+    guard rawSteps.isFinite && rawSteps > 0 else { return 1 }
+    return max(1, Int(min(rawSteps, 50_000.0)))
+}
+
 /// Sample a random delay from a DelayRange using the specified distribution.
 /// Returns microseconds (for usleep).
 func sampleDelay(_ range: DelayRange) -> UInt32 {
-    let lo = Double(range.min)
-    let hi = Double(range.max)
+    let maxDelayMs = Int(UInt32.max / 1000)
+    let lowerMs = min(max(0, range.min), maxDelayMs)
+    let upperMs = min(max(0, range.max), maxDelayMs)
+    let lo = Double(min(lowerMs, upperMs))
+    let hi = Double(max(lowerMs, upperMs))
     guard lo < hi else { return UInt32(lo) * 1000 }
 
     let value: Double

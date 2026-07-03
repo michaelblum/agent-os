@@ -101,12 +101,16 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let dy = Double(target.y - from.y)
     let dist = sqrt(dx * dx + dy * dy)
 
-    // Calculate step count from distance and profile speed
-    let duration = dist / profile.mouse.pixels_per_second  // seconds
     let stepInterval = 0.008 // ~125 Hz — smooth enough for CG
-    let steps = max(1, Int(duration / stepInterval))
+    let steps = safeMotionStepCount(
+        distance: dist,
+        pixelsPerSecond: profile.mouse.pixels_per_second,
+        stepInterval: stepInterval
+    )
+    let overshoot = safeNonNegativeDouble(profile.mouse.overshoot)
+    let jitter = safeNonNegativeDouble(profile.mouse.jitter)
 
-    let points = bezierPath(from: from, to: target, steps: steps, overshoot: profile.mouse.overshoot, jitter: profile.mouse.jitter)
+    let points = bezierPath(from: from, to: target, steps: steps, overshoot: overshoot, jitter: jitter)
 
     let source = CGEventSource(stateID: .hidSystemState)
     for pt in points {
@@ -237,11 +241,15 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let dx = Double(target.x - origin.x)
     let dy = Double(target.y - origin.y)
     let dist = sqrt(dx * dx + dy * dy)
-    let duration = dist / profile.mouse.pixels_per_second
     let stepInterval = 0.008
-    let steps = max(1, Int(duration / stepInterval))
+    let steps = safeMotionStepCount(
+        distance: dist,
+        pixelsPerSecond: profile.mouse.pixels_per_second,
+        stepInterval: stepInterval
+    )
+    let jitter = safeNonNegativeDouble(profile.mouse.jitter)
 
-    let points = bezierPath(from: origin, to: target, steps: steps, overshoot: 0, jitter: profile.mouse.jitter)
+    let points = bezierPath(from: origin, to: target, steps: steps, overshoot: 0, jitter: jitter)
 
     for pt in points {
         if let drag = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged,
@@ -441,8 +449,10 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     let cadence = profile.timing.typing_cadence
     // Base interval from WPM: average word is 5 chars, so chars/sec = wpm * 5 / 60
-    let charsPerSecond = Double(cadence.wpm) * 5.0 / 60.0
-    let baseIntervalMs = 1000.0 / charsPerSecond
+    let wpm = max(1, cadence.wpm)
+    let variance = safeUnitInterval(cadence.variance)
+    let charsPerSecond = Double(wpm) * 5.0 / 60.0
+    let baseIntervalMs = max(1.0, 1000.0 / charsPerSecond)
 
     let source = CGEventSource(stateID: .hidSystemState)
     let flags = currentFlags(state)
@@ -462,7 +472,6 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         }
 
         // Cadence: apply variance
-        let variance = cadence.variance
         let jitteredInterval = baseIntervalMs * (1.0 + Double.random(in: -variance...variance))
         usleep(UInt32(max(1.0, jitteredInterval)) * 1000)
 
