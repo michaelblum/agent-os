@@ -25,13 +25,13 @@ const valueFlags = new Set([
   '--index', '--near', '--match', '--depth', '--timeout',
   '--profile', '--value', '--to', '--dy', '--dx', '--window',
   '--delay', '--variance', '--dwell', '--steps', '--speed',
-  '--state-id',
+  '--state-id', '--by', '--to-value', '--playback',
 ]);
 const booleanFlags = new Set(['--dry-run', '--right', '--double']);
 
 const intFlags = new Set(['--index', '--depth', '--timeout', '--window', '--dwell', '--steps']);
 const numberFlags = new Set(['--dx', '--dy', '--delay', '--variance', '--speed']);
-const coordFlags = new Set(['--near', '--to']);
+const coordFlags = new Set(['--near', '--to', '--by']);
 
 function positionalArgEntries(args) {
   const entries = [];
@@ -158,6 +158,22 @@ function validate(verb, args) {
       break;
     case 'drag':
       if (pos.some((arg) => arg.startsWith('browser:'))) error('native do drag does not accept browser targets', 'INVALID_TARGET');
+      if (pos[0]?.startsWith('canvas:')) {
+        const hasBy = flagPresence(args, '--by');
+        const hasToValue = flagPresence(args, '--to-value');
+        if (pos.length > 1) unknownArg(pos[1]);
+        if (flagPresence(args, '--speed')) unknownArg('--speed');
+        if (hasBy && hasToValue) error('canvas drag accepts exactly one of --by or --to-value', 'INVALID_ARG');
+        if (!hasBy && !hasToValue) error('drag canvas target requires --by dx,dy or --to-value value', 'MISSING_ARG');
+        const playback = flagValue(args, '--playback');
+        if (playback && !['auto', 'immediate', 'human'].includes(playback)) {
+          error(`unsupported playback mode '${playback}'`, 'INVALID_PLAYBACK');
+        }
+        break;
+      }
+      if (flagPresence(args, '--by')) unknownArg('--by');
+      if (flagPresence(args, '--to-value')) unknownArg('--to-value');
+      if (flagPresence(args, '--playback')) unknownArg('--playback');
       if (!(pos.length >= 2 && isCoord(pos[0]) && isCoord(pos[1]))) error('drag requires two coordinate pairs (x1,y1 x2,y2)', 'MISSING_ARG');
       if (pos.length > 2) unknownArg(pos[2]);
       break;

@@ -2785,6 +2785,116 @@
         {
           "args" : [
             {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "AOS canvas semantic drag target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "by",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Move the current canvas semantic target by dx,dy",
+              "token" : "--by",
+              "value_type" : "string"
+            },
+            {
+              "id" : "to-value",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Drag a value control to a semantic value",
+              "token" : "--to-value",
+              "value_type" : "string"
+            },
+            {
+              "default_value" : "auto",
+              "id" : "playback",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Canvas drag playback mode; human uses visible pointer playback",
+              "token" : "--playback",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Prefer immediate semantic execution for AOS-owned canvas controls",
+                    "value" : "auto"
+                  },
+                  {
+                    "summary" : "Immediate semantic execution",
+                    "value" : "immediate"
+                  },
+                  {
+                    "summary" : "Visible pointer playback",
+                    "value" : "human"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "state-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Perception state id this action was chosen from",
+              "token" : "--state-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the canvas drag without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "constraints" : {
+            "conflicts" : [
+              [
+                "by",
+                "to-value"
+              ]
+            ],
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "by"
+                  ],
+                  [
+                    "to-value"
+                  ]
+                ],
+                "summary" : "canvas drag mode"
+              }
+            ]
+          },
+          "examples" : [
+            "aos do drag canvas:surface\/surface:drag-handle --by 80,40 --dry-run",
+            "aos do drag canvas:settings\/brightness-slider --to-value 42 --playback human"
+          ],
+          "summary" : "Direct current canvas semantic drag; separate from saved-ref drag and native coordinate drag",
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-drag-canvas",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do drag <canvas:<canvas-id>\/<ref>> (--by <dx,dy>|--to-value <value>) [--playback auto|immediate|human] [--state-id id] [--dry-run]"
+        },
+        {
+          "args" : [
+            {
               "id" : "from",
               "kind" : "positional",
               "required" : true,

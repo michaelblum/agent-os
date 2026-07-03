@@ -167,6 +167,8 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
   exit 1
 fi
 check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dry-run
+check_unknown_flag do-native-drag-by-flag ./aos do drag 10,10 20,20 --by 1,1 --dry-run
+check_unknown_flag do-native-drag-to-value-flag ./aos do drag 10,10 20,20 --to-value 0.7 --dry-run
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
@@ -190,6 +192,10 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   cat "$err" >&2
   exit 1
 fi
+check_missing_arg do-canvas-drag-mode-missing ./aos do drag canvas:fixture/drag-handle --dry-run
+check_invalid_arg do-canvas-drag-both-modes ./aos do drag canvas:fixture/drag-handle --by 1,1 --to-value 0.7 --dry-run
+check_unknown_flag do-canvas-drag-speed ./aos do drag canvas:fixture/drag-handle --by 1,1 --speed 600 --dry-run
+check_code do-canvas-drag-playback-invalid INVALID_PLAYBACK ./aos do drag canvas:fixture/drag-handle --by 1,1 --playback robot --dry-run
 err="$STATE_ROOT/do-native-scroll-dy-invalid.err"
 if ./aos do scroll 10,10 --dy nope --dry-run 2>"$err"; then
   echo "FAIL: do native scroll accepted invalid --dy value" >&2

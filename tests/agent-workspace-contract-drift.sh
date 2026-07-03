@@ -397,14 +397,24 @@ assert.ok(!manifest.includes('remains dry-run advisory'), 'manifest save summary
 const doCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['do']));
 assert.ok(doCommand, 'manifest missing do command');
 const doDragForm = doCommand.forms.find((form) => form.id === 'do-drag');
+const doCanvasDragForm = doCommand.forms.find((form) => form.id === 'do-drag-canvas');
 const doNativeDragForm = doCommand.forms.find((form) => form.id === 'do-drag-native');
 assert.ok(doDragForm, 'manifest missing saved-ref/browser do-drag form');
+assert.ok(doCanvasDragForm, 'manifest missing direct canvas do-drag form');
 assert.ok(doNativeDragForm, 'manifest missing native coordinate do-drag form');
 assert.ok(!doDragForm.usage.includes('--speed'), 'saved-ref drag usage must not advertise native-only --speed');
 assert.ok(!doDragForm.args.some((arg) => arg.token === '--speed'), 'saved-ref drag args must not advertise native-only --speed');
+assert.ok(!doDragForm.usage.includes('--by'), 'saved-ref drag usage must not advertise direct-canvas --by');
+assert.ok(!doDragForm.usage.includes('--to-value'), 'saved-ref drag usage must not advertise direct-canvas --to-value');
+assert.ok(doCanvasDragForm.usage.includes('canvas:<canvas-id>/<ref>'), 'direct canvas drag usage must advertise canvas target dialect');
+assert.ok(doCanvasDragForm.usage.includes('--by'), 'direct canvas drag usage must advertise --by');
+assert.ok(doCanvasDragForm.usage.includes('--to-value'), 'direct canvas drag usage must advertise --to-value');
+assert.ok(!doCanvasDragForm.usage.includes('ref:<snapshot-id>'), 'direct canvas drag usage must not advertise saved refs');
+assert.ok(!doCanvasDragForm.usage.includes('--speed'), 'direct canvas drag usage must not advertise native-only --speed');
 assert.ok(doNativeDragForm.usage.includes('--speed'), 'native coordinate drag usage must advertise --speed');
 assert.ok(doNativeDragForm.args.some((arg) => arg.token === '--speed'), 'native coordinate drag args must keep --speed');
 assert.ok(!doNativeDragForm.usage.includes('ref:<snapshot-id>'), 'native coordinate drag usage must not advertise saved refs');
+assert.ok(!doNativeDragForm.usage.includes('canvas:<canvas-id>'), 'native coordinate drag usage must not advertise canvas targets');
 
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
 assert.ok(seeCommand, 'manifest missing see command');
