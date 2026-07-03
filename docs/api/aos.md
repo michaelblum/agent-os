@@ -153,9 +153,10 @@ Typical consumer loop:
 
 Saved capture uses the same capture-source contract as ordinary capture: supply
 a positional target such as `browser:work` or a source flag such as
-`--region <rect>`, `--canvas <id>`, or `--channel <id>`. If no positional target
-or source flag is supplied, capture defaults to `main`. `--save` is the mutation
-switch that persists local workspace state. New saved captures persist compact
+`--region <rect>`, `--canvas <id>`, or `--channel <id>`. These source forms are
+mutually exclusive. If no positional target or source flag is supplied, capture
+defaults to `main`. `--save` is the mutation switch that persists local
+workspace state. New saved captures persist compact
 `capture_source.argv` so post-action refresh recommendations can reconstruct
 the original positional or source-flag capture scope.
 

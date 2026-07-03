@@ -272,10 +272,15 @@ test('saved-ref do targets are routed before backend wrappers', async () => {
     assert.equal(refRoute.env?.AOS_PATH, '$AOS_PATH', `do ${action} ref route must dispatch through configured AOS_PATH`);
   }
 
-  for (const action of ['click', 'hover', 'drag', 'scroll', 'type', 'key']) {
+  for (const action of ['click', 'hover', 'scroll', 'type', 'key']) {
     const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
     assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['browser:', 'ref:'], `do ${action} native route must not catch ref targets`);
   }
+  const canvasDragRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-canvas-drag.mjs');
+  assert.equal(canvasDragRoute?.when?.child_arg_index, 0, 'do drag canvas route must inspect first target');
+  assert.equal(canvasDragRoute?.when?.prefix, 'canvas:', 'do drag canvas route must own canvas targets');
+  const nativeDragRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-native.mjs drag');
+  assert.deepEqual(nativeDragRoute?.when?.excluded_prefixes, ['browser:', 'ref:', 'canvas:'], 'do drag native route must not catch browser, ref, or canvas targets');
   for (const action of ['press', 'set-value', 'focus']) {
     const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
     assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['ref:'], `do ${action} native route must not catch ref targets`);
@@ -283,7 +288,7 @@ test('saved-ref do targets are routed before backend wrappers', async () => {
   const fillRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-browser.mjs fill');
   assert.deepEqual(fillRoute?.when?.excluded_prefixes, ['ref:'], 'do fill browser route must not catch ref targets');
 
-  for (const relativePath of ['scripts/aos-do-browser.mjs', 'scripts/aos-do-native.mjs']) {
+  for (const relativePath of ['scripts/aos-do-browser.mjs', 'scripts/aos-do-native.mjs', 'scripts/aos-do-canvas-drag.mjs']) {
     const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
     assert.equal(source.includes('maybeRunRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
     assert.equal(source.includes('runRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
@@ -322,7 +327,7 @@ test('private Swift primitives are reachable only through expected external wrap
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
-    ['__do', ['scripts/aos-do-native.mjs']],
+    ['__do', ['scripts/aos-do-native.mjs', 'scripts/aos-do-canvas-drag.mjs']],
   ]);
   const privatePrimitives = new Set([...expectedBootstrapRoutes.keys(), ...expectedWrapperFiles.keys()]);
 

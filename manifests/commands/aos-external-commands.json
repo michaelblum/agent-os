@@ -288,13 +288,29 @@
     },
     {
       "path": ["do", "drag"],
+      "summary": "Drag a current canvas semantic target through the external do canvas drag command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-canvas-drag.mjs"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "drag"],
       "summary": "Drag a native input target through the external do native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-native.mjs", "drag"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:", "ref:"]
+        "excluded_prefixes": ["browser:", "ref:", "canvas:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",

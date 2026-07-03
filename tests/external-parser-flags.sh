@@ -201,6 +201,8 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
 fi
 check_missing_arg do-canvas-drag-mode-missing ./aos do drag canvas:fixture/drag-handle --dry-run
 check_invalid_arg do-canvas-drag-both-modes ./aos do drag canvas:fixture/drag-handle --by 1,1 --to-value 0.7 --dry-run
+check_invalid_arg do-canvas-drag-by-invalid ./aos do drag canvas:fixture/drag-handle --by nope --dry-run
+check_invalid_arg do-canvas-drag-to-value-invalid ./aos do drag canvas:fixture/drag-handle --to-value nope --dry-run
 check_unknown_flag do-canvas-drag-speed ./aos do drag canvas:fixture/drag-handle --by 1,1 --speed 600 --dry-run
 check_code do-canvas-drag-playback-invalid INVALID_PLAYBACK ./aos do drag canvas:fixture/drag-handle --by 1,1 --playback robot --dry-run
 err="$STATE_ROOT/do-native-scroll-dy-invalid.err"
@@ -295,6 +297,9 @@ assert.deepEqual(savedRegion.capture_source, {
   argv: ['--region', '0,0,10,10'],
   display: '--region 0,0,10,10',
 });
+const hybridSource = parseCaptureArgs(['main', '--canvas', 'surface-inspector']);
+assert.deepEqual(hybridSource.errors.map((item) => item.code), ['INVALID_ARG']);
+assert.match(hybridSource.errors[0].error, /exactly one source/);
 
 const { readFileSync } = await import('node:fs');
 const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));
@@ -309,6 +314,7 @@ assert.deepEqual(
 JS
 check_code see-capture-unknown-flag UNKNOWN_OPTION ./aos see capture main --bogus
 check_code see-capture-extra UNKNOWN_OPTION ./aos see capture main unexpected
+check_invalid_arg see-capture-target-canvas-conflict ./aos see capture main --canvas surface-inspector
 check_invalid_arg see-capture-workspace-without-save ./aos see capture main --workspace default
 check_invalid_arg see-capture-name-without-save ./aos see capture main --name snap
 check_invalid_arg see-capture-mode-without-save ./aos see capture main --mode som
@@ -419,6 +425,7 @@ check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot un
 check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
 check_unknown_arg tell-who-extra ./aos tell --who unexpected
 check_code tell-session-id-message-reaches-daemon DAEMON_UNREACHABLE ./aos tell --session-id parser-session "status update"
+check_invalid_arg tell-audience-session-conflict ./aos tell channel --session-id parser-session "status update"
 err="$STATE_ROOT/tell-json-missing.err"
 if ./aos tell channel --json --from tester 2>"$err"; then
   echo "FAIL: tell accepted missing --json value" >&2
@@ -444,6 +451,7 @@ check_unknown_arg listen-extra ./aos listen channel unexpected
 check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
 check_code listen-session-id-read-reaches-daemon DAEMON_UNREACHABLE ./aos listen --session-id parser-session --limit 1
 check_code listen-session-id-follow-reaches-daemon DAEMON_UNREACHABLE ./aos listen --session-id parser-session --follow
+check_invalid_arg listen-channel-session-conflict ./aos listen channel --session-id parser-session --limit 1
 err="$STATE_ROOT/tell-register-role-invalid.err"
 if ./aos tell --register --session-id parser-test --role admin 2>"$err"; then
   echo "FAIL: tell register accepted invalid --role value" >&2

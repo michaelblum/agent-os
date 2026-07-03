@@ -37,7 +37,7 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
-          "enum": ["default_target", "target", "source_flags", "target_with_source_flags"]
+          "enum": ["default_target", "target", "source_flags"]
         },
         "argv": { "$ref": "#/$defs/string_array" },
         "display": { "$ref": "#/$defs/non_empty_string" }

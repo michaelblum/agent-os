@@ -51,7 +51,7 @@ function assertCaptureSource(value, file, label) {
   if (value === undefined) return;
   assertPlainObject(value, file, label);
   if (
-    !['default_target', 'target', 'source_flags', 'target_with_source_flags'].includes(value.kind)
+    !['default_target', 'target', 'source_flags'].includes(value.kind)
     || !Array.isArray(value.argv)
     || value.argv.length === 0
     || value.argv.some((item) => !isNonEmptyString(item))

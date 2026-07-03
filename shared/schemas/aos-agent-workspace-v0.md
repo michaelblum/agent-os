@@ -72,10 +72,11 @@ primitive capture field.
 Saved capture uses the same source contract as ordinary capture: a positional
 target such as `browser:work`, a source flag such as `--region <rect>`,
 `--canvas <id>`, or `--channel <id>`, or the default `main` target when no
-source is supplied. New saved captures persist a compact `capture_source`
-object with `kind`, `argv`, and `display`; `argv` is the reconstructable source
-argument vector used by post-action refresh recommendations. Older v0 records
-without `capture_source` fall back to `capture_target`.
+source is supplied. Positional target and source-flag forms are mutually
+exclusive. New saved captures persist a compact `capture_source` object with
+`kind`, `argv`, and `display`; `argv` is the reconstructable source argument
+vector used by post-action refresh recommendations. Older v0 records without
+`capture_source` fall back to `capture_target`.
 
 ## Capture Modes
 

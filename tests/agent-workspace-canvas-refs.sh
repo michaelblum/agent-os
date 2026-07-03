@@ -224,7 +224,7 @@ jq -e '
 ' "$CANVAS_DIRECT_SET_POSITIONAL" >/dev/null || fail "direct canvas positional set-value wrapper normalization drifted: $(cat "$CANVAS_DIRECT_SET_POSITIONAL")"
 
 CANVAS_DIRECT_DRAG_BY="$TMP_DIR/do-canvas-direct-drag-by.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs drag canvas:canvas-fixture/canvas-fixture:drag-handle --by 80,40 --dry-run --state-id see_canvas_fixture >"$CANVAS_DIRECT_DRAG_BY"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/canvas-fixture:drag-handle --by 80,40 --dry-run --state-id see_canvas_fixture >"$CANVAS_DIRECT_DRAG_BY"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -235,7 +235,7 @@ jq -e '
 ' "$CANVAS_DIRECT_DRAG_BY" >/dev/null || fail "direct canvas drag --by wrapper validation drifted: $(cat "$CANVAS_DIRECT_DRAG_BY")"
 
 CANVAS_DIRECT_DRAG_TO_VALUE="$TMP_DIR/do-canvas-direct-drag-to-value.json"
-AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs drag canvas:canvas-fixture/brightness-slider --to-value 0.7 --playback human --dry-run >"$CANVAS_DIRECT_DRAG_TO_VALUE"
+AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/brightness-slider --to-value 0.7 --playback human --dry-run >"$CANVAS_DIRECT_DRAG_TO_VALUE"
 jq -e '
   .status == "dry_run_passthrough"
   and (.received | index("__do") != null)
@@ -248,7 +248,7 @@ jq -e '
 ' "$CANVAS_DIRECT_DRAG_TO_VALUE" >/dev/null || fail "direct canvas drag --to-value wrapper validation drifted: $(cat "$CANVAS_DIRECT_DRAG_TO_VALUE")"
 
 CANVAS_DIRECT_DRAG_BOTH_MODES_ERR="$TMP_DIR/do-canvas-direct-drag-both-modes.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-native.mjs drag canvas:canvas-fixture/brightness-slider --by 1,1 --to-value 0.7 >"$TMP_DIR/do-canvas-direct-drag-both-modes.out" 2>"$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-canvas-drag.mjs canvas:canvas-fixture/brightness-slider --by 1,1 --to-value 0.7 >"$TMP_DIR/do-canvas-direct-drag-both-modes.out" 2>"$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"; then
     fail "direct canvas drag with both drag modes unexpectedly succeeded"
 fi
 expect_error_code "INVALID_ARG" "$CANVAS_DIRECT_DRAG_BOTH_MODES_ERR"

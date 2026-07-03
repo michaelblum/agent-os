@@ -217,6 +217,7 @@ async function tellCommand(args) {
 
   const explicitSessionAudience = valueAfter(args, '--session-id');
   let audience = explicitSessionAudience;
+  let sawSessionIDFlag = false;
   let jsonData;
   const textParts = [];
   const payload = {};
@@ -247,10 +248,13 @@ async function tellCommand(args) {
       case '--session-id':
         i += 1;
         if (i >= args.length || args[i].startsWith('--')) error('--session-id requires a value', 'MISSING_ARG');
+        sawSessionIDFlag = true;
         break;
       default:
         if (!arg.startsWith('--')) {
-          if (!explicitSessionAudience && !audience) audience = arg;
+          if (explicitSessionAudience && !sawSessionIDFlag) {
+            error('tell accepts exactly one target: <audience> or --session-id <id>', 'INVALID_ARG');
+          } else if (!explicitSessionAudience && !audience) audience = arg;
           else textParts.push(arg);
         } else unknownArg(arg);
     }
@@ -323,6 +327,9 @@ function parseListenArgs(args) {
         if (!arg.startsWith('--') && !options.channel) options.channel = arg;
         else unknownArg(arg);
     }
+  }
+  if (options.channel && options.sessionID) {
+    error('listen accepts exactly one source: <channel> or --session-id <id>', 'INVALID_ARG');
   }
   return options;
 }

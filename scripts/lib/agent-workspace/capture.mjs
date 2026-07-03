@@ -106,8 +106,7 @@ function captureSourceModel(targetArgv, sourceFlagArgv) {
   ];
   const normalizedArgv = argv.length > 0 ? argv : ['main'];
   let kind = 'default_target';
-  if (sourceFlagArgv.length > 0 && targetArgv?.length > 0) kind = 'target_with_source_flags';
-  else if (sourceFlagArgv.length > 0) kind = 'source_flags';
+  if (sourceFlagArgv.length > 0) kind = 'source_flags';
   else if (targetArgv?.length > 0) kind = 'target';
   return {
     kind,
@@ -179,7 +178,7 @@ export function parseCaptureArgs(args) {
         values.push(value);
         i += 1;
       }
-      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg)) sourceFlagArgv.push(arg, ...values);
+      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg) && values.length === arity) sourceFlagArgv.push(arg, ...values);
       continue;
     }
     if (arg.startsWith('--')) {
@@ -201,6 +200,9 @@ export function parseCaptureArgs(args) {
   if (!CAPTURE_MODES.has(options.mode)) validationError(errors, '--mode must be one of: ax, vision, som');
   if (options.save && seen.has('--out')) {
     validationError(errors, '--out cannot be used with --save; saved captures write artifacts under the workspace snapshot');
+  }
+  if (targetArgv && sourceFlagArgv.length > 0) {
+    validationError(errors, 'capture accepts exactly one source: positional target or --region/--canvas/--channel', 'INVALID_ARG');
   }
   if (!options.save) {
     for (const flag of ['--workspace', '--name', '--mode', '--query']) {

@@ -562,7 +562,9 @@ capture_save_arg = next(arg for arg in capture_save_form["args"] if arg.get("tok
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
 assert {"--region", "--canvas", "--channel", "--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
+assert {"target", "region", "canvas", "channel"} in capture_conflicts, capture_conflicts
 assert {"region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
+assert {"target", "region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
 assert target_arg["required"] is False, target_arg
 assert capture_save_target_arg["required"] is False, capture_save_target_arg
 assert target_arg["default_value"] == "main", target_arg

@@ -31,10 +31,10 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
   mode state root: `${AOS_STATE_ROOT:-~/.config/aos}/{repo|installed}/agent-workspaces/`.
 - A saved capture source can be a positional target such as `browser:work` or a
   source flag such as `--region <rect>`, `--canvas <id>`, or `--channel <id>`.
-  If no positional target or source flag is supplied, capture defaults to
-  `main`. New saved captures persist compact `capture_source.argv` so refresh
-  recommendations reuse the original positional or source-flag scope. `--save`
-  is the state mutation boundary.
+  These source forms are mutually exclusive. If no positional target or source
+  flag is supplied, capture defaults to `main`. New saved captures persist
+  compact `capture_source.argv` so refresh recommendations reuse the original
+  positional or source-flag scope. `--save` is the state mutation boundary.
 - Workspace selection is command-scoped: `--workspace <id>` overrides
   `AOS_AGENT_WORKSPACE`; absent both, AOS uses `default`. No daemon-held current
   workspace exists, and `aos see workspace use <id>` is not a current command.

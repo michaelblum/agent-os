@@ -52,6 +52,7 @@ assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace 
 assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');
 assert.ok(defs.snapshot_record.required.includes('query'), 'snapshot records must persist nullable saved query readback');
 assert.ok(defs.capture_source, 'schema must describe durable saved capture source argv');
+assert.deepEqual(defs.capture_source.properties.kind.enum, ['default_target', 'target', 'source_flags'], 'schema must not publish a target-plus-source hybrid capture_source kind');
 assert.ok(defs.ref_summary.properties.capture_source, 'ref summaries must allow compact capture source readback');
 assert.ok(defs.summary.properties.capture_source, 'saved capture summaries must allow compact capture source readback');
 assert.ok(defs.snapshot_record.properties.capture_source, 'snapshot records must allow compact capture source readback');
@@ -222,6 +223,8 @@ const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'u
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
+const externalManifestJSON = JSON.parse(fs.readFileSync('manifests/commands/aos-external-commands.json', 'utf8'));
+const nativeDoWrapper = fs.readFileSync('scripts/aos-do-native.mjs', 'utf8');
 const manifestJSON = JSON.parse(manifest);
 const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
 const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
@@ -411,11 +414,15 @@ assert.ok(
 );
 assert.ok(
   apiDoc.includes('Saved capture uses the same capture-source contract as ordinary capture')
-  && apiDoc.includes('capture defaults to `main`')
+  && apiDoc.includes('defaults to `main`')
+  && apiDoc.includes('source forms are')
   && apiDoc.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`')
   && skill.includes('A saved capture source can be a positional target')
   && skill.includes('capture defaults to')
+  && skill.includes('source forms are mutually exclusive')
   && schemaDoc.includes('or the default `main` target when no')
+  && schemaDoc.includes('Positional target and source-flag forms')
+  && schemaDoc.includes('exclusive')
   && skill.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`'),
   'API doc, schema doc, and workspace skill must describe saved capture source alternatives and default main behavior',
 );
@@ -473,6 +480,13 @@ assert.ok(doNativeDragForm.usage.includes('--speed'), 'native coordinate drag us
 assert.ok(doNativeDragForm.args.some((arg) => arg.token === '--speed'), 'native coordinate drag args must keep --speed');
 assert.ok(!doNativeDragForm.usage.includes('ref:<snapshot-id>'), 'native coordinate drag usage must not advertise saved refs');
 assert.ok(!doNativeDragForm.usage.includes('canvas:<canvas-id>'), 'native coordinate drag usage must not advertise canvas targets');
+const canvasDragRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-canvas-drag.mjs');
+assert.equal(canvasDragRoute?.when?.prefix, 'canvas:', 'direct canvas drag must route through a dedicated canvas parser');
+const nativeDragRoute = externalManifestJSON.commands.find((command) => command.argv_prefix?.join(' ') === 'node scripts/aos-do-native.mjs drag');
+assert.deepEqual(nativeDragRoute?.when?.excluded_prefixes, ['browser:', 'ref:', 'canvas:'], 'native drag route must not catch canvas targets');
+assert.ok(!nativeDoWrapper.includes("'--by'"), 'native wrapper must not globally own direct-canvas --by');
+assert.ok(!nativeDoWrapper.includes("'--to-value'"), 'native wrapper must not globally own direct-canvas --to-value');
+assert.ok(!nativeDoWrapper.includes("'--playback'"), 'native wrapper must not globally own direct-canvas --playback');
 
 const seeCommand = manifestJSON.commands.find((command) => JSON.stringify(command.path) === JSON.stringify(['see']));
 assert.ok(seeCommand, 'manifest missing see command');
@@ -522,6 +536,9 @@ assert.deepEqual(parsedCanvasSave.capture_source, {
   argv: ['--canvas', 'surface-inspector'],
   display: '--canvas surface-inspector',
 }, 'source-flag capture must persist reconstructable source argv');
+const parsedHybridSource = parseCaptureArgs(['main', '--canvas', 'surface-inspector']);
+assert.equal(parsedHybridSource.errors[0]?.code, 'INVALID_ARG', 'capture parser must reject target plus source-flag hybrids');
+assert.match(parsedHybridSource.errors[0]?.error ?? '', /exactly one source/, 'capture parser must explain source alternatives');
 assert.equal(
   recommendedRefreshCommand('default', {
     capture_target: 'main',
