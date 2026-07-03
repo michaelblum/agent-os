@@ -636,6 +636,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, {
     for (const frame of overlay.frames || []) {
         const active = frame.active === true;
         const leaf = frame.leaf === true;
+        const time = Number(snapshot.time) || 0;
         drawFrame(ctx, frame, {
             stroke: frame.style?.stroke || (active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)')),
             fill: frame.style?.fill ?? null,

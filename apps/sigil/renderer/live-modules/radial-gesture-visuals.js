@@ -224,7 +224,7 @@ function disposeChildren(group) {
 function installFallbackGlyph(group, item, status, error = null) {
     const host = group.userData.modelHost || group;
     disposeChildren(host);
-    const fallback = createFallbackForItem(item);
+    const fallback = createFallbackGlyph();
     host.add(fallback);
     group.userData.baseRadius = glyphSceneRadius(fallback);
     group.userData.geometryStatus = status;
@@ -817,7 +817,7 @@ function disposeMaterial(material) {
 
 function disposeObject(object) {
     object.traverse((child) => {
-        if (child.geometry) child.geometry.dispose();
+        child.geometry?.dispose?.();
         disposeMaterial(child.material);
     });
 }

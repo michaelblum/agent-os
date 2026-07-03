@@ -85,3 +85,47 @@ test('Selection Mode lineage bar renders on a lower layer than the cursor scene'
     globalThis.window = originalWindow
   }
 })
+
+test('Selection Mode active frames draw without an unbound time reference', () => {
+  const appended = []
+  const originalDocument = globalThis.document
+  const originalWindow = globalThis.window
+
+  globalThis.document = {
+    body: {
+      appendChild(node) {
+        appended.push(node)
+      },
+    },
+    createElement(tag) {
+      assert.equal(tag, 'canvas')
+      return createCanvas()
+    },
+  }
+  globalThis.window = {
+    devicePixelRatio: 1,
+    innerWidth: 1280,
+    innerHeight: 720,
+    addEventListener() {},
+    removeEventListener() {},
+  }
+
+  try {
+    const overlay = createInteractionOverlay()
+    overlay.mount()
+    assert.doesNotThrow(() => overlay.draw({
+      time: 1.25,
+      selectionModeOverlay: {
+        active: true,
+        frames: [{
+          active: true,
+          rect: { x: 10, y: 20, w: 30, h: 40 },
+          style: {},
+        }],
+      },
+    }))
+  } finally {
+    globalThis.document = originalDocument
+    globalThis.window = originalWindow
+  }
+})
