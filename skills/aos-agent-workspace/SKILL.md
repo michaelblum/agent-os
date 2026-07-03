@@ -29,6 +29,31 @@ The `press` and `focus` examples require stable `native_ax` refs with durable
 native identity facts and an actionable producer verdict; browser and AOS canvas
 refs fail closed for those actions.
 
+## Fresh-Agent Quickstart
+
+If you only have a shell and this skill, discover the command shape first, then
+run the saved observe-act-verify loop:
+
+```bash
+aos help see --json
+aos help do --json
+aos see capture browser:work --save --mode som --workspace default
+aos see snapshots --workspace default --json
+aos see refs --workspace default --query Save --json
+aos see refs --workspace default --snapshot <snapshot-id> --json
+aos do click ref:<snapshot-id>:<ref-id> --workspace default --dry-run
+aos do click ref:<snapshot-id>:<ref-id> --workspace default
+aos see capture browser:work --save --mode som --workspace default --name after-action
+```
+
+Use `aos see refs` output and action responses as the compact model-facing
+payload. Do not load screenshots, base64, full AX trees, browser element dumps,
+or canvas semantic target arrays into model context unless a compact ref,
+summary, path, or `recommended_next_command` is insufficient. When an action is
+unsupported, blocked, stale, ambiguous, or validation-required, stop and follow
+the returned `recommended_next`, `recommended_next_commands`, or
+`recommended_next_command`; do not guess a coordinate workaround.
+
 ## Contract
 
 - Use `aos see capture --save` to persist perception into the active runtime

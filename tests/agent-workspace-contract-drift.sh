@@ -392,6 +392,24 @@ assertOrderedIncludes(
   skillQuickStartCommands,
   'AOS workspace skill quick-start must teach saved capture, compact readback, dry-run, dispatch, and fresh capture refresh in order',
 );
+const freshAgentQuickstart = skill.split('## Fresh-Agent Quickstart', 2)[1].split('## Contract', 1)[0];
+const freshAgentQuickstartProse = freshAgentQuickstart.replace(/\s+/g, ' ');
+assert.ok(
+  freshAgentQuickstart
+  && freshAgentQuickstart.indexOf('aos help see --json') < freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default')
+  && freshAgentQuickstart.indexOf('aos help do --json') < freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default')
+  && freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default --dry-run') < freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default\n')
+  && freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default --name after-action') > freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default\n'),
+  'AOS workspace skill fresh-agent quickstart must lead with help, then saved capture, dry-run, dispatch, and verification capture',
+);
+for (const term of [
+  'compact model-facing payload',
+  'Do not load screenshots, base64, full AX trees, browser element dumps',
+  'recommended_next_command',
+  'do not guess a coordinate workaround',
+]) {
+  assert.ok(freshAgentQuickstartProse.includes(term), `AOS workspace skill fresh-agent quickstart missing ${term}`);
+}
 assert.ok(
   skill.includes('aos see capture --canvas surface-inspector --save --mode som --workspace default'),
   'AOS workspace skill quick-start must include a source-flag saved canvas capture',
