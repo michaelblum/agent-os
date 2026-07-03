@@ -35,6 +35,7 @@ class FakeElement {
     this.value = ''
     this._textContent = ''
     this._innerHTML = ''
+    this.innerHTMLSetCount = 0
     this.controls = {}
     this.classList = {
       contains: (className) => this.className.split(/\s+/).includes(className),
@@ -54,6 +55,7 @@ class FakeElement {
 
   set innerHTML(value) {
     this._innerHTML = String(value ?? '')
+    this.innerHTMLSetCount += 1
     if (this.classList.contains('integration-hub-root')) this.parseIntegrationHubControls()
   }
 
@@ -129,6 +131,15 @@ class FakeElement {
     return this.dispatchEvent({ type: 'click' })
   }
 
+  focus() {
+    if (this.ownerDocument) this.ownerDocument.activeElement = this
+  }
+
+  setSelectionRange(start, end) {
+    this.selectionStart = start
+    this.selectionEnd = end
+  }
+
   querySelector(selector) {
     switch (selector) {
       case '#integration-hub-command':
@@ -175,7 +186,7 @@ class FakeElement {
     this.controls = {
       tabsRoot,
       refresh: this._innerHTML.includes('class="integration-hub-refresh"')
-        ? Object.assign(new FakeElement('button'), { className: 'integration-hub-refresh', textContent: 'Refresh' })
+        ? Object.assign(new FakeElement('button'), { className: 'integration-hub-refresh', textContent: 'Refresh', ownerDocument: this.ownerDocument })
         : null,
       panel: this._innerHTML.includes('class="integration-hub-grid"')
         ? Object.assign(new FakeElement('section'), {
@@ -185,10 +196,10 @@ class FakeElement {
         })
         : null,
       input: inputMatch
-        ? Object.assign(new FakeElement('input'), { id: 'integration-hub-command', value: inputMatch[1] })
+        ? Object.assign(new FakeElement('input'), { id: 'integration-hub-command', value: inputMatch[1], ownerDocument: this.ownerDocument })
         : null,
       action: actionMatch
-        ? Object.assign(new FakeElement('button'), { className: 'integration-hub-action', textContent: actionMatch[1] })
+        ? Object.assign(new FakeElement('button'), { className: 'integration-hub-action', textContent: actionMatch[1], ownerDocument: this.ownerDocument })
         : null,
       tabs: tabs.map((match) => {
         const button = new FakeElement('button')
@@ -206,6 +217,7 @@ class FakeElement {
 
 class FakeDocument {
   constructor() {
+    this.activeElement = null
     this.defaultView = {
       document: this,
       requestAnimationFrame: (callback) => {
@@ -412,4 +424,64 @@ test('rendered integration hub stamps actionable controls with semantic metadata
     'true',
   )
   assert.deepEqual(titles, ['Ops', 'Ops', 'Ops'])
+})
+
+test('integration hub command input edits do not rebuild or lose focus', async (t) => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousFetch = globalThis.fetch
+  const previousRequestAnimationFrame = globalThis.requestAnimationFrame
+  const previousCancelAnimationFrame = globalThis.cancelAnimationFrame
+  const intervals = new Set()
+  globalThis.document = new FakeDocument()
+  globalThis.window = {
+    setInterval(handler, ms) {
+      const id = { handler, ms }
+      intervals.add(id)
+      return id
+    },
+    clearInterval(id) {
+      intervals.delete(id)
+    },
+  }
+  globalThis.fetch = () => new Promise(() => {})
+  globalThis.requestAnimationFrame = (callback) => {
+    callback()
+    return 0
+  }
+  globalThis.cancelAnimationFrame = () => {}
+  let hub = null
+  t.after(() => {
+    hub?.teardown()
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.fetch = previousFetch
+    globalThis.requestAnimationFrame = previousRequestAnimationFrame
+    globalThis.cancelAnimationFrame = previousCancelAnimationFrame
+  })
+
+  hub = IntegrationHub({ pollMs: 60000 })
+  const root = hub.render({ setTitle: () => {} })
+  const input = root.querySelector('#integration-hub-command')
+  const initialRenderCount = root.innerHTMLSetCount
+
+  input.focus()
+  input.setSelectionRange(4, 4)
+  input.value = 'features'
+  input.dispatchEvent({ type: 'input' })
+
+  assert.equal(root.querySelector('#integration-hub-command'), input)
+  assert.equal(root.innerHTMLSetCount, initialRenderCount)
+  assert.equal(globalThis.document.activeElement, input)
+  assert.equal(hub.serialize().simulateText, 'features')
+  assert.equal(input.getAttribute('aria-valuetext'), 'features')
+
+  const [poll] = intervals
+  poll.handler()
+  const rerenderedInput = root.querySelector('#integration-hub-command')
+  assert.notEqual(rerenderedInput, input)
+  assert.equal(rerenderedInput.value, 'features')
+  assert.equal(globalThis.document.activeElement, rerenderedInput)
+  assert.equal(rerenderedInput.selectionStart, 4)
+  assert.equal(rerenderedInput.selectionEnd, 4)
 })
