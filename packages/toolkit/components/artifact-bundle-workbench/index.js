@@ -13,6 +13,7 @@ import {
   rejectArtifactBundleLinkedWorkRecordOpen,
   selectArtifactBundleArtifact,
 } from './model.js';
+import { encodeOpenMessageBase64 } from '../open-message-encoding.js';
 
 function el(tag, className, textContent) {
   const node = document.createElement(tag);
@@ -367,7 +368,7 @@ function siblingWorkRecordWorkbenchUrl() {
 
 async function postWorkRecordOpenToChild(host, childId, openMessage) {
   if (!host?.evalCanvas) return false;
-  const encoded = btoa(JSON.stringify(openMessage));
+  const encoded = encodeOpenMessageBase64(openMessage);
   const expectedRecordId = text(openMessage?.record?.id);
   const script = `
 (function () {

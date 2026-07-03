@@ -25,6 +25,7 @@ import {
   renderWorkbenchSummaryRows,
   renderWorkbenchToolbar,
 } from '../../shell/index.js';
+import { encodeOpenMessageBase64 } from '../open-message-encoding.js';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -114,7 +115,7 @@ function sleep(ms) {
 
 async function postWorkRecordOpenToChild(host, childId, openMessage) {
   if (!host?.evalCanvas) return false;
-  const encoded = btoa(JSON.stringify(openMessage));
+  const encoded = encodeOpenMessageBase64(openMessage);
   const expectedRecordId = text(openMessage?.record?.id);
   const script = `
 (function () {

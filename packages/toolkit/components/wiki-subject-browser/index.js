@@ -38,6 +38,7 @@ import {
   applyWikiSubjectBrowserSemanticTarget,
   wikiSubjectBrowserAosRef,
 } from './semantics.js';
+import { encodeOpenMessageBase64 } from '../open-message-encoding.js';
 
 const GRAPH_SELECTION_EVENT = `graph.${WIKI_SUBJECT_SELECTION_TYPE}`;
 const WORK_RECORD_WORKBENCH_SURFACE = 'work-record-workbench';
@@ -334,7 +335,7 @@ export default function WikiSubjectBrowser(options = {}) {
 
   async function postOpenMessageToChild(childId, openMessage, opener = {}) {
     if (!host?.evalCanvas) return false;
-    const encoded = btoa(JSON.stringify(openMessage));
+    const encoded = encodeOpenMessageBase64(openMessage);
     const { expected, expression } = openerExpectedState(openMessage, opener);
     if (!expected) return false;
     const script = `
