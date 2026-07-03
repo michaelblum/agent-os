@@ -5293,7 +5293,7 @@
               ],
               "id" : "channel",
               "kind" : "positional",
-              "required" : true,
+              "required" : false,
               "summary" : "Channel to read from",
               "value_type" : "string"
             },
@@ -5323,6 +5323,21 @@
               "value_type" : "int"
             }
           ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "channel"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary" : "listen source"
+              }
+            ]
+          },
           "examples" : [
             "aos listen handoff",
             "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
@@ -5351,7 +5366,7 @@
             {
               "id" : "channel",
               "kind" : "positional",
-              "required" : true,
+              "required" : false,
               "summary" : "Channel to follow",
               "value_type" : "string"
             },
@@ -5380,6 +5395,21 @@
               "value_type" : "string"
             }
           ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "channel"
+                  ],
+                  [
+                    "session-id"
+                  ]
+                ],
+                "summary" : "listen source"
+              }
+            ]
+          },
           "examples" : [
             "aos listen handoff --follow",
             "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"
@@ -5438,7 +5468,7 @@
       "path" : [
         "listen"
       ],
-      "summary" : "Communication — receive from channels"
+      "summary" : "Communication — receive from channels or direct sessions"
     },
     {
       "forms" : [

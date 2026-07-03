@@ -194,6 +194,33 @@ else
     fail "aos listen with no args did not return MISSING_ARG: $ERR"
 fi
 
+if OUT="$(./aos help listen --json 2>/dev/null)" TEXT="$(./aos help listen 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert "channels or direct sessions" in data["summary"], data["summary"]
+for form_id in ["listen-read", "listen-follow"]:
+    form = next(item for item in data["forms"] if item["id"] == form_id)
+    channel = next(arg for arg in form["args"] if arg["id"] == "channel")
+    assert channel["required"] is False, channel
+    groups = form.get("constraints", {}).get("required_groups", [])
+    assert {
+        tuple(item)
+        for group in groups
+        if group.get("summary") == "listen source"
+        for item in group.get("one_of", [])
+    } == {("channel",), ("session-id",)}, groups
+    assert any("--session-id" in item for item in form.get("examples", [])), form
+text = os.environ["TEXT"]
+assert text.count("requires one listen source: <channel> OR --session-id") == 2, text
+PY
+then
+    pass "listen help exposes channel or direct-session source alternatives"
+else
+    fail "listen help source alternatives drifted"
+fi
+
 # --- 8. aos wiki (no subcommand) → MISSING_SUBCOMMAND ---
 if ERR=$(./aos wiki 2>&1 >/dev/null); then
     fail "aos wiki with no args should exit non-zero"
