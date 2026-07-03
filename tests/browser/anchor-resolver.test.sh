@@ -33,7 +33,7 @@ echo "$out" | grep -q "NOT_FOUND" || { echo "FAIL not-found code: $out" >&2; exi
 
 # Case 3: local session with winID → static offset (rect from fake eval)
 ./aos browser _registry add --id=local-sess --mode=attach --attach-kind=extension --browser-window-id=99999 >/dev/null
-out=$(./aos browser _resolve-anchor "browser:local-sess/e2" 2>&1)
+out=$(./aos browser _resolve-anchor "browser:local-sess/e2" --json 2>&1)
 echo "$out" | jq -e '.anchor_window == 99999' >/dev/null \
     || { echo "FAIL local anchor_window: $out" >&2; exit 1; }
 echo "$out" | jq -e '.offset | length == 4' >/dev/null \

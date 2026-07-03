@@ -342,8 +342,9 @@ function boundsViaEval(session, ref) {
 }
 
 function resolveAnchorCommand(args) {
-  requireExactArgs(args, 'Usage: aos browser _resolve-anchor <target>');
-  const input = args[0];
+  const positional = args.filter((arg) => arg !== '--json');
+  requireExactArgs(positional, 'Usage: aos browser _resolve-anchor <target> [--json]');
+  const input = positional[0];
   const target = parseBrowserTarget(input);
   const record = readRegistry().find((item) => item.id === target.session);
   if (!record) error(`browser session '${target.session}' not registered`, 'NOT_FOUND');

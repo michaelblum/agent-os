@@ -10028,10 +10028,18 @@
               "required" : true,
               "summary" : "Browser target (browser:<session>[\/<ref>])",
               "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable anchor resolution",
+              "token" : "--json",
+              "value_type" : "bool"
             }
           ],
           "examples" : [
-            "aos browser _resolve-anchor browser:todo\/e21"
+            "aos browser _resolve-anchor browser:todo\/e21 --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -10047,9 +10055,9 @@
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
-            "supports_json_flag" : false
+            "supports_json_flag" : true
           },
-          "usage" : "aos browser _resolve-anchor <target>"
+          "usage" : "aos browser _resolve-anchor <target> [--json]"
         }
       ],
       "path" : [
