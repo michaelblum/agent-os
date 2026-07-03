@@ -471,35 +471,50 @@ capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
 capture_required_groups = capture_form.get("constraints", {}).get("required_groups", [])
+capture_save_conflicts = [set(item) for item in capture_save_form.get("constraints", {}).get("conflicts", [])]
+capture_save_required_groups = capture_save_form.get("constraints", {}).get("required_groups", [])
 format_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--format")
 format_values = {item["value"] for item in format_arg["value_type"]["enum"]}
 target_arg = next(arg for arg in capture_form["args"] if arg["id"] == "target")
+capture_save_target_arg = next(arg for arg in capture_save_form["args"] if arg["id"] == "target")
 mode_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--mode")
 mode_values = {item["value"] for item in mode_arg["value_type"]["enum"]}
 save_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--save")
 capture_save_arg = next(arg for arg in capture_save_form["args"] if arg.get("token") == "--save")
 assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_tokens, capture_tokens
-assert {"--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
+assert {"--region", "--canvas", "--channel", "--save", "--workspace", "--name", "--mode", "--query"} <= capture_save_tokens, capture_save_tokens
 assert {"save", "out"} in capture_conflicts, capture_conflicts
+assert {"region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
 assert target_arg["required"] is False, target_arg
+assert capture_save_target_arg["required"] is False, capture_save_target_arg
 assert {
     tuple(item)
     for group in capture_required_groups
     if group.get("summary") == "capture source"
     for item in group.get("one_of", [])
 } == {("target",), ("region",), ("canvas",), ("channel",)}, capture_required_groups
+assert {
+    tuple(item)
+    for group in capture_save_required_groups
+    if group.get("summary") == "capture source"
+    for item in group.get("one_of", [])
+} == {("target",), ("region",), ("canvas",), ("channel",)}, capture_save_required_groups
 assert format_values == {"png", "jpg", "jpeg", "heic"}, format_values
 assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
 assert "stable native AX press/focus/set-value" in save_arg["summary"], save_arg
 assert "documented saved-ref action matrix" in capture_save_arg["summary"], capture_save_arg
 assert capture_form["examples"][0].startswith("aos see capture") and "--save" in capture_form["examples"][0], capture_form["examples"]
+assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 saved_loop_examples = capture_save_form["examples"]
 assert "aos see snapshots --workspace default" in saved_loop_examples, saved_loop_examples
 assert "aos see refs --workspace default --query Save" in saved_loop_examples, saved_loop_examples
 assert "Persist perception" in capture_save_form["summary"], capture_save_form
 assert "stable native AX actions" in capture_save_form["summary"], capture_save_form
+assert "--region <rect>" in capture_save_form["usage"], capture_save_form["usage"]
+assert "--canvas <id>" in capture_save_form["usage"], capture_save_form["usage"]
+assert "--channel <id>" in capture_save_form["usage"], capture_save_form["usage"]
 assert capture_form["execution"]["mutates_state"] is False, capture_form["execution"]
 assert capture_form["execution"]["mutates_when_flags"] == ["--save"], capture_form["execution"]
 assert capture_form["execution"]["read_only"] is True, capture_form["execution"]
@@ -514,6 +529,7 @@ assert "[execution: mutates-state, requires-permissions]" in capture_text, captu
 assert "[output: json; with --save: json]" not in capture_text, capture_text
 assert "[output: json]" in capture_text, capture_text
 assert "requires one capture source: <target> OR --region OR --canvas OR --channel" in capture_text, capture_text
+assert capture_text.count("requires one capture source: <target> OR --region OR --canvas OR --channel") == 2, capture_text
 
 refs = json.loads(os.environ["REFS"])
 refs_form = next(item for item in refs["forms"] if item["id"] == "see-refs")

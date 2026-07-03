@@ -277,6 +277,12 @@ assert.deepEqual(parsed.errors, [], 'workspace capture parser must delegate prim
 assert.deepEqual(parsed.passthrough, ['main', '--format', 'jpeg']);
 assert.equal(parsed.target, 'main');
 
+const savedRegion = parseCaptureArgs(['--region', '0,0,10,10', '--save', '--workspace', 'parser-ws', '--name', 'snap-region']);
+assert.deepEqual(savedRegion.errors, [], 'saved capture parser must accept a region source without a positional target');
+assert.equal(savedRegion.target, 'main');
+assert.equal(savedRegion.options.save, true);
+assert.deepEqual(savedRegion.passthrough, ['--region', '0,0,10,10']);
+
 const { readFileSync } = await import('node:fs');
 const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));
 const see = help.commands.find((command) => command.path.join(' ') === 'see');

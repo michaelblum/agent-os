@@ -425,13 +425,18 @@ assert.ok(captureSaveForm, 'manifest missing see-capture-save form');
 assert.equal(captureForm.execution.mutates_state, false, 'ordinary capture form must not broadly mutate');
 assert.deepEqual(captureForm.execution.mutates_when_flags, ['--save']);
 assert.equal(captureForm.execution.read_only, true, 'ordinary capture form must remain read-style');
-assert.deepEqual(captureForm.output.conditional_modes, [{
-  default_mode: 'json',
-  summary: 'Saved capture returns compact JSON refs after persisting local workspace perception',
-  when_flags: ['--save'],
-}], 'ordinary capture form must expose --save conditional JSON output');
+assert.equal(captureForm.output.default_mode, 'json', 'ordinary capture form must declare JSON output');
+assert.equal(captureForm.output.conditional_modes, undefined, 'ordinary capture form must not describe --save as a different output mode');
 assert.equal(captureSaveForm.execution.mutates_state, true, 'saved capture form must be mutating');
 assert.equal(captureSaveForm.execution.read_only, false, 'saved capture form must not be read-only');
+const captureSourceGroup = (form) => form.constraints?.required_groups?.find((group) => group.summary === 'capture source');
+assert.deepEqual(captureSourceGroup(captureForm)?.one_of, [['target'], ['region'], ['canvas'], ['channel']], 'ordinary capture form must expose all capture source alternatives');
+assert.deepEqual(captureSourceGroup(captureSaveForm)?.one_of, [['target'], ['region'], ['canvas'], ['channel']], 'saved capture form must expose all capture source alternatives');
+assert.equal(captureForm.args.find((arg) => arg.id === 'target')?.required, false, 'ordinary capture target must not be unconditionally required');
+assert.equal(captureSaveForm.args.find((arg) => arg.id === 'target')?.required, false, 'saved capture target must not be unconditionally required');
+assert.ok(captureSaveForm.usage.includes('--region <rect>'), 'saved capture usage must advertise region source');
+assert.ok(captureSaveForm.usage.includes('--canvas <id>'), 'saved capture usage must advertise canvas source');
+assert.ok(captureSaveForm.usage.includes('--channel <id>'), 'saved capture usage must advertise channel source');
 JS
 
 echo "PASS contract drift"

@@ -650,8 +650,32 @@
             {
               "id" : "target",
               "kind" : "positional",
-              "required" : true,
+              "required" : false,
               "summary" : "Capture target to persist into an agent workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "region",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Global CG region in points: x,y,w,h",
+              "token" : "--region",
+              "value_type" : "string"
+            },
+            {
+              "id" : "canvas",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Capture a canvas by id",
+              "token" : "--canvas",
+              "value_type" : "string"
+            },
+            {
+              "id" : "channel",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Capture a focus channel by id",
+              "token" : "--channel",
               "value_type" : "string"
             },
             {
@@ -711,8 +735,37 @@
               "value_type" : "string"
             }
           ],
+          "constraints" : {
+            "conflicts" : [
+              [
+                "region",
+                "canvas",
+                "channel"
+              ]
+            ],
+            "required_groups" : [
+              {
+                "one_of" : [
+                  [
+                    "target"
+                  ],
+                  [
+                    "region"
+                  ],
+                  [
+                    "canvas"
+                  ],
+                  [
+                    "channel"
+                  ]
+                ],
+                "summary" : "capture source"
+              }
+            ]
+          },
           "examples" : [
             "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default --query Save"
           ],
@@ -733,7 +786,7 @@
             "supports_json_flag" : false
           },
           "summary" : "Persist perception into a local agent workspace and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
-          "usage" : "aos see capture <target> --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
+          "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
           "args" : [
