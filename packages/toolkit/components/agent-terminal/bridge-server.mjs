@@ -13,7 +13,9 @@ import {
 import {
   appendProcessStderr,
   boundedInt,
+  childStdinOpen,
   createTerminalSessionManager,
+  writeChildStdin,
 } from './terminal-session-manager.mjs';
 
 function envValue(name, fallback) {
@@ -251,4 +253,4 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   startServer();
 }
 
-export { appendProcessStderr, startServer };
+export { appendProcessStderr, childStdinOpen, startServer, writeChildStdin };

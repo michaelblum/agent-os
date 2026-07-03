@@ -84,6 +84,30 @@ function appendProcessStderr(record, chunk) {
   if (remaining) appendProcessOutput(record, `${remaining}\n`);
 }
 
+function childStdinOpen(child) {
+  return child?.stdin
+    && !child.stdin.destroyed
+    && !child.stdin.writableEnded
+    && !child.stdin.closed
+    && child.exitCode == null
+    && child.signalCode == null;
+}
+
+function writeChildStdin(child, data) {
+  const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+  if (!childStdinOpen(child)) {
+    return { bytes: payload.length, accepted: false };
+  }
+  try {
+    return {
+      bytes: payload.length,
+      accepted: child.stdin.write(payload),
+    };
+  } catch {
+    return { bytes: payload.length, accepted: false };
+  }
+}
+
 function wsFrame(data, opcode = 1) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
   const header = [];
@@ -230,6 +254,7 @@ function createTerminalSessionManager(options = {}) {
     sessionCommands.set(session, { command: shellCommand, cwd: cwd || defaultCwd });
     child.stdout.on('data', chunk => appendProcessOutput(record, chunk));
     child.stderr.on('data', chunk => appendProcessStderr(record, chunk));
+    child.stdin.on('error', () => {});
     child.on('exit', (code, signal) => {
       record.exited = true;
       const message = `\n[process exited: ${signal || (code ?? 0)}]\n`;
@@ -341,12 +366,11 @@ function createTerminalSessionManager(options = {}) {
   }
 
   function writeProcessStdin(record, data) {
-    const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
-    const accepted = record.child.stdin.write(payload);
-    return {
-      bytes: payload.length,
-      accepted,
-    };
+    if (!record || record.exited) {
+      const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+      return { bytes: payload.length, accepted: false };
+    }
+    return writeChildStdin(record.child, data);
   }
 
   function writeProcessControl(record, message) {
@@ -529,7 +553,11 @@ function createTerminalSessionManager(options = {}) {
             }
             continue;
           }
-          record.child.stdin.write(frame.payload);
+          if (record.exited) {
+            socket.end();
+            return;
+          }
+          writeProcessStdin(record, frame.payload);
         }
       }
     });
@@ -603,6 +631,7 @@ function createTerminalSessionManager(options = {}) {
         socket.end();
       }
     });
+    child.stdin.on('error', () => {});
 
     socket.on('data', chunk => {
       incoming = Buffer.concat([incoming, chunk]);
@@ -619,7 +648,7 @@ function createTerminalSessionManager(options = {}) {
         }
         if (frame.opcode === 1 || frame.opcode === 2) {
           if (frame.opcode === 1 && handleControlFrame(frame.payload.toString('utf8'))) continue;
-          child.stdin.write(frame.payload);
+          writeChildStdin(child, frame.payload);
         }
       }
     });
@@ -659,4 +688,6 @@ export {
   appendProcessStderr,
   boundedInt,
   createTerminalSessionManager,
+  childStdinOpen,
+  writeChildStdin,
 };
