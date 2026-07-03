@@ -9,15 +9,15 @@ goal, not a new bug-hunt queue.
 
 | id | disposition | current evidence |
 | --- | --- | --- |
-| 1. Host tool-result message shape | fixed | `packages/host/src/provider/anthropic.ts` emits AI SDK `role: "tool"` messages with `toolName`; `packages/host/src/session-store.ts` allows `tool`; `packages/host/src/agent-loop.ts` stores tool results as `tool`. |
-| 2. `aos wiki` path traversal | fixed | `scripts/aos-wiki-mutate.mjs` and `scripts/aos-wiki-read.mjs` resolve slash and `.md` inputs through `containedPath`; `tests/wiki-integration.sh` and `tests/wiki-reindex-external.sh` cover wiki command behavior. |
-| 3. Sigil selection-mode ReferenceError | fixed | `apps/sigil/renderer/live-modules/interaction-overlay.js` binds `time` from `snapshot.time` before drawing frames. |
-| 4. Sigil glTF fallback ReferenceError | fixed | `apps/sigil/renderer/live-modules/radial-gesture-visuals.js` installs `createFallbackGlyph()` in `installFallbackGlyph`. |
+| 1. Host tool-result message shape | fixed | `packages/host/src/provider/anthropic.ts` emits AI SDK `role: "tool"` messages with `toolName`; `packages/host/src/session-store.ts` allows `tool`; `packages/host/src/agent-loop.ts` stores tool results as `tool`; `packages/host/test/provider/anthropic.test.ts` covers the provider shape. |
+| 2. `aos wiki` path traversal | fixed | `scripts/aos-wiki-mutate.mjs` and `scripts/aos-wiki-read.mjs` resolve slash and `.md` inputs through `containedPath`; `tests/wiki-read-external.sh`, `tests/wiki-mutate-external.sh`, and `tests/wiki-seed.sh` cover containment behavior. |
+| 3. Sigil selection-mode ReferenceError | fixed | `apps/sigil/renderer/live-modules/interaction-overlay.js` binds `time` from `snapshot.time` before drawing frames; `tests/code-review-burn-down-status.test.mjs` guards the source marker. |
+| 4. Sigil glTF fallback ReferenceError | fixed | `apps/sigil/renderer/live-modules/radial-gesture-visuals.js` installs `createFallbackGlyph()` in `installFallbackGlyph`; `tests/renderer/radial-gesture-visuals.test.mjs` covers fallback glyph installation. |
 | 5. Canvas removal lifecycle leak | fixed | `src/display/canvas.swift` clears `onMessage` and `onTTLExpired` in `Canvas.close()` before removing the WebKit script handler and closing the window; `tests/canvas-close-callback-contract.test.mjs` guards the teardown order. |
-| 6. Malformed click count kills `aos do` session | fixed | `src/act/actions.swift` rejects `count <= 0`; parser/range guards live in `src/act/act-cli.swift` and `tests/external-parser-flags.sh`. |
-| 7. Dead-session keystroke crashes terminal bridge | fixed | `packages/toolkit/components/agent-terminal/terminal-session-manager.mjs` checks `record.exited` and ignores child stdin errors before writing to process stdin. |
-| 8. Surface Inspector pin self-loop hang | fixed | `packages/toolkit/workbench/surface-inspector-annotations.js` nulls self-parent pins and guards ancestor walks with visited sets. |
-| 9. Decision Gate Tab handling crash | fixed | `packages/toolkit/components/decision-gate/index.js` converts the `querySelectorAll` result with `Array.from(...)` before filtering and indexing. |
+| 6. Malformed click count kills `aos do` session | fixed | `src/act/actions.swift` rejects `count <= 0`; parser/range guards live in `src/act/act-cli.swift`; `tests/click-count-contract.test.mjs` and `tests/external-parser-flags.sh` cover the invalid-count boundary. |
+| 7. Dead-session keystroke crashes terminal bridge | fixed | `packages/toolkit/components/agent-terminal/terminal-session-manager.mjs` checks `record.exited` and ignores child stdin errors before writing to process stdin; `tests/sigil-agent-terminal-server.test.mjs` covers exited/broken stdin writes. |
+| 8. Surface Inspector pin self-loop hang | fixed | `packages/toolkit/workbench/surface-inspector-annotations.js` nulls self-parent pins and guards ancestor walks with visited sets; `tests/toolkit/surface-inspector-annotations.test.mjs` covers self-parent and malformed-loop cases. |
+| 9. Decision Gate Tab handling crash | fixed | `packages/toolkit/components/decision-gate/index.js` converts the `querySelectorAll` result with `Array.from(...)` before filtering and indexing; `tests/toolkit/decision-gate.test.mjs` covers the focus trap. |
 | 10. HTML Workbench Expression sanitizer gap | fixed | `packages/toolkit/components/html-workbench-expression/index.js` removes active elements including `iframe`, strips `srcdoc` and event handlers, and rejects dangerous URL schemes; `tests/toolkit/html-workbench-expression.test.mjs` covers the sanitizer. |
 
 ## Material Medium Clusters
