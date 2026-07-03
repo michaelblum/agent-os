@@ -99,6 +99,11 @@ export default function IntegrationHub(options = {}) {
     renderState()
   }
 
+  function updateSimulateText(value) {
+    state = { ...state, simulateText: String(value ?? '') }
+    applyIntegrationHubSemantics(rootEl, state)
+  }
+
   function updateTitle() {
     const jobs = state.snapshot?.jobs?.length || 0
     host?.setTitle(jobs > 0 ? `Ops - ${jobs}` : 'Ops')
@@ -267,7 +272,7 @@ export default function IntegrationHub(options = {}) {
     const button = rootEl.querySelector('.integration-hub-action')
     if (input) {
       input.addEventListener('input', (event) => {
-        setState({ simulateText: event.target.value })
+        updateSimulateText(event.target.value)
       })
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
@@ -308,6 +313,9 @@ export default function IntegrationHub(options = {}) {
 
   function renderState() {
     if (!rootEl) return
+    const focusedInput = rootEl.ownerDocument?.activeElement?.id === 'integration-hub-command'
+    const selectionStart = focusedInput ? rootEl.ownerDocument.activeElement.selectionStart : null
+    const selectionEnd = focusedInput ? rootEl.ownerDocument.activeElement.selectionEnd : null
     const surfaces = state.snapshot?.surfaces || DEFAULT_SURFACES
     const providerCount = state.snapshot?.providers?.length || 0
     const workflowCount = state.snapshot?.workflows?.length || 0
@@ -366,6 +374,13 @@ export default function IntegrationHub(options = {}) {
       void loadSnapshot()
     })
     wireConsole()
+    if (focusedInput) {
+      const input = rootEl.querySelector('#integration-hub-command')
+      input?.focus?.()
+      if (Number.isInteger(selectionStart) && Number.isInteger(selectionEnd)) {
+        input?.setSelectionRange?.(selectionStart, selectionEnd)
+      }
+    }
     updateTitle()
   }
 
