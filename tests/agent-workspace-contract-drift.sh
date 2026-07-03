@@ -442,11 +442,14 @@ for (const staleCommand of [
 assert.ok(
   skill.includes('aos see refs --workspace <id> --diff <from>..<to> --json')
   && skill.includes('--expect change|no-change')
+  && skill.includes('Repeat')
   && skill.includes('--expect-ref <ref>=changed')
   && apiDoc.includes('--expect change|no-change')
   && apiDoc.includes('--expect-ref <ref>=added|removed|changed|unchanged|present|missing')
+  && apiDoc.includes('diff.ref_expectations[]')
   && schemaDoc.includes('--expect change|no-change')
   && schemaDoc.includes('--expect-ref <ref>=added|removed|changed|unchanged|present|missing')
+  && schemaDoc.includes('diff.ref_expectations[]')
   && schemaDoc.includes('REF_DIFF_EXPECTATION_FAILED')
   && apiDoc.includes('aos see refs --diff <from>..<to>'),
   'AOS workspace docs and skill must teach compact refs diff and whole/ref expectation gates now that they are supported',
@@ -814,7 +817,7 @@ assert.ok(seeRefsForm, 'manifest missing see-refs form');
 assert.ok(
   seeRefsForm.usage.includes('--diff <from>..<to>')
   && seeRefsForm.usage.includes('--expect change|no-change')
-  && seeRefsForm.usage.includes('--expect-ref <ref>=added|removed|changed|unchanged|present|missing')
+  && seeRefsForm.usage.includes('--expect-ref <ref>=added|removed|changed|unchanged|present|missing]...')
   && seeRefsForm.args.some((arg) => arg.token === '--diff')
   && seeRefsForm.args.some((arg) => arg.token === '--expect')
   && seeRefsForm.args.some((arg) => arg.token === '--expect-ref'),

@@ -206,6 +206,7 @@ test('Work Record contract keeps saved refs, evidence, proof, and replay boundar
     'do not invent a raw JSON diff protocol',
     'aos see refs --diff <from>..<to> --expect-ref <ref>=...',
     'diff.ref_expectation',
+    'diff.ref_expectations[]',
     'must not treat the recipe step as a portable replay instruction',
     'repair the execution map under an explicit workflow/repair gate',
     'do not mutate `evidence[]`',

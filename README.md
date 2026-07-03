@@ -49,8 +49,8 @@ mutation, use `post_action.recommended_next_command` to run a fresh saved
 capture before reusing refs. Use `aos see refs --diff <from>..<to>` to compare
 compact ref changes between two saved snapshots without opening heavy payloads;
 add `--expect change|no-change` for whole-diff gates or
-`--expect-ref <ref>=changed` for one-ref postconditions when a script needs a
-non-zero mismatch result.
+repeat `--expect-ref <ref>=changed` for ref postconditions when a script needs
+a non-zero mismatch result.
 
 ## Track-2 consumers
 

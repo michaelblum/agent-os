@@ -60,7 +60,7 @@ function parseReadArgs(args, {
   let snapshot = null;
   let diff = null;
   let expect = null;
-  let expectRef = null;
+  const expectRefs = [];
   let query = null;
   let json = false;
   let dryRun = false;
@@ -86,7 +86,7 @@ function parseReadArgs(args, {
       if (arg === '--snapshot') snapshot = args[i + 1];
       if (arg === '--diff') diff = args[i + 1];
       if (arg === '--expect') expect = args[i + 1];
-      if (arg === '--expect-ref') expectRef = args[i + 1];
+      if (arg === '--expect-ref') expectRefs.push(args[i + 1]);
       if (arg === '--query') query = args[i + 1];
       if (arg === '--older-than') olderThan = args[i + 1];
       i += 1;
@@ -112,7 +112,7 @@ function parseReadArgs(args, {
     snapshot: snapshot ? validateLocalID(snapshot, 'snapshot id') : null,
     diff,
     expect,
-    expectRef,
+    expectRefs,
     query,
     json,
     dryRun,
@@ -266,8 +266,12 @@ function refsDiffRefExpectation(expectation, comparison) {
   };
 }
 
-function diffExpectationFailed(expectation, refExpectation) {
-  return expectation?.status === 'failed' || refExpectation?.status === 'failed';
+function refsDiffRefExpectations(expectations, comparison) {
+  return expectations.map((expectation) => refsDiffRefExpectation(expectation, comparison));
+}
+
+function diffExpectationFailed(expectation, refExpectations) {
+  return expectation?.status === 'failed' || refExpectations.some((item) => item.status === 'failed');
 }
 
 function assertWorkspaceListState(value, file, label) {
@@ -332,14 +336,14 @@ export function refsCommand(args, env = process.env) {
   if (parsed.diff) {
     const diff = parseSnapshotDiff(parsed.diff);
     const expectationMode = parseDiffExpectation(parsed.expect);
-    const refExpectationMode = parseRefDiffExpectation(parsed.expectRef);
+    const refExpectationModes = parsed.expectRefs.map(parseRefDiffExpectation);
     const fromLoaded = loadSnapshot(parsed.workspace, diff.from, env);
     const toLoaded = loadSnapshot(parsed.workspace, diff.to, env);
     const fromRefs = (fromLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const toRefs = (toLoaded.refs.refs ?? []).filter((record) => queryMatches(record, parsed.query)).map(refSummary);
     const comparison = compactRefsDiff(fromRefs, toRefs);
     const expectation = refsDiffExpectation(expectationMode, comparison);
-    const refExpectation = refsDiffRefExpectation(refExpectationMode, comparison);
+    const refExpectations = refsDiffRefExpectations(refExpectationModes, comparison);
     const nextRecommendations = compactNextRecommendations(parsed.workspace, diff.to, toRefs, env);
     const payload = {
       status: 'success',
@@ -352,16 +356,18 @@ export function refsCommand(args, env = process.env) {
         from_snapshot_id: diff.from,
         to_snapshot_id: diff.to,
         ...(expectation ? { expectation } : {}),
-        ...(refExpectation ? { ref_expectation: refExpectation } : {}),
+        ...(refExpectations.length === 1 ? { ref_expectation: refExpectations[0] } : {}),
+        ...(refExpectations.length > 1 ? { ref_expectations: refExpectations } : {}),
         ...comparison,
       },
       refs: toRefs,
       recommended_next: nextRecommendations,
       recommended_next_commands: nextRecommendations.map((recommendation) => recommendation.command),
     };
-    if (diffExpectationFailed(expectation, refExpectation)) {
-      const expected = refExpectation?.status === 'failed'
-        ? `${refExpectation.ref}=${refExpectation.mode}`
+    if (diffExpectationFailed(expectation, refExpectations)) {
+      const failedRefExpectation = refExpectations.find((item) => item.status === 'failed');
+      const expected = failedRefExpectation
+        ? `${failedRefExpectation.ref}=${failedRefExpectation.mode}`
         : expectation.mode;
       exitAgentWorkspaceError(`refs diff expectation failed: expected ${expected}`, 'REF_DIFF_EXPECTATION_FAILED', {
         status: 'expectation_failed',
@@ -379,7 +385,7 @@ export function refsCommand(args, env = process.env) {
     printJSON(payload);
     return;
   }
-  if (parsed.expect || parsed.expectRef) {
+  if (parsed.expect || parsed.expectRefs.length) {
     exitAgentWorkspaceError('--expect and --expect-ref require --diff', 'INVALID_ARG');
   }
   const snapshotIDs = parsed.snapshot

@@ -49,7 +49,7 @@ test('source-backed recipes can carry compact saved-ref diff postconditions', as
   assert.ok(seeRefs, 'see command must expose see-refs form');
   assert.equal(seeRefs.execution.read_only, true);
   assert.equal(seeRefs.execution.mutates_state, false);
-  assert.match(seeRefs.usage, /--expect-ref <ref>=added\|removed\|changed\|unchanged\|present\|missing/);
+  assert.match(seeRefs.usage, /--expect-ref <ref>=added\|removed\|changed\|unchanged\|present\|missing]\.\.\./);
 
   const recipe = {
     id: 'fixture/ref-postcondition',
@@ -76,13 +76,14 @@ test('source-backed recipes can carry compact saved-ref diff postconditions', as
       {
         id: 'ref-postcondition',
         command: { path: ['see'], form_id: 'see-refs' },
-        argv: ['refs', '--workspace', 'ops-ref-postcondition', '--diff', 'before..after', '--expect-ref', 'r2=unchanged', '--json'],
+        argv: ['refs', '--workspace', 'ops-ref-postcondition', '--diff', 'before..after', '--expect-ref', 'r2=unchanged', '--expect-ref', 'r4=present', '--json'],
         timeout_ms: 10000,
         mutates: false,
         assertions: [
           { path: ['status'], equals: 'success' },
-          { path: ['diff', 'ref_expectation', 'status'], equals: 'passed' },
-          { path: ['diff', 'ref_expectation', 'actual_state'], equals: 'unchanged' },
+          { path: ['diff', 'ref_expectations', '0', 'status'], equals: 'passed' },
+          { path: ['diff', 'ref_expectations', '0', 'actual_state'], equals: 'unchanged' },
+          { path: ['diff', 'ref_expectations', '1', 'status'], equals: 'passed' },
         ],
       },
     ],
@@ -92,18 +93,19 @@ test('source-backed recipes can carry compact saved-ref diff postconditions', as
   const postcondition = recipe.steps[2];
   assert.deepEqual(postcondition.command, { path: ['see'], form_id: 'see-refs' });
   assert.ok(postcondition.argv.includes('--expect-ref'));
-  assert.ok(postcondition.assertions.some((item) => item.path.join('.') === 'diff.ref_expectation.status'));
+  assert.equal(postcondition.argv.filter((item) => item === '--expect-ref').length, 2);
+  assert.ok(postcondition.assertions.some((item) => item.path.join('.') === 'diff.ref_expectations.0.status'));
 });
 
 test('recipe ref postconditions stay evidence, not Work Record replay authority', async () => {
   const api = await text('docs/api/aos.md');
   const workRecord = await text('shared/schemas/aos-work-record-v0.md');
 
-  assert.match(api, /Recipes may use `aos see refs --diff <from>\.\.<to> --expect-ref <ref>=\.\.\.`/);
-  assert.match(api, /recipe assertions can inspect\s+`diff\.ref_expectation`/);
-  assert.match(api, /immutable evidence rather than treating the recipe as replay or repair\s+authority/);
+  assert.match(api, /Recipes may use repeatable\s+`aos see refs --diff <from>\.\.<to> --expect-ref <ref>=\.\.\.`/);
+  assert.match(api, /recipe assertions can inspect\s+`diff\.ref_expectation` or `diff\.ref_expectations\[\]`/);
+  assert.match(api, /immutable evidence rather than treating the recipe as\s+replay or repair authority/);
 
-  assert.match(workRecord, /source-backed recipe uses\s+`aos see refs --diff <from>\.\.<to> --expect-ref <ref>=\.\.\.`/);
-  assert.match(workRecord, /reference the expected `diff\.ref_expectation` fields/);
-  assert.match(workRecord, /must not treat the recipe step as a\s+portable replay instruction/);
+  assert.match(workRecord, /source-backed recipe uses repeatable\s+`aos see refs --diff <from>\.\.<to> --expect-ref <ref>=\.\.\.`/);
+  assert.match(workRecord, /reference the expected `diff\.ref_expectation` or `diff\.ref_expectations\[\]`\s+fields/);
+  assert.match(workRecord, /must not\s+treat the recipe step as a\s+portable replay instruction/);
 });
