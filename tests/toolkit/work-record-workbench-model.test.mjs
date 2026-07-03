@@ -272,3 +272,23 @@ test('recipe health records expose evidence and saved patch results', () => {
   assert.equal(saved.status, 'saved');
   assert.equal(state.dirty, false);
 });
+
+test('saved patch results preserve the sent snapshot when later edits exist', () => {
+  const state = createWorkRecordWorkbenchState({ record: fixture('browser-artifact-collection-step.json') });
+
+  updateWorkRecordIntent(state, { nl: 'sent edit' });
+  const request = buildWorkRecordPatchRequest(state, { requestId: 'pending-save' });
+  updateWorkRecordIntent(state, { nl: 'later edit' });
+
+  const saved = applyWorkRecordPatchResult(state, {
+    type: 'work_record.patch.result',
+    status: 'saved',
+    message: 'saved fixture',
+  });
+
+  assert.equal(saved.status, 'saved');
+  assert.equal(request.record.intent.nl, 'sent edit');
+  assert.equal(state.savedRecord.intent.nl, 'sent edit');
+  assert.equal(state.record.intent.nl, 'later edit');
+  assert.equal(state.dirty, true);
+});
