@@ -155,6 +155,10 @@ jq -e '
   and .underlying_result.execution.state_id == "see_canvas_fixture"
   and (.underlying_result.received | index("canvas:canvas-fixture/save-button") != null)
   and .post_action.verification == "fresh_capture_recommended"
+  and .post_action.recommended_next.kind == "fresh_saved_capture"
+  and .post_action.recommended_next.argv == ["aos","see","capture","main","--save","--workspace","ws-canvas","--mode","som"]
+  and .post_action.recommended_next.capture_target == "main"
+  and .post_action.recommended_next.query == null
   and .post_action.recommended_next_command == "aos see capture main --save --workspace ws-canvas --mode som"
   and .recommended_next_command == "aos see capture main --save --workspace ws-canvas --mode som"
 ' "$CANVAS_ACTION" >/dev/null || fail "AOS canvas ref action drifted: $(cat "$CANVAS_ACTION")"

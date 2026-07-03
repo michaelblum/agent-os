@@ -136,9 +136,10 @@ matrix:
   Non-dry-run routes through the underlying `browser:<session>/<ref>` target
   only after validation passes, then returns a saved-ref execution envelope with
   `current_validation`, `underlying_result`, `post_action`, and
-  `recommended_next_command`. Drag validates both endpoints and requires the
-  same saved snapshot and browser session. Missing, stale, ambiguous, disabled,
-  unsupported, or changed current targets fail closed with
+  `post_action.recommended_next` plus `recommended_next_command`. Drag
+  validates both endpoints and requires the same saved snapshot and browser
+  session. Missing, stale, ambiguous, disabled, unsupported, or changed current
+  targets fail closed with
   `REF_NOT_FOUND`, `REF_STALE`, `REF_AMBIGUOUS`, `REF_UNSUPPORTED`, or
   `ACTION_INCOMPATIBLE`. Supported browser refs report `conformance.proof.status:
   deterministic_contract_tests_passed`.

@@ -7,7 +7,7 @@ import {
   stateRoot,
 } from './core.mjs';
 import { refSummary } from './refs.mjs';
-import { recommendedRefreshCommand } from './ref-action-resolution.mjs';
+import { recommendedRefreshCommand, recommendedRefreshDescriptor } from './ref-action-resolution.mjs';
 
 function hasStateIDArg(args) {
   return args.includes('--state-id');
@@ -87,6 +87,7 @@ function actionEnvelope({
   const parsedStdout = parseJSONOutput(result.stdout);
   const parsedStderr = parseJSONOutput(result.stderr);
   const recommendation = recommendedRefreshCommand(workspace, record);
+  const recommendedNext = recommendedRefreshDescriptor(workspace, record);
   return {
     status,
     schema_version: SCHEMA_VERSION,
@@ -109,6 +110,7 @@ function actionEnvelope({
     post_action: {
       verification: status === 'success' ? 'fresh_capture_recommended' : 'underlying_action_failed',
       state: null,
+      recommended_next: recommendedNext,
       recommended_next_command: recommendation,
     },
     recommended_next_command: recommendation,

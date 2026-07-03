@@ -206,7 +206,8 @@ marks it actionable with complete known-limit facts.
 Non-dry-run saved-ref mutations return a saved-ref execution envelope rather
 than raw adapter output. The envelope includes the resolved command,
 `current_validation` when a backend performs current-target validation,
-`underlying_result` for the adapter response, `post_action`, and
+`underlying_result` for the adapter response, `post_action`,
+`post_action.recommended_next` for a structured fresh-capture descriptor, and
 `recommended_next_command` when a fresh saved capture is the safe next
 verification step. After a dry-run returns a safe status such as `reacquired`,
 `resolved`, or `direct_ax_ready`, dispatch by rerunning the exact saved-ref
