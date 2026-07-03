@@ -62,6 +62,10 @@ aos do key browser:work Enter
 aos do navigate browser:work https://example.com
 ```
 
+Direct browser `type` and `key` are current-host routes from the external
+command manifest. Saved-ref `type` and `key` are not supported; use saved refs
+for click, fill, hover, scroll, and drag after dry-run validation.
+
 **Label elements visually.**
 
 ```bash

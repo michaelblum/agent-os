@@ -207,16 +207,24 @@ browser:<session>
 browser:<session>/<ref>
 ```
 
-Refs come from `aos see capture browser:<session> --xray`, which parses
-Playwright snapshot markdown into AOS `AXElementJSON` records. Browser xray has
-refs but usually no bounds; `--label` fetches bounds with one eval call per ref.
+Saved browser refs come from
+`aos see capture browser:<session> --save --mode som --workspace <id>` plus
+`aos see refs`; saved-ref dispatch then refreshes current browser perception
+and routes through the underlying direct `browser:<session>/<ref>` target after
+validation. Low-level browser xray remains the current-ref producer underneath:
+`aos see capture browser:<session> --xray` parses Playwright snapshot markdown
+into AOS `AXElementJSON` records. Browser xray has refs but usually no bounds;
+`--label` fetches bounds with one eval call per ref.
 
-The `do` side dispatches existing verbs such as click, hover, drag, scroll,
-type, and key to Playwright when the first target is `browser:...`. Browser-only
-`do fill` and `do navigate` are implemented as small AOS verbs over
-Playwright's `fill` and `goto`. Anything not wrapped, such as tracing, codegen,
-tab operations, check/select/upload, reload/back, and arbitrary page scripts,
-remains a raw `playwright-cli` escape hatch.
+The external command manifest conditionally dispatches direct browser forms for
+click, hover, drag, scroll, type, and key when the first target starts with
+`browser:`. Browser-only `do fill` and `do navigate` are implemented as small
+AOS verbs over Playwright's `fill` and `goto`; `fill` also has saved-ref
+support, while saved-ref `type` and `key` remain explicitly unsupported until
+the browser keyboard grammar is promoted through the saved-ref matrix. Anything
+not wrapped, such as tracing, codegen, tab operations, check/select/upload,
+reload/back, and arbitrary page scripts, remains a raw `playwright-cli` escape
+hatch.
 
 For `show`, `--anchor-browser browser:<session>/<ref>` is the current CLI role
 flag for using a browser Target-with-Ref as an Anchor. The CLI resolves that
@@ -239,16 +247,18 @@ follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
   These are compatible, but the distinction should stay explicit.
 - The public CLI now documents browser targets through `docs/api/aos.md`,
   `aos see capture browser:<session> --save`, and direct `aos do` browser forms
-  such as `click`, `fill`, `hover`, `scroll`, `drag`, and `navigate`.
-  Collection workers should prefer saved refs for normal loops and use direct
-  `browser:<session>/<ref>` targets as current diagnostic/provenance handles.
+  such as `click`, `fill`, `hover`, `scroll`, `drag`, `type`, `key`, and
+  `navigate`. Collection workers should prefer saved refs for normal loops and
+  use direct `browser:<session>/<ref>` targets as current
+  diagnostic/provenance handles.
 - Gateway scripts still should not assume typed SDK parity with CLI browser
   refs. A future "gather web source artifacts" worker should either shell out to
   `./aos`, use a named raw Playwright escape hatch, or add an explicit
   SDK/browser capability with matching help and tests.
 - The implementation plan described internal browser debug helpers as omitted
-  from help unless verbose, but the command registry has no internal/verbose
-  field and `aos help browser --json` exposes them.
+  from help unless verbose. The current contract expresses that through
+  `consumer_discovery: false`: root consumer help omits the browser debug group,
+  while `aos help browser --json` remains directly resolvable for maintainers.
 - Static browser anchoring is thinner than the plan's content-inset strategy:
   `src/browser/anchor-resolver.swift` currently uses viewport coords plus
   window id and notes that Chrome content-view inset calibration is deferred.

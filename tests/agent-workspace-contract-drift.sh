@@ -444,8 +444,8 @@ assert.ok(apiDoc.includes('| `hover` | saved/browser hover or coordinate hover |
 assert.ok(apiDoc.includes('| `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |'), 'API do table must split drag grammar tiers');
 assert.ok(!apiDoc.includes('| `drag` | drag between coordinates, browser refs, or AOS canvas semantic refs |'), 'API do table must not collapse drag grammar tiers');
 assert.ok(apiDoc.includes('| `scroll` | saved/browser scroll with `dx,dy`, or coordinate scroll with `--dx` / `--dy` |'), 'API do table must split saved/browser and coordinate scroll tiers');
-assert.ok(apiDoc.includes('| `type` | literal native text input, not a saved-ref target form |'), 'API do table must keep type out of saved-ref target forms');
-assert.ok(apiDoc.includes('| `key` | literal native key combo, not a saved-ref target form |'), 'API do table must keep key out of saved-ref target forms');
+assert.ok(apiDoc.includes('| `type` | literal native text input or direct browser target text; no saved-ref action |'), 'API do table must keep type out of saved-ref actions while naming the direct browser route');
+assert.ok(apiDoc.includes('| `key` | literal native key combo or direct browser target key press; no saved-ref action |'), 'API do table must keep key out of saved-ref actions while naming the direct browser route');
 assert.ok(apiDoc.includes('| `press` | saved native AX press or direct `--pid` / `--role` AX press |'), 'API do table must split saved native AX and direct AX press');
 assert.ok(apiDoc.includes('| `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |'), 'API do table must name saved refs, direct AX, and canvas set-value');
 assert.ok(apiDoc.includes('| `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |'), 'API do table must split saved native AX and direct AX focus');
