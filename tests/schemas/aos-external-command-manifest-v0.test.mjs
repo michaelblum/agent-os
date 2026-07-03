@@ -260,6 +260,36 @@ test('permissions public workflow routes are externally composed', async () => {
   assert.equal(fallback.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
 });
 
+test('saved-ref do targets are routed before backend wrappers', async () => {
+  const manifest = await loadJson(manifestPath);
+  const refActions = ['click', 'hover', 'drag', 'scroll', 'type', 'key', 'fill', 'press', 'set-value', 'focus'];
+  for (const action of refActions) {
+    const routes = manifest.commands.filter((command) => command.path.join(' ') === `do ${action}`);
+    const refRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-ref.mjs ${action}`);
+    assert.ok(refRoute, `do ${action} missing first-class saved-ref route`);
+    assert.equal(refRoute.when?.child_arg_index, 0, `do ${action} ref route must inspect first target`);
+    assert.equal(refRoute.when?.prefix, 'ref:', `do ${action} ref route must own ref: targets`);
+    assert.equal(refRoute.env?.AOS_PATH, '$AOS_PATH', `do ${action} ref route must dispatch through configured AOS_PATH`);
+  }
+
+  for (const action of ['click', 'hover', 'drag', 'scroll', 'type', 'key']) {
+    const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
+    assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['browser:', 'ref:'], `do ${action} native route must not catch ref targets`);
+  }
+  for (const action of ['press', 'set-value', 'focus']) {
+    const nativeRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
+    assert.deepEqual(nativeRoute?.when?.excluded_prefixes, ['ref:'], `do ${action} native route must not catch ref targets`);
+  }
+  const fillRoute = manifest.commands.find((command) => command.argv_prefix.join(' ') === 'node scripts/aos-do-browser.mjs fill');
+  assert.deepEqual(fillRoute?.when?.excluded_prefixes, ['ref:'], 'do fill browser route must not catch ref targets');
+
+  for (const relativePath of ['scripts/aos-do-browser.mjs', 'scripts/aos-do-native.mjs']) {
+    const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
+    assert.equal(source.includes('maybeRunRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
+    assert.equal(source.includes('runRefAction'), false, `${relativePath} must not own saved-ref dispatch`);
+  }
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
@@ -590,6 +620,45 @@ test('json-capable registry forms expose json flag metadata', async () => {
       assert.match(form.usage, /--json/, `${form.id} usage must mention --json`);
     }
   }
+});
+
+test('registry conditional output modes reference declared form flags', async () => {
+  const registry = await loadJson(registryPath);
+  const validDefaultModes = new Set(['none', 'text', 'json', 'ndjson']);
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const conditionalModes = form.output?.conditional_modes ?? [];
+      if (!conditionalModes.length) continue;
+      assert.ok(Array.isArray(conditionalModes), `${form.id} output.conditional_modes must be an array`);
+
+      const declaredFlags = new Set(
+        form.args
+          .filter((arg) => arg.kind === 'flag')
+          .map((arg) => arg.token),
+      );
+
+      for (const mode of conditionalModes) {
+        assert.ok(validDefaultModes.has(mode.default_mode), `${form.id} conditional output default_mode is invalid`);
+        assert.ok(typeof mode.summary === 'string' && mode.summary.length > 0, `${form.id} conditional output summary is required`);
+        assert.ok(Array.isArray(mode.when_flags) && mode.when_flags.length > 0, `${form.id} conditional output must declare when_flags`);
+        assert.notEqual(mode.default_mode, form.output.default_mode, `${form.id} conditional output must differ from the default output mode`);
+        for (const flag of mode.when_flags) {
+          assert.ok(declaredFlags.has(flag), `${form.id} conditional output references undeclared flag ${flag}`);
+        }
+      }
+    }
+  }
+});
+
+test('command surface docs describe registry visibility and conditional output metadata', async () => {
+  const docs = await fs.readFile(path.join(repoRoot, 'docs/dev/command-surface.md'), 'utf8');
+
+  assert.match(docs, /consumer_discovery: false/, 'command-surface docs must describe consumer discovery filtering');
+  assert.match(docs, /direct help paths/, 'command-surface docs must keep direct maintainer help reachable');
+  assert.match(docs, /output\.conditional_modes/, 'command-surface docs must describe conditional output metadata');
+  assert.match(docs, /when_flags/, 'command-surface docs must require conditional output flags');
+  assert.match(docs, /execution\.mutates_when_flags/, 'command-surface docs must describe conditional mutation metadata');
 });
 
 test('registry concrete usage forms have external routes', async () => {

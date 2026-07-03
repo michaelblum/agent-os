@@ -41,3 +41,13 @@ the scoped API file for the layer you are changing:
 `docs/api/toolkit/runtime.md`, `docs/api/toolkit/panel-window.md`,
 `docs/api/toolkit/workbench.md`, `docs/api/toolkit/components.md`, or
 `docs/api/toolkit/content-host.md`.
+
+## Child DOX Index
+
+- `controls/AGENTS.md` governs reusable semantic app-control behavior.
+- `panel/AGENTS.md` governs reusable panel/windowing policy.
+- `runtime/AGENTS.md` governs the generic in-canvas bridge to daemon
+  primitives.
+- `components/`, `workbench/`, `adapters/`, `markdown/`, and `shell/` do not
+  have child `AGENTS.md` files yet; follow this toolkit contract plus scoped API
+  docs when editing them.

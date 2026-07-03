@@ -24,3 +24,9 @@ needs, but public command policy and product UI policy belong above it:
 When a WebView or toolkit implementation is slow, do not move the whole feature
 into Swift by reflex. Identify the missing native primitive first, then keep the
 policy at the lowest reusable layer that still preserves opt-in customization.
+
+## Child DOX Index
+
+- `daemon/AGENTS.md` governs daemon-specific native arbitration, sockets,
+  subscriptions, display geometry, canvas lifecycle, content routing, input
+  delivery, voice/communication routing, and cleanup.

@@ -1,0 +1,433 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-agent-workspace-v0.schema.json",
+  "title": "AOS Agent Workspace v0",
+  "description": "Local saved perception workspace contract for compact AOS agent refs, snapshot summaries, and cleanup metadata.",
+  "anyOf": [
+    { "$ref": "#/$defs/summary" },
+    { "$ref": "#/$defs/refs_file" },
+    { "$ref": "#/$defs/snapshot_record" },
+    { "$ref": "#/$defs/workspace_metadata" },
+    { "$ref": "#/$defs/workspace_index" }
+  ],
+  "$defs": {
+    "schema_version": {
+      "const": "aos.agent-workspace.v0"
+    },
+    "local_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": ["string", "null"]
+    },
+    "runtime_mode": {
+      "enum": ["repo", "installed"]
+    },
+    "capture_mode": {
+      "enum": ["ax", "vision", "som"]
+    },
+    "backend": {
+      "enum": ["aos_canvas", "browser", "native_ax"]
+    },
+    "resolution_class": {
+      "enum": ["stable", "reacquirable", "snapshot_scoped", "volatile", "coordinate_fallback", "unsupported"]
+    },
+    "confidence": {
+      "enum": ["high", "medium", "low"]
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/non_empty_string" }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "required": ["role", "path"],
+      "additionalProperties": true,
+      "properties": {
+        "role": { "$ref": "#/$defs/non_empty_string" },
+        "path": { "$ref": "#/$defs/non_empty_string" },
+        "bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "stored_under_workspace": { "type": "boolean" }
+      }
+    },
+    "identity_facts": {
+      "type": "object",
+      "required": ["state_id", "source_ref"],
+      "additionalProperties": true,
+      "properties": {
+        "state_id": { "$ref": "#/$defs/nullable_string" },
+        "source_ref": { "$ref": "#/$defs/nullable_string" }
+      }
+    },
+    "current_address": {
+      "type": "object",
+      "required": ["action_target"],
+      "additionalProperties": true,
+      "properties": {
+        "action_target": { "$ref": "#/$defs/nullable_string" }
+      }
+    },
+    "no_foreground_conformance": {
+      "type": "object",
+      "required": [
+        "claim",
+        "focus_preservation",
+        "cursor_preservation",
+        "space_preservation",
+        "fallback_used",
+        "foreground_fallback_required",
+        "permission_state"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "claim": { "$ref": "#/$defs/non_empty_string" },
+        "focus_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "cursor_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "space_preservation": { "$ref": "#/$defs/non_empty_string" },
+        "fallback_used": { "type": "boolean" },
+        "foreground_fallback_required": { "type": "boolean" },
+        "permission_state": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "required": [
+        "actionability",
+        "mutation",
+        "validation",
+        "proof_level",
+        "proof",
+        "no_foreground",
+        "target_uncertainty"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "actionability": { "$ref": "#/$defs/non_empty_string" },
+        "mutation": { "$ref": "#/$defs/non_empty_string" },
+        "validation": { "$ref": "#/$defs/non_empty_string" },
+        "proof_level": { "$ref": "#/$defs/non_empty_string" },
+        "proof": {
+          "type": "object",
+          "required": ["level", "status", "evidence", "approval_gates"],
+          "additionalProperties": true,
+          "properties": {
+            "level": { "$ref": "#/$defs/non_empty_string" },
+            "status": { "$ref": "#/$defs/non_empty_string" },
+            "evidence": { "$ref": "#/$defs/string_array" },
+            "approval_gates": { "$ref": "#/$defs/string_array" }
+          }
+        },
+        "no_foreground": { "$ref": "#/$defs/no_foreground_conformance" },
+        "target_uncertainty": {
+          "type": "object",
+          "required": [
+            "status",
+            "reasons",
+            "missing_identity_facts",
+            "available_identity_facts"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "$ref": "#/$defs/non_empty_string" },
+            "reasons": { "$ref": "#/$defs/string_array" },
+            "missing_identity_facts": { "$ref": "#/$defs/string_array" },
+            "available_identity_facts": { "$ref": "#/$defs/string_array" }
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["workspace", "snapshot", "snapshot_record", "capture", "summary", "refs", "artifacts"],
+      "additionalProperties": false,
+      "properties": {
+        "workspace": { "$ref": "#/$defs/non_empty_string" },
+        "snapshot": { "$ref": "#/$defs/non_empty_string" },
+        "snapshot_record": { "$ref": "#/$defs/non_empty_string" },
+        "capture": { "$ref": "#/$defs/non_empty_string" },
+        "summary": { "$ref": "#/$defs/non_empty_string" },
+        "refs": { "$ref": "#/$defs/non_empty_string" },
+        "artifacts": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "ref_summary": {
+      "type": "object",
+      "required": [
+        "ref",
+        "ref_scope",
+        "workspace_id",
+        "snapshot_id",
+        "capture_target",
+        "capture_mode",
+        "action_target",
+        "copyable_action_target",
+        "backend",
+        "resolution_class",
+        "confidence",
+        "supported_actions",
+        "target_summary",
+        "identity_facts",
+        "hint_facts",
+        "current_address",
+        "artifact_refs",
+        "conformance",
+        "warnings",
+        "known_limits"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "ref": { "$ref": "#/$defs/local_id" },
+        "ref_scope": { "const": "snapshot" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_mode": { "$ref": "#/$defs/capture_mode" },
+        "action_target": { "$ref": "#/$defs/nullable_string" },
+        "copyable_action_target": { "$ref": "#/$defs/nullable_string" },
+        "backend": { "$ref": "#/$defs/backend" },
+        "resolution_class": { "$ref": "#/$defs/resolution_class" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "supported_actions": { "$ref": "#/$defs/string_array" },
+        "target_summary": { "$ref": "#/$defs/non_empty_string" },
+        "identity_facts": { "$ref": "#/$defs/identity_facts" },
+        "hint_facts": { "type": "object" },
+        "current_address": { "$ref": "#/$defs/current_address" },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "conformance": { "$ref": "#/$defs/conformance" },
+        "warnings": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "ref_record": {
+      "allOf": [
+        { "$ref": "#/$defs/ref_summary" },
+        {
+          "type": "object",
+          "required": [
+            "schema_version",
+            "ref_scope",
+            "workspace_id",
+            "snapshot_id",
+            "short_action_target",
+            "action_target",
+            "backend",
+            "resolution_class",
+            "supported_actions",
+            "identity_facts",
+            "hint_facts",
+            "current_address",
+            "artifact_refs",
+            "conformance"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "schema_version": { "$ref": "#/$defs/schema_version" },
+            "ref_scope": { "const": "snapshot" },
+            "workspace_id": { "$ref": "#/$defs/local_id" },
+            "snapshot_id": { "$ref": "#/$defs/local_id" },
+            "short_action_target": { "$ref": "#/$defs/non_empty_string" },
+            "identity_facts": { "$ref": "#/$defs/identity_facts" },
+            "hint_facts": { "type": "object" },
+            "current_address": { "$ref": "#/$defs/current_address" },
+            "artifact_refs": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/artifact_ref" }
+            },
+            "conformance": { "$ref": "#/$defs/conformance" }
+          }
+        }
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "status",
+        "schema_version",
+        "workspace_id",
+        "snapshot_id",
+        "runtime_mode",
+        "capture_mode",
+        "capture_target",
+        "target",
+        "paths",
+        "counts",
+        "artifact_refs",
+        "refs",
+        "omitted",
+        "recommended_next_commands",
+        "known_limits"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "const": "success" },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "capture_mode": { "$ref": "#/$defs/capture_mode" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "target": { "$ref": "#/$defs/non_empty_string" },
+        "query": { "$ref": "#/$defs/nullable_string" },
+        "state_id": { "$ref": "#/$defs/nullable_string" },
+        "paths": { "$ref": "#/$defs/paths" },
+        "counts": {
+          "type": "object",
+          "required": ["files", "elements", "semantic_targets", "refs"],
+          "additionalProperties": false,
+          "properties": {
+            "files": { "type": "integer", "minimum": 0 },
+            "elements": { "type": "integer", "minimum": 0 },
+            "semantic_targets": { "type": "integer", "minimum": 0 },
+            "refs": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ref_summary" }
+        },
+        "omitted": {
+          "type": "object",
+          "required": ["heavy_payloads", "capture_json"],
+          "additionalProperties": false,
+          "properties": {
+            "heavy_payloads": { "$ref": "#/$defs/string_array" },
+            "capture_json": { "$ref": "#/$defs/non_empty_string" }
+          }
+        },
+        "recommended_next_commands": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "refs_file": {
+      "type": "object",
+      "required": ["schema_version", "workspace_id", "snapshot_id", "created_at", "refs"],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ref_record" }
+        }
+      }
+    },
+    "snapshot_record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "snapshot_id",
+        "created_at",
+        "runtime_mode",
+        "capture_mode",
+        "capture_target",
+        "ref_scope_grammar",
+        "target",
+        "query",
+        "artifact_refs",
+        "ref_count",
+        "paths",
+        "omitted_from_compact_stdout",
+        "known_limits"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "capture_mode": { "$ref": "#/$defs/capture_mode" },
+        "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "ref_scope_grammar": { "$ref": "#/$defs/non_empty_string" },
+        "target": { "$ref": "#/$defs/non_empty_string" },
+        "query": { "$ref": "#/$defs/nullable_string" },
+        "state_id": { "$ref": "#/$defs/nullable_string" },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "ref_count": { "type": "integer", "minimum": 0 },
+        "paths": { "$ref": "#/$defs/paths" },
+        "omitted_from_compact_stdout": { "$ref": "#/$defs/string_array" },
+        "known_limits": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "workspace_metadata": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "runtime_mode",
+        "state_root",
+        "workspace_dir",
+        "created_at",
+        "updated_at",
+        "retention",
+        "session"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "state_root": { "$ref": "#/$defs/non_empty_string" },
+        "workspace_dir": { "$ref": "#/$defs/non_empty_string" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" },
+        "retention": { "type": "object" },
+        "session": { "type": "object" }
+      }
+    },
+    "workspace_index": {
+      "type": "object",
+      "required": ["schema_version", "workspace_id", "runtime_mode", "current_snapshot_id", "snapshots", "updated_at"],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "current_snapshot_id": {
+          "anyOf": [
+            { "$ref": "#/$defs/local_id" },
+            { "type": "null" }
+          ]
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["snapshot_id", "created_at", "capture_mode", "capture_target", "target", "query", "ref_count", "artifact_count", "paths"],
+            "additionalProperties": true,
+            "properties": {
+              "snapshot_id": { "$ref": "#/$defs/local_id" },
+              "created_at": { "$ref": "#/$defs/non_empty_string" },
+              "capture_mode": { "$ref": "#/$defs/capture_mode" },
+              "capture_target": { "$ref": "#/$defs/non_empty_string" },
+              "target": { "$ref": "#/$defs/non_empty_string" },
+              "query": { "$ref": "#/$defs/nullable_string" },
+              "ref_count": { "type": "integer", "minimum": 0 },
+              "artifact_count": { "type": "integer", "minimum": 0 },
+              "paths": { "$ref": "#/$defs/paths" }
+            }
+          }
+        },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" }
+      }
+    }
+  }
+}

@@ -107,9 +107,14 @@ function findCommand(commands, pathArgs) {
   const formPrefix = `${parentPath[parentPath.length - 1]}-${sub}`;
   const parent = commands.find((command) => arrayEqual(command.path, parentPath));
   if (!parent) return null;
-  const forms = (parent.forms || []).filter((form) => String(form.id).startsWith(formPrefix));
+  const forms = (parent.forms || []).filter((form) => {
+    const formID = String(form.id);
+    return formID === formPrefix || formID.startsWith(`${formPrefix}-`);
+  });
   if (forms.length === 0) return null;
-  return { ...parent, path: pathArgs, forms };
+  const exactForm = forms.find((form) => String(form.id) === formPrefix);
+  const summary = exactForm?.summary || (forms.length === 1 && forms[0]?.summary) || parent.summary;
+  return { ...parent, path: pathArgs, summary, forms };
 }
 
 function arrayEqual(left, right) {
@@ -177,8 +182,23 @@ function runHelpPassthrough(command, pathArgs) {
   process.exit(result.status ?? 1);
 }
 
+function isConsumerDiscoverable(command) {
+  return command?.consumer_discovery !== false;
+}
+
+function consumerCommands(commands) {
+  return commands.filter(isConsumerDiscoverable);
+}
+
+function consumerRegistry(registry) {
+  return {
+    ...registry,
+    commands: consumerCommands(registry.commands || []),
+  };
+}
+
 function printFullRegistryJSON(registry) {
-  process.stdout.write(`${prettyJSON(registry)}\n`);
+  process.stdout.write(`${prettyJSON(consumerRegistry(registry))}\n`);
 }
 
 function printCommandJSON(command) {
@@ -187,7 +207,7 @@ function printCommandJSON(command) {
 
 function printFullRegistryText(registry) {
   const prefix = invocationDisplayName();
-  const commands = registry.commands || [];
+  const commands = consumerCommands(registry.commands || []);
   const verbs = new Map();
   for (const command of commands) {
     const verb = command.path?.[0] || 'other';
@@ -216,7 +236,6 @@ function printFullRegistryText(registry) {
     'serve',
     'service',
     'runtime',
-    'dev',
     'permissions',
     'doctor',
     'clean',
@@ -255,6 +274,7 @@ function printCommandText(command) {
   const lines = [`${prefix} ${command.path.join(' ')} — ${command.summary}\n`];
   for (const form of command.forms || []) {
     lines.push(`  ${renderInvocationText(form.usage)}`);
+    if (form.summary) lines.push(`    ${form.summary}`);
     if (form.args?.length) {
       lines.push('');
       for (const arg of form.args) {
@@ -264,18 +284,24 @@ function printCommandText(command) {
         lines.push(`    ${name}\t${arg.summary}${req}${def}`);
       }
     }
+    const constraintLines = renderConstraintLines(form);
+    if (constraintLines.length) {
+      lines.push('');
+      lines.push(...constraintLines.map((line) => `    ${line}`));
+    }
     if (form.stdin?.supported) {
       lines.push(`    stdin\t${form.stdin.used_when} (${form.stdin.content_type})`);
     }
     const tags = [];
     if (form.execution?.read_only) tags.push('read-only');
     if (form.execution?.mutates_state) tags.push('mutates-state');
+    if (form.execution?.mutates_when_flags?.length) tags.push(`mutates-with ${form.execution.mutates_when_flags.join('/')}`);
     if (form.execution?.interactive) tags.push('interactive');
     if (form.execution?.streaming) tags.push('streaming');
     if (form.execution?.auto_starts_daemon) tags.push('auto-starts-daemon');
     if (form.execution?.requires_permissions) tags.push('requires-permissions');
     if (tags.length) lines.push(`    [execution: ${tags.join(', ')}]`);
-    lines.push(`    [output: ${form.output.default_mode}${form.output.supports_json_flag ? ', supports --json' : ''}]`);
+    lines.push(`    [output: ${renderOutputSummary(form, command.forms || [])}]`);
     if (form.examples?.length) {
       lines.push('\n  Examples:');
       for (const example of form.examples) lines.push(`    ${renderInvocationText(example)}`);
@@ -289,6 +315,75 @@ function formatJSONValue(value) {
   if (typeof value === 'string') return value;
   if (value === null) return 'null';
   return String(value);
+}
+
+function outputModeText(output) {
+  if (!output) return 'unknown';
+  return `${output.default_mode}${output.supports_json_flag === true ? ', supports --json' : ''}`;
+}
+
+function explicitConditionalOutputModes(output) {
+  return (output?.conditional_modes || []).flatMap((mode) => {
+    const flags = mode.when_flags || [];
+    if (!flags.length || !mode.default_mode) return [];
+    return [`with ${flags.join('+')}: ${outputModeText(mode)}`];
+  });
+}
+
+function requiredFlagTokens(form) {
+  return new Set((form.args || [])
+    .filter((arg) => arg.kind === 'flag' && arg.required === true && arg.token)
+    .map((arg) => arg.token));
+}
+
+function conditionalOutputModes(form, forms) {
+  const explicitModes = explicitConditionalOutputModes(form.output);
+  if (explicitModes.length) return explicitModes;
+  const flags = form.execution?.mutates_when_flags || [];
+  if (!flags.length) return [];
+  return flags.flatMap((flag) => {
+    const matching = (forms || []).find((candidate) => (
+      candidate !== form
+      && requiredFlagTokens(candidate).has(flag)
+      && candidate.output
+      && outputModeText(candidate.output) !== outputModeText(form.output)
+    ));
+    return matching ? [`with ${flag}: ${outputModeText(matching.output)}`] : [];
+  });
+}
+
+function renderOutputSummary(form, forms) {
+  return [
+    outputModeText(form.output),
+    ...conditionalOutputModes(form, forms),
+  ].join('; ');
+}
+
+function argDisplayName(arg) {
+  if (!arg) return null;
+  return arg.token || `<${arg.id}>`;
+}
+
+function renderConstraintArgGroup(ids, argsByID) {
+  return ids
+    .map((id) => argDisplayName(argsByID.get(id)) || `<${id}>`)
+    .join(' + ');
+}
+
+function renderConstraintLines(form) {
+  const constraints = form.constraints || {};
+  const argsByID = new Map((form.args || []).map((arg) => [arg.id, arg]));
+  const lines = [];
+  for (const group of constraints.required_groups || []) {
+    const alternatives = group.one_of || [];
+    if (!alternatives.length) continue;
+    const label = group.summary ? ` ${group.summary}` : '';
+    const rendered = alternatives
+      .map((ids) => renderConstraintArgGroup(ids, argsByID))
+      .join(' OR ');
+    lines.push(`requires one${label}: ${rendered}`);
+  }
+  return lines;
 }
 
 const args = process.argv.slice(2);

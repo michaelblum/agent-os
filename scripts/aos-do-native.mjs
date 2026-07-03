@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import {
+  directNativeAxProofStory,
+  NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS,
+  nativeAxNoForegroundConformance,
+} from './lib/agent-workspace/contracts.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -28,8 +33,8 @@ const intFlags = new Set(['--index', '--depth', '--timeout', '--window', '--dwel
 const numberFlags = new Set(['--dx', '--dy', '--delay', '--variance', '--speed']);
 const coordFlags = new Set(['--near', '--to']);
 
-function positionalArgs(args) {
-  const positional = [];
+function positionalArgEntries(args) {
+  const entries = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg.startsWith('--')) {
@@ -41,15 +46,29 @@ function positionalArgs(args) {
       }
       continue;
     }
-    positional.push(arg);
+    entries.push({ index: i, value: arg });
   }
-  return positional;
+  return entries;
+}
+
+function positionalArgs(args) {
+  return positionalArgEntries(args).map((entry) => entry.value);
 }
 
 function flagValue(args, flag) {
   const index = args.indexOf(flag);
   if (index < 0) return null;
   return args[index + 1] ?? null;
+}
+
+function flagPresence(args, flag) {
+  return args.includes(flag);
+}
+
+function flagIndexes(args, flag) {
+  return args
+    .map((arg, index) => (arg === flag ? index : null))
+    .filter((index) => index !== null);
 }
 
 function requireFlag(args, flag, message, validator = (value) => Boolean(value)) {
@@ -79,6 +98,48 @@ function validateFlagTypes(args) {
     if (numberFlags.has(flag) && !isNumber(value)) error(`${flag} requires a number`, 'INVALID_ARG');
     if (coordFlags.has(flag) && !isCoord(value)) error(`${flag} requires x,y`, 'INVALID_ARG');
   }
+}
+
+function setValueTargetEntry(positionalEntries) {
+  const first = positionalEntries[0];
+  if (first?.value?.startsWith('canvas:')) return first;
+  return null;
+}
+
+function setValueSource(args, targetIndex = null) {
+  const valueFlagIndexes = flagIndexes(args, '--value');
+  if (valueFlagIndexes.length > 1) {
+    error('set-value accepts at most one --value flag', 'INVALID_ARG');
+  }
+  const valueFlagIndex = valueFlagIndexes[0] ?? -1;
+  const positionalValues = positionalArgEntries(args).filter((entry) => entry.index !== targetIndex);
+  const hasFlagValue = valueFlagIndex >= 0;
+  if (hasFlagValue && positionalValues.length > 0) {
+    error('set-value accepts exactly one value source: --value or a positional value', 'INVALID_ARG');
+  }
+  if (!hasFlagValue && positionalValues.length > 1) {
+    unknownArg(positionalValues[1].value);
+  }
+  if (hasFlagValue) {
+    return { kind: 'flag', value: args[valueFlagIndex + 1], index: valueFlagIndex };
+  }
+  if (positionalValues.length === 1) {
+    return { kind: 'positional', value: positionalValues[0].value, index: positionalValues[0].index };
+  }
+  return null;
+}
+
+function normalizeSetValueArgs(args) {
+  const positionalEntries = positionalArgEntries(args);
+  const target = setValueTargetEntry(positionalEntries);
+  const source = setValueSource(args, target?.index ?? null);
+  if (!source || source.kind === 'flag') return args;
+  return [
+    ...args.slice(0, source.index),
+    ...args.slice(source.index + 1),
+    '--value',
+    source.value,
+  ];
 }
 
 function validate(verb, args) {
@@ -117,25 +178,40 @@ function validate(verb, args) {
       if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'press':
+      if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'press requires --pid', isInt);
+      requireFlag(args, '--role', 'press requires --role');
       break;
     case 'set-value':
+      const setValuePositions = positionalArgEntries(args);
+      const setValueTarget = setValueTargetEntry(setValuePositions);
+      if (setValueTarget) {
+        if (flagPresence(args, '--pid') || flagPresence(args, '--role')) {
+          error('set-value accepts exactly one target source: target or --pid/--role', 'INVALID_ARG');
+        }
+        if (!setValueSource(args, setValueTarget.index)) error('set-value requires --value or a positional value', 'MISSING_ARG');
+        break;
+      }
       requireFlag(args, '--pid', 'set-value requires --pid', isInt);
       requireFlag(args, '--role', 'set-value requires --role');
-      requireFlag(args, '--value', 'set-value requires --value');
+      if (!setValueSource(args)) error('set-value requires --value or a positional value', 'MISSING_ARG');
       break;
     case 'focus':
+      if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'focus requires --pid', isInt);
       requireFlag(args, '--role', 'focus requires --role');
       break;
     case 'raise':
+      if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'raise requires --pid', isInt);
       break;
     case 'move':
+      if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'move requires --pid', isInt);
       requireFlag(args, '--to', 'move requires --to x,y', isCoord);
       break;
     case 'resize':
+      if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', 'resize requires --pid', isInt);
       requireFlag(args, '--to', 'resize requires --to w,h', isCoord);
       break;
@@ -147,14 +223,163 @@ function validate(verb, args) {
   }
 }
 
+function parseJSON(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function present(value) {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return String(value).length > 0;
+}
+
+function directNativeAXFacts(args) {
+  return {
+    app_pid: flagValue(args, '--pid') ? Number(flagValue(args, '--pid')) : null,
+    window_id: flagValue(args, '--window') ? Number(flagValue(args, '--window')) : null,
+    role: flagValue(args, '--role'),
+    title: flagValue(args, '--title'),
+    label: flagValue(args, '--label'),
+    ax_identifier: flagValue(args, '--identifier'),
+    index: flagValue(args, '--index') ? Number(flagValue(args, '--index')) : null,
+    near: flagValue(args, '--near'),
+    match: flagValue(args, '--match'),
+    depth: flagValue(args, '--depth') ? Number(flagValue(args, '--depth')) : null,
+    timeout_ms: flagValue(args, '--timeout') ? Number(flagValue(args, '--timeout')) : null,
+  };
+}
+
+function directNativeAXAvailableIdentityFacts(facts) {
+  const available = [];
+  if (present(facts.app_pid)) available.push('app_pid');
+  if (present(facts.window_id)) available.push('window_id');
+  if (present(facts.ax_identifier)) {
+    available.push('ax_identifier');
+    available.push('ax_identifier_or_stable_path');
+  }
+  for (const key of ['role', 'title', 'label', 'index', 'near', 'match', 'depth', 'timeout_ms']) {
+    if (present(facts[key])) available.push(key);
+  }
+  return available;
+}
+
+function payloadBoolean(payload, key) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+  return payload[key] === true || payload.execution?.[key] === true;
+}
+
+function directNativeNoForegroundConformance(payload) {
+  return nativeAxNoForegroundConformance({
+    fallbackUsed: payloadBoolean(payload, 'fallback_used'),
+    foregroundFallbackRequired: payloadBoolean(payload, 'foreground_fallback_required'),
+  });
+}
+
+function directNativeAXConformance(verb, args, payload = null) {
+  const dryRun = flagPresence(args, '--dry-run');
+  const facts = directNativeAXFacts(args);
+  const availableIdentityFacts = directNativeAXAvailableIdentityFacts(facts);
+  const availableSet = new Set(availableIdentityFacts);
+  const noForeground = directNativeNoForegroundConformance(payload);
+  const fallbackReported = noForeground.fallback_used || noForeground.foreground_fallback_required;
+  return {
+    actionability: 'direct_ax_action',
+    mutation: dryRun ? 'not_attempted_dry_run' : 'attempted_direct_native_action',
+    validation: 'direct_ax_current_matching_semantics',
+    proof_level: 'native_primitive_response_plus_wrapper_contract',
+    proof: directNativeAxProofStory(),
+    no_foreground: noForeground,
+    target_uncertainty: {
+      status: 'direct_ax_current_matching',
+      reasons: [
+        'direct AX actions use caller-provided current pid, role, and filter matching instead of saved-ref durable identity',
+        dryRun
+          ? 'dry-run validates command shape but does not prove current enabled state, current element uniqueness, or no-foreground behavior'
+          : 'the wrapper reports the native primitive result but has no enabled-state, focus, cursor, Space, permission, or fallback baseline',
+        ...(fallbackReported
+          ? ['the underlying native action reported fallback use; no foreground-preservation guarantee is claimed']
+          : []),
+      ],
+      missing_identity_facts: NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS.filter((fact) => !availableSet.has(fact)),
+      available_identity_facts: availableIdentityFacts,
+    },
+    known_limits: [
+      'direct AX actions use current AX matching semantics and do not make saved-ref durable identity claims',
+      'no foreground, focus, cursor, or Space preservation guarantee is claimed by this wrapper',
+      `native ${verb} responses require live HITL proof before no-foreground conformance can be upgraded`,
+      ...(fallbackReported
+        ? ['underlying native action reported fallback use; treat the result as foreground fallback, not no-foreground proof']
+        : []),
+    ],
+  };
+}
+
+function directNativeAXTarget(args) {
+  return directNativeAXFacts(args);
+}
+
+function mergeKnownLimits(existing, next) {
+  return [...new Set([...(Array.isArray(existing) ? existing : []), ...next])];
+}
+
+function isDirectNativeAXAction(verb, args) {
+  if (!['press', 'set-value', 'focus'].includes(verb)) return false;
+  const pos = positionalArgs(args);
+  if (verb === 'set-value' && (pos[0]?.startsWith('canvas:'))) return false;
+  return args.includes('--pid');
+}
+
+function augmentDirectNativeAXPayload(payload, verb, args) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const conformance = directNativeAXConformance(verb, args, payload);
+  return {
+    ...payload,
+    direct_target: directNativeAXTarget(args),
+    conformance,
+    known_limits: mergeKnownLimits(payload.known_limits, conformance.known_limits),
+  };
+}
+
+function maybeEmitAugmentedDirectNativeAXResult(verb, args, result) {
+  if (!isDirectNativeAXAction(verb, args)) return false;
+
+  const stdoutPayload = parseJSON(result.stdout);
+  const stderrPayload = parseJSON(result.stderr);
+  if (stdoutPayload) {
+    const payload = augmentDirectNativeAXPayload(stdoutPayload, verb, args);
+    if (!payload) return false;
+    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    if (result.stderr && !stderrPayload) process.stderr.write(result.stderr);
+    return true;
+  }
+
+  if (stderrPayload) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    const payload = augmentDirectNativeAXPayload(stderrPayload, verb, args);
+    if (!payload) return false;
+    process.stderr.write(`${JSON.stringify(payload, null, 2)}\n`);
+    return true;
+  }
+
+  return false;
+}
+
 const [verb, ...args] = process.argv.slice(2);
 if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
 validate(verb, args);
 
-const result = spawnSync(aosPath(), ['__do', verb, ...args], {
+const dispatchArgs = verb === 'set-value' ? normalizeSetValueArgs(args) : args;
+const result = spawnSync(aosPath(), ['__do', verb, ...dispatchArgs], {
   encoding: 'utf8',
   env: process.env,
 });
+if (maybeEmitAugmentedDirectNativeAXResult(verb, dispatchArgs, result)) process.exit(result.status ?? 1);
 if (result.stdout) process.stdout.write(result.stdout);
 if (result.stderr) process.stderr.write(result.stderr);
 process.exit(result.status ?? 1);

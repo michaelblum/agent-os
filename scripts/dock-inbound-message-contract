@@ -6,9 +6,10 @@ import { repoRootFromScript, validateDockInboundMessage } from './lib/dock-inbou
 function usage() {
   console.error(`Usage:
   scripts/dock-inbound-message-contract --target-dock <dock> [--provider codex] [--payload <text>] [--json]
-  printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock gdi --json
+  printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock foreman --json
 
-Formats and validates an inbound dock message without writing to the clipboard.`);
+Formats and validates a legacy inbound dock message without writing to the clipboard.
+Current Foreman work should use ./aos dev agents instead of retired clipboard/goal handoff.`);
 }
 
 function parseArgs(argv) {

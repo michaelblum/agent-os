@@ -1,13 +1,15 @@
 # AOS Dock Inbound Message Contract v0
 
-Dock inbound message contracts live at `.docks/<dock>/inbound-contract.json`.
-They describe how a target dock wants a provider-specific inbound message to be
-formatted without making Foreman, Operator, or another sender hardcode provider
-slash syntax.
+Dock inbound message contracts historically lived at
+`.docks/<dock>/inbound-contract.json`. There are no current canonical runtime
+files for this schema; `.docks/foreman/` is the only current named dock, and the
+old GDI/Operator clipboard and goal-command transfer path is retired. The schema
+is retained to validate historical records and prevent stale references from
+being mistaken for live dock files.
 
-The contract is descriptive and deterministic. It does not launch providers,
-read transcripts, mutate provider stores, or write to the clipboard by itself.
-Tools may use it to preview or validate:
+The retained contract is descriptive and deterministic. It does not launch
+providers, read transcripts, mutate provider stores, or write to the clipboard
+by itself. Historical tools used it to preview or validate:
 
 ```text
 target dock + provider + payload -> clipboard payload + provider entry preview + validation
@@ -23,9 +25,9 @@ target dock + provider + payload -> clipboard payload + provider entry preview +
 - `stale_goal_recovery_command` is the provider command for clearing stale goal
   state, such as `/goal clear`, or `null` when the dock does not use goal mode.
 - `clipboard_payload_policy` declares that copied transfer payloads stay plain.
-- `provider_entry_prefix` is the interactive provider prefix, such as `/goal `
-  for GDI Codex work goals or an empty string for Operator supervised
-  instructions.
+- `provider_entry_prefix` is the historical interactive provider prefix, such as
+  `/goal ` for old GDI Codex work goals or an empty string for Operator
+  supervised instructions.
 - `allowed_payloads` lists the durable pointer or supervised instruction shapes
   expected by the dock. GDI normally prefers durable work-card or transfer
   pointers; a short inline validation-only instruction is allowed only for
@@ -39,19 +41,19 @@ target dock + provider + payload -> clipboard payload + provider entry preview +
 
 ## V0 Semantics
 
-GDI/Codex uses `/goal ` for interactive work-goal entry, but copied transfer
-payloads remain plain pointers. A copied payload that already starts with
-`/goal ` may be cleaned for compatibility; that cleanup is not the canonical
-payload shape.
+Retired GDI/Codex used `/goal ` for interactive work-goal entry, but copied
+transfer payloads remained plain pointers. A copied payload that already started
+with `/goal ` could be cleaned for compatibility; that cleanup was not the
+canonical payload shape.
 
 GDI inline validation-only prompts are a narrow exception to the durable pointer
 preference. They must carry their own bounded no-command instruction in the
 prompt text and are for supervised live validation where the act of opening a
 work-card pointer would violate the proof boundary.
 
-Operator/Codex receives plain supervised instructions or durable pointers. It
-does not receive GDI `/goal` prompts and does not route implementation work or
-branch strategy.
+Retired Operator/Codex received plain supervised instructions or durable
+pointers. It did not receive GDI `/goal` prompts and did not route
+implementation work or branch strategy.
 
 Foreman/Codex receives plain successor handoff or coordination payloads.
 

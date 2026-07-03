@@ -25,6 +25,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd ?? process.cwd(),
     env: options.env ?? process.env,
     encoding: 'utf8',
+    maxBuffer: options.maxBuffer ?? 16 * 1024 * 1024,
   });
   if (result.error) {
     return { status: 127, stdout: '', stderr: `${result.error.message}\n` };
@@ -115,7 +116,9 @@ function allDaemonPIDs() {
 }
 
 function processTable() {
-  const output = run('/bin/ps', ['-axo', 'pid=,ppid=,stat=,args=']);
+  const output = run('/bin/ps', ['-axww', '-o', 'pid=,ppid=,stat=,args='], {
+    maxBuffer: 32 * 1024 * 1024,
+  });
   if (output.status !== 0) return [];
   return output.stdout
     .split(/\r?\n/)

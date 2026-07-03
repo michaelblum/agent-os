@@ -83,6 +83,47 @@ func axSettableAttributes(_ element: AXUIElement) -> [String] {
     }
 }
 
+func axWindowID(_ element: AXUIElement) -> Int? {
+    var windowID: CGWindowID = 0
+    guard _AXUIElementGetWindow(element, &windowID) == .success, windowID != 0 else { return nil }
+    return Int(windowID)
+}
+
+func nativeAXSavedActionNames(_ element: AXUIElement) -> [String] {
+    var names = axActions(element)
+    let settable = Set(axSettableAttributes(element))
+    if settable.contains(kAXValueAttribute as String), !names.contains("AXSetValue") {
+        names.append("AXSetValue")
+    }
+    if settable.contains(kAXFocusedAttribute as String), !names.contains("AXFocus") {
+        names.append("AXFocus")
+    }
+    return names
+}
+
+func nativeAXFocusCursorSpaceBaseline() -> NativeFocusCursorSpaceBaselineJSON {
+    // This records the observation baseline only; saved-ref conformance still
+    // reports no-foreground/focus/cursor/Space preservation as unverified.
+    NativeFocusCursorSpaceBaselineJSON(
+        captured: true,
+        focus: "not_changed",
+        cursor: "not_changed",
+        space: "not_changed"
+    )
+}
+
+func nativeAXSavedRefEvidence() -> NativeSavedRefEvidenceJSON {
+    NativeSavedRefEvidenceJSON(
+        status: "inspection_only",
+        actionability: "inspection_only",
+        known_limit_facts_complete: false,
+        producer: "native_ax",
+        reasons: [
+            "native AX producer does not yet emit complete known-limit facts for stable saved-ref mutation"
+        ]
+    )
+}
+
 struct AXAncestorEvidence {
     let role: String
     let title: String?
@@ -316,6 +357,9 @@ func axFrame(_ element: AXUIElement) -> CGRect? { axBounds(element) }
 /// Recursively traverse AX tree, emitting visible bounded elements as a flat raw array.
 func traverseAXElements(
     _ element: AXUIElement,
+    appPID: pid_t,
+    appName: String,
+    permissionState: String,
     mapper: CoordinateMapper,
     imageSize: CGSize,
     contextPath: [String],
@@ -347,11 +391,19 @@ func traverseAXElements(
     if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
         if let lcsRect = mapper.toLCS(globalRect: frame, imageSize: imageSize) {
             results.append(AXElementJSON(
+                app_pid: Int(appPID),
+                app_name: appName,
+                window_id: axWindowID(element),
                 role: role,
                 title: title,
                 label: label,
+                identifier: axString(element, kAXIdentifierAttribute as String),
                 value: valueStr,
                 enabled: enabled,
+                action_names: nativeAXSavedActionNames(element),
+                permission_state: permissionState,
+                focus_cursor_space_baseline: nativeAXFocusCursorSpaceBaseline(),
+                native_saved_ref_evidence: nativeAXSavedRefEvidence(),
                 context_path: contextPath,
                 bounds: BoundsJSON(
                     x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
@@ -376,7 +428,8 @@ func traverseAXElements(
     guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
           let children = childrenRef as? [AXUIElement] else { return }
     for child in children {
-        traverseAXElements(child, mapper: mapper, imageSize: imageSize,
+        traverseAXElements(child, appPID: appPID, appName: appName, permissionState: permissionState,
+                          mapper: mapper, imageSize: imageSize,
                           contextPath: childPath, depth: depth + 1,
                           maxDepth: maxDepth, results: &results)
     }
@@ -386,8 +439,10 @@ func traverseAXElements(
 func xrayApp(pid: pid_t, appName: String, mapper: CoordinateMapper, imageSize: CGSize) -> [AXElementJSON] {
     let axApp = AXUIElementCreateApplication(pid)
     var results: [AXElementJSON] = []
-    traverseAXElements(axApp, mapper: mapper, imageSize: imageSize,
-                      contextPath: [appName], depth: 0, maxDepth: 15,
+    let permissionState = AXIsProcessTrusted() ? "granted" : "unknown"
+    traverseAXElements(axApp, appPID: pid, appName: appName, permissionState: permissionState,
+                      mapper: mapper, imageSize: imageSize,
+                      contextPath: ["app:\(appName)"], depth: 0, maxDepth: 15,
                       results: &results)
     return results
 }

@@ -7,8 +7,17 @@ FAILS=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; FAILS=$((FAILS + 1)); }
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+source "$ROOT/tests/lib/isolated-daemon.sh"
+export AOS_STATE_ROOT="$TMP/aos-state"
+export AOS_ALLOW_DAEMON_AUTOSTART=1
+mkdir -p "$AOS_STATE_ROOT"
+cleanup() {
+    aos_test_kill_root "$AOS_STATE_ROOT" 2>/dev/null || true
+    rm -rf "$TMP"
+}
+trap cleanup EXIT
 
 # --- 1. Schema files are valid and fixtures validate/fail as expected. ---
 if python3 - <<'PY'
@@ -138,7 +147,54 @@ else
     fail "recipe explain launch contract failed"
 fi
 
-# --- 5. recipe dry-run is static and side-effect-free. ---
+# --- 5. flag-sensitive command metadata classifies saved capture as mutating. ---
+mkdir -p "$TMP/flag-sensitive"
+cat >"$TMP/flag-sensitive/saved-capture.json" <<'JSON'
+{
+  "id": "fixture/saved-capture",
+  "version": 1,
+  "summary": "Planner fixture for flag-sensitive mutability.",
+  "scope": "fixture",
+  "mutates": false,
+  "requires": ["see"],
+  "steps": [
+    {
+      "id": "save-capture",
+      "command": {
+        "path": ["see"],
+        "form_id": "see-capture"
+      },
+      "argv": ["capture", "main", "--save", "--workspace", "ops-fixture"],
+      "timeout_ms": 10000,
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    }
+  ]
+}
+JSON
+OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/flag-sensitive" ./aos recipe explain fixture/saved-capture --json 2>/dev/null)"
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["mutates"] is True, data
+step = data["steps"][0]
+assert step["command"]["form_id"] == "see-capture", step
+assert step["mutates"] is True, step
+assert "--save" in step["argv"], step
+PY
+then
+    pass "recipe planner treats see capture --save as mutating"
+else
+    fail "flag-sensitive saved capture mutability contract failed"
+fi
+
+# --- 6. recipe dry-run is static and side-effect-free. ---
 OUT="$(./aos recipe dry-run runtime/status-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -156,7 +212,7 @@ else
     fail "recipe dry-run contract failed"
 fi
 
-# --- 6. mutating recipe dry-run exposes owned resources without creating them. ---
+# --- 7. mutating recipe dry-run exposes owned resources without creating them. ---
 OUT="$(./aos recipe dry-run canvas/window-level-smoke --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -187,7 +243,7 @@ else
     fail "mutating dry-run contract failed"
 fi
 
-# --- 7. dry-run default output is text, matching the registry. ---
+# --- 8. dry-run default output is text, matching the registry. ---
 OUT="$(./aos recipe dry-run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'dry-run runtime/status-snapshot'; then
     pass "ops dry-run default output is text"
@@ -195,7 +251,7 @@ else
     fail "ops dry-run default output mismatch: $OUT"
 fi
 
-# --- 8. run default output is text, matching the registry. ---
+# --- 9. run default output is text, matching the registry. ---
 OUT="$(./aos recipe run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'success runtime/status-snapshot'; then
     pass "ops run default output is text"
@@ -203,7 +259,7 @@ else
     fail "ops run default output mismatch: $OUT"
 fi
 
-# --- 9. duplicate recipe IDs are rejected. ---
+# --- 10. duplicate recipe IDs are rejected. ---
 mkdir -p "$TMP/dup-a" "$TMP/dup-b"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-a/status-a.json"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-b/status-b.json"
@@ -215,7 +271,7 @@ else
     fail "duplicate recipe ID error code mismatch: $ERR"
 fi
 
-# --- 10. invalid recipe explain fails before execution. ---
+# --- 11. invalid recipe explain fails before execution. ---
 if ERR="$(AOS_OPS_RECIPE_ROOTS="tests/fixtures/ops/invalid" ./aos recipe explain fixture/missing-command --json 2>&1 >/dev/null)"; then
     fail "invalid recipe should fail explain"
 elif echo "$ERR" | grep -q '"code" : "INVALID_RECIPE"'; then
@@ -224,7 +280,7 @@ else
     fail "invalid recipe error code mismatch: $ERR"
 fi
 
-# --- 11. installed-mode index discovery does not need source roots. ---
+# --- 12. installed-mode index discovery does not need source roots. ---
 scripts/generate-ops-recipe-index "$PWD" "$TMP/recipes-index.json"
 OUT="$(AOS_RUNTIME_MODE=installed AOS_OPS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos recipe list --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'

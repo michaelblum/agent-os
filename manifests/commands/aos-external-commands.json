@@ -156,6 +156,23 @@
     },
     {
       "path": ["do", "click"],
+      "summary": "Resolve saved click ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "click"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "click"],
       "summary": "Click browser targets through the external do browser command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "click"],
@@ -179,10 +196,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "hover"],
+      "summary": "Resolve saved hover ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "hover"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -211,10 +245,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "drag"],
+      "summary": "Resolve saved drag ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "drag"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -243,10 +294,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "scroll"],
+      "summary": "Resolve saved scroll ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "scroll"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -275,10 +343,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "type"],
+      "summary": "Resolve unsupported saved type ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "type"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -307,10 +392,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "key"],
+      "summary": "Resolve unsupported saved key ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "key"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -339,10 +441,27 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_prefixes": ["browser:"]
+        "excluded_prefixes": ["browser:", "ref:"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "fill"],
+      "summary": "Resolve saved fill ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "fill"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -353,6 +472,10 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "fill"],
       "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["ref:"]
+      },
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -384,12 +507,50 @@
     },
     {
       "path": ["do", "press"],
+      "summary": "Resolve saved press ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "press"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "press"],
       "summary": "Press a native input target through the external do native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-native.mjs", "press"],
       "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["ref:"]
+      },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "set-value"],
+      "summary": "Resolve saved set-value ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "set-value"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -400,8 +561,29 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-native.mjs", "set-value"],
       "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["ref:"]
+      },
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "focus"],
+      "summary": "Resolve saved focus ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-ref.mjs", "focus"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
@@ -412,6 +594,10 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-native.mjs", "focus"],
       "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["ref:"]
+      },
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -709,7 +895,7 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_values": ["capture", "observe", "cursor", "list", "selection", "zone"]
+        "excluded_values": ["capture", "observe", "cursor", "list", "selection", "snapshots", "refs", "workspaces", "workspace", "snapshot", "zone"]
       },
       "env": {
         "AOS_PATH": "$AOS_PATH",
@@ -722,6 +908,90 @@
       "summary": "Capture screen or browser targets through the external see native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-see-native.mjs", "capture"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "snapshots"],
+      "summary": "List saved agent-workspace snapshots through external workspace composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "snapshots"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "refs"],
+      "summary": "List compact saved refs through external agent-workspace composition; saved-ref mutation follows the backend action matrix.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "refs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "workspaces"],
+      "summary": "List local AOS agent workspaces through external workspace composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspaces"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "workspace"],
+      "summary": "Inspect a local AOS agent workspace, including transient write-lock state.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspace"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "workspace", "prune"],
+      "summary": "Preview or prune saved AOS agent workspace snapshots with fail-fast workspace locking.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspace", "prune"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "workspace", "delete"],
+      "summary": "Delete a local AOS agent workspace.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "workspace", "delete"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "snapshot", "delete"],
+      "summary": "Delete a saved AOS agent-workspace snapshot.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-agent-workspace.mjs", "snapshot", "delete"],
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",
