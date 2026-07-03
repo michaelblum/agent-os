@@ -3140,6 +3140,54 @@
         {
           "args" : [
             {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "value_type" : "string"
+            },
+            {
+              "id" : "text",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Text to type into the browser target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "state-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Perception state id this action was chosen from",
+              "token" : "--state-id",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos do type browser:todo/e21 \"hello world\"",
+            "aos do type browser:todo \"hello world\" --state-id see_abc123def456"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "do-type-browser",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "summary" : "Direct browser text input through Playwright; not a saved-ref action",
+          "usage" : "aos do type <browser:<session>[/<ref>]> <text> [--state-id id]"
+        },
+        {
+          "args" : [
+            {
               "id" : "combo",
               "kind" : "positional",
               "required" : true,
@@ -3168,6 +3216,54 @@
             "supports_json_flag" : false
           },
           "usage" : "aos do key <combo>"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Browser target (browser:<session> or browser:<session>/<ref>)",
+              "value_type" : "string"
+            },
+            {
+              "id" : "combo",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Key combination to press in the browser target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "state-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Perception state id this action was chosen from",
+              "token" : "--state-id",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos do key browser:todo/e21 \"Enter\"",
+            "aos do key browser:todo \"cmd+s\" --state-id see_abc123def456"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "do-key-browser",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "summary" : "Direct browser key press through Playwright; not a saved-ref action",
+          "usage" : "aos do key <browser:<session>[/<ref>]> <combo> [--state-id id]"
         },
         {
           "args" : [
