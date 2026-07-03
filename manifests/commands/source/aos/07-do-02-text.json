@@ -222,12 +222,20 @@
               "summary": "Snapshot id for ambiguous bare ref:<id> targets",
               "token": "--snapshot",
               "value_type": "string"
+            },
+            {
+              "id": "state-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Perception state id for direct browser fill provenance",
+              "token": "--state-id",
+              "value_type": "string"
             }
           ],
           "examples": [
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default --dry-run",
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
-            "aos do fill browser:todo/e21 \"buy groceries\""
+            "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
           ],
           "summary": "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
           "execution": {
@@ -246,7 +254,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
+          "usage": "aos do fill <ref:<snapshot-id>:<ref>|browser:<s>/<ref>> <text> [--workspace <id>] [--snapshot <id>] [--state-id id] [--dry-run]"
         },
         {
           "args": [

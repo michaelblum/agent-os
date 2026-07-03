@@ -17,6 +17,11 @@ out=$(./aos do fill "browser:todo/e21" "hello world" 2>&1)
 echo "$out" | grep -q "fake fill invoked: -s=todo fill e21 hello world" \
     || { echo "FAIL browser: $out" >&2; exit 1; }
 
+# Direct browser fill preserves state-id provenance in the action evidence
+out=$(./aos do fill "browser:todo/e21" "hello world" --state-id see_fill123 2>&1)
+echo "$out" | grep -q '"state_id":"see_fill123"' \
+    || { echo "FAIL browser state id: $out" >&2; exit 1; }
+
 # Missing text errors
 if out=$(./aos do fill "browser:todo/e21" 2>&1); then
     if echo "$out" | grep -q '"status":"success"'; then
