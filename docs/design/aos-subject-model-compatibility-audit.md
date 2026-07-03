@@ -156,16 +156,19 @@ Anchor Binding wording while preserving the current `--anchor-browser` CLI.
 
 At audit time, `docs/design/aos-work-records-and-self-healing-recipes.md` still
 gave the screen dialect as `screen:<frame-id>/<x,y>`. ADR-0006 and the grand
-plan use `screen:<state-id>/<x,y>` for coordinate fallback with a
-perception-state guard.
+plan now qualify current coordinate fallback as raw `x,y` plus optional
+`--state-id`; `screen:<state-id>/<x,y>` remains target-model/replay shorthand,
+not a current CLI target string.
 
 Migration direction:
 
-- update docs to `screen:<state-id>/<x,y>`;
+- update docs to current `x,y` plus `--state-id` bridge wording;
 - keep enforcement language honest: current AOS echoes/correlates state ids but
   does not reject stale coordinate actions yet.
 
-Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
+Cleanup status: the work-record design note now qualifies screen coordinates
+and native AX as bridge/model vocabulary rather than current live target
+strings.
 
 ## 2026-05-06 Cutover Classification
 
@@ -180,7 +183,7 @@ Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
 ## Recommended Migration Order
 
 1. Update docs-only drift that does not change behavior: navigation trail
-   wording, anchor role wording, and `screen:<state-id>/<x,y>`.
+   wording, anchor role wording, and screen coordinate bridge wording.
 2. Add schema sketches for Subject References, Facets, Hosts, Capabilities,
    operation contracts, Work Record origin/references, and verifier reports.
    Subject References, Facets, Hosts, Capabilities, and operation contracts now
