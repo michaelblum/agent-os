@@ -599,7 +599,7 @@ fi
 RESET_ROOT="$(mktemp -d)"
 RESET_OUT="$(mktemp)"
 mkdir -p "$RESET_ROOT/installed" "$RESET_ROOT/legacy-junk"
-touch "$RESET_ROOT/installed/probe" "$RESET_ROOT/legacy-junk/probe"
+touch "$RESET_ROOT/installed/probe" "$RESET_ROOT/legacy-junk/probe" "$RESET_ROOT/experience-state.json"
 AOS_STATE_ROOT="$RESET_ROOT" AOS_RUNTIME_MODE=installed ./aos reset --mode installed --json >"$RESET_OUT" 2>/dev/null
 if RESET_ROOT="$RESET_ROOT" RESET_OUT="$RESET_OUT" python3 - <<'PY'
 import json
@@ -610,12 +610,15 @@ with open(os.environ["RESET_OUT"], encoding="utf-8") as fh:
     data = json.load(fh)
 assert data["reset_mode"] == "installed", data
 assert f"{root}/installed" in data["removed_paths"], data
-assert f"{root}/legacy-junk" in data["removed_paths"], data
+assert f"{root}/legacy-junk" not in data["removed_paths"], data
+assert f"{root}/experience-state.json" not in data["removed_paths"], data
 assert not os.path.exists(f"{root}/installed"), data
+assert os.path.exists(f"{root}/legacy-junk"), data
+assert os.path.exists(f"{root}/experience-state.json"), data
 assert os.path.exists("./aos"), "repo binary should not be removed by installed-mode reset"
 PY
 then
-    pass "reset runs through external command manifest in isolated installed mode"
+    pass "reset installed mode preserves repo fallback state"
 else
     fail "reset external dispatch drifted: $(cat "$RESET_OUT" 2>/dev/null || true)"
 fi

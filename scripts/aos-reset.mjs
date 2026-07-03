@@ -127,7 +127,7 @@ function reset(mode) {
   }
 
   const root = stateRoot();
-  if (fs.existsSync(root)) {
+  if (selectedModes.includes('repo') && fs.existsSync(root)) {
     for (const item of fs.readdirSync(root)) {
       if (!modes.includes(item)) removeIfExists(path.join(root, item), removedPaths);
     }
