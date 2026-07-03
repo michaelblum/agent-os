@@ -31,7 +31,10 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
   mode state root: `${AOS_STATE_ROOT:-~/.config/aos}/{repo|installed}/agent-workspaces/`.
 - A saved capture source can be a positional target such as `browser:work` or a
   source flag such as `--region <rect>`, `--canvas <id>`, or `--channel <id>`.
-  `--save` is the state mutation boundary.
+  If no positional target or source flag is supplied, capture defaults to
+  `main`. New saved captures persist compact `capture_source.argv` so refresh
+  recommendations reuse the original positional or source-flag scope. `--save`
+  is the state mutation boundary.
 - Workspace selection is command-scoped: `--workspace <id>` overrides
   `AOS_AGENT_WORKSPACE`; absent both, AOS uses `default`. No daemon-held current
   workspace exists, and `aos see workspace use <id>` is not a current command.
@@ -52,9 +55,9 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
   screenshots, base64, AX trees, browser elements, and semantic target arrays
   stay file-backed under the snapshot directory.
 - Use `aos see snapshots --workspace <id> --json` to choose prior snapshots.
-  Snapshot entries include compact `capture_target`, `target`, and saved
-  `query` fields so you do not need to open heavy capture payloads just to
-  recover the saved scope.
+  Snapshot entries include compact `capture_source`, `capture_target`, `target`,
+  and saved `query` fields so you do not need to open heavy capture payloads
+  just to recover the saved scope.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

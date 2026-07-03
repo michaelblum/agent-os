@@ -550,9 +550,7 @@ capture_save_form = next(item for item in capture["forms"] if item["id"] == "see
 capture_tokens = {arg.get("token") for arg in capture_form["args"]}
 capture_save_tokens = {arg.get("token") for arg in capture_save_form["args"]}
 capture_conflicts = [set(item) for item in capture_form.get("constraints", {}).get("conflicts", [])]
-capture_required_groups = capture_form.get("constraints", {}).get("required_groups", [])
 capture_save_conflicts = [set(item) for item in capture_save_form.get("constraints", {}).get("conflicts", [])]
-capture_save_required_groups = capture_save_form.get("constraints", {}).get("required_groups", [])
 format_arg = next(arg for arg in capture_form["args"] if arg.get("token") == "--format")
 format_values = {item["value"] for item in format_arg["value_type"]["enum"]}
 target_arg = next(arg for arg in capture_form["args"] if arg["id"] == "target")
@@ -567,18 +565,10 @@ assert {"save", "out"} in capture_conflicts, capture_conflicts
 assert {"region", "canvas", "channel"} in capture_save_conflicts, capture_save_conflicts
 assert target_arg["required"] is False, target_arg
 assert capture_save_target_arg["required"] is False, capture_save_target_arg
-assert {
-    tuple(item)
-    for group in capture_required_groups
-    if group.get("summary") == "capture source"
-    for item in group.get("one_of", [])
-} == {("target",), ("region",), ("canvas",), ("channel",)}, capture_required_groups
-assert {
-    tuple(item)
-    for group in capture_save_required_groups
-    if group.get("summary") == "capture source"
-    for item in group.get("one_of", [])
-} == {("target",), ("region",), ("canvas",), ("channel",)}, capture_save_required_groups
+assert target_arg["default_value"] == "main", target_arg
+assert capture_save_target_arg["default_value"] == "main", capture_save_target_arg
+assert not capture_form.get("constraints", {}).get("required_groups"), capture_form.get("constraints", {})
+assert not capture_save_form.get("constraints", {}).get("required_groups"), capture_save_form.get("constraints", {})
 assert format_values == {"png", "jpg", "jpeg", "heic"}, format_values
 assert format_arg["default_value"] == "png", format_arg
 assert mode_values == {"ax", "vision", "som"}, mode_values
@@ -608,8 +598,7 @@ assert "[execution: read-only, mutates-with --save, requires-permissions]" in ca
 assert "[execution: mutates-state, requires-permissions]" in capture_text, capture_text
 assert "[output: json; with --save: json]" not in capture_text, capture_text
 assert "[output: json]" in capture_text, capture_text
-assert "requires one capture source: <target> OR --region OR --canvas OR --channel" in capture_text, capture_text
-assert capture_text.count("requires one capture source: <target> OR --region OR --canvas OR --channel") == 2, capture_text
+assert "requires one capture source" not in capture_text, capture_text
 
 refs = json.loads(os.environ["REFS"])
 refs_form = next(item for item in refs["forms"] if item["id"] == "see-refs")

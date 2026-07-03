@@ -31,6 +31,18 @@
     "capture_mode": {
       "enum": ["ax", "vision", "som"]
     },
+    "capture_source": {
+      "type": "object",
+      "required": ["kind", "argv", "display"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["default_target", "target", "source_flags", "target_with_source_flags"]
+        },
+        "argv": { "$ref": "#/$defs/string_array" },
+        "display": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
     "backend": {
       "enum": ["aos_canvas", "browser", "native_ax"]
     },
@@ -186,6 +198,7 @@
         "workspace_id": { "$ref": "#/$defs/local_id" },
         "snapshot_id": { "$ref": "#/$defs/local_id" },
         "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
         "capture_mode": { "$ref": "#/$defs/capture_mode" },
         "action_target": { "$ref": "#/$defs/nullable_string" },
         "copyable_action_target": { "$ref": "#/$defs/nullable_string" },
@@ -274,6 +287,7 @@
         "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
         "capture_mode": { "$ref": "#/$defs/capture_mode" },
         "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
         "target": { "$ref": "#/$defs/non_empty_string" },
         "query": { "$ref": "#/$defs/nullable_string" },
         "state_id": { "$ref": "#/$defs/nullable_string" },
@@ -353,6 +367,7 @@
         "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
         "capture_mode": { "$ref": "#/$defs/capture_mode" },
         "capture_target": { "$ref": "#/$defs/non_empty_string" },
+        "capture_source": { "$ref": "#/$defs/capture_source" },
         "ref_scope_grammar": { "$ref": "#/$defs/non_empty_string" },
         "target": { "$ref": "#/$defs/non_empty_string" },
         "query": { "$ref": "#/$defs/nullable_string" },
@@ -418,6 +433,7 @@
               "created_at": { "$ref": "#/$defs/non_empty_string" },
               "capture_mode": { "$ref": "#/$defs/capture_mode" },
               "capture_target": { "$ref": "#/$defs/non_empty_string" },
+              "capture_source": { "$ref": "#/$defs/capture_source" },
               "target": { "$ref": "#/$defs/non_empty_string" },
               "query": { "$ref": "#/$defs/nullable_string" },
               "ref_count": { "type": "integer", "minimum": 0 },

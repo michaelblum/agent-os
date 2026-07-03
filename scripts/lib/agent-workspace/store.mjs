@@ -47,6 +47,20 @@ function assertStringArray(value, file, label) {
   }
 }
 
+function assertCaptureSource(value, file, label) {
+  if (value === undefined) return;
+  assertPlainObject(value, file, label);
+  if (
+    !['default_target', 'target', 'source_flags', 'target_with_source_flags'].includes(value.kind)
+    || !Array.isArray(value.argv)
+    || value.argv.length === 0
+    || value.argv.some((item) => !isNonEmptyString(item))
+    || !isNonEmptyString(value.display)
+  ) {
+    exitAgentWorkspaceError(`${label} is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
+  }
+}
+
 function assertArtifactRef(value, file, label) {
   assertPlainObject(value, file, label);
   if (!isNonEmptyString(value.role) || !isNonEmptyString(value.path)) {
@@ -177,6 +191,7 @@ export function readWorkspaceIndex(file, workspace, { optional = false } = {}) {
     ) {
       exitAgentWorkspaceError(`workspace index is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
     }
+    assertCaptureSource(snapshot.capture_source, file, 'workspace index snapshot capture source');
     assertPaths(snapshot.paths, file, 'workspace index snapshot paths');
   }
   return index;
@@ -202,6 +217,7 @@ export function readSnapshotRecord(file, workspace, snapshotIDValue) {
   ) {
     exitAgentWorkspaceError(`snapshot record id mismatch: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
   }
+  assertCaptureSource(snapshot.capture_source, file, 'snapshot capture source');
   assertPaths(snapshot.paths, file, 'snapshot record paths');
   assertStringArray(snapshot.omitted_from_compact_stdout, file, 'snapshot omitted payloads');
   assertStringArray(snapshot.known_limits, file, 'snapshot known limits');
@@ -227,6 +243,7 @@ function assertRefRecord(record, file, workspace, snapshotIDValue) {
   ) {
     exitAgentWorkspaceError(`ref record is schema-invalid: ${file}`, 'AGENT_WORKSPACE_STATE_CORRUPT', { path: file });
   }
+  assertCaptureSource(record.capture_source, file, 'ref capture source');
   assertStringArray(record.supported_actions, file, 'ref supported actions');
   assertStringArray(record.warnings, file, 'ref warnings');
   assertStringArray(record.known_limits, file, 'ref known limits');
@@ -318,6 +335,7 @@ function snapshotIndexEntry(snapshot) {
     created_at: snapshot.created_at,
     capture_mode: snapshot.capture_mode,
     capture_target: snapshot.capture_target,
+    ...(snapshot.capture_source ? { capture_source: snapshot.capture_source } : {}),
     target: snapshot.target,
     query: snapshot.query ?? null,
     ref_count: snapshot.ref_count,

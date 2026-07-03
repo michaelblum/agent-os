@@ -185,7 +185,7 @@ test('context glossary distinguishes saved refs from live target refs', async ()
   assert.match(context, /snapshot\/workspace\/conformance\/action-matrix data/);
   assert.match(aosApi, /Saved refs use `ref:<snapshot-id>:<ref-id>`/);
   assert.match(workspaceSchema, /Saved refs are scoped to a snapshot/);
-  assert.match(workspaceSchema, /originating capture target and mode/);
+  assert.match(workspaceSchema, /originating capture source and mode/);
   assert.doesNotMatch(workspaceSchema, /originating saved target/);
   assert.doesNotMatch(context, /Saved Ref[\s\S]{0,500}is the live wire form/);
 });

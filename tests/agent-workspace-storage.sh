@@ -50,6 +50,8 @@ jq -e '
   .status == "success"
   and .capture_mode == "ax"
   and .capture_target == "main"
+  and .capture_source.kind == "target"
+  and .capture_source.argv == ["main"]
   and .counts.files == 1
   and .counts.elements == 1
   and .counts.refs == 1
@@ -65,6 +67,30 @@ jq -e '
 [[ -f "$NATIVE_FILE_ARTIFACT" ]] || fail "native saved capture artifact missing: $NATIVE_FILE_ARTIFACT"
 assert_no_heavy_capture_payloads "$NATIVE_FILE_CAPTURE" "native saved capture output"
 
+REGION_SOURCE_CAPTURE="$TMP_DIR/region-source-capture.json"
+AOS_PATH="$NATIVE_FILE_AOS" node scripts/aos-see-native.mjs capture --region 0,0,10,10 --save --mode ax --workspace ws-region --name snapregion >"$REGION_SOURCE_CAPTURE"
+REGION_SOURCE_SNAPSHOT="$(jq -r '.paths.snapshot_record' "$REGION_SOURCE_CAPTURE")"
+jq -e '
+  .status == "success"
+  and .capture_target == "main"
+  and .capture_source.kind == "source_flags"
+  and .capture_source.argv == ["--region", "0,0,10,10"]
+  and .refs[0].capture_source.argv == ["--region", "0,0,10,10"]
+' "$REGION_SOURCE_CAPTURE" >/dev/null || fail "saved region source was not persisted in compact output: $(cat "$REGION_SOURCE_CAPTURE")"
+jq -e '
+  .capture_target == "main"
+  and .capture_source.kind == "source_flags"
+  and .capture_source.argv == ["--region", "0,0,10,10"]
+' "$REGION_SOURCE_SNAPSHOT" >/dev/null || fail "saved region source was not persisted in snapshot record: $(cat "$REGION_SOURCE_SNAPSHOT")"
+REGION_SOURCE_REFS="$TMP_DIR/region-source-refs.json"
+./aos see refs --workspace ws-region --snapshot snapregion --query 0,0,10,10 --json >"$REGION_SOURCE_REFS"
+jq -e '
+  .status == "success"
+  and .query == "0,0,10,10"
+  and (.refs | length) == 1
+  and .refs[0].capture_source.argv == ["--region", "0,0,10,10"]
+' "$REGION_SOURCE_REFS" >/dev/null || fail "source-flag ref query did not match capture_source: $(cat "$REGION_SOURCE_REFS")"
+
 CAP1="$TMP_DIR/capture-snap1.json"
 ./aos see capture browser:todo --save --mode ax --workspace ws1 --name snap1 --query button >"$CAP1"
 jq -e '
@@ -75,6 +101,8 @@ jq -e '
   and .runtime_mode == "repo"
   and .capture_mode == "ax"
   and .capture_target == "browser:todo"
+  and .capture_source.kind == "target"
+  and .capture_source.argv == ["browser:todo"]
   and .target == "browser:todo"
   and .query == "button"
   and .counts.files == 0
@@ -87,6 +115,7 @@ jq -e '
   and .refs[0].workspace_id == "ws1"
   and .refs[0].snapshot_id == "snap1"
   and .refs[0].capture_target == "browser:todo"
+  and .refs[0].capture_source.argv == ["browser:todo"]
   and .refs[0].capture_mode == "ax"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
@@ -121,6 +150,7 @@ jq -e '
     and .workspace_id == "ws1"
     and .snapshot_id == "snap1"
     and .capture_target == "browser:todo"
+    and .capture_source.argv == ["browser:todo"]
     and .capture_mode == "ax"
     and (.supported_actions | type == "array")
     and (.identity_facts | has("state_id"))
@@ -173,6 +203,8 @@ jq -e '.workspace_id == "ws1" and .snapshot_id == "snap1" and .snapshot_record =
     || fail "committed marker shape drifted: $(cat "$COMMIT_MARKER")"
 jq -e '.query == "button"' "$SNAPSHOT_RECORD_PATH" >/dev/null \
     || fail "snapshot record omitted saved query: $(cat "$SNAPSHOT_RECORD_PATH")"
+jq -e '.capture_source.argv == ["browser:todo"]' "$SNAPSHOT_RECORD_PATH" >/dev/null \
+    || fail "snapshot record omitted saved capture source: $(cat "$SNAPSHOT_RECORD_PATH")"
 jq -e 'has("current_snapshot_id") | not' "$WORKSPACE_PATH/workspace.json" >/dev/null \
     || fail "workspace metadata must not own current_snapshot_id"
 jq -e '.current_snapshot_id == "snap1" and (.snapshots | length) == 1' "$WORKSPACE_PATH/index.json" >/dev/null \
@@ -180,6 +212,7 @@ jq -e '.current_snapshot_id == "snap1" and (.snapshots | length) == 1' "$WORKSPA
 jq -e '
   .snapshots[0].snapshot_id == "snap1"
   and .snapshots[0].capture_target == "browser:todo"
+  and .snapshots[0].capture_source.argv == ["browser:todo"]
   and .snapshots[0].target == "browser:todo"
   and .snapshots[0].query == "button"
 ' "$WORKSPACE_PATH/index.json" >/dev/null || fail "workspace index omitted compact target/query readback: $(cat "$WORKSPACE_PATH/index.json")"
@@ -257,6 +290,7 @@ jq -e '
     and .workspace_id == "ws1"
     and .snapshot_id == "snap1"
     and .capture_target == "browser:todo"
+    and .capture_source.argv == ["browser:todo"]
     and .capture_mode == "ax"
     and (.supported_actions | type == "array")
     and (.identity_facts | has("state_id"))

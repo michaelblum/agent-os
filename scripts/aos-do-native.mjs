@@ -71,6 +71,24 @@ function flagIndexes(args, flag) {
     .filter((index) => index !== null);
 }
 
+function firstPositionalArg(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg.startsWith('--')) {
+      if (valueFlags.has(arg)) i += 1;
+      continue;
+    }
+    return arg;
+  }
+  return null;
+}
+
+function rejectFlags(args, flags) {
+  for (const flag of flags) {
+    if (flagPresence(args, flag)) unknownArg(flag);
+  }
+}
+
 function requireFlag(args, flag, message, validator = (value) => Boolean(value)) {
   const value = flagValue(args, flag);
   if (!validator(value)) error(message, 'MISSING_ARG');
@@ -143,6 +161,11 @@ function normalizeSetValueArgs(args) {
 }
 
 function validate(verb, args) {
+  if (verb !== 'drag') {
+    rejectFlags(args, ['--by', '--to-value', '--playback']);
+  } else if (!firstPositionalArg(args)?.startsWith('canvas:')) {
+    rejectFlags(args, ['--by', '--to-value', '--playback']);
+  }
   const pos = positionalArgs(args);
   validateFlagTypes(args);
   switch (verb) {
@@ -171,9 +194,6 @@ function validate(verb, args) {
         }
         break;
       }
-      if (flagPresence(args, '--by')) unknownArg('--by');
-      if (flagPresence(args, '--to-value')) unknownArg('--to-value');
-      if (flagPresence(args, '--playback')) unknownArg('--playback');
       if (!(pos.length >= 2 && isCoord(pos[0]) && isCoord(pos[1]))) error('drag requires two coordinate pairs (x1,y1 x2,y2)', 'MISSING_ARG');
       if (pos.length > 2) unknownArg(pos[2]);
       break;

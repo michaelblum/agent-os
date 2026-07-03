@@ -42,6 +42,7 @@ function snapshotID(explicit) {
 }
 
 const WORKSPACE_CAPTURE_VALUE_FLAGS = new Set(['--workspace', '--name', '--mode', '--query']);
+const CAPTURE_SOURCE_VALUE_FLAGS = new Set(['--region', '--canvas', '--channel']);
 const PRIMITIVE_CAPTURE_VALUE_ARITY = new Map([
   ['--out', 1],
   ['--crop', 1],
@@ -98,11 +99,30 @@ function setOrAppendFlag(args, flag, value) {
   return out;
 }
 
+function captureSourceModel(targetArgv, sourceFlagArgv) {
+  const argv = [
+    ...(targetArgv ?? []),
+    ...sourceFlagArgv,
+  ];
+  const normalizedArgv = argv.length > 0 ? argv : ['main'];
+  let kind = 'default_target';
+  if (sourceFlagArgv.length > 0 && targetArgv?.length > 0) kind = 'target_with_source_flags';
+  else if (sourceFlagArgv.length > 0) kind = 'source_flags';
+  else if (targetArgv?.length > 0) kind = 'target';
+  return {
+    kind,
+    argv: normalizedArgv,
+    display: normalizedArgv.map(commandToken).join(' '),
+  };
+}
+
 export function parseCaptureArgs(args) {
   const passthrough = [];
+  const sourceFlagArgv = [];
   const seen = new Set();
   const errors = [];
   let target = null;
+  let targetArgv = null;
   const options = {
     save: false,
     workspace: null,
@@ -151,12 +171,15 @@ export function parseCaptureArgs(args) {
       seen.add(arg);
       passthrough.push(arg);
       const arity = PRIMITIVE_CAPTURE_VALUE_ARITY.get(arg);
+      const values = [];
       for (let consumed = 0; consumed < arity && i + 1 < args.length && !args[i + 1].startsWith('--'); consumed += 1) {
         const value = args[i + 1];
         if (arg === '--out' && consumed === 0) options.requested_out = value;
         passthrough.push(value);
+        values.push(value);
         i += 1;
       }
+      if (CAPTURE_SOURCE_VALUE_FLAGS.has(arg)) sourceFlagArgv.push(arg, ...values);
       continue;
     }
     if (arg.startsWith('--')) {
@@ -166,9 +189,11 @@ export function parseCaptureArgs(args) {
     passthrough.push(arg);
     if (target) continue;
     target = arg;
+    targetArgv = [arg];
     if (arg === 'external' && i + 1 < args.length && !args[i + 1].startsWith('--') && /^\d+$/.test(args[i + 1])) {
       target = `${arg} ${args[i + 1]}`;
       passthrough.push(args[i + 1]);
+      targetArgv.push(args[i + 1]);
       i += 1;
     }
   }
@@ -186,6 +211,7 @@ export function parseCaptureArgs(args) {
   if (options.name) validateLocalID(options.name, 'snapshot id');
   return {
     target: target ?? 'main',
+    capture_source: captureSourceModel(targetArgv, sourceFlagArgv),
     passthrough,
     options,
     requested_out: options.requested_out,
@@ -338,6 +364,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
   const workspace = workspaceID(parsed.options.workspace, env);
   const snapID = snapshotID(parsed.options.name);
   const target = parsed.target;
+  const captureSource = parsed.capture_source;
   return withWorkspaceLock(workspace, () => {
     let prepared = null;
 
@@ -372,6 +399,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         snapshot_id: snapID,
         target,
         capture_target: target,
+        capture_source: captureSource,
         capture_mode: parsed.options.mode,
         query: parsed.options.query,
         artifact_refs: artifactRefs,
@@ -388,6 +416,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         runtime_mode: runtimeMode(env),
         capture_mode: parsed.options.mode,
         capture_target: target,
+        capture_source: captureSource,
         ref_scope_grammar: 'scoped refs are ref:<snapshot-id>:<ref>; bare ref:<ref> resolves only when unambiguous in the workspace',
         target,
         query: parsed.options.query,
@@ -408,6 +437,7 @@ export async function savedCaptureCommand(rawArgs, parsed = parseSavedCaptureArg
         runtime_mode: runtimeMode(env),
         capture_mode: parsed.options.mode,
         capture_target: target,
+        capture_source: captureSource,
         target,
         query: parsed.options.query,
         state_id: capture.state_id ?? null,

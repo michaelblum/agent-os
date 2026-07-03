@@ -27,6 +27,8 @@ import {
   SAVED_REF_V0_ACTIONS_BY_BACKEND,
   savedRefBackendSupportsRealMutation,
 } from './scripts/lib/agent-workspace/contracts.mjs';
+import { parseCaptureArgs } from './scripts/lib/agent-workspace/capture.mjs';
+import { recommendedRefreshCommand } from './scripts/lib/agent-workspace/ref-action-resolution.mjs';
 import { workspaceID } from './scripts/lib/agent-workspace/core.mjs';
 
 const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0.schema.json', 'utf8'));
@@ -49,6 +51,11 @@ const workspaceIndexSnapshotRequired = defs.workspace_index.properties.snapshots
 assert.ok(workspaceIndexSnapshotRequired.includes('capture_target'), 'workspace index snapshots must expose compact capture target readback');
 assert.ok(workspaceIndexSnapshotRequired.includes('query'), 'workspace index snapshots must expose compact saved query readback');
 assert.ok(defs.snapshot_record.required.includes('query'), 'snapshot records must persist nullable saved query readback');
+assert.ok(defs.capture_source, 'schema must describe durable saved capture source argv');
+assert.ok(defs.ref_summary.properties.capture_source, 'ref summaries must allow compact capture source readback');
+assert.ok(defs.summary.properties.capture_source, 'saved capture summaries must allow compact capture source readback');
+assert.ok(defs.snapshot_record.properties.capture_source, 'snapshot records must allow compact capture source readback');
+assert.ok(defs.workspace_index.properties.snapshots.items.properties.capture_source, 'workspace index snapshots must allow compact capture source readback');
 assert.equal(workspaceID(null, {}), 'default', 'workspace fallback must be command-local default');
 assert.equal(workspaceID(undefined, { AOS_AGENT_WORKSPACE: 'env-ws' }), 'env-ws', 'AOS_AGENT_WORKSPACE must supply command-local workspace default');
 assert.equal(workspaceID('flag-ws', { AOS_AGENT_WORKSPACE: 'env-ws' }), 'flag-ws', '--workspace must override AOS_AGENT_WORKSPACE');
@@ -348,6 +355,7 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('confidence: low'), 'docs/skill must describe low-confidence saved refs');
   assert.ok(text.includes('low_confidence_target'), 'docs/skill must name low-confidence refusal reason');
   assert.ok(text.includes('capture_target'), 'docs/skill must describe compact snapshot capture_target readback');
+  assert.ok(text.includes('capture_source'), 'docs/skill must describe compact capture_source readback');
   assert.ok(text.includes('query'), 'docs/skill must describe compact saved query readback');
   assert.ok(text.includes('blocked_missing_native_identity'), 'docs/skill must name the native missing-identity blocker');
   assert.ok(text.includes('blocked_unsupported_native_action'), 'docs/skill must name the native unsupported-action blocker');
@@ -403,10 +411,13 @@ assert.ok(
 );
 assert.ok(
   apiDoc.includes('Saved capture uses the same capture-source contract as ordinary capture')
+  && apiDoc.includes('capture defaults to `main`')
   && apiDoc.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`')
   && skill.includes('A saved capture source can be a positional target')
+  && skill.includes('capture defaults to')
+  && schemaDoc.includes('or the default `main` target when no')
   && skill.includes('`--region <rect>`, `--canvas <id>`, or `--channel <id>`'),
-  'API doc and workspace skill must describe saved capture source alternatives',
+  'API doc, schema doc, and workspace skill must describe saved capture source alternatives and default main behavior',
 );
 assert.ok(
   skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run') >= 0
@@ -491,11 +502,44 @@ assert.equal(captureForm.output.default_mode, 'json', 'ordinary capture form mus
 assert.equal(captureForm.output.conditional_modes, undefined, 'ordinary capture form must not describe --save as a different output mode');
 assert.equal(captureSaveForm.execution.mutates_state, true, 'saved capture form must be mutating');
 assert.equal(captureSaveForm.execution.read_only, false, 'saved capture form must not be read-only');
-const captureSourceGroup = (form) => form.constraints?.required_groups?.find((group) => group.summary === 'capture source');
-assert.deepEqual(captureSourceGroup(captureForm)?.one_of, [['target'], ['region'], ['canvas'], ['channel']], 'ordinary capture form must expose all capture source alternatives');
-assert.deepEqual(captureSourceGroup(captureSaveForm)?.one_of, [['target'], ['region'], ['canvas'], ['channel']], 'saved capture form must expose all capture source alternatives');
+assert.deepEqual(captureForm.constraints?.required_groups, undefined, 'ordinary capture form must not require a source because the parser defaults to main');
+assert.deepEqual(captureSaveForm.constraints?.required_groups, undefined, 'saved capture form must not require a source because the parser defaults to main');
 assert.equal(captureForm.args.find((arg) => arg.id === 'target')?.required, false, 'ordinary capture target must not be unconditionally required');
 assert.equal(captureSaveForm.args.find((arg) => arg.id === 'target')?.required, false, 'saved capture target must not be unconditionally required');
+assert.equal(captureForm.args.find((arg) => arg.id === 'target')?.default_value, 'main', 'ordinary capture target must document the parser default');
+assert.equal(captureSaveForm.args.find((arg) => arg.id === 'target')?.default_value, 'main', 'saved capture target must document the parser default');
+assert.equal(parseCaptureArgs([]).target, 'main', 'capture parser must keep no-source default aligned with help metadata');
+assert.equal(parseCaptureArgs(['--save']).target, 'main', 'saved capture parser must keep no-source default aligned with help metadata');
+assert.deepEqual(parseCaptureArgs([]).capture_source, {
+  kind: 'default_target',
+  argv: ['main'],
+  display: 'main',
+}, 'capture parser must expose reconstructable default source argv');
+const parsedCanvasSave = parseCaptureArgs(['--canvas', 'surface-inspector', '--save', '--mode', 'som', '--workspace', 'default']);
+assert.equal(parsedCanvasSave.target, 'main', 'source-flag capture keeps legacy target fallback for compatibility');
+assert.deepEqual(parsedCanvasSave.capture_source, {
+  kind: 'source_flags',
+  argv: ['--canvas', 'surface-inspector'],
+  display: '--canvas surface-inspector',
+}, 'source-flag capture must persist reconstructable source argv');
+assert.equal(
+  recommendedRefreshCommand('default', {
+    capture_target: 'main',
+    capture_source: parsedCanvasSave.capture_source,
+    capture_mode: 'som',
+  }),
+  'aos see capture --canvas surface-inspector --save --workspace default --mode som',
+  'refresh recommendations must reconstruct source-flag captures from capture_source.argv',
+);
+assert.equal(
+  recommendedRefreshCommand('default', {
+    capture_target: 'browser:todo',
+    capture_mode: 'ax',
+    query: 'Save button',
+  }),
+  "aos see capture browser:todo --save --workspace default --mode ax --query 'Save button'",
+  'legacy records without capture_source must still fall back to capture_target',
+);
 assert.ok(captureSaveForm.usage.includes('--region <rect>'), 'saved capture usage must advertise region source');
 assert.ok(captureSaveForm.usage.includes('--canvas <id>'), 'saved capture usage must advertise canvas source');
 assert.ok(captureSaveForm.usage.includes('--channel <id>'), 'saved capture usage must advertise channel source');

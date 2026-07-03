@@ -16,15 +16,24 @@ function captureTargetToken(value) {
   return commandToken(text);
 }
 
-export function recommendedRefreshCommand(workspace, record = null) {
+function captureSourceToken(record = null) {
+  const sourceArgv = record?.capture_source?.argv;
+  if (Array.isArray(sourceArgv) && sourceArgv.length > 0) {
+    return sourceArgv.map(commandToken).join(' ');
+  }
   const target = record?.capture_target;
+  return target ? captureTargetToken(target) : null;
+}
+
+export function recommendedRefreshCommand(workspace, record = null) {
+  const source = captureSourceToken(record);
   const mode = record?.capture_mode;
-  if (!target || !mode) return null;
+  if (!source || !mode) return null;
   return [
     'aos',
     'see',
     'capture',
-    captureTargetToken(target),
+    source,
     '--save',
     '--workspace',
     commandToken(workspace),

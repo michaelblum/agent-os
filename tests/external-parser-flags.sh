@@ -155,6 +155,12 @@ check_unknown_flag do-profiles-root ./aos do profiles --bogus
 check_unknown_flag do-profiles ./aos do profiles natural --bogus
 check_unknown_arg do-profiles-list-extra ./aos do profiles list unexpected
 check_unknown_flag do-native-click ./aos do click 10,10 --bogus
+check_unknown_flag do-native-click-by-flag ./aos do click 10,10 --by 1,1 --dry-run
+check_unknown_flag do-native-click-by-invalid-flag ./aos do click 10,10 --by nope --dry-run
+check_unknown_flag do-native-click-to-value-flag ./aos do click 10,10 --to-value 0.7 --dry-run
+check_unknown_flag do-native-click-to-value-invalid-flag ./aos do click 10,10 --to-value nope --dry-run
+check_unknown_flag do-native-click-playback-flag ./aos do click 10,10 --playback human --dry-run
+check_unknown_flag do-native-click-playback-invalid-flag ./aos do click 10,10 --playback robot --dry-run
 check_unknown_arg do-native-click-extra ./aos do click 10,10 unexpected --dry-run
 err="$STATE_ROOT/do-native-scroll-dx-missing.err"
 if ./aos do scroll 10,10 --dx --dy 1 --dry-run 2>"$err"; then
@@ -168,6 +174,7 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
 fi
 check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dry-run
 check_unknown_flag do-native-drag-by-flag ./aos do drag 10,10 20,20 --by 1,1 --dry-run
+check_unknown_flag do-native-drag-by-invalid-flag ./aos do drag 10,10 20,20 --by nope --dry-run
 check_unknown_flag do-native-drag-to-value-flag ./aos do drag 10,10 20,20 --to-value 0.7 --dry-run
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
@@ -276,12 +283,18 @@ const parsed = parseCaptureArgs(['main', '--format', 'jpeg']);
 assert.deepEqual(parsed.errors, [], 'workspace capture parser must delegate primitive --format jpeg grammar to Swift');
 assert.deepEqual(parsed.passthrough, ['main', '--format', 'jpeg']);
 assert.equal(parsed.target, 'main');
+assert.deepEqual(parsed.capture_source, { kind: 'target', argv: ['main'], display: 'main' });
 
 const savedRegion = parseCaptureArgs(['--region', '0,0,10,10', '--save', '--workspace', 'parser-ws', '--name', 'snap-region']);
 assert.deepEqual(savedRegion.errors, [], 'saved capture parser must accept a region source without a positional target');
 assert.equal(savedRegion.target, 'main');
 assert.equal(savedRegion.options.save, true);
 assert.deepEqual(savedRegion.passthrough, ['--region', '0,0,10,10']);
+assert.deepEqual(savedRegion.capture_source, {
+  kind: 'source_flags',
+  argv: ['--region', '0,0,10,10'],
+  display: '--region 0,0,10,10',
+});
 
 const { readFileSync } = await import('node:fs');
 const help = JSON.parse(readFileSync('./manifests/commands/aos-commands.json', 'utf8'));

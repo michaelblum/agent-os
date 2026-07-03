@@ -67,6 +67,16 @@ drift tests before public use.
 schema validates the saved workspace files around that payload, not every
 primitive capture field.
 
+## Capture Source
+
+Saved capture uses the same source contract as ordinary capture: a positional
+target such as `browser:work`, a source flag such as `--region <rect>`,
+`--canvas <id>`, or `--channel <id>`, or the default `main` target when no
+source is supplied. New saved captures persist a compact `capture_source`
+object with `kind`, `argv`, and `display`; `argv` is the reconstructable source
+argument vector used by post-action refresh recommendations. Older v0 records
+without `capture_source` fall back to `capture_target`.
+
 ## Capture Modes
 
 `aos see capture --save` supports these explicit modes:
@@ -78,16 +88,16 @@ primitive capture field.
 - `som`: screen-object mode. This slice uses xray-backed refs where available
   and records the same limits as the originating backend.
 
-Compact stdout includes `capture_mode`, `capture_target`, `runtime_mode`,
-`state_id`, counts, artifact refs, compact refs, omitted heavy payload classes,
-and known limits. It must not include full `elements`, `semantic_targets`,
-`perceptions`, or base64 payloads.
+Compact stdout includes `capture_mode`, `capture_source`, `capture_target`,
+`runtime_mode`, `state_id`, counts, artifact refs, compact refs, omitted heavy
+payload classes, and known limits. It must not include full `elements`,
+`semantic_targets`, `perceptions`, or base64 payloads.
 
 `aos see snapshots` and workspace `index_health.current_snapshot` expose compact
 snapshot discovery fields: `snapshot_id`, `created_at`, `capture_mode`,
-`capture_target`, `target`, `query`, ref/artifact counts, and file paths. These
-readbacks are enough to choose a saved snapshot or recover the saved query
-without opening `capture.json` or other heavy payload files.
+`capture_source`, `capture_target`, `target`, `query`, ref/artifact counts, and
+file paths. These readbacks are enough to choose a saved snapshot or recover the
+saved source/query without opening `capture.json` or other heavy payload files.
 Each committed `snapshot.json` record stores `query` as a nullable field, and
 the workspace index derives its compact query readback from that durable record.
 
@@ -115,7 +125,7 @@ Each saved ref records:
 - `resolution_class`: `reacquirable`, `snapshot_scoped`, `volatile`,
   `coordinate_fallback`, `stable`, or `unsupported`.
 - `confidence`: `high`, `medium`, or `low`.
-- `ref_scope`, `workspace_id`, `snapshot_id`, `capture_target`,
+- `ref_scope`, `workspace_id`, `snapshot_id`, `capture_source`, `capture_target`,
   `capture_mode`, `supported_actions`, `warnings`, `known_limits`,
   `identity_facts`, `hint_facts`, `current_address`, `artifact_refs`, and
   `conformance`.
@@ -201,10 +211,10 @@ verification step. After a dry-run returns a safe status such as `reacquired`,
 `resolved`, or `direct_ax_ready`, dispatch by rerunning the exact saved-ref
 command without `--dry-run`; do not remove `--dry-run` for
 validation-required, blocked, unsupported, or low-confidence refs. Refresh
-recommendations point back to the originating capture target and mode:
+recommendations point back to the originating capture source and mode:
 
 ```bash
-aos see capture <capture_target> --save --workspace <workspace> --mode <capture_mode>
+aos see capture <capture_source...> --save --workspace <workspace> --mode <capture_mode>
 ```
 
 When the originating saved capture stored a query, the recommendation carries

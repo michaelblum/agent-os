@@ -143,8 +143,8 @@ Typical consumer loop:
 
 1. Save compact perception with `aos see capture --save`.
 2. Read compact snapshots with `aos see snapshots` when choosing prior saved
-   state; snapshot entries include `capture_target`, `target`, and saved
-   `query` without opening heavy payloads.
+   state; snapshot entries include `capture_source`, `capture_target`,
+   `target`, and saved `query` without opening heavy payloads.
 3. Read compact refs with `aos see refs`.
 4. Dry-run the saved-ref action and inspect `resolution_status`.
 5. Dispatch only if the ref validates or reacquires.
@@ -153,14 +153,17 @@ Typical consumer loop:
 
 Saved capture uses the same capture-source contract as ordinary capture: supply
 a positional target such as `browser:work` or a source flag such as
-`--region <rect>`, `--canvas <id>`, or `--channel <id>`. `--save` is the
-mutation switch that persists local workspace state.
+`--region <rect>`, `--canvas <id>`, or `--channel <id>`. If no positional target
+or source flag is supplied, capture defaults to `main`. `--save` is the mutation
+switch that persists local workspace state. New saved captures persist compact
+`capture_source.argv` so post-action refresh recommendations can reconstruct
+the original positional or source-flag capture scope.
 
 Saved agent workspaces live under
 `~/.config/aos/{repo|installed}/agent-workspaces/<workspace>/`, or
 `$AOS_STATE_ROOT/{repo|installed}/agent-workspaces/<workspace>/` when the state
 root is overridden. Compact stdout includes counts, artifact refs, compact refs,
-`capture_target`, `capture_mode`, resolution classes, backend confidence,
+`capture_source`, `capture_target`, `capture_mode`, resolution classes, backend confidence,
 identity facts, hint facts, current address facts, warnings, known limits, and
 structured `conformance` including native `no_foreground` claim fields and
 `target_uncertainty`, plus file paths.

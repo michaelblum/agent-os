@@ -82,8 +82,34 @@ else
     SWIFTC_FLAGS=(-parse-as-library -Onone -o "$OUTPUT_PATH" -lsqlite3)
 fi
 
-INPUTS=("$REPO_ROOT/build.sh" "${SOURCES[@]}" "${SHARED_IPC[@]}")
+codesign_available() {
+    command -v codesign >/dev/null 2>&1
+}
+
+signature_valid() {
+    if ! codesign_available; then
+        return 0
+    fi
+    codesign --verify "$OUTPUT_PATH" >/dev/null 2>&1
+}
+
+sign_output() {
+    if codesign_available; then
+        if ! CODESIGN_OUTPUT="$(codesign --force --sign - "$OUTPUT_PATH" 2>&1)"; then
+            printf '%s\n' "$CODESIGN_OUTPUT" >&2
+            exit 1
+        fi
+    fi
+}
+
+INPUTS=("$REPO_ROOT/build.sh" "${SOURCES[@]}")
+SWIFT_INPUTS=("${SOURCES[@]}")
+if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
+    INPUTS+=("${SHARED_IPC[@]}")
+    SWIFT_INPUTS+=("${SHARED_IPC[@]}")
+fi
 NEEDS_BUILD=1
+NEEDS_SIGN=0
 
 if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
     LAST_MODE="$(cat "$MODE_FILE")"
@@ -95,22 +121,24 @@ if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
                 break
             fi
         done
+        if [[ $NEEDS_BUILD -eq 0 ]] && ! signature_valid; then
+            NEEDS_SIGN=1
+        fi
     fi
 fi
 
-if [[ $NEEDS_BUILD -eq 0 ]]; then
+if [[ $NEEDS_BUILD -eq 0 && $NEEDS_SIGN -eq 0 ]]; then
     echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
     exit 0
 fi
 
-echo "Compiling aos ($BUILD_MODE)..."
-swiftc "${SWIFTC_FLAGS[@]}" "${SOURCES[@]}" "${SHARED_IPC[@]}"
-if command -v codesign >/dev/null 2>&1; then
-    if ! CODESIGN_OUTPUT="$(codesign --force --sign - "$OUTPUT_PATH" 2>&1)"; then
-        printf '%s\n' "$CODESIGN_OUTPUT" >&2
-        exit 1
-    fi
+if [[ $NEEDS_BUILD -eq 1 ]]; then
+    echo "Compiling aos ($BUILD_MODE)..."
+    swiftc "${SWIFTC_FLAGS[@]}" "${SWIFT_INPUTS[@]}"
+else
+    echo "Signing aos ($BUILD_MODE)..."
 fi
+sign_output
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"

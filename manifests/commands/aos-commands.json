@@ -250,6 +250,7 @@
         {
           "args" : [
             {
+              "default_value" : "main",
               "discovery" : [
                 {
                   "static" : [
@@ -274,7 +275,7 @@
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Capture target",
+              "summary" : "Capture target; defaults to main when omitted",
               "value_type" : "string"
             },
             {
@@ -591,26 +592,7 @@
               "label" : [
                 "xray"
               ]
-            },
-            "required_groups" : [
-              {
-                "one_of" : [
-                  [
-                    "target"
-                  ],
-                  [
-                    "region"
-                  ],
-                  [
-                    "canvas"
-                  ],
-                  [
-                    "channel"
-                  ]
-                ],
-                "summary" : "capture source"
-              }
-            ]
+            }
           },
           "examples" : [
             "aos see capture browser:work --save --mode som --workspace default",
@@ -643,15 +625,16 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos see capture <target> [options]"
+          "usage" : "aos see capture [<target>] [options]"
         },
         {
           "args" : [
             {
+              "default_value" : "main",
               "id" : "target",
               "kind" : "positional",
               "required" : false,
-              "summary" : "Capture target to persist into an agent workspace",
+              "summary" : "Capture target to persist into an agent workspace; defaults to main when omitted",
               "value_type" : "string"
             },
             {
@@ -742,25 +725,6 @@
                 "canvas",
                 "channel"
               ]
-            ],
-            "required_groups" : [
-              {
-                "one_of" : [
-                  [
-                    "target"
-                  ],
-                  [
-                    "region"
-                  ],
-                  [
-                    "canvas"
-                  ],
-                  [
-                    "channel"
-                  ]
-                ],
-                "summary" : "capture source"
-              }
             ]
           },
           "examples" : [
