@@ -413,6 +413,9 @@ const doNativeDragForm = doCommand.forms.find((form) => form.id === 'do-drag-nat
 assert.ok(doDragForm, 'manifest missing saved-ref/browser do-drag form');
 assert.ok(doCanvasDragForm, 'manifest missing direct canvas do-drag form');
 assert.ok(doNativeDragForm, 'manifest missing native coordinate do-drag form');
+assert.ok(apiDoc.includes('| `click` | click coordinates, saved refs, direct browser targets, or AOS canvas semantic refs |'), 'API do table must name saved refs and direct browser targets for click');
+assert.ok(apiDoc.includes('| `drag` | saved/browser two-endpoint drag, direct canvas semantic drag (`--by` / `--to-value`), or native coordinate drag |'), 'API do table must split drag grammar tiers');
+assert.ok(!apiDoc.includes('| `drag` | drag between coordinates, browser refs, or AOS canvas semantic refs |'), 'API do table must not collapse drag grammar tiers');
 assert.ok(!doDragForm.usage.includes('--speed'), 'saved-ref drag usage must not advertise native-only --speed');
 assert.ok(!doDragForm.args.some((arg) => arg.token === '--speed'), 'saved-ref drag args must not advertise native-only --speed');
 assert.ok(!doDragForm.usage.includes('--by'), 'saved-ref drag usage must not advertise direct-canvas --by');
