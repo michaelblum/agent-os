@@ -275,6 +275,26 @@ test('saved-ref do targets are routed before backend wrappers', async () => {
   }
 });
 
+test('direct browser do targets route to browser wrappers instead of native fallbacks', async () => {
+  const manifest = await loadJson(manifestPath);
+  const directBrowserActions = ['click', 'hover', 'drag', 'scroll', 'type', 'key'];
+
+  for (const action of directBrowserActions) {
+    const routes = manifest.commands.filter((command) => command.path.join(' ') === `do ${action}`);
+    const browserRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-browser.mjs ${action}`);
+    const nativeRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-native.mjs ${action}`);
+    const refRoute = routes.find((command) => command.argv_prefix.join(' ') === `node scripts/aos-do-ref.mjs ${action}`);
+    const args = ['do', action, 'browser:work/ref-save'];
+
+    assert.ok(browserRoute, `do ${action} missing direct browser route`);
+    assert.equal(browserRoute.when?.child_arg_index, 0, `do ${action} browser route must inspect first target`);
+    assert.equal(browserRoute.when?.prefix, 'browser:', `do ${action} browser route must own browser: targets`);
+    assert.equal(externalRouteMatches(browserRoute, args), true, `do ${action} browser: target must match browser wrapper`);
+    assert.equal(externalRouteMatches(nativeRoute, args), false, `do ${action} browser: target must not match native wrapper`);
+    assert.equal(externalRouteMatches(refRoute, args), false, `do ${action} browser: target must not match saved-ref wrapper`);
+  }
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
