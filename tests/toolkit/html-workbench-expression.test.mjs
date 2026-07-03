@@ -167,6 +167,47 @@ test('Markdown work-card adapter emits safe HTML, metadata, semantic targets, an
   );
 });
 
+test('Markdown adapter ignores headings inside fenced code blocks', () => {
+  const expression = buildMarkdownWorkCardHtmlExpression({
+    markdown: `# Goal
+
+\`\`\`bash
+# not a section
+echo ok
+\`\`\`
+
+## Verification
+
+- [ ] Run the proof.
+`,
+    sourcePath: 'docs/design/work-cards/fenced-heading.md',
+    generatedAt: '2026-05-10T00:00:00.000Z',
+  });
+  const sectionLabels = expression.metadata.semantic_targets
+    .filter((target) => ['section', 'verification'].includes(target.kind))
+    .map((target) => target.name);
+
+  assert.deepEqual(sectionLabels, ['Goal', 'Verification']);
+  assert.equal(
+    expression.metadata.semantic_targets.some((target) => target.name === 'not a section'),
+    false,
+  );
+  assert.match(expression.html, /# not a section/);
+});
+
+test('Markdown adapter embeds metadata as parseable script JSON', () => {
+  const expression = buildMarkdownWorkCardHtmlExpression({
+    markdown: '# Parseable Metadata\n',
+    sourcePath: 'docs/design/work-cards/parseable-</script>-metadata.md',
+    generatedAt: '2026-05-10T00:00:00.000Z',
+  });
+  const match = expression.html.match(/<script type="application\/json" id="aos-html-workbench-expression-metadata">([\s\S]*?)<\/script>/);
+
+  assert.ok(match, expression.html);
+  assert.doesNotMatch(match[1], /&quot;|&lt;|<\/script>/);
+  assert.deepEqual(JSON.parse(match[1]), expression.metadata);
+});
+
 test('Markdown adapter narrowly supports human alignment pack expressions', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,

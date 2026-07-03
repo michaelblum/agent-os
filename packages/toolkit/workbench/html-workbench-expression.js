@@ -77,8 +77,15 @@ function normalizeLine(value, fallback = 1) {
 
 function headingBlocks(lines) {
   const headings = [];
+  let fenced = false;
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(lines[index]);
+    const line = lines[index];
+    if (/^```\s*([a-zA-Z0-9_-]+)?\s*$/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
     if (!match) continue;
     headings.push({
       level: match[1].length,
@@ -93,6 +100,13 @@ function headingBlocks(lines) {
     current.end_line = next ? next.start_line - 1 : lines.length;
   }
   return headings;
+}
+
+function scriptJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 function codeBlocks(lines) {
@@ -456,7 +470,7 @@ export function buildMarkdownWorkCardHtmlExpression({
     bodyHtml,
     '</article>',
     '</main>',
-    `<script type="application/json" id="aos-html-workbench-expression-metadata">${escHtml(JSON.stringify(metadata))}</script>`,
+    `<script type="application/json" id="aos-html-workbench-expression-metadata">${scriptJson(metadata)}</script>`,
     '</body>',
     '</html>',
   ].join('\n');
