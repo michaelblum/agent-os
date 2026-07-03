@@ -17,7 +17,14 @@ class ContentServer {
     init(config: AosConfig.ContentConfig?, repoRoot: String?, stateDir: String? = nil) {
         self.stateDir = stateDir
         let cfg = config ?? AosConfig.ContentConfig(port: 0, roots: [:])
-        self.port = cfg.port == 0 ? .any : NWEndpoint.Port(rawValue: UInt16(cfg.port))!
+        if cfg.port == 0 {
+            self.port = .any
+        } else if let rawPort = UInt16(exactly: cfg.port), let configuredPort = NWEndpoint.Port(rawValue: rawPort) {
+            self.port = configuredPort
+        } else {
+            fputs("Warning: invalid content.port \(cfg.port); using OS-assigned port\n", stderr)
+            self.port = .any
+        }
 
         // Resolve root paths: relative paths resolve against repo root
         var resolved: [String: String] = [:]
