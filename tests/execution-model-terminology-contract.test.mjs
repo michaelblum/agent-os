@@ -97,6 +97,7 @@ test('current code and docs use Step Descriptor instead of Playbook Step substra
 test('grand unification plan keeps Work Records and verifier reports as harness obligations', async () => {
   const plan = await text('docs/design/aos-grand-unification-plan.md');
   const context = await text('CONTEXT.md');
+  const workRecords = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
 
   assert.match(plan, /### Phase 6: Browser Step Evidence And Workflow-Gated Runs/);
@@ -109,11 +110,16 @@ test('grand unification plan keeps Work Records and verifier reports as harness 
   assert.match(plan, /derived indexes: `verified`, `failed`, `unverified`/);
   assert.match(context, /now treats browser runs as\s+Workflow-gated step evidence/);
   assert.match(context, /use\s+`claim_results\[\]` as the source of truth/);
+  assert.match(workRecords, /Workflow-gated step\/evidence\s+bridge/);
+  assert.match(workRecords, /Work Records and verifier reports\s+are harness obligations around the run/);
+  assert.match(workRecords, /Playbooks remain method guidance rather than the execution substrate/);
   assert.match(adr, /neutral V0 sketch for one Workflow-gated step\/evidence bridge/);
   assert.doesNotMatch(plan, /### Phase 6: Browser Playbooks/);
   assert.doesNotMatch(plan, /A playbook step is/);
   assert.doesNotMatch(plan, /save a work record/);
   assert.doesNotMatch(plan, /run verifier report/);
+  assert.doesNotMatch(workRecords, /Playbook-step substrate/);
+  assert.doesNotMatch(workRecords, /future Playbook harness/);
   assert.doesNotMatch(context, /Pending: plan revision/);
 });
 
