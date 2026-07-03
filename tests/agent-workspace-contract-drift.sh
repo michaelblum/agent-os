@@ -285,7 +285,7 @@ function backendConformanceRows(doc, marker) {
 
 const expectedBackendConformanceRows = [
   ['`aos_canvas`', '`reacquirable` `click` and `set-value`', savedRefProofStory('aos_canvas', 'reacquirable', true)],
-  ['`browser`', '`snapshot_scoped` `click`, `fill`, `hover`, `scroll`, and `drag`', savedRefProofStory('browser', 'snapshot_scoped', true)],
+  ['`browser`', '`snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key`', savedRefProofStory('browser', 'snapshot_scoped', true)],
   ['`native_ax` stable saved refs', 'durable-identity plus producer-verdict `press`, `focus`, and `set-value`', savedRefProofStory('native_ax', 'stable', true)],
   ['direct AX one-shot wrappers', '`--pid` / `--role` `press`, `focus`, and `set-value`', directNativeAxProofStory()],
   ['`native_ax` volatile or known-limit refs', 'inspection/readback only', savedRefProofStory('native_ax', 'volatile', false)],
@@ -474,12 +474,9 @@ for (const [fileName, needles] of Object.entries(fixtureDomains)) {
 }
 
 for (const action of requiredActions) {
-  assert.ok(schemaDoc.includes(`\`${action}\``) || (action === 'key' && schemaDoc.includes('`type`, `key`')), `schema doc missing ${action}`);
+  assert.ok(schemaDoc.includes(`\`${action}\``), `schema doc missing ${action}`);
 }
 function schemaDocActionRow(action) {
-  if (action === 'key') {
-    return schemaDoc.split(/\r?\n/).find((line) => line.startsWith('| `type`, `key`'));
-  }
   return schemaDoc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\``));
 }
 
@@ -603,8 +600,12 @@ assert.ok(
 assert.ok(apiDoc.includes('aos do type browser:<session>/<ref> "hello world" --state-id <id>'), 'API doc must include direct browser type example');
 assert.ok(apiDoc.includes('aos do key browser:<session>/<ref> "Enter" --state-id <id>'), 'API doc must include direct browser key example');
 assert.ok(
-  apiDoc.replace(/\s+/g, ' ').includes('Direct browser `type` and `key` are current-host routes'),
-  'API doc must distinguish direct browser type/key from saved-ref actions',
+  apiDoc.replace(/\s+/g, ' ').includes('Saved browser `type` and `key` are text-compatible saved-ref actions'),
+  'API doc must describe saved browser type/key action support',
+);
+assert.ok(
+  apiDoc.replace(/\s+/g, ' ').includes('Direct browser `type` and `key` remain current-host routes'),
+  'API doc must keep direct browser type/key routes distinct from saved refs',
 );
 assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('Browser focus and text assertions are not separate public actions in this slice'),
@@ -690,21 +691,26 @@ const savedRefSupportedMatrixActions = actionMatrixRows
   .filter((row) => Object.keys(row.supported_backends).length > 0)
   .map((row) => row.action);
 const matrixActionIDs = new Set(actionMatrixRows.map((row) => `do-${row.action}`));
+function savedRefFormIDForAction(action) {
+  if (doFormsByID.has(`do-${action}-ref`)) return `do-${action}-ref`;
+  return `do-${action}`;
+}
 const manifestSavedRefMatrixActions = doCommand.forms
-  .filter((form) => matrixActionIDs.has(form.id))
+  .filter((form) => matrixActionIDs.has(form.id) || form.id.endsWith('-ref'))
   .filter((form) => {
     const args = new Set((form.args ?? []).map((arg) => arg.id ?? arg.token));
     return args.has('workspace') || args.has('snapshot') || /ref:<snapshot-id>|<ref-target/.test(form.usage ?? '');
   })
-  .map((form) => form.id.replace(/^do-/, ''));
+  .map((form) => form.id.replace(/^do-/, '').replace(/-ref$/, ''));
 assert.deepEqual(
   [...manifestSavedRefMatrixActions].sort(),
   [...savedRefSupportedMatrixActions].sort(),
   'do saved-ref manifest forms must be derived from the canonical saved-ref action matrix',
 );
 for (const row of actionMatrixRows) {
-  const form = doFormsByID.get(`do-${row.action}`);
-  assert.ok(form, `manifest missing do-${row.action} matrix form`);
+  const formID = savedRefFormIDForAction(row.action);
+  const form = doFormsByID.get(formID);
+  assert.ok(form, `manifest missing ${formID} matrix form`);
   const args = new Set((form.args ?? []).map((arg) => arg.id ?? arg.token));
   const usage = form.usage ?? '';
   const supportsSavedRef = Object.keys(row.supported_backends).length > 0;
@@ -719,7 +725,7 @@ for (const row of actionMatrixRows) {
   assert.ok(args.has('snapshot'), `${row.action} saved-ref help must advertise --snapshot from matrix support`);
   assert.equal(args.has('dry-run'), row.dry_run, `${row.action} dry-run help must follow matrix`);
   if (Object.hasOwn(row.supported_backends, 'browser')) {
-    assert.ok(usage.includes('browser:'), `${row.action} browser matrix support must be visible in do help`);
+    assert.ok(usage.includes('browser:') || /ref:<snapshot-id>/.test(usage), `${row.action} browser matrix support must be visible in do help`);
   }
   if (Object.hasOwn(row.supported_backends, 'aos_canvas')) {
     assert.ok(usage.includes('canvas:'), `${row.action} AOS canvas matrix support must be visible in do help`);
@@ -735,6 +741,7 @@ for (const row of actionMatrixRows) {
   }
   if (row.required_args.includes('source ref target')) assert.ok(args.has('from'), `${row.action} must declare source arg from matrix`);
   if (row.required_args.includes('destination ref target')) assert.ok(args.has('to'), `${row.action} must declare destination arg from matrix`);
+  if (row.required_args.includes('key combo')) assert.ok(args.has('combo'), `${row.action} must declare key combo arg from matrix`);
 }
 const doDragForm = doCommand.forms.find((form) => form.id === 'do-drag');
 const doCanvasDragForm = doCommand.forms.find((form) => form.id === 'do-drag-canvas');

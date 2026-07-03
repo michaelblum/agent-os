@@ -329,7 +329,7 @@ fi
 expect_error_code "UNKNOWN_ARG" "$CANVAS_SET_EXTRA_POSITIONAL_ERR"
 
 CANVAS_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-incompatible.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs type ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs type ref:snapcanvas:r1 "hello" --workspace ws-canvas >"$TMP_DIR/do-canvas-incompatible.out" 2>"$CANVAS_INCOMPATIBLE_ERR"; then
     fail "incompatible AOS canvas ref action unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_INCOMPATIBLE_ERR"
@@ -340,7 +340,7 @@ jq -e '
 ' "$CANVAS_INCOMPATIBLE_ERR" >/dev/null || fail "incompatible AOS canvas type ref action lacked safe next command: $(cat "$CANVAS_INCOMPATIBLE_ERR")"
 
 CANVAS_KEY_INCOMPATIBLE_ERR="$TMP_DIR/do-canvas-key-incompatible.err"
-if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs key ref:snapcanvas:r1 --workspace ws-canvas >"$TMP_DIR/do-canvas-key-incompatible.out" 2>"$CANVAS_KEY_INCOMPATIBLE_ERR"; then
+if AOS_PATH="$FAKE_CANVAS_AOS" node scripts/aos-do-ref.mjs key ref:snapcanvas:r1 "Enter" --workspace ws-canvas >"$TMP_DIR/do-canvas-key-incompatible.out" 2>"$CANVAS_KEY_INCOMPATIBLE_ERR"; then
     fail "incompatible AOS canvas key ref action unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$CANVAS_KEY_INCOMPATIBLE_ERR"

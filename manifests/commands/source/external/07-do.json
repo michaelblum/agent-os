@@ -408,7 +408,7 @@
         "do",
         "type"
       ],
-      "summary": "Resolve unsupported saved type ref targets through the agent workspace action dispatcher.",
+      "summary": "Resolve saved browser type ref targets through the agent workspace action dispatcher.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
@@ -481,7 +481,7 @@
         "do",
         "key"
       ],
-      "summary": "Resolve unsupported saved key ref targets through the agent workspace action dispatcher.",
+      "summary": "Resolve saved browser key ref targets through the agent workspace action dispatcher.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

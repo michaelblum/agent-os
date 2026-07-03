@@ -286,7 +286,7 @@
               "id": "save",
               "kind": "flag",
               "required": false,
-              "summary": "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag mutation, and stable native AX press/focus/set-value when producer verdict is actionable",
+              "summary": "Persist full perception in a local agent workspace and return compact JSON refs with conformance/proof; saved-ref actions support canvas click/set-value, validated browser click/fill/hover/scroll/drag/type/key mutation, and stable native AX press/focus/set-value when producer verdict is actionable",
               "token": "--save",
               "value_type": "bool"
             },

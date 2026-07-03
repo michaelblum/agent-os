@@ -61,11 +61,11 @@ export const AGENT_WORKSPACE_V0_CONTRACT_COVERAGE = Object.freeze({
     }),
     Object.freeze({
       action: 'type',
-      api_terms: Object.freeze(['literal native text input', 'direct browser target text', 'no saved-ref action']),
+      api_terms: Object.freeze(['saved/browser text input', 'direct browser target text', 'literal native text input']),
     }),
     Object.freeze({
       action: 'key',
-      api_terms: Object.freeze(['literal native key combo', 'direct browser target key press', 'no saved-ref action']),
+      api_terms: Object.freeze(['saved/browser key press', 'direct browser target key press', 'literal native key combo']),
     }),
     Object.freeze({
       action: 'press',

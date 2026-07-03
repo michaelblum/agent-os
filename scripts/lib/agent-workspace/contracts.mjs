@@ -413,26 +413,38 @@ export const SAVED_REF_V0_ACTION_MATRIX = {
     statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'UNKNOWN_ARG', 'UNKNOWN_FLAG', 'AX_TARGET_NOT_FOUND'],
   },
   type: {
-    supported_backends: {},
-    dry_run: false,
-    real_mutation: {},
-    required_args: ['command-specific'],
+    supported_backends: {
+      browser: ['snapshot_scoped'],
+    },
+    dry_run: true,
+    real_mutation: {
+      browser: true,
+    },
+    required_args: ['ref target', 'text'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'unsupported for saved refs in v0; public ref: targets route to the saved-ref resolver before backend wrappers',
-    known_limits: {},
-    statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
+    validation: 'browser refs require fresh page/frame/navigation identity and exactly one enabled text-compatible current xray element before real dispatch',
+    known_limits: {
+      browser: 'browser saved-ref type is allowed only for text-compatible refs after page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation pass',
+    },
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
   key: {
-    supported_backends: {},
-    dry_run: false,
-    real_mutation: {},
-    required_args: ['command-specific'],
+    supported_backends: {
+      browser: ['snapshot_scoped'],
+    },
+    dry_run: true,
+    real_mutation: {
+      browser: true,
+    },
+    required_args: ['ref target', 'key combo'],
     optional_args: [],
     mutation_risk: 'high',
-    validation: 'unsupported for saved refs in v0; public ref: targets route to the saved-ref resolver before backend wrappers',
-    known_limits: {},
-    statuses: ['REF_NOT_FOUND', 'REF_AMBIGUOUS', 'ACTION_INCOMPATIBLE', 'REF_UNSUPPORTED'],
+    validation: 'browser refs require fresh page/frame/navigation identity and exactly one enabled text-compatible current xray element before real dispatch',
+    known_limits: {
+      browser: 'browser saved-ref key is allowed only for text-compatible refs after page, frame, navigation, role, title, label, context, enabled state, and uniqueness validation pass',
+    },
+    statuses: ['dry_run', 'success', 'REF_NOT_FOUND', 'REF_REVALIDATION_REQUIRED', 'REF_STALE', 'REF_UNSUPPORTED', 'ACTION_INCOMPATIBLE', 'REF_AMBIGUOUS', 'REF_REVALIDATION_FAILED', 'MISSING_ARG', 'UNKNOWN_ARG', 'UNKNOWN_FLAG'],
   },
 };
 

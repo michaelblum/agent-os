@@ -18,6 +18,8 @@ aos see capture <capture_source> --save --mode <capture_mode> --workspace defaul
 aos see capture --canvas surface-inspector --save --mode som --workspace default
 aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run
 aos do fill ref:<snapshot-id>:r4 "updated text" --workspace default --dry-run
+aos do type ref:<snapshot-id>:r4 "more text" --workspace default --dry-run
+aos do key ref:<snapshot-id>:r4 "Enter" --workspace default --dry-run
 aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run
 aos do scroll ref:<snapshot-id>:r5 0,-200 --workspace default --dry-run
 aos do drag ref:<snapshot-id>:r5 ref:<snapshot-id>:r6 --workspace default --dry-run
@@ -263,10 +265,10 @@ matrix:
 - `coordinate_fallback` is diagnostic/fallback-only in this slice. Do not treat
   coordinate fallback refs as normal saved-ref mutation targets; mutation should
   warn or refuse before dispatch.
-- Native `open`/`toggle`, explicit `type`/`key` saved-ref attempts with
-  `--workspace` or `--snapshot`, and other unsupported saved-ref actions fail
-  closed with structured JSON. Literal native `type` / `key` input such as
-  `ref:...` remains direct command text unless a saved-ref scope is supplied.
+- Native `open`/`toggle` and other unsupported saved-ref actions fail closed
+  with structured JSON. Browser saved refs support `type` and `key` only when
+  the ref advertises those actions in `supported_actions`; non-text refs still
+  fail closed with `ACTION_INCOMPATIBLE`.
 - Unsafe resolution classes that have no current validation path still return
   `REF_REVALIDATION_REQUIRED` rather than mutating.
 - Unsupported or incompatible actions return `REF_UNSUPPORTED` or

@@ -428,7 +428,10 @@ import json
 import os
 
 data = json.loads(os.environ["OUT"])
-saved_ref_forms = {f"do-{action}" for action in json.loads(os.environ["SAVED_REF_ACTIONS"])}
+saved_ref_forms = {
+    f"do-{action}-ref" if action in {"type", "key"} else f"do-{action}"
+    for action in json.loads(os.environ["SAVED_REF_ACTIONS"])
+}
 
 def required_group(form, summary):
     for group in form.get("constraints", {}).get("required_groups", []):
@@ -464,11 +467,19 @@ assert "aos do click ref:<snapshot-id>:r1 --workspace default" in click_examples
 type_browser = next(item for item in data["forms"] if item["id"] == "do-type-browser")
 assert "browser:<session>[/<ref>]" in type_browser["usage"], type_browser["usage"]
 assert "--state-id" in {arg.get("token") for arg in type_browser["args"]}, type_browser
-assert "not a saved-ref action" in type_browser["summary"], type_browser
+assert "current-host browser" in type_browser["summary"], type_browser
+type_ref = next(item for item in data["forms"] if item["id"] == "do-type-ref")
+type_ref_tokens = {arg.get("token") for arg in type_ref["args"]}
+assert {"--workspace", "--snapshot", "--dry-run"} <= type_ref_tokens, type_ref_tokens
+assert "post_action.recommended_next_command" in type_ref["summary"], type_ref
 key_browser = next(item for item in data["forms"] if item["id"] == "do-key-browser")
 assert "browser:<session>[/<ref>]" in key_browser["usage"], key_browser["usage"]
 assert "--state-id" in {arg.get("token") for arg in key_browser["args"]}, key_browser
-assert "not a saved-ref action" in key_browser["summary"], key_browser
+assert "current-host browser" in key_browser["summary"], key_browser
+key_ref = next(item for item in data["forms"] if item["id"] == "do-key-ref")
+key_ref_tokens = {arg.get("token") for arg in key_ref["args"]}
+assert {"--workspace", "--snapshot", "--dry-run"} <= key_ref_tokens, key_ref_tokens
+assert "post_action.recommended_next_command" in key_ref["summary"], key_ref
 fill = next(item for item in data["forms"] if item["id"] == "do-fill")
 fill_tokens = {arg.get("token") for arg in fill["args"]}
 assert "--state-id" in fill_tokens, fill

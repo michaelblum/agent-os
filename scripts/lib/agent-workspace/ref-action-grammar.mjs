@@ -88,6 +88,26 @@ export function validateActionArgs(action, args, targetIndex, record = null) {
       exitAgentWorkspaceError('fill saved-ref actions accept only one positional text argument', 'UNKNOWN_ARG');
     }
   }
+  if (action === 'type') {
+    const positions = positionalIndexes(args);
+    const textPositions = positions.filter((index) => index !== targetIndex);
+    if (textPositions.length === 0) {
+      exitAgentWorkspaceError('type requires a text argument', 'MISSING_ARG');
+    }
+    if (textPositions.length > 1) {
+      exitAgentWorkspaceError('type saved-ref actions accept only one positional text argument', 'UNKNOWN_ARG');
+    }
+  }
+  if (action === 'key') {
+    const positions = positionalIndexes(args);
+    const comboPositions = positions.filter((index) => index !== targetIndex);
+    if (comboPositions.length === 0) {
+      exitAgentWorkspaceError('key requires a key combo argument', 'MISSING_ARG');
+    }
+    if (comboPositions.length > 1) {
+      exitAgentWorkspaceError('key saved-ref actions accept only one positional key combo argument', 'UNKNOWN_ARG');
+    }
+  }
   if (action === 'scroll') {
     const positions = positionalIndexes(args);
     const deltaPositions = positions.filter((index) => index !== targetIndex);

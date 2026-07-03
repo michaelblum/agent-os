@@ -392,8 +392,8 @@ jq -e '
 ' "$LOW_CONFIDENCE_ERR" >/dev/null || fail "low-confidence browser ref did not fail closed: $(cat "$LOW_CONFIDENCE_ERR")"
 
 TYPE_UNSUPPORTED_ERR="$TMP_DIR/do-ref-type-unsupported.err"
-if ./aos do type "ref:snap1:$REF" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-type-unsupported.out" 2>"$TYPE_UNSUPPORTED_ERR"; then
-    fail "unsupported browser saved-ref type unexpectedly succeeded"
+if ./aos do type "ref:snap1:$REF" "hello" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-type-incompatible.out" 2>"$TYPE_UNSUPPORTED_ERR"; then
+    fail "incompatible browser saved-ref type unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$TYPE_UNSUPPORTED_ERR"
 jq -e '
@@ -402,11 +402,11 @@ jq -e '
   and (.supported_actions | index("click") != null)
   and (.supported_actions | index("type") | not)
   and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
-' "$TYPE_UNSUPPORTED_ERR" >/dev/null || fail "unsupported browser saved-ref type lacked safe next command: $(cat "$TYPE_UNSUPPORTED_ERR")"
+' "$TYPE_UNSUPPORTED_ERR" >/dev/null || fail "incompatible browser saved-ref type lacked safe next command: $(cat "$TYPE_UNSUPPORTED_ERR")"
 
 KEY_UNSUPPORTED_ERR="$TMP_DIR/do-ref-key-unsupported.err"
-if ./aos do key "ref:snap1:$REF" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-key-unsupported.out" 2>"$KEY_UNSUPPORTED_ERR"; then
-    fail "unsupported browser saved-ref key unexpectedly succeeded"
+if ./aos do key "ref:snap1:$REF" "Enter" --workspace ws-browser --dry-run >"$TMP_DIR/do-ref-key-incompatible.out" 2>"$KEY_UNSUPPORTED_ERR"; then
+    fail "incompatible browser saved-ref key unexpectedly succeeded"
 fi
 expect_error_code "ACTION_INCOMPATIBLE" "$KEY_UNSUPPORTED_ERR"
 jq -e '
@@ -414,7 +414,7 @@ jq -e '
   and .ref.ref == "r2"
   and (.supported_actions | index("key") | not)
   and .recommended_next_command == "aos see capture browser:todo --save --workspace ws-browser --mode ax --query \u0027Click me\u0027"
-' "$KEY_UNSUPPORTED_ERR" >/dev/null || fail "unsupported browser saved-ref key lacked safe next command: $(cat "$KEY_UNSUPPORTED_ERR")"
+' "$KEY_UNSUPPORTED_ERR" >/dev/null || fail "incompatible browser saved-ref key lacked safe next command: $(cat "$KEY_UNSUPPORTED_ERR")"
 
 if rg -n "maybeRunRefAction|runRefAction" scripts/aos-do-browser.mjs scripts/aos-do-native.mjs >/dev/null; then
     fail "backend do wrappers must not own saved-ref dispatch policy"
@@ -435,10 +435,8 @@ jq -e '
   .status == "success"
   and .refs[0].backend == "browser"
   and .refs[0].resolution_class == "snapshot_scoped"
-  and (.refs[0].supported_actions == ["click", "fill", "hover", "scroll", "drag"])
+  and (.refs[0].supported_actions == ["click", "fill", "hover", "scroll", "drag", "type", "key"])
   and .refs[0].conformance.proof_level == "deterministic_contract_tests"
-  and (.refs[0].supported_actions | index("type") | not)
-  and (.refs[0].supported_actions | index("key") | not)
   and .refs[0].action_target == "browser:form/e42"
 ' "$FORM" >/dev/null || fail "browser form saved-ref reporting drifted: $(cat "$FORM")"
 
@@ -485,6 +483,71 @@ jq -e '
   and .post_action.recommended_next_command == "aos see capture browser:form --save --workspace ws-form --mode ax"
   and .recommended_next_command == "aos see capture browser:form --save --workspace ws-form --mode ax"
 ' "$FORM_FILL_ACTION" >/dev/null || fail "browser fill saved ref did not dispatch after validation: $(cat "$FORM_FILL_ACTION")"
+
+FORM_TYPE_DRY="$TMP_DIR/do-form-type-dry.json"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs type ref:snapform:r1 "hello" --workspace ws-form --dry-run >"$FORM_TYPE_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "type"
+  and .ref.backend == "browser"
+  and .resolved_action.resolution_status == "reacquired"
+  and .current_validation.current_target.ref == "e42"
+  and (.resolved_action.command | index("browser:form/e42") != null)
+  and (.resolved_action.command | index("hello") != null)
+' "$FORM_TYPE_DRY" >/dev/null || fail "browser type saved ref dry-run drifted: $(cat "$FORM_TYPE_DRY")"
+
+FORM_TYPE_ACTION="$TMP_DIR/do-form-type-action.json"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs type ref:snapform:r1 "hello" --workspace ws-form >"$FORM_TYPE_ACTION"
+jq -e '
+  .status == "success"
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "type"
+  and .current_validation.status == "reacquired"
+  and .current_validation.current_target.ref == "e42"
+  and .underlying_result.execution.strategy == "fake_form_type"
+  and (.underlying_result.received | index("browser:form/e42") != null)
+  and (.underlying_result.received | index("hello") != null)
+  and .post_action.verification == "fresh_capture_recommended"
+  and .post_action.recommended_next_command == "aos see capture browser:form --save --workspace ws-form --mode ax"
+' "$FORM_TYPE_ACTION" >/dev/null || fail "browser type saved ref did not dispatch after validation: $(cat "$FORM_TYPE_ACTION")"
+
+FORM_KEY_DRY="$TMP_DIR/do-form-key-dry.json"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs key ref:snapform:r1 "Enter" --workspace ws-form --dry-run >"$FORM_KEY_DRY"
+jq -e '
+  .status == "dry_run"
+  and .action == "key"
+  and .ref.backend == "browser"
+  and .resolved_action.resolution_status == "reacquired"
+  and .current_validation.current_target.ref == "e42"
+  and (.resolved_action.command | index("browser:form/e42") != null)
+  and (.resolved_action.command | index("Enter") != null)
+' "$FORM_KEY_DRY" >/dev/null || fail "browser key saved ref dry-run drifted: $(cat "$FORM_KEY_DRY")"
+
+FORM_KEY_ACTION="$TMP_DIR/do-form-key-action.json"
+AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs key ref:snapform:r1 "Enter" --workspace ws-form >"$FORM_KEY_ACTION"
+jq -e '
+  .status == "success"
+  and .schema_version == "aos.agent-workspace.v0"
+  and .action == "key"
+  and .current_validation.status == "reacquired"
+  and .current_validation.current_target.ref == "e42"
+  and .underlying_result.execution.strategy == "fake_form_key"
+  and (.underlying_result.received | index("browser:form/e42") != null)
+  and (.underlying_result.received | index("Enter") != null)
+  and .post_action.verification == "fresh_capture_recommended"
+' "$FORM_KEY_ACTION" >/dev/null || fail "browser key saved ref did not dispatch after validation: $(cat "$FORM_KEY_ACTION")"
+
+FORM_TYPE_EXTRA_ERR="$TMP_DIR/do-form-type-extra.err"
+if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs type ref:snapform:r1 "hello" "again" --workspace ws-form >"$TMP_DIR/do-form-type-extra.out" 2>"$FORM_TYPE_EXTRA_ERR"; then
+    fail "browser type saved ref with extra text unexpectedly succeeded"
+fi
+expect_error_code "UNKNOWN_ARG" "$FORM_TYPE_EXTRA_ERR"
+
+FORM_KEY_MISSING_ERR="$TMP_DIR/do-form-key-missing.err"
+if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs key ref:snapform:r1 --workspace ws-form >"$TMP_DIR/do-form-key-missing.out" 2>"$FORM_KEY_MISSING_ERR"; then
+    fail "browser key saved ref without combo unexpectedly succeeded"
+fi
+expect_error_code "MISSING_ARG" "$FORM_KEY_MISSING_ERR"
 
 FORM_FILL_EXTRA_ERR="$TMP_DIR/do-form-fill-extra.err"
 if AOS_PATH="$FAKE_FORM_AOS" node scripts/aos-do-ref.mjs fill ref:snapform:r1 "hello" "again" --workspace ws-form >"$TMP_DIR/do-form-fill-extra.out" 2>"$FORM_FILL_EXTRA_ERR"; then
