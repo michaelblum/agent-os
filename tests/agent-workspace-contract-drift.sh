@@ -242,6 +242,15 @@ function assertIncludesAll(text, needles, label) {
   }
 }
 
+function assertOrderedIncludes(text, needles, label) {
+  let cursor = -1;
+  for (const needle of needles) {
+    const next = text.indexOf(needle, cursor + 1);
+    assert.ok(next > cursor, `${label} missing ordered step ${needle}`);
+    cursor = next;
+  }
+}
+
 function actionTableRow(doc, action) {
   return doc.split(/\r?\n/).find((line) => line.startsWith(`| \`${action}\` |`)) ?? '';
 }
@@ -290,6 +299,52 @@ assert.deepEqual(
 for (const referencePath of skillReferencePaths) {
   assert.ok(fs.existsSync(referencePath), `AOS workspace skill reference does not exist: ${referencePath}`);
 }
+
+const skillQuickStartCommands = [
+  'aos see capture browser:work --save --mode som --workspace default',
+  'aos see snapshots --workspace default --json',
+  'aos see refs --workspace default --query Save --json',
+  'aos do click ref:<snapshot-id>:r2 --workspace default --dry-run',
+  'aos do click ref:<snapshot-id>:r2 --workspace default',
+  'aos see capture <capture_source> --save --mode <capture_mode> --workspace default',
+];
+assertOrderedIncludes(
+  skill,
+  skillQuickStartCommands,
+  'AOS workspace skill quick-start must teach saved capture, compact readback, dry-run, dispatch, and fresh capture refresh in order',
+);
+assert.ok(
+  skill.includes('aos see capture --canvas surface-inspector --save --mode som --workspace default'),
+  'AOS workspace skill quick-start must include a source-flag saved canvas capture',
+);
+assert.ok(
+  skill.includes('aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run')
+  && skill.includes('aos do fill ref:<snapshot-id>:r4 "updated text" --workspace default --dry-run')
+  && skill.includes('aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run')
+  && skill.includes('aos do scroll ref:<snapshot-id>:r5 0,-200 --workspace default --dry-run')
+  && skill.includes('aos do drag ref:<snapshot-id>:r5 ref:<snapshot-id>:r6 --workspace default --dry-run'),
+  'AOS workspace skill must show the supported browser/canvas saved-ref action families',
+);
+for (const staleCommand of [
+  'aos see workspace use',
+  'aos see capture --wait-for-change',
+  'aos see capture --until-stable',
+  'aos see refs --diff',
+  'aos see assert',
+]) {
+  assert.ok(
+    skill.includes(staleCommand),
+    `AOS workspace skill must name unsupported boundary command ${staleCommand}`,
+  );
+}
+assert.ok(
+  skill.replace(/\s+/g, ' ').includes('No daemon-held current workspace exists'),
+  'AOS workspace skill must warn agents away from hidden daemon-held workspace state',
+);
+assert.ok(
+  skill.replace(/\s+/g, ' ').includes('Workspace artifacts are local control state, not Work Recording evidence'),
+  'AOS workspace skill must distinguish local workspace state from durable Work Record evidence',
+);
 
 const fixtureShim = fs.readFileSync('tests/lib/agent-workspace-fixtures.sh', 'utf8');
 assert.ok(fixtureShim.split(/\r?\n/).length < 40, 'agent workspace fixture shim must stay source-only and small');
