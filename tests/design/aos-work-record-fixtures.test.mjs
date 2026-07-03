@@ -65,6 +65,19 @@ test('do_step examples preserve the four-layer work-record shape', () => {
   }
 });
 
+test('desktop work-record fixture uses current native AX selector bridge', () => {
+  const fixture = readJson('desktop-workflow-demo-step.json');
+  const desktop = fixture.execution_map.desktop;
+  const serialized = JSON.stringify(fixture);
+
+  assert.equal(fixture.precondition.target, 'native AX selector bridge for com.agent-os.launcher');
+  assert.equal(fixture.action.target, 'native AX press via selector flags');
+  assert.equal(fixture.action.args.bundle_id, 'com.agent-os.launcher');
+  assert.equal(desktop.target_grammar, 'native AX selector flags such as --pid, --role, and title filters');
+  assert.equal(desktop.target_model_vocabulary, 'future first-class native AX refs remain reserved');
+  assert.doesNotMatch(serialized, /ax:[^"]+/);
+});
+
 test('health fixture keeps retirement separate from historical evidence', () => {
   const fixture = readJson('recipe-health-retirement.json');
   assert.equal(fixture.type, 'aos.recipe_health_event');

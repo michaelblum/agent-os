@@ -10,14 +10,15 @@
   },
   "precondition": {
     "see": "AOS can inspect the foreground app and accessibility tree.",
-    "target": "ax:com.agent-os.launcher",
+    "target": "native AX selector bridge for com.agent-os.launcher",
     "state_id": "see_desktop000001"
   },
   "action": {
     "verb": "press",
-    "target": "ax:com.agent-os.launcher/workflow-entry-employer-brand",
+    "target": "native AX press via selector flags",
     "state_id": "see_desktop000001",
     "args": {
+      "bundle_id": "com.agent-os.launcher",
       "role": "AXButton",
       "title": "Employer Brand Competitor Audit"
     }
@@ -34,7 +35,8 @@
   },
   "execution_map": {
     "desktop": {
-      "target_grammar": "ax:<bundle-or-pid>/<ref>",
+      "target_grammar": "native AX selector flags such as --pid, --role, and title filters",
+      "target_model_vocabulary": "future first-class native AX refs remain reserved",
       "ax_candidates": [
         {
           "bundle_id": "com.agent-os.launcher",
