@@ -42,6 +42,7 @@ export function emitDryRunEnvelope({
   secondaryUnsafe,
 }) {
   const validationRequired = unsafe || secondaryUnsafe;
+  const unsafeRecord = unsafe ? record : secondary?.record;
   printJSON({
     status: 'dry_run',
     schema_version: SCHEMA_VERSION,
@@ -56,7 +57,8 @@ export function emitDryRunEnvelope({
     },
     current_validation: currentValidation,
     secondary_current_validation: secondaryCurrentValidation,
-    recommended_next_command: validationRequired ? recommendedRefreshCommand(workspace, unsafe ? record : secondary?.record) : null,
+    recommended_next: validationRequired ? recommendedRefreshDescriptor(workspace, unsafeRecord) : null,
+    recommended_next_command: validationRequired ? recommendedRefreshCommand(workspace, unsafeRecord) : null,
   });
 }
 

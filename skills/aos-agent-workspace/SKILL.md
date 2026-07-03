@@ -47,9 +47,10 @@ refs fail closed for those actions.
 - Current wait/diff/assertion boundary: saved workspaces do not expose
   `aos see capture --wait-for-change`, `aos see capture --until-stable`,
   `aos see refs --diff`, or `aos see assert`. Use
-  `recommended_next_command` plus a fresh saved capture for re-perception,
-  `aos show wait` only for canvas readiness, Recipe assertions only for command
-  JSON checks, and Work Record postconditions for durable evidence checks.
+  structured `recommended_next` descriptors and `recommended_next_command` plus
+  a fresh saved capture for re-perception, `aos show wait` only for canvas
+  readiness, Recipe assertions only for command JSON checks, and Work Record
+  postconditions for durable evidence checks.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
   ref. If the command returns `REF_AMBIGUOUS`, use its candidate snapshots and

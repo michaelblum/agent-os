@@ -17,7 +17,7 @@ import {
 } from './contracts.mjs';
 import {
   failIncompatibleDragEndpoint,
-  recommendedRefreshCommand,
+  recommendedRefreshResponseFields,
 } from './ref-action-resolution.mjs';
 
 export function parseBrowserActionTarget(value) {
@@ -117,8 +117,7 @@ function currentBrowserCapture(session, workspace, record, env) {
       status: 'known_limit',
       backend: 'browser',
       known_limit: 'current browser xray capture failed during saved-ref validation',
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
       stderr: result.stderr || null,
     });
@@ -130,8 +129,7 @@ function currentBrowserCapture(session, workspace, record, env) {
         status: 'known_limit',
         backend: 'browser',
         known_limit: 'current browser xray capture returned no element list',
-        safe_next_action: recommendedRefreshCommand(workspace, record),
-        recommended_next_command: recommendedRefreshCommand(workspace, record),
+        ...recommendedRefreshResponseFields(workspace, record),
         requires_user_approval: false,
       });
     }
@@ -142,8 +140,7 @@ function currentBrowserCapture(session, workspace, record, env) {
       status: 'known_limit',
       backend: 'browser',
       known_limit: 'current browser xray capture returned invalid JSON',
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -160,8 +157,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       reason: 'session_changed',
       backend: 'browser',
       ref: refSummary(record),
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -181,8 +177,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       backend: 'browser',
       ref: refSummary(record),
       current_identity: pageIdentity,
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -193,8 +188,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       reason: 'current_target_not_found',
       backend: 'browser',
       ref: refSummary(record),
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -205,8 +199,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       backend: 'browser',
       ref: refSummary(record),
       candidates: matches.map(compactBrowserElement),
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -219,8 +212,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       backend: 'browser',
       ref: refSummary(record),
       current_target: compactBrowserElement(current),
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -232,8 +224,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       backend: 'browser',
       ref: refSummary(record),
       current_target: compactBrowserElement(current),
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }
@@ -247,8 +238,7 @@ export function validateBrowserCurrentRef(record, action, workspace, env, captur
       ref: refSummary(record),
       current_target: compactBrowserElement(current),
       supported_actions: currentSupportedActions,
-      safe_next_action: recommendedRefreshCommand(workspace, record),
-      recommended_next_command: recommendedRefreshCommand(workspace, record),
+      ...recommendedRefreshResponseFields(workspace, record),
       requires_user_approval: false,
     });
   }

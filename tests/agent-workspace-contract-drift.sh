@@ -31,7 +31,11 @@ import {
 } from './scripts/lib/agent-workspace/contracts.mjs';
 import { AGENT_WORKSPACE_V0_CONTRACT_COVERAGE } from './tests/lib/agent-workspace-contract-coverage.mjs';
 import { parseCaptureArgs } from './scripts/lib/agent-workspace/capture.mjs';
-import { recommendedRefreshCommand, recommendedRefreshDescriptor } from './scripts/lib/agent-workspace/ref-action-resolution.mjs';
+import {
+  recommendedRefreshCommand,
+  recommendedRefreshDescriptor,
+  recommendedRefreshResponseFields,
+} from './scripts/lib/agent-workspace/ref-action-resolution.mjs';
 import { workspaceID } from './scripts/lib/agent-workspace/core.mjs';
 
 const schema = JSON.parse(fs.readFileSync('shared/schemas/aos-agent-workspace-v0.schema.json', 'utf8'));
@@ -426,6 +430,7 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   );
   assert.ok(prose.includes('saved-ref execution envelope'), 'docs/skill must describe real saved-ref execution envelope');
   assert.ok(text.includes('underlying_result'), 'docs/skill must describe nested underlying action result');
+  assert.ok(text.includes('recommended_next'), 'docs/skill must describe structured refresh recommendations');
   assert.ok(text.includes('post_action.recommended_next'), 'docs/skill must describe structured post-action refresh descriptor');
   assert.ok(text.includes('recommended_next_command'), 'docs/skill must describe post-action refresh recommendation');
   assert.ok(text.includes('conformance'), 'docs/skill must describe saved-ref conformance fields');
@@ -779,6 +784,29 @@ assert.deepEqual(
   })?.argv,
   ['aos', 'see', 'capture', 'browser:todo', '--save', '--workspace', 'default', '--mode', 'ax', '--query', 'Save button'],
   'structured refresh recommendations must preserve query argv without shell quoting',
+);
+assert.deepEqual(
+  recommendedRefreshResponseFields('default', {
+    capture_target: 'browser:todo',
+    capture_mode: 'ax',
+    query: 'Save button',
+  }),
+  {
+    safe_next_action: "aos see capture browser:todo --save --workspace default --mode ax --query 'Save button'",
+    recommended_next_command: "aos see capture browser:todo --save --workspace default --mode ax --query 'Save button'",
+    recommended_next: {
+      kind: 'fresh_saved_capture',
+      reason: 're-perceive after saved-ref mutation before asserting state',
+      command: "aos see capture browser:todo --save --workspace default --mode ax --query 'Save button'",
+      argv: ['aos', 'see', 'capture', 'browser:todo', '--save', '--workspace', 'default', '--mode', 'ax', '--query', 'Save button'],
+      workspace_id: 'default',
+      capture_mode: 'ax',
+      capture_target: 'browser:todo',
+      capture_source: null,
+      query: 'Save button',
+    },
+  },
+  'refresh response fields must keep string and structured recommendations aligned',
 );
 assert.ok(captureSaveForm.usage.includes('--region <rect>'), 'saved capture usage must advertise region source');
 assert.ok(captureSaveForm.usage.includes('--canvas <id>'), 'saved capture usage must advertise canvas source');

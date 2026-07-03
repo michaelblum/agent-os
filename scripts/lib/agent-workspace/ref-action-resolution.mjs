@@ -85,6 +85,15 @@ export function recommendedRefreshDescriptor(workspace, record = null) {
   };
 }
 
+export function recommendedRefreshResponseFields(workspace, record = null) {
+  const command = recommendedRefreshCommand(workspace, record);
+  return {
+    safe_next_action: command,
+    recommended_next_command: command,
+    recommended_next: recommendedRefreshDescriptor(workspace, record),
+  };
+}
+
 function recommendedRefsCommand(workspace, snapshot = null) {
   return [
     'aos',
@@ -173,8 +182,7 @@ export function failUnsupportedRef(record, workspace) {
   exitAgentWorkspaceError(`Ref '${record.ref}' is not actionable`, 'REF_UNSUPPORTED', {
     status: 'unsupported',
     ref: refSummary(record),
-    recommended_next_command: recommendedRefreshCommand(workspace, record),
-    safe_next_action: recommendedRefreshCommand(workspace, record),
+    ...recommendedRefreshResponseFields(workspace, record),
     requires_user_approval: false,
   });
 }
@@ -184,8 +192,7 @@ export function failLowConfidenceRef(record, workspace) {
     status: 'unsupported',
     reason: 'low_confidence_target',
     ref: refSummary(record),
-    recommended_next_command: recommendedRefreshCommand(workspace, record),
-    safe_next_action: recommendedRefreshCommand(workspace, record),
+    ...recommendedRefreshResponseFields(workspace, record),
     requires_user_approval: false,
   });
 }
@@ -195,8 +202,7 @@ export function failIncompatibleAction(record, action, workspace) {
     status: 'action_incompatible',
     ref: refSummary(record),
     supported_actions: record.supported_actions ?? [],
-    recommended_next_command: recommendedRefreshCommand(workspace, record),
-    safe_next_action: recommendedRefreshCommand(workspace, record),
+    ...recommendedRefreshResponseFields(workspace, record),
     requires_user_approval: false,
   });
 }
@@ -206,8 +212,7 @@ export function failIncompatibleDragEndpoint(record, workspace, reason) {
     status: 'action_incompatible',
     reason,
     ref: refSummary(record),
-    recommended_next_command: recommendedRefreshCommand(workspace, record),
-    safe_next_action: recommendedRefreshCommand(workspace, record),
+    ...recommendedRefreshResponseFields(workspace, record),
     requires_user_approval: false,
   });
 }
