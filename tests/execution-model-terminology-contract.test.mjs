@@ -278,7 +278,19 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   const architecture = await text('ARCHITECTURE.md');
   const aosApi = await text('docs/api/aos.md');
   const readme = await text('README.md');
+  const manifest = JSON.parse(await text('manifests/commands/aos-commands.json'));
   const maintained = `${architecture}\n${aosApi}\n${readme}`;
+  const commandByPath = (segments) => manifest.commands.find((command) => (
+    JSON.stringify(command.path) === JSON.stringify(segments)
+  ));
+  const sayCommand = commandByPath(['say']);
+  const tellCommand = commandByPath(['tell']);
+  const listenCommand = commandByPath(['listen']);
+  const doCommand = commandByPath(['do']);
+  const tellMessageForm = tellCommand?.forms?.find((form) => form.id === 'tell-message');
+  const listenReadForm = listenCommand?.forms?.find((form) => form.id === 'listen-read');
+  const listenFollowForm = listenCommand?.forms?.find((form) => form.id === 'listen-follow');
+  const doTellForm = doCommand?.forms?.find((form) => form.id === 'do-tell');
 
   assert.match(architecture, /`aos say` direct TTS convenience/);
   assert.match(architecture, /`aos voice` registry\/catalog\/assignments\/providers\/final-response speech ingress/);
@@ -287,6 +299,24 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.match(aosApi, /`aos say` is a direct TTS convenience path/);
   assert.match(aosApi, /`aos tell human \.\.\.` is daemon-routed communication/);
   assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads and follow today; STT and broader sources planned \|/);
+  assert.match(sayCommand?.summary ?? '', /direct TTS convenience aligned with tell human/);
+  assert.match(tellCommand?.summary ?? '', /send to human, channel, or session/);
+  assert.match(listenCommand?.summary ?? '', /receive from channels or direct sessions/);
+  assert.match(tellMessageForm?.usage ?? '', /aos tell <audience>\|--session-id <id>/);
+  assert.deepEqual(
+    tellMessageForm?.constraints?.required_groups?.[0]?.one_of,
+    [['audience'], ['session-id']],
+  );
+  for (const form of [listenReadForm, listenFollowForm]) {
+    assert.match(form?.usage ?? '', /aos listen <channel>\|--session-id <id>/);
+    assert.deepEqual(
+      form?.constraints?.required_groups?.[0]?.one_of,
+      [['channel'], ['session-id']],
+    );
+  }
+  assert.match(doTellForm?.usage ?? '', /aos do tell <app> <script>/);
+  assert.match(JSON.stringify(doTellForm?.args ?? []), /AppleScript body/);
+  assert.doesNotMatch(JSON.stringify(listenCommand?.forms ?? []), /STT|dictation|stdin|webhook|file watch/i);
   assert.doesNotMatch(maintained, /\| `listen` \| Receive communication \| Aggregates STT/);
   assert.doesNotMatch(maintained, /`aos listen` or similar/);
   assert.doesNotMatch(maintained, /say.*sugar for tell human/i);
