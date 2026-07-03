@@ -27,7 +27,8 @@ small approved synchronization slice.
 
 ## Review-Lane Classification
 
-Current HEAD after PR #538: `841279f627b5a49cfa77f3bc8bf64d25c9b979f7`.
+Review-lane evidence was refreshed after PR #544 at
+`3415d37d7d6a9fb0c45ef6c7a5dfacaad678ac4e`.
 
 Critical/high findings from `/Users/Michael/Code/tmp/agent-os-code-review-2026-07-03.md`:
 
@@ -80,6 +81,8 @@ Material medium findings verified as already covered in current HEAD include:
   (`tests/gateway-sdk-socket-lifecycle.test.mjs`);
 - host `read_file` size and timeout bounds
   (`packages/host/test/tools/read-file.test.ts`).
+- host SDK socket close/disconnect, disconnected call, and write-failure
+  handling (`packages/host/test/sdk-client.test.ts`).
 
 Remaining review-lane item before returning fully to product-contract phases:
 the `PerceptionEngine` shared-state race in `src/perceive/daemon.swift`.
