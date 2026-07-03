@@ -24,6 +24,32 @@ sleep 1
 NEW_MTIME=$(stat -f %m "$TESTDIR/agents/default.md")
 test "$ORIG_MTIME" = "$NEW_MTIME" || { echo "FAIL: seed overwrote existing"; exit 1; }
 
+if ./aos wiki seed --namespace ../outside-seed \
+  --file "agents/default.md:$(pwd)/tests/fixtures/default-agent.md" \
+  2>"$ROOT/wiki-seed-namespace-traversal.err"; then
+  echo "FAIL: wiki seed accepted traversal namespace"
+  exit 1
+fi
+grep -q '"code": "WIKI_INVALID_PATH"' "$ROOT/wiki-seed-namespace-traversal.err" || {
+  echo "FAIL: wiki seed namespace traversal did not use WIKI_INVALID_PATH"
+  cat "$ROOT/wiki-seed-namespace-traversal.err"
+  exit 1
+}
+test ! -e "$ROOT/repo/outside-seed" || { echo "FAIL: seed wrote outside namespace root"; exit 1; }
+
+if ./aos wiki seed --namespace seed-test \
+  --file "../../outside-seed.md:$(pwd)/tests/fixtures/default-agent.md" \
+  2>"$ROOT/wiki-seed-file-traversal.err"; then
+  echo "FAIL: wiki seed accepted traversal file mapping"
+  exit 1
+fi
+grep -q '"code": "WIKI_INVALID_PATH"' "$ROOT/wiki-seed-file-traversal.err" || {
+  echo "FAIL: wiki seed file traversal did not use WIKI_INVALID_PATH"
+  cat "$ROOT/wiki-seed-file-traversal.err"
+  exit 1
+}
+test ! -e "$ROOT/repo/outside-seed.md" || { echo "FAIL: seed wrote outside file mapping"; exit 1; }
+
 if ./aos wiki seed --bogus 2>"$ROOT/wiki-seed-bogus.err"; then
   echo "FAIL: wiki seed accepted unknown flag"
   exit 1

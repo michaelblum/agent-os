@@ -50,6 +50,16 @@ function allValuesAfter(args, key) {
   return values;
 }
 
+function containedPath(root, ...parts) {
+  const base = path.resolve(root);
+  const absolute = path.resolve(base, ...parts);
+  const relative = path.relative(base, absolute);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    error('Wiki seed path must stay inside the wiki root', 'WIKI_INVALID_PATH');
+  }
+  return absolute;
+}
+
 function copyIfAbsent(namespace, pairs) {
   let written = 0;
   for (const pair of pairs) {
@@ -57,7 +67,7 @@ function copyIfAbsent(namespace, pairs) {
     if (colon <= 0) error('Error: --file value must be <rel>:<absolutePath>', 'INVALID_ARG');
     const rel = pair.slice(0, colon);
     const src = pair.slice(colon + 1);
-    const dst = path.join(wikiRoot(), namespace, rel);
+    const dst = containedPath(wikiRoot(), namespace, rel);
     if (fs.existsSync(dst)) continue;
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);

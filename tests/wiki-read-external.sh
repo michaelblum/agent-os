@@ -21,6 +21,21 @@ PY
 
 ./aos wiki show gateway --raw | grep -q '^---$'
 
+printf 'outside secret\n' >"$ROOT/outside-read.md"
+if ./aos wiki show ../../outside-read.md --raw >"$ROOT/wiki-show-traversal.out" 2>"$ROOT/wiki-show-traversal.err"; then
+  echo "FAIL: wiki show accepted traversal path"
+  exit 1
+fi
+grep -q '"code": "WIKI_INVALID_PATH"' "$ROOT/wiki-show-traversal.err" || {
+  echo "FAIL: wiki show traversal did not use WIKI_INVALID_PATH"
+  cat "$ROOT/wiki-show-traversal.err"
+  exit 1
+}
+if grep -q 'outside secret' "$ROOT/wiki-show-traversal.out"; then
+  echo "FAIL: wiki show printed outside-root file contents"
+  exit 1
+fi
+
 OUT="$(./aos wiki invoke self-check --json)"
 OUT="$OUT" python3 - <<'PY'
 import json
@@ -30,6 +45,16 @@ data = json.loads(os.environ["OUT"])
 assert data["plugin"] == "self-check", data
 assert "Self-Check" in data["bundle"], data
 PY
+
+if ./aos wiki invoke ../../../../outside-read --json 2>"$ROOT/wiki-invoke-traversal.err"; then
+  echo "FAIL: wiki invoke accepted traversal plugin name"
+  exit 1
+fi
+grep -q '"code": "WIKI_INVALID_PATH"' "$ROOT/wiki-invoke-traversal.err" || {
+  echo "FAIL: wiki invoke traversal did not use WIKI_INVALID_PATH"
+  cat "$ROOT/wiki-invoke-traversal.err"
+  exit 1
+}
 
 if ./aos wiki show --bogus 2>"$ROOT/wiki-show-bogus.err"; then
   echo "FAIL: wiki show accepted unknown flag"

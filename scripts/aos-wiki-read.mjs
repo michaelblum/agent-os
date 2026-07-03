@@ -52,14 +52,24 @@ function bareNameCandidates(arg) {
   ];
 }
 
+function containedPath(root, ...parts) {
+  const base = path.resolve(root);
+  const absolute = path.resolve(base, ...parts);
+  const relative = path.relative(base, absolute);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    error('Wiki path must stay inside the wiki root', 'WIKI_INVALID_PATH');
+  }
+  return { relative: relative.split(path.sep).join('/'), absolute };
+}
+
 function resolveWikiPath(arg) {
   if (arg.includes('/') || arg.includes('.md')) {
-    const absolute = path.join(wikiRoot(), arg);
-    return fs.existsSync(absolute) ? { relative: arg, absolute } : null;
+    const resolved = containedPath(wikiRoot(), arg);
+    return fs.existsSync(resolved.absolute) ? resolved : null;
   }
   for (const relative of bareNameCandidates(arg)) {
-    const absolute = path.join(wikiRoot(), relative);
-    if (fs.existsSync(absolute)) return { relative, absolute };
+    const resolved = containedPath(wikiRoot(), relative);
+    if (fs.existsSync(resolved.absolute)) return resolved;
   }
   return null;
 }
@@ -69,8 +79,8 @@ function resolvePluginSkill(name) {
     `${namespace}/plugins/${name}/SKILL.md`,
     `plugins/${name}/SKILL.md`,
   ]) {
-    const absolute = path.join(wikiRoot(), relative);
-    if (fs.existsSync(absolute)) return { relative, absolute };
+    const resolved = containedPath(wikiRoot(), relative);
+    if (fs.existsSync(resolved.absolute)) return resolved;
   }
   return null;
 }
