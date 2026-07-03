@@ -1,20 +1,29 @@
 # agent-os
 
-A macOS automation ecosystem for agents. Perception, action, projection, and voice unified into a single `aos` binary with subcommand groups, plus a typed MCP gateway for external consumers and a Node.js agent host.
+A macOS automation ecosystem for agents. Primitive perception, action,
+projection, and communication verbs are unified into a single `aos` binary, with
+convenience voice output, source-backed recipes, runtime readiness/lifecycle
+commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 
 ## Principle
 
 **Agent tokens are for decisions, not plumbing.** The agent is the brain; the daemon is the nervous system. The daemon handles element resolution, cursor tracking, TTS, visual feedback. The agent decides WHAT and WHY.
 
-## Subcommand groups
+## Public Command Model
 
-| Group | Role | Status |
-|-------|------|--------|
-| `aos see` | Perception — screenshots, AX tree, cursor queries, focus channels, graph navigation | Production |
-| `aos show` | Projection — persistent WKWebView canvases, overlays, HTML→bitmap render | Production |
-| `aos do` | Action — AX semantic actions, CGEvent input, AppleScript verbs, behavioral profiles | Production |
-| `aos say` | Voice — TTS, daemon-driven announcements | Production (TTS); STT planned |
-| `aos serve` | Unified daemon: one socket, one CGEventTap, shared state | Production |
+| Group | Tier | Role |
+|-------|------|------|
+| `aos see` | Primitive | Perception: screenshots, AX tree, cursor queries, focus channels, graph navigation, saved workspace refs |
+| `aos do` | Primitive | Action: saved refs, direct browser/canvas targets, native AX, coordinates, keyboard, AppleScript, behavior profiles |
+| `aos show` | Primitive | Projection: persistent WKWebView canvases, overlays, HTML-to-bitmap render, anchors, shared surfaces |
+| `aos tell` | Primitive | Outbound communication: human, channel, direct session, and future sinks |
+| `aos listen` | Primitive | Inbound communication: channel/direct-session reads and follow today; STT and broader sources planned |
+| `aos say` | Convenience | Direct TTS convenience aligned with `tell human` |
+| `aos recipe` | Higher-order | Source-backed executable procedures built from primitive commands; `aos ops` is the compatibility alias |
+| `aos ready` | Runtime/ops | Front-door readiness gate for agents before runtime work |
+| `aos serve` / `aos service` | Runtime/ops | Unified daemon lifecycle: one socket, one CGEventTap, shared state |
+
+See [docs/api/aos.md](docs/api/aos.md) for the full consumer command table.
 
 ## Track-2 consumers
 
