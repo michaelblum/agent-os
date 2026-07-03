@@ -32,6 +32,11 @@ aos do focus ref:<snapshot-id>:r7 --workspace default --dry-run
 - A saved capture source can be a positional target such as `browser:work` or a
   source flag such as `--region <rect>`, `--canvas <id>`, or `--channel <id>`.
   `--save` is the state mutation boundary.
+- Workspace selection is command-scoped: `--workspace <id>` overrides
+  `AOS_AGENT_WORKSPACE`; absent both, AOS uses `default`. No daemon-held current
+  workspace exists, and `aos see workspace use <id>` is not a current command.
+  Keep parallel agents isolated by passing explicit workspaces or setting the
+  environment per process.
 - Prefer scoped refs: `ref:<snapshot-id>:<ref-id>`.
 - Use bare `ref:<ref-id>` only when one snapshot in the workspace contains that
   ref. If the command returns `REF_AMBIGUOUS`, use its candidate snapshots and

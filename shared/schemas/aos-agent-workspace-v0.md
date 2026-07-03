@@ -38,6 +38,19 @@ Mutating commands may create a transient `.write-lock/` directory under the
 workspace. This is local contention control state, not part of the persisted
 schema contract.
 
+## Workspace Selection
+
+Workspace selection is command-scoped. For saved workspace reads and actions,
+`--workspace <id>` wins; otherwise `AOS_AGENT_WORKSPACE` selects a workspace;
+otherwise AOS uses `default`.
+
+No daemon-held current workspace exists, and `aos see workspace use <id>` is not
+a current command. `aos see workspaces` lists all local workspaces without
+consulting `AOS_AGENT_WORKSPACE`; cleanup commands require explicit workspace
+or snapshot ids. This avoids hidden global state across parallel agents. Any
+future session-bound default must define a multi-agent-safe contract before it
+becomes public.
+
 `capture.json` intentionally preserves the primitive output shape. The workspace
 schema validates the saved workspace files around that payload, not every
 primitive capture field.
