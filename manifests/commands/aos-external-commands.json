@@ -2532,6 +2532,18 @@
       }
     },
     {
+      "path": ["work-record", "repair", "execute"],
+      "summary": "Execute a controlled repo-command/file-fixture Work Record repair attempt through explicit roots.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "execute"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["work-record", "attempt-artifact", "validate"],
       "summary": "Validate Work Record Repair Attempt Artifacts through an external report-only command.",
       "executable": "/usr/bin/env",

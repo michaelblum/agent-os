@@ -439,6 +439,69 @@ source Work Record, or treat authorization as proof that repair happened.
 Future execution must emit a new Work Record or explicit patch artifact, plus
 the evidence required by the attempt plan.
 
+## Controlled Repair Executor Result V0
+
+The Controlled Repair Executor is the first explicit Work Record repair executor
+slice. It consumes a ready Repair Attempt Plan, selects exactly one planned
+operation that declares a repo-owned allowlisted deterministic file-fixture
+operation, runs it only under an explicit existing execution root, writes a
+Repair Attempt Artifact under an explicit existing artifact root, and returns an
+executor result envelope. It is not a browser, native AX, canvas, live UI,
+coordinate, screenshot, image matching, TCC-gated, arbitrary shell, generic
+patch, Workflow engine, or auto-resume executor.
+
+The toolkit result contract is `work_record.controlled_repair_executor_result`
+with schema version
+`2026-07-work-record-controlled-repair-executor-result-v0`. The envelope
+includes:
+
+```json
+{
+  "type": "work_record.controlled_repair_executor_result",
+  "schema_version": "2026-07-work-record-controlled-repair-executor-result-v0",
+  "status": "succeeded",
+  "mode": "execute",
+  "repair_attempt_plan": {},
+  "source_work_record": {},
+  "execution": {},
+  "operation_outcomes": [],
+  "artifact": {},
+  "artifact_validation": {},
+  "finalization": {},
+  "side_effects": [],
+  "mutates_execution_root": true,
+  "mutates_source_record": false,
+  "executes_repair": true,
+  "would_execute_repair": false,
+  "executes_actions": false,
+  "uses_live_ui": false,
+  "uses_browser": false,
+  "uses_native_ax": false,
+  "uses_canvas": false,
+  "applies_patches": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": [],
+  "recommended_next": {}
+}
+```
+
+Supported executor statuses include `dry_run`, `succeeded`, `failed`,
+`partial`, `aborted_precondition`, `blocked_plan_not_ready`,
+`blocked_authorization`, `blocked_unsupported_operation`,
+`blocked_unsafe_command`, `blocked_workspace_escape`, `blocked_timeout`,
+`artifact_invalid`, `finalize_blocked`, `cleanup_failed`, `rollback_failed`,
+and `unsupported`. Dry-run reports direct argv command identity, roots,
+artifact path, timeout, allowed mutations, cleanup/rollback plan, and expected
+side effects without executing. Execute mode uses `shell:false`, deterministic
+environment keys, bounded stdout/stderr capture, timeout enforcement,
+before/after digests, cleanup and rollback result records, source Work Record
+immutability checks, artifact writing, and artifact validation.
+
+Source Work Records remain immutable. Replacement writing and Source
+Supersession Index writing are separate explicit contracts and are not implied
+by executor success. Executor finalization is deferred for this V0 public
+command surface.
+
 ## Repair Attempt Artifact V0
 
 A Work Record Repair Attempt Artifact records outcome data after a future
@@ -505,13 +568,17 @@ missing-evidence, verifier-failed, mismatched-operation, stale-plan,
 wrong-record, wrong-authorization, and source-record-mutated cases cannot be
 reported as success.
 
-Repair Attempt Artifacts must report the non-execution facts honestly:
+Repair Attempt Artifacts must report mutation and replay facts honestly:
 `source_work_record_mutated:false`, `rewrites_historical_evidence:false`,
-`automatic_replay_allowed:false`, and `executor_implemented:false` for this V0
-slice. The deterministic fixture builder consumes explicit outcome JSON and
-emits an artifact; it does not execute repair, replay actions, apply patches,
-run recommended commands, auto-resume, mutate source Work Records, or mint
-replacement Work Records. Replacement Work Record minting remains a separate
+and `automatic_replay_allowed:false`. The deterministic fixture builder consumes
+explicit outcome JSON and emits an artifact with `executor_implemented:false`;
+it does not execute repair, replay actions, apply patches, run recommended
+commands, auto-resume, mutate source Work Records, or mint replacement Work
+Records. A Controlled Repair Executor artifact may report
+`executor_implemented:true` only when `executor.kind` is
+`controlled_repair_executor` and the artifact validates against the same
+planned-operation, required-evidence, cleanup/rollback, verifier-health, and
+source-immutability checks. Replacement Work Record minting remains a separate
 future product surface.
 
 ## Replacement Proposal V0

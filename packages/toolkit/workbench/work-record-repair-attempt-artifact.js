@@ -217,7 +217,7 @@ export function buildWorkRecordRepairAttemptArtifact(input = {}) {
       id: text(value.executor?.id, 'fixture-outcome-input'),
       kind: text(value.executor?.kind, 'fixture_builder'),
       version: text(value.executor?.version, WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_SCHEMA_VERSION),
-      implemented: false,
+      implemented: value.executor?.implemented === true,
       description: text(value.executor?.description, 'Descriptive fixture/outcome metadata; no executor is implemented by this builder.'),
     },
     timing: {
@@ -244,7 +244,7 @@ export function buildWorkRecordRepairAttemptArtifact(input = {}) {
     source_work_record_mutated: value.source_work_record_mutated === true,
     rewrites_historical_evidence: false,
     automatic_replay_allowed: false,
-    executor_implemented: false,
+    executor_implemented: value.executor?.implemented === true,
     diagnostics: cloneJson(arrayValue(value.diagnostics)),
     recommended_next: recommendedNext(status),
   };
@@ -272,11 +272,21 @@ export function validateWorkRecordRepairAttemptArtifact(artifact = {}) {
   if (!WORK_RECORD_REPAIR_ATTEMPT_ARTIFACT_STATUSES.includes(text(value.status))) {
     add('INVALID_REPAIR_ATTEMPT_ARTIFACT_STATUS', 'Repair Attempt Artifact status is not supported.', 'status');
   }
-  for (const field of ['source_work_record_mutated', 'rewrites_historical_evidence', 'automatic_replay_allowed', 'executor_implemented']) {
+  for (const field of ['source_work_record_mutated', 'rewrites_historical_evidence', 'automatic_replay_allowed']) {
     if (value[field] !== false) add('REPAIR_ATTEMPT_ARTIFACT_NON_EXECUTION_FLAG_NOT_FALSE', `${field} must be false.`, field);
   }
-  if (objectValue(value.executor).implemented !== false) {
-    add('REPAIR_ATTEMPT_ARTIFACT_EXECUTOR_IMPLEMENTED', 'executor.implemented must be false for this V0 fixture/builder contract.', 'executor.implemented');
+  const executor = objectValue(value.executor);
+  if (executor.implemented === true) {
+    if (text(executor.kind) !== 'controlled_repair_executor') {
+      add('REPAIR_ATTEMPT_ARTIFACT_EXECUTOR_KIND_UNSUPPORTED', 'Implemented Repair Attempt Artifacts must be produced by the Controlled Repair Executor.', 'executor.kind');
+    }
+    if (value.executor_implemented !== true) {
+      add('REPAIR_ATTEMPT_ARTIFACT_EXECUTOR_FLAG_MISMATCH', 'executor_implemented must match executor.implemented.', 'executor_implemented');
+    }
+  } else if (executor.implemented !== false) {
+    add('REPAIR_ATTEMPT_ARTIFACT_EXECUTOR_IMPLEMENTED_FLAG_INVALID', 'executor.implemented must be a boolean.', 'executor.implemented');
+  } else if (value.executor_implemented !== false) {
+    add('REPAIR_ATTEMPT_ARTIFACT_EXECUTOR_FLAG_MISMATCH', 'executor_implemented must match executor.implemented.', 'executor_implemented');
   }
 
   const plannedOperations = arrayValue(value.planned_operations).map(objectValue);

@@ -13,6 +13,7 @@ import {
   checkWorkRecordGateAuthorization,
   defaultWorkRecordRoots,
   discoverWorkRecords,
+  executeControlledWorkRecordRepair,
   readWorkRecord,
   verifyWorkRecord,
   explainWorkRecordStatus,
@@ -53,6 +54,7 @@ function usage() {
   ./aos work-record status <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
+  ./aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]
   ./aos work-record attempt-artifact validate <artifact-path> [--json]
   ./aos work-record attempt-artifact build --input <outcome-input-path> [--json]
   ./aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]
@@ -88,6 +90,9 @@ function parseArgs(argv) {
     replacementRoots: [],
     indexRoot: '',
     writerResult: '',
+    executionRoot: '',
+    artifactRoot: '',
+    operationId: '',
     dryRun: false,
     positional: [],
   };
@@ -186,6 +191,21 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--writer-result requires a Replacement Writer Result JSON path', 'MISSING_ARG');
       options.writerResult = value;
+      index += 1;
+    } else if (arg === '--execution-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--execution-root requires a directory path', 'MISSING_ARG');
+      options.executionRoot = value;
+      index += 1;
+    } else if (arg === '--artifact-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--artifact-root requires a directory path', 'MISSING_ARG');
+      options.artifactRoot = value;
+      index += 1;
+    } else if (arg === '--operation-id') {
+      const value = argv[index + 1];
+      if (!value) fail('--operation-id requires a planned operation id', 'MISSING_ARG');
+      options.operationId = value;
       index += 1;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
@@ -293,7 +313,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(usage());
     return;
   }
-  if (!['attempt-artifact', 'replacement-proposal', 'supersession'].includes(command) && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
+  if (!['repair', 'attempt-artifact', 'replacement-proposal', 'supersession'].includes(command) && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
   const context = {
     roots: options.roots,
     profileId: options.profileId,
@@ -332,6 +352,28 @@ async function main(argv = process.argv.slice(2)) {
     } else {
       payload = planWorkRecordRepairAttempt(ref, context);
     }
+  } else if (command === 'repair') {
+    const [action, target, ...rest] = [ref, ...extra];
+    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+    if (action === 'execute') {
+      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
+      if (!options.attemptPlan) fail('repair execute requires --attempt-plan <plan-path>', 'MISSING_ARG');
+      if (!options.executionRoot) fail('repair execute requires --execution-root <dir>', 'MISSING_ARG');
+      if (!options.artifactRoot) fail('repair execute requires --artifact-root <dir>', 'MISSING_ARG');
+      const result = await executeControlledWorkRecordRepair({
+        attemptPlanPath: options.attemptPlan,
+        executionRoot: options.executionRoot,
+        artifactRoot: options.artifactRoot,
+        operationId: options.operationId,
+        dryRun: options.dryRun,
+        repoRoot: process.cwd(),
+      });
+      const failed = result.status !== 'dry_run' && result.status !== 'succeeded';
+      emitJSON(result, failed);
+      if (failed) process.exit(1);
+      return;
+    }
+    fail(`Unknown repair subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   } else if (command === 'attempt-artifact') {
     const [action, target, ...rest] = [ref, ...extra];
     if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');

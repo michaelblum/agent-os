@@ -3,6 +3,7 @@
 export * from './work-record-adapter.js';
 export * from './work-record-consumer.js';
 export * from './work-record-capture.js';
+export * from './work-record-controlled-repair-executor.js';
 export * from './work-record-evidence-adapters.js';
 export * from './work-record-repair-attempt-artifact.js';
 export * from './work-record-repair-attempt-plan.js';

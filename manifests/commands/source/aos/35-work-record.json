@@ -393,6 +393,100 @@
         {
           "args": [
             {
+              "id": "attempt-plan",
+              "kind": "flag",
+              "required": true,
+              "summary": "Ready Repair Attempt Plan JSON path",
+              "token": "--attempt-plan",
+              "value_type": "string"
+            },
+            {
+              "id": "execution-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit existing execution root for the deterministic repo-command/file-fixture operation",
+              "token": "--execution-root",
+              "value_type": "string"
+            },
+            {
+              "id": "artifact-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit existing artifact root for the Repair Attempt Artifact output",
+              "token": "--artifact-root",
+              "value_type": "string"
+            },
+            {
+              "id": "operation-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Specific planned operation id to execute when more than one allowlisted operation is present",
+              "token": "--operation-id",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report command identity, argv, roots, artifact path, timeout, allowed mutations, cleanup/rollback, and expected side effects without executing",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Controlled Repair Executor result JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json",
+            "aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true,
+            "executes_repair": true,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false,
+            "mutates_source_record": false,
+            "writes_repair_attempt_artifact": true,
+            "uses_browser": false,
+            "uses_native_ax": false,
+            "uses_canvas": false,
+            "mutation_scope": "explicit_execution_root_and_artifact_root_only",
+            "operation_scope": "controlled_repo_command_file_fixture_only",
+            "unsupported_live_surfaces": [
+              "browser",
+              "native_ax",
+              "canvas",
+              "coordinates",
+              "screenshots",
+              "image_matching",
+              "tcc_gated_surfaces"
+            ],
+            "rejects_arbitrary_shell": true
+          },
+          "id": "work-record-repair-execute",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]"
+        },
+        {
+          "args": [
+            {
               "id": "artifact-path",
               "kind": "positional",
               "required": true,

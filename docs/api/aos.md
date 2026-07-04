@@ -103,7 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
-| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, non-executing replacement proposals, explicit-root replacement writing, and external source supersession lookup/indexing |
+| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, and external source supersession lookup/indexing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -973,10 +973,13 @@ or explicit `--root` files/directories, read a record by id or path, run the
 named report-only verifier profile, explain conservative recovery guidance, and
 emit read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan,
 Replacement Proposal, Source Supersession Index lookup, or compact evidence
-bundle JSON. The narrow exceptions are `replacement-proposal write`, which
-writes only a new replacement Work Record under an explicit `--output-root`,
-and `supersession write`, which writes only an external relationship entry under
-an explicit `--index-root`.
+bundle JSON. The narrow mutating exceptions are `repair execute`, which runs
+only an allowlisted deterministic repo-command/file-fixture operation under an
+explicit `--execution-root` and writes a Repair Attempt Artifact under an
+explicit `--artifact-root`; `replacement-proposal write`, which writes only a
+new replacement Work Record under an explicit `--output-root`; and
+`supersession write`, which writes only an external relationship entry under an
+explicit `--index-root`.
 
 ```bash
 aos work-record list --json
@@ -986,6 +989,8 @@ aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
+aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
+aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
 aos work-record attempt-artifact validate repair-attempt-artifact.json --json
 aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
 aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
@@ -1078,6 +1083,35 @@ preconditions, unapplied candidate patches, and unexecuted recommended
 commands. Missing, denied, dismissed, timeout, insufficient, stale, wrong
 record, wrong plan, wrong gate, invalid, and unsupported authorization all fail
 closed.
+
+`repair execute` is the Controlled Repair Executor V0 command. It accepts a
+ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`
+and `--artifact-root` directories. Dry-run reports the allowlisted operation id,
+direct argv command identity, execution root, artifact path, timeout, allowed
+mutations, cleanup/rollback plan, and expected side effects without executing.
+Execute mode runs only the repo-owned deterministic file-fixture allowlist with
+`shell:false`, deterministic environment keys, bounded stdout/stderr capture,
+timeout enforcement, before/after digests for declared fixture paths,
+cleanup/rollback result capture, source Work Record immutability proof, Repair
+Attempt Artifact writing, and artifact validation.
+
+The executor result envelope is `work_record.controlled_repair_executor_result`
+with schema version
+`2026-07-work-record-controlled-repair-executor-result-v0`. Status values
+include `dry_run`, `succeeded`, `failed`, `partial`,
+`aborted_precondition`, `blocked_plan_not_ready`, `blocked_authorization`,
+`blocked_unsupported_operation`, `blocked_unsafe_command`,
+`blocked_workspace_escape`, `blocked_timeout`, `artifact_invalid`,
+`finalize_blocked`, `cleanup_failed`, `rollback_failed`, and `unsupported`.
+Every result reports `mutates_source_record:false`, `executes_actions:false`,
+`uses_live_ui:false`, `uses_browser:false`, `uses_native_ax:false`,
+`uses_canvas:false`, `applies_patches:false`, and
+`automatic_replay_allowed:false`. Browser, native AX, canvas, coordinate,
+screenshot, image matching, TCC-gated, arbitrary shell, unregistered command,
+source-record mutation, generic patch execution, Workflow engine, and
+auto-resume behavior are unsupported. Replacement writing and supersession
+indexing remain separate explicit commands; executor finalization is not part of
+this V0 public command.
 
 `attempt-artifact validate` validates an existing
 `work_record.repair_attempt_artifact` JSON artifact with schema version

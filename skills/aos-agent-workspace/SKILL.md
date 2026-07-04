@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair execute/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -118,12 +118,18 @@ the returned `recommended_next`, `recommended_next_commands`, or
   authorized or blocked future-attempt descriptors through `plan-attempt`, and
   validates or fixture-builds Repair Attempt Artifacts through
   `attempt-artifact`, and derives non-writing Replacement Proposals through
-  `replacement-proposal build/validate`. It never replays, repairs, applies
-  candidate patches, executes recommended commands, auto-resumes, or mutates
-  source evidence. `gate-check` authorization only permits a future gated
-  attempt; `plan-attempt` is not proof that repair happened and is only safe to
-  hand to a future explicit executor when it reports `ready`. A Repair Attempt
-  Artifact records attempted outcome data; it is not an executor. A Replacement
+  `replacement-proposal build/validate`. The narrow executing exception is
+  `repair execute --attempt-plan <path> --execution-root <dir> --artifact-root
+  <dir> [--dry-run] --json`: it consumes only a `ready` Repair Attempt Plan,
+  runs only an allowlisted deterministic repo-command/file-fixture operation
+  under the explicit execution root, writes a Repair Attempt Artifact under the
+  explicit artifact root, and still rejects browser, native AX, canvas, live UI,
+  coordinate, screenshot, image matching, arbitrary shell, generic patch,
+  Workflow engine, source-record mutation, and auto-resume behavior.
+  `gate-check` authorization only permits a future gated attempt;
+  `plan-attempt` is not proof that repair happened and is only safe to hand to a
+  future explicit executor when it reports `ready`. A Repair Attempt Artifact
+  records attempted outcome data; it is not a replacement writer. A Replacement
   Proposal proposes carried-forward evidence, new evidence, supersession
   metadata, and final proposed health; it is not itself a writer.
 - `aos work-record replacement-proposal write <proposal-path> --output-root
