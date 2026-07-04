@@ -177,6 +177,27 @@
       "path": [
         "work-record",
         "repair",
+        "bundle"
+      ],
+      "summary": "Materialize non-executing Work Record repair guide artifacts under an explicit output root.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "repair",
+        "bundle"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
+        "repair",
         "execute"
       ],
       "summary": "Execute a controlled repo-command/file-fixture Work Record repair attempt through explicit roots.",

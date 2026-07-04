@@ -189,6 +189,187 @@
         {
           "args": [
             {
+              "id": "ref",
+              "kind": "positional",
+              "required": true,
+              "summary": "Source Work Record id, Subject Entry Handle, or JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "output-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit operator-owned output root for bundle artifacts",
+              "token": "--output-root",
+              "value_type": "string"
+            },
+            {
+              "id": "profile",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report-only verifier profile id",
+              "token": "--profile",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "id": "authorization",
+              "kind": "flag",
+              "required": false,
+              "summary": "Workflow Gate Authorization JSON path",
+              "token": "--authorization",
+              "value_type": "string"
+            },
+            {
+              "id": "gate-record",
+              "kind": "flag",
+              "required": false,
+              "summary": "Gate record id or JSON path to evaluate as authorization",
+              "token": "--gate-record",
+              "value_type": "string"
+            },
+            {
+              "id": "resume-event",
+              "kind": "flag",
+              "required": false,
+              "summary": "Gate resume-event JSON path to evaluate as authorization",
+              "token": "--resume-event",
+              "value_type": "string"
+            },
+            {
+              "id": "continuation-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Submitted deferred-gate continuation id to evaluate as authorization",
+              "token": "--continuation-id",
+              "value_type": "string"
+            },
+            {
+              "id": "attempt-plan",
+              "kind": "flag",
+              "required": false,
+              "summary": "Repair Attempt Plan JSON path for finalization dry-run",
+              "token": "--attempt-plan",
+              "value_type": "string"
+            },
+            {
+              "id": "attempt-artifact",
+              "kind": "flag",
+              "required": false,
+              "summary": "Repair Attempt Artifact JSON path for finalization dry-run",
+              "token": "--attempt-artifact",
+              "value_type": "string"
+            },
+            {
+              "id": "replacement-root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit replacement Work Record root for finalization dry-run only",
+              "token": "--replacement-root",
+              "value_type": "string"
+            },
+            {
+              "id": "index-root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit Source Supersession Index root for lookup and finalization dry-run only",
+              "token": "--index-root",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report the exact planned bundle file set without writing",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Recovery Bundle JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "constraints": {
+            "conflicts": [
+              [
+                "authorization",
+                "gate-record"
+              ],
+              [
+                "authorization",
+                "resume-event"
+              ],
+              [
+                "authorization",
+                "continuation-id"
+              ],
+              [
+                "gate-record",
+                "resume-event"
+              ],
+              [
+                "gate-record",
+                "continuation-id"
+              ],
+              [
+                "resume-event",
+                "continuation-id"
+              ]
+            ]
+          },
+          "examples": [
+            "aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json",
+            "aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true,
+            "writes_replacement_record": false,
+            "writes_index_entry": false,
+            "writes_supersession_index_entry": false,
+            "mutates_source_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "uses_live_ui": false,
+            "uses_browser": false,
+            "uses_native_ax": false,
+            "uses_canvas": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false,
+            "runs_recommended_commands": false,
+            "starts_workflow_engine": false,
+            "auto_resumes": false,
+            "mutation_scope": "explicit_output_root_bundle_artifacts_only",
+            "composition_scope": "non_mutating_guide_planning_artifact_materialization"
+          },
+          "id": "work-record-repair-bundle",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]"
+        },
+        {
+          "args": [
+            {
               "id": "source",
               "kind": "flag",
               "required": true,

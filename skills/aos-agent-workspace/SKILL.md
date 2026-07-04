@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair bundle/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -143,11 +143,20 @@ the returned `recommended_next`, `recommended_next_commands`, or
   A `ready_to_execute` guide report is ready only when `--attempt-plan`,
   `--execution-root`, and `--artifact-root` are all supplied; descriptors that
   need JSON stdout saved expose `stdout_artifact`, `save_stdout_to`, and
-  `requires_saved_output_from` instead of hidden shell inference. A Repair
-  Attempt Artifact records attempted outcome data; it is not a replacement
-  writer. A Replacement Proposal proposes carried-forward evidence, new
-  evidence, per-postcondition evidence mapping, supersession metadata, and final
-  proposed health; it is not itself a writer.
+  `requires_saved_output_from` instead of hidden shell inference. Use
+  `repair bundle <id-or-path> --output-root <dir> [--dry-run] --json` when a
+  future session needs an explicit handoff root containing `bundle-manifest`,
+  `guide-report`, `commands/*.json`, and safe non-mutating guide/planning
+  artifacts. The bundle writes only under `--output-root`, dry-run writes
+  nothing, descriptors are rebound to bundle-local artifact paths, and every
+  artifact reports path, digest, producer, and downstream consumers. It is not
+  repair execution, finalization, gate submission, replay, auto-resume,
+  `aos do`, live UI, browser, native AX, canvas, patch application, replacement
+  writing, supersession writing, or source-record mutation. A Repair Attempt
+  Artifact records attempted outcome data; it is not a replacement writer. A
+  Replacement Proposal proposes carried-forward evidence, new evidence,
+  per-postcondition evidence mapping, supersession metadata, and final proposed
+  health; it is not itself a writer.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

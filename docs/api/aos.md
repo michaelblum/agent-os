@@ -976,8 +976,11 @@ Replacement Proposal, Source Supersession Index lookup, Guided Recovery report,
 or compact evidence bundle JSON. `repair guide` composes the current status,
 Repair Plan, optional gate authorization, optional Attempt Artifact validation,
 optional finalization dry-run, and optional supersession lookup into one
-non-executing recovery report with exact command descriptors. The narrow
-mutating exceptions are `repair execute`, which runs only an allowlisted
+non-executing recovery report with exact command descriptors. `repair bundle`
+materializes the guide/report/planning side of that recovery report under an
+explicit operator-owned `--output-root`; it is a handoff bundle writer, not a
+repair executor, finalizer, gate submitter, replay loop, or auto-resume surface.
+The narrow mutating exceptions are `repair execute`, which runs only an allowlisted
 deterministic repo-command/file-fixture operation under an explicit
 `--execution-root` and writes a Repair Attempt Artifact under an explicit
 `--artifact-root`; `replacement-proposal write`, which writes only a new
@@ -997,6 +1000,8 @@ aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
+aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json
+aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
 aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
@@ -1134,6 +1139,38 @@ surfaces, never applies patches, never mutates source Work Records, never
 writes replacement or supersession outputs, never starts a Workflow engine, and
 never auto-resumes agents. Mutating commands can appear only as explicit
 descriptors marked `not_run_by_guide:true`.
+
+`repair bundle` is the Work Record Recovery Bundle V0 surface. It accepts a
+source Work Record plus required `--output-root`; optional `--profile` and
+repeatable `--root`; at most one of `--authorization`, `--gate-record`,
+`--resume-event`, or `--continuation-id`; optional `--attempt-plan`,
+`--attempt-artifact`, `--replacement-root`, and `--index-root`; optional
+`--dry-run`; and returns `work_record.repair_recovery_bundle` with schema
+version `2026-07-work-record-repair-recovery-bundle-v0`. The bundle writes only
+under the explicit output root. Dry-run writes nothing and reports the planned
+file set.
+
+Bundle writes are limited to `bundle-manifest.json`, `guide-report.json`,
+`commands/*.json` descriptors, safe JSON stdout artifacts explicitly described
+by guide descriptors such as `artifacts/gate-request.json` and
+`artifacts/repair-attempt-plan.json`, and non-mutating reports such as
+`reports/finalization-dry-run.json` and `reports/supersession-lookup.json`.
+Every planned or written artifact reports path, digest, producer, downstream
+consumers, write mode, and whether bytes are known at plan time. Descriptor
+paths are rebound so `stdout_artifact.path`, `save_stdout_to`, and
+`requires_saved_output_from` point at bundle-local artifacts when those
+artifacts are materialized; descriptors also carry `not_run_by_bundle:true` and
+a `bundle_artifact_status`.
+
+The bundle rejects path traversal, symlink escapes, output-root file conflicts,
+and conflicting existing artifacts. Matching existing files are idempotent. It
+preserves source Work Record bytes and never writes replacement Work Records,
+Source Supersession Index entries, source Work Records, gate records, gate
+responses, Repair Attempt Artifacts, arbitrary patch output, or anything
+outside `--output-root`. It never runs `repair execute`, `repair finalize` in
+write mode, `replacement-proposal write`, `supersession write`, `aos gate
+ask/defer/submit`, `aos do`, browser/native AX/canvas/TCC operations, replay,
+auto-resume, or a Workflow engine.
 
 `repair execute` is the Controlled Repair Executor V0 command. It accepts a
 ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`

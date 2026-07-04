@@ -17,6 +17,7 @@ import {
   explainWorkRecordStatus,
   exportWorkRecordBundle,
   guideWorkRecordRepair,
+  writeWorkRecordRepairBundle,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
   WORK_RECORD_CONSUMER_VERSION,
@@ -52,6 +53,7 @@ function usage() {
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--execution-root dir] [--artifact-root dir] [--replacement-root dir] [--index-root dir] [--json]
+  ./aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
   ./aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]
   ./aos work-record repair finalize --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir> --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path] [--dry-run] [--json]
   ./aos work-record attempt-artifact validate <artifact-path> [--json]
@@ -369,6 +371,33 @@ async function main(argv = process.argv.slice(2)) {
         replacementOutputPath: options.replacementOutputPath,
       });
       emitPayload(payload, options.json);
+      return;
+    }
+    if (action === 'bundle') {
+      if (!target) fail('repair bundle requires a Work Record id or path', 'MISSING_ARG');
+      if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+      const refs = [options.authorization, options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);
+      if (refs.length > 1) {
+        fail('repair bundle accepts at most one of --authorization, --gate-record, --resume-event, or --continuation-id', 'BUNDLE_AUTHORIZATION_INPUT_CONFLICT');
+      }
+      payload = writeWorkRecordRepairBundle({
+        sourceRef: target,
+        outputRoot: options.outputRoot,
+        dryRun: options.dryRun,
+        ...context,
+        ...(options.authorization ? { authorization: await readAuthorization(options.authorization) } : {}),
+        ...(!options.authorization && refs.length === 1 ? { gateOutcome: await gateCheckOutcome(options) } : {}),
+        attemptPlanPath: options.attemptPlan,
+        attemptArtifactPath: options.attemptArtifact,
+        replacementRoot: options.replacementRoots[0] || '',
+        replacementRoots: options.replacementRoots,
+        indexRoot: options.indexRoot,
+        proposedIdSeed: options.proposedIdSeed,
+        replacementOutputPath: options.replacementOutputPath,
+      });
+      const failed = payload.status !== 'dry_run' && payload.status !== 'written';
+      emitJSON(payload, failed);
+      if (failed) process.exit(1);
       return;
     }
     await handleRepairFamily({ action, target, rest, options, fail, emitJSON });

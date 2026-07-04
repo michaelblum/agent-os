@@ -451,6 +451,12 @@ aos work-record repair guide <id-or-path> [--profile id] [--root path ...] \
   [--attempt-plan path] [--attempt-artifact path] \
   [--execution-root dir] [--artifact-root dir] \
   [--replacement-root dir] [--index-root dir] [--json]
+
+aos work-record repair bundle <id-or-path> --output-root <dir> \
+  [--profile id] [--root path ...] \
+  [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] \
+  [--attempt-plan path] [--attempt-artifact path] \
+  [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
 ```
 
 The envelope type is `work_record.repair_guided_recovery` with schema version
@@ -496,6 +502,54 @@ non-mutating dry-runs. It must report these flags as false:
 `runs_recommended_commands`, `applies_patches`, `uses_live_ui`,
 `uses_browser`, `uses_native_ax`, `uses_canvas`, `starts_workflow_engine`,
 `auto_resumes`, and `automatic_replay_allowed`.
+
+## Repair Recovery Bundle V0
+
+Recovery Bundle is an operator handoff artifact over Guided Recovery. It
+materializes non-mutating guide/report/planning outputs under an explicit
+`--output-root` so a later session can continue from files and descriptors
+without hidden stdout redirection or shell inference. The public command is:
+
+```bash
+aos work-record repair bundle <id-or-path> --output-root <dir> \
+  [--profile id] [--root path ...] \
+  [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] \
+  [--attempt-plan path] [--attempt-artifact path] \
+  [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
+```
+
+The envelope type is `work_record.repair_recovery_bundle` with schema version
+`2026-07-work-record-repair-recovery-bundle-v0`. It includes status, mode
+(`dry_run` or `write`), source Work Record identity, output root, guide report
+path, manifest path, planned/written/skipped artifact arrays, conflicts,
+diagnostics, non-execution flags, and the next recommended command descriptor.
+
+The bundle may write only `bundle-manifest.json`, `guide-report.json`,
+`commands/*.json`, JSON stdout artifacts explicitly described by guide
+descriptors such as `artifacts/gate-request.json` and
+`artifacts/repair-attempt-plan.json`, and non-mutating reports such as
+`reports/finalization-dry-run.json` and `reports/supersession-lookup.json`.
+Every artifact entry carries relative path, absolute path, artifact kind,
+digest, producer, downstream consumers, write mode, bytes-known-at-plan-time,
+existence, and conflict status. Written artifacts add write status.
+
+Bundled descriptors are rebound to bundle-local artifact paths when those
+artifacts are materialized: `stdout_artifact.path`, `save_stdout_to`, and
+`requires_saved_output_from` agree, and descriptors carry
+`not_run_by_bundle:true` plus `bundle_artifact_status` of `materialized`,
+`planned_only`, `missing_input`, or `not_applicable`. No descriptor may imply a
+file exists when the bundle did not write or plan the corresponding artifact.
+
+Dry-run writes nothing and reports the exact planned file set. Write mode is
+idempotent for identical existing files and fails closed for conflicting files,
+path traversal, symlink escapes, output-root file conflicts, and source-record
+mutation. The bundle must never write replacement Work Records, Source
+Supersession Index entries, source Work Records, gate records, gate responses,
+Repair Attempt Artifacts, arbitrary patch output, or anything outside
+`--output-root`. It must never run repair execution, repair finalization in
+write mode, replacement writes, supersession writes, `aos gate` submission
+commands, `aos do`, browser/native AX/canvas/TCC surfaces, replay, auto-resume,
+or a Workflow engine.
 
 ## Controlled Repair Executor Result V0
 
@@ -1138,6 +1192,8 @@ The surface is read-only and supports:
 - `repair guide` for a read-only Guided Recovery report across status,
   planning, authorization, attempt artifact, finalization dry-run, and
   supersession lookup state;
+- `repair bundle` for a controlled output-root handoff bundle of non-mutating
+  guide artifacts, rebound command descriptors, and safe planning reports;
 - `attempt-artifact validate` and `attempt-artifact build` for read-only Repair
   Attempt Artifact validation and fixture/outcome artifact generation;
 - `export` for a compact read-only evidence bundle manifest.
