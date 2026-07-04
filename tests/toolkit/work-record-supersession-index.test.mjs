@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import * as publicWorkRecord from '../../packages/toolkit/workbench/work-record.js';
 import {
   buildWorkRecordGateRequestFromRepairPlan,
   buildWorkRecordRepairAttemptArtifact,
@@ -21,6 +22,9 @@ import {
   WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
   WORK_RECORD_SOURCE_SUPERSESSION_INDEX_STATUSES,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  planWorkRecordSourceSupersessionFromRecords,
+} from '../../packages/toolkit/workbench/work-record-supersession-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -194,6 +198,12 @@ test('Source Supersession Index statuses are declared', () => {
   }
 });
 
+test('Source Supersession Index facade stays below the review line threshold', () => {
+  const indexPath = path.join(repoRoot, 'packages/toolkit/workbench/work-record-supersession-index.js');
+  const lineCount = fs.readFileSync(indexPath, 'utf8').split('\n').length;
+  assert.ok(lineCount < 1000, `work-record-supersession-index.js has ${lineCount} lines`);
+});
+
 test('dry-run reports exact index path and does not write', () => {
   const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-dry-run-'));
   const { outputRoot, replacementPath, writerResult } = writeReplacement();
@@ -265,6 +275,45 @@ test('planning rejects invalid index roots and accepts in-memory writer results'
   assert.equal(memoryPlan.supersession_entry.id, filePlan.supersession_entry.id);
   assert.equal(memoryPlan.supersession_entry.digest, filePlan.supersession_entry.digest);
   assert.equal(memoryPlan.output.index_path, filePlan.output.index_path);
+});
+
+test('public planning ignores finalizer-only record injection while internal record planning works', () => {
+  assert.equal(Object.hasOwn(publicWorkRecord, 'planWorkRecordSourceSupersessionFromRecords'), false);
+
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-internal-plan-'));
+  const { outputRoot, replacementPath, writerResult } = writeReplacement({
+    proposedIdSeed: 'work-record:supersession-index-internal-plan-replacement',
+  });
+  const sourceRead = readWorkRecord(repairableFixture, { repoRoot });
+  const replacementRecord = JSON.parse(fs.readFileSync(replacementPath, 'utf8'));
+
+  const publicRecordOnly = planWorkRecordSourceSupersession({
+    sourceRecord: sourceRead.record,
+    replacementRecord,
+    sourcePath: repairableFixture,
+    replacementPath,
+    indexRoot,
+    writerResult,
+    repoRoot,
+  });
+  assert.equal(publicRecordOnly.status, 'blocked_invalid_source');
+
+  const internalPlan = planWorkRecordSourceSupersessionFromRecords({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    sourceRecord: sourceRead.record,
+    replacementRecord,
+    sourcePath: repairableFixture,
+    replacementPath,
+    indexRoot,
+    sourceRoots: [path.dirname(repairableFixture)],
+    replacementRoots: [outputRoot],
+    writerResult,
+    repoRoot,
+  });
+  assert.equal(internalPlan.status, 'dry_run', JSON.stringify(internalPlan.diagnostics, null, 2));
+  assert.equal(internalPlan.source_work_record.id, sourceRead.record.id);
+  assert.equal(internalPlan.replacement_work_record.id, replacementRecord.id);
 });
 
 test('write, validate, lookup, idempotency, and immutability are deterministic', () => {

@@ -21,10 +21,12 @@ import {
 } from './work-record-replacement-writer.js';
 import {
   lookupWorkRecordSourceSupersession,
-  planWorkRecordSourceSupersession,
   validateWorkRecordSourceSupersessionEntry,
   writeWorkRecordSourceSupersessionIndex,
 } from './work-record-supersession-index.js';
+import {
+  planWorkRecordSourceSupersessionFromRecords,
+} from './work-record-supersession-plan.js';
 
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION = '2026-07-work-record-repair-finalization-result-v0';
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_TYPE = 'work_record.repair_finalization_result';
@@ -402,7 +404,7 @@ export function finalizeWorkRecordRepair({
   });
   const replacementRecord = materializeReplacementWorkRecord(proposal);
   const supersessionPlan = writerPlan.status === 'dry_run'
-    ? planWorkRecordSourceSupersession({
+    ? planWorkRecordSourceSupersessionFromRecords({
       sourceRef,
       replacementRef: text(writerPlan.output?.output_path),
       sourceRecord: sourceRead.record,
