@@ -107,6 +107,11 @@ the returned `recommended_next`, `recommended_next_commands`, or
   `--expect-ref <ref>=changed` or another ref state when postconditions are
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
+- Use `aos work-record list/read/verify/status/export --json` when the task is
+  consuming an existing Work Record rather than operating saved perception
+  state. That command is report-only: it distinguishes historical
+  `claim_results[]` from the current verifier report, returns conservative
+  recovery guidance, and never replays, repairs, or mutates evidence.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

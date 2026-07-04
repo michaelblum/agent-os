@@ -399,7 +399,7 @@ toolkit helpers above the daemon: callers pass a Work Record object, and the
 helpers inspect only structured payloads already embedded in `evidence[]` and
 `execution_map.postconditions[]`. They do not call `./aos`, inspect live
 canvases, open browsers, read files from artifact URIs, mutate Work Records,
-patch execution maps, replay actions, repair refs, or add a public CLI surface.
+patch execution maps, replay actions, or repair refs.
 
 `aos.verifier.work-record.v0.report-only` now composes those helpers with the
 existing internal-integrity checker. The old checks still validate ids, derived
@@ -427,6 +427,32 @@ diagnostics on the verifier report, not automatic Work Record edits. A record
 can remain schema-valid and keep optimistic historical `claim_results[]` while
 the current report-only verifier flags the embedded evidence as no longer
 supporting the claim.
+
+## Consumption And Recovery
+
+`packages/toolkit/workbench/work-record-consumer.js` and the public
+`aos work-record` command provide the first model-facing Work Record consumer.
+The surface is read-only and supports:
+
+- `list` over canonical fixtures or explicit `--root` files/directories;
+- `read` by Work Record id, Subject Entry Handle, or JSON path;
+- `verify` with `aos.verifier.work-record.v0.report-only`;
+- `status` for current report-only health, diagnostics, evidence refs, and
+  recovery guidance;
+- `export` for a compact read-only evidence bundle manifest.
+
+The consumer distinguishes embedded historical `claim_results[]` from the fresh
+report-only verifier output. It fails closed for unsupported schema versions,
+invalid V0 contract shapes, missing roots, invalid JSON, and id-based
+consumption when duplicate ids make a ref ambiguous. It does not mutate Work
+Records, patch execution maps, repair refs, rewrite Claims, replay actions, or
+inline heavy UI payloads.
+
+Recovery guidance covers all Verifier Health verdicts. `valid` recommends no
+repair or redundant proof loop; `stale` and `repairable` point to
+re-perception/re-resolution or explicit workflow gates; `blocked` names missing
+evidence, permission, runtime, cleanup, or postcondition blockers; and
+`impossible`, `superseded`, and `retired` do not offer replay as the next step.
 
 ## Examples
 

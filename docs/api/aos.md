@@ -103,6 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
+| `aos work-record` | read-only Work Record discovery, report-only verification, recovery guidance, and compact evidence bundle manifests |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -963,6 +964,43 @@ Stale or ambiguous saved-ref validation is classified as `repairable` or
 is recorded without rewriting historical evidence. This bridge does not turn
 `aos do` into a macro recorder and does not authorize autonomous replay or
 repair.
+
+## `aos work-record`
+
+`aos work-record` is the model-facing read-only consumer for Work Record v0
+artifacts. It can discover records from canonical fixture roots or explicit
+`--root` files/directories, read a record by id or path, run the named
+report-only verifier profile, explain conservative recovery guidance, and emit
+a compact evidence bundle manifest.
+
+```bash
+aos work-record list --json
+aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
+aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
+```
+
+The current verifier profile is
+`aos.verifier.work-record.v0.report-only`. It reads Work Records and returns a
+fresh diagnostic report with `mutates_record:false`; it does not patch
+evidence, rewrite Claims, repair refs, or replay actions. Embedded
+`claim_results[]` remain historical record contents and are reported
+separately from the current verifier output.
+
+`status` returns the Work Record health verdict, failure classes, diagnostics,
+evidence refs used by the verifier, and recovery guidance for `valid`, `stale`,
+`repairable`, `blocked`, `impossible`, `superseded`, and `retired`. Guidance is
+conservative: stale and repairable records point to re-perception/re-resolution
+or a named workflow gate; blocked records name missing evidence, permission,
+runtime, cleanup, or postcondition blockers; valid records do not recommend
+redundant live proof loops; and impossible, retired, or superseded records do
+not offer replay as the next step.
+
+`export` emits a read-only bundle manifest. It preserves evidence refs,
+artifact paths, and metadata such as digest and size when available, but it does
+not inline screenshots, traces, AX dumps, browser payloads, or other heavy UI
+artifacts into model context.
 
 `recipe run` supports read-only recipes, mutating canvas recipes with explicit
 owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.

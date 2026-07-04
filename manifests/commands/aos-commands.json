@@ -10394,6 +10394,269 @@
         "help"
       ],
       "summary" : "Show help for commands"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable discovery JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record list --json",
+            "aos work-record list --root shared/schemas/fixtures/aos-work-record-v0/valid --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "work-record-list",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record list [--root path ...] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "ref",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable Work Record JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json",
+            "aos work-record read shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "work-record-read",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record read <id-or-path> [--root path ...] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "ref",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "profile",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report-only verifier profile id",
+              "token" : "--profile",
+              "value_type" : "string"
+            },
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable verifier JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record verify work-record:workflow-open-wiki-sigil-2026-05-05 --json",
+            "aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --profile aos.verifier.work-record.v0.report-only --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "work-record-verify",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record verify <id-or-path> [--profile id] [--root path ...] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "ref",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "profile",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report-only verifier profile id",
+              "token" : "--profile",
+              "value_type" : "string"
+            },
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable status and recovery JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "work-record-status",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record status <id-or-path> [--profile id] [--root path ...] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "ref",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "profile",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report-only verifier profile id",
+              "token" : "--profile",
+              "value_type" : "string"
+            },
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable bundle manifest JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "work-record-export",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]"
+        }
+      ],
+      "path" : [
+        "work-record"
+      ],
+      "summary" : "Work Records — discover, read, verify, explain recovery, and export read-only evidence manifests"
     }
   ],
   "name" : "aos",
