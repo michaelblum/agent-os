@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import {
   GateContinuationStore,
 } from '../packages/daemon/gate/continuations.js';
@@ -17,9 +18,11 @@ import {
   explainWorkRecordStatus,
   exportWorkRecordBundle,
   buildWorkRecordRepairAttemptArtifact,
+  buildWorkRecordReplacementProposal,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
   validateWorkRecordRepairAttemptArtifact,
+  validateWorkRecordReplacementProposal,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
 
@@ -48,6 +51,8 @@ function usage() {
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record attempt-artifact validate <artifact-path> [--json]
   ./aos work-record attempt-artifact build --input <outcome-input-path> [--json]
+  ./aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]
+  ./aos work-record replacement-proposal validate <proposal-path> [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
@@ -65,6 +70,10 @@ function parseArgs(argv) {
     resumeEvent: '',
     continuationId: '',
     input: '',
+    source: '',
+    attemptPlan: '',
+    attemptArtifact: '',
+    proposedIdSeed: '',
     positional: [],
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -112,6 +121,26 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--input requires a JSON path', 'MISSING_ARG');
       options.input = value;
+      index += 1;
+    } else if (arg === '--source') {
+      const value = argv[index + 1];
+      if (!value) fail('--source requires a Work Record id or path', 'MISSING_ARG');
+      options.source = value;
+      index += 1;
+    } else if (arg === '--attempt-plan') {
+      const value = argv[index + 1];
+      if (!value) fail('--attempt-plan requires a Repair Attempt Plan JSON path', 'MISSING_ARG');
+      options.attemptPlan = value;
+      index += 1;
+    } else if (arg === '--attempt-artifact') {
+      const value = argv[index + 1];
+      if (!value) fail('--attempt-artifact requires a Repair Attempt Artifact JSON path', 'MISSING_ARG');
+      options.attemptArtifact = value;
+      index += 1;
+    } else if (arg === '--proposed-id-seed') {
+      const value = argv[index + 1];
+      if (!value) fail('--proposed-id-seed requires a proposed Work Record id seed', 'MISSING_ARG');
+      options.proposedIdSeed = value;
       index += 1;
     } else if (arg.startsWith('--')) {
       fail(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
@@ -174,6 +203,10 @@ function readJsonFile(file, code = 'INVALID_JSON') {
   }
 }
 
+function digestFile(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
 async function gateCheckOutcome(options) {
   const refs = [options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);
   if (refs.length !== 1) {
@@ -213,7 +246,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(usage());
     return;
   }
-  if (command !== 'attempt-artifact' && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
+  if (!['attempt-artifact', 'replacement-proposal'].includes(command) && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
   const context = {
     roots: options.roots,
     profileId: options.profileId,
@@ -269,6 +302,46 @@ async function main(argv = process.argv.slice(2)) {
       return;
     }
     fail(`Unknown attempt-artifact subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+  } else if (command === 'replacement-proposal') {
+    const [action, target, ...rest] = [ref, ...extra];
+    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+    if (action === 'validate') {
+      if (!target) fail('replacement-proposal validate requires a proposal path', 'MISSING_ARG');
+      const validation = validateWorkRecordReplacementProposal(readJsonFile(target, 'INVALID_REPLACEMENT_PROPOSAL'));
+      emitJSON(validation, validation.status !== 'passed');
+      if (validation.status !== 'passed') process.exit(1);
+      return;
+    }
+    if (action === 'build') {
+      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
+      if (!options.source) fail('replacement-proposal build requires --source <id-or-path>', 'MISSING_ARG');
+      if (!options.attemptPlan) fail('replacement-proposal build requires --attempt-plan <plan-path>', 'MISSING_ARG');
+      if (!options.attemptArtifact) fail('replacement-proposal build requires --attempt-artifact <artifact-path>', 'MISSING_ARG');
+      const sourceRead = readWorkRecord(options.source, context);
+      if (sourceRead.status !== 'success') {
+        emitJSON(sourceRead, true);
+        process.exit(1);
+      }
+      const sourcePath = sourceRead.source?.path;
+      const beforeDigest = sourcePath ? digestFile(sourcePath) : '';
+      const proposal = buildWorkRecordReplacementProposal({
+        source_work_record: {
+          ...sourceRead.summary,
+          ...sourceRead.source,
+          record: sourceRead.record,
+          path: sourcePath,
+          requested_ref: options.source,
+          digest: beforeDigest,
+        },
+        repair_attempt_plan: readJsonFile(options.attemptPlan, 'INVALID_REPAIR_ATTEMPT_PLAN'),
+        repair_attempt_artifact: readJsonFile(options.attemptArtifact, 'INVALID_REPAIR_ATTEMPT_ARTIFACT'),
+        source_work_record_digest_after: sourcePath ? digestFile(sourcePath) : beforeDigest,
+        proposed_id_seed: options.proposedIdSeed,
+      });
+      emitJSON(proposal);
+      return;
+    }
+    fail(`Unknown replacement-proposal subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   } else if (command === 'gate-request') {
     payload = buildWorkRecordGateRequest(ref, context);
   } else if (command === 'gate-check') {

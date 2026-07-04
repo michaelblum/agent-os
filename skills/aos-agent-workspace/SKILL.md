@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. That command family is report-only: it distinguishes
   historical `claim_results[]` from the current verifier report, returns
@@ -117,12 +117,16 @@ the returned `recommended_next`, `recommended_next_commands`, or
   terminal gate records or resume events through `gate-check`, packages
   authorized or blocked future-attempt descriptors through `plan-attempt`, and
   validates or fixture-builds Repair Attempt Artifacts through
-  `attempt-artifact`. It never replays, repairs, applies candidate patches,
+  `attempt-artifact`, and derives non-writing Replacement Proposals through
+  `replacement-proposal`. It never replays, repairs, applies candidate patches,
   executes recommended commands, auto-resumes, mints replacement Work Records,
   or mutates evidence. `gate-check` authorization only permits a future gated
   attempt; `plan-attempt` is not proof that repair happened and is only safe to
   hand to a future explicit executor when it reports `ready`. A Repair Attempt
-  Artifact records attempted outcome data; it is not an executor.
+  Artifact records attempted outcome data; it is not an executor. A Replacement
+  Proposal proposes carried-forward evidence, new evidence, supersession
+  metadata, and final proposed health for a future writer; it is not a writer
+  and does not persist the proposed replacement Work Record.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

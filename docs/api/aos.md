@@ -984,6 +984,8 @@ aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record attempt-artifact validate repair-attempt-artifact.json --json
 aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
+aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
+aos work-record replacement-proposal validate replacement-proposal.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
@@ -1098,6 +1100,37 @@ artifacts fail closed.
 Both attempt-artifact commands are read-only command surfaces:
 `mutates_state:false`, `executes_repair:false`, `executes_actions:false`,
 `applies_patches:false`, and `automatic_replay_allowed:false`.
+
+`replacement-proposal build` consumes an explicit source Work Record, Repair
+Attempt Plan JSON, and validated Repair Attempt Artifact JSON. It emits a
+`work_record.replacement_proposal` envelope with schema version
+`2026-07-work-record-replacement-proposal-v0`. The proposal includes source
+Work Record identity/path/digest, Repair Attempt Plan schema/digest, Repair
+Attempt Artifact schema/digest, replacement proposal identity, proposed
+replacement Work Record id seed, proposed `supersedes` metadata,
+carried-forward evidence refs, new evidence refs, omitted evidence reasons,
+claim provenance, verifier-before and verifier-after health, final proposed
+health, source Work Record mutation check, diagnostics, and recommended next
+step.
+
+Replacement Proposals are not writers. The build and validate commands always
+report `writes_replacement_record:false`, `mutates_source_record:false`,
+`rewrites_historical_evidence:false`, `executes_repair:false`,
+`executes_actions:false`, `applies_patches:false`, and
+`automatic_replay_allowed:false`. Supersession is proposed metadata only; the
+source Work Record is not edited to say it is superseded, and no replacement
+Work Record exists until a separate future writer persists one.
+
+Proposal statuses are `proposed`, `not_required`, `blocked_attempt_failed`,
+`blocked_attempt_partial`, `blocked_missing_evidence`,
+`blocked_source_mutated`, `blocked_health_mismatch`, `stale`, `mismatch`, and
+`unsupported`. `proposed` requires source identity, Repair Attempt Plan
+identity, Repair Attempt Artifact identity, unchanged source digest,
+verifier-after health, required new evidence from the artifact, and explicit
+carried-forward evidence from the source Work Record to match. Failed, partial,
+cleanup-failed, rollback-failed, missing-evidence, verifier-contradicted,
+mismatched-plan, wrong-source, source-mutated, and unsupported artifacts fail
+closed.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

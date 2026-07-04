@@ -514,6 +514,79 @@ run recommended commands, auto-resume, mutate source Work Records, or mint
 replacement Work Records. Replacement Work Record minting remains a separate
 future product surface.
 
+## Replacement Proposal V0
+
+A Replacement Proposal turns a source Work Record, Repair Attempt Plan, and
+validated Repair Attempt Artifact into a candidate replacement Work Record
+shape. It is a proposal layer only: it does not write a replacement Work
+Record, mutate the source Work Record, rewrite historical evidence or
+`claim_results[]`, run repair, replay actions, apply patches, run recommended
+commands, or auto-resume agents.
+
+The toolkit contract is `work_record.replacement_proposal` with schema version
+`2026-07-work-record-replacement-proposal-v0`. The envelope includes:
+
+```json
+{
+  "type": "work_record.replacement_proposal",
+  "schema_version": "2026-07-work-record-replacement-proposal-v0",
+  "status": "proposed",
+  "source_work_record": {},
+  "repair_attempt_plan": {},
+  "repair_attempt_artifact": {},
+  "replacement_proposal_identity": {},
+  "proposed_replacement_work_record": {},
+  "supersedes": {},
+  "carried_forward_evidence": [],
+  "new_evidence": [],
+  "omitted_evidence": [],
+  "claim_provenance": [],
+  "verifier_before": {},
+  "verifier_after": {},
+  "final_proposed_health": {},
+  "source_work_record_mutation_check": {},
+  "writes_replacement_record": false,
+  "mutates_source_record": false,
+  "rewrites_historical_evidence": false,
+  "executes_repair": false,
+  "executes_actions": false,
+  "applies_patches": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": [],
+  "recommended_next": {}
+}
+```
+
+Supported proposal statuses are `proposed`, `not_required`,
+`blocked_attempt_failed`, `blocked_attempt_partial`,
+`blocked_missing_evidence`, `blocked_source_mutated`,
+`blocked_health_mismatch`, `stale`, `mismatch`, and `unsupported`.
+
+`replacement_proposal_identity` is stable over source Work Record identity and
+digest, Repair Attempt Plan schema/version/digest, Repair Attempt Artifact
+schema/version/digest, proposed replacement Work Record id seed, carried-forward
+evidence ids, new evidence ids, and final proposed health. Supersession is
+proposed metadata only: the source Work Record must not be edited to say it is
+superseded, and a future writer is required before any replacement exists as
+product state.
+
+Evidence transfer is explicit. `carried_forward_evidence[]` must trace to
+source Work Record `evidence[]` and include a carry reason. `new_evidence[]`
+must trace to the Repair Attempt Artifact or its declared outputs and map to
+candidate replacement evidence ids. `omitted_evidence[]` must include an omit
+reason and replacement impact. Proposed claim provenance must state that
+historical Claim Results were not rewritten.
+
+The validator checks consistency and provenance rather than replacing verifier
+policy. `proposed` requires a valid source Work Record identity, matching
+Repair Attempt Plan, validated succeeded Repair Attempt Artifact, unchanged
+source Work Record digest, verifier-after health matching final proposed
+health, required new evidence refs, explicit carried-forward evidence policy,
+and a structurally plausible proposed replacement shape marked
+`persisted:false`. Failed, partial, cleanup-failed, rollback-failed,
+missing-evidence, verifier-contradicted, mismatched-plan, wrong-source,
+source-mutated, and unsupported artifacts fail closed.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work

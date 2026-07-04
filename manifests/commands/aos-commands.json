@@ -10870,6 +10870,121 @@
         {
           "args" : [
             {
+              "id" : "source",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Source Work Record id, Subject Entry Handle, or JSON path",
+              "token" : "--source",
+              "value_type" : "string"
+            },
+            {
+              "id" : "attempt-plan",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Repair Attempt Plan JSON path",
+              "token" : "--attempt-plan",
+              "value_type" : "string"
+            },
+            {
+              "id" : "attempt-artifact",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Repair Attempt Artifact JSON path",
+              "token" : "--attempt-artifact",
+              "value_type" : "string"
+            },
+            {
+              "id" : "proposed-id-seed",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Proposed replacement Work Record id seed",
+              "token" : "--proposed-id-seed",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable Replacement Proposal JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false,
+            "writes_replacement_record" : false,
+            "mutates_source_record" : false,
+            "executes_repair" : false,
+            "executes_actions" : false,
+            "applies_patches" : false,
+            "automatic_replay_allowed" : false
+          },
+          "id" : "work-record-replacement-proposal-build",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "proposal-path",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Replacement Proposal JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable validation JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record replacement-proposal validate replacement-proposal.json --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false,
+            "writes_replacement_record" : false,
+            "mutates_source_record" : false,
+            "executes_repair" : false,
+            "executes_actions" : false,
+            "applies_patches" : false,
+            "automatic_replay_allowed" : false
+          },
+          "id" : "work-record-replacement-proposal-validate",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record replacement-proposal validate <proposal-path> [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "ref",
               "kind" : "positional",
               "required" : true,
