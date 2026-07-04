@@ -250,9 +250,11 @@ command. These resolver failures happen before mutation and do not require user
 approval.
 Saved-ref mutation follows a backend action matrix. AOS canvas `reacquirable`
 refs can route `click` and `set-value` through the current canvas resolver.
-Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs run a fresh
-xray validation plus page, frame, navigation, role, title, label, context, and
-enabled-state checks. `current_validation.current_target` includes current
+Browser `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`,
+and `key` refs run fresh xray validation plus page, frame, navigation, role,
+title, label, context, and enabled-state checks. Text-compatible `type` and
+`key` refs use the same current-target validation as browser `fill`.
+`current_validation.current_target` includes current
 bounds when xray provides them; bounds movement alone is tolerated when the
 saved page/frame/navigation and element identity facts still validate. Dry-run
 reports `reacquired` when that validation is sufficient for real dispatch;
@@ -372,13 +374,20 @@ Backend conformance levels are intentionally explicit:
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
 
-Browser runtime resolution is deterministic. `aos browser _check-version`
-returns structured JSON for the selected executable path, discovery source,
-version, minimum version, and failures such as `PLAYWRIGHT_CLI_NOT_FOUND`,
-`PLAYWRIGHT_CLI_TOO_OLD`, and `PLAYWRIGHT_CLI_PROBE_FAILED`. Resolution prefers
+Browser runtime resolution is deterministic. `scripts/lib/playwright-cli-runtime.mjs`
+is the public script-policy owner for browser helpers and proof harnesses.
+`src/browser/playwright-version-check.swift` is the intentional
+native/bootstrap mirror resolver for the hidden `aos browser _check-version`
+adapter while Swift still owns that bootstrap check. Both resolvers must keep
+the same minimum `@playwright/cli` version and discovery order:
 `AOS_PLAYWRIGHT_CLI`, then repo-local `node_modules/.bin/playwright-cli`, then
 the repo-owned `scripts/aos-playwright-cli` wrapper, then `playwright-cli` on
-`PATH`.
+`PATH`. Consolidation is deferred unless a future native bootstrap extraction
+removes the need for Swift to resolve the browser runtime directly. `aos
+browser _check-version` returns structured JSON for the selected executable
+path, discovery source, version, minimum version, and failures such as
+`PLAYWRIGHT_CLI_NOT_FOUND`, `PLAYWRIGHT_CLI_TOO_OLD`, and
+`PLAYWRIGHT_CLI_PROBE_FAILED`.
 
 Guarded-live browser saved-ref proof lives in
 `tests/manual/cross-backend-saved-ref-regression-proof.sh`. In

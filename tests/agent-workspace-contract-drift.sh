@@ -620,6 +620,26 @@ assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('Direct browser `type` and `key` remain current-host routes'),
   'API doc must keep direct browser type/key routes distinct from saved refs',
 );
+const fullBrowserSavedRefSummary = '`click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key`';
+for (const [label, text] of Object.entries({ apiDoc, schemaDoc, skill })) {
+  const prose = text.replace(/\s+/g, ' ');
+  assert.ok(
+    prose.includes(fullBrowserSavedRefSummary),
+    `${label} full browser saved-ref summary must include type and key`,
+  );
+}
+const guardedLiveBrowserProof = apiDoc
+  .split('Guarded-live browser saved-ref proof lives in', 2)[1]
+  .split('Native `open`/`toggle`', 1)[0]
+  .replace(/\s+/g, ' ');
+assert.ok(
+  guardedLiveBrowserProof.includes('dispatches `click` and `fill` through saved-ref validation'),
+  'guarded-live browser proof must stay scoped to click/fill',
+);
+assert.ok(
+  !guardedLiveBrowserProof.includes('`type`') && !guardedLiveBrowserProof.includes('`key`'),
+  'guarded-live browser proof must not imply type/key live proof',
+);
 assert.ok(
   apiDoc.replace(/\s+/g, ' ').includes('Browser focus and text assertions are not separate public actions in this slice'),
   'API doc must explicitly reject standalone browser focus/text assertion actions',

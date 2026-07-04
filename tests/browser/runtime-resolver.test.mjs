@@ -5,7 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { resolvePlaywrightCliRuntime } from '../../scripts/lib/playwright-cli-runtime.mjs';
+import {
+  MIN_PLAYWRIGHT_CLI_VERSION,
+  resolvePlaywrightCliRuntime,
+} from '../../scripts/lib/playwright-cli-runtime.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -117,4 +120,38 @@ test('package.json version is preferred over binary --version', () => {
 test('browser proof code does not depend on command -v playwright-cli', () => {
   const proof = fs.readFileSync(path.join(repoRoot, 'tests', 'manual', 'cross-backend-saved-ref-regression-proof.sh'), 'utf8');
   assert.equal(proof.includes('command -v playwright-cli'), false);
+});
+
+test('Swift browser runtime resolver stays documented as the native bootstrap mirror', () => {
+  const jsResolverPath = path.join(repoRoot, 'scripts', 'lib', 'playwright-cli-runtime.mjs');
+  const swiftResolverPath = path.join(repoRoot, 'src', 'browser', 'playwright-version-check.swift');
+  assert.equal(fs.existsSync(jsResolverPath), true);
+  assert.equal(fs.existsSync(swiftResolverPath), true);
+
+  const swiftResolver = fs.readFileSync(swiftResolverPath, 'utf8');
+  const scriptsAgents = fs.readFileSync(path.join(repoRoot, 'scripts', 'AGENTS.md'), 'utf8');
+  const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs', 'api', 'aos.md'), 'utf8');
+
+  const swiftMinimum = swiftResolver.match(/let kMinPlaywrightCLIVersion = "([^"]+)"/)?.[1];
+  assert.equal(swiftMinimum, MIN_PLAYWRIGHT_CLI_VERSION);
+
+  const expectedOrder = [
+    'AOS_PLAYWRIGHT_CLI',
+    'node_modules/.bin/playwright-cli',
+    'scripts/aos-playwright-cli',
+    'PATH',
+  ];
+  for (const [label, text] of Object.entries({ swiftResolver, apiDoc })) {
+    let cursor = -1;
+    for (const needle of expectedOrder) {
+      const next = text.indexOf(needle, cursor + 1);
+      assert.ok(next > cursor, `${label} must preserve browser runtime resolver order marker ${needle}`);
+      cursor = next;
+    }
+  }
+  for (const [label, text] of Object.entries({ scriptsAgents, apiDoc })) {
+    assert.ok(text.includes('scripts/lib/playwright-cli-runtime.mjs'), `${label} must name JS resolver owner`);
+    assert.ok(text.includes('src/browser/playwright-version-check.swift'), `${label} must name Swift resolver mirror`);
+    assert.match(text, /native\/bootstrap mirror/, `${label} must document Swift resolver as native/bootstrap mirror`);
+  }
 });

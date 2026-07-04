@@ -153,10 +153,12 @@ Mutation is fail-closed. Saved-ref actions are the intersection of producer
 actions, backend durability, confidence, and existing `aos do` command behavior.
 Refs with `confidence: low` are readback-only for saved-ref mutation and fail
 closed with `REF_UNSUPPORTED` and `reason: low_confidence_target` before dry-run
-validation or dispatch. Browser `snapshot_scoped` click, fill, hover, scroll,
-and drag refs run fresh xray plus page, frame, navigation, role, title, label,
-context, and enabled-state validation before real dispatch through the
-underlying `browser:<session>/<ref>` target. Current-target `bounds` are
+validation or dispatch. Browser `snapshot_scoped` `click`, `fill`, `hover`,
+`scroll`, `drag`, `type`, and `key` refs run fresh xray plus page, frame,
+navigation, role, title, label, context, and enabled-state validation before
+real dispatch through the underlying `browser:<session>/<ref>` target.
+Text-compatible `type` and `key` refs use the same current-target validation as
+browser `fill`. Current-target `bounds` are
 returned in the validation payload as evidence; bounds movement alone is
 tolerated when the saved page/frame/navigation and element identity facts still
 validate. Dry-run reports `reacquired` when that validation is sufficient for

@@ -179,12 +179,14 @@ matrix:
 - Saved AOS canvas `drag` is not supported in the saved-ref action matrix.
   Direct current-host canvas drag uses `canvas:<canvas-id>/<ref>` with `--by`
   or `--to-value`; do not turn a saved canvas ref into a saved drag target.
-- Browser `snapshot_scoped` click, fill, hover, scroll, and drag refs use fresh
-  xray plus page, frame, navigation, role, title, label, context, and
-  enabled-state validation. `current_validation.current_target` includes current
-  bounds when xray provides them; bounds movement alone is tolerated when saved
-  page/frame/navigation and element identity facts still validate. Dry-run
-  reports `reacquired` when validation is sufficient for real dispatch.
+- Browser `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`,
+  and `key` refs use fresh xray plus page, frame, navigation, role, title,
+  label, context, and enabled-state validation. Text-compatible `type` and
+  `key` refs use the same current-target validation as browser `fill`.
+  `current_validation.current_target` includes current bounds when xray provides
+  them; bounds movement alone is tolerated when saved page/frame/navigation and
+  element identity facts still validate. Dry-run reports `reacquired` when
+  validation is sufficient for real dispatch.
   Non-dry-run routes through the underlying `browser:<session>/<ref>` target
   only after validation passes, then returns a saved-ref execution envelope with
   `current_validation`, `underlying_result`, `post_action`, and
