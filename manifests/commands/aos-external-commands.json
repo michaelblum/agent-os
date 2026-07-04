@@ -2496,6 +2496,18 @@
       }
     },
     {
+      "path": ["work-record", "plan-repair"],
+      "summary": "Plan workflow-gated Work Record repair through an external report-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "plan-repair"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["work-record", "export"],
       "summary": "Export Work Record evidence bundle manifests through an external report-only command.",
       "executable": "/usr/bin/env",

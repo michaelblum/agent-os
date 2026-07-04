@@ -971,13 +971,14 @@ repair.
 artifacts. It can discover records from canonical fixture roots or explicit
 `--root` files/directories, read a record by id or path, run the named
 report-only verifier profile, explain conservative recovery guidance, and emit
-a compact evidence bundle manifest.
+a read-only repair plan or compact evidence bundle manifest.
 
 ```bash
 aos work-record list --json
 aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
 aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
 ```
 
@@ -996,6 +997,18 @@ or a named workflow gate; blocked records name missing evidence, permission,
 runtime, cleanup, or postcondition blockers; valid records do not recommend
 redundant live proof loops; and impossible, retired, or superseded records do
 not offer replay as the next step.
+
+`plan-repair` consumes the same fresh report-only verifier output and emits a
+`work_record.repair_plan` envelope. It is a proposal surface only:
+`mutates_record:false`, `executes_actions:false`, and
+`automatic_replay_allowed:false`. The plan separates current report-derived
+health from embedded historical health, carries failure classes, blockers,
+diagnostics, evidence refs, required workflow gates, proposed read-only or
+approval-gated steps, descriptive candidate patches, and command descriptors
+that are not executed by the planner. Valid records get no repair plan;
+stale/repairable records require fresh perception or re-resolution before any
+future gated mutation; blocked records name the blocker; and impossible,
+superseded, or retired records avoid repair and replay.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

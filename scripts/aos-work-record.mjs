@@ -7,6 +7,7 @@ import {
   verifyWorkRecord,
   explainWorkRecordStatus,
   exportWorkRecordBundle,
+  planWorkRecordRepair,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
 
@@ -31,6 +32,7 @@ function usage() {
   ./aos work-record read <id-or-path> [--root path ...] [--json]
   ./aos work-record verify <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record status <id-or-path> [--profile id] [--root path ...] [--json]
+  ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
 `;
 }
@@ -114,6 +116,8 @@ function main(argv = process.argv.slice(2)) {
     payload = verifyWorkRecord(ref, context);
   } else if (command === 'status' || command === 'explain') {
     payload = explainWorkRecordStatus(ref, context);
+  } else if (command === 'plan-repair') {
+    payload = planWorkRecordRepair(ref, context);
   } else if (command === 'export') {
     payload = exportWorkRecordBundle(ref, context);
   } else if (command === 'profiles') {

@@ -236,6 +236,61 @@
               "id": "json",
               "kind": "flag",
               "required": false,
+              "summary": "Emit stable machine-readable repair-plan JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "work-record-plan-repair",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "ref",
+              "kind": "positional",
+              "required": true,
+              "summary": "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "profile",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report-only verifier profile id",
+              "token": "--profile",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
               "summary": "Emit stable machine-readable bundle manifest JSON",
               "token": "--json",
               "value_type": "bool"
@@ -266,7 +321,7 @@
       "path": [
         "work-record"
       ],
-      "summary": "Work Records — discover, read, verify, explain recovery, and export read-only evidence manifests"
+      "summary": "Work Records — discover, read, verify, explain recovery, plan gated repair, and export read-only evidence manifests"
     }
   ]
 }

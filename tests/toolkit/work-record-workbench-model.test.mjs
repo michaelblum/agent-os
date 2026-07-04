@@ -224,7 +224,7 @@ test('work record workbench opens generated Workflow-origin v0 records read-only
 
   assert.equal(result.status, 'opened');
   assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.subject.id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.subject.id, 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06');
   assert.equal(snapshot.subject.source.origin.kind, 'workflow');
   assert.equal(snapshot.subject.source.origin.ref, 'workflow:browser-live-action-status');
   assert.equal(snapshot.subject.persistence, null);

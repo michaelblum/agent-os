@@ -253,6 +253,69 @@ The schema requires both `replay_requires_workflow_gate` and
 evidence-backed replay or repair loops need an explicit Workflow gate even when
 the record has an executable or compatibility origin.
 
+## Repair Plan V0
+
+A Work Record Repair Plan is a read-only planning envelope over a source Work
+Record and a fresh report-only verifier result. It proposes next steps; it is
+not a repaired Work Record, verifier result, patch artifact, or proof that a
+repair happened.
+
+The current planner emits:
+
+```json
+{
+  "type": "work_record.repair_plan",
+  "schema_version": "2026-07-work-record-repair-plan-v0",
+  "status": "planned",
+  "source_work_record": {},
+  "current_report": {},
+  "current_health": "repairable",
+  "embedded_health": "repairable",
+  "health_verdict": "repairable",
+  "historical_results": {},
+  "failure_classes": [],
+  "blockers": {},
+  "mutates_record": false,
+  "executes_actions": false,
+  "automatic_replay_allowed": false,
+  "workflow_gates": [],
+  "plan_steps": [],
+  "candidate_patches": [],
+  "recommended_commands": [],
+  "evidence_refs": [],
+  "diagnostics": [],
+  "followup": {}
+}
+```
+
+The planner must keep `current_health` derived from the fresh report-only
+verifier result. `embedded_health` is historical Work Record data and never
+overrides the current report diagnostics. `historical_results` points at
+embedded `claim_results[]` as record contents, not current proof.
+
+Repair Plans are intentionally conservative:
+
+- `valid`: no repair plan; recommend read/export/verify only.
+- `stale`: plan fresh perception or re-resolution and a follow-up Work Record;
+  any mutation remains workflow-gated.
+- `repairable`: plan fresh perception or re-resolution plus a descriptive
+  execution-map `candidate_patch` under an explicit workflow gate; the patch is
+  not applied by the plan.
+- `blocked`: classify missing evidence, permission, runtime, cleanup, or
+  postcondition blockers and name the required external action or gate.
+- `impossible`: explain why the known target class cannot satisfy the intent
+  and prohibit replay.
+- `superseded`: point at replacement records when available and avoid repair.
+- `retired`: preserve the record as historical-only evidence and avoid repair.
+
+Every `candidate_patches[]` entry is descriptive and must carry
+`applied:false`. Recommended commands must report `executes_in_plan:false`.
+Commands or steps that could mutate state must be marked
+`requires_workflow_gate:true`; the planner does not create, satisfy, or bypass
+that gate. A future repair attempt should emit a new Work Record or an explicit
+patch artifact instead of rewriting `evidence[]`, `claims[]`, historical
+`claim_results[]`, or the source Work Record.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work
