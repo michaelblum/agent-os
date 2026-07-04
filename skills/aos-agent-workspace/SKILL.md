@@ -150,13 +150,15 @@ the returned `recommended_next`, `recommended_next_commands`, or
   artifacts. The bundle writes only under `--output-root`, dry-run writes
   nothing, descriptors are rebound to bundle-local artifact paths, and every
   artifact reports path, digest, producer, and downstream consumers. It is not
-  repair execution, finalization, gate submission, replay, auto-resume,
-  `aos do`, live UI, browser, native AX, canvas, patch application, replacement
-  writing, supersession writing, or source-record mutation. A Repair Attempt
-  Artifact records attempted outcome data; it is not a replacement writer. A
-  Replacement Proposal proposes carried-forward evidence, new evidence,
-  per-postcondition evidence mapping, supersession metadata, and final proposed
-  health; it is not itself a writer.
+  repair execution, finalization, supersession lookup, gate submission, replay,
+  auto-resume, `aos do`, live UI, browser, native AX, canvas, patch
+  application, replacement writing, supersession writing, or source-record
+  mutation. Finalization dry-run and supersession lookup remain explicit
+  follow-up command descriptors only, not bundle-generated reports. A Repair
+  Attempt Artifact records attempted outcome data; it is not a replacement
+  writer. A Replacement Proposal proposes carried-forward evidence, new
+  evidence, per-postcondition evidence mapping, supersession metadata, and final
+  proposed health; it is not itself a writer.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

@@ -255,7 +255,7 @@
               "id": "attempt-plan",
               "kind": "flag",
               "required": false,
-              "summary": "Repair Attempt Plan JSON path for finalization dry-run",
+              "summary": "Repair Attempt Plan JSON path for follow-up command descriptors",
               "token": "--attempt-plan",
               "value_type": "string"
             },
@@ -263,7 +263,7 @@
               "id": "attempt-artifact",
               "kind": "flag",
               "required": false,
-              "summary": "Repair Attempt Artifact JSON path for finalization dry-run",
+              "summary": "Repair Attempt Artifact JSON path for follow-up command descriptors",
               "token": "--attempt-artifact",
               "value_type": "string"
             },
@@ -271,7 +271,7 @@
               "id": "replacement-root",
               "kind": "flag",
               "required": false,
-              "summary": "Explicit replacement Work Record root for finalization dry-run only",
+              "summary": "Explicit replacement Work Record root for follow-up command descriptors only",
               "token": "--replacement-root",
               "value_type": "string"
             },
@@ -279,7 +279,7 @@
               "id": "index-root",
               "kind": "flag",
               "required": false,
-              "summary": "Explicit Source Supersession Index root for lookup and finalization dry-run only",
+              "summary": "Explicit Source Supersession Index root for follow-up command descriptors only",
               "token": "--index-root",
               "value_type": "string"
             },

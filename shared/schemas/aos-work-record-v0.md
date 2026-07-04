@@ -525,10 +525,11 @@ path, manifest path, planned/written/skipped artifact arrays, conflicts,
 diagnostics, non-execution flags, and the next recommended command descriptor.
 
 The bundle may write only `bundle-manifest.json`, `guide-report.json`,
-`commands/*.json`, JSON stdout artifacts explicitly described by guide
+`commands/*.json`, and JSON stdout artifacts explicitly described by guide
 descriptors such as `artifacts/gate-request.json` and
-`artifacts/repair-attempt-plan.json`, and non-mutating reports such as
-`reports/finalization-dry-run.json` and `reports/supersession-lookup.json`.
+`artifacts/repair-attempt-plan.json`. Finalization dry-run and supersession
+lookup stay explicit follow-up command descriptors only; the bundle is not a
+finalizer or supersession lookup runner and does not materialize their reports.
 Every artifact entry carries relative path, absolute path, artifact kind,
 digest, producer, downstream consumers, write mode, bytes-known-at-plan-time,
 existence, and conflict status. Written artifacts add write status.
@@ -542,14 +543,15 @@ file exists when the bundle did not write or plan the corresponding artifact.
 
 Dry-run writes nothing and reports the exact planned file set. Write mode is
 idempotent for identical existing files and fails closed for conflicting files,
-path traversal, symlink escapes, output-root file conflicts, and source-record
-mutation. The bundle must never write replacement Work Records, Source
-Supersession Index entries, source Work Records, gate records, gate responses,
-Repair Attempt Artifacts, arbitrary patch output, or anything outside
-`--output-root`. It must never run repair execution, repair finalization in
-write mode, replacement writes, supersession writes, `aos gate` submission
-commands, `aos do`, browser/native AX/canvas/TCC surfaces, replay, auto-resume,
-or a Workflow engine.
+path traversal, symlinked output roots, symlinked not-yet-created output-root
+ancestors, symlinked bundle child paths, output-root file conflicts, and
+source-record mutation. The bundle must never write replacement Work Records,
+Source Supersession Index entries, source Work Records, gate records, gate
+responses, Repair Attempt Artifacts, arbitrary patch output, or anything
+outside `--output-root`. It must never run repair execution, repair
+finalization, replacement writes, supersession lookup, supersession writes,
+`aos gate` submission commands, `aos do`, browser/native AX/canvas/TCC
+surfaces, replay, auto-resume, or a Workflow engine.
 
 ## Controlled Repair Executor Result V0
 
@@ -1193,7 +1195,7 @@ The surface is read-only and supports:
   planning, authorization, attempt artifact, finalization dry-run, and
   supersession lookup state;
 - `repair bundle` for a controlled output-root handoff bundle of non-mutating
-  guide artifacts, rebound command descriptors, and safe planning reports;
+  guide artifacts, rebound command descriptors, and safe planning artifacts;
 - `attempt-artifact validate` and `attempt-artifact build` for read-only Repair
   Attempt Artifact validation and fixture/outcome artifact generation;
 - `export` for a compact read-only evidence bundle manifest.

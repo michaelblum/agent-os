@@ -1151,26 +1151,29 @@ under the explicit output root. Dry-run writes nothing and reports the planned
 file set.
 
 Bundle writes are limited to `bundle-manifest.json`, `guide-report.json`,
-`commands/*.json` descriptors, safe JSON stdout artifacts explicitly described
-by guide descriptors such as `artifacts/gate-request.json` and
-`artifacts/repair-attempt-plan.json`, and non-mutating reports such as
-`reports/finalization-dry-run.json` and `reports/supersession-lookup.json`.
-Every planned or written artifact reports path, digest, producer, downstream
-consumers, write mode, and whether bytes are known at plan time. Descriptor
-paths are rebound so `stdout_artifact.path`, `save_stdout_to`, and
-`requires_saved_output_from` point at bundle-local artifacts when those
-artifacts are materialized; descriptors also carry `not_run_by_bundle:true` and
-a `bundle_artifact_status`.
+`commands/*.json` descriptors, and safe JSON stdout artifacts explicitly
+described by guide descriptors such as `artifacts/gate-request.json` and
+`artifacts/repair-attempt-plan.json`. Finalization dry-run and supersession
+lookup remain explicit follow-up command descriptors only; the bundle does not
+run those helpers and does not materialize their reports. Every planned or
+written artifact reports path, digest, producer, downstream consumers, write
+mode, and whether bytes are known at plan time. Descriptor paths are rebound so
+`stdout_artifact.path`, `save_stdout_to`, and `requires_saved_output_from`
+point at bundle-local artifacts when those artifacts are materialized;
+descriptors also carry `not_run_by_bundle:true` and a
+`bundle_artifact_status`.
 
-The bundle rejects path traversal, symlink escapes, output-root file conflicts,
-and conflicting existing artifacts. Matching existing files are idempotent. It
-preserves source Work Record bytes and never writes replacement Work Records,
-Source Supersession Index entries, source Work Records, gate records, gate
-responses, Repair Attempt Artifacts, arbitrary patch output, or anything
-outside `--output-root`. It never runs `repair execute`, `repair finalize` in
-write mode, `replacement-proposal write`, `supersession write`, `aos gate
-ask/defer/submit`, `aos do`, browser/native AX/canvas/TCC operations, replay,
-auto-resume, or a Workflow engine.
+The bundle rejects path traversal, symlinked output roots, symlinked
+not-yet-created output-root ancestors, symlinked bundle child paths, output-root
+file conflicts, and conflicting existing artifacts. Matching existing files are
+idempotent. It preserves source Work Record bytes and never writes replacement
+Work Records, Source Supersession Index entries, source Work Records, gate
+records, gate responses, Repair Attempt Artifacts, arbitrary patch output, or
+anything outside `--output-root`. It never runs `repair execute`, `repair
+finalize`, `replacement-proposal write`, `supersession lookup`,
+`supersession write`, `aos gate ask/defer/submit`, `aos do`,
+browser/native AX/canvas/TCC operations, replay, auto-resume, or a Workflow
+engine.
 
 `repair execute` is the Controlled Repair Executor V0 command. It accepts a
 ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`

@@ -11,6 +11,7 @@ import {
   buildWorkRecordRepairAttemptArtifact,
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
+  resolveWorkRecordRepairBundlePath,
   writeWorkRecordRepairBundle,
   WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_TYPE,
@@ -159,6 +160,17 @@ function artifactPaths(envelope) {
   return envelope.planned_artifacts.map((artifact) => artifact.relative_path).sort();
 }
 
+function bundleFileExists(root, relativePath) {
+  return fs.existsSync(path.join(root, relativePath));
+}
+
+function assertNoCoreBundleFiles(root) {
+  assert.equal(bundleFileExists(root, 'guide-report.json'), false);
+  assert.equal(bundleFileExists(root, 'bundle-manifest.json'), false);
+  assert.equal(bundleFileExists(root, 'commands/work-record-gate-request.json'), false);
+  assert.equal(bundleFileExists(root, 'artifacts/gate-request.json'), false);
+}
+
 function assertBundleEnvelope(envelope, status) {
   assert.equal(envelope.type, WORK_RECORD_REPAIR_BUNDLE_TYPE);
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION);
@@ -244,12 +256,13 @@ test('authorization materializes a ready repair attempt plan and rebundled descr
   assert.equal(descriptor.save_stdout_to, 'artifacts/repair-attempt-plan.json');
 });
 
-test('attempt artifact and finalization roots materialize finalization dry-run and supersession lookup reports', () => {
+test('attempt artifact and finalization roots remain descriptor-only follow-up commands', () => {
   const input = finalizationInputs();
   const outputRoot = path.join(input.dir, 'bundle');
   const envelope = writeWorkRecordRepairBundle({
     sourceRef: repairableFixture,
     outputRoot,
+    gateOutcome: gateRecord(),
     attemptPlanPath: input.planPath,
     attemptArtifactPath: input.artifactPath,
     replacementRoot: input.replacementRoot,
@@ -258,10 +271,14 @@ test('attempt artifact and finalization roots materialize finalization dry-run a
   });
 
   assertBundleEnvelope(envelope, 'written');
-  assert.ok(fs.existsSync(path.join(outputRoot, 'reports/finalization-dry-run.json')));
-  assert.ok(fs.existsSync(path.join(outputRoot, 'reports/supersession-lookup.json')));
+  assert.equal(fs.existsSync(path.join(outputRoot, 'reports/finalization-dry-run.json')), false);
+  assert.equal(fs.existsSync(path.join(outputRoot, 'reports/supersession-lookup.json')), false);
   assert.ok(!fs.existsSync(input.replacementRoot));
   assert.ok(!fs.existsSync(input.indexRoot));
+  const descriptor = JSON.parse(fs.readFileSync(path.join(outputRoot, 'commands/work-record-repair-finalize-dry-run.json'), 'utf8'));
+  assert.equal(descriptor.not_run_by_bundle, true);
+  assert.equal(descriptor.bundle_artifact_status, 'not_applicable');
+  assert.deepEqual(descriptor.argv.slice(0, 5), ['./aos', 'work-record', 'repair', 'finalize', '--source']);
 });
 
 test('identical existing files are accepted and conflicting files fail closed', () => {
@@ -289,6 +306,106 @@ test('symlink escape under output root fails closed', () => {
 
   assert.equal(envelope.status, 'blocked_path_escape');
   assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE'));
+  assertNoCoreBundleFiles(outputRoot);
+});
+
+test('symlinked output-root ancestor fails closed and writes nothing', () => {
+  const root = tempDir('aos-work-record-bundle-symlink-ancestor-');
+  const container = path.join(root, 'container');
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(container);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(container, 'link'));
+  const outputRoot = path.join(container, 'link', 'bundle');
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+
+  assert.equal(envelope.status, 'blocked_output_root');
+  assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_SYMLINK_ANCESTOR'));
+  assert.equal(fs.existsSync(outputRoot), false);
+  assert.equal(fs.existsSync(path.join(outside, 'bundle')), false);
+});
+
+test('existing output root below symlinked ancestor fails closed and writes nothing', () => {
+  const root = tempDir('aos-work-record-bundle-existing-symlink-ancestor-');
+  const container = path.join(root, 'container');
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(container);
+  fs.mkdirSync(outside);
+  fs.symlinkSync(outside, path.join(container, 'link'));
+  const outputRoot = path.join(container, 'link', 'bundle');
+  fs.mkdirSync(path.join(outside, 'bundle'));
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+
+  assert.equal(envelope.status, 'blocked_output_root');
+  assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_SYMLINK_ANCESTOR'));
+  assertNoCoreBundleFiles(path.join(outside, 'bundle'));
+});
+
+test('existing output-root symlink fails closed and writes nothing', () => {
+  const root = tempDir('aos-work-record-bundle-root-symlink-');
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(outside);
+  const outputRoot = path.join(root, 'bundle-link');
+  fs.symlinkSync(outside, outputRoot);
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+
+  assert.equal(envelope.status, 'blocked_output_root');
+  assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_SYMLINK'));
+  assertNoCoreBundleFiles(outside);
+});
+
+test('existing artifact-file symlink fails closed and writes nothing', () => {
+  const outputRoot = tempDir('aos-work-record-bundle-file-symlink-');
+  const outside = path.join(tempDir('aos-work-record-bundle-file-target-'), 'guide-report.json');
+  fs.writeFileSync(outside, '{}\n');
+  fs.symlinkSync(outside, path.join(outputRoot, 'guide-report.json'));
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+
+  assert.equal(envelope.status, 'blocked_path_escape');
+  assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE'));
+  assert.equal(bundleFileExists(outputRoot, 'bundle-manifest.json'), false);
+  assert.equal(bundleFileExists(outputRoot, 'commands/work-record-gate-request.json'), false);
+  assert.equal(fs.readFileSync(outside, 'utf8'), '{}\n');
+});
+
+test('non-directory artifact parent fails closed and writes nothing', () => {
+  const outputRoot = tempDir('aos-work-record-bundle-file-parent-');
+  fs.writeFileSync(path.join(outputRoot, 'artifacts'), 'not a directory\n');
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+
+  assert.equal(envelope.status, 'blocked_path_escape');
+  assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE'));
+  assert.equal(bundleFileExists(outputRoot, 'bundle-manifest.json'), false);
+  assert.equal(bundleFileExists(outputRoot, 'guide-report.json'), false);
+  assert.equal(fs.readFileSync(path.join(outputRoot, 'artifacts'), 'utf8'), 'not a directory\n');
+});
+
+test('path traversal in bundle-relative artifact paths fails closed', () => {
+  const outputRoot = tempDir('aos-work-record-bundle-path-traversal-');
+  const traversal = resolveWorkRecordRepairBundlePath(outputRoot, '../outside.json');
+
+  assert.equal(traversal.ok, false);
+  assert.ok(traversal.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_PATH_TRAVERSAL'));
 });
 
 test('public CLI dry-run and write return structured JSON; invalid source exits nonzero', () => {
@@ -313,14 +430,21 @@ test('docs, schema, and skill describe bundle as a handoff artifact, not executo
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
   const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+  const bundleSource = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-bundle.js'), 'utf8');
   for (const text of [apiDoc, schemaDoc, skill]) {
     assert.match(text, /repair bundle/);
     assert.match(text, /--output-root/);
     assert.match(text, /handoff/);
     assert.match(text, /not\s+(a\s+)?repair execution|not a\s+repair executor/);
-    assert.match(text, /not .*finalization|never run.*repair finalization|never runs .*repair finalize/s);
+    assert.match(text, /not .*finalization|never run.*repair finalization|never runs .*repair finalize|not .*finalizer/s);
+    assert.doesNotMatch(text, /reports\/finalization-dry-run\.json/);
+    assert.doesNotMatch(text, /reports\/supersession-lookup\.json/);
     assert.match(text, /gate submission|aos gate ask\/defer\/submit|`aos gate`\s+submission\s+commands|`aos gate\s+commands/s);
     assert.match(text, /replay/);
     assert.match(text, /auto-resume/);
   }
+  assert.doesNotMatch(bundleSource, /work-record-repair-finalizer/);
+  assert.doesNotMatch(bundleSource, /work-record-supersession-index/);
+  assert.doesNotMatch(bundleSource, /finalizeWorkRecordRepair/);
+  assert.doesNotMatch(bundleSource, /lookupWorkRecordSourceSupersession/);
 });

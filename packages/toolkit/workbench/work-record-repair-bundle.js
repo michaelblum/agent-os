@@ -13,12 +13,6 @@ import {
 import {
   planWorkRecordRepairAttempt,
 } from './work-record-repair-attempt-plan.js';
-import {
-  finalizeWorkRecordRepair,
-} from './work-record-repair-finalizer.js';
-import {
-  lookupWorkRecordSourceSupersession,
-} from './work-record-supersession-index.js';
 
 export const WORK_RECORD_REPAIR_BUNDLE_TYPE = 'work_record.repair_recovery_bundle';
 export const WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-v0';
@@ -110,6 +104,35 @@ function isWithin(root, candidate) {
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
+function nearestExistingPath(absolutePath) {
+  let current = absolutePath;
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return current;
+    current = parent;
+  }
+  return current;
+}
+
+function symlinkAncestorViolation(absolutePath) {
+  const parsed = path.parse(absolutePath);
+  const parts = path.relative(parsed.root, absolutePath).split(path.sep).filter(Boolean);
+  let current = parsed.root;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    current = path.join(current, parts[index]);
+    if (!fs.existsSync(current)) break;
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) {
+      if (index > 0) return { path: current, reason: 'symlink_ancestor' };
+      continue;
+    }
+    if (!stat.isDirectory()) {
+      return { path: current, reason: 'parent_not_directory' };
+    }
+  }
+  return null;
+}
+
 function resolveOutputRoot(outputRoot = '') {
   if (!outputRoot) {
     return {
@@ -119,6 +142,22 @@ function resolveOutputRoot(outputRoot = '') {
   }
   const resolved = path.resolve(outputRoot);
   const existing = fs.existsSync(resolved);
+  const nearestExisting = nearestExistingPath(resolved);
+  const ancestorViolation = symlinkAncestorViolation(resolved);
+  if (ancestorViolation?.reason === 'symlink_ancestor') {
+    return {
+      ok: false,
+      outputRoot: resolved,
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_SYMLINK_ANCESTOR', '--output-root must not be reached through a symlinked ancestor.', { path: ancestorViolation.path })],
+    };
+  }
+  if (ancestorViolation?.reason === 'parent_not_directory') {
+    return {
+      ok: false,
+      outputRoot: resolved,
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_PARENT_NOT_DIRECTORY', '--output-root parent path must be a directory.', { path: ancestorViolation.path })],
+    };
+  }
   if (existing) {
     const stat = fs.lstatSync(resolved);
     if (stat.isSymbolicLink()) {
@@ -135,11 +174,29 @@ function resolveOutputRoot(outputRoot = '') {
         diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_NOT_DIRECTORY', '--output-root must be a directory when it already exists.', { path: resolved })],
       };
     }
+  } else if (nearestExisting && fs.lstatSync(nearestExisting).isSymbolicLink()) {
+    return {
+      ok: false,
+      outputRoot: resolved,
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_SYMLINK_ANCESTOR', '--output-root must not be created through a symlinked ancestor.', { path: nearestExisting })],
+    };
+  } else if (nearestExisting) {
+    const stat = fs.lstatSync(nearestExisting);
+    if (!stat.isDirectory()) {
+      return {
+        ok: false,
+        outputRoot: resolved,
+        diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_OUTPUT_ROOT_PARENT_NOT_DIRECTORY', '--output-root parent path must be a directory.', { path: nearestExisting })],
+      };
+    }
   }
-  return { ok: true, outputRoot: resolved, exists: existing, diagnostics: [] };
+  const canonicalRoot = existing
+    ? fs.realpathSync(resolved)
+    : path.join(fs.realpathSync(nearestExisting), path.relative(nearestExisting, resolved));
+  return { ok: true, outputRoot: resolved, canonicalRoot, exists: existing, diagnostics: [] };
 }
 
-function resolveBundlePath(root, relativePath) {
+export function resolveWorkRecordRepairBundlePath(root, relativePath) {
   const relative = text(relativePath);
   if (!relative || path.isAbsolute(relative) || relative.split(/[\\/]+/).includes('..')) {
     return {
@@ -157,7 +214,10 @@ function resolveBundlePath(root, relativePath) {
   return { ok: true, relativePath: relative, absolutePath: absolute, diagnostics: [] };
 }
 
-function pathHasSymlinkEscape(root, absolutePath) {
+function artifactPathViolation(root, canonicalRoot, absolutePath) {
+  if (!isWithin(root, absolutePath)) {
+    return { escaped: true, path: absolutePath, reason: 'path_escape' };
+  }
   let current = root;
   const relativeParts = path.relative(root, absolutePath).split(path.sep).filter(Boolean);
   for (const part of relativeParts.slice(0, -1)) {
@@ -165,16 +225,21 @@ function pathHasSymlinkEscape(root, absolutePath) {
     if (!fs.existsSync(current)) continue;
     const stat = fs.lstatSync(current);
     if (stat.isSymbolicLink()) {
-      const real = fs.realpathSync(current);
-      if (!isWithin(root, real)) return { escaped: true, path: current, realpath: real, reason: 'symlink_escape' };
+      return { escaped: true, path: current, reason: 'symlink_escape' };
     }
     if (!stat.isDirectory()) {
       return { escaped: true, path: current, reason: 'parent_not_directory' };
     }
   }
   if (fs.existsSync(absolutePath) && fs.lstatSync(absolutePath).isSymbolicLink()) {
-    const real = fs.realpathSync(absolutePath);
-    if (!isWithin(root, real)) return { escaped: true, path: absolutePath, realpath: real, reason: 'symlink_escape' };
+    return { escaped: true, path: absolutePath, reason: 'symlink_escape' };
+  }
+  const existingParent = nearestExistingPath(path.dirname(absolutePath));
+  if (existingParent && fs.existsSync(existingParent) && isWithin(root, existingParent)) {
+    const parentRealpath = fs.realpathSync(existingParent);
+    if (!isWithin(canonicalRoot, parentRealpath)) {
+      return { escaped: true, path: existingParent, realpath: parentRealpath, reason: 'realpath_escape' };
+    }
   }
   return { escaped: false };
 }
@@ -220,10 +285,13 @@ function plannedArtifact({
   writeMode = 'create_or_idempotent',
   outputRoot,
 } = {}) {
-  const resolved = resolveBundlePath(outputRoot, relativePath);
+  const resolved = resolveWorkRecordRepairBundlePath(outputRoot, relativePath);
   const bytes = value === undefined ? '' : stableJsonBytes(value);
   const exists = resolved.ok && fs.existsSync(resolved.absolutePath);
-  const conflict = exists && value !== undefined && fs.readFileSync(resolved.absolutePath, 'utf8') !== bytes;
+  const existingStat = exists ? fs.lstatSync(resolved.absolutePath) : null;
+  const existingFile = existingStat?.isFile() === true;
+  const existingSymlink = existingStat?.isSymbolicLink() === true;
+  const conflict = exists && !existingSymlink && value !== undefined && (!existingFile || fs.readFileSync(resolved.absolutePath, 'utf8') !== bytes);
   return {
     relative_path: relativePath,
     path: resolved.absolutePath || '',
@@ -329,9 +397,9 @@ export function planWorkRecordRepairBundle({
     gateOutcome,
     attemptPlanPath,
     attemptArtifactPath,
-    replacementRoot,
-    replacementRoots,
-    indexRoot,
+    replacementRoot: '',
+    replacementRoots: [],
+    indexRoot: '',
     proposedIdSeed,
     replacementOutputPath,
   });
@@ -358,23 +426,6 @@ export function planWorkRecordRepairBundle({
       ...(authorization ? { authorization } : {}),
       ...(!authorization && gateOutcome ? { gateOutcome } : {}),
     })
-    : null;
-  const finalizationDryRun = attemptPlanPath && attemptArtifactPath && replacementRoot && indexRoot
-    ? finalizeWorkRecordRepair({
-      sourceRef,
-      attemptPlanPath,
-      attemptArtifactPath,
-      replacementRoot,
-      indexRoot,
-      proposedIdSeed,
-      replacementOutputPath,
-      dryRun: true,
-      roots,
-      repoRoot,
-    })
-    : null;
-  const supersessionLookup = indexRoot
-    ? lookupWorkRecordSourceSupersession({ sourceRef, indexRoot, sourceRoots: roots, repoRoot })
     : null;
 
   const originalDescriptors = allDescriptors(guide);
@@ -438,27 +489,6 @@ export function planWorkRecordRepairBundle({
       outputRoot: root.outputRoot,
     }));
   }
-  if (finalizationDryRun) {
-    artifacts.push(plannedArtifact({
-      relativePath: 'reports/finalization-dry-run.json',
-      artifactKind: 'finalization_dry_run_report',
-      producer: 'finalizeWorkRecordRepair(dryRun)',
-      downstreamConsumers: ['operator'],
-      value: finalizationDryRun,
-      outputRoot: root.outputRoot,
-    }));
-  }
-  if (supersessionLookup) {
-    artifacts.push(plannedArtifact({
-      relativePath: 'reports/supersession-lookup.json',
-      artifactKind: 'supersession_lookup_report',
-      producer: 'lookupWorkRecordSourceSupersession',
-      downstreamConsumers: ['operator'],
-      value: supersessionLookup,
-      outputRoot: root.outputRoot,
-    }));
-  }
-
   const envelope = {
     type: WORK_RECORD_REPAIR_BUNDLE_TYPE,
     schema_version: WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
@@ -467,6 +497,7 @@ export function planWorkRecordRepairBundle({
     mode: 'dry_run',
     source_work_record: cloneJson(guide.source_work_record || {}),
     output_root: root.outputRoot,
+    canonical_output_root: root.canonicalRoot,
     guide_report_path: path.join(root.outputRoot, 'guide-report.json'),
     manifest_path: path.join(root.outputRoot, 'bundle-manifest.json'),
     artifact_count: 0,
@@ -526,8 +557,9 @@ export function writeWorkRecordRepairBundle(options = {}) {
   }
 
   const outputRoot = text(plan.output_root);
+  const canonicalRoot = text(plan.canonical_output_root || outputRoot);
   const escape = artifacts
-    .map((artifact) => pathHasSymlinkEscape(outputRoot, artifact.path))
+    .map((artifact) => artifactPathViolation(outputRoot, canonicalRoot, artifact.path))
     .find((item) => item.escaped);
   if (escape) {
     return {
@@ -545,7 +577,17 @@ export function writeWorkRecordRepairBundle(options = {}) {
   for (const artifact of artifacts) {
     const bytes = stableJsonBytes(artifact.value);
     if (fs.existsSync(artifact.path)) {
-      if (fs.readFileSync(artifact.path, 'utf8') !== bytes) {
+      if (fs.lstatSync(artifact.path).isSymbolicLink()) {
+        return {
+          ...publicPlan,
+          status: 'blocked_path_escape',
+          diagnostics: [
+            ...arrayValue(publicPlan.diagnostics),
+            diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact path would write through an existing symlink.', { path: artifact.path, reason: 'symlink_escape' }),
+          ],
+        };
+      }
+      if (!fs.lstatSync(artifact.path).isFile() || fs.readFileSync(artifact.path, 'utf8') !== bytes) {
         return {
           ...publicPlan,
           status: 'blocked_conflict',
@@ -560,6 +602,17 @@ export function writeWorkRecordRepairBundle(options = {}) {
       continue;
     }
     fs.mkdirSync(path.dirname(artifact.path), { recursive: true });
+    const parentRealpath = fs.realpathSync(path.dirname(artifact.path));
+    if (!isWithin(canonicalRoot, parentRealpath)) {
+      return {
+        ...publicPlan,
+        status: 'blocked_path_escape',
+        diagnostics: [
+          ...arrayValue(publicPlan.diagnostics),
+          diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact parent resolved outside --output-root.', { path: path.dirname(artifact.path), realpath: parentRealpath, reason: 'realpath_escape' }),
+        ],
+      };
+    }
     fs.writeFileSync(artifact.path, bytes);
     written.push({ ...artifact, write_status: 'written', digest: fileDigest(artifact.path) });
   }
