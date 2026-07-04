@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -117,7 +117,8 @@ the returned `recommended_next`, `recommended_next_commands`, or
   terminal gate records or resume events through `gate-check`, packages
   authorized or blocked future-attempt descriptors through `plan-attempt`, and
   validates or fixture-builds Repair Attempt Artifacts through
-  `attempt-artifact`, and derives non-writing Replacement Proposals through
+  `attempt-artifact`, guides the current recovery stage through non-executing
+  `repair guide`, and derives non-writing Replacement Proposals through
   `replacement-proposal build/validate`. The narrow executing exception is
   `repair execute --attempt-plan <path> --execution-root <dir> --artifact-root
   <dir> [--dry-run] --json`: it consumes only a `ready` Repair Attempt Plan,
@@ -128,11 +129,25 @@ the returned `recommended_next`, `recommended_next_commands`, or
   Workflow engine, source-record mutation, and auto-resume behavior.
   `gate-check` authorization only permits a future gated attempt;
   `plan-attempt` is not proof that repair happened and is only safe to hand to a
-  future explicit executor when it reports `ready`. A Repair Attempt Artifact
-  records attempted outcome data; it is not a replacement writer. A Replacement
-  Proposal proposes carried-forward evidence, new evidence, per-postcondition
-  evidence mapping, supersession metadata, and final proposed health; it is not
-  itself a writer.
+  future explicit executor when it reports `ready`. `repair guide` reports one
+  `work_record.repair_guided_recovery` envelope with stage, blockers, missing
+  inputs, artifact path recommendations, and exact command descriptors; it does
+  not execute those descriptors, repair, finalize, replay, run `aos gate`
+  commands, apply patches, write replacement/supersession outputs, start a
+  Workflow engine, use live UI, or auto-resume agents. Guide stages are
+  `valid_no_repair_needed`, `superseded`, `retired_or_impossible`,
+  `repair_plan_unavailable`, `gate_required`, `authorization_pending`,
+  `authorization_denied`, `authorization_insufficient`, `attempt_plan_blocked`,
+  `ready_to_plan_attempt`, `ready_to_execute`, `attempt_artifact_invalid`,
+  `ready_to_finalize`, `finalization_blocked`, `finalized`, and `unsupported`.
+  A `ready_to_execute` guide report is ready only when `--attempt-plan`,
+  `--execution-root`, and `--artifact-root` are all supplied; descriptors that
+  need JSON stdout saved expose `stdout_artifact`, `save_stdout_to`, and
+  `requires_saved_output_from` instead of hidden shell inference. A Repair
+  Attempt Artifact records attempted outcome data; it is not a replacement
+  writer. A Replacement Proposal proposes carried-forward evidence, new
+  evidence, per-postcondition evidence mapping, supersession metadata, and final
+  proposed health; it is not itself a writer.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

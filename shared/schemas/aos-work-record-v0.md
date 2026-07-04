@@ -439,6 +439,64 @@ source Work Record, or treat authorization as proof that repair happened.
 Future execution must emit a new Work Record or explicit patch artifact, plus
 the evidence required by the attempt plan.
 
+## Repair Guided Recovery V0
+
+Guided Recovery is a read-only routing envelope over the existing Work Record
+repair chain. It does not add a new executor or policy authority. The public
+command is:
+
+```bash
+aos work-record repair guide <id-or-path> [--profile id] [--root path ...] \
+  [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] \
+  [--attempt-plan path] [--attempt-artifact path] \
+  [--execution-root dir] [--artifact-root dir] \
+  [--replacement-root dir] [--index-root dir] [--json]
+```
+
+The envelope type is `work_record.repair_guided_recovery` with schema version
+`2026-07-work-record-repair-guided-recovery-v0`. It includes source Work Record
+identity/path/digest, current status report summary, Repair Plan summary,
+optional gate request/authorization summary, optional Repair Attempt Plan
+summary, optional Repair Attempt Artifact validation, optional finalization
+dry-run summary, optional supersession lookup, optional replacement read/status
+summary, current stage, stage status, blockers, missing inputs, deterministic
+artifact path recommendations, and command descriptors.
+
+Guide stages are `valid_no_repair_needed`, `superseded`,
+`retired_or_impossible`, `repair_plan_unavailable`, `gate_required`,
+`authorization_pending`, `authorization_denied`,
+`authorization_insufficient`, `attempt_plan_blocked`, `ready_to_plan_attempt`,
+`ready_to_execute`, `attempt_artifact_invalid`, `ready_to_finalize`,
+`finalization_blocked`, `finalized`, and `unsupported`. Each stage carries
+`status`, `why`, `evidence`, `next_command`, `missing_inputs`,
+`would_mutate_if_run`, and `requires_user_approval`. `ready_to_plan_attempt`
+means the Repair Attempt Plan is ready in memory but still needs saved JSON
+stdout at the listed attempt-plan path. `ready_to_execute` with
+`stage_status:"ready"` requires a `ready` Repair Attempt Plan plus supplied
+`--attempt-plan`, `--execution-root`, and `--artifact-root`; otherwise it is
+blocked with matching `missing_inputs`. `ready_to_finalize` requires a
+validating supplied Attempt Artifact and a successful finalization dry-run.
+`finalized` requires active supersession lookup plus readable replacement
+status.
+
+Command descriptors are stable structured recommendations, not executed work.
+Each descriptor includes `id`, `purpose`, `command`, `argv`, `mutates_state`,
+approval/root requirements, `expected_output`, `next_stage_after_success`, and
+`not_run_by_guide:true`. Descriptors whose JSON stdout must be persisted for a
+later command include `stdout_artifact`, `save_stdout_to`, and downstream
+`requires_saved_output_from` fields. `argv` remains the direct process
+invocation; shell redirection is never the only persistence contract. The guide
+may report mutating commands such as `repair execute` or `repair finalize`, but
+it must not run them.
+
+Guided Recovery can run only read-only/report-only/planning checks and existing
+non-mutating dry-runs. It must report these flags as false:
+`mutates_record`, `writes_replacement_record`,
+`writes_supersession_index_entry`, `executes_repair`, `executes_actions`,
+`runs_recommended_commands`, `applies_patches`, `uses_live_ui`,
+`uses_browser`, `uses_native_ax`, `uses_canvas`, `starts_workflow_engine`,
+`auto_resumes`, and `automatic_replay_allowed`.
+
 ## Controlled Repair Executor Result V0
 
 The Controlled Repair Executor is the first explicit Work Record repair executor
@@ -1077,6 +1135,9 @@ The surface is read-only and supports:
 - `plan-repair` for read-only Repair Plan output;
 - `gate-request` and `gate-check` for Workflow Gate Authorization;
 - `plan-attempt` for non-executing Repair Attempt Plan output;
+- `repair guide` for a read-only Guided Recovery report across status,
+  planning, authorization, attempt artifact, finalization dry-run, and
+  supersession lookup state;
 - `attempt-artifact validate` and `attempt-artifact build` for read-only Repair
   Attempt Artifact validation and fixture/outcome artifact generation;
 - `export` for a compact read-only evidence bundle manifest.

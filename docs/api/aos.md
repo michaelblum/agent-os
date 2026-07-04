@@ -972,16 +972,20 @@ commands are read-only: they can discover records from canonical fixture roots
 or explicit `--root` files/directories, read a record by id or path, run the
 named report-only verifier profile, explain conservative recovery guidance, and
 emit read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan,
-Replacement Proposal, Source Supersession Index lookup, or compact evidence
-bundle JSON. The narrow mutating exceptions are `repair execute`, which runs
-only an allowlisted deterministic repo-command/file-fixture operation under an
-explicit `--execution-root` and writes a Repair Attempt Artifact under an
-explicit `--artifact-root`; `replacement-proposal write`, which writes only a
-new replacement Work Record under an explicit `--output-root`; and
-`supersession write`, which writes only an external relationship entry under an
-explicit `--index-root`; and `repair finalize`, which composes a successful
-Repair Attempt Artifact into one replacement Work Record plus one Source
-Supersession Index entry under explicit roots.
+Replacement Proposal, Source Supersession Index lookup, Guided Recovery report,
+or compact evidence bundle JSON. `repair guide` composes the current status,
+Repair Plan, optional gate authorization, optional Attempt Artifact validation,
+optional finalization dry-run, and optional supersession lookup into one
+non-executing recovery report with exact command descriptors. The narrow
+mutating exceptions are `repair execute`, which runs only an allowlisted
+deterministic repo-command/file-fixture operation under an explicit
+`--execution-root` and writes a Repair Attempt Artifact under an explicit
+`--artifact-root`; `replacement-proposal write`, which writes only a new
+replacement Work Record under an explicit `--output-root`; `supersession
+write`, which writes only an external relationship entry under an explicit
+`--index-root`; and `repair finalize`, which composes a successful Repair
+Attempt Artifact into one replacement Work Record plus one Source Supersession
+Index entry under explicit roots.
 
 ```bash
 aos work-record list --json
@@ -991,6 +995,8 @@ aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
+aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
+aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
 aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
@@ -1087,6 +1093,47 @@ preconditions, unapplied candidate patches, and unexecuted recommended
 commands. Missing, denied, dismissed, timeout, insufficient, stale, wrong
 record, wrong plan, wrong gate, invalid, and unsupported authorization all fail
 closed.
+
+`repair guide` is the Guided Recovery Workflow V0 surface. It accepts a source
+Work Record plus optional `--authorization`, `--gate-record`, `--resume-event`,
+or `--continuation-id`; optional `--attempt-plan`; optional
+`--attempt-artifact`; optional `--execution-root`, `--artifact-root`,
+`--replacement-root`, and `--index-root`; and returns
+`work_record.repair_guided_recovery` with schema version
+`2026-07-work-record-repair-guided-recovery-v0`. The guide classifies the
+current recovery stage, carries summaries of the lower-level reports it used,
+names blockers and missing inputs, recommends deterministic artifact paths, and
+emits command descriptors with `id`, `purpose`, `command`, `argv`,
+`mutates_state`, approval/root requirements, expected output, next stage, and
+`not_run_by_guide:true`. Descriptors whose JSON stdout must become a later
+artifact include `stdout_artifact`, `save_stdout_to`, and downstream
+`requires_saved_output_from` fields; `argv` remains the direct process
+invocation and never relies on shell redirection.
+
+Guide stages are `valid_no_repair_needed`, `superseded`,
+`retired_or_impossible`, `repair_plan_unavailable`, `gate_required`,
+`authorization_pending`, `authorization_denied`,
+`authorization_insufficient`, `attempt_plan_blocked`, `ready_to_plan_attempt`,
+`ready_to_execute`, `attempt_artifact_invalid`, `ready_to_finalize`,
+`finalization_blocked`, `finalized`, and `unsupported`. `ready_to_plan_attempt`
+means the Repair Attempt Plan is ready in memory but still needs persisted JSON
+stdout before execute can be ready. `ready_to_execute` with `stage_status:"ready"`
+requires a supplied `--attempt-plan`, `--execution-root`, and `--artifact-root`;
+otherwise it is blocked with matching `missing_inputs`. `ready_to_finalize` is
+reported only after a supplied Attempt Artifact validates and finalization
+dry-run can compute the replacement and supersession outputs; `finalized` is
+reported only when supersession lookup resolves a readable replacement with
+status output.
+
+The guide may run only read-only/report-only/planning checks and existing
+non-mutating dry-runs. It never runs recommended commands, never executes
+repair, never calls `repair finalize` in write mode, never calls
+`replacement-proposal write` or `supersession write`, never calls `aos do` or
+`aos gate ask/defer/submit`, never uses browser/native AX/canvas/live UI/TCC
+surfaces, never applies patches, never mutates source Work Records, never
+writes replacement or supersession outputs, never starts a Workflow engine, and
+never auto-resumes agents. Mutating commands can appear only as explicit
+descriptors marked `not_run_by_guide:true`.
 
 `repair execute` is the Controlled Repair Executor V0 command. It accepts a
 ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`

@@ -11572,6 +11572,185 @@
         {
           "args" : [
             {
+              "id" : "ref",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Source Work Record id, Subject Entry Handle, or JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "profile",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report-only verifier profile id",
+              "token" : "--profile",
+              "value_type" : "string"
+            },
+            {
+              "id" : "root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Work Record file or directory root; repeatable",
+              "token" : "--root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "authorization",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Workflow Gate Authorization JSON path",
+              "token" : "--authorization",
+              "value_type" : "string"
+            },
+            {
+              "id" : "gate-record",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Gate record id or JSON path to evaluate as authorization",
+              "token" : "--gate-record",
+              "value_type" : "string"
+            },
+            {
+              "id" : "resume-event",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Gate resume-event JSON path to evaluate as authorization",
+              "token" : "--resume-event",
+              "value_type" : "string"
+            },
+            {
+              "id" : "continuation-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Submitted deferred-gate continuation id to evaluate as authorization",
+              "token" : "--continuation-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "attempt-plan",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repair Attempt Plan JSON path for command descriptors and finalization dry-run",
+              "token" : "--attempt-plan",
+              "value_type" : "string"
+            },
+            {
+              "id" : "attempt-artifact",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repair Attempt Artifact JSON path to validate",
+              "token" : "--attempt-artifact",
+              "value_type" : "string"
+            },
+            {
+              "id" : "execution-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit execution root to use in recommended repair execute commands",
+              "token" : "--execution-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "artifact-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit artifact root to use in recommended repair execute commands",
+              "token" : "--artifact-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "replacement-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit replacement Work Record root for finalization dry-run and replacement readback",
+              "token" : "--replacement-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "index-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit Source Supersession Index root for lookup and finalization dry-run",
+              "token" : "--index-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable Guided Recovery report JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "constraints" : {
+            "conflicts" : [
+              [
+                "authorization",
+                "gate-record"
+              ],
+              [
+                "authorization",
+                "resume-event"
+              ],
+              [
+                "authorization",
+                "continuation-id"
+              ],
+              [
+                "gate-record",
+                "resume-event"
+              ],
+              [
+                "gate-record",
+                "continuation-id"
+              ],
+              [
+                "resume-event",
+                "continuation-id"
+              ]
+            ]
+          },
+          "examples" : [
+            "aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json",
+            "aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false,
+            "writes_replacement_record" : false,
+            "writes_index_entry" : false,
+            "mutates_source_record" : false,
+            "executes_repair" : false,
+            "executes_actions" : false,
+            "uses_live_ui" : false,
+            "uses_browser" : false,
+            "uses_native_ax" : false,
+            "uses_canvas" : false,
+            "applies_patches" : false,
+            "automatic_replay_allowed" : false,
+            "runs_recommended_commands" : false,
+            "starts_workflow_engine" : false,
+            "auto_resumes" : false,
+            "composition_scope" : "read_only_guided_recovery_report"
+          },
+          "id" : "work-record-repair-guide",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--execution-root dir] [--artifact-root dir] [--replacement-root dir] [--index-root dir] [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "source",
               "kind" : "flag",
               "required" : true,

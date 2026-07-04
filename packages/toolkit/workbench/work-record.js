@@ -9,6 +9,7 @@ export * from './work-record-evidence-adapters.js';
 export * from './work-record-repair-attempt-artifact.js';
 export * from './work-record-repair-attempt-plan.js';
 export * from './work-record-repair-finalizer.js';
+export * from './work-record-repair-guide.js';
 export * from './work-record-repair-plan.js';
 export * from './work-record-replacement-proposal.js';
 export * from './work-record-replacement-writer.js';
