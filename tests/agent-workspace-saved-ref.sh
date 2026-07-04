@@ -8,6 +8,7 @@ tests=(
     tests/agent-workspace-browser-refs.sh
     tests/agent-workspace-canvas-refs.sh
     tests/agent-workspace-native-refs.sh
+    tests/agent-workspace-cross-backend-proof.sh
     tests/agent-workspace-cleanup.sh
     tests/agent-workspace-contract-drift.sh
 )

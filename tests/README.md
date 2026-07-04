@@ -88,6 +88,18 @@ contract, or would need private test plumbing that already exists one level up.
   manual tests under `tests/manual/`. Escalate to this level only with a clear
   human-needed question and artifact path.
 
+For cross-backend agent workspace saved-ref regressions, use:
+
+```bash
+bash tests/agent-workspace-cross-backend-proof.sh
+```
+
+That deterministic fixture lane wraps
+`tests/manual/cross-backend-saved-ref-regression-proof.sh` and verifies the
+artifact shape for browser, AOS canvas, and native AX rows. Manual or live
+reruns must preserve the same `/tmp` proof root, `summary.json`, per-backend
+artifact directories, row statuses, build telemetry, and cleanup evidence.
+
 ## Rebuild `./aos` First
 
 Rebuild with `./aos dev build` when both of these are true:

@@ -22,6 +22,9 @@ tests.
   or source when behavior intentionally changes.
 - Preserve cleanup for canvases, daemon state, temporary files, and live
   resources.
+- Artifact-producing proof harnesses under `tests/manual/` must write stable
+  machine-readable summaries and explicit cleanup evidence when they create
+  `/tmp` proof roots.
 
 ## Work Guidance
 
@@ -30,6 +33,9 @@ tests.
 - Keep agent workspace fixture helpers split by domain under
   `tests/lib/agent-workspace-fixtures/`; `tests/lib/agent-workspace-fixtures.sh`
   is only the compatibility shim that sources those files.
+- For cross-backend agent workspace saved-ref regressions, keep the deterministic
+  fixture lane in `tests/agent-workspace-cross-backend-proof.sh` aligned with
+  the artifact-producing manual harness instead of adding ad hoc proof scripts.
 
 ## Verification
 
