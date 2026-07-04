@@ -1,10 +1,13 @@
 # AOS Work Record v0 Sketch
 
-Status: schema-backed design sketch. The JSON Schema in
+Status: schema-backed v0 contract with fixture-backed toolkit producers. The JSON Schema in
 [`aos-work-record-v0.schema.json`](aos-work-record-v0.schema.json) validates the
 example fixtures under
-[`fixtures/aos-work-record-v0/`](fixtures/aos-work-record-v0/), but this is not
-the active runtime helper contract yet.
+[`fixtures/aos-work-record-v0/`](fixtures/aos-work-record-v0/), and the
+toolkit builders/verifier in `packages/toolkit/workbench/` produce and inspect
+the current deterministic fixtures. This remains report-only: it records and
+verifies bounded runs, but it does not authorize autonomous replay, repair, or
+macro recording.
 
 ## Purpose
 
@@ -305,13 +308,15 @@ The second producer is also narrow:
 source into the same completed v0 shape. Its source records one
 `see -> do -> see` slice with before perception, AOS action metadata, after
 perception, target dialect, selected action target, State IDs where available,
-and immutable artifact refs. Direct browser/canvas evidence may store a
-Target-with-Ref, saved-ref evidence should preserve the Saved Ref plus resolved
-underlying target, and native AX evidence should preserve its selector bridge
-descriptor. The builder stores the selected action target in
-`execution_map.steps[].action`, stores before/action/after receipts in
-`evidence[]`, and ties the post-action Postcondition to the after-perception
-evidence.
+and immutable artifact refs. For saved-ref evidence it may also record the
+full `see --save -> do ref --dry-run -> do ref -> see --save ->
+diff/readback -> cleanup` bridge. Direct browser/canvas evidence may store a
+Target-with-Ref, saved-ref evidence preserves the Saved Ref plus resolved
+underlying target and current-validation metadata, and native AX evidence
+preserves its selector bridge descriptor. The builder stores the selected
+action target in `execution_map.steps[].action`, stores before/dry-run/action/
+after/cleanup receipts in `evidence[]` when present, and ties the post-action
+Postcondition to the after-perception evidence.
 
 ### Saved Refs, Evidence, And Post-Action Proof
 
@@ -445,6 +450,20 @@ The canonical examples for this sketch are JSON fixtures:
   click with before perception, action metadata, after perception, a
   post-action Postcondition, immutable evidence refs, and the same report-only
   verifier profile.
+- [`valid/saved-ref-browser-fill-or-canvas-set-value.json`](fixtures/aos-work-record-v0/valid/saved-ref-browser-fill-or-canvas-set-value.json)
+  is generated from
+  [`evidence/saved-ref-browser-fill-or-canvas-set-value.json`](fixtures/aos-work-record-v0/evidence/saved-ref-browser-fill-or-canvas-set-value.json).
+  It records a saved-ref browser fill with before saved capture, dry-run,
+  dispatch, after saved capture/readback, cleanup evidence, backend/strategy/
+  fallback metadata, selected Saved Ref, resolved target, recommended next
+  capture command, and health `valid`.
+- [`valid/repairable-stale-saved-ref.json`](fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json)
+  preserves stale saved-ref dry-run/action evidence and classifies health
+  `repairable`; repair policy points to re-perceive and re-resolve under an
+  explicit workflow gate.
+- [`valid/cleanup-or-postcondition-failed.json`](fixtures/aos-work-record-v0/valid/cleanup-or-postcondition-failed.json)
+  preserves successful action evidence plus failed cleanup evidence and
+  classifies health as `blocked` without rewriting historical evidence.
 - [`valid/evidence-adapter-browser-canvas.json`](fixtures/aos-work-record-v0/valid/evidence-adapter-browser-canvas.json)
   shows adapter-backed browser semantic target, canvas/AX-like semantic target,
   and screenshot metadata checks that pass deterministically.
@@ -465,6 +484,14 @@ Schema cannot express alone: every Claim Result must reference an existing
 Claim, every Claim Postcondition reference must resolve inside
 `execution_map.postconditions[]`, and derived verifier indexes must point to
 known Claims.
+
+The guarded-live proof harness
+`tests/manual/cross-backend-saved-ref-regression-proof.sh` emits the same
+record shape for a controlled browser saved-ref fill when
+`AOS_SAVED_REF_PROOF_MODE=guarded-live`. The Work Record lives under the proof
+root at `browser/work-record/fill-work-record.json`; companion source,
+verifier, and summary artifacts stay beside it. That harness is proof
+production, not a public recorder command.
 
 ## Migration Notes
 

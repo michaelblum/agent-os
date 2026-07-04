@@ -169,6 +169,46 @@ function actionStatus(action) {
   return text(action.status || objectValue(action.result).status, 'unknown');
 }
 
+function healthVerdictForSource({
+  evidenceSource,
+  actionPassed,
+  postconditionPassed,
+  cleanupPassed,
+}) {
+  const explicit = text(objectValue(evidenceSource.health).verdict);
+  if ([
+    'valid',
+    'stale',
+    'repairable',
+    'blocked',
+    'impossible',
+    'superseded',
+    'retired',
+  ].includes(explicit)) {
+    return explicit;
+  }
+  const validationStatus = text(
+    objectValue(evidenceSource.current_validation).status
+      || objectValue(objectValue(evidenceSource.action).current_validation).status,
+  );
+  if (['stale', 'ambiguous', 'missing'].includes(validationStatus)) return 'repairable';
+  if (!actionPassed || !postconditionPassed || cleanupPassed === false) return 'blocked';
+  return 'valid';
+}
+
+function healthReasonForVerdict(verdict, fallback = '') {
+  const reasons = {
+    valid: 'All run Claims verified against immutable AOS saved-ref action evidence.',
+    stale: 'The Work Record requires fresh validation before it can be trusted for replay or repair.',
+    repairable: 'Saved-ref validation is stale, ambiguous, or missing, but intent and immutable evidence are sufficient for workflow-gated repair.',
+    blocked: 'One or more run Claims failed against the AOS saved-ref action evidence.',
+    impossible: 'The recorded intent can no longer be satisfied by the known target class.',
+    superseded: 'A newer Work Record explicitly replaces this record.',
+    retired: 'This Work Record is intentionally no longer executable.',
+  };
+  return text(fallback, reasons[verdict] || 'The Work Record verifier classified the record health.');
+}
+
 function uniqueStrings(values = []) {
   const seen = new Set();
   const result = [];
@@ -527,8 +567,10 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   const targetWithRef = evidenceTarget(evidenceSource.target_with_ref || objectValue(evidenceSource.action).target);
 
   const before = objectValue(evidenceSource.before_perception);
+  const dryRun = objectValue(evidenceSource.dry_run);
   const action = objectValue(evidenceSource.action);
   const after = objectValue(evidenceSource.after_perception);
+  const cleanup = objectValue(evidenceSource.cleanup);
   const postconditionSource = objectValue(evidenceSource.postcondition);
 
   const beforeStateId = requireText(before.state_id || evidenceSource.state_id, 'before_perception.state_id');
@@ -536,30 +578,86 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   const afterStateId = requireText(after.state_id, 'after_perception.state_id');
   const actionVerb = requireText(action.verb, 'action.verb');
   const actionCommand = requireText(action.command, 'action.command');
+  const dryRunCommand = text(dryRun.command);
+  const dryRunStatusValue = dryRunCommand ? actionStatus(dryRun) : '';
+  const dryRunPassed = !dryRunCommand || ['success', 'reacquired', 'resolved', 'direct_ax_ready'].includes(dryRunStatusValue);
   const actionStatusValue = actionStatus(action);
   const actionPassed = actionStatusValue === 'success';
+  const cleanupCommand = text(cleanup.command);
+  const cleanupStatusValue = cleanupCommand ? actionStatus(cleanup) : '';
+  const cleanupPassed = !cleanupCommand || cleanupStatusValue === 'success';
   if (typeof postconditionSource.passed !== 'boolean') {
     throw new TypeError('postcondition.passed is required');
   }
   const postconditionPassed = postconditionSource.passed === true;
 
   const beforeEvidenceId = text(before.evidence_id, `evidence:${baseId}-before-see`);
+  const dryRunEvidenceId = dryRunCommand ? text(dryRun.evidence_id, `evidence:${baseId}-dry-run`) : '';
   const actionEvidenceId = text(action.evidence_id, `evidence:${baseId}-do-${slug(actionVerb)}`);
   const afterEvidenceId = text(after.evidence_id, `evidence:${baseId}-after-see`);
-  const evidenceIds = [beforeEvidenceId, actionEvidenceId, afterEvidenceId];
+  const cleanupEvidenceId = cleanupCommand ? text(cleanup.evidence_id, `evidence:${baseId}-cleanup`) : '';
+  const evidenceIds = [
+    beforeEvidenceId,
+    dryRunEvidenceId,
+    actionEvidenceId,
+    afterEvidenceId,
+    cleanupEvidenceId,
+  ].filter(Boolean);
+  const selectedSavedRef = text(evidenceSource.selected_saved_ref || action.saved_ref || dryRun.saved_ref);
+  const resolvedTarget = text(
+    evidenceSource.resolved_target
+      || objectValue(action.target_resolution).target_with_ref
+      || objectValue(dryRun.target_resolution).target_with_ref
+      || targetWithRef,
+  );
+  const currentValidation = {
+    ...cloneJson(objectValue(evidenceSource.current_validation)),
+    ...cloneJson(objectValue(dryRun.current_validation)),
+    ...cloneJson(objectValue(action.current_validation)),
+  };
+  const recommendedNext = objectValue(evidenceSource.recommended_next);
+  const recommendedNextCommand = text(
+    evidenceSource.recommended_next_command
+      || action.recommended_next_command
+      || dryRun.recommended_next_command,
+  );
+  const hasSavedRefLane = Boolean(
+    selectedSavedRef
+      || dryRunCommand
+      || cleanupCommand
+      || Object.keys(currentValidation).length > 0
+      || Object.keys(recommendedNext).length > 0
+      || recommendedNextCommand,
+  );
 
   const beforePayload = evidenceEventPayload(before, {
     phase: 'before',
     target_dialect: targetDialect,
     target_with_ref: targetWithRef,
+    ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+    ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
     source_id: sourceId,
   });
+  const dryRunPayload = dryRunCommand ? evidenceEventPayload(dryRun, {
+    phase: 'dry_run',
+    verb: actionVerb,
+    status: dryRunStatusValue,
+    target_dialect: targetDialect,
+    target_with_ref: targetWithRef,
+    ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+    ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+    ...(Object.keys(currentValidation).length > 0 ? { current_validation: cloneJson(currentValidation) } : {}),
+    source_id: sourceId,
+  }) : null;
   const actionPayload = evidenceEventPayload(action, {
     phase: 'action',
     verb: actionVerb,
     status: actionStatusValue,
     target_dialect: targetDialect,
     target_with_ref: targetWithRef,
+    ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+    ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+    ...(Object.keys(currentValidation).length > 0 ? { current_validation: cloneJson(currentValidation) } : {}),
     execution: cloneJson(objectValue(action.execution)),
     source_id: sourceId,
   });
@@ -567,8 +665,19 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
     phase: 'after',
     target_dialect: targetDialect,
     target_with_ref: targetWithRef,
+    ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+    ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
     source_id: sourceId,
   });
+  const cleanupPayload = cleanupCommand ? evidenceEventPayload(cleanup, {
+    phase: 'cleanup',
+    status: cleanupStatusValue,
+    target_dialect: targetDialect,
+    target_with_ref: targetWithRef,
+    selected_saved_ref: selectedSavedRef,
+    resolved_target: resolvedTarget,
+    source_id: sourceId,
+  }) : null;
 
   const beforePostcondition = {
     id: `postcondition:${baseId}-before-perception`,
@@ -604,6 +713,23 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       notes: 'Action failures require an explicit workflow-gated re-run or execution-map review.',
     },
   };
+  const dryRunPostcondition = dryRunCommand ? {
+    id: `postcondition:${baseId}-dry-run`,
+    kind: 'aos_do_dry_run',
+    description: `The saved-ref dry-run resolved before mutation: ${dryRunCommand}`,
+    target: selectedSavedRef || targetWithRef,
+    state_id: actionStateId,
+    check: {
+      kind: 'dry_run_status_allows_dispatch',
+      expected: 'reacquired_or_resolved',
+      path: 'dry_run.status',
+    },
+    evidence_refs: [dryRunEvidenceId],
+    repair_policy: {
+      mode: dryRunPassed ? 'manual_review' : 'patch_execution_map',
+      notes: 'Dry-run failures must re-perceive and re-resolve the saved ref under an explicit workflow gate before dispatch.',
+    },
+  } : null;
   const afterPostcondition = {
     id: text(postconditionSource.id, `postcondition:${baseId}-after-state`),
     kind: text(postconditionSource.kind, `${targetDialect}_post_action_state`),
@@ -626,6 +752,30 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       ),
     },
   };
+  const cleanupPostcondition = cleanupCommand ? {
+    id: text(cleanup.postcondition_id, `postcondition:${baseId}-cleanup`),
+    kind: text(cleanup.kind, 'aos_cleanup'),
+    description: text(cleanup.description, `Cleanup completed for ${target}.`),
+    target,
+    state_id: text(cleanup.state_id, afterStateId),
+    check: {
+      kind: 'cleanup_status_equals',
+      expected: 'success',
+      path: 'cleanup.status',
+    },
+    evidence_refs: [cleanupEvidenceId],
+    repair_policy: {
+      mode: cleanupPassed ? 'manual_review' : 'manual_review',
+      notes: 'Cleanup failures are recorded as immutable evidence and require explicit follow-up; do not rewrite action evidence.',
+    },
+  } : null;
+  const allPostconditions = [
+    beforePostcondition,
+    dryRunPostcondition,
+    actionPostcondition,
+    afterPostcondition,
+    cleanupPostcondition,
+  ].filter(Boolean);
 
   const claims = [
     {
@@ -635,8 +785,10 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       acceptance: 'Before, action, and after evidence refs are present and immutable.',
       postcondition_refs: [
         beforePostcondition.id,
+        ...(dryRunPostcondition ? [dryRunPostcondition.id] : []),
         actionPostcondition.id,
         afterPostcondition.id,
+        ...(cleanupPostcondition ? [cleanupPostcondition.id] : []),
       ],
     },
     {
@@ -654,31 +806,50 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
     },
   ];
 
-  const capturePassed = actionPassed && postconditionPassed;
+  const capturePassed = dryRunPassed && actionPassed && postconditionPassed && cleanupPassed;
+  const beforeResult = resultFor(beforePostcondition, {
+    passed: true,
+    evidenceRefs: [beforeEvidenceId],
+    reason: 'Before perception includes a State ID and target-scope evidence.',
+  });
+  const dryRunResult = dryRunPostcondition ? resultFor(dryRunPostcondition, {
+    passed: dryRunPassed,
+    evidenceRefs: [dryRunEvidenceId],
+    reason: dryRunPassed
+      ? 'The saved-ref dry-run allowed dispatch under current validation.'
+      : `The saved-ref dry-run reported ${dryRunStatusValue}.`,
+  }) : null;
+  const actionResult = resultFor(actionPostcondition, {
+    passed: actionPassed,
+    evidenceRefs: [actionEvidenceId],
+    reason: actionPassed
+      ? 'The AOS do action reported success with execution metadata.'
+      : `The AOS do action reported ${actionStatusValue}.`,
+  });
+  const afterResult = resultFor(afterPostcondition, {
+    passed: postconditionPassed,
+    evidenceRefs: [afterEvidenceId],
+    reason: text(
+      postconditionSource.reason,
+      postconditionPassed
+        ? 'The after perception evidence satisfies the expected post-action state.'
+        : 'The after perception evidence did not satisfy the expected post-action state.',
+    ),
+  });
+  const cleanupResult = cleanupPostcondition ? resultFor(cleanupPostcondition, {
+    passed: cleanupPassed,
+    evidenceRefs: [cleanupEvidenceId],
+    reason: cleanupPassed
+      ? 'Cleanup evidence reports success.'
+      : `Cleanup evidence reports ${cleanupStatusValue}.`,
+  }) : null;
   const captureResults = [
-    resultFor(beforePostcondition, {
-      passed: true,
-      evidenceRefs: [beforeEvidenceId],
-      reason: 'Before perception includes a State ID and target-scope evidence.',
-    }),
-    resultFor(actionPostcondition, {
-      passed: actionPassed,
-      evidenceRefs: [actionEvidenceId],
-      reason: actionPassed
-        ? 'The AOS do action reported success with execution metadata.'
-        : `The AOS do action reported ${actionStatusValue}.`,
-    }),
-    resultFor(afterPostcondition, {
-      passed: postconditionPassed,
-      evidenceRefs: [afterEvidenceId],
-      reason: text(
-        postconditionSource.reason,
-        postconditionPassed
-          ? 'The after perception evidence satisfies the expected post-action state.'
-          : 'The after perception evidence did not satisfy the expected post-action state.',
-      ),
-    }),
-  ];
+    beforeResult,
+    dryRunResult,
+    actionResult,
+    afterResult,
+    cleanupResult,
+  ].filter(Boolean);
   const claimResults = [
     claimResultForPostconditions({
       claim: claims[0],
@@ -694,7 +865,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       claim: claims[1],
       passed: postconditionPassed,
       evidenceRefs: [afterEvidenceId],
-      postconditionResults: [captureResults[2]],
+      postconditionResults: [afterResult],
       reason: text(
         postconditionSource.reason,
         postconditionPassed
@@ -707,6 +878,12 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   const allClaimsVerified = claimResults.every((result) => result.status === 'verified');
   const derivedIndexes = deriveWorkRecordClaimIndexes({ claim_results: claimResults });
   const verifierReportId = `verifier-report:${baseId}`;
+  const healthVerdict = healthVerdictForSource({
+    evidenceSource,
+    actionPassed,
+    postconditionPassed,
+    cleanupPassed,
+  });
 
   return {
     type: 'aos.work_record',
@@ -762,15 +939,24 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
             verb: actionVerb,
             target: targetWithRef,
             state_id: actionStateId,
-            args: {
-              command: actionCommand,
-              target_dialect: targetDialect,
-              target_with_ref: targetWithRef,
-              before_state_id: beforeStateId,
-              after_state_id: afterStateId,
-              execution: cloneJson(objectValue(action.execution)),
-            },
+          args: {
+            command: actionCommand,
+            target_dialect: targetDialect,
+            target_with_ref: targetWithRef,
+            ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+            ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+            before_state_id: beforeStateId,
+            after_state_id: afterStateId,
+            ...(dryRunCommand ? {
+              dry_run_command: dryRunCommand,
+              dry_run_status: dryRunStatusValue,
+            } : {}),
+            execution: cloneJson(objectValue(action.execution)),
+            ...(Object.keys(currentValidation).length > 0 ? { current_validation: cloneJson(currentValidation) } : {}),
+            ...(Object.keys(recommendedNext).length > 0 ? { recommended_next: cloneJson(recommendedNext) } : {}),
+            ...(recommendedNextCommand ? { recommended_next_command: recommendedNextCommand } : {}),
           },
+        },
           postcondition_refs: [afterPostcondition.id],
           repair_hints: [
             {
@@ -780,7 +966,7 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           ],
         },
       ],
-      postconditions: [beforePostcondition, actionPostcondition, afterPostcondition],
+      postconditions: allPostconditions,
       artifact_routes: [
         {
           id: `artifact-route:${baseId}-before-see`,
@@ -788,6 +974,12 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           destination: requireText(before.artifact_uri, 'before_perception.artifact_uri'),
           evidence_ref: beforeEvidenceId,
         },
+        ...(dryRunCommand ? [{
+          id: `artifact-route:${baseId}-dry-run`,
+          kind: 'aos_do_dry_run',
+          destination: requireText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
+          evidence_ref: dryRunEvidenceId,
+        }] : []),
         {
           id: `artifact-route:${baseId}-do-action`,
           kind: 'aos_do_action',
@@ -800,6 +992,12 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           destination: requireText(after.artifact_uri, 'after_perception.artifact_uri'),
           evidence_ref: afterEvidenceId,
         },
+        ...(cleanupCommand ? [{
+          id: `artifact-route:${baseId}-cleanup`,
+          kind: 'aos_cleanup',
+          destination: requireText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
+          evidence_ref: cleanupEvidenceId,
+        }] : []),
       ],
       replay_policy: {
         mode: 'report_only',
@@ -826,6 +1024,8 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           command: text(before.command),
           target_dialect: targetDialect,
           target_with_ref: targetWithRef,
+          ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+          ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
           element_count: Number.isFinite(before.element_count) ? before.element_count : arrayValue(before.elements).length,
           semantic_targets: arrayValue(before.semantic_targets).map((candidate) => cloneJson(candidate)),
           source: {
@@ -835,6 +1035,36 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           ...cloneJson(objectValue(before.metadata)),
         },
       },
+      ...(dryRunCommand ? [{
+        id: dryRunEvidenceId,
+        kind: 'aos_do_dry_run',
+        created_at: requireText(dryRun.executed_at, 'dry_run.executed_at'),
+        uri: requireText(dryRun.artifact_uri, 'dry_run.artifact_uri'),
+        digest: evidenceDigest(dryRunPayload),
+        state_id: actionStateId,
+        target: selectedSavedRef || targetWithRef,
+        immutable: true,
+        summary: text(dryRun.summary, `AOS do ${actionVerb} dry-run reported ${dryRunStatusValue}.`),
+        metadata: {
+          builder: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
+          phase: 'dry_run',
+          command: dryRunCommand,
+          verb: actionVerb,
+          status: dryRunStatusValue,
+          target_dialect: targetDialect,
+          target_with_ref: targetWithRef,
+          ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+          resolved_target: resolvedTarget,
+          ...(Object.keys(currentValidation).length > 0 ? { current_validation: cloneJson(currentValidation) } : {}),
+          ...(Object.keys(recommendedNext).length > 0 ? { recommended_next: cloneJson(recommendedNext) } : {}),
+          ...(recommendedNextCommand ? { recommended_next_command: recommendedNextCommand } : {}),
+          source: {
+            type: text(evidenceSource.type, 'aos.action_evidence'),
+            id: sourceId,
+          },
+          ...cloneJson(objectValue(dryRun.metadata)),
+        },
+      }] : []),
       {
         id: actionEvidenceId,
         kind: 'aos_do_action',
@@ -853,7 +1083,12 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           status: actionStatusValue,
           target_dialect: targetDialect,
           target_with_ref: targetWithRef,
+          ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+          ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+          ...(Object.keys(currentValidation).length > 0 ? { current_validation: cloneJson(currentValidation) } : {}),
           execution: cloneJson(objectValue(action.execution)),
+          ...(Object.keys(recommendedNext).length > 0 ? { recommended_next: cloneJson(recommendedNext) } : {}),
+          ...(recommendedNextCommand ? { recommended_next_command: recommendedNextCommand } : {}),
           source: {
             type: text(evidenceSource.type, 'aos.action_evidence'),
             id: sourceId,
@@ -877,6 +1112,8 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           command: text(after.command),
           target_dialect: targetDialect,
           target_with_ref: targetWithRef,
+          ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+          ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
           element_count: Number.isFinite(after.element_count) ? after.element_count : arrayValue(after.elements).length,
           semantic_targets: arrayValue(after.semantic_targets).map((candidate) => cloneJson(candidate)),
           source: {
@@ -886,6 +1123,32 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
           ...cloneJson(objectValue(after.metadata)),
         },
       },
+      ...(cleanupCommand ? [{
+        id: cleanupEvidenceId,
+        kind: 'aos_cleanup',
+        created_at: requireText(cleanup.completed_at || cleanup.executed_at, 'cleanup.completed_at'),
+        uri: requireText(cleanup.artifact_uri, 'cleanup.artifact_uri'),
+        digest: evidenceDigest(cleanupPayload),
+        state_id: text(cleanup.state_id, afterStateId),
+        target,
+        immutable: true,
+        summary: text(cleanup.summary, `Cleanup reported ${cleanupStatusValue}.`),
+        metadata: {
+          builder: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
+          phase: 'cleanup',
+          command: cleanupCommand,
+          status: cleanupStatusValue,
+          target_dialect: targetDialect,
+          target_with_ref: targetWithRef,
+          ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+          ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+          source: {
+            type: text(evidenceSource.type, 'aos.action_evidence'),
+            id: sourceId,
+          },
+          ...cloneJson(objectValue(cleanup.metadata)),
+        },
+      }] : []),
     ],
     claims,
     claim_results: claimResults,
@@ -900,13 +1163,19 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       claim_results_ref: 'claim_results',
       derived_indexes: derivedIndexes,
       evidence_refs: evidenceIds,
-      feedback: allClaimsVerified ? [] : ['Review failed AOS action evidence before relying on this Work Record.'],
+      feedback: allClaimsVerified
+        ? []
+        : [hasSavedRefLane
+          ? 'Review failed AOS saved-ref action evidence before relying on this Work Record.'
+          : 'Review failed AOS action evidence before relying on this Work Record.'],
     },
     health: {
-      verdict: allClaimsVerified ? 'valid' : 'blocked',
-      reason: allClaimsVerified
-        ? 'All run Claims verified against immutable AOS see/do/see evidence.'
-        : 'One or more run Claims failed against the AOS action evidence.',
+      verdict: healthVerdict,
+      reason: hasSavedRefLane
+        ? healthReasonForVerdict(healthVerdict, objectValue(evidenceSource.health).reason)
+        : (allClaimsVerified
+          ? 'All run Claims verified against immutable AOS see/do/see evidence.'
+          : 'One or more run Claims failed against the AOS action evidence.'),
       evaluated_at: completedAt,
       verifier_report_id: verifierReportId,
       confidence: Math.min(...claimResults.map((result) => result.confidence)),
@@ -919,6 +1188,9 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
       verifier_profile_id: verifierProfile.id,
       target_dialect: targetDialect,
       target_with_ref: targetWithRef,
+      ...(selectedSavedRef ? { selected_saved_ref: selectedSavedRef } : {}),
+      ...(hasSavedRefLane ? { resolved_target: resolvedTarget } : {}),
+      ...(hasSavedRefLane ? { health_verdict: healthVerdict } : {}),
     },
   };
 }

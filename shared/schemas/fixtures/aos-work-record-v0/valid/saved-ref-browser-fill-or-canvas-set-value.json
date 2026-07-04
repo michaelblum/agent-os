@@ -1,0 +1,674 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:saved-ref-browser-fill-2026-07-04",
+  "label": "Saved-ref browser fill Work Record capture",
+  "created_at": "2026-07-04T14:00:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Generated from bounded AOS see/do/see action evidence."
+  },
+  "references": [],
+  "intent": {
+    "summary": "Capture one bounded saved-ref browser fill as a Work Record v0.",
+    "purpose": "Prove the saved-ref see --save -> dry-run -> dispatch -> see --save -> readback -> cleanup lane can emit immutable Work Record evidence.",
+    "acceptance": "The generated Work Record records before, dry-run, dispatch, after, and cleanup evidence and verifies health as valid.",
+    "constraints": [
+      "Use saved refs as action handles.",
+      "Preserve resolved target metadata beside the saved ref.",
+      "Do not authorize autonomous replay or repair."
+    ],
+    "claim_refs": [
+      "claim:saved-ref-browser-fill-2026-07-04-see-do-see-captured",
+      "claim:saved-ref-browser-fill-2026-07-04-post-action-state-observed"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:saved-ref-browser-fill-2026-07-04-browser-scope",
+        "target": "browser:work-record-saved-ref-demo",
+        "dialect": "browser",
+        "state_id": "state_before_0704",
+        "description": "Target scope captured by AOS see before the action.",
+        "candidates": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          },
+          {
+            "ref": "status",
+            "target": "browser:work-record-saved-ref-demo/status",
+            "role": "status",
+            "name": "Saved-ref demo status",
+            "value": "Ready",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.status"
+          }
+        ]
+      },
+      {
+        "id": "target:saved-ref-browser-fill-2026-07-04-action-ref",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "dialect": "browser",
+        "state_id": "state_before_0704",
+        "description": "Target-with-Ref selected from before perception and acted on by AOS do.",
+        "candidates": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "data_aos_ref": "work-record.demo.name"
+          }
+        ]
+      },
+      {
+        "id": "target:saved-ref-browser-fill-2026-07-04-postcondition-ref",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "dialect": "browser",
+        "state_id": "state_after_0704",
+        "description": "Post-action target checked against after perception evidence.",
+        "candidates": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "Ada",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          },
+          {
+            "ref": "status",
+            "target": "browser:work-record-saved-ref-demo/status",
+            "role": "status",
+            "name": "Saved-ref demo status",
+            "value": "Filled",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.status"
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:saved-ref-browser-fill-2026-07-04-fill",
+        "intent": "Execute fill against browser:work-record-saved-ref-demo/input.name and verify the post-action state.",
+        "action": {
+          "verb": "fill",
+          "target": "browser:work-record-saved-ref-demo/input.name",
+          "state_id": "state_before_0704",
+          "args": {
+            "command": "./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof",
+            "target_dialect": "browser",
+            "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+            "selected_saved_ref": "ref:snap_before_0704:input.name",
+            "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+            "before_state_id": "state_before_0704",
+            "after_state_id": "state_after_0704",
+            "dry_run_command": "./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+            "dry_run_status": "reacquired",
+            "execution": {
+              "backend": "playwright",
+              "strategy": "saved_ref_browser_fill",
+              "fallback_used": false,
+              "state_id": "state_before_0704"
+            },
+            "current_validation": {
+              "status": "reacquired",
+              "backend": "browser",
+              "strategy": "browser_current_target_validation",
+              "fallback_used": false,
+              "state_id": "state_before_0704"
+            },
+            "recommended_next": {
+              "kind": "fresh_capture",
+              "argv": [
+                "see",
+                "capture",
+                "browser:work-record-saved-ref-demo",
+                "--save",
+                "--workspace",
+                "work-record-proof",
+                "--mode",
+                "ax"
+              ]
+            },
+            "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:saved-ref-browser-fill-after-value"
+        ],
+        "repair_hints": [
+          {
+            "kind": "patch_target_ref_or_check",
+            "note": "If the target ref drifts, re-run see under an explicit workflow gate and patch the execution map rather than replaying automatically."
+          }
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:saved-ref-browser-fill-2026-07-04-before-perception",
+        "kind": "aos_see_before",
+        "description": "The before perception captured the target scope and State ID used for the action premise.",
+        "target": "browser:work-record-saved-ref-demo",
+        "state_id": "state_before_0704",
+        "check": {
+          "kind": "perception_state_captured",
+          "expected": "state_before_0704",
+          "path": "before_perception.state_id"
+        },
+        "evidence_refs": [
+          "evidence:saved-ref-browser-fill-before-see"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Before perception drift should be reviewed against the immutable see evidence before patching the execution map."
+        }
+      },
+      {
+        "id": "postcondition:saved-ref-browser-fill-2026-07-04-dry-run",
+        "kind": "aos_do_dry_run",
+        "description": "The saved-ref dry-run resolved before mutation: ./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+        "target": "ref:snap_before_0704:input.name",
+        "state_id": "state_before_0704",
+        "check": {
+          "kind": "dry_run_status_allows_dispatch",
+          "expected": "reacquired_or_resolved",
+          "path": "dry_run.status"
+        },
+        "evidence_refs": [
+          "evidence:saved-ref-browser-fill-dry-run"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Dry-run failures must re-perceive and re-resolve the saved ref under an explicit workflow gate before dispatch."
+        }
+      },
+      {
+        "id": "postcondition:saved-ref-browser-fill-2026-07-04-action-executed",
+        "kind": "aos_do_action",
+        "description": "The bounded AOS action completed successfully: ./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "state_id": "state_before_0704",
+        "check": {
+          "kind": "action_status_equals",
+          "expected": "success",
+          "path": "action.status"
+        },
+        "evidence_refs": [
+          "evidence:saved-ref-browser-fill-do-fill"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Action failures require an explicit workflow-gated re-run or execution-map review."
+        }
+      },
+      {
+        "id": "postcondition:saved-ref-browser-fill-after-value",
+        "kind": "browser_saved_ref_readback",
+        "description": "The after saved capture shows the Name input value changed to Ada.",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "state_id": "state_after_0704",
+        "check": {
+          "kind": "semantic_target_value_equals",
+          "ref": "input.name",
+          "expected": "Ada",
+          "path": "after_perception.semantic_targets[ref=input.name].value"
+        },
+        "evidence_refs": [
+          "evidence:saved-ref-browser-fill-after-see"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Patch refs or the postcondition only under an explicit workflow gate."
+        }
+      },
+      {
+        "id": "postcondition:saved-ref-browser-fill-2026-07-04-cleanup",
+        "kind": "aos_cleanup",
+        "description": "Cleanup completed for browser:work-record-saved-ref-demo.",
+        "target": "browser:work-record-saved-ref-demo",
+        "state_id": "state_after_0704",
+        "check": {
+          "kind": "cleanup_status_equals",
+          "expected": "success",
+          "path": "cleanup.status"
+        },
+        "evidence_refs": [
+          "evidence:saved-ref-browser-fill-cleanup"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Cleanup failures are recorded as immutable evidence and require explicit follow-up; do not rewrite action evidence."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:saved-ref-browser-fill-2026-07-04-before-see",
+        "kind": "aos_see_capture",
+        "destination": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/before-see.json",
+        "evidence_ref": "evidence:saved-ref-browser-fill-before-see"
+      },
+      {
+        "id": "artifact-route:saved-ref-browser-fill-2026-07-04-dry-run",
+        "kind": "aos_do_dry_run",
+        "destination": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/dry-run.json",
+        "evidence_ref": "evidence:saved-ref-browser-fill-dry-run"
+      },
+      {
+        "id": "artifact-route:saved-ref-browser-fill-2026-07-04-do-action",
+        "kind": "aos_do_action",
+        "destination": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/do-fill.json",
+        "evidence_ref": "evidence:saved-ref-browser-fill-do-fill"
+      },
+      {
+        "id": "artifact-route:saved-ref-browser-fill-2026-07-04-after-see",
+        "kind": "aos_see_capture",
+        "destination": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/after-see.json",
+        "evidence_ref": "evidence:saved-ref-browser-fill-after-see"
+      },
+      {
+        "id": "artifact-route:saved-ref-browser-fill-2026-07-04-cleanup",
+        "kind": "aos_cleanup",
+        "destination": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/cleanup.json",
+        "evidence_ref": "evidence:saved-ref-browser-fill-cleanup"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This Work Record records and verifies AOS action evidence only; it does not authorize autonomous replay or repair."
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence:saved-ref-browser-fill-before-see",
+      "kind": "aos_see_capture",
+      "created_at": "2026-07-04T14:00:00Z",
+      "uri": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/before-see.json",
+      "digest": "fnv1a32:c23573b9",
+      "state_id": "state_before_0704",
+      "target": "browser:work-record-saved-ref-demo",
+      "immutable": true,
+      "summary": "Before saved capture exposes the empty Name input and status output.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "before",
+        "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_before_0704:input.name",
+        "element_count": 2,
+        "semantic_targets": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          },
+          {
+            "ref": "status",
+            "target": "browser:work-record-saved-ref-demo/status",
+            "role": "status",
+            "name": "Saved-ref demo status",
+            "value": "Ready",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.status"
+          }
+        ],
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04"
+        },
+        "snapshot_id": "snap_before_0704",
+        "saved_refs": [
+          "ref:snap_before_0704:input.name"
+        ]
+      }
+    },
+    {
+      "id": "evidence:saved-ref-browser-fill-dry-run",
+      "kind": "aos_do_dry_run",
+      "created_at": "2026-07-04T14:00:02Z",
+      "uri": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/dry-run.json",
+      "digest": "fnv1a32:d3a13b6f",
+      "state_id": "state_before_0704",
+      "target": "ref:snap_before_0704:input.name",
+      "immutable": true,
+      "summary": "Dry-run reacquired the saved browser ref and allowed dispatch.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "dry_run",
+        "command": "./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+        "verb": "fill",
+        "status": "reacquired",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_before_0704:input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "current_validation": {
+          "status": "reacquired",
+          "backend": "browser",
+          "strategy": "browser_current_target_validation",
+          "fallback_used": false,
+          "state_id": "state_before_0704"
+        },
+        "recommended_next": {
+          "kind": "fresh_capture",
+          "argv": [
+            "see",
+            "capture",
+            "browser:work-record-saved-ref-demo",
+            "--save",
+            "--workspace",
+            "work-record-proof",
+            "--mode",
+            "ax"
+          ]
+        },
+        "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04"
+        }
+      }
+    },
+    {
+      "id": "evidence:saved-ref-browser-fill-do-fill",
+      "kind": "aos_do_action",
+      "created_at": "2026-07-04T14:00:03Z",
+      "uri": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/do-fill.json",
+      "digest": "fnv1a32:1862a52a",
+      "state_id": "state_before_0704",
+      "target": "browser:work-record-saved-ref-demo/input.name",
+      "immutable": true,
+      "summary": "AOS do fill reported success through the saved-ref browser adapter.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "action",
+        "command": "./aos do fill ref:snap_before_0704:input.name --value Ada --workspace work-record-proof",
+        "verb": "fill",
+        "status": "success",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_before_0704:input.name",
+        "current_validation": {
+          "status": "reacquired",
+          "backend": "browser",
+          "strategy": "browser_current_target_validation",
+          "fallback_used": false,
+          "state_id": "state_before_0704"
+        },
+        "execution": {
+          "backend": "playwright",
+          "strategy": "saved_ref_browser_fill",
+          "fallback_used": false,
+          "state_id": "state_before_0704"
+        },
+        "recommended_next": {
+          "kind": "fresh_capture",
+          "argv": [
+            "see",
+            "capture",
+            "browser:work-record-saved-ref-demo",
+            "--save",
+            "--workspace",
+            "work-record-proof",
+            "--mode",
+            "ax"
+          ]
+        },
+        "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04"
+        }
+      }
+    },
+    {
+      "id": "evidence:saved-ref-browser-fill-after-see",
+      "kind": "aos_see_capture",
+      "created_at": "2026-07-04T14:00:05Z",
+      "uri": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/after-see.json",
+      "digest": "fnv1a32:8b2395a4",
+      "state_id": "state_after_0704",
+      "target": "browser:work-record-saved-ref-demo",
+      "immutable": true,
+      "summary": "After saved capture exposes the Name input filled with Ada.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "after",
+        "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_before_0704:input.name",
+        "element_count": 2,
+        "semantic_targets": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "Ada",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          },
+          {
+            "ref": "status",
+            "target": "browser:work-record-saved-ref-demo/status",
+            "role": "status",
+            "name": "Saved-ref demo status",
+            "value": "Filled",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.status"
+          }
+        ],
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04"
+        },
+        "snapshot_id": "snap_after_0704",
+        "diff": {
+          "from": "snap_before_0704",
+          "to": "snap_after_0704",
+          "ref_expectation": {
+            "ref": "input.name",
+            "expected": "changed",
+            "status": "passed"
+          }
+        }
+      }
+    },
+    {
+      "id": "evidence:saved-ref-browser-fill-cleanup",
+      "kind": "aos_cleanup",
+      "created_at": "2026-07-04T14:00:06Z",
+      "uri": "artifact:artifacts/work-records/saved-ref-browser-fill-2026-07-04/cleanup.json",
+      "digest": "fnv1a32:6feb5aab",
+      "state_id": "state_after_0704",
+      "target": "browser:work-record-saved-ref-demo",
+      "immutable": true,
+      "summary": "Cleanup restored the Name input to an empty value.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "cleanup",
+        "command": "./aos do fill browser:work-record-saved-ref-demo/input.name --value ''",
+        "status": "success",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_before_0704:input.name",
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04"
+        }
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:saved-ref-browser-fill-2026-07-04-see-do-see-captured",
+      "text": "The bounded AOS action source captured before perception, action metadata, and after perception as immutable evidence.",
+      "scope": "run",
+      "acceptance": "Before, action, and after evidence refs are present and immutable.",
+      "postcondition_refs": [
+        "postcondition:saved-ref-browser-fill-2026-07-04-before-perception",
+        "postcondition:saved-ref-browser-fill-2026-07-04-dry-run",
+        "postcondition:saved-ref-browser-fill-2026-07-04-action-executed",
+        "postcondition:saved-ref-browser-fill-after-value",
+        "postcondition:saved-ref-browser-fill-2026-07-04-cleanup"
+      ]
+    },
+    {
+      "id": "claim:saved-ref-browser-fill-2026-07-04-post-action-state-observed",
+      "text": "The saved-ref browser fill changed the Name input value to Ada.",
+      "scope": "run",
+      "acceptance": "After saved capture semantic target input.name equals Ada.",
+      "postcondition_refs": [
+        "postcondition:saved-ref-browser-fill-after-value"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:saved-ref-browser-fill-2026-07-04-see-do-see-captured",
+      "claim_id": "claim:saved-ref-browser-fill-2026-07-04-see-do-see-captured",
+      "status": "verified",
+      "confidence": 0.97,
+      "reason": "The see/do/see action evidence is complete and internally correlated.",
+      "evidence_refs": [
+        "evidence:saved-ref-browser-fill-before-see",
+        "evidence:saved-ref-browser-fill-dry-run",
+        "evidence:saved-ref-browser-fill-do-fill",
+        "evidence:saved-ref-browser-fill-after-see",
+        "evidence:saved-ref-browser-fill-cleanup"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-2026-07-04-before-perception",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-before-see"
+          ],
+          "reason": "Before perception includes a State ID and target-scope evidence."
+        },
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-2026-07-04-dry-run",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-dry-run"
+          ],
+          "reason": "The saved-ref dry-run allowed dispatch under current validation."
+        },
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-2026-07-04-action-executed",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-do-fill"
+          ],
+          "reason": "The AOS do action reported success with execution metadata."
+        },
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-after-value",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-after-see"
+          ],
+          "reason": "The after perception semantic target input.name has value Ada."
+        },
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-2026-07-04-cleanup",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-cleanup"
+          ],
+          "reason": "Cleanup evidence reports success."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:saved-ref-browser-fill-2026-07-04-post-action-state-observed",
+      "claim_id": "claim:saved-ref-browser-fill-2026-07-04-post-action-state-observed",
+      "status": "verified",
+      "confidence": 0.96,
+      "reason": "The after perception semantic target input.name has value Ada.",
+      "evidence_refs": [
+        "evidence:saved-ref-browser-fill-after-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:saved-ref-browser-fill-after-value",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:saved-ref-browser-fill-after-see"
+          ],
+          "reason": "The after perception semantic target input.name has value Ada."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:saved-ref-browser-fill-2026-07-04",
+    "generated_at": "2026-07-04T14:00:06Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0.report-only",
+      "kind": "work_record_v0_report_only",
+      "version": "2026-05-report-only"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:saved-ref-browser-fill-2026-07-04-post-action-state-observed",
+        "claim:saved-ref-browser-fill-2026-07-04-see-do-see-captured"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:saved-ref-browser-fill-before-see",
+      "evidence:saved-ref-browser-fill-dry-run",
+      "evidence:saved-ref-browser-fill-do-fill",
+      "evidence:saved-ref-browser-fill-after-see",
+      "evidence:saved-ref-browser-fill-cleanup"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "All run Claims verified against immutable AOS saved-ref action evidence.",
+    "evaluated_at": "2026-07-04T14:00:06Z",
+    "verifier_report_id": "verifier-report:saved-ref-browser-fill-2026-07-04",
+    "confidence": 0.96,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "generated_by": "2026-05-aos-action-evidence-v0",
+    "evidence_source_id": "aos-action-evidence:saved-ref-browser-fill-2026-07-04",
+    "verifier_profile_id": "aos.verifier.work-record.v0.report-only",
+    "target_dialect": "browser",
+    "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+    "selected_saved_ref": "ref:snap_before_0704:input.name",
+    "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+    "health_verdict": "valid"
+  }
+}

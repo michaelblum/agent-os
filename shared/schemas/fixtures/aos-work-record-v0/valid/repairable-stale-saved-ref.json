@@ -1,0 +1,572 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:repairable-stale-saved-ref-2026-07-04",
+  "label": "Repairable stale saved-ref Work Record capture",
+  "created_at": "2026-07-04T14:10:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Generated from bounded AOS see/do/see action evidence."
+  },
+  "references": [],
+  "intent": {
+    "summary": "Classify a stale saved-ref action record without rewriting evidence.",
+    "purpose": "Prove stale or ambiguous saved-ref validation becomes repairable while preserving original evidence.",
+    "acceptance": "The generated Work Record keeps the stale dry-run evidence and verifier health is repairable.",
+    "constraints": [
+      "Do not dispatch after stale validation.",
+      "Preserve original saved-ref evidence.",
+      "Point repair policy to re-perceive and re-resolve."
+    ],
+    "claim_refs": [
+      "claim:repairable-stale-saved-ref-2026-07-04-see-do-see-captured",
+      "claim:repairable-stale-saved-ref-2026-07-04-post-action-state-observed"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:repairable-stale-saved-ref-2026-07-04-browser-scope",
+        "target": "browser:work-record-saved-ref-demo",
+        "dialect": "browser",
+        "state_id": "state_old_0704",
+        "description": "Target scope captured by AOS see before the action.",
+        "candidates": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          }
+        ]
+      },
+      {
+        "id": "target:repairable-stale-saved-ref-2026-07-04-action-ref",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "dialect": "browser",
+        "state_id": "state_old_0704",
+        "description": "Target-with-Ref selected from before perception and acted on by AOS do.",
+        "candidates": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "data_aos_ref": "work-record.demo.name"
+          }
+        ]
+      },
+      {
+        "id": "target:repairable-stale-saved-ref-2026-07-04-postcondition-ref",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "dialect": "browser",
+        "state_id": "state_current_0704",
+        "description": "Post-action target checked against after perception evidence.",
+        "candidates": [
+          {
+            "ref": "input.full_name",
+            "target": "browser:work-record-saved-ref-demo/input.full_name",
+            "role": "textbox",
+            "name": "Full name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.full-name"
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:repairable-stale-saved-ref-2026-07-04-fill",
+        "intent": "Execute fill against browser:work-record-saved-ref-demo/input.name and verify the post-action state.",
+        "action": {
+          "verb": "fill",
+          "target": "browser:work-record-saved-ref-demo/input.name",
+          "state_id": "state_old_0704",
+          "args": {
+            "command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof",
+            "target_dialect": "browser",
+            "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+            "selected_saved_ref": "ref:snap_old_0704:input.name",
+            "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+            "before_state_id": "state_old_0704",
+            "after_state_id": "state_current_0704",
+            "dry_run_command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+            "dry_run_status": "stale",
+            "execution": {
+              "backend": "browser",
+              "strategy": "saved_ref_browser_fill",
+              "fallback_used": false,
+              "state_id": "state_old_0704"
+            },
+            "current_validation": {
+              "status": "stale",
+              "backend": "browser",
+              "strategy": "browser_current_target_validation",
+              "fallback_used": false,
+              "state_id": "state_current_0704",
+              "reason": "Saved snapshot page generation no longer matches the current page generation."
+            },
+            "recommended_next": {
+              "kind": "fresh_capture",
+              "argv": [
+                "see",
+                "capture",
+                "browser:work-record-saved-ref-demo",
+                "--save",
+                "--workspace",
+                "work-record-proof",
+                "--mode",
+                "ax"
+              ]
+            },
+            "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:repairable-stale-saved-ref-after-value"
+        ],
+        "repair_hints": [
+          {
+            "kind": "patch_target_ref_or_check",
+            "note": "If the target ref drifts, re-run see under an explicit workflow gate and patch the execution map rather than replaying automatically."
+          }
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:repairable-stale-saved-ref-2026-07-04-before-perception",
+        "kind": "aos_see_before",
+        "description": "The before perception captured the target scope and State ID used for the action premise.",
+        "target": "browser:work-record-saved-ref-demo",
+        "state_id": "state_old_0704",
+        "check": {
+          "kind": "perception_state_captured",
+          "expected": "state_old_0704",
+          "path": "before_perception.state_id"
+        },
+        "evidence_refs": [
+          "evidence:repairable-stale-saved-ref-before-see"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Before perception drift should be reviewed against the immutable see evidence before patching the execution map."
+        }
+      },
+      {
+        "id": "postcondition:repairable-stale-saved-ref-2026-07-04-dry-run",
+        "kind": "aos_do_dry_run",
+        "description": "The saved-ref dry-run resolved before mutation: ./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+        "target": "ref:snap_old_0704:input.name",
+        "state_id": "state_old_0704",
+        "check": {
+          "kind": "dry_run_status_allows_dispatch",
+          "expected": "reacquired_or_resolved",
+          "path": "dry_run.status"
+        },
+        "evidence_refs": [
+          "evidence:repairable-stale-saved-ref-dry-run"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Dry-run failures must re-perceive and re-resolve the saved ref under an explicit workflow gate before dispatch."
+        }
+      },
+      {
+        "id": "postcondition:repairable-stale-saved-ref-2026-07-04-action-executed",
+        "kind": "aos_do_action",
+        "description": "The bounded AOS action completed successfully: ./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "state_id": "state_old_0704",
+        "check": {
+          "kind": "action_status_equals",
+          "expected": "success",
+          "path": "action.status"
+        },
+        "evidence_refs": [
+          "evidence:repairable-stale-saved-ref-do-fill"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Action failures require an explicit workflow-gated re-run or execution-map review."
+        }
+      },
+      {
+        "id": "postcondition:repairable-stale-saved-ref-after-value",
+        "kind": "browser_saved_ref_readback",
+        "description": "The after capture does not show the original saved ref as safely mutated.",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "state_id": "state_current_0704",
+        "check": {
+          "kind": "semantic_target_value_equals",
+          "ref": "input.name",
+          "expected": "Ada",
+          "path": "after_perception.semantic_targets[ref=input.name].value"
+        },
+        "evidence_refs": [
+          "evidence:repairable-stale-saved-ref-after-see"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Re-perceive, re-resolve a unique current target, and patch the execution map under an explicit workflow repair gate."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:repairable-stale-saved-ref-2026-07-04-before-see",
+        "kind": "aos_see_capture",
+        "destination": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/before-see.json",
+        "evidence_ref": "evidence:repairable-stale-saved-ref-before-see"
+      },
+      {
+        "id": "artifact-route:repairable-stale-saved-ref-2026-07-04-dry-run",
+        "kind": "aos_do_dry_run",
+        "destination": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/dry-run.json",
+        "evidence_ref": "evidence:repairable-stale-saved-ref-dry-run"
+      },
+      {
+        "id": "artifact-route:repairable-stale-saved-ref-2026-07-04-do-action",
+        "kind": "aos_do_action",
+        "destination": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/do-fill.json",
+        "evidence_ref": "evidence:repairable-stale-saved-ref-do-fill"
+      },
+      {
+        "id": "artifact-route:repairable-stale-saved-ref-2026-07-04-after-see",
+        "kind": "aos_see_capture",
+        "destination": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/after-see.json",
+        "evidence_ref": "evidence:repairable-stale-saved-ref-after-see"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This Work Record records and verifies AOS action evidence only; it does not authorize autonomous replay or repair."
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence:repairable-stale-saved-ref-before-see",
+      "kind": "aos_see_capture",
+      "created_at": "2026-07-04T14:10:00Z",
+      "uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/before-see.json",
+      "digest": "fnv1a32:7455e6bd",
+      "state_id": "state_old_0704",
+      "target": "browser:work-record-saved-ref-demo",
+      "immutable": true,
+      "summary": "Original saved capture exposed a Name input that later became stale.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "before",
+        "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_old_0704:input.name",
+        "element_count": 1,
+        "semantic_targets": [
+          {
+            "ref": "input.name",
+            "target": "browser:work-record-saved-ref-demo/input.name",
+            "role": "textbox",
+            "name": "Name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.name"
+          }
+        ],
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04"
+        },
+        "snapshot_id": "snap_old_0704",
+        "saved_refs": [
+          "ref:snap_old_0704:input.name"
+        ]
+      }
+    },
+    {
+      "id": "evidence:repairable-stale-saved-ref-dry-run",
+      "kind": "aos_do_dry_run",
+      "created_at": "2026-07-04T14:10:02Z",
+      "uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/dry-run.json",
+      "digest": "fnv1a32:da95cdf7",
+      "state_id": "state_old_0704",
+      "target": "ref:snap_old_0704:input.name",
+      "immutable": true,
+      "summary": "Dry-run refused dispatch because current validation was stale.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "dry_run",
+        "command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+        "verb": "fill",
+        "status": "stale",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_old_0704:input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "current_validation": {
+          "status": "stale",
+          "backend": "browser",
+          "strategy": "browser_current_target_validation",
+          "fallback_used": false,
+          "state_id": "state_current_0704",
+          "reason": "Saved snapshot page generation no longer matches the current page generation."
+        },
+        "recommended_next": {
+          "kind": "fresh_capture",
+          "argv": [
+            "see",
+            "capture",
+            "browser:work-record-saved-ref-demo",
+            "--save",
+            "--workspace",
+            "work-record-proof",
+            "--mode",
+            "ax"
+          ]
+        },
+        "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04"
+        }
+      }
+    },
+    {
+      "id": "evidence:repairable-stale-saved-ref-do-fill",
+      "kind": "aos_do_action",
+      "created_at": "2026-07-04T14:10:03Z",
+      "uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/do-fill.json",
+      "digest": "fnv1a32:c5395751",
+      "state_id": "state_old_0704",
+      "target": "browser:work-record-saved-ref-demo/input.name",
+      "immutable": true,
+      "summary": "Dispatch was blocked before mutation because saved-ref validation was stale.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "action",
+        "command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof",
+        "verb": "fill",
+        "status": "blocked",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_old_0704:input.name",
+        "current_validation": {
+          "status": "stale",
+          "backend": "browser",
+          "strategy": "browser_current_target_validation",
+          "fallback_used": false,
+          "state_id": "state_current_0704",
+          "reason": "Saved snapshot page generation no longer matches the current page generation."
+        },
+        "execution": {
+          "backend": "browser",
+          "strategy": "saved_ref_browser_fill",
+          "fallback_used": false,
+          "state_id": "state_old_0704"
+        },
+        "recommended_next": {
+          "kind": "fresh_capture",
+          "argv": [
+            "see",
+            "capture",
+            "browser:work-record-saved-ref-demo",
+            "--save",
+            "--workspace",
+            "work-record-proof",
+            "--mode",
+            "ax"
+          ]
+        },
+        "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04"
+        }
+      }
+    },
+    {
+      "id": "evidence:repairable-stale-saved-ref-after-see",
+      "kind": "aos_see_capture",
+      "created_at": "2026-07-04T14:10:04Z",
+      "uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/after-see.json",
+      "digest": "fnv1a32:f921bf1d",
+      "state_id": "state_current_0704",
+      "target": "browser:work-record-saved-ref-demo",
+      "immutable": true,
+      "summary": "Fresh capture is present for repair analysis, but no mutation was made.",
+      "metadata": {
+        "builder": "2026-05-aos-action-evidence-v0",
+        "phase": "after",
+        "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+        "target_dialect": "browser",
+        "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+        "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+        "selected_saved_ref": "ref:snap_old_0704:input.name",
+        "element_count": 1,
+        "semantic_targets": [
+          {
+            "ref": "input.full_name",
+            "target": "browser:work-record-saved-ref-demo/input.full_name",
+            "role": "textbox",
+            "name": "Full name",
+            "value": "",
+            "enabled": true,
+            "data_aos_ref": "work-record.demo.full-name"
+          }
+        ],
+        "source": {
+          "type": "aos.action_evidence",
+          "id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04"
+        }
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:repairable-stale-saved-ref-2026-07-04-see-do-see-captured",
+      "text": "The bounded AOS action source captured before perception, action metadata, and after perception as immutable evidence.",
+      "scope": "run",
+      "acceptance": "Before, action, and after evidence refs are present and immutable.",
+      "postcondition_refs": [
+        "postcondition:repairable-stale-saved-ref-2026-07-04-before-perception",
+        "postcondition:repairable-stale-saved-ref-2026-07-04-dry-run",
+        "postcondition:repairable-stale-saved-ref-2026-07-04-action-executed",
+        "postcondition:repairable-stale-saved-ref-after-value"
+      ]
+    },
+    {
+      "id": "claim:repairable-stale-saved-ref-2026-07-04-post-action-state-observed",
+      "text": "The stale saved-ref record preserved enough evidence for workflow-gated repair.",
+      "scope": "run",
+      "acceptance": "Verifier health is repairable and original evidence remains immutable.",
+      "postcondition_refs": [
+        "postcondition:repairable-stale-saved-ref-after-value"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:repairable-stale-saved-ref-2026-07-04-see-do-see-captured",
+      "claim_id": "claim:repairable-stale-saved-ref-2026-07-04-see-do-see-captured",
+      "status": "failed",
+      "confidence": 0.35,
+      "reason": "The see/do/see action evidence did not satisfy every capture postcondition.",
+      "evidence_refs": [
+        "evidence:repairable-stale-saved-ref-before-see",
+        "evidence:repairable-stale-saved-ref-dry-run",
+        "evidence:repairable-stale-saved-ref-do-fill",
+        "evidence:repairable-stale-saved-ref-after-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:repairable-stale-saved-ref-2026-07-04-before-perception",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:repairable-stale-saved-ref-before-see"
+          ],
+          "reason": "Before perception includes a State ID and target-scope evidence."
+        },
+        {
+          "postcondition_id": "postcondition:repairable-stale-saved-ref-2026-07-04-dry-run",
+          "status": "failed",
+          "evidence_refs": [
+            "evidence:repairable-stale-saved-ref-dry-run"
+          ],
+          "reason": "The saved-ref dry-run reported stale."
+        },
+        {
+          "postcondition_id": "postcondition:repairable-stale-saved-ref-2026-07-04-action-executed",
+          "status": "failed",
+          "evidence_refs": [
+            "evidence:repairable-stale-saved-ref-do-fill"
+          ],
+          "reason": "The AOS do action reported blocked."
+        },
+        {
+          "postcondition_id": "postcondition:repairable-stale-saved-ref-after-value",
+          "status": "failed",
+          "evidence_refs": [
+            "evidence:repairable-stale-saved-ref-after-see"
+          ],
+          "reason": "The saved ref was stale and the action was blocked before mutation."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:repairable-stale-saved-ref-2026-07-04-post-action-state-observed",
+      "claim_id": "claim:repairable-stale-saved-ref-2026-07-04-post-action-state-observed",
+      "status": "failed",
+      "confidence": 0.35,
+      "reason": "The saved ref was stale and the action was blocked before mutation.",
+      "evidence_refs": [
+        "evidence:repairable-stale-saved-ref-after-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:repairable-stale-saved-ref-after-value",
+          "status": "failed",
+          "evidence_refs": [
+            "evidence:repairable-stale-saved-ref-after-see"
+          ],
+          "reason": "The saved ref was stale and the action was blocked before mutation."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:repairable-stale-saved-ref-2026-07-04",
+    "generated_at": "2026-07-04T14:10:04Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0.report-only",
+      "kind": "work_record_v0_report_only",
+      "version": "2026-05-report-only"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [],
+      "failed": [
+        "claim:repairable-stale-saved-ref-2026-07-04-post-action-state-observed",
+        "claim:repairable-stale-saved-ref-2026-07-04-see-do-see-captured"
+      ],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:repairable-stale-saved-ref-before-see",
+      "evidence:repairable-stale-saved-ref-dry-run",
+      "evidence:repairable-stale-saved-ref-do-fill",
+      "evidence:repairable-stale-saved-ref-after-see"
+    ],
+    "feedback": [
+      "Review failed AOS saved-ref action evidence before relying on this Work Record."
+    ]
+  },
+  "health": {
+    "verdict": "repairable",
+    "reason": "Saved-ref validation was stale, but intent and original evidence are sufficient to attempt workflow-gated repair.",
+    "evaluated_at": "2026-07-04T14:10:04Z",
+    "verifier_report_id": "verifier-report:repairable-stale-saved-ref-2026-07-04",
+    "confidence": 0.35,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "generated_by": "2026-05-aos-action-evidence-v0",
+    "evidence_source_id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04",
+    "verifier_profile_id": "aos.verifier.work-record.v0.report-only",
+    "target_dialect": "browser",
+    "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+    "selected_saved_ref": "ref:snap_old_0704:input.name",
+    "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+    "health_verdict": "repairable"
+  }
+}

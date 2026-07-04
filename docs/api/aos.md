@@ -393,9 +393,12 @@ Guarded-live browser saved-ref proof lives in
 `tests/manual/cross-backend-saved-ref-regression-proof.sh`. In
 `AOS_SAVED_REF_PROOF_MODE=guarded-live`, the harness serves a local browser
 fixture, captures browser saved refs, dispatches `click` and `fill` through
-saved-ref validation, and writes post-action readback artifacts. If runtime
-resolution fails, browser rows stay `blocked_runtime` with the resolver JSON as
-evidence instead of a vague PATH failure.
+saved-ref validation, writes post-action readback artifacts, and emits a
+report-only browser fill Work Record under
+`$proof_root/browser/work-record/fill-work-record.json` with a verifier report
+and compact summary beside it. If runtime resolution fails, browser rows stay
+`blocked_runtime` with the resolver JSON as evidence instead of a vague PATH
+failure.
 
 Native `open`/`toggle`, explicit `type`/`key` saved-ref attempts that include
 `--workspace` or `--snapshot`, and other unsupported saved-ref forms fail closed
@@ -943,6 +946,23 @@ saved-ref diff gate over two existing snapshots; recipe assertions can inspect
 `diff.ref_expectation` or `diff.ref_expectations[]`, while Work Records should
 cite the command output as immutable evidence rather than treating the recipe as
 replay or repair authority.
+
+Work Record v0 has a deterministic saved-ref bridge above the primitive command
+surface. Toolkit tests can build a report-only Work Record from structured
+evidence for:
+
+```text
+see --save -> do ref --dry-run -> do ref -> see --save -> diff/readback -> cleanup
+```
+
+The record preserves the selected Saved Ref, resolved underlying target,
+backend, strategy, fallback flag, State IDs, recommended next capture command,
+immutable before/dry-run/action/after/cleanup evidence, and verifier health.
+Stale or ambiguous saved-ref validation is classified as `repairable` or
+`blocked` according to the recorded evidence; cleanup or postcondition failure
+is recorded without rewriting historical evidence. This bridge does not turn
+`aos do` into a macro recorder and does not authorize autonomous replay or
+repair.
 
 `recipe run` supports read-only recipes, mutating canvas recipes with explicit
 owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.

@@ -205,6 +205,222 @@ browser_blocked_rows() {
     done
 }
 
+write_browser_fill_work_record() {
+    local browser_dir="$1"
+    local proof_id="$2"
+    local browser_session="$3"
+    local browser_workspace="$4"
+    local browser_fill_ref="$5"
+    local fill_value="$6"
+    local work_record_dir="$browser_dir/work-record"
+    mkdir -p "$work_record_dir"
+    node --input-type=module - "$browser_dir" "$proof_id" "$browser_session" "$browser_workspace" "$browser_fill_ref" "$fill_value" <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+import { buildWorkRecordV0FromAosActionEvidence } from './packages/toolkit/workbench/work-record-capture.js';
+import { runWorkRecordVerifierProfile } from './packages/toolkit/workbench/work-record-verifier.js';
+
+const [browserDir, proofId, browserSession, browserWorkspace, browserFillRef, fillValue] = process.argv.slice(2);
+const workRecordDir = path.join(browserDir, 'work-record');
+const readJson = (relativePath, fallback = {}) => {
+  const file = path.join(browserDir, relativePath);
+  if (!fs.existsSync(file)) return fallback;
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+};
+const refsFromCapture = (capture) => Array.isArray(capture.refs) ? capture.refs : [];
+const semanticTargetsFromRefs = (capture) => refsFromCapture(capture).map((ref) => ({
+  ref: ref.identity_facts?.source_ref || ref.ref,
+  target: ref.action_target || ref.current_address?.action_target || ref.identity_facts?.action_target || '',
+  role: ref.identity_facts?.role || ref.role || '',
+  name: ref.identity_facts?.label || ref.identity_facts?.name || ref.label || '',
+  value: ref.identity_facts?.value ?? ref.value ?? '',
+  enabled: ref.identity_facts?.enabled ?? ref.enabled ?? true,
+  data_aos_ref: ref.identity_facts?.source_ref || ref.ref,
+})).filter((item) => item.ref && item.target);
+const firstStatus = (...values) => values.find((value) => typeof value === 'string' && value.length > 0) || 'unknown';
+const firstText = (...values) => values.find((value) => typeof value === 'string' && value.length > 0) || '';
+const dryRunStatus = (value) => value === 'dry_run' ? 'reacquired' : firstStatus(value, 'reacquired');
+const cleanupStatus = (value) => ['success', 'verified', 'verified_already_absent'].includes(value) ? 'success' : firstStatus(value, 'blocked');
+const withReadbackValue = (targets, ref, value) => targets.map((target) => (
+  target.ref === ref ? { ...target, value } : target
+));
+
+const before = readJson('before-capture/browser.json');
+const selected = readJson('selected-ref/fill.json');
+const dryRun = readJson('dry-run/fill.json');
+const dispatch = readJson('dispatch/fill.json');
+const after = readJson('after-capture/fill.json');
+const readback = readJson('readback/fill.json');
+const cleanup = readJson('cleanup/fill.json');
+const selectedSourceRef = selected.identity_facts?.source_ref || browserFillRef;
+const beforeTargets = semanticTargetsFromRefs(before);
+const afterTargets = withReadbackValue(semanticTargetsFromRefs(after), selectedSourceRef, readback.value || '');
+
+const selectedSavedRef = `ref:before:${browserFillRef}`;
+const resolvedTarget = firstText(
+  dryRun.resolved_command?.target,
+  dryRun.current_validation?.resolved_target?.target,
+  dryRun.current_validation?.target_with_ref,
+  selected.action_target,
+  selected.current_address?.action_target,
+  `browser:${browserSession}/${browserFillRef}`,
+);
+const target = `browser:${browserSession}`;
+const beforeStateId = firstText(before.state_id, selected.identity_facts?.state_id, `browser-before-${proofId}`);
+const afterStateId = firstText(after.state_id, `browser-after-fill-${proofId}`);
+const source = {
+  type: 'aos.action_evidence',
+  id: `aos-action-evidence:guarded-live-browser-fill-${proofId}`,
+  record_id: `work-record:guarded-live-browser-fill-${proofId}`,
+  label: `Guarded-live browser fill Work Record ${proofId}`,
+  created_at: before.created_at || before.captured_at || new Date().toISOString(),
+  completed_at: cleanup.completed_at || new Date().toISOString(),
+  target_dialect: 'browser',
+  target,
+  target_with_ref: resolvedTarget,
+  selected_saved_ref: selectedSavedRef,
+  resolved_target: resolvedTarget,
+  state_id: beforeStateId,
+  intent: {
+    summary: 'Capture one guarded-live browser saved-ref fill as a Work Record v0.',
+    purpose: 'Prove the live saved-ref browser fill path can emit a report-only Work Record with immutable evidence.',
+    acceptance: 'The saved ref dry-run, dispatch, after capture/readback, and cleanup evidence are referenced and verifier health is valid.',
+    constraints: [
+      'Use saved-ref dispatch only.',
+      'Do not substitute coordinates, screenshot targeting, raw Playwright mutation, or AppleScript mutation.',
+      'Do not authorize autonomous replay or repair.',
+    ],
+  },
+  current_validation: {
+    status: dryRunStatus(dryRun.status || dryRun.current_validation?.status),
+    backend: 'browser',
+    strategy: firstText(dryRun.current_validation?.strategy, dispatch.underlying_result?.execution?.strategy, 'browser_current_target_validation'),
+    fallback_used: Boolean(dispatch.underlying_result?.execution?.fallback_used),
+    state_id: beforeStateId,
+  },
+  recommended_next_command: dispatch.post_action?.recommended_next_command || '',
+  before_perception: {
+    evidence_id: 'evidence:guarded-live-browser-fill-before-see',
+    command: `./aos see capture browser:${browserSession} --xray --save --workspace ${browserWorkspace} --name before`,
+    state_id: beforeStateId,
+    target,
+    captured_at: before.created_at || before.captured_at || new Date().toISOString(),
+    artifact_uri: `file:${path.join(browserDir, 'before-capture/browser.json')}`,
+    summary: 'Before saved capture from the guarded-live browser fixture.',
+    element_count: semanticTargetsFromRefs(before).length,
+    semantic_targets: beforeTargets,
+    metadata: {
+      snapshot_id: 'before',
+      saved_refs: [selectedSavedRef],
+    },
+  },
+  dry_run: {
+    evidence_id: 'evidence:guarded-live-browser-fill-dry-run',
+    verb: 'fill',
+    saved_ref: selectedSavedRef,
+    target: selectedSavedRef,
+    state_id: beforeStateId,
+    command: `./aos do fill ${selectedSavedRef} ${JSON.stringify(fillValue)} --workspace ${browserWorkspace} --dry-run`,
+    executed_at: dryRun.executed_at || new Date().toISOString(),
+    artifact_uri: `file:${path.join(browserDir, 'dry-run/fill.json')}`,
+    status: dryRunStatus(dryRun.status || dryRun.current_validation?.status),
+    summary: 'Dry-run reacquired the browser saved ref before dispatch.',
+    target_resolution: {
+      target_with_ref: resolvedTarget,
+    },
+  },
+  action: {
+    evidence_id: 'evidence:guarded-live-browser-fill-do-fill',
+    verb: 'fill',
+    saved_ref: selectedSavedRef,
+    target: selectedSavedRef,
+    target_dialect: 'browser',
+    state_id: beforeStateId,
+    command: `./aos do fill ${selectedSavedRef} ${JSON.stringify(fillValue)} --workspace ${browserWorkspace}`,
+    executed_at: dispatch.executed_at || new Date().toISOString(),
+    artifact_uri: `file:${path.join(browserDir, 'dispatch/fill.json')}`,
+    status: firstStatus(dispatch.status, dispatch.underlying_result?.status, 'success'),
+    summary: 'AOS do fill reported success through saved-ref browser dispatch.',
+    execution: {
+      backend: firstText(dispatch.underlying_result?.execution?.backend, 'playwright'),
+      strategy: firstText(dispatch.underlying_result?.execution?.strategy, 'saved_ref_browser_fill'),
+      fallback_used: Boolean(dispatch.underlying_result?.execution?.fallback_used),
+      state_id: beforeStateId,
+    },
+    target_candidates: beforeTargets.filter((item) => item.ref === selectedSourceRef),
+  },
+  after_perception: {
+    evidence_id: 'evidence:guarded-live-browser-fill-after-see',
+    command: `./aos see capture browser:${browserSession} --xray --save --workspace ${browserWorkspace} --name after_fill`,
+    state_id: afterStateId,
+    target,
+    captured_at: after.created_at || after.captured_at || new Date().toISOString(),
+    artifact_uri: `file:${path.join(browserDir, 'after-capture/fill.json')}`,
+    summary: 'After saved capture from the guarded-live browser fixture.',
+    element_count: afterTargets.length,
+    semantic_targets: afterTargets,
+    metadata: {
+      snapshot_id: 'after_fill',
+      readback,
+    },
+  },
+  cleanup: {
+    evidence_id: 'evidence:guarded-live-browser-fill-cleanup',
+    command: `playwright close session ${browserSession}`,
+    completed_at: cleanup.completed_at || new Date().toISOString(),
+    artifact_uri: `file:${path.join(browserDir, 'cleanup/fill.json')}`,
+    status: cleanupStatus(cleanup.status || cleanup.cleanup),
+    summary: 'Guarded-live browser proof cleanup completed.',
+  },
+  postcondition: {
+    id: 'postcondition:guarded-live-browser-fill-readback',
+    kind: 'browser_saved_ref_readback',
+    description: 'The guarded-live browser readback reports the filled value.',
+    target: resolvedTarget,
+    state_id: afterStateId,
+    check: {
+      kind: 'semantic_target_value_equals',
+      ref: selectedSourceRef,
+      expected: fillValue,
+      path: 'readback/fill.json.value',
+    },
+    passed: readback.status === 'passed' && readback.value === fillValue,
+    reason: readback.status === 'passed' && readback.value === fillValue
+      ? 'The guarded-live readback matched the filled value.'
+      : 'The guarded-live readback did not match the filled value.',
+    repair_policy: {
+      mode: 'manual_review',
+      notes: 'Patch refs or postcondition checks only under an explicit workflow gate.',
+    },
+  },
+  claim_text: 'The guarded-live browser saved-ref fill changed the controlled fixture input value.',
+  acceptance: 'Readback value equals the filled proof value.',
+  health: {
+    verdict: readback.status === 'passed' && readback.value === fillValue ? 'valid' : 'blocked',
+  },
+};
+
+const record = buildWorkRecordV0FromAosActionEvidence(source);
+const verifier = runWorkRecordVerifierProfile(record);
+fs.writeFileSync(path.join(workRecordDir, 'fill-source.json'), `${JSON.stringify(source, null, 2)}\n`);
+fs.writeFileSync(path.join(workRecordDir, 'fill-work-record.json'), `${JSON.stringify(record, null, 2)}\n`);
+fs.writeFileSync(path.join(workRecordDir, 'fill-verifier.json'), `${JSON.stringify(verifier, null, 2)}\n`);
+fs.writeFileSync(path.join(workRecordDir, 'fill-summary.json'), `${JSON.stringify({
+  backend: 'browser',
+  action: 'fill',
+  selected_ref: browserFillRef,
+  selected_saved_ref: selectedSavedRef,
+  snapshot: 'before',
+  health: record.health.verdict,
+  verifier_status: verifier.status,
+  work_record: path.join(workRecordDir, 'fill-work-record.json'),
+}, null, 2)}\n`);
+if (record.health.verdict !== 'valid' || verifier.status !== 'passed') {
+  process.exitCode = 1;
+}
+NODE
+}
+
 ./aos dev build --no-restart --json >"$BUILD_JSON"
 
 run_guarded_live_mode() {
@@ -344,6 +560,16 @@ PY
 
         if [[ "$browser_fill_status" == "passed" ]]; then
             write_cleanup_artifact "$browser_dir/cleanup/fill.json"
+            if write_browser_fill_work_record "$browser_dir" "$PROOF_ID" "$browser_session" "$browser_workspace" "$browser_fill_ref" "$fill_value"; then
+                :
+            else
+                browser_fill_status="blocked_runtime"
+                browser_fill_reason="browser fill Work Record emission failed"
+                write_json_artifact "$browser_dir/setup/runtime-blocker-fill-work-record.json" --arg status "$browser_fill_status" --arg reason "$browser_fill_reason" '{status: $status, reason: $reason}'
+            fi
+        fi
+
+        if [[ "$browser_fill_status" == "passed" ]]; then
             append_row browser fill passed guarded_live "$browser_dir" "$browser_fill_ref" "live browser saved-ref fill mutated controlled fixture and readback passed"
         else
             write_json_artifact "$browser_dir/setup/runtime-blocker-fill.json" --arg status "$browser_fill_status" --arg reason "$browser_fill_reason" '{status: $status, reason: $reason}'

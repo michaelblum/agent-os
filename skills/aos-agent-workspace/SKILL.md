@@ -308,6 +308,14 @@ aos see workspace delete default --i-understand-local-artifacts --json
 Never delete without the acknowledgement flag unless you are only doing a
 `--dry-run` prune.
 
+Saved refs can feed a Work Record only through structured evidence above the
+workspace layer: before saved capture, saved-ref dry-run, dispatch, after saved
+capture/readback or diff, and cleanup. Preserve the selected Saved Ref and the
+resolved target, but let the Work Record own immutable evidence, verifier
+health, and repair/replay policy. Do not treat workspace snapshots as durable
+Work Record storage, do not rewrite evidence during repair, and do not describe
+`aos do` as a macro recorder.
+
 ## References
 
 - CLI API: `docs/api/aos.md`

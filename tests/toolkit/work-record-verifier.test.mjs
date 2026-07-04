@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   checkWorkRecordReportOnly,
+  classifyWorkRecordHealth,
   deriveWorkRecordClaimIndexes,
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
@@ -136,6 +137,34 @@ test('report-only verifier checker rejects unsupported legacy records', () => {
   assert.equal(result.status, 'unsupported');
   assert.equal(result.record_id, 'legacy-step');
   assert.equal(result.diagnostics[0].code, 'unsupported_record_shape');
+});
+
+test('report-only verifier reads every Work Record health verdict classification', () => {
+  const base = fixture('workflow-origin.json');
+  for (const verdict of ['valid', 'stale', 'repairable', 'blocked', 'impossible', 'superseded', 'retired']) {
+    const record = structuredClone(base);
+    record.health.verdict = verdict;
+    const result = checkWorkRecordReportOnly(record);
+
+    assert.equal(classifyWorkRecordHealth(record), verdict);
+    assert.equal(result.health_verdict, verdict);
+    assert.equal(result.summary.health_verdict, verdict);
+  }
+});
+
+test('report-only verifier reads saved-ref repairable and blocked fixture health without mutating records', () => {
+  for (const [name, verdict] of [
+    ['repairable-stale-saved-ref.json', 'repairable'],
+    ['cleanup-or-postcondition-failed.json', 'blocked'],
+  ]) {
+    const record = fixture(name);
+    const before = JSON.stringify(record);
+    const result = checkWorkRecordReportOnly(record);
+
+    assert.equal(result.summary.health_verdict, verdict);
+    assert.equal(classifyWorkRecordHealth(record), verdict);
+    assert.equal(JSON.stringify(record), before);
+  }
 });
 
 test('report-only verifier checks structured browser, canvas, and artifact metadata evidence', () => {

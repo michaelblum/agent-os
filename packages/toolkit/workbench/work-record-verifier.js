@@ -76,6 +76,16 @@ const WORK_RECORD_VERIFIER_PROFILES = Object.freeze({
   [WORK_RECORD_REPORT_ONLY_PROFILE_ID]: WORK_RECORD_REPORT_ONLY_PROFILE,
 });
 
+const HEALTH_VERDICTS = new Set([
+  'valid',
+  'stale',
+  'repairable',
+  'blocked',
+  'impossible',
+  'superseded',
+  'retired',
+]);
+
 export function workRecordVerifierProfiles() {
   return Object.values(WORK_RECORD_VERIFIER_PROFILES).map((profile) => cloneJson(profile));
 }
@@ -101,6 +111,13 @@ export function deriveWorkRecordClaimIndexes(record = {}) {
     indexes[status].sort();
   }
   return indexes;
+}
+
+export function classifyWorkRecordHealth(record = {}) {
+  const health = objectValue(objectValue(record).health);
+  const verdict = text(health.verdict);
+  if (HEALTH_VERDICTS.has(verdict)) return verdict;
+  return 'blocked';
 }
 
 function assertRefsKnown({ diagnostics, refs, known, code, label, path }) {
@@ -557,6 +574,7 @@ export function checkWorkRecordReportOnly(record = {}) {
 
   const errorCount = diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
   const failureClasses = [...new Set(diagnostics.map((diagnostic) => diagnostic.failure_class).filter(Boolean))].sort();
+  const healthVerdict = classifyWorkRecordHealth(record);
   return {
     type: 'work_record.report_only_check',
     schema_version: WORK_RECORD_REPORT_CHECKER_VERSION,
@@ -567,6 +585,7 @@ export function checkWorkRecordReportOnly(record = {}) {
     mutates_record: false,
     derived_indexes: derivedIndexes,
     failure_classes: failureClasses,
+    health_verdict: healthVerdict,
     diagnostics,
     summary: {
       claims: claims.length,
@@ -577,6 +596,7 @@ export function checkWorkRecordReportOnly(record = {}) {
       evidence_adapter_failures: evidenceAdapterReport.summary.failures,
       replay_gated: replayPolicy.replay_requires_workflow_gate === true,
       repair_gated: replayPolicy.repair_requires_workflow_gate === true,
+      health_verdict: healthVerdict,
       failure_classes: failureClasses,
     },
   };

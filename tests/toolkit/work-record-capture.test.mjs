@@ -111,6 +111,73 @@ test('generated AOS action Work Record passes the named report-only verifier pro
   assert.equal(result.summary.repair_gated, true);
 });
 
+test('saved-ref AOS action evidence builder emits valid dry-run dispatch readback cleanup fixture', () => {
+  const source = fixture('evidence/saved-ref-browser-fill-or-canvas-set-value.json');
+  const expected = fixture('valid/saved-ref-browser-fill-or-canvas-set-value.json');
+  const record = buildWorkRecordV0FromAosActionEvidence(source);
+  const result = runWorkRecordVerifierProfile(record, {
+    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  });
+
+  assert.deepEqual(record, expected);
+  assert.equal(record.health.verdict, 'valid');
+  assert.equal(record.metadata.selected_saved_ref, 'ref:snap_before_0704:input.name');
+  assert.equal(record.metadata.resolved_target, 'browser:work-record-saved-ref-demo/input.name');
+  assert.equal(record.execution_map.steps[0].action.args.dry_run_status, 'reacquired');
+  assert.equal(record.execution_map.steps[0].action.args.execution.backend, 'playwright');
+  assert.equal(record.execution_map.steps[0].action.args.execution.fallback_used, false);
+  assert.equal(record.execution_map.steps[0].action.args.recommended_next_command, './aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax');
+  assert.deepEqual(record.evidence.map((item) => item.kind), [
+    'aos_see_capture',
+    'aos_do_dry_run',
+    'aos_do_action',
+    'aos_see_capture',
+    'aos_cleanup',
+  ]);
+  assert.equal(result.status, 'passed');
+  assert.equal(result.summary.health_verdict, 'valid');
+});
+
+test('saved-ref AOS action evidence builder classifies stale validation as repairable', () => {
+  const source = fixture('evidence/repairable-stale-saved-ref.json');
+  const expected = fixture('valid/repairable-stale-saved-ref.json');
+  const record = buildWorkRecordV0FromAosActionEvidence(source);
+  const result = runWorkRecordVerifierProfile(record, {
+    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  });
+
+  assert.deepEqual(record, expected);
+  assert.equal(record.health.verdict, 'repairable');
+  assert.equal(record.metadata.selected_saved_ref, 'ref:snap_old_0704:input.name');
+  assert.equal(record.execution_map.steps[0].action.args.dry_run_status, 'stale');
+  assert.equal(record.execution_map.steps[0].action.args.current_validation.status, 'stale');
+  assert.match(record.execution_map.postconditions.find((item) => item.kind === 'aos_do_dry_run').repair_policy.notes, /re-perceive and re-resolve/);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.summary.health_verdict, 'repairable');
+  assert.ok(result.failure_classes.includes('action_failure'));
+});
+
+test('saved-ref AOS action evidence builder records cleanup failure without rewriting action evidence', () => {
+  const source = fixture('evidence/cleanup-or-postcondition-failed.json');
+  const expected = fixture('valid/cleanup-or-postcondition-failed.json');
+  const record = buildWorkRecordV0FromAosActionEvidence(source);
+  const result = runWorkRecordVerifierProfile(record, {
+    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  });
+  const actionEvidence = record.evidence.find((item) => item.kind === 'aos_do_action');
+  const cleanupEvidence = record.evidence.find((item) => item.kind === 'aos_cleanup');
+
+  assert.deepEqual(record, expected);
+  assert.equal(record.health.verdict, 'blocked');
+  assert.equal(actionEvidence.metadata.status, 'success');
+  assert.equal(actionEvidence.immutable, true);
+  assert.equal(cleanupEvidence.metadata.status, 'failed');
+  assert.equal(cleanupEvidence.immutable, true);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.summary.health_verdict, 'blocked');
+  assert.ok(result.failure_classes.includes('postcondition_failure'));
+});
+
 test('Step descriptor evidence builder emits the generated Workflow-origin Work Record v0 fixture', () => {
   const step = stepDescriptorFixture('valid/browser-click-status.json');
   const source = fixture('evidence/aos-browser-click-status.json');

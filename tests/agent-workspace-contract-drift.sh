@@ -233,6 +233,7 @@ for (const { action, ...contract } of actionMatrixRows) {
 }
 
 const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'utf8');
+const workRecordSchemaDoc = fs.readFileSync('shared/schemas/aos-work-record-v0.md', 'utf8');
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const readme = fs.readFileSync('README.md', 'utf8');
 const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
@@ -462,6 +463,18 @@ assert.ok(
 assert.ok(
   skill.replace(/\s+/g, ' ').includes('Workspace artifacts are local control state, not Work Recording evidence'),
   'AOS workspace skill must distinguish local workspace state from durable Work Record evidence',
+);
+assert.ok(
+  workRecordSchemaDoc.includes('see --save -> do ref --dry-run -> do ref -> see --save ->')
+  && workRecordSchemaDoc.includes('selected Saved Ref')
+  && workRecordSchemaDoc.replace(/\s+/g, ' ').includes('health `repairable`')
+  && workRecordSchemaDoc.includes('without rewriting historical evidence')
+  && apiDoc.replace(/\s+/g, ' ').includes('does not turn `aos do` into a macro recorder')
+  && apiDoc.replace(/\s+/g, ' ').includes('Stale or ambiguous saved-ref validation is classified as `repairable` or')
+  && skill.includes('do not describe')
+  && skill.includes('aos do')
+  && skill.includes('macro recorder'),
+  'Work Record docs and workspace skill must keep saved-ref evidence, verifier health, and macro-recorder boundaries aligned',
 );
 
 const fixtureShim = fs.readFileSync('tests/lib/agent-workspace-fixtures.sh', 'utf8');

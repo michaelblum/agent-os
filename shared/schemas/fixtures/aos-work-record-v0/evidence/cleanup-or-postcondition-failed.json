@@ -1,0 +1,155 @@
+{
+  "type": "aos.action_evidence",
+  "id": "aos-action-evidence:cleanup-or-postcondition-failed-2026-07-04",
+  "record_id": "work-record:cleanup-or-postcondition-failed-2026-07-04",
+  "label": "Cleanup failure Work Record capture",
+  "created_at": "2026-07-04T14:20:00Z",
+  "completed_at": "2026-07-04T14:20:07Z",
+  "target_dialect": "browser",
+  "target": "browser:work-record-saved-ref-demo",
+  "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+  "selected_saved_ref": "ref:snap_cleanup_0704:input.name",
+  "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+  "state_id": "state_cleanup_before_0704",
+  "intent": {
+    "summary": "Classify a saved-ref action with cleanup failure.",
+    "purpose": "Prove action evidence is preserved when cleanup or postcondition proof fails.",
+    "acceptance": "The generated Work Record keeps before/action/after/cleanup evidence and verifier health is blocked.",
+    "constraints": [
+      "Do not rewrite historical action evidence.",
+      "Classify cleanup failure separately from action dispatch.",
+      "Keep replay and repair workflow-gated."
+    ]
+  },
+  "current_validation": {
+    "status": "reacquired",
+    "backend": "browser",
+    "strategy": "browser_current_target_validation",
+    "fallback_used": false,
+    "state_id": "state_cleanup_before_0704"
+  },
+  "before_perception": {
+    "evidence_id": "evidence:cleanup-or-postcondition-failed-before-see",
+    "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+    "state_id": "state_cleanup_before_0704",
+    "target": "browser:work-record-saved-ref-demo",
+    "captured_at": "2026-07-04T14:20:00Z",
+    "artifact_uri": "artifact:artifacts/work-records/cleanup-or-postcondition-failed-2026-07-04/before-see.json",
+    "summary": "Before saved capture exposes the empty Name input.",
+    "element_count": 1,
+    "semantic_targets": [
+      {
+        "ref": "input.name",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "role": "textbox",
+        "name": "Name",
+        "value": "",
+        "enabled": true,
+        "data_aos_ref": "work-record.demo.name"
+      }
+    ],
+    "metadata": {
+      "snapshot_id": "snap_cleanup_0704",
+      "saved_refs": [
+        "ref:snap_cleanup_0704:input.name"
+      ]
+    }
+  },
+  "dry_run": {
+    "evidence_id": "evidence:cleanup-or-postcondition-failed-dry-run",
+    "verb": "fill",
+    "saved_ref": "ref:snap_cleanup_0704:input.name",
+    "target": "ref:snap_cleanup_0704:input.name",
+    "state_id": "state_cleanup_before_0704",
+    "command": "./aos do fill ref:snap_cleanup_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+    "executed_at": "2026-07-04T14:20:02Z",
+    "artifact_uri": "artifact:artifacts/work-records/cleanup-or-postcondition-failed-2026-07-04/dry-run.json",
+    "status": "reacquired",
+    "summary": "Dry-run reacquired the saved browser ref and allowed dispatch.",
+    "target_resolution": {
+      "target_with_ref": "browser:work-record-saved-ref-demo/input.name"
+    }
+  },
+  "action": {
+    "evidence_id": "evidence:cleanup-or-postcondition-failed-do-fill",
+    "verb": "fill",
+    "saved_ref": "ref:snap_cleanup_0704:input.name",
+    "target": "ref:snap_cleanup_0704:input.name",
+    "target_dialect": "browser",
+    "state_id": "state_cleanup_before_0704",
+    "command": "./aos do fill ref:snap_cleanup_0704:input.name --value Ada --workspace work-record-proof",
+    "executed_at": "2026-07-04T14:20:03Z",
+    "artifact_uri": "artifact:artifacts/work-records/cleanup-or-postcondition-failed-2026-07-04/do-fill.json",
+    "status": "success",
+    "summary": "AOS do fill reported success through the saved-ref browser adapter.",
+    "execution": {
+      "backend": "playwright",
+      "strategy": "saved_ref_browser_fill",
+      "fallback_used": false,
+      "state_id": "state_cleanup_before_0704"
+    },
+    "target_candidates": [
+      {
+        "ref": "input.name",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "role": "textbox",
+        "name": "Name",
+        "data_aos_ref": "work-record.demo.name"
+      }
+    ]
+  },
+  "after_perception": {
+    "evidence_id": "evidence:cleanup-or-postcondition-failed-after-see",
+    "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+    "state_id": "state_cleanup_after_0704",
+    "target": "browser:work-record-saved-ref-demo",
+    "captured_at": "2026-07-04T14:20:05Z",
+    "artifact_uri": "artifact:artifacts/work-records/cleanup-or-postcondition-failed-2026-07-04/after-see.json",
+    "summary": "After saved capture exposes the expected Name input value.",
+    "element_count": 1,
+    "semantic_targets": [
+      {
+        "ref": "input.name",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "role": "textbox",
+        "name": "Name",
+        "value": "Ada",
+        "enabled": true,
+        "data_aos_ref": "work-record.demo.name"
+      }
+    ]
+  },
+  "cleanup": {
+    "evidence_id": "evidence:cleanup-or-postcondition-failed-cleanup",
+    "command": "./aos do fill browser:work-record-saved-ref-demo/input.name --value ''",
+    "completed_at": "2026-07-04T14:20:07Z",
+    "artifact_uri": "artifact:artifacts/work-records/cleanup-or-postcondition-failed-2026-07-04/cleanup.json",
+    "status": "failed",
+    "summary": "Cleanup failed because the controlled browser page closed before reset."
+  },
+  "postcondition": {
+    "id": "postcondition:cleanup-or-postcondition-failed-after-value",
+    "kind": "browser_saved_ref_readback",
+    "description": "The after saved capture shows the Name input value changed to Ada.",
+    "target": "browser:work-record-saved-ref-demo/input.name",
+    "state_id": "state_cleanup_after_0704",
+    "check": {
+      "kind": "semantic_target_value_equals",
+      "ref": "input.name",
+      "expected": "Ada",
+      "path": "after_perception.semantic_targets[ref=input.name].value"
+    },
+    "passed": true,
+    "reason": "The after perception semantic target input.name has value Ada.",
+    "repair_policy": {
+      "mode": "manual_review",
+      "notes": "Action evidence remains immutable even though cleanup failed."
+    }
+  },
+  "claim_text": "The saved-ref action evidence was preserved even though cleanup failed.",
+  "acceptance": "Action proof remains present and cleanup failure makes health not valid.",
+  "health": {
+    "verdict": "blocked",
+    "reason": "Cleanup failed after a successful saved-ref action; preserve evidence and require explicit follow-up."
+  }
+}

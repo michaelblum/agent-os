@@ -1,0 +1,162 @@
+{
+  "type": "aos.action_evidence",
+  "id": "aos-action-evidence:repairable-stale-saved-ref-2026-07-04",
+  "record_id": "work-record:repairable-stale-saved-ref-2026-07-04",
+  "label": "Repairable stale saved-ref Work Record capture",
+  "created_at": "2026-07-04T14:10:00Z",
+  "completed_at": "2026-07-04T14:10:04Z",
+  "target_dialect": "browser",
+  "target": "browser:work-record-saved-ref-demo",
+  "target_with_ref": "browser:work-record-saved-ref-demo/input.name",
+  "selected_saved_ref": "ref:snap_old_0704:input.name",
+  "resolved_target": "browser:work-record-saved-ref-demo/input.name",
+  "state_id": "state_old_0704",
+  "intent": {
+    "summary": "Classify a stale saved-ref action record without rewriting evidence.",
+    "purpose": "Prove stale or ambiguous saved-ref validation becomes repairable while preserving original evidence.",
+    "acceptance": "The generated Work Record keeps the stale dry-run evidence and verifier health is repairable.",
+    "constraints": [
+      "Do not dispatch after stale validation.",
+      "Preserve original saved-ref evidence.",
+      "Point repair policy to re-perceive and re-resolve."
+    ]
+  },
+  "current_validation": {
+    "status": "stale",
+    "backend": "browser",
+    "strategy": "browser_current_target_validation",
+    "fallback_used": false,
+    "state_id": "state_current_0704",
+    "reason": "Saved snapshot page generation no longer matches the current page generation."
+  },
+  "recommended_next": {
+    "kind": "fresh_capture",
+    "argv": [
+      "see",
+      "capture",
+      "browser:work-record-saved-ref-demo",
+      "--save",
+      "--workspace",
+      "work-record-proof",
+      "--mode",
+      "ax"
+    ]
+  },
+  "recommended_next_command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+  "before_perception": {
+    "evidence_id": "evidence:repairable-stale-saved-ref-before-see",
+    "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+    "state_id": "state_old_0704",
+    "target": "browser:work-record-saved-ref-demo",
+    "captured_at": "2026-07-04T14:10:00Z",
+    "artifact_uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/before-see.json",
+    "summary": "Original saved capture exposed a Name input that later became stale.",
+    "element_count": 1,
+    "semantic_targets": [
+      {
+        "ref": "input.name",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "role": "textbox",
+        "name": "Name",
+        "value": "",
+        "enabled": true,
+        "data_aos_ref": "work-record.demo.name"
+      }
+    ],
+    "metadata": {
+      "snapshot_id": "snap_old_0704",
+      "saved_refs": [
+        "ref:snap_old_0704:input.name"
+      ]
+    }
+  },
+  "dry_run": {
+    "evidence_id": "evidence:repairable-stale-saved-ref-dry-run",
+    "verb": "fill",
+    "saved_ref": "ref:snap_old_0704:input.name",
+    "target": "ref:snap_old_0704:input.name",
+    "state_id": "state_old_0704",
+    "command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof --dry-run",
+    "executed_at": "2026-07-04T14:10:02Z",
+    "artifact_uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/dry-run.json",
+    "status": "stale",
+    "summary": "Dry-run refused dispatch because current validation was stale.",
+    "target_resolution": {
+      "target_with_ref": "browser:work-record-saved-ref-demo/input.name"
+    }
+  },
+  "action": {
+    "evidence_id": "evidence:repairable-stale-saved-ref-do-fill",
+    "verb": "fill",
+    "saved_ref": "ref:snap_old_0704:input.name",
+    "target": "ref:snap_old_0704:input.name",
+    "target_dialect": "browser",
+    "state_id": "state_old_0704",
+    "command": "./aos do fill ref:snap_old_0704:input.name --value Ada --workspace work-record-proof",
+    "executed_at": "2026-07-04T14:10:03Z",
+    "artifact_uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/do-fill.json",
+    "status": "blocked",
+    "summary": "Dispatch was blocked before mutation because saved-ref validation was stale.",
+    "execution": {
+      "backend": "browser",
+      "strategy": "saved_ref_browser_fill",
+      "fallback_used": false,
+      "state_id": "state_old_0704"
+    },
+    "target_candidates": [
+      {
+        "ref": "input.name",
+        "target": "browser:work-record-saved-ref-demo/input.name",
+        "role": "textbox",
+        "name": "Name",
+        "data_aos_ref": "work-record.demo.name"
+      }
+    ]
+  },
+  "after_perception": {
+    "evidence_id": "evidence:repairable-stale-saved-ref-after-see",
+    "command": "./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax",
+    "state_id": "state_current_0704",
+    "target": "browser:work-record-saved-ref-demo",
+    "captured_at": "2026-07-04T14:10:04Z",
+    "artifact_uri": "artifact:artifacts/work-records/repairable-stale-saved-ref-2026-07-04/after-see.json",
+    "summary": "Fresh capture is present for repair analysis, but no mutation was made.",
+    "element_count": 1,
+    "semantic_targets": [
+      {
+        "ref": "input.full_name",
+        "target": "browser:work-record-saved-ref-demo/input.full_name",
+        "role": "textbox",
+        "name": "Full name",
+        "value": "",
+        "enabled": true,
+        "data_aos_ref": "work-record.demo.full-name"
+      }
+    ]
+  },
+  "postcondition": {
+    "id": "postcondition:repairable-stale-saved-ref-after-value",
+    "kind": "browser_saved_ref_readback",
+    "description": "The after capture does not show the original saved ref as safely mutated.",
+    "target": "browser:work-record-saved-ref-demo/input.name",
+    "state_id": "state_current_0704",
+    "check": {
+      "kind": "semantic_target_value_equals",
+      "ref": "input.name",
+      "expected": "Ada",
+      "path": "after_perception.semantic_targets[ref=input.name].value"
+    },
+    "passed": false,
+    "reason": "The saved ref was stale and the action was blocked before mutation.",
+    "repair_policy": {
+      "mode": "patch_execution_map",
+      "notes": "Re-perceive, re-resolve a unique current target, and patch the execution map under an explicit workflow repair gate."
+    }
+  },
+  "claim_text": "The stale saved-ref record preserved enough evidence for workflow-gated repair.",
+  "acceptance": "Verifier health is repairable and original evidence remains immutable.",
+  "health": {
+    "verdict": "repairable",
+    "reason": "Saved-ref validation was stale, but intent and original evidence are sufficient to attempt workflow-gated repair."
+  }
+}
