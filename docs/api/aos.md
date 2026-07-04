@@ -979,6 +979,8 @@ aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
 aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
+aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
+aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
 ```
 
@@ -1009,6 +1011,32 @@ that are not executed by the planner. Valid records get no repair plan;
 stale/repairable records require fresh perception or re-resolution before any
 future gated mutation; blocked records name the blocker; and impossible,
 superseded, or retired records avoid repair and replay.
+
+`gate-request` turns the current read-only Repair Plan into an
+`aos.gate.request.v1` request for one required Workflow gate. It is read-only
+and does not call `aos gate ask`, `aos gate defer`, or `aos gate submit`.
+Generated requests include source Work Record id/path, Repair Plan
+schema/digest identity, Workflow gate id, gated step/candidate patch ids,
+current report-derived health, an `approve_deny` decision field, and metadata
+linking the request to Work Record repair planning. The request asks only for
+authorization of a future gated attempt; it does not execute repair, apply a
+candidate patch, replay actions, or mutate the source Work Record.
+The command returns a provenance envelope; pass its nested `gate_request` object
+to `aos gate ask` or `aos gate defer`.
+
+`gate-check` reads an existing terminal `aos.gate.record.v1` record,
+`aos.gate.resume-event.v1` file, or submitted deferred continuation id and
+returns `work_record.workflow_gate_authorization` JSON. Status values are
+`not_required`, `pending`, `authorized`, `denied`, `dismissed`, `timeout`,
+`stale`, `mismatch`, `insufficient_evidence`, and `unsupported`. Positive
+authorization requires a matching source Work Record, matching Repair Plan
+identity, matching Workflow gate, and an inspectable affirmative stored answer.
+A terminal `answered` record without stored response payload is
+`insufficient_evidence`; use `--store-response` or
+`metadata.record_response:true` when the gate response must later prove
+authorization. Authorization sets `authorizes_future_attempt:true` only for
+positive approval and always reports `executes_repair:false` and
+`mutates_record:false`.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

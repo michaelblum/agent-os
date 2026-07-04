@@ -288,6 +288,169 @@
               "value_type": "string"
             },
             {
+              "id": "workflow-gate",
+              "kind": "flag",
+              "required": false,
+              "summary": "Specific Repair Plan workflow gate id to authorize",
+              "token": "--workflow-gate",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable gate request JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "work-record-gate-request",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "ref",
+              "kind": "positional",
+              "required": true,
+              "summary": "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "profile",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report-only verifier profile id",
+              "token": "--profile",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "id": "workflow-gate",
+              "kind": "flag",
+              "required": false,
+              "summary": "Specific Repair Plan workflow gate id to check",
+              "token": "--workflow-gate",
+              "value_type": "string"
+            },
+            {
+              "id": "gate-record",
+              "kind": "flag",
+              "required": false,
+              "summary": "Gate record id or JSON path",
+              "token": "--gate-record",
+              "value_type": "string"
+            },
+            {
+              "id": "resume-event",
+              "kind": "flag",
+              "required": false,
+              "summary": "Gate resume-event JSON path",
+              "token": "--resume-event",
+              "value_type": "string"
+            },
+            {
+              "id": "continuation-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Submitted deferred-gate continuation id",
+              "token": "--continuation-id",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable authorization JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "constraints": {
+            "required_groups": [
+              [
+                "gate-record"
+              ],
+              [
+                "resume-event"
+              ],
+              [
+                "continuation-id"
+              ]
+            ]
+          },
+          "examples": [
+            "aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "id": "work-record-gate-check",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "ref",
+              "kind": "positional",
+              "required": true,
+              "summary": "Work Record id, Subject Entry Handle, or JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "profile",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report-only verifier profile id",
+              "token": "--profile",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
               "id": "json",
               "kind": "flag",
               "required": false,

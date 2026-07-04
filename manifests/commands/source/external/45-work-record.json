@@ -117,6 +117,44 @@
     {
       "path": [
         "work-record",
+        "gate-request"
+      ],
+      "summary": "Build Work Record repair Workflow Gate requests through an external report-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "gate-request"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
+        "gate-check"
+      ],
+      "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "gate-check"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
         "export"
       ],
       "summary": "Export Work Record evidence bundle manifests through an external report-only command.",

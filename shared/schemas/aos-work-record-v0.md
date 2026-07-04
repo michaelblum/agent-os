@@ -316,6 +316,53 @@ that gate. A future repair attempt should emit a new Work Record or an explicit
 patch artifact instead of rewriting `evidence[]`, `claims[]`, historical
 `claim_results[]`, or the source Work Record.
 
+## Workflow Gate Authorization V0
+
+Workflow Gate Authorization is the read-only bridge between a Repair Plan and
+the existing AOS gate contracts:
+
+- `repair_plan`: read-only Work Record repair planning output.
+- `workflow_gate`: a required approval/orchestration boundary named by the
+  Repair Plan.
+- `gate_request`: an `aos.gate.request.v1` request generated from one
+  Repair Plan gate.
+- `gate_record`: a terminal `aos.gate.record.v1` outcome.
+- `resume_event`: a terminal `aos.gate.resume-event.v1` outcome created from a
+  deferred gate continuation.
+- `authorization`: report-only evaluation of whether the terminal outcome
+  satisfies the Repair Plan gate.
+- `future_attempt`: a later repair or re-run attempt that must produce a new
+  Work Record or explicit patch artifact.
+
+The toolkit contract is
+`work_record.workflow_gate_authorization` with schema version
+`2026-07-work-record-workflow-gate-authorization-v0`. It reports
+`authorizes_future_attempt:true|false`, `executes_repair:false`,
+`mutates_record:false`, and `automatic_replay_allowed:false`. Authorization is
+not evidence that repair happened, does not run recommended commands, does not
+apply candidate patches, does not replay actions, and does not mutate the source
+Work Record or Repair Plan.
+
+`gate-request` generation is allowed only when current Repair Plan output names
+a mutating gated step or candidate patch. Valid, impossible, retired, and
+superseded records return `not_required` unless the current Repair Plan itself
+contains such a gated mutating candidate. Generated requests use
+`aos.gate.request.v1`, `ui.variant:"approve_deny"`, a stable request id derived
+from source Work Record identity, Repair Plan identity, and Workflow gate id,
+and metadata that links the request back to Work Record repair planning. Prompt
+bodies stay compact and do not embed heavy evidence payloads.
+
+Authorization checking fails closed. Supported statuses are `not_required`,
+`pending`, `authorized`, `denied`, `dismissed`, `timeout`, `stale`,
+`mismatch`, `insufficient_evidence`, and `unsupported`. Positive authorization
+requires a matching terminal gate outcome and an inspectable affirmative answer
+payload. A terminal `answered` record without stored response data is
+`insufficient_evidence`; callers that need later authorization proof must use
+`--store-response` or `metadata.record_response:true` on the gate path that
+stores the answer payload. Denied, dismissed, timeout, stale plan identity,
+wrong Work Record, wrong plan, wrong gate, missing response, and unsupported
+outcomes do not authorize a future attempt.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work
