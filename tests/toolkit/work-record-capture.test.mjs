@@ -178,6 +178,23 @@ test('saved-ref AOS action evidence builder records cleanup failure without rewr
   assert.ok(result.failure_classes.includes('postcondition_failure'));
 });
 
+test('AOS action evidence builder ignores optimistic source health when evidence failed', () => {
+  const source = fixture('evidence/cleanup-or-postcondition-failed.json');
+  source.health = {
+    verdict: 'valid',
+    reason: 'forced optimistic health should not override failed evidence',
+  };
+  const record = buildWorkRecordV0FromAosActionEvidence(source);
+  const result = runWorkRecordVerifierProfile(record, {
+    profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  });
+
+  assert.equal(record.health.verdict, 'blocked');
+  assert.equal(result.status, 'failed');
+  assert.equal(result.embedded_health_verdict, 'blocked');
+  assert.equal(result.summary.health_verdict, 'blocked');
+});
+
 test('Step descriptor evidence builder emits the generated Workflow-origin Work Record v0 fixture', () => {
   const step = stepDescriptorFixture('valid/browser-click-status.json');
   const source = fixture('evidence/aos-browser-click-status.json');
@@ -189,6 +206,7 @@ test('Step descriptor evidence builder emits the generated Workflow-origin Work 
   ));
 
   assert.deepEqual(record, expected);
+  assert.equal(record.id, 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06');
   assert.equal(record.origin.kind, 'workflow');
   assert.equal(record.origin.ref, 'workflow:browser-live-action-status');
   assert.equal(record.metadata.generated_by, WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION);

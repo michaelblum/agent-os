@@ -44,6 +44,7 @@ test('Work Record consumer discovers canonical fixtures and reads records by id 
   assert.equal(discovery.status, 'success');
   assert.equal(discovery.schema_version, WORK_RECORD_CONSUMER_VERSION);
   assert.ok(discovery.records.some((record) => record.id === 'work-record:workflow-open-wiki-sigil-2026-05-05'));
+  assert.ok(discovery.records.some((record) => record.id === 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06'));
 
   const byId = readWorkRecord('workflow-open-wiki-sigil-2026-05-05', { roots: [validRoot], repoRoot });
   assert.equal(byId.status, 'success');
@@ -54,6 +55,21 @@ test('Work Record consumer discovers canonical fixtures and reads records by id 
   assert.equal(byPath.status, 'success');
   assert.equal(byPath.source.match, 'path');
   assert.equal(byPath.record.id, byId.record.id);
+
+  const defaultDiscovery = discoverWorkRecords({ repoRoot });
+  const duplicateIds = defaultDiscovery.records
+    .map((record) => record.id)
+    .filter((id, index, ids) => ids.indexOf(id) !== index);
+  assert.equal(defaultDiscovery.status, 'success');
+  assert.deepEqual(duplicateIds, []);
+
+  const adHoc = readWorkRecord('work-record:aos-browser-click-status-2026-05-06', { repoRoot });
+  assert.equal(adHoc.status, 'success');
+  assert.equal(adHoc.record.origin.kind, 'ad_hoc');
+
+  const workflow = readWorkRecord('work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06', { repoRoot });
+  assert.equal(workflow.status, 'success');
+  assert.equal(workflow.record.origin.kind, 'workflow');
 });
 
 test('Work Record consumer verify returns report-only diagnostics distinct from historical claim results', () => {
@@ -64,6 +80,8 @@ test('Work Record consumer verify returns report-only diagnostics distinct from 
   assert.equal(result.verifier_mode, 'report_only');
   assert.equal(result.mutates_record, false);
   assert.equal(result.health_verdict, 'valid');
+  assert.equal(result.embedded_record_health, 'valid');
+  assert.equal(result.current_report_status, 'passed');
   assert.deepEqual(result.failure_classes, []);
   assert.deepEqual(result.diagnostics, []);
   assert.ok(result.evidence_refs_used.includes('evidence:after-see'));
@@ -108,6 +126,13 @@ test('Work Record consumer status returns conservative recovery guidance for eve
   assert.equal(repairable.health_verdict, 'repairable');
   assert.equal(repairable.recovery.action, 'workflow_gated_repair_required');
   assert.ok(repairable.recovery.next_commands.includes('./aos see capture browser:work-record-saved-ref-demo --save --workspace work-record-proof --mode ax'));
+
+  const blocked = explainWorkRecordStatus(path.join(validRoot, 'cleanup-or-postcondition-failed.json'), { repoRoot });
+  assert.equal(blocked.status, 'failed');
+  assert.equal(blocked.embedded_record_health, 'blocked');
+  assert.equal(blocked.health_verdict, 'blocked');
+  assert.equal(blocked.current_report_status, 'failed');
+  assert.equal(blocked.recovery.action, 'resolve_blocker_before_reuse');
 });
 
 test('Work Record consumer fails closed on invalid records and duplicate ids', () => {
@@ -167,4 +192,19 @@ test('aos work-record public command routes through help and external dispatch',
   assert.equal(statusJson.verifier.profile_id, 'aos.verifier.work-record.v0.report-only');
   assert.equal(statusJson.verifier.mutates_record, false);
   assert.equal(statusJson.recovery.action, 'no_repair_needed');
+
+  const readAdHoc = runAos(['work-record', 'read', 'work-record:aos-browser-click-status-2026-05-06', '--json']);
+  assert.equal(readAdHoc.status, 0, readAdHoc.stderr);
+  const readAdHocJson = JSON.parse(readAdHoc.stdout);
+  assert.equal(readAdHocJson.record.origin.kind, 'ad_hoc');
+
+  const readWorkflow = runAos([
+    'work-record',
+    'read',
+    'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06',
+    '--json',
+  ]);
+  assert.equal(readWorkflow.status, 0, readWorkflow.stderr);
+  const readWorkflowJson = JSON.parse(readWorkflow.stdout);
+  assert.equal(readWorkflowJson.record.origin.kind, 'workflow');
 });

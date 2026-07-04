@@ -407,7 +407,8 @@ function replacementRefs(record = {}) {
 }
 
 export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) {
-  const verdict = text(objectValue(record.health).verdict, 'blocked');
+  const embeddedVerdict = text(objectValue(record.health).verdict, 'blocked');
+  const verdict = text(verifierReport.health_verdict, embeddedVerdict);
   const diagnostics = arrayValue(verifierReport.diagnostics);
   const failureClasses = uniqueStrings(arrayValue(verifierReport.failure_classes));
   const gates = uniqueStrings([
@@ -419,6 +420,7 @@ export function recoveryGuidanceForWorkRecord(record = {}, verifierReport = {}) 
   const blockers = diagnosticSummary(diagnostics);
   const base = {
     verdict,
+    embedded_record_health: embeddedVerdict,
     conservative: true,
     mutates_record: false,
     automatic_replay_allowed: false,
@@ -516,6 +518,8 @@ function verifyResolvedRecord(resolved, { profileId = WORK_RECORD_REPORT_ONLY_PR
     verifier_mode: text(report.mode || report.profile?.mode, 'report_only'),
     mutates_record: report.mutates_record === false ? false : Boolean(report.mutates_record),
     health_verdict: text(report.health_verdict || objectValue(resolved.record.health).verdict),
+    embedded_record_health: text(report.embedded_health_verdict || objectValue(resolved.record.health).verdict),
+    current_report_status: text(report.status),
     failure_classes: uniqueStrings(arrayValue(report.failure_classes)),
     diagnostics: arrayValue(report.diagnostics),
     derived_claim_indexes: cloneJson(report.derived_indexes || {}),
@@ -553,6 +557,7 @@ export function explainWorkRecordStatus(ref, options = {}) {
     status: verify.status,
     summary: resolved.summary,
     health_verdict: verify.health_verdict,
+    embedded_record_health: verify.embedded_record_health,
     current_report_status: verify.status,
     historical_claim_results: verify.historical_claim_results,
     failure_classes: verify.failure_classes,

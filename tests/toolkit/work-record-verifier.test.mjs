@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkWorkRecordReportOnly,
   classifyWorkRecordHealth,
+  deriveCurrentWorkRecordHealth,
   deriveWorkRecordClaimIndexes,
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
@@ -150,6 +151,26 @@ test('report-only verifier reads every Work Record health verdict classification
     assert.equal(result.health_verdict, verdict);
     assert.equal(result.summary.health_verdict, verdict);
   }
+});
+
+test('report-only verifier derives current health from diagnostics, not optimistic embedded health', () => {
+  const record = fixture('cleanup-or-postcondition-failed.json');
+  record.health.verdict = 'valid';
+  record.health.reason = 'forced optimistic embedded health';
+  const before = JSON.stringify(record);
+  const result = checkWorkRecordReportOnly(record);
+
+  assert.equal(classifyWorkRecordHealth(record), 'valid');
+  assert.equal(deriveCurrentWorkRecordHealth(record, {
+    status: result.status,
+    diagnostics: result.diagnostics,
+  }), 'blocked');
+  assert.equal(result.status, 'failed');
+  assert.equal(result.embedded_health_verdict, 'valid');
+  assert.equal(result.health_verdict, 'blocked');
+  assert.equal(result.summary.embedded_health_verdict, 'valid');
+  assert.equal(result.summary.health_verdict, 'blocked');
+  assert.equal(JSON.stringify(record), before);
 });
 
 test('report-only verifier reads saved-ref repairable and blocked fixture health without mutating records', () => {

@@ -223,10 +223,15 @@ than raw adapter output. The envelope includes the resolved command,
 `underlying_result` for the adapter response, `post_action`,
 `post_action.recommended_next` for a structured fresh-capture descriptor, and
 `recommended_next_command` when a fresh saved capture is the safe next
-verification step. After a dry-run returns a safe status such as `reacquired`,
-`resolved`, or `direct_ax_ready`, dispatch by rerunning the exact saved-ref
-command without `--dry-run`; do not remove `--dry-run` for
-validation-required, blocked, unsupported, or low-confidence refs. Refresh
+verification step. `resolved_action.saved_state_id` preserves saved provenance
+from the original ref, while `resolved_action.validation_state_id` names the
+fresh validation capture when reacquisition runs. Browser saved-ref dispatch
+passes the validation state to the underlying browser action after reacquiring
+the target instead of reusing stale saved provenance as current state. After a
+dry-run returns a safe status such as `reacquired`, `resolved`, or
+`direct_ax_ready`, dispatch by rerunning the exact saved-ref command without
+`--dry-run`; do not remove `--dry-run` for validation-required, blocked,
+unsupported, or low-confidence refs. Refresh
 recommendations point back to the originating capture source and mode:
 
 ```bash

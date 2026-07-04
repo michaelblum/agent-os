@@ -82,6 +82,8 @@ jq -e '
   and .current_validation.status == "reacquired"
   and .current_validation.current_target.ref == "e2"
   and .current_validation.current_identity.page_url == "https://fixture.local/todo"
+  and .resolved_action.validation_state_id == .current_validation.capture_state_id
+  and .resolved_action.saved_state_id != .resolved_action.validation_state_id
   and (.resolved_action.command | index("browser:todo/e2") != null)
   and .recommended_next_command == null
 ' "$DRY" >/dev/null || fail "browser ref dry-run reacquired shape drifted: $(cat "$DRY")"
@@ -96,6 +98,24 @@ jq -e '
   and .current_validation.status == "reacquired"
 ' "$BARE_DRY" >/dev/null || fail "bare browser ref dry-run shape drifted before ambiguity: $(cat "$BARE_DRY")"
 
+cp "$REFS_PATH" "$REFS_PATH.saved-state-backup"
+jq '(.refs[] | select(.ref == "r2") | .identity_facts.state_id) = "see_browser_saved_old"' "$REFS_PATH.saved-state-backup" >"$REFS_PATH"
+STATE_SPLIT_DRY="$TMP_DIR/do-ref-state-split-dry.json"
+./aos do click "ref:snap1:$REF" --workspace ws-browser --dry-run >"$STATE_SPLIT_DRY"
+jq -e '
+  .current_validation.capture_state_id as $validation_state_id |
+  .status == "dry_run"
+  and .resolved_action.saved_state_id == "see_browser_saved_old"
+  and .resolved_action.validation_state_id == $validation_state_id
+  and (.resolved_action.command | index("--state-id") != null)
+  and (.resolved_action.command | index($validation_state_id) != null)
+  and (.resolved_action.command | index("see_browser_saved_old") == null)
+' "$STATE_SPLIT_DRY" >/dev/null || {
+    mv "$REFS_PATH.saved-state-backup" "$REFS_PATH"
+    fail "browser dry-run conflated saved and validation state ids: $(cat "$STATE_SPLIT_DRY")"
+}
+mv "$REFS_PATH.saved-state-backup" "$REFS_PATH"
+
 REAL_ACTION="$TMP_DIR/do-ref-real.json"
 ./aos do click "ref:snap1:$REF" --workspace ws-browser >"$REAL_ACTION"
 jq -e '
@@ -105,6 +125,8 @@ jq -e '
   and .ref.backend == "browser"
   and .current_validation.status == "reacquired"
   and .current_validation.current_target.ref == "e2"
+  and .resolved_action.validation_state_id == .current_validation.capture_state_id
+  and .resolved_action.saved_state_id != .resolved_action.validation_state_id
   and .resolved_action.resolution_status == "reacquired"
   and .resolved_action.exit_code == 0
   and .underlying_exit_code == 0

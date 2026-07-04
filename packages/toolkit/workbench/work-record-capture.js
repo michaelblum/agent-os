@@ -175,6 +175,9 @@ function healthVerdictForSource({
   postconditionPassed,
   cleanupPassed,
 }) {
+  const validationStatus = text(objectValue(evidenceSource.current_validation).status || objectValue(objectValue(evidenceSource.action).current_validation).status);
+  if (['stale', 'ambiguous', 'missing'].includes(validationStatus)) return 'repairable';
+  if (!actionPassed || !postconditionPassed || cleanupPassed === false) return 'blocked';
   const explicit = text(objectValue(evidenceSource.health).verdict);
   if ([
     'valid',
@@ -187,12 +190,6 @@ function healthVerdictForSource({
   ].includes(explicit)) {
     return explicit;
   }
-  const validationStatus = text(
-    objectValue(evidenceSource.current_validation).status
-      || objectValue(objectValue(evidenceSource.action).current_validation).status,
-  );
-  if (['stale', 'ambiguous', 'missing'].includes(validationStatus)) return 'repairable';
-  if (!actionPassed || !postconditionPassed || cleanupPassed === false) return 'blocked';
   return 'valid';
 }
 
@@ -1215,6 +1212,7 @@ export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {},
     .find((postcondition) => text(objectValue(postcondition).kind) === 'aos_see_before');
   const runStep = objectValue(arrayValue(record.execution_map.steps)[0]);
 
+  record.id = workRecordSubjectId(`workflow-${slug(workRecordHandleSubjectId(workflowRef).replace(/^workflow:/, ''))}-${workRecordHandleSubjectId(record.id)}`);
   record.origin = {
     kind: 'workflow',
     ref: workflowRef,

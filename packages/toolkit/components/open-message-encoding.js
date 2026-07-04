@@ -24,4 +24,3 @@ export function encodeOpenMessageBase64(message) {
   }
   throw new Error('base64 encoder unavailable');
 }
-

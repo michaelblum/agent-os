@@ -125,6 +125,10 @@ function validateCurrentTargets(action, record, secondary, workspace, env) {
   return { currentValidation, secondaryCurrentValidation };
 }
 
+function stateIDForDispatch(record, currentValidation) {
+  return currentValidation?.capture_state_id ?? record.identity_facts?.state_id;
+}
+
 function maybeRunRefAction(action, args, env = process.env) {
   const positions = positionalIndexes(args);
   const firstIndex = positions[0];
@@ -169,7 +173,7 @@ function maybeRunRefAction(action, args, env = process.env) {
     : [...stripped.args];
   if (record.backend !== 'native_ax') transformed[strippedTargetIndex] = record.action_target;
   if (secondary) transformed[secondary.index] = secondary.record.action_target;
-  const actionArgs = appendStateID(transformed.filter((arg) => arg !== '--dry-run'), record.identity_facts?.state_id);
+  const actionArgs = appendStateID(transformed.filter((arg) => arg !== '--dry-run'), stateIDForDispatch(record, currentValidation));
   const envelopeArgs = {
     action,
     actionArgs,

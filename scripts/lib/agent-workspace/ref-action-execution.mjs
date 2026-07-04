@@ -30,6 +30,13 @@ function resolvedCommand(action, actionArgs) {
   return ['aos', 'do', action, ...actionArgs];
 }
 
+function resolvedStateIDs(record, currentValidation) {
+  return {
+    saved_state_id: record?.identity_facts?.state_id ?? null,
+    validation_state_id: currentValidation?.capture_state_id ?? null,
+  };
+}
+
 export function emitDryRunEnvelope({
   action,
   actionArgs,
@@ -54,6 +61,7 @@ export function emitDryRunEnvelope({
     resolved_action: {
       command: resolvedCommand(action, actionArgs),
       resolution_status: resolutionStatusFor(currentValidation, secondaryCurrentValidation, unsafe, secondaryUnsafe, secondary),
+      ...resolvedStateIDs(record, currentValidation),
     },
     current_validation: currentValidation,
     secondary_current_validation: secondaryCurrentValidation,
@@ -102,6 +110,7 @@ function actionEnvelope({
       command: resolvedCommand(action, actionArgs),
       resolution_status: resolutionStatusFor(currentValidation, secondaryCurrentValidation, unsafe, secondaryUnsafe, secondary),
       exit_code: exitCode,
+      ...resolvedStateIDs(record, currentValidation),
     },
     current_validation: currentValidation,
     secondary_current_validation: secondaryCurrentValidation,

@@ -28,7 +28,9 @@ The v0 shape follows `CONTEXT.md` and ADR-0001 through ADR-0010:
 - `claim_results[]` are verifier output, one result per Claim.
 - `verifier_report` summarizes one verifier pass and derives indexes from
   `claim_results[]`.
-- `health` is the current Verifier Health verdict for the Work Record.
+- `health` stores the embedded verifier health written with the Work Record.
+  Consumers must treat fresh report-only verifier status and diagnostics as the
+  current health authority.
 
 ## Top-Level Shape
 
@@ -441,9 +443,13 @@ The surface is read-only and supports:
   recovery guidance;
 - `export` for a compact read-only evidence bundle manifest.
 
-The consumer distinguishes embedded historical `claim_results[]` from the fresh
-report-only verifier output. It fails closed for unsupported schema versions,
-invalid V0 contract shapes, missing roots, invalid JSON, and id-based
+The consumer distinguishes embedded historical `claim_results[]` and
+`health.verdict` from the fresh report-only verifier output. `status` exposes
+`embedded_record_health`, `current_report_status`, and report-derived
+`health_verdict`; failed current diagnostics cannot report current health as
+`valid` merely because embedded health was optimistic. It fails closed for
+unsupported schema versions, invalid V0 contract shapes, missing roots, invalid
+JSON, and id-based
 consumption when duplicate ids make a ref ambiguous. It does not mutate Work
 Records, patch execution maps, repair refs, rewrite Claims, replay actions, or
 inline heavy UI payloads.

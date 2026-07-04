@@ -40,4 +40,3 @@ test('open-message child posters use UTF-8-safe encoder instead of direct btoa J
     assert.doesNotMatch(source, /btoa\(JSON\.stringify\(openMessage\)\)/, file);
   }
 });
-

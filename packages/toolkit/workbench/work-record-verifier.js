@@ -120,6 +120,22 @@ export function classifyWorkRecordHealth(record = {}) {
   return 'blocked';
 }
 
+export function deriveCurrentWorkRecordHealth(record = {}, {
+  status = '',
+  diagnostics = [],
+} = {}) {
+  const embeddedVerdict = classifyWorkRecordHealth(record);
+  const currentStatus = text(status);
+  const errorCount = arrayValue(diagnostics)
+    .filter((diagnostic) => text(objectValue(diagnostic).severity, 'error') === 'error')
+    .length;
+
+  if (currentStatus === 'passed' && errorCount === 0) return embeddedVerdict;
+  if (['impossible', 'superseded', 'retired'].includes(embeddedVerdict)) return embeddedVerdict;
+  if (['stale', 'repairable'].includes(embeddedVerdict)) return 'repairable';
+  return 'blocked';
+}
+
 function assertRefsKnown({ diagnostics, refs, known, code, label, path }) {
   for (const ref of refs) {
     if (!known.has(ref)) {
@@ -573,18 +589,21 @@ export function checkWorkRecordReportOnly(record = {}) {
   }
 
   const errorCount = diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
+  const status = errorCount === 0 ? 'passed' : 'failed';
   const failureClasses = [...new Set(diagnostics.map((diagnostic) => diagnostic.failure_class).filter(Boolean))].sort();
-  const healthVerdict = classifyWorkRecordHealth(record);
+  const embeddedHealthVerdict = classifyWorkRecordHealth(record);
+  const healthVerdict = deriveCurrentWorkRecordHealth(record, { status, diagnostics });
   return {
     type: 'work_record.report_only_check',
     schema_version: WORK_RECORD_REPORT_CHECKER_VERSION,
     mode: 'report_only',
-    status: errorCount === 0 ? 'passed' : 'failed',
+    status,
     record_id: normalized.id,
     record_schema_version: normalized.schemaVersion,
     mutates_record: false,
     derived_indexes: derivedIndexes,
     failure_classes: failureClasses,
+    embedded_health_verdict: embeddedHealthVerdict,
     health_verdict: healthVerdict,
     diagnostics,
     summary: {
@@ -596,6 +615,7 @@ export function checkWorkRecordReportOnly(record = {}) {
       evidence_adapter_failures: evidenceAdapterReport.summary.failures,
       replay_gated: replayPolicy.replay_requires_workflow_gate === true,
       repair_gated: replayPolicy.repair_requires_workflow_gate === true,
+      embedded_health_verdict: embeddedHealthVerdict,
       health_verdict: healthVerdict,
       failure_classes: failureClasses,
     },

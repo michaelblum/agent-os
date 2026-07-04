@@ -45,4 +45,3 @@ describe('ActiveStreamRegistry', () => {
     assert.equal(registry.size, 0);
   });
 });
-

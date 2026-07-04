@@ -38,4 +38,3 @@ export class ActiveStreamRegistry {
     return this.active.size;
   }
 }
-
