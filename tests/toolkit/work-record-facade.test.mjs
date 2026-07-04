@@ -4,6 +4,7 @@ import * as adapter from '../../packages/toolkit/workbench/work-record-adapter.j
 import * as capture from '../../packages/toolkit/workbench/work-record-capture.js';
 import * as evidenceAdapters from '../../packages/toolkit/workbench/work-record-evidence-adapters.js';
 import * as facade from '../../packages/toolkit/workbench/work-record.js';
+import * as replacementWriter from '../../packages/toolkit/workbench/work-record-replacement-writer.js';
 import * as subject from '../../packages/toolkit/workbench/work-record-subject.js';
 import * as verifier from '../../packages/toolkit/workbench/work-record-verifier.js';
 import * as workbench from '../../packages/toolkit/workbench/index.js';
@@ -28,6 +29,10 @@ test('Work Record facade re-exports current build, verify, evidence, adapter, an
   assert.equal(facade.checkWorkRecordReportOnly, verifier.checkWorkRecordReportOnly);
   assert.equal(facade.deriveWorkRecordClaimIndexes, verifier.deriveWorkRecordClaimIndexes);
   assert.equal(facade.WORK_RECORD_REPORT_ONLY_PROFILE_ID, verifier.WORK_RECORD_REPORT_ONLY_PROFILE_ID);
+
+  assert.equal(facade.writeReplacementWorkRecord, replacementWriter.writeReplacementWorkRecord);
+  assert.equal(facade.materializeReplacementWorkRecord, replacementWriter.materializeReplacementWorkRecord);
+  assert.equal(facade.WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION, replacementWriter.WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION);
 });
 
 test('Workbench aggregate exposes the Work Record facade contract', () => {
@@ -37,4 +42,5 @@ test('Workbench aggregate exposes the Work Record facade contract', () => {
   assert.equal(workbench.normalizeWorkRecord, facade.normalizeWorkRecord);
   assert.equal(workbench.runWorkRecordVerifierProfile, facade.runWorkRecordVerifierProfile);
   assert.equal(workbench.checkWorkRecordEvidenceAdapters, facade.checkWorkRecordEvidenceAdapters);
+  assert.equal(workbench.writeReplacementWorkRecord, facade.writeReplacementWorkRecord);
 });

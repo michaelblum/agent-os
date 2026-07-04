@@ -19,6 +19,7 @@ import {
   exportWorkRecordBundle,
   buildWorkRecordRepairAttemptArtifact,
   buildWorkRecordReplacementProposal,
+  writeReplacementWorkRecord,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
   validateWorkRecordRepairAttemptArtifact,
@@ -53,6 +54,7 @@ function usage() {
   ./aos work-record attempt-artifact build --input <outcome-input-path> [--json]
   ./aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]
   ./aos work-record replacement-proposal validate <proposal-path> [--json]
+  ./aos work-record replacement-proposal write <proposal-path> --output-root <dir> [--output-path path] [--dry-run] [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
@@ -74,6 +76,9 @@ function parseArgs(argv) {
     attemptPlan: '',
     attemptArtifact: '',
     proposedIdSeed: '',
+    outputRoot: '',
+    outputPath: '',
+    dryRun: false,
     positional: [],
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -142,6 +147,18 @@ function parseArgs(argv) {
       if (!value) fail('--proposed-id-seed requires a proposed Work Record id seed', 'MISSING_ARG');
       options.proposedIdSeed = value;
       index += 1;
+    } else if (arg === '--output-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--output-root requires a directory path', 'MISSING_ARG');
+      options.outputRoot = value;
+      index += 1;
+    } else if (arg === '--output-path') {
+      const value = argv[index + 1];
+      if (!value) fail('--output-path requires a JSON path', 'MISSING_ARG');
+      options.outputPath = value;
+      index += 1;
+    } else if (arg === '--dry-run') {
+      options.dryRun = true;
     } else if (arg.startsWith('--')) {
       fail(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
@@ -310,6 +327,19 @@ async function main(argv = process.argv.slice(2)) {
       const validation = validateWorkRecordReplacementProposal(readJsonFile(target, 'INVALID_REPLACEMENT_PROPOSAL'));
       emitJSON(validation, validation.status !== 'passed');
       if (validation.status !== 'passed') process.exit(1);
+      return;
+    }
+    if (action === 'write') {
+      if (!target) fail('replacement-proposal write requires a proposal path', 'MISSING_ARG');
+      if (!options.outputRoot) fail('replacement-proposal write requires --output-root <dir>', 'MISSING_ARG');
+      const result = writeReplacementWorkRecord({
+        proposal: readJsonFile(target, 'INVALID_REPLACEMENT_PROPOSAL'),
+        outputRoot: options.outputRoot,
+        outputPath: options.outputPath,
+        dryRun: options.dryRun,
+      });
+      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported');
+      if (result.status.startsWith('blocked_') || result.status === 'unsupported') process.exit(1);
       return;
     }
     if (action === 'build') {

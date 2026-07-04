@@ -103,7 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
-| `aos work-record` | read-only Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, and compact evidence bundle manifests |
+| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, non-executing replacement proposals, and explicit-root replacement writing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -967,12 +967,14 @@ repair.
 
 ## `aos work-record`
 
-`aos work-record` is the model-facing read-only consumer for Work Record v0
-artifacts. It can discover records from canonical fixture roots or explicit
-`--root` files/directories, read a record by id or path, run the named
-report-only verifier profile, explain conservative recovery guidance, and emit
-read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan, or
-compact evidence bundle JSON.
+`aos work-record` is the model-facing Work Record v0 command family. Most
+commands are read-only: they can discover records from canonical fixture roots
+or explicit `--root` files/directories, read a record by id or path, run the
+named report-only verifier profile, explain conservative recovery guidance, and
+emit read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan,
+Replacement Proposal, or compact evidence bundle JSON. The narrow exception is
+`replacement-proposal write`, which writes only a new replacement Work Record
+under an explicit `--output-root`.
 
 ```bash
 aos work-record list --json
@@ -986,6 +988,8 @@ aos work-record attempt-artifact validate repair-attempt-artifact.json --json
 aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
 aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
 aos work-record replacement-proposal validate replacement-proposal.json --json
+aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --dry-run --json
+aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
@@ -1119,7 +1123,7 @@ report `writes_replacement_record:false`, `mutates_source_record:false`,
 `executes_actions:false`, `applies_patches:false`, and
 `automatic_replay_allowed:false`. Supersession is proposed metadata only; the
 source Work Record is not edited to say it is superseded, and no replacement
-Work Record exists until a separate future writer persists one.
+Work Record exists until the Replacement Writer persists one.
 
 Proposal statuses are `proposed`, `not_required`, `blocked_attempt_failed`,
 `blocked_attempt_partial`, `blocked_missing_evidence`,
@@ -1131,6 +1135,38 @@ carried-forward evidence from the source Work Record to match. Failed, partial,
 cleanup-failed, rollback-failed, missing-evidence, verifier-contradicted,
 mismatched-plan, wrong-source, source-mutated, and unsupported artifacts fail
 closed.
+
+`replacement-proposal write` is the Replacement Writer V0 command. It accepts a
+validated `work_record.replacement_proposal` and an explicit `--output-root`;
+`--output-path` is optional but must stay under that root and use the
+deterministic replacement id filename. Dry-run mode reports the exact output
+path, replacement id, content digest, idempotency result, source immutability
+check, planned temp file, and side effects without writing. Write mode validates
+the proposal, materializes the proposed replacement as a Work Record v0 shape,
+checks source Work Record digest when source path/digest are present, rejects
+path traversal and symlink escape, writes through a temp file plus atomic
+rename, removes the temp file on success, treats identical existing content as
+`already_exists`, and refuses different existing content as `blocked_conflict`.
+
+The writer result envelope is `work_record.replacement_writer_result` with
+schema version `2026-07-work-record-replacement-writer-result-v0`. Statuses are
+`dry_run`, `written`, `already_exists`, `blocked_invalid_proposal`,
+`blocked_invalid_replacement_record`, `blocked_source_changed`,
+`blocked_output_escape`, `blocked_conflict`, `blocked_write_failed`,
+`blocked_cleanup_failed`, and `unsupported`. Successful writes report
+`writes_replacement_record:true`; dry-run reports
+`would_write_replacement_record:true` instead. Every status reports
+`mutates_source_record:false`, `rewrites_historical_evidence:false`,
+`executes_repair:false`, `executes_actions:false`, `applies_patches:false`, and
+`automatic_replay_allowed:false`.
+
+The written replacement Work Record records supersession only on the replacement
+record, not on the source. Its metadata links the source Work Record,
+Replacement Proposal, Repair Attempt Plan, and Repair Attempt Artifact; carries
+forward source evidence only through the proposal policy; includes new evidence
+from the Repair Attempt Artifact/proposal; and does not claim repair execution
+happened during the write. Existing `aos work-record list/read --root
+<output-root>` can discover and read the resulting JSON file.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

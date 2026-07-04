@@ -108,25 +108,34 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
-  perception state. That command family is report-only: it distinguishes
-  historical `claim_results[]` from the current verifier report, returns
-  conservative recovery guidance, emits read-only repair plans through
+  perception state. Most of that command family is report-only: it
+  distinguishes historical `claim_results[]` from the current verifier report,
+  returns conservative recovery guidance, emits read-only repair plans through
   `plan-repair`, builds Workflow Gate requests through `gate-request`, checks
   terminal gate records or resume events through `gate-check`, packages
   authorized or blocked future-attempt descriptors through `plan-attempt`, and
   validates or fixture-builds Repair Attempt Artifacts through
   `attempt-artifact`, and derives non-writing Replacement Proposals through
-  `replacement-proposal`. It never replays, repairs, applies candidate patches,
-  executes recommended commands, auto-resumes, mints replacement Work Records,
-  or mutates evidence. `gate-check` authorization only permits a future gated
+  `replacement-proposal build/validate`. It never replays, repairs, applies
+  candidate patches, executes recommended commands, auto-resumes, or mutates
+  source evidence. `gate-check` authorization only permits a future gated
   attempt; `plan-attempt` is not proof that repair happened and is only safe to
   hand to a future explicit executor when it reports `ready`. A Repair Attempt
   Artifact records attempted outcome data; it is not an executor. A Replacement
   Proposal proposes carried-forward evidence, new evidence, supersession
-  metadata, and final proposed health for a future writer; it is not a writer
-  and does not persist the proposed replacement Work Record.
+  metadata, and final proposed health; it is not itself a writer.
+- `aos work-record replacement-proposal write <proposal-path> --output-root
+  <dir> [--dry-run] --json` is the narrow Replacement Writer. It validates the
+  proposal, materializes a new replacement Work Record under the explicit output
+  root, writes atomically/idempotently, and leaves the source Work Record
+  unchanged. Dry-run reports the exact path, id, digest, idempotency, source
+  immutability check, and planned side effects without writing. Write results
+  still report `mutates_source_record:false`, `executes_repair:false`,
+  `executes_actions:false`, `applies_patches:false`, and
+  `automatic_replay_allowed:false`; do not treat a written replacement record as
+  evidence that repair execution happened.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

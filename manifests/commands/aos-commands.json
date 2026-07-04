@@ -10985,6 +10985,77 @@
         {
           "args" : [
             {
+              "id" : "proposal-path",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Validated Replacement Proposal JSON path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "output-root",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Explicit output root that will contain the written replacement Work Record",
+              "token" : "--output-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "output-path",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit output path; must stay under --output-root and use the deterministic replacement id filename",
+              "token" : "--output-path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Report the exact write target, digest, idempotency, and side effects without writing",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit stable machine-readable Replacement Writer result JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --dry-run --json",
+            "aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true,
+            "writes_replacement_record" : true,
+            "mutates_source_record" : false,
+            "executes_repair" : false,
+            "executes_actions" : false,
+            "applies_patches" : false,
+            "automatic_replay_allowed" : false,
+            "mutation_scope" : "explicit_output_root_only"
+          },
+          "id" : "work-record-replacement-proposal-write",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos work-record replacement-proposal write <proposal-path> --output-root <dir> [--output-path path] [--dry-run] [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "ref",
               "kind" : "positional",
               "required" : true,

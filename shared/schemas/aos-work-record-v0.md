@@ -587,6 +587,77 @@ and a structurally plausible proposed replacement shape marked
 missing-evidence, verifier-contradicted, mismatched-plan, wrong-source,
 source-mutated, and unsupported artifacts fail closed.
 
+## Replacement Writer V0
+
+The Replacement Writer is the controlled persistence step after a validated
+Replacement Proposal. It writes only the proposed replacement Work Record under
+an explicit output root; it is not a repair executor, replay executor, patch
+applier, Workflow engine, source-record supersession writer, or auto-resume
+surface.
+
+The toolkit result contract is `work_record.replacement_writer_result` with
+schema version `2026-07-work-record-replacement-writer-result-v0`. The envelope
+includes:
+
+```json
+{
+  "type": "work_record.replacement_writer_result",
+  "schema_version": "2026-07-work-record-replacement-writer-result-v0",
+  "status": "written",
+  "mode": "write",
+  "replacement_proposal": {},
+  "source_work_record": {},
+  "written_replacement_work_record": {},
+  "output": {},
+  "idempotency": {},
+  "source_immutability_check": {},
+  "atomic_write": {},
+  "side_effects": [],
+  "writes_replacement_record": true,
+  "would_write_replacement_record": false,
+  "mutates_source_record": false,
+  "rewrites_historical_evidence": false,
+  "executes_repair": false,
+  "executes_actions": false,
+  "applies_patches": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": [],
+  "recommended_next": {}
+}
+```
+
+Supported statuses are `dry_run`, `written`, `already_exists`,
+`blocked_invalid_proposal`, `blocked_invalid_replacement_record`,
+`blocked_source_changed`, `blocked_output_escape`, `blocked_conflict`,
+`blocked_write_failed`, `blocked_cleanup_failed`, and `unsupported`.
+`writes_replacement_record:true` is valid only for `written` and
+`already_exists`; `dry_run` reports `would_write_replacement_record:true`
+without writing.
+
+The writer requires `output_root` for every write or dry-run. An optional
+`output_path` must remain under `output_root` and use the deterministic filename
+derived from the replacement Work Record id. The writer rejects traversal and
+symlink escape, creates missing directories only below the explicit root,
+writes through a temporary file plus atomic rename, removes the temp file on
+success, reports cleanup failures explicitly, treats identical existing content
+as idempotent `already_exists`, and refuses different existing content as
+`blocked_conflict`.
+
+Before writing, the writer validates the Replacement Proposal, materializes the
+proposed replacement as a Work Record v0 shape, validates the materialized shape
+with the existing report-only verifier/profile expectations, and rechecks the
+source Work Record digest when source path and digest are present. A digest
+mismatch returns `blocked_source_changed`; the source Work Record is never
+edited.
+
+The written replacement Work Record has a stable id and provenance metadata
+linking source Work Record, Replacement Proposal, Repair Attempt Plan, and
+Repair Attempt Artifact. It carries forward source evidence only through the
+proposal policy, includes new evidence from the Repair Attempt
+Artifact/proposal, records supersession on the replacement record only, and does
+not claim that repair, replay, recommended commands, candidate patches,
+cleanup/rollback, or source-record supersession happened during the write.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work

@@ -239,6 +239,27 @@
     {
       "path": [
         "work-record",
+        "replacement-proposal",
+        "write"
+      ],
+      "summary": "Write validated Work Record Replacement Proposals under an explicit output root.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "replacement-proposal",
+        "write"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
         "gate-check"
       ],
       "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",

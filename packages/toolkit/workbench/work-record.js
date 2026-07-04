@@ -8,6 +8,7 @@ export * from './work-record-repair-attempt-artifact.js';
 export * from './work-record-repair-attempt-plan.js';
 export * from './work-record-repair-plan.js';
 export * from './work-record-replacement-proposal.js';
+export * from './work-record-replacement-writer.js';
 export * from './work-record-workflow-gate.js';
 export * from './work-record-subject.js';
 export * from './work-record-verifier.js';
