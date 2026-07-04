@@ -310,15 +310,15 @@ The corresponding missing-fact identifiers are `app_pid`, `window_id`,
 is `true`, `permission_state` is unsatisfied unless the captured value is
 `granted`, and `native_saved_ref_evidence` is unsatisfied unless the producer
 marks it actionable with complete known-limit facts.
-When a native capture already includes that full durable identity contract with
+When a native capture includes that full durable identity contract with
 `enabled: true`, `permission_state: granted`, a captured baseline, and
 `native_saved_ref_evidence` as an actionable verdict, the saved ref can become
 `stable` and support only capture-declared native `press`, `focus`, and
-`set-value`. The Swift producer keeps live native captures inspection-only
-until it emits complete known-limit facts, including concrete off-Space,
-minimized-window, custom-control, canvas/game-surface, and focus-mismatch
-blockers; without that complete known-limit evidence, the saved ref remains
-`volatile`.
+`set-value`. The Swift producer emits native known-limit facts for visible
+native AX captures, including concrete off-Space, minimized-window,
+custom-control, canvas/game-surface, and focus-mismatch signals. Without
+complete known-limit evidence, or when those facts contain a blocker, the saved
+ref remains `volatile`.
 Stable actions convert the saved facts to the existing direct AX selector flags,
 report
 `direct_ax_ready` / `requires_direct_ax_current_matching`, and return the

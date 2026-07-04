@@ -19,11 +19,19 @@ func cliSessionState(args: [String]) -> SessionState {
 }
 
 /// Print a v1-compatible legacy response to stdout.
-func cliPrintLegacy(action: String, backend: String, target: LegacyTargetInfo, detail: String? = nil, dryRun: Bool, stateID: String? = nil) {
+func cliPrintLegacy(
+    action: String,
+    backend: String,
+    target: LegacyTargetInfo,
+    detail: String? = nil,
+    dryRun: Bool,
+    stateID: String? = nil,
+    execution: ActionExecutionMetadata? = nil
+) {
     var resp = LegacySuccessResponse(status: dryRun ? "dry_run" : "success", action: action, backend: backend, target: target)
     resp.detail = detail
     let normalizedAction = action.replacingOccurrences(of: "-", with: "_")
-    resp.execution = ActionExecutionMetadata(
+    resp.execution = execution ?? ActionExecutionMetadata(
         strategy: dryRun ? "dry_run_\(normalizedAction)" : "\(backend)_\(normalizedAction)",
         backend: backend,
         fallback_used: false,
@@ -206,7 +214,7 @@ func cliPress(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "press failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "press", backend: "ax", target: target, dryRun: false)
+    cliPrintLegacy(action: "press", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
 
 /// `aos do set-value` — set the value of an AX element.

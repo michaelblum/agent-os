@@ -230,9 +230,9 @@ matrix:
   `ax_identifier`, `enabled: true`, `action_names`,
   `permission_state: granted`, `focus_cursor_space_baseline` as a captured
   baseline, and `native_saved_ref_evidence` as an actionable verdict. The
-  current Swift producer emits an inspection-only verdict until it can prove
-  complete known-limit facts, so live native captures remain `volatile` unless a
-  native producer explicitly emits an actionable verdict. Stable refs support
+  Swift producer emits native known-limit facts for visible native AX captures;
+  live native captures remain `volatile` when those facts are incomplete or
+  contain a blocker. Stable refs support
   only capture-declared `press`, `focus`, and `set-value`, convert saved facts to
   direct AX selector flags, and report `direct_ax_ready` plus
   `requires_direct_ax_current_matching`. Treat their `underlying_result` as a

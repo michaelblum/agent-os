@@ -35,7 +35,15 @@ if [[ -z "$out" ]]; then
     exit 1
 fi
 printf 'swiftc\n' >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
-printf 'fake binary\n' > "$out"
+cat > "$out" <<'BIN'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "help" && "${2:-}" == "--json" ]]; then
+  printf '{"commands":[]}\n'
+  exit 0
+fi
+printf 'fake binary\n'
+BIN
+chmod +x "$out"
 EOF
 chmod +x "$FAKE_BIN/swiftc"
 
@@ -55,7 +63,7 @@ if [[ -z "$target" ]]; then
     echo "missing target" >&2
     exit 1
 fi
-printf 'codesign\n' >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
+printf 'codesign %s\n' "$*" >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
 touch "$target.signed"
 EOF
 chmod +x "$FAKE_BIN/codesign"
@@ -65,8 +73,18 @@ REPAIR_OUT="$TMP/repair.out"
 UP_TO_DATE_OUT="$TMP/up-to-date.out"
 
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
-if [[ "$(cat "$LOG")" != $'swiftc\ncodesign' ]]; then
+if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
     echo "FAIL: first build did not compile and sign" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q -- '--identifier com.agentos.repo-aos' "$LOG"; then
+    echo "FAIL: build signing must use the repo-launchable identifier" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if grep -q -- '--identifier aos\\>' "$LOG"; then
+    echo "FAIL: build signing must not force the launch-breaking bare aos identifier" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -74,8 +92,18 @@ fi
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
-if [[ "$(cat "$LOG")" != "codesign" ]]; then
+if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG"; then
     echo "FAIL: signature repair should sign without compiling" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q -- '--identifier com.agentos.repo-aos' "$LOG"; then
+    echo "FAIL: signature repair must use the repo-launchable identifier" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if grep -q -- '--identifier aos\\>' "$LOG"; then
+    echo "FAIL: signature repair must not force the launch-breaking bare aos identifier" >&2
     cat "$LOG" >&2
     exit 1
 fi

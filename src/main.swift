@@ -125,7 +125,7 @@ private func handleDoPrimitive(args: [String]) {
         ensureInteractivePreflight(command: "aos do key", requiresInputTap: true)
         cliKey(args: subArgs)
     case "press":
-        ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
+        ensureInteractivePreflight(command: "aos do press")
         cliPress(args: subArgs)
     case "set-value":
         ensureInteractivePreflight(command: "aos do set-value", requiresInputTap: doPrimitiveRequiresInputTap("set-value", args: subArgs))

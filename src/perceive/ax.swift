@@ -112,6 +112,66 @@ func nativeAXFocusCursorSpaceBaseline() -> NativeFocusCursorSpaceBaselineJSON {
     )
 }
 
+func nativeAXWindowElement(_ element: AXUIElement) -> AXUIElement? {
+    var value: AnyObject?
+    if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &value) == .success,
+       let window = value {
+        return (window as! AXUIElement)
+    }
+
+    var current: AXUIElement? = element
+    var depth = 0
+    while let candidate = current, depth < 8 {
+        if axString(candidate, kAXRoleAttribute) == "AXWindow" {
+            return candidate
+        }
+        current = axParent(candidate)
+        depth += 1
+    }
+    return nil
+}
+
+func nativeAXWindowOnCurrentSpace(windowID: Int?) -> Bool? {
+    guard let windowID else { return nil }
+    guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+        return nil
+    }
+    return list.contains { info in
+        if let number = info[kCGWindowNumber as String] as? Int {
+            return number == windowID
+        }
+        if let number = info[kCGWindowNumber as String] as? NSNumber {
+            return number.intValue == windowID
+        }
+        return false
+    }
+}
+
+func nativeAXControlKind(role: String, subrole: String?) -> String {
+    if let subrole, subrole.lowercased().contains("unknown") {
+        return "custom_control"
+    }
+    switch role {
+    case "AXButton", "AXCheckBox", "AXRadioButton", "AXTextField", "AXTextArea",
+         "AXPopUpButton", "AXSlider", "AXMenuItem", "AXTabGroup", "AXLink":
+        return "standard_control"
+    case "AXGroup", "AXUnknown":
+        return "custom_control"
+    default:
+        return "standard_control"
+    }
+}
+
+func nativeAXSurfaceKind(role: String, subrole: String?, title: String?, label: String?) -> String {
+    let haystack = [role, subrole, title, label]
+        .compactMap { $0?.lowercased() }
+        .joined(separator: " ")
+    if haystack.contains("canvas") || haystack.contains("game") {
+        return "game_canvas"
+    }
+    return "native_app"
+}
+
 func nativeAXSavedRefEvidence(
     appPID: Int?,
     windowID: Int?,
@@ -169,12 +229,91 @@ func nativeAXSavedRefEvidence(
         )
     }
 
-    NativeSavedRefEvidenceJSON(
+    return NativeSavedRefEvidenceJSON(
         status: "inspection_only",
         actionability: "inspection_only",
         known_limit_facts_complete: false,
         producer: "native_ax",
         reasons: reasons
+    )
+}
+
+struct NativeAXKnownLimitFacts {
+    let windowState: String?
+    let spaceState: String?
+    let controlKind: String?
+    let surfaceKind: String?
+    let focusState: String?
+    let minimized: Bool?
+    let offSpace: Bool?
+    let customControl: Bool?
+    let canvasSurface: Bool?
+    let complete: Bool
+    let blockers: [String]
+}
+
+func nativeAXKnownLimitFacts(
+    element: AXUIElement,
+    role: String,
+    title: String?,
+    label: String?,
+    hidden: Bool,
+    windowID: Int?
+) -> NativeAXKnownLimitFacts {
+    let windowElement = nativeAXWindowElement(element)
+    let minimized = windowElement.flatMap { axBool($0, kAXMinimizedAttribute as String) } ?? false
+    let windowState = hidden ? "hidden" : minimized ? "minimized" : "visible"
+
+    let onCurrentSpace = nativeAXWindowOnCurrentSpace(windowID: windowID)
+    let spaceState = onCurrentSpace.map { $0 ? "visible_current_space" : "off_space" }
+    let offSpace = onCurrentSpace.map { !$0 }
+
+    let subrole = axString(element, kAXSubroleAttribute as String)
+    let controlKind = nativeAXControlKind(role: role, subrole: subrole)
+    let surfaceKind = nativeAXSurfaceKind(role: role, subrole: subrole, title: title, label: label)
+    let focusState = "not_changed"
+    let customControl = controlKind == "custom_control"
+    let canvasSurface = surfaceKind != "native_app"
+
+    var blockers: [String] = []
+    if hidden {
+        blockers.append("native AX target was captured in a hidden window")
+    }
+    if minimized {
+        blockers.append("native AX target was captured in a minimized window")
+    }
+    if offSpace == true {
+        blockers.append("native AX target was captured off-Space")
+    }
+    if customControl {
+        blockers.append("native AX target is a custom control")
+    }
+    if canvasSurface {
+        blockers.append("native AX target belongs to a canvas/game surface")
+    }
+    if focusState == "mismatch" {
+        blockers.append("native AX focus baseline reports mismatch")
+    }
+
+    let complete = windowID != nil
+        && onCurrentSpace != nil
+        && !windowState.isEmpty
+        && !controlKind.isEmpty
+        && !surfaceKind.isEmpty
+        && !focusState.isEmpty
+
+    return NativeAXKnownLimitFacts(
+        windowState: windowState,
+        spaceState: spaceState,
+        controlKind: controlKind,
+        surfaceKind: surfaceKind,
+        focusState: focusState,
+        minimized: minimized,
+        offSpace: offSpace,
+        customControl: customControl,
+        canvasSurface: canvasSurface,
+        complete: complete,
+        blockers: blockers
     )
 }
 
@@ -444,6 +583,14 @@ func traverseAXElements(
     let axIdentifier = axString(element, kAXIdentifierAttribute as String)
     let actionNames = nativeAXSavedActionNames(element)
     let focusCursorSpaceBaseline = nativeAXFocusCursorSpaceBaseline()
+    let knownLimitFacts = nativeAXKnownLimitFacts(
+        element: element,
+        role: role,
+        title: title,
+        label: label,
+        hidden: hidden,
+        windowID: windowID
+    )
 
     // Spatial check + emit raw visible elements. Consumers own semantic filtering.
     if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
@@ -468,8 +615,19 @@ func traverseAXElements(
                     enabled: enabled,
                     actionNames: actionNames,
                     permissionState: permissionState,
-                    baseline: focusCursorSpaceBaseline
+                    baseline: focusCursorSpaceBaseline,
+                    knownLimitFactsComplete: knownLimitFacts.complete,
+                    knownLimitBlockers: knownLimitFacts.blockers
                 ),
+                window_state: knownLimitFacts.windowState,
+                space_state: knownLimitFacts.spaceState,
+                control_kind: knownLimitFacts.controlKind,
+                surface_kind: knownLimitFacts.surfaceKind,
+                focus_state: knownLimitFacts.focusState,
+                minimized: knownLimitFacts.minimized,
+                off_space: knownLimitFacts.offSpace,
+                custom_control: knownLimitFacts.customControl,
+                canvas_surface: knownLimitFacts.canvasSurface,
                 context_path: contextPath,
                 bounds: BoundsJSON(
                     x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),

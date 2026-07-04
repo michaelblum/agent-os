@@ -262,6 +262,7 @@ function directNativeNoForegroundConformance(payload) {
   return nativeAxNoForegroundConformance({
     fallbackUsed: payloadBoolean(payload, 'fallback_used'),
     foregroundFallbackRequired: payloadBoolean(payload, 'foreground_fallback_required'),
+    focusPreservation: payload?.execution?.foreground_preservation,
   });
 }
 

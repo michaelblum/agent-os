@@ -110,6 +110,22 @@ case "$DO_OUT" in
   *) echo "FAIL: do click error code missing INPUT_TAP_NOT_ACTIVE: $DO_OUT (rc=$DO_RC)"; exit 1 ;;
 esac
 
+# Direct native AX press does not synthesize mouse/keyboard events and should
+# reach AX argument validation even when the daemon input tap is degraded.
+set +e
+PRESS_OUT="$(./aos __do press 2>&1)"
+PRESS_RC=$?
+set -e
+if [ "$PRESS_RC" -eq 0 ]; then
+  echo "FAIL: do press unexpectedly exited 0 without a target: $PRESS_OUT"
+  exit 1
+fi
+case "$PRESS_OUT" in
+  *INPUT_TAP_NOT_ACTIVE*) echo "FAIL: direct AX press must not be blocked by input tap preflight: $PRESS_OUT"; exit 1 ;;
+  *MISSING_ARG*|*"press requires --pid"*) echo "PASS: do press bypasses input tap gate and reaches AX validation" ;;
+  *) echo "FAIL: do press did not reach expected AX validation: $PRESS_OUT (rc=$PRESS_RC)"; exit 1 ;;
+esac
+
 # ready --json should prefer the targeted reset transaction over direct
 # Settings actions when stale daemon-owned TCC/input tap grants require recovery.
 set +e

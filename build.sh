@@ -95,7 +95,7 @@ signature_valid() {
 
 sign_output() {
     if codesign_available; then
-        if ! CODESIGN_OUTPUT="$(codesign --force --sign - "$OUTPUT_PATH" 2>&1)"; then
+        if ! CODESIGN_OUTPUT="$(codesign --force --sign - --identifier com.agentos.repo-aos "$1" 2>&1)"; then
             printf '%s\n' "$CODESIGN_OUTPUT" >&2
             exit 1
         fi
@@ -134,11 +134,28 @@ fi
 
 if [[ $NEEDS_BUILD -eq 1 ]]; then
     echo "Compiling aos ($BUILD_MODE)..."
-    swiftc "${SWIFTC_FLAGS[@]}" "${SWIFT_INPUTS[@]}"
+    TMP_OUTPUT="$(mktemp "$BUILD_DIR/aos.tmp.XXXXXX")"
+    cleanup_tmp_output() {
+        rm -f "$TMP_OUTPUT"
+    }
+    trap cleanup_tmp_output EXIT
+    TMP_SWIFTC_FLAGS=("${SWIFTC_FLAGS[@]}")
+    for i in "${!TMP_SWIFTC_FLAGS[@]}"; do
+        if [[ "${TMP_SWIFTC_FLAGS[$i]}" == "$OUTPUT_PATH" ]]; then
+            TMP_SWIFTC_FLAGS[$i]="$TMP_OUTPUT"
+        fi
+    done
+    swiftc "${TMP_SWIFTC_FLAGS[@]}" "${SWIFT_INPUTS[@]}"
+    sign_output "$TMP_OUTPUT"
+    "$TMP_OUTPUT" help --json >/dev/null
+    cp "$TMP_OUTPUT" "$OUTPUT_PATH"
+    rm -f "$TMP_OUTPUT"
+    trap - EXIT
 else
     echo "Signing aos ($BUILD_MODE)..."
+    sign_output "$OUTPUT_PATH"
+    "$OUTPUT_PATH" help --json >/dev/null
 fi
-sign_output
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"

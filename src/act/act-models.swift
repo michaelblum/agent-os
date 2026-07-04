@@ -124,6 +124,13 @@ struct ActionExecutionMetadata: Encodable {
     let backend: String
     let fallback_used: Bool
     let state_id: String?
+    var foreground_before_pid: Int? = nil
+    var foreground_before_app: String? = nil
+    var foreground_after_pid: Int? = nil
+    var foreground_after_app: String? = nil
+    var foreground_restore_attempted: Bool? = nil
+    var foreground_restore_success: Bool? = nil
+    var foreground_preservation: String? = nil
 }
 
 struct AvailableAction: Encodable {

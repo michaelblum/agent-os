@@ -85,6 +85,83 @@ private func allAliases(for name: String) -> [String] {
     }
 }
 
+private struct FrontmostAppSnapshot {
+    let pid: pid_t
+    let name: String
+    let app: NSRunningApplication
+
+    static func current() -> FrontmostAppSnapshot? {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+        return FrontmostAppSnapshot(
+            pid: app.processIdentifier,
+            name: app.localizedName ?? "Unknown",
+            app: app
+        )
+    }
+}
+
+private struct ForegroundRestorationResult {
+    let before: FrontmostAppSnapshot?
+    let after: FrontmostAppSnapshot?
+    let attempted: Bool
+    let success: Bool
+    let preservation: String
+}
+
+private func waitForFrontmostPID(_ pid: pid_t, timeoutMs: Int = 500) -> FrontmostAppSnapshot? {
+    let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+    repeat {
+        if let current = FrontmostAppSnapshot.current(), current.pid == pid {
+            return current
+        }
+        usleep(25_000)
+    } while Date() < deadline
+    return FrontmostAppSnapshot.current()
+}
+
+private func restoreForegroundIfNeeded(_ before: FrontmostAppSnapshot?) -> ForegroundRestorationResult {
+    guard let before else {
+        return ForegroundRestorationResult(
+            before: nil,
+            after: FrontmostAppSnapshot.current(),
+            attempted: false,
+            success: false,
+            preservation: "unknown"
+        )
+    }
+
+    guard let immediateAfter = FrontmostAppSnapshot.current() else {
+        return ForegroundRestorationResult(
+            before: before,
+            after: nil,
+            attempted: false,
+            success: false,
+            preservation: "unknown"
+        )
+    }
+
+    if immediateAfter.pid == before.pid {
+        return ForegroundRestorationResult(
+            before: before,
+            after: immediateAfter,
+            attempted: false,
+            success: true,
+            preservation: "preserved"
+        )
+    }
+
+    let attempted = before.app.activate(options: [.activateAllWindows])
+    let final = waitForFrontmostPID(before.pid)
+    let success = final?.pid == before.pid
+    return ForegroundRestorationResult(
+        before: before,
+        after: final,
+        attempted: true,
+        success: success,
+        preservation: success ? "restored" : "changed_unrestored"
+    )
+}
+
 // MARK: - CGEvent Action Handlers
 
 /// Move cursor to (req.x, req.y) along a profile-driven Bezier curve.
@@ -509,11 +586,21 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     switch findElement(query: query) {
     case .found(let element):
+        let foregroundBefore = FrontmostAppSnapshot.current()
         let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
         if result != .success {
             return errorResponse("press", state: state, message: "AXPress failed with code \(result.rawValue)", code: "AX_ACTION_FAILED")
         }
-        return okResponse("press", state: state, start: start, backend: "ax", strategy: "ax_press", stateID: req.state_id)
+        let foreground = restoreForegroundIfNeeded(foregroundBefore)
+        return okResponse("press", state: state, start: start, backend: "ax", strategy: "ax_press", stateID: req.state_id) { resp in
+            resp.execution?.foreground_before_pid = foreground.before.map { Int($0.pid) }
+            resp.execution?.foreground_before_app = foreground.before?.name
+            resp.execution?.foreground_after_pid = foreground.after.map { Int($0.pid) }
+            resp.execution?.foreground_after_app = foreground.after?.name
+            resp.execution?.foreground_restore_attempted = foreground.attempted
+            resp.execution?.foreground_restore_success = foreground.success
+            resp.execution?.foreground_preservation = foreground.preservation
+        }
     case .notFound(let msg):
         return errorResponse("press", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
     case .timeout:

@@ -30,9 +30,16 @@ grep -q 'knownLimitFactsComplete: Bool = false' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX saved-ref evidence must default to incomplete known-limit facts"
 grep -q 'if knownLimitFactsComplete && reasons.isEmpty' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX saved-ref evidence must not become actionable without complete known-limit facts"
-if grep -q 'knownLimitFactsComplete: true' "$ROOT/src/perceive/ax.swift"; then
-    fail "live Swift native AX traversal must not mark known-limit facts complete until it emits concrete blockers"
-fi
+grep -q 'struct NativeAXKnownLimitFacts' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX traversal must model known-limit facts before marking saved refs actionable"
+grep -q 'knownLimitFactsComplete: knownLimitFacts.complete' "$ROOT/src/perceive/ax.swift" \
+    || fail "live Swift native AX traversal must derive known-limit completeness from concrete facts"
+grep -q 'knownLimitBlockers: knownLimitFacts.blockers' "$ROOT/src/perceive/ax.swift" \
+    || fail "live Swift native AX traversal must feed concrete known-limit blockers into the producer verdict"
+for fact in window_state space_state control_kind surface_kind focus_state minimized off_space custom_control canvas_surface; do
+    grep -q "$fact: knownLimitFacts" "$ROOT/src/perceive/ax.swift" \
+        || fail "native AX traversal must emit $fact from concrete known-limit facts"
+done
 grep -q 'actionability: "direct_ax_saved_ref_mutation"' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX producer must emit actionable saved-ref evidence for durable safe captures"
 grep -q 'actionability: "inspection_only"' "$ROOT/src/perceive/ax.swift" \
