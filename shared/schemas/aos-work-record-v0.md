@@ -801,6 +801,80 @@ and the recommended next `aos work-record read` command. Supersession lookup is
 external discovery metadata; it is not verifier health and does not mean the
 source Work Record was mutated.
 
+## Repair Finalization Result V0
+
+Repair Finalization V0 is a bounded composition/write step after an
+already-produced successful Repair Attempt Artifact. It does not introduce a
+Workflow engine, arbitrary executor, replay runner, patch applier, source
+mutation path, recommended-command runner, live UI proof path, or auto-resume
+loop. It composes the existing lower-level contracts:
+
+```text
+Repair Attempt Artifact -> Replacement Proposal -> Replacement Writer -> Source Supersession Index -> Finalization Result
+```
+
+The result contract is `work_record.repair_finalization_result` with schema
+version `2026-07-work-record-repair-finalization-result-v0`. The envelope
+includes:
+
+```json
+{
+  "type": "work_record.repair_finalization_result",
+  "schema_version": "2026-07-work-record-repair-finalization-result-v0",
+  "finalizer_implementation_version": "2026-07-work-record-repair-finalizer-v0",
+  "status": "finalized",
+  "mode": "write",
+  "dry_run": false,
+  "writes_replacement_record": true,
+  "writes_supersession_index_entry": true,
+  "source_work_record": {},
+  "repair_attempt_plan": {},
+  "repair_attempt_artifact": {},
+  "replacement_proposal": {},
+  "replacement_writer_result": {},
+  "supersession_index_result": {},
+  "readback": {},
+  "side_effects": [],
+  "executes_repair": false,
+  "executes_actions": false,
+  "uses_live_ui": false,
+  "uses_browser": false,
+  "uses_native_ax": false,
+  "uses_canvas": false,
+  "applies_patches": false,
+  "mutates_source_record": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": [],
+  "recovery": {},
+  "recommended_next": {}
+}
+```
+
+Supported statuses are `dry_run`, `finalized`, `already_finalized`,
+`not_required`, `blocked_invalid_source`, `blocked_invalid_attempt_plan`,
+`blocked_invalid_attempt_artifact`, `blocked_attempt_not_successful`,
+`blocked_missing_evidence`, `blocked_source_mutated`,
+`blocked_health_mismatch`, `blocked_replacement_proposal`,
+`blocked_replacement_write`, `blocked_supersession_write`,
+`blocked_path_escape`, `blocked_conflict`, `partial_finalized`, `stale`,
+`mismatch`, and `unsupported`.
+
+Dry-run validates the source, attempt plan, attempt artifact, proposal, and
+writer dry-run path, reports the intended replacement and supersession outputs
+when they can be computed safely, and writes nothing. Execute mode writes only
+the replacement Work Record under the explicit replacement root and the source
+supersession entry under the explicit index root. The source Work Record bytes
+must be unchanged before and after finalization.
+
+`finalized` requires a valid source, valid Repair Attempt Plan, validated
+succeeded Repair Attempt Artifact, valid Replacement Proposal, durable
+schema-valid replacement Work Record, durable valid Source Supersession Index
+entry, active supersession lookup, and unchanged source digest.
+`already_finalized` is the idempotent status for matching replacement and
+supersession outputs that already exist. `partial_finalized` is a failure
+status used when a replacement has been written but the supersession entry is
+missing or invalid; recovery must be explicit through `supersession write`.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work

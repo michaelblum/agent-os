@@ -103,7 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
-| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, and external source supersession lookup/indexing |
+| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -979,7 +979,9 @@ explicit `--execution-root` and writes a Repair Attempt Artifact under an
 explicit `--artifact-root`; `replacement-proposal write`, which writes only a
 new replacement Work Record under an explicit `--output-root`; and
 `supersession write`, which writes only an external relationship entry under an
-explicit `--index-root`.
+explicit `--index-root`; and `repair finalize`, which composes a successful
+Repair Attempt Artifact into one replacement Work Record plus one Source
+Supersession Index entry under explicit roots.
 
 ```bash
 aos work-record list --json
@@ -991,6 +993,8 @@ aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
+aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
+aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
 aos work-record attempt-artifact validate repair-attempt-artifact.json --json
 aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
 aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
@@ -1148,6 +1152,57 @@ artifacts fail closed.
 Both attempt-artifact commands are read-only command surfaces:
 `mutates_state:false`, `executes_repair:false`, `executes_actions:false`,
 `applies_patches:false`, and `automatic_replay_allowed:false`.
+
+`repair finalize` is the bounded Repair Finalization V0 composition step after
+an already-produced successful Repair Attempt Artifact. It accepts a source
+Work Record, Repair Attempt Plan JSON, Repair Attempt Artifact JSON, explicit
+`--replacement-root`, and explicit `--index-root`; then it builds the
+Replacement Proposal internally, validates the existing plan/artifact/proposal
+contracts, calls the Replacement Writer, calls the Source Supersession Index
+writer, and returns one `work_record.repair_finalization_result` envelope.
+`--replacement-output-path` is optional and must remain under
+`--replacement-root` with the deterministic replacement id filename.
+
+Finalization does not replace the lower-level commands. It is a single
+deterministic path for the common successful case:
+
+```text
+Repair Attempt Artifact -> Replacement Proposal -> Replacement Writer -> Source Supersession Index -> Finalization Result
+```
+
+Dry-run mode writes nothing. It reports the intended replacement output and
+supersession index identity/path when they can be computed safely. Execute mode
+writes only the replacement Work Record under `--replacement-root` and the
+external supersession entry under `--index-root`; it never mutates the source
+Work Record. Repeating the same finalization is idempotent when both existing
+outputs match and returns `already_finalized`.
+
+The finalization result records schema/version, finalizer implementation
+version, status, source Work Record path and before/after digest, Repair
+Attempt Plan digest/status/validation, Repair Attempt Artifact
+digest/status/validation, Replacement Proposal identity/digest/status,
+Replacement Writer result, Source Supersession Index writer result, readback
+validation, side effects, recovery guidance, and exact non-execution flags:
+`executes_repair:false`, `executes_actions:false`, `uses_live_ui:false`,
+`uses_browser:false`, `uses_native_ax:false`, `uses_canvas:false`,
+`applies_patches:false`, `mutates_source_record:false`, and
+`automatic_replay_allowed:false`.
+
+Finalization statuses include `dry_run`, `finalized`,
+`already_finalized`, `not_required`, `blocked_invalid_source`,
+`blocked_invalid_attempt_plan`, `blocked_invalid_attempt_artifact`,
+`blocked_attempt_not_successful`, `blocked_missing_evidence`,
+`blocked_source_mutated`, `blocked_health_mismatch`,
+`blocked_replacement_proposal`, `blocked_replacement_write`,
+`blocked_supersession_write`, `blocked_path_escape`, `blocked_conflict`,
+`partial_finalized`, `stale`, `mismatch`, and `unsupported`. Partial states
+are first-class failures: if the replacement write succeeds but supersession
+writing fails, the command exits non-zero with `partial_finalized`, exposes the
+replacement path, and recommends the explicit supersession recovery command.
+
+`repair finalize` does not execute repair, replay actions, run recommended
+commands, apply patches, use browser/native AX/canvas/live UI surfaces, start a
+Workflow engine, or auto-resume agents.
 
 The Work Record CLI adapter delegates nested command families to separate
 script handlers for repair execution, attempt artifacts, replacement proposals,

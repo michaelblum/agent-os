@@ -51,6 +51,7 @@ function usage() {
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]
+  ./aos work-record repair finalize --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir> --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path] [--dry-run] [--json]
   ./aos work-record attempt-artifact validate <artifact-path> [--json]
   ./aos work-record attempt-artifact build --input <outcome-input-path> [--json]
   ./aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]
@@ -84,6 +85,7 @@ function parseArgs(argv) {
     outputPath: '',
     replacement: '',
     replacementRoots: [],
+    replacementOutputPath: '',
     indexRoot: '',
     writerResult: '',
     executionRoot: '',
@@ -177,6 +179,11 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--replacement-root requires a path', 'MISSING_ARG');
       options.replacementRoots.push(value);
+      index += 1;
+    } else if (arg === '--replacement-output-path') {
+      const value = argv[index + 1];
+      if (!value) fail('--replacement-output-path requires a JSON path', 'MISSING_ARG');
+      options.replacementOutputPath = value;
       index += 1;
     } else if (arg === '--index-root') {
       const value = argv[index + 1];

@@ -176,6 +176,27 @@
     {
       "path": [
         "work-record",
+        "repair",
+        "finalize"
+      ],
+      "summary": "Finalize a successful Work Record repair attempt into a replacement record and supersession index entry through explicit roots.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "repair",
+        "finalize"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
         "attempt-artifact",
         "validate"
       ],

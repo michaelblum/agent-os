@@ -103,11 +103,20 @@ function findCommand(commands, pathArgs) {
   const exact = commands.find((command) => arrayEqual(command.path, pathArgs));
   if (exact) return exact;
   if (pathArgs.length < 2) return null;
-  const parentPath = pathArgs.slice(0, -1);
-  const sub = pathArgs[pathArgs.length - 1];
-  const formPrefix = `${parentPath[parentPath.length - 1]}-${sub}`;
-  const parent = commands.find((command) => arrayEqual(command.path, parentPath));
+  let parent = null;
+  let parentPath = [];
+  for (let size = pathArgs.length - 1; size >= 1; size -= 1) {
+    const candidatePath = pathArgs.slice(0, size);
+    const candidate = commands.find((command) => arrayEqual(command.path, candidatePath));
+    if (candidate) {
+      parent = candidate;
+      parentPath = candidatePath;
+      break;
+    }
+  }
   if (!parent) return null;
+  const suffix = pathArgs.slice(parentPath.length).join('-');
+  const formPrefix = suffix ? `${parentPath[parentPath.length - 1]}-${suffix}` : parentPath.join('-');
   const forms = (parent.forms || []).filter((form) => {
     const formID = String(form.id);
     return formID === formPrefix || formID.startsWith(`${formPrefix}-`);

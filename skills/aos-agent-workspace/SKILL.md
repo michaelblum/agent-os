@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair execute/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -133,6 +133,20 @@ the returned `recommended_next`, `recommended_next_commands`, or
   Proposal proposes carried-forward evidence, new evidence, per-postcondition
   evidence mapping, supersession metadata, and final proposed health; it is not
   itself a writer.
+- `aos work-record repair finalize --source <id-or-path> --attempt-plan
+  <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
+  --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]
+  [--dry-run] --json` is the bounded finalization composition step for the
+  common successful case. It internally builds the Replacement Proposal, calls
+  the Replacement Writer, writes the Source Supersession Index entry, and
+  returns one `work_record.repair_finalization_result`. Dry-run writes nothing.
+  Execute mode writes only under the explicit replacement and index roots,
+  preserves source Work Record bytes, is idempotent for matching existing
+  outputs, and reports `partial_finalized` as a failure when replacement writing
+  succeeds but supersession writing does not. It does not execute repair,
+  replay actions, run recommended commands, apply patches, use browser/native
+  AX/canvas/live UI surfaces, start a Workflow engine, mutate the source Work
+  Record, or auto-resume agents.
 - `aos work-record replacement-proposal write <proposal-path> --output-root
   <dir> [--dry-run] --json` is the narrow Replacement Writer. It validates the
   proposal, materializes a new replacement Work Record under the explicit output

@@ -4,6 +4,7 @@ import {
   buildWorkRecordRepairAttemptArtifact,
   buildWorkRecordReplacementProposal,
   executeControlledWorkRecordRepair,
+  finalizeWorkRecordRepair,
   lookupWorkRecordSourceSupersession,
   readWorkRecord,
   validateWorkRecordRepairAttemptArtifact,
@@ -28,27 +29,57 @@ function digestFile(file) {
 }
 
 function failedResult(result) {
-  return result.status?.startsWith('blocked_') || result.status === 'unsupported' || result.status === 'conflict';
+  return result.status?.startsWith('blocked_')
+    || result.status === 'unsupported'
+    || result.status === 'conflict'
+    || result.status === 'partial_finalized'
+    || result.status === 'stale'
+    || result.status === 'mismatch';
 }
 
 export async function handleRepairFamily({ action, target, rest, options, fail, emitJSON }) {
   if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
-  if (action !== 'execute') fail(`Unknown repair subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-  if (!options.attemptPlan) fail('repair execute requires --attempt-plan <plan-path>', 'MISSING_ARG');
-  if (!options.executionRoot) fail('repair execute requires --execution-root <dir>', 'MISSING_ARG');
-  if (!options.artifactRoot) fail('repair execute requires --artifact-root <dir>', 'MISSING_ARG');
-  const result = await executeControlledWorkRecordRepair({
-    attemptPlanPath: options.attemptPlan,
-    executionRoot: options.executionRoot,
-    artifactRoot: options.artifactRoot,
-    operationId: options.operationId,
-    dryRun: options.dryRun,
-    repoRoot: process.cwd(),
-  });
-  const failed = result.status !== 'dry_run' && result.status !== 'succeeded';
-  emitJSON(result, failed);
-  if (failed) process.exit(1);
+  if (action === 'execute') {
+    if (!options.attemptPlan) fail('repair execute requires --attempt-plan <plan-path>', 'MISSING_ARG');
+    if (!options.executionRoot) fail('repair execute requires --execution-root <dir>', 'MISSING_ARG');
+    if (!options.artifactRoot) fail('repair execute requires --artifact-root <dir>', 'MISSING_ARG');
+    const result = await executeControlledWorkRecordRepair({
+      attemptPlanPath: options.attemptPlan,
+      executionRoot: options.executionRoot,
+      artifactRoot: options.artifactRoot,
+      operationId: options.operationId,
+      dryRun: options.dryRun,
+      repoRoot: process.cwd(),
+    });
+    const failed = result.status !== 'dry_run' && result.status !== 'succeeded';
+    emitJSON(result, failed);
+    if (failed) process.exit(1);
+    return true;
+  }
+  if (action === 'finalize') {
+    if (!options.source) fail('repair finalize requires --source <id-or-path>', 'MISSING_ARG');
+    if (!options.attemptPlan) fail('repair finalize requires --attempt-plan <plan-path>', 'MISSING_ARG');
+    if (!options.attemptArtifact) fail('repair finalize requires --attempt-artifact <artifact-path>', 'MISSING_ARG');
+    if (options.replacementRoots.length !== 1) fail('repair finalize requires exactly one --replacement-root <dir>', 'MISSING_ARG');
+    if (!options.indexRoot) fail('repair finalize requires --index-root <dir>', 'MISSING_ARG');
+    const result = finalizeWorkRecordRepair({
+      sourceRef: options.source,
+      attemptPlanPath: options.attemptPlan,
+      attemptArtifactPath: options.attemptArtifact,
+      replacementRoot: options.replacementRoots[0],
+      indexRoot: options.indexRoot,
+      proposedIdSeed: options.proposedIdSeed,
+      replacementOutputPath: options.replacementOutputPath,
+      dryRun: options.dryRun,
+      roots: options.roots,
+      repoRoot: process.cwd(),
+    });
+    emitJSON(result, failedResult(result));
+    if (failedResult(result)) process.exit(1);
+    return true;
+  }
+  fail(`Unknown repair subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   return true;
 }
 

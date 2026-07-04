@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "id": "work-record-finalization",
+  "path_prefix": [
+    "work-record"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "source",
+              "kind": "flag",
+              "required": true,
+              "summary": "Source Work Record id, Subject Entry Handle, or JSON path",
+              "token": "--source",
+              "value_type": "string"
+            },
+            {
+              "id": "attempt-plan",
+              "kind": "flag",
+              "required": true,
+              "summary": "Repair Attempt Plan JSON path",
+              "token": "--attempt-plan",
+              "value_type": "string"
+            },
+            {
+              "id": "attempt-artifact",
+              "kind": "flag",
+              "required": true,
+              "summary": "Repair Attempt Artifact JSON path",
+              "token": "--attempt-artifact",
+              "value_type": "string"
+            },
+            {
+              "id": "replacement-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit replacement Work Record root; only this root may be written",
+              "token": "--replacement-root",
+              "value_type": "string"
+            },
+            {
+              "id": "index-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit Source Supersession Index root; only this root may be written",
+              "token": "--index-root",
+              "value_type": "string"
+            },
+            {
+              "id": "proposed-id-seed",
+              "kind": "flag",
+              "required": false,
+              "summary": "Proposed replacement Work Record id seed",
+              "token": "--proposed-id-seed",
+              "value_type": "string"
+            },
+            {
+              "id": "replacement-output-path",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit replacement output path; must stay under --replacement-root and use the deterministic replacement id filename",
+              "token": "--replacement-output-path",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and report proposed replacement and supersession outputs without writing",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Repair Finalization Result JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json",
+            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true,
+            "writes_replacement_record": true,
+            "writes_index_entry": true,
+            "mutates_source_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "uses_live_ui": false,
+            "uses_browser": false,
+            "uses_native_ax": false,
+            "uses_canvas": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false,
+            "runs_recommended_commands": false,
+            "mutation_scope": "explicit_replacement_root_and_index_root_only",
+            "composition_scope": "repair_attempt_artifact_to_replacement_writer_to_source_supersession_index"
+          },
+          "id": "work-record-repair-finalize",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record repair finalize --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir> --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path] [--dry-run] [--json]"
+        }
+      ],
+      "path": [
+        "work-record"
+      ],
+      "summary": "Work Records — discover, read, verify, explain recovery, plan gated repair attempts, and export read-only evidence manifests"
+    }
+  ]
+}
