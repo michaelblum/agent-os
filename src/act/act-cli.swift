@@ -257,7 +257,7 @@ func cliSetValue(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "set-value failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: false)
+    cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
 
 private func cliSetCanvasRefValue(targetString: String, args: [String], positional: [String]) {
@@ -340,7 +340,7 @@ func cliFocusElement(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "focus failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "focus", backend: "ax", target: target, dryRun: false)
+    cliPrintLegacy(action: "focus", backend: "ax", target: target, dryRun: false, execution: resp.execution)
 }
 
 /// `aos do raise` — raise a window / activate an app.

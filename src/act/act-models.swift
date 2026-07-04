@@ -131,6 +131,9 @@ struct ActionExecutionMetadata: Encodable {
     var foreground_restore_attempted: Bool? = nil
     var foreground_restore_success: Bool? = nil
     var foreground_preservation: String? = nil
+    var ax_focused_after: Bool? = nil
+    var ax_value_after: String? = nil
+    var ax_value_matches_request: Bool? = nil
 }
 
 struct AvailableAction: Encodable {

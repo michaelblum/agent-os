@@ -144,10 +144,14 @@ Backend proof quick read:
   `deterministic_contract_tests_passed`.
 - Stable `native_ax` saved refs use
   `native_saved_ref_contract_tests_plus_approval_gates`
-  / `approval_gated_live_proof_not_run`.
+  / `live_dispatch_proven_no_foreground_not_claimed`.
 - Direct AX one-shot wrappers use
   `native_primitive_response_plus_wrapper_contract`
-  / `approval_gated_live_proof_not_run`.
+  / `live_dispatch_proven_no_foreground_not_claimed`.
+  The focus/set-value live harness is
+  `tests/manual/native-ax-saved-ref-live-proof.sh`; prior native press live
+  evidence is recorded in
+  `docs/design/work-cards/operator-aos-agent-workspace-native-live-proof-v0.md`.
 - `coordinate_fallback` uses `known_limit_contract` /
   `known_limit_refusal_tested`, with
   `tests/agent-workspace-browser-refs.sh`,
@@ -222,9 +226,9 @@ matrix:
   `native_saved_ref_evidence`; `enabled` is unsatisfied unless the captured value
   is `true`, `permission_state` is unsatisfied unless the captured value is
   `granted`, and `native_saved_ref_evidence` is unsatisfied unless the producer
-  marks it actionable with complete known-limit facts. Native AX refs report
-  `conformance.proof.status: approval_gated_live_proof_not_run`; do not count
-  native saved-ref proof complete until the proof `approval_gates` are run.
+  marks it actionable with complete known-limit facts. Volatile or known-limit
+  native AX refs report
+  `conformance.proof.status: approval_gated_live_proof_not_run`.
 - Native AX `stable` refs are actionable only when the saved capture already
   includes the full durable identity contract: `app_pid`, `window_id`,
   `ax_identifier`, `enabled: true`, `action_names`,
@@ -237,8 +241,9 @@ matrix:
   direct AX selector flags, and report `direct_ax_ready` plus
   `requires_direct_ax_current_matching`. Treat their `underlying_result` as a
   direct AX wrapper response, not as browser-style current validation. They
-  still report `not_claimed` no-foreground safety and
-  `approval_gated_live_proof_not_run`.
+  report `live_dispatch_proven_no_foreground_not_claimed` after live
+  focus/set-value proof, while still reporting `not_claimed` no-foreground
+  safety.
   Stable native saved-ref dispatch preserves `fallback_used` and
   `foreground_fallback_required` from the direct AX wrapper inside
   `underlying_result.conformance.no_foreground`; fallback success remains
@@ -261,8 +266,8 @@ matrix:
   --role ...`, and `aos do set-value --pid ... --role ... --value ...` include
   wrapper-added `conformance` with `direct_ax_current_matching`,
   `direct_ax_current_matching_semantics`, `not_claimed` no-foreground safety,
-  `approval_gated_live_proof_not_run`, and current pid/role/filter matching
-  limits. If the underlying result reports `fallback_used` or
+  `live_dispatch_proven_no_foreground_not_claimed`, and current
+  pid/role/filter matching limits. If the underlying result reports `fallback_used` or
   `foreground_fallback_required`, those flags remain visible in
   `conformance.no_foreground`; a foreground fallback success is not
   no-foreground proof. Treat saved-ref-only gaps in `missing_identity_facts`,

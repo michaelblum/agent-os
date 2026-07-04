@@ -613,11 +613,11 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
     let start = Date()
 
     guard AXIsProcessTrusted() else {
-        return errorResponse("set_value", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
+        return errorResponse("set-value", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
     }
 
     guard let newValue = req.value else {
-        return errorResponse("set_value", state: state, message: "Missing 'value' field", code: "MISSING_ARG")
+        return errorResponse("set-value", state: state, message: "Missing 'value' field", code: "MISSING_ARG")
     }
 
     // Build query without value — value is the payload, not a search criterion
@@ -643,25 +643,29 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
         var settable: DarwinBoolean = false
         let settableResult = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable)
         if settableResult != .success {
-            return errorResponse("set_value", state: state,
+            return errorResponse("set-value", state: state,
                 message: "Cannot check if value is settable (AX error \(settableResult.rawValue))", code: "AX_ACTION_FAILED")
         }
         guard settable.boolValue else {
-            return errorResponse("set_value", state: state,
+            return errorResponse("set-value", state: state,
                 message: "Value attribute is not settable on this element", code: "AX_NOT_SETTABLE")
         }
 
         let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newValue as CFTypeRef)
         if setResult != .success {
-            return errorResponse("set_value", state: state,
+            return errorResponse("set-value", state: state,
                 message: "Failed to set value (AX error \(setResult.rawValue))", code: "AX_ACTION_FAILED")
         }
-        return okResponse("set_value", state: state, start: start, backend: "ax", strategy: "ax_set_value", stateID: req.state_id)
+        let valueAfter = axValue(element)
+        return okResponse("set-value", state: state, start: start, backend: "ax", strategy: "ax_set_value", stateID: req.state_id) { resp in
+            resp.execution?.ax_value_after = valueAfter
+            resp.execution?.ax_value_matches_request = valueAfter == newValue
+        }
 
     case .notFound(let msg):
-        return errorResponse("set_value", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
+        return errorResponse("set-value", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
     case .timeout:
-        return errorResponse("set_value", state: state, message: "Timed out searching for element", code: "AX_TIMEOUT")
+        return errorResponse("set-value", state: state, message: "Timed out searching for element", code: "AX_TIMEOUT")
     }
 }
 
@@ -682,7 +686,10 @@ func handleFocus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             return errorResponse("focus", state: state,
                 message: "Failed to set focus (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
         }
-        return okResponse("focus", state: state, start: start, backend: "ax", strategy: "ax_focus", stateID: req.state_id)
+        let focusedAfter = axBool(element, kAXFocusedAttribute as String)
+        return okResponse("focus", state: state, start: start, backend: "ax", strategy: "ax_focus", stateID: req.state_id) { resp in
+            resp.execution?.ax_focused_after = focusedAfter
+        }
     case .notFound(let msg):
         return errorResponse("focus", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
     case .timeout:

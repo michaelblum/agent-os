@@ -44,6 +44,17 @@ grep -q 'actionability: "direct_ax_saved_ref_mutation"' "$ROOT/src/perceive/ax.s
     || fail "native AX producer must emit actionable saved-ref evidence for durable safe captures"
 grep -q 'actionability: "inspection_only"' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX producer must keep missing or unsafe captures inspection-only"
+if grep -q 'errorResponse("set_value"\|okResponse("set_value"' "$ROOT/src/act/actions.swift"; then
+    fail "native AX set-value handler must report the public set-value action name"
+fi
+grep -q 'resp.execution?.ax_focused_after = focusedAfter' "$ROOT/src/act/actions.swift" \
+    || fail "native AX focus dispatch must report post-action focused state"
+grep -q 'resp.execution?.ax_value_matches_request = valueAfter == newValue' "$ROOT/src/act/actions.swift" \
+    || fail "native AX set-value dispatch must report post-action value verification"
+grep -q 'let focused = axBool(element, kAXFocusedAttribute as String)' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX traversal must emit actual focused state"
+grep -q 'focused: focused' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX traversal must include focused state in captured elements"
 grep -q 'func xrayAppsIntersectingCapture' "$ROOT/src/perceive/capture-pipeline.swift" \
     || fail "display native AX capture must discover apps from the captured region, not only the frontmost app"
 grep -q 'window.frame.intersects(captureRect)' "$ROOT/src/perceive/capture-pipeline.swift" \
@@ -81,6 +92,7 @@ jq -e '
   and .refs[0].identity_facts.permission_state == "granted"
   and .refs[0].identity_facts.value == "ready"
   and .refs[0].identity_facts.enabled == true
+  and .refs[0].identity_facts.focused == false
   and .refs[0].hint_facts.enabled == true
   and (.refs[0].supported_actions | length) == 0
   and .refs[0].conformance.actionability == "inspection_only"
@@ -372,7 +384,9 @@ jq -e '
   and .refs[0].conformance.mutation == "supported_after_direct_ax_current_matching"
   and .refs[0].conformance.validation == "durable_native_identity_facts_plus_direct_ax_current_matching_semantics"
   and .refs[0].conformance.proof.level == "native_saved_ref_contract_tests_plus_approval_gates"
-  and .refs[0].conformance.proof.status == "approval_gated_live_proof_not_run"
+  and .refs[0].conformance.proof.status == "live_dispatch_proven_no_foreground_not_claimed"
+  and (.refs[0].conformance.proof.evidence | index("tests/manual/native-ax-saved-ref-live-proof.sh") != null)
+  and (.refs[0].conformance.proof.approval_gates | length) == 0
   and .refs[0].conformance.no_foreground.permission_state == "granted"
   and .refs[0].conformance.no_foreground.claim == "not_claimed"
   and .refs[0].conformance.target_uncertainty.status == "requires_direct_ax_current_matching"
@@ -387,12 +401,13 @@ jq -e '
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "focus_cursor_space_baseline")
   and any(.refs[0].conformance.target_uncertainty.available_identity_facts[]; . == "native_saved_ref_evidence")
   and any(.refs[0].warnings[]; contains("direct AX current matching"))
-  and any(.refs[0].known_limits[]; contains("approval-gated live proof"))
+  and any(.refs[0].known_limits[]; contains("live native AX dispatch is proven"))
   and all(.refs[0].known_limits[]; contains("mutation is disabled") | not)
   and .refs[1].backend == "native_ax"
   and .refs[1].resolution_class == "stable"
   and (.refs[1].supported_actions | index("set-value") != null)
   and (.refs[1].supported_actions | index("focus") != null)
+  and .refs[1].identity_facts.focused == false
 ' "$DURABLE_NATIVE" >/dev/null || fail "durable native AX saved-ref reporting drifted: $(cat "$DURABLE_NATIVE")"
 
 PRESS_ONLY_NATIVE="$TMP_DIR/capture-native-press-only-durable.json"
@@ -729,9 +744,10 @@ jq -e '
   and .conformance.validation == "direct_ax_current_matching_semantics"
   and .conformance.proof_level == "native_primitive_response_plus_wrapper_contract"
   and .conformance.proof.level == "native_primitive_response_plus_wrapper_contract"
-  and .conformance.proof.status == "approval_gated_live_proof_not_run"
+  and .conformance.proof.status == "live_dispatch_proven_no_foreground_not_claimed"
   and (.conformance.proof.evidence | index("tests/agent-workspace-native-refs.sh") != null)
-  and (.conformance.proof.approval_gates | index("HITL live smoke") != null)
+  and (.conformance.proof.evidence | index("tests/manual/native-ax-saved-ref-live-proof.sh") != null)
+  and (.conformance.proof.approval_gates | length) == 0
   and .conformance.no_foreground.claim == "not_claimed"
   and .conformance.no_foreground.focus_preservation == "unverified"
   and .conformance.no_foreground.cursor_preservation == "unverified"
@@ -791,7 +807,7 @@ jq -e '
   and .backend == "ax"
   and .conformance.actionability == "direct_ax_action"
   and .conformance.mutation == "attempted_direct_native_action"
-  and .conformance.proof.status == "approval_gated_live_proof_not_run"
+  and .conformance.proof.status == "live_dispatch_proven_no_foreground_not_claimed"
   and .conformance.target_uncertainty.status == "direct_ax_current_matching"
   and any(.conformance.target_uncertainty.missing_identity_facts[]; . == "enabled")
   and any(.conformance.target_uncertainty.reasons[]; contains("enabled-state"))
@@ -854,7 +870,7 @@ jq -e '
   .error == "no matching AX element"
   and .conformance.actionability == "direct_ax_action"
   and .conformance.mutation == "attempted_direct_native_action"
-  and .conformance.proof.status == "approval_gated_live_proof_not_run"
+  and .conformance.proof.status == "live_dispatch_proven_no_foreground_not_claimed"
   and .conformance.no_foreground.claim == "not_claimed"
   and .conformance.target_uncertainty.status == "direct_ax_current_matching"
   and any(.known_limits[]; contains("no foreground"))

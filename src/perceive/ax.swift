@@ -579,6 +579,7 @@ func traverseAXElements(
     }
 
     let enabled = axBool(element, kAXEnabledAttribute) ?? true
+    let focused = axBool(element, kAXFocusedAttribute as String)
     let windowID = axWindowID(element)
     let axIdentifier = axString(element, kAXIdentifierAttribute as String)
     let actionNames = nativeAXSavedActionNames(element)
@@ -605,6 +606,7 @@ func traverseAXElements(
                 identifier: axIdentifier,
                 value: valueStr,
                 enabled: enabled,
+                focused: focused,
                 action_names: actionNames,
                 permission_state: permissionState,
                 focus_cursor_space_baseline: focusCursorSpaceBaseline,

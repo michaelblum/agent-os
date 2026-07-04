@@ -420,6 +420,7 @@ export function generateRefRecords(capture, context) {
       label: element.label ?? null,
       value: element.value ?? null,
       enabled: element.enabled ?? null,
+      focused: isBrowser ? null : (element.focused ?? null),
       context_path: contextPath,
       app_hint: isBrowser ? null : textValue(element.app_name, element.app, contextPathValue(contextPath, 'app')),
       window_hint: isBrowser ? null : contextPathValue(contextPath, 'window'),
@@ -521,7 +522,7 @@ export function generateRefRecords(capture, context) {
         : nativeSavedRefActionable
           ? [
               'native AX saved-ref mutation uses direct AX current matching semantics and may fail if the target is missing, ambiguous, or changed',
-              'no foreground, focus, cursor, or Space preservation guarantee is claimed until approval-gated live proof runs',
+              'live native AX dispatch is proven for stable saved refs, but no foreground, focus, cursor, or Space preservation guarantee is claimed',
               'fresh capture is recommended after native saved-ref mutation',
             ]
           : nativeActionable

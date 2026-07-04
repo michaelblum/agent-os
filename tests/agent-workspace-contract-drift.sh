@@ -245,6 +245,7 @@ const runPuckHitlPlan = fs.readFileSync('tests/run-puck-hitl-plan.sh', 'utf8');
 const manifestJSON = JSON.parse(manifest);
 const swiftAXModel = fs.readFileSync('src/perceive/models.swift', 'utf8');
 const swiftAXTraversal = fs.readFileSync('src/perceive/ax.swift', 'utf8');
+const swiftActions = fs.readFileSync('src/act/actions.swift', 'utf8');
 
 function assertIncludesAll(text, needles, label) {
   for (const needle of needles) {
@@ -540,6 +541,8 @@ for (const text of [schemaDoc, apiDoc, skill]) {
   assert.ok(text.includes('conformance'), 'docs/skill must describe saved-ref conformance fields');
   assert.ok(text.includes('proof'), 'docs/skill must describe saved-ref proof fields');
   assert.ok(text.includes('approval_gated_live_proof_not_run'), 'docs/skill must name approval-gated live proof status');
+  assert.ok(text.includes('live_dispatch_proven_no_foreground_not_claimed'), 'docs/skill must name live native dispatch proof status');
+  assert.ok(text.includes('tests/manual/native-ax-saved-ref-live-proof.sh'), 'docs/skill must name native AX focus/set-value live proof harness');
   assert.ok(text.includes('deterministic_contract_tests_passed'), 'docs/skill must name deterministic proof status');
   assert.ok(text.includes('deterministic_contract_tests'), 'docs/skill must name deterministic proof level');
   assert.ok(text.includes('native_saved_ref_contract_tests_plus_approval_gates'), 'docs/skill must name stable native saved-ref proof level');
@@ -626,6 +629,14 @@ assert.ok(
   'API doc must route browser focus/assertion gaps to the current native/saved-workspace boundaries',
 );
 assert.ok(
+  apiDoc.includes('execution.ax_focused_after') && apiDoc.includes('execution.ax_value_matches_request'),
+  'API doc must name native AX post-action focus/value verification fields',
+);
+assert.ok(
+  schemaDoc.includes('execution.ax_focused_after') && schemaDoc.includes('execution.ax_value_matches_request'),
+  'workspace schema doc must name native AX post-action focus/value verification fields',
+);
+assert.ok(
   toolkitPanelWindowDoc.includes('semantic_targets[].provenance.do_target'),
   'toolkit panel docs must point agents at provenance.do_target for direct canvas actions',
 );
@@ -638,7 +649,7 @@ assert.ok(!canvasRefActionsTest.includes('.[0].do_target'), 'canvas ref action t
 assert.ok(runPuckHitlPlan.includes('provenance.get("do_target")'), 'run puck HITL plan must read provenance.do_target');
 assert.ok(!runPuckHitlPlan.includes('target.get("do_target")'), 'run puck HITL plan must not read top-level do_target');
 
-for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
+for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'focused', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
 }
 for (const needle of [
@@ -647,6 +658,7 @@ for (const needle of [
   'native_saved_ref_evidence: nativeAXSavedRefEvidence(',
   'permissionState: permissionState',
   'enabled: enabled',
+  'focused: focused',
   'actionNames: actionNames',
   'baseline: focusCursorSpaceBaseline',
   'knownLimitFactsComplete: Bool = false',
@@ -671,6 +683,13 @@ for (const needle of [
   'contextPath: ["app:\\(appName)"]',
 ]) {
   assert.ok(swiftAXTraversal.includes(needle), `native AX traversal must preserve ${needle}`);
+}
+for (const needle of [
+  'ax_focused_after',
+  'ax_value_after',
+  'ax_value_matches_request',
+]) {
+  assert.ok(swiftActions.includes(needle), `native AX actions must preserve ${needle}`);
 }
 
 assert.ok(

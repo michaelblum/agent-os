@@ -152,6 +152,14 @@ export const NATIVE_AX_LIVE_PROOF_APPROVAL_GATES = Object.freeze([
   'explicit no-foreground/focus/cursor/Space baseline verification',
 ]);
 
+export const NATIVE_AX_LIVE_DISPATCH_EVIDENCE = Object.freeze([
+  'tests/agent-workspace-native-refs.sh',
+  'tests/manual/native-ax-saved-ref-live-proof.sh',
+  'docs/design/work-cards/operator-aos-agent-workspace-native-live-proof-v0.md',
+]);
+
+export const NATIVE_AX_LIVE_DISPATCH_STATUS = 'live_dispatch_proven_no_foreground_not_claimed';
+
 function proofStory(level, status, evidence, approvalGates = []) {
   return {
     level,
@@ -193,9 +201,8 @@ export function savedRefProofStory(backend, resolutionClass, hasMutation) {
   if (backend === 'native_ax' && hasMutation) {
     return proofStory(
       'native_saved_ref_contract_tests_plus_approval_gates',
-      'approval_gated_live_proof_not_run',
-      ['tests/agent-workspace-native-refs.sh'],
-      NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+      NATIVE_AX_LIVE_DISPATCH_STATUS,
+      NATIVE_AX_LIVE_DISPATCH_EVIDENCE,
     );
   }
 
@@ -218,9 +225,8 @@ export function savedRefProofStory(backend, resolutionClass, hasMutation) {
 export function directNativeAxProofStory() {
   return proofStory(
     'native_primitive_response_plus_wrapper_contract',
-    'approval_gated_live_proof_not_run',
-    ['tests/agent-workspace-native-refs.sh'],
-    NATIVE_AX_LIVE_PROOF_APPROVAL_GATES,
+    NATIVE_AX_LIVE_DISPATCH_STATUS,
+    NATIVE_AX_LIVE_DISPATCH_EVIDENCE,
   );
 }
 

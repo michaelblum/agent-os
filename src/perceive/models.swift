@@ -261,6 +261,7 @@ struct AXElementJSON: Encodable {
     let identifier: String?
     let value: String?
     let enabled: Bool
+    let focused: Bool?
     let action_names: [String]?
     let permission_state: String?
     let focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON?
@@ -288,6 +289,7 @@ struct AXElementJSON: Encodable {
         identifier: String? = nil,
         value: String?,
         enabled: Bool,
+        focused: Bool? = nil,
         action_names: [String]? = nil,
         permission_state: String? = nil,
         focus_cursor_space_baseline: NativeFocusCursorSpaceBaselineJSON? = nil,
@@ -314,6 +316,7 @@ struct AXElementJSON: Encodable {
         self.identifier = identifier
         self.value = value
         self.enabled = enabled
+        self.focused = focused
         self.action_names = action_names
         self.permission_state = permission_state
         self.focus_cursor_space_baseline = focus_cursor_space_baseline

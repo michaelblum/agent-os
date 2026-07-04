@@ -297,7 +297,7 @@ enabled state, action names, permission state, and a captured baseline for
 focus, cursor, and Space state, plus an actionable
 `native_saved_ref_evidence` producer verdict.
 Their `identity_facts` preserve the strongest available captured native hints,
-including `role`, `title`, `label`, `value`, `enabled`, `bounds`,
+including `role`, `title`, `label`, `value`, `enabled`, `focused`, `bounds`,
 `context_path`, `app_pid`, `app_name`, `window_id`,
 `ax_identifier_or_stable_path`, `action_names`, `permission_state`, `app_hint`,
 and `window_hint`; these may be listed in `available_identity_facts`, but they
@@ -322,9 +322,13 @@ ref remains `volatile`.
 Stable actions convert the saved facts to the existing direct AX selector flags,
 report
 `direct_ax_ready` / `requires_direct_ax_current_matching`, and return the
-direct AX wrapper response under `underlying_result`. They still report
-`not_claimed` no-foreground safety and do not count as completed native proof
-until the approval-gated live proof runs.
+direct AX wrapper response under `underlying_result`. Native `focus` and
+`set-value` responses include direct post-action verification fields such as
+`execution.ax_focused_after`, `execution.ax_value_after`, and
+`execution.ax_value_matches_request` when the primitive can read them back.
+They report `live_dispatch_proven_no_foreground_not_claimed` for the live
+dispatch proof status, while still reporting `not_claimed` no-foreground
+safety.
 Stable native saved-ref dispatch preserves `fallback_used` and
 `foreground_fallback_required` from the direct AX wrapper inside
 `underlying_result.conformance.no_foreground`; fallback success remains
@@ -348,11 +352,10 @@ native known-limit fields are preserved in `identity_facts` when present:
 backend-owned validation path and approval-gated live proof can defend them.
 Saved-ref `conformance.proof` records the backend proof story. Browser and AOS
 canvas supported refs report `deterministic_contract_tests_passed` with local
-test evidence. Native AX saved refs and direct AX wrapper responses report
-`approval_gated_live_proof_not_run`; their `approval_gates` name the blocked
-live proof, including HITL live smoke, TCC/manual runtime flow, native
-repo-mode artifact rebuild, and no-foreground/focus/cursor/Space baseline
-verification.
+test evidence. Stable native AX saved refs and direct AX wrapper responses
+report `live_dispatch_proven_no_foreground_not_claimed`; volatile or known-limit
+native AX refs still report `approval_gated_live_proof_not_run` with approval
+gates for the blocked live proof.
 
 Backend conformance levels are intentionally explicit:
 
@@ -360,8 +363,8 @@ Backend conformance levels are intentionally explicit:
 | --- | --- | --- | --- | --- |
 | `aos_canvas` | `reacquirable` `click` and `set-value` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
 | `browser` | `snapshot_scoped` `click`, `fill`, `hover`, `scroll`, `drag`, `type`, and `key` | `deterministic_contract_tests` | `deterministic_contract_tests_passed` | `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-saved-ref.sh` |
-| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
-| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `approval_gated_live_proof_not_run` | `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
+| `native_ax` stable saved refs | durable-identity plus producer-verdict `press`, `focus`, and `set-value` | `native_saved_ref_contract_tests_plus_approval_gates` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` and `docs/design/work-cards/operator-aos-agent-workspace-native-live-proof-v0.md` |
+| direct AX one-shot wrappers | `--pid` / `--role` `press`, `focus`, and `set-value` | `native_primitive_response_plus_wrapper_contract` | `live_dispatch_proven_no_foreground_not_claimed` | `tests/agent-workspace-native-refs.sh` and `tests/manual/native-ax-saved-ref-live-proof.sh` and `docs/design/work-cards/operator-aos-agent-workspace-native-live-proof-v0.md` |
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
 
@@ -1045,8 +1048,14 @@ saved-ref durable identity contract; their
 such as `enabled`, `action_names`, `permission_state`, and
 `focus_cursor_space_baseline`, and `native_saved_ref_evidence` when the direct
 call did not prove them. Their
-`conformance.proof.status` is `approval_gated_live_proof_not_run` until the
-approval-gated live proof and native rebuild gates are explicitly run.
+`conformance.proof.status` is
+`live_dispatch_proven_no_foreground_not_claimed` for stable native saved refs
+and direct AX wrappers, while volatile or known-limit native refs still report
+`approval_gated_live_proof_not_run`.
+Native `focus` and `set-value` direct responses also include
+`execution.ax_focused_after`, `execution.ax_value_after`, and
+`execution.ax_value_matches_request` when the primitive can read the resulting
+AX state.
 
 Canvas ref click responses also include the resolved target details, including
 the target dialect, canvas id, ref, local semantic-target center, global click
