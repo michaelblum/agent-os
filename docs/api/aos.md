@@ -1158,8 +1158,10 @@ an already-produced successful Repair Attempt Artifact. It accepts a source
 Work Record, Repair Attempt Plan JSON, Repair Attempt Artifact JSON, explicit
 `--replacement-root`, and explicit `--index-root`; then it builds the
 Replacement Proposal internally, validates the existing plan/artifact/proposal
-contracts, calls the Replacement Writer, calls the Source Supersession Index
-writer, and returns one `work_record.repair_finalization_result` envelope.
+contracts, preflights the Replacement Writer output and Source Supersession
+Index entry through their owning planners, calls the Replacement Writer, calls
+the Source Supersession Index writer, and returns one
+`work_record.repair_finalization_result` envelope.
 `--replacement-output-path` is optional and must remain under
 `--replacement-root` with the deterministic replacement id filename.
 
@@ -1172,17 +1174,20 @@ Repair Attempt Artifact -> Replacement Proposal -> Replacement Writer -> Source 
 
 Dry-run mode writes nothing. It reports the intended replacement output and
 supersession index identity/path when they can be computed safely. Execute mode
-writes only the replacement Work Record under `--replacement-root` and the
-external supersession entry under `--index-root`; it never mutates the source
-Work Record. Repeating the same finalization is idempotent when both existing
-outputs match and returns `already_finalized`.
+validates both durable output targets before writing the replacement Work
+Record, then writes only the replacement Work Record under `--replacement-root`
+and the external supersession entry under `--index-root`; it never mutates the
+source Work Record. Repeating the same finalization is idempotent when both
+existing outputs match and returns `already_finalized`.
 
 The finalization result records schema/version, finalizer implementation
 version, status, source Work Record path and before/after digest, Repair
 Attempt Plan digest/status/validation, Repair Attempt Artifact
 digest/status/validation, Replacement Proposal identity/digest/status,
 Replacement Writer result, Source Supersession Index writer result, readback
-validation, side effects, recovery guidance, and exact non-execution flags:
+validation, side effects, explicit audit facts for wrote/already-existed/would
+write replacement and supersession outputs, recovery guidance, and exact
+non-execution flags:
 `executes_repair:false`, `executes_actions:false`, `uses_live_ui:false`,
 `uses_browser:false`, `uses_native_ax:false`, `uses_canvas:false`,
 `applies_patches:false`, `mutates_source_record:false`, and
@@ -1195,10 +1200,13 @@ Finalization statuses include `dry_run`, `finalized`,
 `blocked_source_mutated`, `blocked_health_mismatch`,
 `blocked_replacement_proposal`, `blocked_replacement_write`,
 `blocked_supersession_write`, `blocked_path_escape`, `blocked_conflict`,
-`partial_finalized`, `stale`, `mismatch`, and `unsupported`. Partial states
-are first-class failures: if the replacement write succeeds but supersession
-writing fails, the command exits non-zero with `partial_finalized`, exposes the
-replacement path, and recommends the explicit supersession recovery command.
+`partial_finalized`, `stale`, `mismatch`, and `unsupported`. Preflightable
+invalid roots, path escapes, relationship mismatches, and writer-result
+provenance mismatches fail before durable finalization writes begin. Partial
+states are first-class failures reserved for post-preflight durable failures:
+if the replacement write succeeds but supersession writing then fails, the
+command exits non-zero with `partial_finalized`, exposes the replacement path,
+and recommends the explicit supersession recovery command.
 
 `repair finalize` does not execute repair, replay actions, run recommended
 commands, apply patches, use browser/native AX/canvas/live UI surfaces, start a
@@ -1276,14 +1284,19 @@ happened during the write. Existing `aos work-record list/read --root
 source Work Record ref, a replacement Work Record ref, and an explicit
 `--index-root`; `--replacement-root` can be repeated when replacement lookup
 needs an explicit root, and `--writer-result` can supply the Replacement Writer
-Result JSON for stronger provenance checks. Dry-run reports the exact index
-path, source identity, replacement identity, idempotency result, planned temp
-file, and side effects without writing. Write mode validates both Work Record
-identities, verifies that the replacement declares supersession of the source,
-checks source id/digest against Replacement Writer provenance when available,
-rejects traversal and symlink escape, writes through a temp file plus atomic
-rename, removes the temp file on success, treats an equivalent existing entry
-as `already_exists`, and refuses conflicting source-to-replacement entries.
+Result JSON for stronger provenance checks. Toolkit callers can supply the same
+Replacement Writer Result in memory; `repair finalize` uses that path so
+standalone supersession writing and finalization share one relationship
+identity model. Dry-run reports the exact index path, source identity,
+replacement identity, idempotency result, planned temp file, and side effects
+without writing. Write mode validates both Work Record identities, verifies
+that the replacement declares supersession of the source, checks source
+id/digest against Replacement Writer provenance when available, rejects
+traversal and symlink escape, writes through a temp file plus atomic rename,
+removes the temp file on success, treats an equivalent existing entry as
+`already_exists`, and refuses conflicting source-to-replacement entries,
+including same source/replacement entries with a different relationship
+identity.
 
 The index entry is `work_record.source_supersession_entry` with schema version
 `2026-07-work-record-source-supersession-index-v0`. Writer statuses include

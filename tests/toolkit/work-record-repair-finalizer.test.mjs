@@ -9,12 +9,15 @@ import { fileURLToPath } from 'node:url';
 import {
   buildWorkRecordGateRequestFromRepairPlan,
   buildWorkRecordRepairAttemptArtifact,
+  buildWorkRecordReplacementProposal,
   finalizeWorkRecordRepair,
   lookupWorkRecordSourceSupersession,
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
   readWorkRecord,
   validateWorkRecordSourceSupersessionEntry,
+  writeReplacementWorkRecord,
+  writeWorkRecordSourceSupersessionIndex,
   WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_FINALIZATION_STATUSES,
 } from '../../packages/toolkit/workbench/work-record.js';
@@ -169,6 +172,28 @@ function finalizeArgs({ input = artifactInput(), replacementRoot = null, indexRo
   };
 }
 
+function sourceInput() {
+  const read = readWorkRecord(repairableFixture, { repoRoot });
+  assert.equal(read.status, 'success');
+  return {
+    ...read.summary,
+    ...read.source,
+    record: read.record,
+    requested_ref: repairableFixture,
+    digest: digestFile(repairableFixture),
+  };
+}
+
+function replacementProposalFromInput(input, artifact, proposedIdSeed) {
+  return buildWorkRecordReplacementProposal({
+    source_work_record: sourceInput(),
+    repair_attempt_plan: input.repair_attempt_plan,
+    repair_attempt_artifact: artifact,
+    source_work_record_digest_after: digestFile(repairableFixture),
+    proposed_id_seed: proposedIdSeed,
+  });
+}
+
 test('Repair Finalization statuses are declared', () => {
   for (const status of [
     'dry_run',
@@ -207,6 +232,10 @@ test('dry-run writes no replacement record and no supersession entry', () => {
   assert.equal(result.dry_run, true);
   assert.equal(result.replacement_writer_result.status, 'dry_run');
   assert.equal(result.supersession_index_result.status, 'dry_run');
+  assert.equal(result.would_write_replacement_record, true);
+  assert.equal(result.would_write_supersession_index_entry, true);
+  assert.equal(result.wrote_replacement_record, false);
+  assert.equal(result.wrote_supersession_index_entry, false);
   assert.equal(result.executes_repair, false);
   assert.equal(result.executes_actions, false);
   assert.equal(result.uses_live_ui, false);
@@ -231,6 +260,10 @@ test('successful finalization writes valid replacement and supersession outputs'
   assert.equal(result.status, 'finalized', JSON.stringify(result.diagnostics, null, 2));
   assert.equal(result.side_effects.includes('write_replacement_work_record'), true);
   assert.equal(result.side_effects.includes('write_source_supersession_index_entry'), true);
+  assert.equal(result.wrote_replacement_record, true);
+  assert.equal(result.replacement_record_already_existed, false);
+  assert.equal(result.wrote_supersession_index_entry, true);
+  assert.equal(result.supersession_index_entry_already_existed, false);
   assert.equal(result.source_work_record.immutable, true);
   assert.equal(fs.readFileSync(repairableFixture, 'utf8'), sourceBefore);
   assert.ok(result.replacement_writer_result.output.output_path.startsWith(args.replacementRoot));
@@ -270,9 +303,13 @@ test('repeated finalization is idempotent', () => {
   assert.equal(second.status, 'already_finalized', JSON.stringify(second.diagnostics, null, 2));
   assert.equal(second.replacement_writer_result.status, 'already_exists');
   assert.equal(second.supersession_index_result.status, 'already_exists');
+  assert.equal(second.wrote_replacement_record, false);
+  assert.equal(second.replacement_record_already_existed, true);
+  assert.equal(second.wrote_supersession_index_entry, false);
+  assert.equal(second.supersession_index_entry_already_existed, true);
 });
 
-test('partial supersession failure is not reported as success', () => {
+test('invalid index root is preflighted before replacement write', () => {
   const replacementRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-finalizer-partial-replacements-'));
   const blockedIndexRoot = writeTempJson({ not: 'a-directory' }, 'aos-work-record-finalizer-blocked-index-root-');
   const result = finalizeWorkRecordRepair(finalizeArgs({
@@ -281,10 +318,105 @@ test('partial supersession failure is not reported as success', () => {
     proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-partial',
   }));
 
-  assert.equal(result.status, 'partial_finalized');
-  assert.equal(result.replacement_writer_result.status, 'written');
-  assert.equal(result.supersession_index_result.status, 'blocked_write_failed');
-  assert.equal(fs.existsSync(result.replacement_writer_result.output.output_path), true);
+  assert.equal(result.status, 'blocked_path_escape');
+  assert.equal(result.replacement_writer_result.status, 'dry_run');
+  assert.equal(result.supersession_index_result.status, 'blocked_index_escape');
+  assert.equal(fs.existsSync(result.replacement_writer_result.output.output_path), false);
+  assert.deepEqual(fs.readdirSync(replacementRoot), []);
+});
+
+test('partial supersession failure is reserved for post-preflight write failure', () => {
+  const args = finalizeArgs({
+    proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-post-preflight-partial',
+  });
+  const originalRename = fs.renameSync;
+  let renameCount = 0;
+  fs.renameSync = (from, to) => {
+    renameCount += 1;
+    if (renameCount === 2) throw new Error('simulated post-preflight supersession race');
+    return originalRename(from, to);
+  };
+  try {
+    const result = finalizeWorkRecordRepair(args);
+    assert.equal(result.status, 'partial_finalized', JSON.stringify(result.diagnostics, null, 2));
+    assert.equal(result.replacement_writer_result.status, 'written');
+    assert.equal(result.supersession_index_result.status, 'blocked_write_failed');
+    assert.equal(fs.existsSync(result.replacement_writer_result.output.output_path), true);
+  } finally {
+    fs.renameSync = originalRename;
+  }
+});
+
+test('lower-level supersession then finalizer is already finalized with shared writer-result identity', () => {
+  const input = artifactInput();
+  const { planPath, artifactPath, artifact } = writeAttemptInputs(input);
+  const replacementRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-finalizer-cross-replacements-'));
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-finalizer-cross-index-'));
+  const proposedIdSeed = 'work-record:repairable-stale-saved-ref-finalizer-cross-lower-first';
+  const proposal = replacementProposalFromInput(input, artifact, proposedIdSeed);
+  const writerResult = writeReplacementWorkRecord({ proposal, outputRoot: replacementRoot });
+  assert.equal(writerResult.status, 'written', JSON.stringify(writerResult.diagnostics, null, 2));
+  const supersession = writeWorkRecordSourceSupersessionIndex({
+    sourceRef: repairableFixture,
+    replacementRef: writerResult.output.output_path,
+    indexRoot,
+    replacementRoots: [replacementRoot],
+    writerResult,
+    repoRoot,
+  });
+  assert.equal(supersession.status, 'written', JSON.stringify(supersession.diagnostics, null, 2));
+
+  const finalizer = finalizeWorkRecordRepair({
+    sourceRef: repairableFixture,
+    attemptPlanPath: planPath,
+    attemptArtifactPath: artifactPath,
+    replacementRoot,
+    indexRoot,
+    proposedIdSeed,
+    repoRoot,
+  });
+  assert.equal(finalizer.status, 'already_finalized', JSON.stringify(finalizer.diagnostics, null, 2));
+  assert.equal(finalizer.supersession_index_result.status, 'already_exists');
+});
+
+test('finalizer then lower-level supersession with finalizer writer result is already exists', () => {
+  const args = finalizeArgs({
+    proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-cross-finalizer-first',
+  });
+  const finalizer = finalizeWorkRecordRepair(args);
+  assert.equal(finalizer.status, 'finalized', JSON.stringify(finalizer.diagnostics, null, 2));
+  const repeat = writeWorkRecordSourceSupersessionIndex({
+    sourceRef: repairableFixture,
+    replacementRef: finalizer.replacement_writer_result.output.output_path,
+    indexRoot: args.indexRoot,
+    replacementRoots: [args.replacementRoot],
+    writerResult: finalizer.replacement_writer_result,
+    repoRoot,
+  });
+  assert.equal(repeat.status, 'already_exists', JSON.stringify(repeat.diagnostics, null, 2));
+});
+
+test('same source and replacement cannot gain duplicate active entries from writer-result mismatch', () => {
+  const args = finalizeArgs({
+    proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-no-duplicate',
+  });
+  const finalizer = finalizeWorkRecordRepair(args);
+  assert.equal(finalizer.status, 'finalized', JSON.stringify(finalizer.diagnostics, null, 2));
+  const mismatch = writeWorkRecordSourceSupersessionIndex({
+    sourceRef: repairableFixture,
+    replacementRef: finalizer.replacement_writer_result.output.output_path,
+    indexRoot: args.indexRoot,
+    replacementRoots: [args.replacementRoot],
+    repoRoot,
+  });
+  assert.equal(mismatch.status, 'conflict');
+  const lookup = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    indexRoot: args.indexRoot,
+    repoRoot,
+  });
+  assert.equal(lookup.status, 'active', JSON.stringify(lookup.diagnostics, null, 2));
+  assert.equal(lookup.entries.length, 1);
 });
 
 test('failed and invalid attempt artifacts fail closed', () => {
@@ -388,6 +520,12 @@ test('public CLI exposes help and stable JSON finalize results', () => {
   const help = runAos(['work-record', 'repair', 'finalize', '--help']);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /repair finalize/);
+  const nestedHelp = runAos(['help', 'work-record', 'repair', 'finalize', '--json']);
+  assert.equal(nestedHelp.status, 0, nestedHelp.stderr);
+  assert.equal(JSON.parse(nestedHelp.stdout).path.join(' '), 'work-record repair finalize');
+  const unrelatedNestedHelp = runAos(['help', 'see', 'zone', 'define', '--json']);
+  assert.equal(unrelatedNestedHelp.status, 0, unrelatedNestedHelp.stderr);
+  assert.equal(JSON.parse(unrelatedNestedHelp.stdout).path.join(' '), 'see zone define');
 
   const smoke = runAos([
     'work-record',

@@ -137,16 +137,18 @@ the returned `recommended_next`, `recommended_next_commands`, or
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]
   [--dry-run] --json` is the bounded finalization composition step for the
-  common successful case. It internally builds the Replacement Proposal, calls
-  the Replacement Writer, writes the Source Supersession Index entry, and
-  returns one `work_record.repair_finalization_result`. Dry-run writes nothing.
-  Execute mode writes only under the explicit replacement and index roots,
-  preserves source Work Record bytes, is idempotent for matching existing
-  outputs, and reports `partial_finalized` as a failure when replacement writing
-  succeeds but supersession writing does not. It does not execute repair,
-  replay actions, run recommended commands, apply patches, use browser/native
-  AX/canvas/live UI surfaces, start a Workflow engine, mutate the source Work
-  Record, or auto-resume agents.
+  common successful case. It internally builds the Replacement Proposal,
+  preflights the Replacement Writer and Source Supersession Index outputs,
+  writes the replacement, writes the Source Supersession Index entry with the
+  in-memory Replacement Writer Result provenance, and returns one
+  `work_record.repair_finalization_result`. Dry-run writes nothing. Execute
+  mode writes only under the explicit replacement and index roots, preserves
+  source Work Record bytes, is idempotent for matching existing outputs, and
+  reports `partial_finalized` only for post-preflight durable failures after
+  replacement writing succeeds but supersession writing does not. It does not
+  execute repair, replay actions, run recommended commands, apply patches, use
+  browser/native AX/canvas/live UI surfaces, start a Workflow engine, mutate
+  the source Work Record, or auto-resume agents.
 - `aos work-record replacement-proposal write <proposal-path> --output-root
   <dir> [--dry-run] --json` is the narrow Replacement Writer. It validates the
   proposal, materializes a new replacement Work Record under the explicit output

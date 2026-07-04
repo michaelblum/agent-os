@@ -21,9 +21,9 @@ import {
 } from './work-record-replacement-writer.js';
 import {
   lookupWorkRecordSourceSupersession,
+  planWorkRecordSourceSupersession,
   validateWorkRecordSourceSupersessionEntry,
   writeWorkRecordSourceSupersessionIndex,
-  WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
 } from './work-record-supersession-index.js';
 
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION = '2026-07-work-record-repair-finalization-result-v0';
@@ -92,26 +92,6 @@ function fileDigest(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-function stableJson(value) {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-function digestText(value = '') {
-  return crypto.createHash('sha256').update(String(value)).digest('hex');
-}
-
-function rawPathHasTraversal(value = '') {
-  return String(value).split(/[\\/]+/).includes('..') || String(value).includes('\0');
-}
-
-function safeStem(value = '') {
-  const input = text(value);
-  if (!input || path.isAbsolute(input) || input.includes('/') || input.includes('\\') || input.includes('\0')) return '';
-  const stem = input.replace(/[^A-Za-z0-9._:-]/g, '_');
-  if (!stem || stem === '.' || stem === '..' || stem.includes('..')) return '';
-  return stem;
-}
-
 function sourceIdentityFromRead(sourceRef = '', sourceRead = {}, digest = '') {
   return {
     id: text(sourceRead.record?.id || sourceRead.summary?.id),
@@ -125,119 +105,6 @@ function sourceIdentityFromRead(sourceRef = '', sourceRead = {}, digest = '') {
 
 function proposalDigest(proposal = {}) {
   return text(proposal.replacement_proposal_identity?.digest, digestJson(proposal));
-}
-
-function replacementDigestFromRecord(record = {}) {
-  return digestJson(record);
-}
-
-function plannedSupersessionDryRun({ source = {}, replacement = {}, indexRoot = '' } = {}) {
-  const diagnostics = [];
-  const rootResolved = path.resolve(indexRoot || '');
-  if (!text(indexRoot)) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPAIR_FINALIZATION_INDEX_ROOT_REQUIRED',
-      message: 'Repair finalization requires an explicit index_root.',
-      path: 'index_root',
-    });
-  }
-  if (rawPathHasTraversal(indexRoot)) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPAIR_FINALIZATION_INDEX_ROOT_TRAVERSAL',
-      message: 'index_root must not contain path traversal.',
-      path: 'index_root',
-    });
-  }
-  if (text(indexRoot) && !fs.existsSync(rootResolved)) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPAIR_FINALIZATION_INDEX_ROOT_UNRESOLVABLE',
-      message: 'index_root must already exist so containment can be checked.',
-      path: 'index_root',
-    });
-  }
-  const sourceDigest = text(source.digest);
-  const replacementDigest = text(replacement.digest);
-  const identityCore = {
-    schema_version: WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
-    relationship: 'superseded_by',
-    source_work_record: {
-      id: text(source.id),
-      path: text(source.path),
-      digest: sourceDigest,
-      schema_version: text(source.schema_version),
-    },
-    replacement_work_record: {
-      id: text(replacement.id),
-      path: text(replacement.path),
-      digest: replacementDigest,
-      schema_version: text(replacement.schema_version),
-    },
-    replacement_writer_result: {
-      id: '',
-      digest: '',
-      schema_version: '',
-    },
-  };
-  const digest = digestJson(identityCore);
-  const entryId = `source-supersession-entry:${digest.slice(0, 24)}`;
-  const sourceStem = safeStem(`${text(source.id)}-${sourceDigest.slice(0, 12)}`);
-  const entryStem = safeStem(`${entryId}.json`);
-  if (!sourceStem || !entryStem || !sourceDigest || !replacementDigest) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'REPAIR_FINALIZATION_INDEX_IDENTITY_UNSAFE',
-      message: 'Supersession dry-run identity cannot be mapped to a safe path.',
-      path: 'supersession_index',
-    });
-  }
-  const indexPath = sourceStem && entryStem
-    ? path.join(rootResolved, 'source-supersession', 'v0', sourceStem, `${entryId}.json`)
-    : '';
-  return {
-    type: 'work_record.source_supersession_index_writer_result',
-    schema_version: WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
-    status: diagnostics.length > 0 ? 'blocked_index_escape' : 'dry_run',
-    mode: 'dry_run',
-    index_writer_result: {
-      status: diagnostics.length > 0 ? 'blocked_index_escape' : 'dry_run',
-      index_root: text(rootResolved),
-      index_path: text(indexPath),
-      relationship: 'superseded_by',
-    },
-    supersession_entry: diagnostics.length > 0 ? {} : {
-      id: entryId,
-      digest,
-      path: indexPath,
-      status: 'active',
-    },
-    source_work_record: cloneJson(source),
-    replacement_work_record: cloneJson(replacement),
-    output: {
-      index_root: text(rootResolved),
-      index_path: text(indexPath),
-      deterministic_filename: entryId ? `${entryId}.json` : '',
-    },
-    idempotency: {
-      status: indexPath && fs.existsSync(indexPath) ? 'identical_existing_or_conflict_unchecked' : 'new',
-      existing: Boolean(indexPath && fs.existsSync(indexPath)),
-    },
-    side_effects: [],
-    writes_index_entry: false,
-    would_write_index_entry: diagnostics.length === 0,
-    mutates_source_record: false,
-    mutates_replacement_record: false,
-    executes_repair: false,
-    executes_actions: false,
-    applies_patches: false,
-    automatic_replay_allowed: false,
-    diagnostics,
-    recommended_next: {
-      action: diagnostics.length === 0 ? 'rerun_without_dry_run_to_write_index' : 'inspect_index_dry_run_diagnostics',
-    },
-  };
 }
 
 function finalStatusFromProposal(status = '') {
@@ -331,6 +198,12 @@ function baseResult({
     dry_run: mode === 'dry_run',
     writes_replacement_record: ['written', 'already_exists'].includes(text(writerResult.status)),
     writes_supersession_index_entry: ['written', 'already_exists'].includes(text(supersessionResult.status)),
+    wrote_replacement_record: text(writerResult.status) === 'written',
+    replacement_record_already_existed: text(writerResult.status) === 'already_exists',
+    would_write_replacement_record: text(writerResult.status) === 'dry_run' && writerResult.idempotency?.existing !== true,
+    wrote_supersession_index_entry: text(supersessionResult.status) === 'written',
+    supersession_index_entry_already_existed: text(supersessionResult.status) === 'already_exists',
+    would_write_supersession_index_entry: text(supersessionResult.status) === 'dry_run' && supersessionResult.idempotency?.existing !== true,
     source_work_record: {
       ...cloneJson(source),
       digest_before: text(source.digest),
@@ -521,33 +394,35 @@ export function finalizeWorkRecordRepair({
     });
   }
 
-  const writerResult = writeReplacementWorkRecord({
+  const writerPlan = writeReplacementWorkRecord({
     proposal,
     outputRoot: replacementRoot,
     outputPath: replacementOutputPath,
-    dryRun,
+    dryRun: true,
   });
-  if (dryRun) {
-    const replacementRecord = materializeReplacementWorkRecord(proposal);
-    const replacementContentDigest = digestText(stableJson(replacementRecord));
-    const plannedReplacement = {
-      id: text(replacementRecord.id),
-      path: text(writerResult.output?.output_path),
-      requested_ref: text(writerResult.output?.output_path),
-      schema_version: text(replacementRecord.schema_version),
-      digest: replacementContentDigest,
-      digest_algorithm: 'sha256',
-    };
-    const supersessionResult = plannedSupersessionDryRun({
-      source,
-      replacement: plannedReplacement,
+  const replacementRecord = materializeReplacementWorkRecord(proposal);
+  const supersessionPlan = writerPlan.status === 'dry_run'
+    ? planWorkRecordSourceSupersession({
+      sourceRef,
+      replacementRef: text(writerPlan.output?.output_path),
+      sourceRecord: sourceRead.record,
+      replacementRecord,
+      sourcePath,
+      replacementPath: text(writerPlan.output?.output_path),
       indexRoot,
-    });
-    const status = writerResult.status === 'dry_run' && supersessionResult.status === 'dry_run'
+      sourceRoots: roots,
+      replacementRoots: [replacementRoot],
+      writerResult: writerPlan,
+      allowDryRunWriterResult: true,
+      repoRoot,
+    })
+    : {};
+  if (dryRun) {
+    const status = writerPlan.status === 'dry_run' && supersessionPlan.status === 'dry_run'
       ? 'dry_run'
-      : writerResult.status === 'dry_run'
-        ? finalStatusFromSupersession(supersessionResult.status)
-        : finalStatusFromWriter(writerResult.status);
+      : writerPlan.status === 'dry_run'
+        ? finalStatusFromSupersession(supersessionPlan.status)
+        : finalStatusFromWriter(writerPlan.status);
     return baseResult({
       status,
       mode,
@@ -563,15 +438,68 @@ export function finalizeWorkRecordRepair({
       attemptArtifactValidation,
       proposal,
       proposalValidation,
-      writerResult,
-      supersessionResult,
+      writerResult: writerPlan,
+      supersessionResult: supersessionPlan,
       diagnostics: [
-        ...arrayValue(writerResult.diagnostics),
-        ...arrayValue(supersessionResult.diagnostics),
+        ...arrayValue(writerPlan.diagnostics),
+        ...arrayValue(supersessionPlan.diagnostics),
       ],
     });
   }
 
+  if (writerPlan.status !== 'dry_run') {
+    return baseResult({
+      status: finalStatusFromWriter(text(writerPlan.status)),
+      mode,
+      source,
+      sourceDigestAfter: sourceDigestAfterProposalRead,
+      attemptPlan,
+      attemptPlanPath: attemptPlanRead.path,
+      attemptPlanDigest,
+      attemptPlanValidation,
+      attemptArtifact,
+      attemptArtifactPath: attemptArtifactRead.path,
+      attemptArtifactDigest,
+      attemptArtifactValidation,
+      proposal,
+      proposalValidation,
+      writerResult: writerPlan,
+      supersessionResult: supersessionPlan,
+      diagnostics: [
+        ...arrayValue(writerPlan.diagnostics),
+        ...arrayValue(supersessionPlan.diagnostics),
+      ],
+    });
+  }
+
+  if (supersessionPlan.status !== 'dry_run') {
+    return baseResult({
+      status: finalStatusFromSupersession(text(supersessionPlan.status)),
+      mode,
+      source,
+      sourceDigestAfter: sourceDigestAfterProposalRead,
+      attemptPlan,
+      attemptPlanPath: attemptPlanRead.path,
+      attemptPlanDigest,
+      attemptPlanValidation,
+      attemptArtifact,
+      attemptArtifactPath: attemptArtifactRead.path,
+      attemptArtifactDigest,
+      attemptArtifactValidation,
+      proposal,
+      proposalValidation,
+      writerResult: writerPlan,
+      supersessionResult: supersessionPlan,
+      diagnostics: supersessionPlan.diagnostics,
+    });
+  }
+
+  const writerResult = writeReplacementWorkRecord({
+    proposal,
+    outputRoot: replacementRoot,
+    outputPath: replacementOutputPath,
+    dryRun: false,
+  });
   if (!['written', 'already_exists'].includes(text(writerResult.status))) {
     return baseResult({
       status: finalStatusFromWriter(text(writerResult.status)),
@@ -589,6 +517,7 @@ export function finalizeWorkRecordRepair({
       proposal,
       proposalValidation,
       writerResult,
+      supersessionResult: supersessionPlan,
       diagnostics: writerResult.diagnostics,
     });
   }
@@ -626,6 +555,7 @@ export function finalizeWorkRecordRepair({
     indexRoot,
     sourceRoots: roots,
     replacementRoots: [replacementRoot],
+    writerResult,
     dryRun: false,
     repoRoot,
   });

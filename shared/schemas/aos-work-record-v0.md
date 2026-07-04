@@ -827,6 +827,12 @@ includes:
   "dry_run": false,
   "writes_replacement_record": true,
   "writes_supersession_index_entry": true,
+  "wrote_replacement_record": true,
+  "replacement_record_already_existed": false,
+  "would_write_replacement_record": false,
+  "wrote_supersession_index_entry": true,
+  "supersession_index_entry_already_existed": false,
+  "would_write_supersession_index_entry": false,
   "source_work_record": {},
   "repair_attempt_plan": {},
   "repair_attempt_artifact": {},
@@ -859,12 +865,14 @@ Supported statuses are `dry_run`, `finalized`, `already_finalized`,
 `blocked_path_escape`, `blocked_conflict`, `partial_finalized`, `stale`,
 `mismatch`, and `unsupported`.
 
-Dry-run validates the source, attempt plan, attempt artifact, proposal, and
-writer dry-run path, reports the intended replacement and supersession outputs
-when they can be computed safely, and writes nothing. Execute mode writes only
-the replacement Work Record under the explicit replacement root and the source
-supersession entry under the explicit index root. The source Work Record bytes
-must be unchanged before and after finalization.
+Dry-run validates the source, attempt plan, attempt artifact, proposal,
+Replacement Writer dry-run path, and Source Supersession Index plan, reports
+the intended replacement and supersession outputs when they can be computed
+safely, and writes nothing. Execute mode preflights both durable outputs before
+the replacement write, then writes only the replacement Work Record under the
+explicit replacement root and the source supersession entry under the explicit
+index root. The source Work Record bytes must be unchanged before and after
+finalization.
 
 `finalized` requires a valid source, valid Repair Attempt Plan, validated
 succeeded Repair Attempt Artifact, valid Replacement Proposal, durable
@@ -872,8 +880,11 @@ schema-valid replacement Work Record, durable valid Source Supersession Index
 entry, active supersession lookup, and unchanged source digest.
 `already_finalized` is the idempotent status for matching replacement and
 supersession outputs that already exist. `partial_finalized` is a failure
-status used when a replacement has been written but the supersession entry is
-missing or invalid; recovery must be explicit through `supersession write`.
+status used only after preflight when a replacement has been written but the
+supersession entry is missing or invalid; recovery must be explicit through
+`supersession write`. Preflightable invalid roots, path escapes, relationship
+mismatches, and writer-result provenance mismatches must fail before durable
+finalization writes begin.
 
 ## Work Recording Frame Packs
 

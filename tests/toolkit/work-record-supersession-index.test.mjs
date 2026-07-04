@@ -11,6 +11,7 @@ import {
   buildWorkRecordRepairAttemptArtifact,
   buildWorkRecordReplacementProposal,
   lookupWorkRecordSourceSupersession,
+  planWorkRecordSourceSupersession,
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
   readWorkRecord,
@@ -224,6 +225,46 @@ test('dry-run reports exact index path and does not write', () => {
   assert.equal(fs.existsSync(result.output.index_path), false);
   assert.equal(fs.readFileSync(repairableFixture, 'utf8'), sourceBefore);
   assert.equal(fs.readFileSync(replacementPath, 'utf8'), replacementBefore);
+});
+
+test('planning rejects invalid index roots and accepts in-memory writer results', () => {
+  const indexRootFile = writeTempJson({ not: 'a-directory' }, 'aos-work-record-supersession-index-root-file-');
+  const { outputRoot, replacementPath, writerResult } = writeReplacement({
+    proposedIdSeed: 'work-record:supersession-index-plan-replacement',
+  });
+  const invalidPlan = planWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    replacementRoots: [outputRoot],
+    indexRoot: indexRootFile,
+    writerResult,
+    repoRoot,
+  });
+  assert.equal(invalidPlan.status, 'blocked_index_escape');
+  assert.equal(fs.existsSync(path.join(indexRootFile, 'source-supersession')), false);
+
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-plan-'));
+  const memoryPlan = planWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    replacementRoots: [outputRoot],
+    indexRoot,
+    writerResult,
+    repoRoot,
+  });
+  const filePlan = planWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    replacementRoots: [outputRoot],
+    indexRoot,
+    writerResultPath: writeTempJson(writerResult),
+    repoRoot,
+  });
+  assert.equal(memoryPlan.status, 'dry_run', JSON.stringify(memoryPlan.diagnostics, null, 2));
+  assert.equal(filePlan.status, 'dry_run', JSON.stringify(filePlan.diagnostics, null, 2));
+  assert.equal(memoryPlan.supersession_entry.id, filePlan.supersession_entry.id);
+  assert.equal(memoryPlan.supersession_entry.digest, filePlan.supersession_entry.digest);
+  assert.equal(memoryPlan.output.index_path, filePlan.output.index_path);
 });
 
 test('write, validate, lookup, idempotency, and immutability are deterministic', () => {
