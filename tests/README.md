@@ -99,6 +99,12 @@ That deterministic fixture lane wraps
 artifact shape for browser, AOS canvas, and native AX rows. Manual or live
 reruns must preserve the same `/tmp` proof root, `summary.json`, per-backend
 artifact directories, row statuses, build telemetry, and cleanup evidence.
+For a guarded repo-runtime proof with allowed `blocked_runtime` classifications,
+run:
+
+```bash
+AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh
+```
 
 ## Rebuild `./aos` First
 

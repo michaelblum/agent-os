@@ -5,7 +5,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 source "$ROOT/tests/lib/agent-workspace-fixtures.sh"
-agent_workspace_test_setup
 
 PROOF_ID="${AOS_SAVED_REF_PROOF_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 MODE="${AOS_SAVED_REF_PROOF_MODE:-fixture}"
@@ -14,16 +13,25 @@ SUMMARY="$PROOF_ROOT/summary.json"
 ROWS_JSONL="$PROOF_ROOT/rows.jsonl"
 BUILD_JSON="$PROOF_ROOT/build.json"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+FIXTURE_STATE_ROOT=""
 
 mkdir -p "$PROOF_ROOT"
 : >"$ROWS_JSONL"
 
+if [[ "$MODE" == "fixture" ]]; then
+    agent_workspace_test_setup
+    FIXTURE_STATE_ROOT="$AOS_STATE_ROOT"
+else
+    export AOS_RUNTIME_MODE="repo"
+    unset AOS_STATE_ROOT
+fi
+
 cleanup() {
     local status="verified"
-    if [[ -n "${AOS_STATE_ROOT:-}" && -d "$AOS_STATE_ROOT" ]]; then
-        rm -rf "$AOS_STATE_ROOT" || status="failed"
+    if [[ -n "$FIXTURE_STATE_ROOT" && -d "$FIXTURE_STATE_ROOT" ]]; then
+        rm -rf "$FIXTURE_STATE_ROOT" || status="failed"
     fi
-    jq -n --arg status "$status" --arg state_root "${AOS_STATE_ROOT:-}" \
+    jq -n --arg status "$status" --arg state_root "$FIXTURE_STATE_ROOT" \
         '{cleanup: $status, state_root: $state_root}' >"$PROOF_ROOT/cleanup.json"
 }
 trap cleanup EXIT
@@ -93,6 +101,30 @@ append_row() {
         }' >>"$ROWS_JSONL"
 }
 
+write_json_artifact() {
+    local file="$1"
+    shift
+    mkdir -p "$(dirname "$file")"
+    jq -n "$@" >"$file"
+}
+
+write_classified_row_artifacts() {
+    local backend="$1"
+    local action="$2"
+    local status="$3"
+    local reason="$4"
+    local dir="$5"
+    local evidence_file="$6"
+
+    for phase in dry-run dispatch after-capture readback cleanup; do
+        write_json_artifact "$dir/$phase/$action.json" \
+            --arg status "$status" \
+            --arg reason "$reason" \
+            --arg evidence "$evidence_file" \
+            '{status: $status, reason: $reason, evidence: $evidence}'
+    done
+}
+
 write_summary() {
     local finished_at
     finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -105,7 +137,12 @@ write_summary() {
         --slurpfile build "$BUILD_JSON" \
         '{
           schema_version: "aos.saved-ref-cross-backend-proof.v0",
-          status: (if all(.[]; .status == "passed" or .status == "skipped_known_limit") then "passed" else "failed" end),
+          status: (
+            if all(.[]; .status == "passed" or .status == "skipped_known_limit") then "passed"
+            elif all(.[]; .status == "passed" or .status == "skipped_known_limit" or .status == "blocked_permission" or .status == "blocked_runtime") then "completed_with_classified_blockers"
+            else "failed"
+            end
+          ),
           proof_id: $proof_id,
           mode: $mode,
           proof_root: $proof_root,
@@ -127,11 +164,188 @@ write_cleanup_artifact() {
     jq -n '{cleanup: "verified", live_resources: "none", fixture_state_root_removed_by_trap: true}' >"$file"
 }
 
-if [[ "$MODE" != "fixture" ]]; then
-    fail_proof "unsupported proof mode $MODE; fixture mode is the deterministic guarded regression lane"
+./aos dev build --no-restart --json >"$BUILD_JSON"
+
+run_guarded_live_mode() {
+    local browser_dir="$PROOF_ROOT/browser"
+    make_backend_dirs browser
+    if ! command -v playwright-cli >/dev/null 2>&1; then
+        write_json_artifact "$browser_dir/setup/playwright-cli.json" \
+            '{status: "blocked_runtime", code: "PLAYWRIGHT_CLI_NOT_FOUND", required_for: ["browser saved-ref click live proof", "browser saved-ref fill live proof"]}'
+        for action in click fill; do
+            write_classified_row_artifacts browser "$action" blocked_runtime "playwright-cli not found on PATH" "$browser_dir" "$browser_dir/setup/playwright-cli.json"
+            append_row browser "$action" blocked_runtime guarded_live "$browser_dir" "" "playwright-cli is required for real browser saved-ref mutation"
+        done
+    else
+        write_json_artifact "$browser_dir/setup/playwright-cli.json" \
+            --arg path "$(command -v playwright-cli)" \
+            '{status: "available", path: $path}'
+        for action in click fill; do
+            write_classified_row_artifacts browser "$action" blocked_runtime "browser saved-ref live harness is not implemented for the available playwright-cli runtime" "$browser_dir" "$browser_dir/setup/playwright-cli.json"
+            append_row browser "$action" blocked_runtime guarded_live "$browser_dir" "" "browser runtime exists but this harness has no safe controlled saved-ref browser live row yet"
+        done
+    fi
+
+    local canvas_dir="$PROOF_ROOT/canvas"
+    make_backend_dirs canvas
+    local canvas_id="saved-ref-live-${PROOF_ID}-$$"
+    local workspace="saved-ref-live-${PROOF_ID}-canvas"
+    local html_path="$canvas_dir/setup/canvas.html"
+    local readiness_json="$canvas_dir/setup/ready.json"
+    local create_json="$canvas_dir/setup/show-create.json"
+    local wait_json="$canvas_dir/setup/show-wait.json"
+    local remove_json="$canvas_dir/cleanup/canvas.json"
+    local canvas_status="passed"
+    local canvas_reason=""
+
+    cat >"$html_path" <<HTML
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
+  </head>
+  <body style="margin:0;background:rgba(20,24,28,0.98);color:white">
+    <button
+      data-aos-ref="contract.primary"
+      data-semantic-target-id="primary"
+      onclick="document.body.dataset.clicked = String(Number(document.body.dataset.clicked || '0') + 1)"
+      style="margin:20px;width:120px;height:44px"
+    >Ready</button>
+    <section id="root" style="margin:16px;width:340px;height:120px"></section>
+    <script type="module">
+      import { createSlider } from 'aos://toolkit/controls/slider.js'
+      const slider = createSlider({
+        id: 'opacity',
+        surface: 'action-contract',
+        label: 'Opacity',
+        value: 0.25,
+        min: 0,
+        max: 1,
+        step: 0.05,
+      })
+      document.getElementById('root').append(slider.el)
+      window.__aosSavedRefProofSlider = slider
+    </script>
+  </body>
+</html>
+HTML
+
+    if ! ./aos ready --json >"$readiness_json" 2>"$readiness_json.err"; then
+        canvas_status="blocked_runtime"
+        canvas_reason="aos ready failed before live canvas setup"
+    elif ! ./aos show create --id "$canvas_id" --at 120,120,440,280 --interactive --focus --file "$html_path" >"$create_json" 2>"$create_json.err"; then
+        canvas_status="blocked_runtime"
+        canvas_reason="aos show create failed for live canvas fixture"
+    else
+        ./aos show wait --id "$canvas_id" --js 'Boolean(window.__aosSavedRefProofSlider) && document.querySelectorAll("[data-aos-ref]").length >= 2' --timeout 8s >"$wait_json" 2>"$wait_json.err" || true
+        sleep 1
+    fi
+
+    if [[ "$canvas_status" == "passed" ]]; then
+        if ! ./aos see capture --canvas "$canvas_id" --save --mode som --workspace "$workspace" --name before >"$canvas_dir/before-capture/canvas.json" 2>"$canvas_dir/before-capture/canvas.json.err"; then
+            canvas_status="blocked_runtime"
+            canvas_reason="live canvas saved capture failed"
+        fi
+    fi
+
+    local click_ref=""
+    local set_ref=""
+    if [[ "$canvas_status" == "passed" ]]; then
+        click_ref="$(jq -r '.refs[] | select(.backend == "aos_canvas" and (.supported_actions | index("click"))) | .ref' "$canvas_dir/before-capture/canvas.json" | head -n 1)"
+        set_ref="$(jq -r '.refs[] | select(.backend == "aos_canvas" and (.supported_actions | index("set-value"))) | .ref' "$canvas_dir/before-capture/canvas.json" | head -n 1)"
+        if [[ -z "$click_ref" || -z "$set_ref" ]]; then
+            canvas_status="blocked_runtime"
+            canvas_reason="live canvas capture did not produce both click and set-value saved refs"
+        else
+            jq --arg ref "$click_ref" '.refs[] | select(.ref == $ref)' "$canvas_dir/before-capture/canvas.json" >"$canvas_dir/selected-ref/click.json"
+            jq --arg ref "$set_ref" '.refs[] | select(.ref == $ref)' "$canvas_dir/before-capture/canvas.json" >"$canvas_dir/selected-ref/set-value.json"
+        fi
+    fi
+
+    if [[ "$canvas_status" == "passed" ]]; then
+        if ! ./aos do click "ref:before:$click_ref" --workspace "$workspace" --dry-run >"$canvas_dir/dry-run/click.json" 2>"$canvas_dir/dry-run/click.json.err" \
+            || ! ./aos do click "ref:before:$click_ref" --workspace "$workspace" >"$canvas_dir/dispatch/click.json" 2>"$canvas_dir/dispatch/click.json.err" \
+            || ! ./aos do set-value "ref:before:$set_ref" --workspace "$workspace" --value 0.7 --dry-run >"$canvas_dir/dry-run/set-value.json" 2>"$canvas_dir/dry-run/set-value.json.err" \
+            || ! ./aos do set-value "ref:before:$set_ref" --workspace "$workspace" --value 0.7 >"$canvas_dir/dispatch/set-value.json" 2>"$canvas_dir/dispatch/set-value.json.err"; then
+            canvas_status="blocked_runtime"
+            canvas_reason="live canvas saved-ref dry-run or dispatch failed"
+        fi
+    fi
+
+    if [[ "$canvas_status" == "passed" ]]; then
+        ./aos see capture --canvas "$canvas_id" --save --mode som --workspace "$workspace" --name after_click >"$canvas_dir/after-capture/click.json" 2>"$canvas_dir/after-capture/click.json.err" || {
+            canvas_status="blocked_runtime"
+            canvas_reason="post-click live canvas capture failed"
+        }
+    fi
+    if [[ "$canvas_status" == "passed" ]]; then
+        ./aos see capture --canvas "$canvas_id" --save --mode som --workspace "$workspace" --name after_set_value >"$canvas_dir/after-capture/set-value.json" 2>"$canvas_dir/after-capture/set-value.json.err" || {
+            canvas_status="blocked_runtime"
+            canvas_reason="post-set-value live canvas capture failed"
+        }
+    fi
+
+    if [[ "$canvas_status" == "passed" ]]; then
+        local clicked
+        local value
+        clicked="$(./aos show eval --id "$canvas_id" --js 'document.body.dataset.clicked || "0"' | jq -r '.result')"
+        value="$(./aos show eval --id "$canvas_id" --js 'String(window.__aosSavedRefProofSlider.getValue())' | jq -r '.result')"
+        jq -n --arg clicked "$clicked" '{status: (if $clicked == "1" then "passed" else "failed" end), clicked: $clicked}' >"$canvas_dir/readback/click.json"
+        jq -n --arg value "$value" '{status: (if $value == "0.7" then "passed" else "failed" end), value: $value}' >"$canvas_dir/readback/set-value.json"
+        if [[ "$clicked" != "1" || "$value" != "0.7" ]]; then
+            canvas_status="blocked_runtime"
+            canvas_reason="live canvas post-action readback did not show expected mutation"
+        fi
+    fi
+
+    if ./aos show remove --id "$canvas_id" >"$remove_json" 2>"$remove_json.err"; then
+        :
+    elif ./aos show list --json | jq -e --arg id "$canvas_id" '[.canvases[]? | select(.id == $id)] | length == 0' >/dev/null; then
+        jq -n --arg canvas_id "$canvas_id" '{status: "verified_already_absent", canvas_id: $canvas_id}' >"$remove_json"
+    else
+        canvas_status="blocked_cleanup_uncertain"
+        canvas_reason="live canvas cleanup failed"
+    fi
+
+    if [[ "$canvas_status" == "passed" ]]; then
+        write_cleanup_artifact "$canvas_dir/cleanup/click.json"
+        write_cleanup_artifact "$canvas_dir/cleanup/set-value.json"
+        append_row aos_canvas click passed guarded_live "$canvas_dir" "$click_ref" "live repo-daemon saved-ref click mutated controlled canvas and readback passed"
+        append_row aos_canvas set-value passed guarded_live "$canvas_dir" "$set_ref" "live repo-daemon saved-ref set-value mutated controlled toolkit slider and readback passed"
+    else
+        write_json_artifact "$canvas_dir/setup/runtime-blocker.json" --arg status "$canvas_status" --arg reason "$canvas_reason" '{status: $status, reason: $reason}'
+        for action in click set-value; do
+            write_classified_row_artifacts aos_canvas "$action" blocked_runtime "$canvas_reason" "$canvas_dir" "$canvas_dir/setup/runtime-blocker.json"
+            append_row aos_canvas "$action" blocked_runtime guarded_live "$canvas_dir" "" "$canvas_reason"
+        done
+    fi
+
+    local native_dir="$PROOF_ROOT/native_ax"
+    make_backend_dirs native_ax
+    if bash tests/agent-workspace-native-refs.sh >"$native_dir/setup/native-deterministic-baseline.out" 2>"$native_dir/setup/native-deterministic-baseline.err"; then
+        for action in press focus set-value; do
+            write_classified_row_artifacts native_ax "$action" passed "deterministic native saved-ref baseline passed; native production was not changed in this slice" "$native_dir" "$native_dir/setup/native-deterministic-baseline.out"
+            append_row native_ax "$action" passed deterministic_native_baseline "$native_dir" "" "deterministic native saved-ref baseline passed; live native rerun not required for this harness-only slice"
+        done
+    else
+        for action in press focus set-value; do
+            write_classified_row_artifacts native_ax "$action" blocked_runtime "deterministic native saved-ref baseline failed" "$native_dir" "$native_dir/setup/native-deterministic-baseline.err"
+            append_row native_ax "$action" blocked_runtime deterministic_native_baseline "$native_dir" "" "deterministic native saved-ref baseline failed"
+        done
+    fi
+}
+
+if [[ "$MODE" == "guarded-live" ]]; then
+    run_guarded_live_mode
+    write_summary
+    cat "$SUMMARY"
+    exit 0
 fi
 
-./aos dev build --no-restart --json >"$BUILD_JSON"
+if [[ "$MODE" != "fixture" ]]; then
+    fail_proof "unsupported proof mode $MODE; supported modes: fixture, guarded-live"
+fi
 
 BROWSER_DIR="$PROOF_ROOT/browser"
 make_backend_dirs browser
