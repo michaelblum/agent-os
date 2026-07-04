@@ -145,6 +145,14 @@ test('non-ready, missing authorization, unsupported live surface, unsafe command
 test('path traversal and symlink escape are rejected before execution', async () => {
   const plan = readyAttemptPlan();
   const rootSet = roots();
+  const missing = await executeControlledWorkRecordRepair({
+    attemptPlanPath: writeJson(plan),
+    executionRoot: path.join(os.tmpdir(), 'aos-controlled-repair-missing-root'),
+    artifactRoot: rootSet.artifactRoot,
+    repoRoot,
+  });
+  assert.equal(missing.status, 'blocked_workspace_escape');
+
   const traversal = await executeControlledWorkRecordRepair({
     attemptPlanPath: writeJson(plan),
     executionRoot: `${rootSet.executionRoot}/../${path.basename(rootSet.executionRoot)}`,
@@ -191,6 +199,12 @@ test('successful fixture command writes and validates a Repair Attempt Artifact 
   assert.equal(artifact.source_work_record_mutated, false);
   assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'passed');
   assert.equal(result.artifact_validation.status, 'passed');
+  assert.ok(executedOutcome(result).file_changes.some((item) => (
+    item.path === 'output/result.txt'
+    && item.before_exists === false
+    && item.after_exists === true
+    && item.changed === true
+  )));
 });
 
 test('failure, timeout, cleanup, and rollback outcomes stay visible', async () => {

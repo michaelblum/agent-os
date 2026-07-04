@@ -330,6 +330,21 @@ function snapshotPaths(root, rels = []) {
   });
 }
 
+function fileChanges(before = [], after = []) {
+  const afterByPath = new Map(after.map((item) => [item.path, item]));
+  return before.map((item) => {
+    const next = afterByPath.get(item.path) || { path: item.path, exists: false, digest: '' };
+    return {
+      path: item.path,
+      before_exists: item.exists,
+      after_exists: next.exists,
+      before_digest: item.digest,
+      after_digest: next.digest,
+      changed: item.exists !== next.exists || item.digest !== next.digest,
+    };
+  });
+}
+
 function boundedAppend(current, chunk, limit) {
   const next = Buffer.concat([current, Buffer.from(chunk)]);
   if (next.length <= limit) return { buffer: next, truncated: false };
@@ -607,6 +622,7 @@ export async function executeControlledWorkRecordRepair(input = {}) {
     timeoutMs: descriptor.timeout_ms,
   });
   const afterSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths);
+  const changes = fileChanges(beforeSnapshot, afterSnapshot);
   const sourceAfter = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : sourceBefore;
   const outcomeId = `operation-outcome:${text(operation.id).replace(/[^A-Za-z0-9._:-]+/g, '_')}`;
   const status = commandStatus(command);
@@ -691,6 +707,7 @@ export async function executeControlledWorkRecordRepair(input = {}) {
     },
     before_digests: beforeSnapshot,
     after_digests: afterSnapshot,
+    file_changes: changes,
     evidence_ref_ids: requiredEvidence,
     cleanup_required: Boolean(descriptor.cleanup),
       rollback_required: Boolean(descriptor.rollback) && status !== 'succeeded',
