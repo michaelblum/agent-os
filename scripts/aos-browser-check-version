@@ -1,119 +1,12 @@
 #!/bin/bash
 set -u
 
-MIN_VERSION="0.1.8"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-json_error() {
-  local message="$1"
-  local code="$2"
-  printf '{\n  "code" : "%s",\n  "error" : "%s"\n}\n' "$code" "$message" >&2
-  exit 1
-}
-
-find_cli() {
-  local old_ifs="$IFS"
-  IFS=:
-  for dir in ${PATH:-}; do
-    if [[ -n "$dir" && -x "$dir/playwright-cli" ]]; then
-      printf '%s\n' "$dir/playwright-cli"
-      IFS="$old_ifs"
-      return 0
-    fi
-  done
-  IFS="$old_ifs"
-  return 1
-}
-
-resolve_symlinks() {
-  local current="$1"
-  local target parent
-  for _ in {1..16}; do
-    [[ -L "$current" ]] || break
-    target="$(/usr/bin/readlink "$current" 2>/dev/null)" || break
-    if [[ "$target" == /* ]]; then
-      current="$target"
-    else
-      parent="${current%/*}"
-      current="$parent/$target"
-    fi
-  done
-  printf '%s\n' "$current"
-}
-
-package_version() {
-  local resolved="$1"
-  local dir="${resolved%/*}"
-  local parent pkg version
-  for _ in {1..20}; do
-    pkg="$dir/package.json"
-    if [[ -f "$pkg" ]]; then
-      version="$(/usr/bin/python3 - "$pkg" <<'PY' 2>/dev/null
-import json, sys
-try:
-    data = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(1)
-if data.get("name") == "@playwright/cli" and isinstance(data.get("version"), str):
-    print(data["version"])
-else:
-    sys.exit(1)
-PY
-)"
-      if [[ -n "$version" ]]; then
-        printf '%s\n' "$version"
-        return 0
-      fi
-    fi
-    parent="${dir%/*}"
-    [[ "$parent" != "$dir" && -n "$parent" ]] || break
-    dir="$parent"
-  done
-  return 1
-}
-
-compare_versions() {
-  local a_base="${1%%-*}"
-  local b_base="${2%%-*}"
-  local old_ifs="$IFS"
-  local a_parts b_parts max i av bv
-  IFS=.
-  a_parts=($a_base)
-  b_parts=($b_base)
-  IFS="$old_ifs"
-  [[ ${#a_parts[@]} -gt 0 && -n "${a_parts[0]}" ]] || return 2
-  [[ ${#b_parts[@]} -gt 0 && -n "${b_parts[0]}" ]] || return 2
-  max=${#a_parts[@]}
-  [[ ${#b_parts[@]} -gt $max ]] && max=${#b_parts[@]}
-  for ((i = 0; i < max; i++)); do
-    av="${a_parts[$i]:-0}"
-    bv="${b_parts[$i]:-0}"
-    [[ "$av" =~ ^[0-9]+$ && "$bv" =~ ^[0-9]+$ ]] || return 2
-    if ((10#$av < 10#$bv)); then return 1; fi
-    if ((10#$av > 10#$bv)); then return 0; fi
-  done
-  return 0
-}
-
-cli="$(find_cli)" || json_error "@playwright/cli is not installed. Run: npm install -g @playwright/cli@latest" "PLAYWRIGHT_CLI_NOT_FOUND"
-resolved="$(resolve_symlinks "$cli")"
-source="package.json"
-version="$(package_version "$resolved" || true)"
-if [[ -z "$version" ]]; then
-  source="binary-version"
-  if ! version="$("$cli" --version 2>/tmp/aos-browser-check-version.err)"; then
-    err="$(cat /tmp/aos-browser-check-version.err 2>/dev/null || true)"
-    json_error "Version probe failed: $err" "PLAYWRIGHT_CLI_PROBE_FAILED"
-  fi
-  version="${version//$'\n'/}"
+out="$(node "$ROOT/scripts/aos-browser-resolve-runtime.mjs" 2>&1)"
+status=$?
+if [[ "$status" -ne 0 ]]; then
+  printf '%s\n' "$out" >&2
+  exit "$status"
 fi
-
-compare_versions "$version" "$MIN_VERSION"
-cmp=$?
-if [[ "$cmp" -eq 2 ]]; then
-  json_error "Version probe failed: unparseable version: $version" "PLAYWRIGHT_CLI_PROBE_FAILED"
-fi
-if [[ "$cmp" -eq 1 ]]; then
-  json_error "@playwright/cli $version is below the minimum $MIN_VERSION. Run: npm install -g @playwright/cli@latest." "PLAYWRIGHT_CLI_TOO_OLD"
-fi
-
-printf '{"minimum":"%s","source":"%s","status":"ok","version":"%s"}\n' "$MIN_VERSION" "$source" "$version"
+printf '%s\n' "$out"

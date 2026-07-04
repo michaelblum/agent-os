@@ -38,6 +38,9 @@ enum PlaywrightInvocationError: Error {
 }
 
 func runPlaywright(_ inv: PlaywrightInvocation) throws -> PlaywrightResult {
+    guard let runtime = findPlaywrightCLIRuntime() else {
+        throw PlaywrightInvocationError.launchFailed("PLAYWRIGHT_CLI_NOT_FOUND")
+    }
     var argv: [String] = ["-s=\(inv.session)", inv.verb]
     argv.append(contentsOf: inv.args)
 
@@ -54,8 +57,8 @@ func runPlaywright(_ inv: PlaywrightInvocation) throws -> PlaywrightResult {
     }
 
     let proc = Process()
-    proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    proc.arguments = ["playwright-cli"] + argv
+    proc.executableURL = URL(fileURLWithPath: runtime.path)
+    proc.arguments = argv
     let out = Pipe(), err = Pipe()
     proc.standardOutput = out
     proc.standardError = err

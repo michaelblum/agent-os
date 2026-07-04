@@ -1,4 +1,8 @@
 import { spawnSync } from 'node:child_process';
+import {
+  resolvePlaywrightCliRuntime,
+  runPlaywrightCli,
+} from '../playwright-cli-runtime.mjs';
 
 const BROWSER_IDENTITY_SCRIPT = `() => {
   const href = String(window.location && window.location.href || '');
@@ -57,11 +61,17 @@ function normalizeBrowserIdentity(value, session) {
 }
 
 export function queryBrowserPageIdentity(session, env = process.env) {
-  const result = spawnSync('/usr/bin/env', ['playwright-cli', `-s=${session}`, 'eval', BROWSER_IDENTITY_SCRIPT], {
-    encoding: 'utf8',
-    env,
-    maxBuffer: 100 * 1024 * 1024,
-  });
+  const runtime = resolvePlaywrightCliRuntime({ env });
+  if (runtime.status !== 'ok') {
+    return {
+      status: 'unavailable',
+      reason: runtime.code || 'playwright_runtime_unavailable',
+      session,
+      stderr: runtime.error || null,
+      runtime,
+    };
+  }
+  const result = runPlaywrightCli(runtime, [`-s=${session}`, 'eval', BROWSER_IDENTITY_SCRIPT], { env });
   if (result.status !== 0) {
     return {
       status: 'unavailable',

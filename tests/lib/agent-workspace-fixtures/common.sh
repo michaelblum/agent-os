@@ -6,6 +6,7 @@ agent_workspace_test_setup() {
 
     FIX="$ROOT/tests/browser/fixtures"
     export PATH="$FIX:$PATH"
+    export AOS_PLAYWRIGHT_CLI="$FIX/playwright-cli"
     export FAKE_PWCLI_VERSION="0.9.9"
     export FAKE_PWCLI_MODE="new"
     export AOS_RUNTIME_MODE="repo"

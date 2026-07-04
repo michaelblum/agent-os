@@ -32,24 +32,26 @@ enum PlaywrightVersionError: Error {
 
 struct PlaywrightVersionOK: Encodable {
     let status: String  // "ok"
+    let path: String
+    let source: String  // "env:AOS_PLAYWRIGHT_CLI" | "repo:..." | "PATH"
     let version: String
     let minimum: String
-    let source: String  // "package.json" | "binary-version"
+    let version_source: String  // "package.json" | "binary-version"
 }
 
 func probePlaywrightVersion() throws -> PlaywrightVersionOK {
-    guard let binaryPath = findPlaywrightCLIOnPath() else {
+    guard let runtime = findPlaywrightCLIRuntime() else {
         throw PlaywrightVersionError.notFound
     }
 
     let version: String
-    let source: String
-    if let pkgVersion = detectPackageVersion(fromBinary: binaryPath) {
+    let versionSource: String
+    if let pkgVersion = detectPackageVersion(fromBinary: runtime.path) {
         version = pkgVersion
-        source = "package.json"
+        versionSource = "package.json"
     } else {
-        version = try runBinaryVersion()
-        source = "binary-version"
+        version = try runBinaryVersion(runtime.path)
+        versionSource = "binary-version"
     }
 
     if parseVersionSegments(version).isEmpty {
@@ -63,14 +65,44 @@ func probePlaywrightVersion() throws -> PlaywrightVersionOK {
     }
     return PlaywrightVersionOK(
         status: "ok",
+        path: runtime.path,
+        source: runtime.source,
         version: version,
         minimum: kMinPlaywrightCLIVersion,
-        source: source
+        version_source: versionSource
     )
 }
 
-// Iterate PATH ourselves — avoids shelling out to `which` and gives us the
-// exact resolved path we need for symlink walking below.
+struct PlaywrightRuntimeCandidate {
+    let path: String
+    let source: String
+}
+
+func findPlaywrightCLIRuntime() -> PlaywrightRuntimeCandidate? {
+    let env = ProcessInfo.processInfo.environment
+    if let override = env["AOS_PLAYWRIGHT_CLI"], !override.isEmpty {
+        guard FileManager.default.isExecutableFile(atPath: override) else {
+            return nil
+        }
+        return PlaywrightRuntimeCandidate(path: override, source: "env:AOS_PLAYWRIGHT_CLI")
+    }
+    if env["AOS_PLAYWRIGHT_CLI_DISABLE_REPO"] != "1" {
+        let cwd = FileManager.default.currentDirectoryPath
+        let repoLocal = "\(cwd)/node_modules/.bin/playwright-cli"
+        if FileManager.default.isExecutableFile(atPath: repoLocal) {
+            return PlaywrightRuntimeCandidate(path: repoLocal, source: "repo:node_modules/.bin/playwright-cli")
+        }
+        let repoWrapper = "\(cwd)/scripts/aos-playwright-cli"
+        if FileManager.default.isExecutableFile(atPath: repoWrapper) {
+            return PlaywrightRuntimeCandidate(path: repoWrapper, source: "repo:scripts/aos-playwright-cli")
+        }
+    }
+    if let pathBinary = findPlaywrightCLIOnPath() {
+        return PlaywrightRuntimeCandidate(path: pathBinary, source: "PATH")
+    }
+    return nil
+}
+
 private func findPlaywrightCLIOnPath() -> String? {
     let env = ProcessInfo.processInfo.environment
     let path = env["PATH"] ?? ""
@@ -129,10 +161,10 @@ private func detectPackageVersion(fromBinary path: String) -> String? {
 
 // Fallback: read the binary's own `--version`. The output is the PLAYWRIGHT
 // engine version, not the CLI package version, so this is advisory.
-private func runBinaryVersion() throws -> String {
+private func runBinaryVersion(_ binaryPath: String) throws -> String {
     let proc = Process()
-    proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    proc.arguments = ["playwright-cli", "--version"]
+    proc.executableURL = URL(fileURLWithPath: binaryPath)
+    proc.arguments = ["--version"]
     let out = Pipe(), err = Pipe()
     proc.standardOutput = out
     proc.standardError = err

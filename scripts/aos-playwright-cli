@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec npx --yes @playwright/cli@0.1.15 "$@"

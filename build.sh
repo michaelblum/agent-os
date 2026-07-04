@@ -205,6 +205,7 @@ if [[ $NEEDS_BUILD -eq 1 ]]; then
     sign_output "$TMP_OUTPUT"
     "$TMP_OUTPUT" help --json >/dev/null
     cp "$TMP_OUTPUT" "$OUTPUT_PATH"
+    sign_output "$OUTPUT_PATH"
     rm -f "$TMP_OUTPUT"
     trap - EXIT
     BINARY_REBUILT=1

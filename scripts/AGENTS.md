@@ -21,6 +21,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Prefer structured JSON output for machine surfaces.
 - Avoid direct daemon/socket/launchd bypasses unless the script is the sanctioned
   adapter for that lower-level operation.
+- Browser helpers must resolve `playwright-cli` through the shared runtime
+  resolver contract; preserve structured missing, too-old, and probe-failure
+  evidence instead of adding ad hoc PATH checks.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from sign-only repair or no-op checks. Only actual rebuilds
   should drive TCC-sensitive human-attention behavior.

@@ -5,6 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import {
+  resolvePlaywrightCliRuntime,
+  runPlaywrightCli,
+} from './lib/playwright-cli-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
@@ -146,11 +150,9 @@ function runPlaywrightCommand(args) {
     filename = path.join(scratch, `aos-pw-${crypto.randomUUID()}.md`);
     argv.push(`--filename=${filename}`);
   }
-  const result = spawnSync('/usr/bin/env', ['playwright-cli', ...argv], {
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 100 * 1024 * 1024,
-  });
+  const runtime = resolvePlaywrightCliRuntime();
+  if (runtime.status !== 'ok') error(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
+  const result = runPlaywrightCli(runtime, argv, { env: process.env });
   if (result.error && result.status === null) {
     error(`launch failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_LAUNCH_FAILED');
   }
@@ -324,11 +326,9 @@ function parsePlaywrightResultBody(stdout) {
 
 function boundsViaEval(session, ref) {
   const js = '(e) => { const r = e.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; }';
-  const result = spawnSync('/usr/bin/env', ['playwright-cli', `-s=${session}`, 'eval', js, ref], {
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 100 * 1024 * 1024,
-  });
+  const runtime = resolvePlaywrightCliRuntime();
+  if (runtime.status !== 'ok') error(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
+  const result = runPlaywrightCli(runtime, [`-s=${session}`, 'eval', js, ref], { env: process.env });
   if (result.status !== 0) return null;
   const body = parsePlaywrightResultBody(result.stdout || '');
   if (body === null) return null;

@@ -106,6 +106,14 @@ run:
 AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh
 ```
 
+In guarded-live mode, browser rows use `./aos browser _check-version` for
+runtime resolution. The resolver order is `AOS_PLAYWRIGHT_CLI`, repo-local
+`node_modules/.bin/playwright-cli`, repo-owned `scripts/aos-playwright-cli`, and
+then `playwright-cli` on `PATH`. Browser `click` and `fill` run against a
+harness-owned local HTTP fixture; raw Playwright is allowed only for setup,
+readback, and cleanup, while the mutation path must dispatch through saved-ref
+validation.
+
 ## Rebuild `./aos` First
 
 Rebuild with `./aos dev build` when both of these are true:

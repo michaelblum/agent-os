@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import {
+  resolvePlaywrightCliRuntime,
+  runPlaywrightCli,
+} from './lib/playwright-cli-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -79,7 +83,7 @@ function getArg(args, flag) {
 }
 
 function ensureVersion() {
-  const result = spawnSync(aosPath(), ['browser', '_check-version', '--json'], {
+  const result = spawnSync(aosPath(), ['browser', '_check-version'], {
     encoding: 'utf8',
     env: process.env,
   });
@@ -94,11 +98,9 @@ function ensureVersion() {
 }
 
 function runPlaywright(session, verb, args) {
-  const result = spawnSync('/usr/bin/env', ['playwright-cli', `-s=${session}`, verb, ...args], {
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 100 * 1024 * 1024,
-  });
+  const runtime = resolvePlaywrightCliRuntime();
+  if (runtime.status !== 'ok') error(runtime.error || 'playwright-cli runtime unavailable', runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND');
+  const result = runPlaywrightCli(runtime, [`-s=${session}`, verb, ...args], { env: process.env });
   if (result.error && result.status === null) {
     error(`launch failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_LAUNCH_FAILED');
   }

@@ -372,6 +372,22 @@ Backend conformance levels are intentionally explicit:
 | `native_ax` volatile or known-limit refs | inspection/readback only | `known_limit_contract` | `approval_gated_live_proof_not_run` | known-limit assertions in `tests/agent-workspace-native-refs.sh` plus HITL live smoke, TCC/manual runtime flow, native repo-mode artifact rebuild, explicit no-foreground/focus/cursor/Space baseline verification |
 | `coordinate_fallback` | diagnostic/fallback-only refs | `known_limit_contract` | `known_limit_refusal_tested` | refused-before-dispatch assertions in `tests/agent-workspace-browser-refs.sh` and `tests/agent-workspace-canvas-refs.sh` and `tests/agent-workspace-native-refs.sh` |
 
+Browser runtime resolution is deterministic. `aos browser _check-version`
+returns structured JSON for the selected executable path, discovery source,
+version, minimum version, and failures such as `PLAYWRIGHT_CLI_NOT_FOUND`,
+`PLAYWRIGHT_CLI_TOO_OLD`, and `PLAYWRIGHT_CLI_PROBE_FAILED`. Resolution prefers
+`AOS_PLAYWRIGHT_CLI`, then repo-local `node_modules/.bin/playwright-cli`, then
+the repo-owned `scripts/aos-playwright-cli` wrapper, then `playwright-cli` on
+`PATH`.
+
+Guarded-live browser saved-ref proof lives in
+`tests/manual/cross-backend-saved-ref-regression-proof.sh`. In
+`AOS_SAVED_REF_PROOF_MODE=guarded-live`, the harness serves a local browser
+fixture, captures browser saved refs, dispatches `click` and `fill` through
+saved-ref validation, and writes post-action readback artifacts. If runtime
+resolution fails, browser rows stay `blocked_runtime` with the resolver JSON as
+evidence instead of a vague PATH failure.
+
 Native `open`/`toggle`, explicit `type`/`key` saved-ref attempts that include
 `--workspace` or `--snapshot`, and other unsupported saved-ref forms fail closed
 with structured JSON until the action grammar has a backend-owned current target

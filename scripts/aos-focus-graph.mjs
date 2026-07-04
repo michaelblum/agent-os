@@ -5,6 +5,10 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  resolvePlaywrightCliRuntime,
+  runPlaywrightCli,
+} from './lib/playwright-cli-runtime.mjs';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
@@ -194,10 +198,17 @@ function writeRegistry(records) {
 }
 
 function runPlaywright(session, verb, args = []) {
-  const result = spawnSync('playwright-cli', [`-s=${session}`, verb, ...args], {
-    encoding: 'utf8',
-    env: process.env,
-  });
+  const runtime = resolvePlaywrightCliRuntime();
+  if (runtime.status !== 'ok') {
+    return {
+      status: 1,
+      stdout: '',
+      stderr: runtime.error || 'playwright-cli runtime unavailable',
+      error: null,
+      code: runtime.code || 'PLAYWRIGHT_CLI_NOT_FOUND',
+    };
+  }
+  const result = runPlaywrightCli(runtime, [`-s=${session}`, verb, ...args], { env: process.env });
   return {
     status: result.status ?? 1,
     stdout: (result.stdout || '').trim(),
@@ -208,6 +219,7 @@ function runPlaywright(session, verb, args = []) {
 
 function requirePlaywrightSuccess(result, action) {
   if (result.error) error(`${action} failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_NOT_FOUND');
+  if (result.code) error(`${action} failed: ${result.stderr || result.stdout}`, result.code);
   if (result.status !== 0) error(`${action} failed: ${result.stderr || result.stdout}`, 'PLAYWRIGHT_CLI_FAILED');
   if (result.stdout.includes('### Error')) error(`${action} failed: ${result.stdout}`, 'PLAYWRIGHT_CLI_FAILED');
 }

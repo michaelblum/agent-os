@@ -6,20 +6,22 @@ set -euo pipefail
 
 FIX="$(cd "$(dirname "$0")" && pwd)/fixtures"
 export PATH="$FIX:$PATH"
+export AOS_PLAYWRIGHT_CLI="$FIX/playwright-cli"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
 
 # Case 1: happy path, new-mode CLI at (or above) the pinned minimum.
 # Keep this >= kMinPlaywrightCLIVersion in playwright-version-check.swift.
 export FAKE_PWCLI_VERSION="0.1.8"
 export FAKE_PWCLI_MODE="new"
 out=$(./aos browser _check-version 2>&1)
-echo "$out" | grep -q '"status":"ok"' || { echo "FAIL case 1: $out" >&2; exit 1; }
+echo "$out" | grep -q '"status": "ok"' || { echo "FAIL case 1: $out" >&2; exit 1; }
 
 # Case 1b: happy path, strictly-newer version
 export FAKE_PWCLI_VERSION="0.2.0"
 export FAKE_PWCLI_MODE="new"
 out=$(./aos browser _check-version 2>&1)
-echo "$out" | grep -q '"status":"ok"' || { echo "FAIL case 1b: $out" >&2; exit 1; }
-echo "$out" | grep -q '"version":"0.2.0"' || { echo "FAIL case 1b version echo: $out" >&2; exit 1; }
+echo "$out" | grep -q '"status": "ok"' || { echo "FAIL case 1b: $out" >&2; exit 1; }
+echo "$out" | grep -q '"version": "0.2.0"' || { echo "FAIL case 1b version echo: $out" >&2; exit 1; }
 
 # Case 2: old-mode CLI — version too old
 export FAKE_PWCLI_VERSION="0.1.1"
@@ -35,7 +37,7 @@ unset FAKE_PWCLI_VERSION
 unset FAKE_PWCLI_MODE
 empty_dir="/tmp/empty-$$"
 mkdir -p "$empty_dir"
-if out=$(PATH="$empty_dir" ./aos browser _check-version 2>&1); then
+if out=$(AOS_PLAYWRIGHT_CLI_DISABLE_REPO=1 AOS_PLAYWRIGHT_CLI= PATH="$empty_dir:$NODE_BIN_DIR:/usr/bin:/bin" ./aos browser _check-version 2>&1); then
     rm -rf "$empty_dir"
     echo "FAIL case 3: expected error, got success: $out" >&2
     exit 1
@@ -69,7 +71,7 @@ chmod +x "$fakeinstall/lib/node_modules/@playwright/cli/cli.js"
 # bin/playwright-cli is the symlink npm creates at the global bin dir
 ln -s ../lib/node_modules/@playwright/cli/cli.js "$fakeinstall/bin/playwright-cli"
 
-if out=$(PATH="$fakeinstall/bin" ./aos browser _check-version 2>&1); then
+if out=$(AOS_PLAYWRIGHT_CLI= AOS_PLAYWRIGHT_CLI_DISABLE_REPO=1 PATH="$fakeinstall/bin:$NODE_BIN_DIR:/usr/bin:/bin" ./aos browser _check-version 2>&1); then
     rm -rf "$fakeinstall"
     echo "FAIL case 4: 0.1.1 package.json should error, got success: $out" >&2
     exit 1
@@ -88,16 +90,16 @@ echo "$out" | grep -q "0.1.1" || {
 cat > "$fakeinstall/lib/node_modules/@playwright/cli/package.json" <<'EOF'
 {"name":"@playwright/cli","version":"0.1.8"}
 EOF
-out=$(PATH="$fakeinstall/bin" ./aos browser _check-version 2>&1)
-echo "$out" | grep -q '"status":"ok"' || {
+out=$(AOS_PLAYWRIGHT_CLI= AOS_PLAYWRIGHT_CLI_DISABLE_REPO=1 PATH="$fakeinstall/bin:$NODE_BIN_DIR:/usr/bin:/bin" ./aos browser _check-version 2>&1)
+echo "$out" | grep -q '"status": "ok"' || {
     rm -rf "$fakeinstall"
     echo "FAIL case 5: $out" >&2; exit 1
 }
-echo "$out" | grep -q '"version":"0.1.8"' || {
+echo "$out" | grep -q '"version": "0.1.8"' || {
     rm -rf "$fakeinstall"
     echo "FAIL case 5 version: $out" >&2; exit 1
 }
-echo "$out" | grep -q '"source":"package.json"' || {
+echo "$out" | grep -q '"version_source": "package.json"' || {
     rm -rf "$fakeinstall"
     echo "FAIL case 5 source (want package.json): $out" >&2; exit 1
 }

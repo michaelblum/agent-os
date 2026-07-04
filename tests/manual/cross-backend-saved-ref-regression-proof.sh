@@ -14,6 +14,8 @@ ROWS_JSONL="$PROOF_ROOT/rows.jsonl"
 BUILD_JSON="$PROOF_ROOT/build.json"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 FIXTURE_STATE_ROOT=""
+BROWSER_SERVER_PID=""
+BROWSER_FIXTURE_ROOT=""
 
 mkdir -p "$PROOF_ROOT"
 : >"$ROWS_JSONL"
@@ -28,6 +30,13 @@ fi
 
 cleanup() {
     local status="verified"
+    if [[ -n "$BROWSER_SERVER_PID" ]]; then
+        kill "$BROWSER_SERVER_PID" >/dev/null 2>&1 || true
+        wait "$BROWSER_SERVER_PID" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$BROWSER_FIXTURE_ROOT" && -d "$BROWSER_FIXTURE_ROOT" ]]; then
+        rm -rf "$BROWSER_FIXTURE_ROOT" || status="failed"
+    fi
     if [[ -n "$FIXTURE_STATE_ROOT" && -d "$FIXTURE_STATE_ROOT" ]]; then
         rm -rf "$FIXTURE_STATE_ROOT" || status="failed"
     fi
@@ -164,26 +173,183 @@ write_cleanup_artifact() {
     jq -n '{cleanup: "verified", live_resources: "none", fixture_state_root_removed_by_trap: true}' >"$file"
 }
 
+extract_playwright_result_json() {
+    local input="$1"
+    python3 - "$input" <<'PY'
+import json
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+marker = "### Result"
+idx = text.find(marker)
+if idx < 0:
+    raise SystemExit("missing playwright result marker")
+body = text[idx + len(marker):].strip()
+next_marker = body.find("\n### ")
+if next_marker >= 0:
+    body = body[:next_marker].strip()
+parsed = json.loads(body)
+if isinstance(parsed, str):
+    parsed = json.loads(parsed)
+print(json.dumps(parsed))
+PY
+}
+
+browser_blocked_rows() {
+    local browser_dir="$1"
+    local reason="$2"
+    local evidence="$3"
+    for action in click fill; do
+        write_classified_row_artifacts browser "$action" blocked_runtime "$reason" "$browser_dir" "$evidence"
+        append_row browser "$action" blocked_runtime guarded_live "$browser_dir" "" "$reason"
+    done
+}
+
 ./aos dev build --no-restart --json >"$BUILD_JSON"
 
 run_guarded_live_mode() {
     local browser_dir="$PROOF_ROOT/browser"
     make_backend_dirs browser
-    if ! command -v playwright-cli >/dev/null 2>&1; then
-        write_json_artifact "$browser_dir/setup/playwright-cli.json" \
-            '{status: "blocked_runtime", code: "PLAYWRIGHT_CLI_NOT_FOUND", required_for: ["browser saved-ref click live proof", "browser saved-ref fill live proof"]}'
-        for action in click fill; do
-            write_classified_row_artifacts browser "$action" blocked_runtime "playwright-cli not found on PATH" "$browser_dir" "$browser_dir/setup/playwright-cli.json"
-            append_row browser "$action" blocked_runtime guarded_live "$browser_dir" "" "playwright-cli is required for real browser saved-ref mutation"
-        done
+    local browser_status="passed"
+    local browser_reason=""
+    local browser_runtime_json="$browser_dir/setup/playwright-cli.json"
+    local browser_session="aos-saved-ref-${PROOF_ID}-$$"
+    local browser_workspace="saved-ref-live-${PROOF_ID}-browser"
+    local browser_port=""
+    local browser_url=""
+    local browser_runtime_path=""
+
+    if ! ./aos browser _check-version >"$browser_runtime_json" 2>"$browser_runtime_json.err"; then
+        cp "$browser_runtime_json.err" "$browser_runtime_json"
+        browser_blocked_rows "$browser_dir" "browser runtime resolution failed; see structured resolver evidence" "$browser_runtime_json"
     else
-        write_json_artifact "$browser_dir/setup/playwright-cli.json" \
-            --arg path "$(command -v playwright-cli)" \
-            '{status: "available", path: $path}'
-        for action in click fill; do
-            write_classified_row_artifacts browser "$action" blocked_runtime "browser saved-ref live harness is not implemented for the available playwright-cli runtime" "$browser_dir" "$browser_dir/setup/playwright-cli.json"
-            append_row browser "$action" blocked_runtime guarded_live "$browser_dir" "" "browser runtime exists but this harness has no safe controlled saved-ref browser live row yet"
-        done
+        browser_runtime_path="$(jq -r '.path // empty' "$browser_runtime_json")"
+        BROWSER_FIXTURE_ROOT="$(mktemp -d "/tmp/aos-browser-saved-ref-fixture-${PROOF_ID}.XXXXXX")"
+        cat >"$BROWSER_FIXTURE_ROOT/index.html" <<'HTML'
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AOS Browser Saved Ref Proof</title>
+  </head>
+  <body>
+    <button id="proof-click" onclick="document.body.dataset.clicked = String(Number(document.body.dataset.clicked || '0') + 1)">Proof Click</button>
+    <input id="proof-fill" aria-label="Proof Input" value="">
+  </body>
+</html>
+HTML
+        browser_port="$(python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
+        python3 -m http.server "$browser_port" --bind 127.0.0.1 --directory "$BROWSER_FIXTURE_ROOT" >"$browser_dir/setup/http-server.out" 2>"$browser_dir/setup/http-server.err" &
+        BROWSER_SERVER_PID="$!"
+        browser_url="http://127.0.0.1:${browser_port}/index.html"
+        jq -n --arg status "started" --arg pid "$BROWSER_SERVER_PID" --arg url "$browser_url" --arg root "$BROWSER_FIXTURE_ROOT" \
+            '{status: $status, pid: ($pid | tonumber), url: $url, fixture_root: $root}' >"$browser_dir/setup/fixture.json"
+        sleep 1
+
+        if [[ -z "$browser_runtime_path" || ! -x "$browser_runtime_path" ]]; then
+            browser_status="blocked_runtime"
+            browser_reason="browser resolver did not return an executable runtime path"
+        elif ! "$browser_runtime_path" "-s=$browser_session" open "$browser_url" --browser chrome >"$browser_dir/setup/open.json" 2>"$browser_dir/setup/open.json.err"; then
+            browser_status="blocked_runtime"
+            browser_reason="browser fixture open failed through resolved runtime"
+        elif ! ./aos see capture "browser:$browser_session" --xray --save --workspace "$browser_workspace" --name before >"$browser_dir/before-capture/browser.json" 2>"$browser_dir/before-capture/browser.json.err"; then
+            browser_status="blocked_runtime"
+            browser_reason="browser saved capture failed on controlled fixture"
+        fi
+
+        local browser_click_ref=""
+        local browser_fill_ref=""
+        if [[ "$browser_status" == "passed" ]]; then
+            browser_click_ref="$(jq -r '.refs[] | select(.backend == "browser" and .identity_facts.role == "button" and (.supported_actions | index("click"))) | .ref' "$browser_dir/before-capture/browser.json" | head -n 1)"
+            browser_fill_ref="$(jq -r '.refs[] | select(.backend == "browser" and .identity_facts.role == "textbox" and (.supported_actions | index("fill"))) | .ref' "$browser_dir/before-capture/browser.json" | head -n 1)"
+            if [[ -z "$browser_click_ref" || -z "$browser_fill_ref" ]]; then
+                browser_status="blocked_runtime"
+                browser_reason="browser capture did not produce both click and fill saved refs"
+            else
+                jq --arg ref "$browser_click_ref" '.refs[] | select(.ref == $ref)' "$browser_dir/before-capture/browser.json" >"$browser_dir/selected-ref/click.json"
+                jq --arg ref "$browser_fill_ref" '.refs[] | select(.ref == $ref)' "$browser_dir/before-capture/browser.json" >"$browser_dir/selected-ref/fill.json"
+            fi
+        fi
+
+        local browser_click_status="$browser_status"
+        local browser_fill_status="$browser_status"
+        local browser_click_reason="$browser_reason"
+        local browser_fill_reason="$browser_reason"
+        local fill_value="browser-proof-${PROOF_ID}"
+
+        if [[ "$browser_status" == "passed" ]]; then
+            if ! ./aos do click "ref:before:$browser_click_ref" --workspace "$browser_workspace" --dry-run >"$browser_dir/dry-run/click.json" 2>"$browser_dir/dry-run/click.json.err" \
+                || ! ./aos do click "ref:before:$browser_click_ref" --workspace "$browser_workspace" >"$browser_dir/dispatch/click.json" 2>"$browser_dir/dispatch/click.json.err"; then
+                browser_click_status="blocked_runtime"
+                browser_click_reason="browser saved-ref click dry-run or dispatch failed"
+            elif ! ./aos see capture "browser:$browser_session" --xray --save --workspace "$browser_workspace" --name after_click >"$browser_dir/after-capture/click.json" 2>"$browser_dir/after-capture/click.json.err"; then
+                browser_click_status="blocked_runtime"
+                browser_click_reason="post-click browser capture failed"
+            else
+                "$browser_runtime_path" "-s=$browser_session" eval '() => ({clicked: document.body.dataset.clicked || "0"})' >"$browser_dir/readback/click.raw" 2>"$browser_dir/readback/click.raw.err" || browser_click_status="blocked_runtime"
+                if [[ "$browser_click_status" == "passed" ]]; then
+                    extract_playwright_result_json "$browser_dir/readback/click.raw" | jq '{status: (if .clicked == "1" then "passed" else "failed" end), clicked: .clicked}' >"$browser_dir/readback/click.json" || browser_click_status="blocked_runtime"
+                    if ! jq -e '.status == "passed"' "$browser_dir/readback/click.json" >/dev/null; then
+                        browser_click_status="blocked_runtime"
+                        browser_click_reason="browser click readback did not show expected mutation"
+                    fi
+                else
+                    browser_click_reason="browser click readback failed"
+                fi
+            fi
+
+            jq -n --arg value "$fill_value" '{proof_value: $value}' >"$browser_dir/selected-ref/fill-value.json"
+            if ! ./aos do fill "ref:before:$browser_fill_ref" "$fill_value" --workspace "$browser_workspace" --dry-run >"$browser_dir/dry-run/fill.json" 2>"$browser_dir/dry-run/fill.json.err" \
+                || ! ./aos do fill "ref:before:$browser_fill_ref" "$fill_value" --workspace "$browser_workspace" >"$browser_dir/dispatch/fill.json" 2>"$browser_dir/dispatch/fill.json.err"; then
+                browser_fill_status="blocked_runtime"
+                browser_fill_reason="browser saved-ref fill dry-run or dispatch failed"
+            elif ! ./aos see capture "browser:$browser_session" --xray --save --workspace "$browser_workspace" --name after_fill >"$browser_dir/after-capture/fill.json" 2>"$browser_dir/after-capture/fill.json.err"; then
+                browser_fill_status="blocked_runtime"
+                browser_fill_reason="post-fill browser capture failed"
+            else
+                "$browser_runtime_path" "-s=$browser_session" eval '() => ({value: document.querySelector("#proof-fill").value})' >"$browser_dir/readback/fill.raw" 2>"$browser_dir/readback/fill.raw.err" || browser_fill_status="blocked_runtime"
+                if [[ "$browser_fill_status" == "passed" ]]; then
+                    extract_playwright_result_json "$browser_dir/readback/fill.raw" | jq --arg expected "$fill_value" '{status: (if .value == $expected then "passed" else "failed" end), value: .value, expected: $expected}' >"$browser_dir/readback/fill.json" || browser_fill_status="blocked_runtime"
+                    if ! jq -e '.status == "passed"' "$browser_dir/readback/fill.json" >/dev/null; then
+                        browser_fill_status="blocked_runtime"
+                        browser_fill_reason="browser fill readback did not show expected mutation"
+                    fi
+                else
+                    browser_fill_reason="browser fill readback failed"
+                fi
+            fi
+        fi
+
+        if "$browser_runtime_path" "-s=$browser_session" close >"$browser_dir/cleanup/browser.json" 2>"$browser_dir/cleanup/browser.json.err"; then
+            :
+        else
+            jq -n --arg status "cleanup_attempted" --arg session "$browser_session" '{status: $status, session: $session}' >"$browser_dir/cleanup/browser.json"
+        fi
+
+        if [[ "$browser_click_status" == "passed" ]]; then
+            write_cleanup_artifact "$browser_dir/cleanup/click.json"
+            append_row browser click passed guarded_live "$browser_dir" "$browser_click_ref" "live browser saved-ref click mutated controlled fixture and readback passed"
+        else
+            write_json_artifact "$browser_dir/setup/runtime-blocker-click.json" --arg status "$browser_click_status" --arg reason "$browser_click_reason" '{status: $status, reason: $reason}'
+            write_classified_row_artifacts browser click blocked_runtime "$browser_click_reason" "$browser_dir" "$browser_dir/setup/runtime-blocker-click.json"
+            append_row browser click blocked_runtime guarded_live "$browser_dir" "" "$browser_click_reason"
+        fi
+
+        if [[ "$browser_fill_status" == "passed" ]]; then
+            write_cleanup_artifact "$browser_dir/cleanup/fill.json"
+            append_row browser fill passed guarded_live "$browser_dir" "$browser_fill_ref" "live browser saved-ref fill mutated controlled fixture and readback passed"
+        else
+            write_json_artifact "$browser_dir/setup/runtime-blocker-fill.json" --arg status "$browser_fill_status" --arg reason "$browser_fill_reason" '{status: $status, reason: $reason}'
+            write_classified_row_artifacts browser fill blocked_runtime "$browser_fill_reason" "$browser_dir" "$browser_dir/setup/runtime-blocker-fill.json"
+            append_row browser fill blocked_runtime guarded_live "$browser_dir" "" "$browser_fill_reason"
+        fi
     fi
 
     local canvas_dir="$PROOF_ROOT/canvas"
