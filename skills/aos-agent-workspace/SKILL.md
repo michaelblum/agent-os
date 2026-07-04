@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -136,6 +136,17 @@ the returned `recommended_next`, `recommended_next_commands`, or
   `executes_actions:false`, `applies_patches:false`, and
   `automatic_replay_allowed:false`; do not treat a written replacement record as
   evidence that repair execution happened.
+- `aos work-record supersession write --source <id-or-path> --replacement
+  <id-or-path> --index-root <dir> [--replacement-root <dir>] [--writer-result
+  <path>] [--dry-run] --json` is the external Source Supersession Index writer.
+  It writes only a relationship entry under the explicit index root, validates
+  source and replacement identities, checks replacement supersession
+  provenance, writes atomically/idempotently, and leaves both Work Records
+  unchanged. `supersession lookup --source <id-or-path> --index-root <dir>
+  --json` is read-only external discovery metadata; it is not verifier health
+  and does not mean the source record was mutated. `supersession validate
+  <entry-path> --json` validates one entry file without repair, replay, patch
+  application, recommended-command execution, or auto-resume.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns

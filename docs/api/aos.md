@@ -103,7 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
-| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, non-executing replacement proposals, and explicit-root replacement writing |
+| `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, non-executing replacement proposals, explicit-root replacement writing, and external source supersession lookup/indexing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -972,9 +972,11 @@ commands are read-only: they can discover records from canonical fixture roots
 or explicit `--root` files/directories, read a record by id or path, run the
 named report-only verifier profile, explain conservative recovery guidance, and
 emit read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan,
-Replacement Proposal, or compact evidence bundle JSON. The narrow exception is
-`replacement-proposal write`, which writes only a new replacement Work Record
-under an explicit `--output-root`.
+Replacement Proposal, Source Supersession Index lookup, or compact evidence
+bundle JSON. The narrow exceptions are `replacement-proposal write`, which
+writes only a new replacement Work Record under an explicit `--output-root`,
+and `supersession write`, which writes only an external relationship entry under
+an explicit `--index-root`.
 
 ```bash
 aos work-record list --json
@@ -990,6 +992,9 @@ aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-
 aos work-record replacement-proposal validate replacement-proposal.json --json
 aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --dry-run --json
 aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --json
+aos work-record supersession write --source source.json --replacement replacement.json --index-root /tmp/work-record-index --dry-run --json
+aos work-record supersession lookup --source source.json --index-root /tmp/work-record-index --json
+aos work-record supersession validate source-supersession-entry.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
@@ -1167,6 +1172,39 @@ forward source evidence only through the proposal policy; includes new evidence
 from the Repair Attempt Artifact/proposal; and does not claim repair execution
 happened during the write. Existing `aos work-record list/read --root
 <output-root>` can discover and read the resulting JSON file.
+
+`supersession write` is the Source Supersession Index V0 writer. It accepts a
+source Work Record ref, a replacement Work Record ref, and an explicit
+`--index-root`; `--replacement-root` can be repeated when replacement lookup
+needs an explicit root, and `--writer-result` can supply the Replacement Writer
+Result JSON for stronger provenance checks. Dry-run reports the exact index
+path, source identity, replacement identity, idempotency result, planned temp
+file, and side effects without writing. Write mode validates both Work Record
+identities, verifies that the replacement declares supersession of the source,
+checks source id/digest against Replacement Writer provenance when available,
+rejects traversal and symlink escape, writes through a temp file plus atomic
+rename, removes the temp file on success, treats an equivalent existing entry
+as `already_exists`, and refuses conflicting source-to-replacement entries.
+
+The index entry is `work_record.source_supersession_entry` with schema version
+`2026-07-work-record-source-supersession-index-v0`. Writer statuses include
+`dry_run`, `written`, `already_exists`, `conflict`,
+`blocked_invalid_source`, `blocked_invalid_replacement`,
+`blocked_source_changed`, `blocked_relationship_mismatch`,
+`blocked_index_escape`, `blocked_write_failed`, `blocked_cleanup_failed`, and
+`unsupported`. Every status reports `mutates_source_record:false`,
+`mutates_replacement_record:false`, `executes_repair:false`,
+`executes_actions:false`, `applies_patches:false`, and
+`automatic_replay_allowed:false`.
+
+`supersession lookup` is read-only and scans only the explicit `--index-root`.
+It reports missing index data as `not_found`, malformed entry data as
+`malformed_index`, conflicting active replacements as `conflict`, and active
+relationships as external discovery metadata with source id/digest,
+replacement id/path/digest, relationship status, and a recommended
+`aos work-record read` command. Lookup does not change verifier health and does
+not claim the source Work Record was mutated. `supersession validate` validates
+one entry file without mutating state.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

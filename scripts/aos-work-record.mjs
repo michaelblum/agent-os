@@ -19,11 +19,14 @@ import {
   exportWorkRecordBundle,
   buildWorkRecordRepairAttemptArtifact,
   buildWorkRecordReplacementProposal,
+  lookupWorkRecordSourceSupersession,
   writeReplacementWorkRecord,
+  writeWorkRecordSourceSupersessionIndex,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
   validateWorkRecordRepairAttemptArtifact,
   validateWorkRecordReplacementProposal,
+  validateWorkRecordSourceSupersessionEntry,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
 
@@ -55,6 +58,9 @@ function usage() {
   ./aos work-record replacement-proposal build --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> [--proposed-id-seed id] [--json]
   ./aos work-record replacement-proposal validate <proposal-path> [--json]
   ./aos work-record replacement-proposal write <proposal-path> --output-root <dir> [--output-path path] [--dry-run] [--json]
+  ./aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> [--replacement-root path ...] [--writer-result path] [--dry-run] [--json]
+  ./aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--json]
+  ./aos work-record supersession validate <entry-path> [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
@@ -78,6 +84,10 @@ function parseArgs(argv) {
     proposedIdSeed: '',
     outputRoot: '',
     outputPath: '',
+    replacement: '',
+    replacementRoots: [],
+    indexRoot: '',
+    writerResult: '',
     dryRun: false,
     positional: [],
   };
@@ -156,6 +166,26 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--output-path requires a JSON path', 'MISSING_ARG');
       options.outputPath = value;
+      index += 1;
+    } else if (arg === '--replacement') {
+      const value = argv[index + 1];
+      if (!value) fail('--replacement requires a Work Record id or path', 'MISSING_ARG');
+      options.replacement = value;
+      index += 1;
+    } else if (arg === '--replacement-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--replacement-root requires a path', 'MISSING_ARG');
+      options.replacementRoots.push(value);
+      index += 1;
+    } else if (arg === '--index-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--index-root requires a directory path', 'MISSING_ARG');
+      options.indexRoot = value;
+      index += 1;
+    } else if (arg === '--writer-result') {
+      const value = argv[index + 1];
+      if (!value) fail('--writer-result requires a Replacement Writer Result JSON path', 'MISSING_ARG');
+      options.writerResult = value;
       index += 1;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
@@ -263,7 +293,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(usage());
     return;
   }
-  if (!['attempt-artifact', 'replacement-proposal'].includes(command) && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
+  if (!['attempt-artifact', 'replacement-proposal', 'supersession'].includes(command) && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
   const context = {
     roots: options.roots,
     profileId: options.profileId,
@@ -372,6 +402,50 @@ async function main(argv = process.argv.slice(2)) {
       return;
     }
     fail(`Unknown replacement-proposal subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+  } else if (command === 'supersession') {
+    const [action, target, ...rest] = [ref, ...extra];
+    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+    if (action === 'validate') {
+      if (!target) fail('supersession validate requires an entry path', 'MISSING_ARG');
+      const validation = validateWorkRecordSourceSupersessionEntry(readJsonFile(target, 'INVALID_SOURCE_SUPERSESSION_ENTRY'));
+      emitJSON(validation, validation.status !== 'passed');
+      if (validation.status !== 'passed') process.exit(1);
+      return;
+    }
+    if (action === 'lookup') {
+      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
+      if (!options.source) fail('supersession lookup requires --source <id-or-path>', 'MISSING_ARG');
+      if (!options.indexRoot) fail('supersession lookup requires --index-root <dir>', 'MISSING_ARG');
+      const result = lookupWorkRecordSourceSupersession({
+        sourceRef: options.source,
+        indexRoot: options.indexRoot,
+        sourceRoots: options.roots,
+        repoRoot: process.cwd(),
+      });
+      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported');
+      if (result.status.startsWith('blocked_') || result.status === 'unsupported') process.exit(1);
+      return;
+    }
+    if (action === 'write') {
+      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
+      if (!options.source) fail('supersession write requires --source <id-or-path>', 'MISSING_ARG');
+      if (!options.replacement) fail('supersession write requires --replacement <id-or-path>', 'MISSING_ARG');
+      if (!options.indexRoot) fail('supersession write requires --index-root <dir>', 'MISSING_ARG');
+      const result = writeWorkRecordSourceSupersessionIndex({
+        sourceRef: options.source,
+        replacementRef: options.replacement,
+        indexRoot: options.indexRoot,
+        sourceRoots: options.roots,
+        replacementRoots: options.replacementRoots,
+        writerResultPath: options.writerResult,
+        dryRun: options.dryRun,
+        repoRoot: process.cwd(),
+      });
+      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported' || result.status === 'conflict');
+      if (result.status.startsWith('blocked_') || result.status === 'unsupported' || result.status === 'conflict') process.exit(1);
+      return;
+    }
+    fail(`Unknown supersession subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   } else if (command === 'gate-request') {
     payload = buildWorkRecordGateRequest(ref, context);
   } else if (command === 'gate-check') {

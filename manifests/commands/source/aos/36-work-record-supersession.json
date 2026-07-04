@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "id": "work-record-supersession",
+  "path_prefix": [
+    "work-record"
+  ],
+  "commands": [
+    {
+      "forms": [
+        {
+          "args": [
+            {
+              "id": "source",
+              "kind": "flag",
+              "required": true,
+              "summary": "Source Work Record id, Subject Entry Handle, or JSON path",
+              "token": "--source",
+              "value_type": "string"
+            },
+            {
+              "id": "replacement",
+              "kind": "flag",
+              "required": true,
+              "summary": "Replacement Work Record id, Subject Entry Handle, or JSON path",
+              "token": "--replacement",
+              "value_type": "string"
+            },
+            {
+              "id": "index-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit Source Supersession Index root; only this root may be written",
+              "token": "--index-root",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit source Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "id": "replacement-root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit replacement Work Record file or directory root; repeatable",
+              "token": "--replacement-root",
+              "value_type": "string"
+            },
+            {
+              "id": "writer-result",
+              "kind": "flag",
+              "required": false,
+              "summary": "Replacement Writer Result JSON used for provenance checks",
+              "token": "--writer-result",
+              "value_type": "string"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Report index path, identities, idempotency, and side effects without writing",
+              "token": "--dry-run",
+              "value_type": "bool"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Source Supersession Index writer JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root /tmp/work-record-index --dry-run --json",
+            "aos work-record supersession write --source source.json --replacement replacement.json --index-root /tmp/work-record-index --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": true,
+            "writes_index_entry": true,
+            "mutates_source_record": false,
+            "mutates_replacement_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false,
+            "mutation_scope": "explicit_index_root_only"
+          },
+          "id": "work-record-supersession-write",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> [--root path ...] [--replacement-root path ...] [--writer-result path] [--dry-run] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "source",
+              "kind": "flag",
+              "required": true,
+              "summary": "Source Work Record id, Subject Entry Handle, or JSON path",
+              "token": "--source",
+              "value_type": "string"
+            },
+            {
+              "id": "index-root",
+              "kind": "flag",
+              "required": true,
+              "summary": "Explicit Source Supersession Index root to scan",
+              "token": "--index-root",
+              "value_type": "string"
+            },
+            {
+              "id": "root",
+              "kind": "flag",
+              "required": false,
+              "summary": "Explicit source Work Record file or directory root; repeatable",
+              "token": "--root",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Source Supersession Index lookup JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record supersession lookup --source source.json --index-root /tmp/work-record-index --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false,
+            "mutates_source_record": false,
+            "mutates_replacement_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false
+          },
+          "id": "work-record-supersession-lookup",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "entry-path",
+              "kind": "positional",
+              "required": true,
+              "summary": "Source Supersession Index entry JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Source Supersession Index validation JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record supersession validate source-supersession-entry.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false,
+            "mutates_source_record": false,
+            "mutates_replacement_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false
+          },
+          "id": "work-record-supersession-validate",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record supersession validate <entry-path> [--json]"
+        }
+      ],
+      "path": [
+        "work-record"
+      ],
+      "summary": "Work Records — discover, read, verify, explain recovery, plan gated repair attempts, and export read-only evidence manifests"
+    }
+  ]
+}

@@ -260,6 +260,69 @@
     {
       "path": [
         "work-record",
+        "supersession",
+        "write"
+      ],
+      "summary": "Write external Source Supersession Index entries under an explicit index root.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "supersession",
+        "write"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
+        "supersession",
+        "lookup"
+      ],
+      "summary": "Look up external Source Supersession Index entries without mutating Work Records.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "supersession",
+        "lookup"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
+        "supersession",
+        "validate"
+      ],
+      "summary": "Validate Source Supersession Index entries through a read-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "supersession",
+        "validate"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
         "gate-check"
       ],
       "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",

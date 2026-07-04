@@ -658,6 +658,72 @@ Artifact/proposal, records supersession on the replacement record only, and does
 not claim that repair, replay, recommended commands, candidate patches,
 cleanup/rollback, or source-record supersession happened during the write.
 
+## Source Supersession Index V0
+
+The Source Supersession Index is the external discovery layer after a
+Replacement Writer result exists. It records that a source Work Record has a
+known replacement Work Record without editing either record. The index lives
+only under an explicit `index_root`; there is no implicit repo write and no
+global Work Record database.
+
+The entry contract is `work_record.source_supersession_entry` with schema
+version `2026-07-work-record-source-supersession-index-v0`. The envelope
+includes:
+
+```json
+{
+  "type": "work_record.source_supersession_entry",
+  "schema_version": "2026-07-work-record-source-supersession-index-v0",
+  "status": "active",
+  "source_work_record": {},
+  "replacement_work_record": {},
+  "relationship": "superseded_by",
+  "relationship_status": "active",
+  "supersession_entry_identity": {},
+  "replacement_writer_result": {},
+  "replacement_proposal": {},
+  "source_immutability_check": {},
+  "index_root": "/tmp/work-record-index",
+  "index_path": "/tmp/work-record-index/source-supersession/v0/source/entry.json",
+  "created_at": "2026-07-04T00:00:00.000Z",
+  "metadata": {},
+  "mutates_source_record": false,
+  "mutates_replacement_record": false,
+  "executes_repair": false,
+  "executes_actions": false,
+  "applies_patches": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": []
+}
+```
+
+Writer result statuses are `dry_run`, `written`, `already_exists`, `conflict`,
+`blocked_invalid_source`, `blocked_invalid_replacement`,
+`blocked_source_changed`, `blocked_relationship_mismatch`,
+`blocked_index_escape`, `blocked_write_failed`, `blocked_cleanup_failed`, and
+`unsupported`. Entry and lookup relationship statuses are `active`,
+`not_found`, `already_exists`, `conflict`, `malformed_index`, and the same
+blocked statuses where applicable.
+
+The writer accepts explicit source and replacement Work Record refs plus an
+explicit index root. It validates both Work Record identities, verifies the
+replacement record declares that it supersedes the source, checks source
+id/digest against Replacement Writer provenance when available, rejects
+traversal and symlink escape, writes one deterministic entry file through a
+temp file plus atomic rename, removes the temp file on success, treats
+byte-equivalent or semantically equivalent existing entries as idempotent
+`already_exists`, and refuses conflicting source-to-replacement relationships.
+Dry-run reports the exact index path, source identity, replacement identity,
+idempotency result, planned atomic write, and side effects without writing.
+
+Lookup is read-only. It accepts a source Work Record ref and explicit
+`index_root`, scans only that root, reports `not_found` for missing index data,
+reports malformed entry data as `malformed_index`, and returns source id,
+source digest when available, replacement id/path/digest, relationship status,
+and the recommended next `aos work-record read` command. Supersession lookup is
+external discovery metadata; it is not verifier health and does not mean the
+source Work Record was mutated.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work
