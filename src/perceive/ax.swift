@@ -112,15 +112,69 @@ func nativeAXFocusCursorSpaceBaseline() -> NativeFocusCursorSpaceBaselineJSON {
     )
 }
 
-func nativeAXSavedRefEvidence() -> NativeSavedRefEvidenceJSON {
+func nativeAXSavedRefEvidence(
+    appPID: Int?,
+    windowID: Int?,
+    axIdentifier: String?,
+    enabled: Bool,
+    actionNames: [String],
+    permissionState: String,
+    baseline: NativeFocusCursorSpaceBaselineJSON,
+    knownLimitFactsComplete: Bool = false,
+    knownLimitBlockers: [String] = []
+) -> NativeSavedRefEvidenceJSON {
+    var reasons: [String] = []
+    if appPID == nil {
+        reasons.append("missing native app_pid")
+    }
+    if windowID == nil {
+        reasons.append("missing native window_id")
+    }
+    if (axIdentifier ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        reasons.append("missing native AX identifier")
+    }
+    if !enabled {
+        reasons.append("native AX element is disabled")
+    }
+    if actionNames.isEmpty {
+        reasons.append("missing native AX action names")
+    }
+    if permissionState.lowercased() != "granted" {
+        reasons.append("native AX permission is not granted")
+    }
+    if !baseline.captured {
+        reasons.append("focus/cursor/Space baseline was not captured")
+    }
+    if baseline.focus != "not_changed" {
+        reasons.append("focus baseline changed")
+    }
+    if baseline.cursor != "not_changed" {
+        reasons.append("cursor baseline changed")
+    }
+    if baseline.space != "not_changed" {
+        reasons.append("Space baseline changed")
+    }
+    if !knownLimitFactsComplete {
+        reasons.append("native AX producer has not emitted complete known-limit facts for stable saved-ref mutation")
+    }
+    reasons.append(contentsOf: knownLimitBlockers)
+
+    if knownLimitFactsComplete && reasons.isEmpty {
+        return NativeSavedRefEvidenceJSON(
+            status: "actionable",
+            actionability: "direct_ax_saved_ref_mutation",
+            known_limit_facts_complete: true,
+            producer: "native_ax",
+            reasons: []
+        )
+    }
+
     NativeSavedRefEvidenceJSON(
         status: "inspection_only",
         actionability: "inspection_only",
         known_limit_facts_complete: false,
         producer: "native_ax",
-        reasons: [
-            "native AX producer does not yet emit complete known-limit facts for stable saved-ref mutation"
-        ]
+        reasons: reasons
     )
 }
 
@@ -386,6 +440,10 @@ func traverseAXElements(
     }
 
     let enabled = axBool(element, kAXEnabledAttribute) ?? true
+    let windowID = axWindowID(element)
+    let axIdentifier = axString(element, kAXIdentifierAttribute as String)
+    let actionNames = nativeAXSavedActionNames(element)
+    let focusCursorSpaceBaseline = nativeAXFocusCursorSpaceBaseline()
 
     // Spatial check + emit raw visible elements. Consumers own semantic filtering.
     if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
@@ -393,17 +451,25 @@ func traverseAXElements(
             results.append(AXElementJSON(
                 app_pid: Int(appPID),
                 app_name: appName,
-                window_id: axWindowID(element),
+                window_id: windowID,
                 role: role,
                 title: title,
                 label: label,
-                identifier: axString(element, kAXIdentifierAttribute as String),
+                identifier: axIdentifier,
                 value: valueStr,
                 enabled: enabled,
-                action_names: nativeAXSavedActionNames(element),
+                action_names: actionNames,
                 permission_state: permissionState,
-                focus_cursor_space_baseline: nativeAXFocusCursorSpaceBaseline(),
-                native_saved_ref_evidence: nativeAXSavedRefEvidence(),
+                focus_cursor_space_baseline: focusCursorSpaceBaseline,
+                native_saved_ref_evidence: nativeAXSavedRefEvidence(
+                    appPID: Int(appPID),
+                    windowID: windowID,
+                    axIdentifier: axIdentifier,
+                    enabled: enabled,
+                    actionNames: actionNames,
+                    permissionState: permissionState,
+                    baseline: focusCursorSpaceBaseline
+                ),
                 context_path: contextPath,
                 bounds: BoundsJSON(
                     x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),

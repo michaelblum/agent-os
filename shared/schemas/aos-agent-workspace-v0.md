@@ -241,13 +241,14 @@ conformance. A native AX ref may become `stable` only when the saved capture
 already supplies `app_pid`, `window_id`, `ax_identifier`,
 `enabled: true`, `action_names`, `permission_state: granted`, and
 `focus_cursor_space_baseline` as a captured baseline, plus
-`native_saved_ref_evidence` as an actionable verdict. The current Swift producer
-emits an inspection-only verdict until it can prove complete known-limit facts,
-so live native captures remain `volatile` unless a native producer explicitly
-emits an actionable verdict. Stable native refs support only explicit `press`,
-`focus`, and `set-value` actions declared by the capture; dispatch converts the
-saved facts to the existing direct AX selector flags and reports
-`direct_ax_ready` / `requires_direct_ax_current_matching`.
+`native_saved_ref_evidence` as an actionable verdict. The Swift producer keeps
+live native captures inspection-only until it emits complete known-limit facts,
+including concrete off-Space, minimized-window, custom-control,
+canvas/game-surface, and focus-mismatch blockers. Without that complete
+known-limit evidence, saved refs remain `volatile`. Stable native refs support
+only explicit `press`, `focus`, and `set-value` actions declared by the capture;
+dispatch converts the saved facts to the existing direct AX selector flags and
+reports `direct_ax_ready` / `requires_direct_ax_current_matching`.
 `stable_path` and the derived `ax_identifier_or_stable_path` field are preserved
 as inspection/readback evidence, but v0 direct AX saved-ref dispatch requires a
 real `ax_identifier` because the current native selector surface matches

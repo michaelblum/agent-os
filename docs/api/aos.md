@@ -314,9 +314,11 @@ When a native capture already includes that full durable identity contract with
 `enabled: true`, `permission_state: granted`, a captured baseline, and
 `native_saved_ref_evidence` as an actionable verdict, the saved ref can become
 `stable` and support only capture-declared native `press`, `focus`, and
-`set-value`. The current Swift producer emits an inspection-only verdict until
-it can prove complete known-limit facts, so live native captures remain
-`volatile` unless a native producer explicitly emits an actionable verdict.
+`set-value`. The Swift producer keeps live native captures inspection-only
+until it emits complete known-limit facts, including concrete off-Space,
+minimized-window, custom-control, canvas/game-surface, and focus-mismatch
+blockers; without that complete known-limit evidence, the saved ref remains
+`volatile`.
 Stable actions convert the saved facts to the existing direct AX selector flags,
 report
 `direct_ax_ready` / `requires_direct_ax_current_matching`, and return the

@@ -12,10 +12,31 @@ grep -q 'struct NativeFocusCursorSpaceBaselineJSON' "$ROOT/src/perceive/models.s
     || fail "native AX baseline must encode captured as a boolean producer fact"
 grep -q 'struct NativeSavedRefEvidenceJSON' "$ROOT/src/perceive/models.swift" \
     || fail "native AX saved-ref evidence must be a typed producer verdict"
-grep -q 'focus_cursor_space_baseline: nativeAXFocusCursorSpaceBaseline()' "$ROOT/src/perceive/ax.swift" \
+grep -q 'let focusCursorSpaceBaseline = nativeAXFocusCursorSpaceBaseline()' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX traversal must emit a captured focus/cursor/Space baseline"
-grep -q 'native_saved_ref_evidence: nativeAXSavedRefEvidence()' "$ROOT/src/perceive/ax.swift" \
+grep -q 'focus_cursor_space_baseline: focusCursorSpaceBaseline' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX traversal must include the captured focus/cursor/Space baseline"
+grep -q 'native_saved_ref_evidence: nativeAXSavedRefEvidence(' "$ROOT/src/perceive/ax.swift" \
     || fail "native AX traversal must emit a producer saved-ref evidence verdict"
+grep -q 'permissionState: permissionState' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must be derived from captured permission state"
+grep -q 'enabled: enabled' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must be derived from captured enabled state"
+grep -q 'actionNames: actionNames' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must be derived from captured action names"
+grep -q 'baseline: focusCursorSpaceBaseline' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must be derived from captured focus/cursor/Space baseline"
+grep -q 'knownLimitFactsComplete: Bool = false' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must default to incomplete known-limit facts"
+grep -q 'if knownLimitFactsComplete && reasons.isEmpty' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX saved-ref evidence must not become actionable without complete known-limit facts"
+if grep -q 'knownLimitFactsComplete: true' "$ROOT/src/perceive/ax.swift"; then
+    fail "live Swift native AX traversal must not mark known-limit facts complete until it emits concrete blockers"
+fi
+grep -q 'actionability: "direct_ax_saved_ref_mutation"' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX producer must emit actionable saved-ref evidence for durable safe captures"
+grep -q 'actionability: "inspection_only"' "$ROOT/src/perceive/ax.swift" \
+    || fail "native AX producer must keep missing or unsafe captures inspection-only"
 grep -q 'func xrayAppsIntersectingCapture' "$ROOT/src/perceive/capture-pipeline.swift" \
     || fail "display native AX capture must discover apps from the captured region, not only the frontmost app"
 grep -q 'window.frame.intersects(captureRect)' "$ROOT/src/perceive/capture-pipeline.swift" \

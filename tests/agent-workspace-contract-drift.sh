@@ -641,7 +641,23 @@ assert.ok(!runPuckHitlPlan.includes('target.get("do_target")'), 'run puck HITL p
 for (const field of ['app_pid', 'app_name', 'window_id', 'identifier', 'enabled', 'action_names', 'permission_state', 'focus_cursor_space_baseline', 'native_saved_ref_evidence', 'window_state', 'space_state', 'control_kind', 'surface_kind', 'focus_state', 'minimized', 'off_space', 'custom_control', 'canvas_surface']) {
   assert.ok(swiftAXModel.includes(field), `native AX element JSON model must expose ${field}`);
 }
-for (const needle of ['nativeAXSavedActionNames', 'nativeAXSavedRefEvidence', 'native_saved_ref_evidence: nativeAXSavedRefEvidence()', 'AXUIElementCopyActionNames', 'AXSetValue', 'AXFocus', 'axWindowID', 'AXIsProcessTrusted() ? "granted" : "unknown"', 'contextPath: ["app:\\(appName)"]']) {
+for (const needle of [
+  'nativeAXSavedActionNames',
+  'nativeAXSavedRefEvidence',
+  'native_saved_ref_evidence: nativeAXSavedRefEvidence(',
+  'permissionState: permissionState',
+  'enabled: enabled',
+  'actionNames: actionNames',
+  'baseline: focusCursorSpaceBaseline',
+  'knownLimitFactsComplete: Bool = false',
+  'if knownLimitFactsComplete && reasons.isEmpty',
+  'AXUIElementCopyActionNames',
+  'AXSetValue',
+  'AXFocus',
+  'axWindowID',
+  'AXIsProcessTrusted() ? "granted" : "unknown"',
+  'contextPath: ["app:\\(appName)"]',
+]) {
   assert.ok(swiftAXTraversal.includes(needle), `native AX traversal must preserve ${needle}`);
 }
 
