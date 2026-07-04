@@ -363,6 +363,82 @@ stores the answer payload. Denied, dismissed, timeout, stale plan identity,
 wrong Work Record, wrong plan, wrong gate, missing response, and unsupported
 outcomes do not authorize a future attempt.
 
+## Repair Attempt Plan V0
+
+A Work Record Repair Attempt Plan packages a current Repair Plan and optional
+Workflow Gate Authorization into a deterministic, non-executing descriptor for
+a future explicit executor. It answers what a future repair attempt would need
+to do, what it may touch, what proof it must emit, how cleanup or rollback
+would be recorded, and why the attempt is or is not currently authorized. It is
+not the executor.
+
+The toolkit contract is `work_record.repair_attempt_plan` with schema version
+`2026-07-work-record-repair-attempt-plan-v0`. The envelope includes:
+
+```json
+{
+  "type": "work_record.repair_attempt_plan",
+  "schema_version": "2026-07-work-record-repair-attempt-plan-v0",
+  "status": "blocked_authorization_required",
+  "source_work_record": {},
+  "repair_plan": {},
+  "workflow_gate_authorizations": [],
+  "attempt_identity": {},
+  "preconditions": [],
+  "planned_operations": [],
+  "candidate_patches": [],
+  "recommended_commands": [],
+  "evidence_requirements": [],
+  "postconditions": [],
+  "cleanup_expectations": [],
+  "rollback_expectations": [],
+  "risk": {},
+  "known_limits": [],
+  "executes_repair": false,
+  "executes_actions": false,
+  "applies_patches": false,
+  "mutates_record": false,
+  "automatic_replay_allowed": false,
+  "diagnostics": [],
+  "recommended_next": {}
+}
+```
+
+Supported statuses are `not_required`, `ready`,
+`blocked_authorization_required`, `blocked_authorization_denied`,
+`blocked_authorization_insufficient`, `blocked_precondition`, `stale`,
+`mismatch`, and `unsupported`. `ready` means only that the descriptor is safe
+to hand to a future explicit executor; it does not mean repair happened.
+
+Positive readiness requires the current Repair Plan to validate, source Work
+Record identity to match, Repair Plan identity to match any supplied
+authorization, every mutating planned operation to have an authorized matching
+Workflow gate, all required preconditions to be representable as explicit
+checks, no candidate patch to be marked applied, and no recommended command to
+be marked executed.
+
+Missing, denied, dismissed, timeout, insufficient, stale, wrong-record,
+wrong-plan, wrong-gate, unsupported, and invalid authorization cases fail
+closed. `valid`, `impossible`, `retired`, and `superseded` records produce
+`not_required` unless the current Repair Plan itself contains a gated mutating
+candidate that needs a future attempt.
+
+`attempt_identity` is derived from source Work Record identity, Repair Plan
+schema/version/digest, Workflow Gate Authorization identities when supplied,
+Workflow gate ids, gated step ids, candidate patch ids, and planned operation
+ids. `planned_operations[]` are typed descriptors, not live execution. Each
+operation carries `executes_in_plan:false`, authorization status, target
+boundary, precondition refs, evidence requirement refs, postcondition refs,
+cleanup refs, and rollback refs. Patch-like candidates preserve
+`applied:false`; command-like recommendations preserve
+`executes_in_plan:false`.
+
+The planner must not execute repair, replay actions, apply candidate patches,
+run recommended commands, patch execution maps, auto-resume agents, mutate the
+source Work Record, or treat authorization as proof that repair happened.
+Future execution must emit a new Work Record or explicit patch artifact, plus
+the evidence required by the attempt plan.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work
@@ -551,6 +627,9 @@ The surface is read-only and supports:
 - `verify` with `aos.verifier.work-record.v0.report-only`;
 - `status` for current report-only health, diagnostics, evidence refs, and
   recovery guidance;
+- `plan-repair` for read-only Repair Plan output;
+- `gate-request` and `gate-check` for Workflow Gate Authorization;
+- `plan-attempt` for non-executing Repair Attempt Plan output;
 - `export` for a compact read-only evidence bundle manifest.
 
 The consumer distinguishes embedded historical `claim_results[]` and

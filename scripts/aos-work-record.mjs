@@ -16,6 +16,7 @@ import {
   verifyWorkRecord,
   explainWorkRecordStatus,
   exportWorkRecordBundle,
+  planWorkRecordRepairAttempt,
   planWorkRecordRepair,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
@@ -42,6 +43,7 @@ function usage() {
   ./aos work-record verify <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record status <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
+  ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
@@ -54,6 +56,7 @@ function parseArgs(argv) {
     roots: [],
     profileId: undefined,
     workflowGateId: '',
+    authorization: '',
     gateRecord: '',
     resumeEvent: '',
     continuationId: '',
@@ -79,6 +82,11 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--workflow-gate requires a Workflow gate id', 'MISSING_ARG');
       options.workflowGateId = value;
+      index += 1;
+    } else if (arg === '--authorization') {
+      const value = argv[index + 1];
+      if (!value) fail('--authorization requires a Workflow Gate Authorization JSON path', 'MISSING_ARG');
+      options.authorization = value;
       index += 1;
     } else if (arg === '--gate-record') {
       const value = argv[index + 1];
@@ -136,6 +144,15 @@ async function readContinuationResumeEvent(id) {
   const eventPath = continuation.resume?.event_path;
   if (!eventPath) fail(`Continuation has no submitted resume event: ${id}`, 'CONTINUATION_NOT_SUBMITTED');
   return readResumeEvent(eventPath);
+}
+
+async function readAuthorization(file) {
+  if (!fs.existsSync(file)) fail(`Workflow Gate Authorization not found: ${file}`, 'AUTHORIZATION_NOT_FOUND');
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    fail(`Invalid Workflow Gate Authorization JSON: ${error.message}`, 'INVALID_AUTHORIZATION');
+  }
 }
 
 async function gateCheckOutcome(options) {
@@ -198,6 +215,24 @@ async function main(argv = process.argv.slice(2)) {
     payload = explainWorkRecordStatus(ref, context);
   } else if (command === 'plan-repair') {
     payload = planWorkRecordRepair(ref, context);
+  } else if (command === 'plan-attempt') {
+    const refs = [options.authorization, options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);
+    if (refs.length > 1) {
+      fail('plan-attempt accepts at most one of --authorization, --gate-record, --resume-event, or --continuation-id', 'ATTEMPT_AUTHORIZATION_INPUT_CONFLICT');
+    }
+    if (options.authorization) {
+      payload = planWorkRecordRepairAttempt(ref, {
+        ...context,
+        authorization: await readAuthorization(options.authorization),
+      });
+    } else if (options.gateRecord || options.resumeEvent || options.continuationId) {
+      payload = planWorkRecordRepairAttempt(ref, {
+        ...context,
+        gateOutcome: await gateCheckOutcome(options),
+      });
+    } else {
+      payload = planWorkRecordRepairAttempt(ref, context);
+    }
   } else if (command === 'gate-request') {
     payload = buildWorkRecordGateRequest(ref, context);
   } else if (command === 'gate-check') {

@@ -103,7 +103,7 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
-| `aos work-record` | read-only Work Record discovery, report-only verification, recovery guidance, and compact evidence bundle manifests |
+| `aos work-record` | read-only Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, and compact evidence bundle manifests |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -971,7 +971,8 @@ repair.
 artifacts. It can discover records from canonical fixture roots or explicit
 `--root` files/directories, read a record by id or path, run the named
 report-only verifier profile, explain conservative recovery guidance, and emit
-a read-only repair plan or compact evidence bundle manifest.
+read-only Repair Plan, Workflow Gate Authorization, Repair Attempt Plan, or
+compact evidence bundle JSON.
 
 ```bash
 aos work-record list --json
@@ -979,6 +980,8 @@ aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
 aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
+aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
+aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
@@ -1037,6 +1040,31 @@ A terminal `answered` record without stored response payload is
 authorization. Authorization sets `authorizes_future_attempt:true` only for
 positive approval and always reports `executes_repair:false` and
 `mutates_record:false`.
+
+`plan-attempt` consumes the current Repair Plan plus either a supplied
+`work_record.workflow_gate_authorization` JSON file or enough gate input to
+derive one (`--gate-record`, `--resume-event`, or `--continuation-id`). It
+emits `work_record.repair_attempt_plan` with schema version
+`2026-07-work-record-repair-attempt-plan-v0`. Status values are
+`not_required`, `ready`, `blocked_authorization_required`,
+`blocked_authorization_denied`, `blocked_authorization_insufficient`,
+`blocked_precondition`, `stale`, `mismatch`, and `unsupported`. The plan
+includes source Work Record identity, current Repair Plan schema/version/digest,
+current authorization identity when supplied, stable attempt identity,
+preconditions, planned operations, candidate patch refs, recommended command
+descriptors, evidence requirements, postconditions, cleanup expectations,
+rollback expectations, risk, and known limits.
+
+`ready` means only "safe to hand to a future explicit executor." The command
+does not execute repair, replay UI actions, apply candidate patches, run
+recommended commands, patch execution maps, mutate Work Records, or auto-resume
+agents. Positive readiness requires the current Repair Plan to validate, source
+and Repair Plan identities to match the supplied authorization, every mutating
+planned operation to have an authorized matching Workflow gate, representable
+preconditions, unapplied candidate patches, and unexecuted recommended
+commands. Missing, denied, dismissed, timeout, insufficient, stale, wrong
+record, wrong plan, wrong gate, invalid, and unsupported authorization all fail
+closed.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does
