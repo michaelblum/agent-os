@@ -200,6 +200,42 @@ test('builder emits deterministic non-writing Replacement Proposal V0', () => {
   assertValid(first);
 });
 
+test('builder preserves distinct evidence refs per replacement postcondition', () => {
+  const source = sourceInput();
+  const [firstPostcondition, secondPostcondition] = source.record.execution_map.postconditions;
+  const artifactInput = successArtifactInput({
+    overrides: {
+      evidence_refs: [
+        ...successArtifactInput().evidence_refs,
+        { id: 'evidence:postcondition-one', uri: 'artifact:evidence-one.json', digest: 'digest:evidence-one' },
+        { id: 'evidence:postcondition-two', uri: 'artifact:evidence-two.json', digest: 'digest:evidence-two' },
+      ],
+      postcondition_results: [
+        {
+          id: `postcondition-result:${firstPostcondition.id}`,
+          postcondition_id: firstPostcondition.id,
+          status: 'passed',
+          evidence_ref_ids: ['evidence:postcondition-one'],
+        },
+        {
+          id: `postcondition-result:${secondPostcondition.id}`,
+          postcondition_id: secondPostcondition.id,
+          status: 'passed',
+          evidence_ref_ids: ['evidence:postcondition-two'],
+        },
+      ],
+    },
+  });
+  const proposal = buildProposal({ artifactInput });
+  assertValid(proposal);
+
+  const firstMapping = proposal.postcondition_evidence_map.find((item) => item.postcondition_id === firstPostcondition.id);
+  const secondMapping = proposal.postcondition_evidence_map.find((item) => item.postcondition_id === secondPostcondition.id);
+  assert.deepEqual(firstMapping.evidence_refs, ['replacement:evidence:postcondition-one']);
+  assert.deepEqual(secondMapping.evidence_refs, ['replacement:evidence:postcondition-two']);
+  assert.notDeepEqual(firstMapping.evidence_refs, secondMapping.evidence_refs);
+});
+
 test('all required proposal statuses are declared', () => {
   for (const status of [
     'proposed',

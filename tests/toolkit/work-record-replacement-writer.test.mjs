@@ -181,8 +181,7 @@ function sourceInput() {
   };
 }
 
-function buildProposal({ proposedIdSeed = 'work-record:repairable-stale-saved-ref-writer-test', proposalPatch = {} } = {}) {
-  const artifactInput = successArtifactInput();
+function buildProposal({ proposedIdSeed = 'work-record:repairable-stale-saved-ref-writer-test', artifactInput = successArtifactInput(), proposalPatch = {} } = {}) {
   const artifact = buildWorkRecordRepairAttemptArtifact(artifactInput);
   return {
     ...buildWorkRecordReplacementProposal({
@@ -268,6 +267,49 @@ test('write is atomic, idempotent, discoverable, and source-immutable', () => {
   const repeat = writeReplacementWorkRecord({ proposal, outputRoot });
   assert.equal(repeat.status, 'already_exists');
   assert.equal(repeat.idempotency.status, 'identical_existing');
+});
+
+test('writer materializes distinct evidence refs per postcondition', () => {
+  const source = sourceInput();
+  const [firstPostcondition, secondPostcondition] = source.record.execution_map.postconditions;
+  const baseInput = successArtifactInput();
+  const artifactInput = successArtifactInput({
+    overrides: {
+      evidence_refs: [
+        ...baseInput.evidence_refs,
+        { id: 'evidence:postcondition-one', uri: 'artifact:evidence-one.json', digest: 'digest:evidence-one' },
+        { id: 'evidence:postcondition-two', uri: 'artifact:evidence-two.json', digest: 'digest:evidence-two' },
+      ],
+      postcondition_results: [
+        {
+          id: `postcondition-result:${firstPostcondition.id}`,
+          postcondition_id: firstPostcondition.id,
+          status: 'passed',
+          evidence_ref_ids: ['evidence:postcondition-one'],
+        },
+        {
+          id: `postcondition-result:${secondPostcondition.id}`,
+          postcondition_id: secondPostcondition.id,
+          status: 'passed',
+          evidence_ref_ids: ['evidence:postcondition-two'],
+        },
+      ],
+    },
+  });
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-writer-postconditions-'));
+  const proposal = buildProposal({
+    proposedIdSeed: 'work-record:writer-postcondition-evidence-test',
+    artifactInput,
+  });
+  const result = writeReplacementWorkRecord({ proposal, outputRoot });
+  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
+
+  const written = JSON.parse(fs.readFileSync(result.output.output_path, 'utf8'));
+  const firstWritten = written.execution_map.postconditions.find((item) => item.id === firstPostcondition.id);
+  const secondWritten = written.execution_map.postconditions.find((item) => item.id === secondPostcondition.id);
+  assert.deepEqual(firstWritten.evidence_refs, ['replacement:evidence:postcondition-one']);
+  assert.deepEqual(secondWritten.evidence_refs, ['replacement:evidence:postcondition-two']);
+  assert.notDeepEqual(firstWritten.evidence_refs, secondWritten.evidence_refs);
 });
 
 test('writer blocks conflicts, invalid inputs, source drift, traversal, and symlink escape', () => {

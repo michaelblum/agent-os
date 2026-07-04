@@ -404,7 +404,7 @@
               "id": "execution-root",
               "kind": "flag",
               "required": true,
-              "summary": "Explicit existing execution root for the deterministic repo-command/file-fixture operation",
+              "summary": "Explicit existing execution root for the named deterministic file-fixture registry operation",
               "token": "--execution-root",
               "value_type": "string"
             },
@@ -463,7 +463,7 @@
             "uses_native_ax": false,
             "uses_canvas": false,
             "mutation_scope": "explicit_execution_root_and_artifact_root_only",
-            "operation_scope": "controlled_repo_command_file_fixture_only",
+            "operation_scope": "controlled_fixture_registry_only",
             "unsupported_live_surfaces": [
               "browser",
               "native_ax",

@@ -163,6 +163,17 @@ function buildCarriedForwardEvidence(record = {}, evidencePolicy = {}) {
 }
 
 function buildNewEvidence(artifact = {}) {
+  const postconditionRefsByEvidence = new Map();
+  for (const result of arrayValue(artifact.postcondition_results)) {
+    const item = objectValue(result);
+    const postconditionId = text(item.postcondition_id);
+    if (!postconditionId) continue;
+    for (const evidenceRef of arrayValue(item.evidence_ref_ids).map(text).filter(Boolean)) {
+      const refs = postconditionRefsByEvidence.get(evidenceRef) || [];
+      refs.push(postconditionId);
+      postconditionRefsByEvidence.set(evidenceRef, refs);
+    }
+  }
   return artifactEvidenceRefs(artifact).map((ref) => {
     const id = refId(ref);
     return {
@@ -170,9 +181,39 @@ function buildNewEvidence(artifact = {}) {
       artifact_path: text(ref.uri || ref.path || ref.artifact_path, `artifact:${id}`),
       new_record_evidence_id: `replacement:${id}`,
       claim_refs: [],
+      postcondition_refs: uniqueStrings(postconditionRefsByEvidence.get(id) || []),
       digest: text(ref.digest),
+      phase: text(ref.phase),
+      phase_range: text(ref.phase_range),
     };
   });
+}
+
+function buildPostconditionEvidenceMap({ record = {}, newEvidence = [] } = {}) {
+  const artifactToReplacement = new Map(newEvidence.map((item) => [text(item.artifact_evidence_id), text(item.new_record_evidence_id)]));
+  const defaultRepairEvidence = text(newEvidence.find((item) => text(item.artifact_evidence_id).includes('new-work-record-or-patch-artifact'))?.new_record_evidence_id
+    || newEvidence.find((item) => text(item.artifact_evidence_id).includes('patch:'))?.new_record_evidence_id
+    || newEvidence[0]?.new_record_evidence_id);
+  return arrayValue(record.execution_map?.postconditions).map((postcondition) => {
+    const value = objectValue(postcondition);
+    const mappedEvidence = uniqueStrings(arrayValue(newEvidence)
+      .filter((item) => arrayValue(item.postcondition_refs).map(text).includes(text(value.id)))
+      .map((item) => text(item.new_record_evidence_id)));
+    const semanticRepairEvidence = text(value.check?.kind).startsWith('semantic_') && defaultRepairEvidence
+      ? [defaultRepairEvidence]
+      : [];
+    const legacyEvidence = uniqueStrings(arrayValue(value.evidence_refs)
+      .map((id) => artifactToReplacement.get(text(id)) || text(id)));
+    return {
+      postcondition_id: text(value.id),
+      evidence_refs: mappedEvidence.length > 0 ? mappedEvidence : semanticRepairEvidence.length > 0 ? semanticRepairEvidence : legacyEvidence,
+      source: mappedEvidence.length > 0
+        ? 'repair_attempt_artifact.postcondition_results'
+        : semanticRepairEvidence.length > 0
+          ? 'repair_attempt_artifact.default_semantic_repair_evidence'
+        : 'source_work_record.execution_map.postconditions',
+    };
+  }).filter((item) => item.postcondition_id);
 }
 
 function buildClaimProvenance(record = {}, artifact = {}) {
@@ -197,6 +238,7 @@ function proposedRecordShape({
   carriedForwardEvidence = [],
   newEvidence = [],
   claimProvenance = [],
+  postconditionEvidenceMap = [],
 } = {}) {
   const proposedId = text(proposedIdSeed, `${text(record.id)}:replacement:${digestJson({
     source: sourceIdentity(source),
@@ -240,7 +282,17 @@ function proposedRecordShape({
       },
     ],
     intent: cloneJson(record.intent || {}),
-    execution_map: cloneJson(record.execution_map || {}),
+    execution_map: {
+      ...cloneJson(record.execution_map || {}),
+      postconditions: arrayValue(record.execution_map?.postconditions).map((postcondition) => {
+        const value = objectValue(postcondition);
+        const mapping = postconditionEvidenceMap.find((item) => text(item.postcondition_id) === text(value.id));
+        return {
+          ...cloneJson(value),
+          evidence_refs: mapping ? cloneJson(mapping.evidence_refs) : cloneJson(arrayValue(value.evidence_refs)),
+        };
+      }),
+    },
     evidence_refs: [
       ...carriedForwardEvidence.map((item) => item.source_evidence_id),
       ...newEvidence.map((item) => item.new_record_evidence_id),
@@ -286,6 +338,7 @@ export function buildWorkRecordReplacementProposal(input = {}) {
   });
   const carriedForwardEvidence = buildCarriedForwardEvidence(record, input.evidence_policy);
   const newEvidence = buildNewEvidence(artifact);
+  const postconditionEvidenceMap = buildPostconditionEvidenceMap({ record, newEvidence });
   const claimProvenance = buildClaimProvenance(record, artifact);
   const proposedReplacement = proposedRecordShape({
     record,
@@ -296,6 +349,7 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     carriedForwardEvidence,
     newEvidence,
     claimProvenance,
+    postconditionEvidenceMap,
   });
   const identityCore = {
     source_work_record: sourceIdentityValue,
@@ -312,6 +366,7 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     proposed_replacement_work_record_id: proposedReplacement.id,
     carried_forward_evidence_ids: carriedForwardEvidence.map((item) => item.source_evidence_id),
     new_evidence_ids: newEvidence.map((item) => item.new_record_evidence_id),
+    postcondition_evidence_map: postconditionEvidenceMap,
     final_proposed_health: text(proposedReplacement.health.verdict),
   };
   const identityDigest = digestJson(identityCore);
@@ -353,6 +408,7 @@ export function buildWorkRecordReplacementProposal(input = {}) {
     },
     carried_forward_evidence: carriedForwardEvidence,
     new_evidence: newEvidence,
+    postcondition_evidence_map: postconditionEvidenceMap,
     omitted_evidence: arrayValue(objectValue(input.evidence_policy).omitted_evidence).map((item) => ({
       source_evidence_id: text(objectValue(item).source_evidence_id),
       artifact_evidence_id: text(objectValue(item).artifact_evidence_id),
@@ -478,6 +534,21 @@ export function validateWorkRecordReplacementProposal(proposal = {}) {
       add('NEW_EVIDENCE_NOT_IN_ARTIFACT', 'New evidence must trace to the Repair Attempt Artifact.', 'new_evidence.artifact_evidence_id', { evidence_ref_id: artifactId });
     }
     if (!proposedEvidence.has(newId)) add('NEW_EVIDENCE_NOT_IN_PROPOSED_RECORD', 'Proposed record must reference new evidence ids.', 'proposed_replacement_work_record.evidence_refs', { evidence_ref_id: newId });
+  }
+  const postconditionIds = new Set(arrayValue(value.proposed_replacement_work_record?.execution_map?.postconditions)
+    .map((item) => text(objectValue(item).id))
+    .filter(Boolean));
+  for (const item of arrayValue(value.postcondition_evidence_map)) {
+    const postconditionId = text(objectValue(item).postcondition_id);
+    if (!postconditionId) add('POSTCONDITION_EVIDENCE_MAP_ID_MISSING', 'Postcondition evidence mapping requires postcondition_id.', 'postcondition_evidence_map');
+    if (postconditionId && !postconditionIds.has(postconditionId)) {
+      add('POSTCONDITION_EVIDENCE_MAP_UNKNOWN_POSTCONDITION', 'Postcondition evidence mapping must reference a proposed postcondition.', 'postcondition_evidence_map.postcondition_id', { postcondition_id: postconditionId });
+    }
+    for (const evidenceId of arrayValue(objectValue(item).evidence_refs).map(text).filter(Boolean)) {
+      if (!proposedEvidence.has(evidenceId)) {
+        add('POSTCONDITION_EVIDENCE_MAP_UNKNOWN_EVIDENCE', 'Postcondition evidence mapping must reference proposed evidence.', 'postcondition_evidence_map.evidence_refs', { evidence_ref_id: evidenceId });
+      }
+    }
   }
   for (const item of arrayValue(value.omitted_evidence)) {
     if (!text(objectValue(item).omit_reason)) add('OMITTED_EVIDENCE_REASON_MISSING', 'Omitted evidence requires omit_reason.', 'omitted_evidence');

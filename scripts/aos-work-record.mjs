@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import {
   GateContinuationStore,
 } from '../packages/daemon/gate/continuations.js';
@@ -13,23 +12,20 @@ import {
   checkWorkRecordGateAuthorization,
   defaultWorkRecordRoots,
   discoverWorkRecords,
-  executeControlledWorkRecordRepair,
   readWorkRecord,
   verifyWorkRecord,
   explainWorkRecordStatus,
   exportWorkRecordBundle,
-  buildWorkRecordRepairAttemptArtifact,
-  buildWorkRecordReplacementProposal,
-  lookupWorkRecordSourceSupersession,
-  writeReplacementWorkRecord,
-  writeWorkRecordSourceSupersessionIndex,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
-  validateWorkRecordRepairAttemptArtifact,
-  validateWorkRecordReplacementProposal,
-  validateWorkRecordSourceSupersessionEntry,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
+import {
+  handleAttemptArtifactFamily,
+  handleRepairFamily,
+  handleReplacementProposalFamily,
+  handleSupersessionFamily,
+} from './lib/work-record-command-families.mjs';
 
 function prettyJSON(value) {
   return JSON.stringify(value, null, 2);
@@ -261,19 +257,6 @@ async function readAuthorization(file) {
   }
 }
 
-function readJsonFile(file, code = 'INVALID_JSON') {
-  if (!fs.existsSync(file)) fail(`JSON file not found: ${file}`, code);
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
-    fail(`Invalid JSON: ${error.message}`, code);
-  }
-}
-
-function digestFile(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
 async function gateCheckOutcome(options) {
   const refs = [options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);
   if (refs.length !== 1) {
@@ -354,140 +337,20 @@ async function main(argv = process.argv.slice(2)) {
     }
   } else if (command === 'repair') {
     const [action, target, ...rest] = [ref, ...extra];
-    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
-    if (action === 'execute') {
-      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-      if (!options.attemptPlan) fail('repair execute requires --attempt-plan <plan-path>', 'MISSING_ARG');
-      if (!options.executionRoot) fail('repair execute requires --execution-root <dir>', 'MISSING_ARG');
-      if (!options.artifactRoot) fail('repair execute requires --artifact-root <dir>', 'MISSING_ARG');
-      const result = await executeControlledWorkRecordRepair({
-        attemptPlanPath: options.attemptPlan,
-        executionRoot: options.executionRoot,
-        artifactRoot: options.artifactRoot,
-        operationId: options.operationId,
-        dryRun: options.dryRun,
-        repoRoot: process.cwd(),
-      });
-      const failed = result.status !== 'dry_run' && result.status !== 'succeeded';
-      emitJSON(result, failed);
-      if (failed) process.exit(1);
-      return;
-    }
-    fail(`Unknown repair subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+    await handleRepairFamily({ action, target, rest, options, fail, emitJSON });
+    return;
   } else if (command === 'attempt-artifact') {
     const [action, target, ...rest] = [ref, ...extra];
-    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
-    if (action === 'validate') {
-      if (!target) fail('attempt-artifact validate requires an artifact path', 'MISSING_ARG');
-      const validation = validateWorkRecordRepairAttemptArtifact(readJsonFile(target, 'INVALID_REPAIR_ATTEMPT_ARTIFACT'));
-      emitJSON(validation, validation.status !== 'passed');
-      if (validation.status !== 'passed') process.exit(1);
-      return;
-    }
-    if (action === 'build') {
-      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-      if (!options.input) fail('attempt-artifact build requires --input <outcome-input-path>', 'MISSING_ARG');
-      emitJSON(buildWorkRecordRepairAttemptArtifact(readJsonFile(options.input, 'INVALID_REPAIR_ATTEMPT_ARTIFACT_INPUT')));
-      return;
-    }
-    fail(`Unknown attempt-artifact subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+    handleAttemptArtifactFamily({ action, target, rest, options, fail, emitJSON });
+    return;
   } else if (command === 'replacement-proposal') {
     const [action, target, ...rest] = [ref, ...extra];
-    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
-    if (action === 'validate') {
-      if (!target) fail('replacement-proposal validate requires a proposal path', 'MISSING_ARG');
-      const validation = validateWorkRecordReplacementProposal(readJsonFile(target, 'INVALID_REPLACEMENT_PROPOSAL'));
-      emitJSON(validation, validation.status !== 'passed');
-      if (validation.status !== 'passed') process.exit(1);
-      return;
-    }
-    if (action === 'write') {
-      if (!target) fail('replacement-proposal write requires a proposal path', 'MISSING_ARG');
-      if (!options.outputRoot) fail('replacement-proposal write requires --output-root <dir>', 'MISSING_ARG');
-      const result = writeReplacementWorkRecord({
-        proposal: readJsonFile(target, 'INVALID_REPLACEMENT_PROPOSAL'),
-        outputRoot: options.outputRoot,
-        outputPath: options.outputPath,
-        dryRun: options.dryRun,
-      });
-      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported');
-      if (result.status.startsWith('blocked_') || result.status === 'unsupported') process.exit(1);
-      return;
-    }
-    if (action === 'build') {
-      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-      if (!options.source) fail('replacement-proposal build requires --source <id-or-path>', 'MISSING_ARG');
-      if (!options.attemptPlan) fail('replacement-proposal build requires --attempt-plan <plan-path>', 'MISSING_ARG');
-      if (!options.attemptArtifact) fail('replacement-proposal build requires --attempt-artifact <artifact-path>', 'MISSING_ARG');
-      const sourceRead = readWorkRecord(options.source, context);
-      if (sourceRead.status !== 'success') {
-        emitJSON(sourceRead, true);
-        process.exit(1);
-      }
-      const sourcePath = sourceRead.source?.path;
-      const beforeDigest = sourcePath ? digestFile(sourcePath) : '';
-      const proposal = buildWorkRecordReplacementProposal({
-        source_work_record: {
-          ...sourceRead.summary,
-          ...sourceRead.source,
-          record: sourceRead.record,
-          path: sourcePath,
-          requested_ref: options.source,
-          digest: beforeDigest,
-        },
-        repair_attempt_plan: readJsonFile(options.attemptPlan, 'INVALID_REPAIR_ATTEMPT_PLAN'),
-        repair_attempt_artifact: readJsonFile(options.attemptArtifact, 'INVALID_REPAIR_ATTEMPT_ARTIFACT'),
-        source_work_record_digest_after: sourcePath ? digestFile(sourcePath) : beforeDigest,
-        proposed_id_seed: options.proposedIdSeed,
-      });
-      emitJSON(proposal);
-      return;
-    }
-    fail(`Unknown replacement-proposal subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+    handleReplacementProposalFamily({ action, target, rest, options, context, fail, emitJSON });
+    return;
   } else if (command === 'supersession') {
     const [action, target, ...rest] = [ref, ...extra];
-    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
-    if (action === 'validate') {
-      if (!target) fail('supersession validate requires an entry path', 'MISSING_ARG');
-      const validation = validateWorkRecordSourceSupersessionEntry(readJsonFile(target, 'INVALID_SOURCE_SUPERSESSION_ENTRY'));
-      emitJSON(validation, validation.status !== 'passed');
-      if (validation.status !== 'passed') process.exit(1);
-      return;
-    }
-    if (action === 'lookup') {
-      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-      if (!options.source) fail('supersession lookup requires --source <id-or-path>', 'MISSING_ARG');
-      if (!options.indexRoot) fail('supersession lookup requires --index-root <dir>', 'MISSING_ARG');
-      const result = lookupWorkRecordSourceSupersession({
-        sourceRef: options.source,
-        indexRoot: options.indexRoot,
-        sourceRoots: options.roots,
-        repoRoot: process.cwd(),
-      });
-      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported');
-      if (result.status.startsWith('blocked_') || result.status === 'unsupported') process.exit(1);
-      return;
-    }
-    if (action === 'write') {
-      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
-      if (!options.source) fail('supersession write requires --source <id-or-path>', 'MISSING_ARG');
-      if (!options.replacement) fail('supersession write requires --replacement <id-or-path>', 'MISSING_ARG');
-      if (!options.indexRoot) fail('supersession write requires --index-root <dir>', 'MISSING_ARG');
-      const result = writeWorkRecordSourceSupersessionIndex({
-        sourceRef: options.source,
-        replacementRef: options.replacement,
-        indexRoot: options.indexRoot,
-        sourceRoots: options.roots,
-        replacementRoots: options.replacementRoots,
-        writerResultPath: options.writerResult,
-        dryRun: options.dryRun,
-        repoRoot: process.cwd(),
-      });
-      emitJSON(result, result.status.startsWith('blocked_') || result.status === 'unsupported' || result.status === 'conflict');
-      if (result.status.startsWith('blocked_') || result.status === 'unsupported' || result.status === 'conflict') process.exit(1);
-      return;
-    }
-    fail(`Unknown supersession subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
+    handleSupersessionFamily({ action, target, rest, options, fail, emitJSON });
+    return;
   } else if (command === 'gate-request') {
     payload = buildWorkRecordGateRequest(ref, context);
   } else if (command === 'gate-check') {

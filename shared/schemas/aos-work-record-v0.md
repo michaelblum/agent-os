@@ -443,10 +443,12 @@ the evidence required by the attempt plan.
 
 The Controlled Repair Executor is the first explicit Work Record repair executor
 slice. It consumes a ready Repair Attempt Plan, selects exactly one planned
-operation that declares a repo-owned allowlisted deterministic file-fixture
-operation, runs it only under an explicit existing execution root, writes a
-Repair Attempt Artifact under an explicit existing artifact root, and returns an
-executor result envelope. It is not a browser, native AX, canvas, live UI,
+operation registered by an injected operation registry, runs it only under an
+explicit existing execution root, writes a Repair Attempt Artifact under an
+explicit existing artifact root, and returns an executor result envelope. The
+current public command wires a clearly named fixture registry for repo-owned
+deterministic file-fixture operations; those fixture descriptors are not the
+product repair abstraction. It is not a browser, native AX, canvas, live UI,
 coordinate, screenshot, image matching, TCC-gated, arbitrary shell, generic
 patch, Workflow engine, or auto-resume executor.
 
@@ -493,9 +495,12 @@ Supported executor statuses include `dry_run`, `succeeded`, `failed`,
 and `unsupported`. Dry-run reports direct argv command identity, roots,
 artifact path, timeout, allowed mutations, cleanup/rollback plan, and expected
 side effects without executing. Execute mode uses `shell:false`, deterministic
-environment keys, bounded stdout/stderr capture, timeout enforcement,
-before/after digests, cleanup and rollback result records, source Work Record
-immutability checks, artifact writing, and artifact validation.
+environment keys, bounded stdout/stderr capture, timeout enforcement, explicit
+phase snapshots (`before`, `after_primary`, optional `after_cleanup`, optional
+`after_rollback`, and `final`), cleanup and rollback result records, source Work
+Record immutability checks, artifact writing, and artifact validation. Final
+digest and file-change evidence must identify its phase range and compare
+`before..final`, not a pre-cleanup or pre-rollback snapshot.
 
 Source Work Records remain immutable. Replacement writing and Source
 Supersession Index writing are separate explicit contracts and are not implied
@@ -606,6 +611,7 @@ The toolkit contract is `work_record.replacement_proposal` with schema version
   "supersedes": {},
   "carried_forward_evidence": [],
   "new_evidence": [],
+  "postcondition_evidence_map": [],
   "omitted_evidence": [],
   "claim_provenance": [],
   "verifier_before": {},
@@ -640,9 +646,13 @@ product state.
 Evidence transfer is explicit. `carried_forward_evidence[]` must trace to
 source Work Record `evidence[]` and include a carry reason. `new_evidence[]`
 must trace to the Repair Attempt Artifact or its declared outputs and map to
-candidate replacement evidence ids. `omitted_evidence[]` must include an omit
-reason and replacement impact. Proposed claim provenance must state that
-historical Claim Results were not rewritten.
+candidate replacement evidence ids. `postcondition_evidence_map[]` carries the
+per-postcondition evidence refs into the proposed replacement shape so the
+writer materializes only the evidence that proves each postcondition; semantic
+target metadata must stay scoped to the evidence/postcondition it supports.
+`omitted_evidence[]` must include an omit reason and replacement impact.
+Proposed claim provenance must state that historical Claim Results were not
+rewritten.
 
 The validator checks consistency and provenance rather than replacing verifier
 policy. `proposed` requires a valid source Work Record identity, matching

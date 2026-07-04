@@ -331,7 +331,20 @@ export function validateWorkRecordRepairAttemptArtifact(artifact = {}) {
   });
 
   const evidenceIds = new Set(normalizeEvidenceRefs(value.evidence_refs).map(evidenceRefId));
+  if (value.executor_implemented === true) {
+    for (const [index, ref] of normalizeEvidenceRefs(value.evidence_refs).entries()) {
+      if (!text(ref.phase_range) && !text(ref.phase)) {
+        add('EVIDENCE_PHASE_MISSING', 'Implemented executor evidence refs must declare phase or phase_range.', `evidence_refs[${index}]`);
+      }
+    }
+  }
   const outcomeEvidenceIds = new Set(arrayValue(value.operation_outcomes).flatMap((outcome) => arrayValue(objectValue(outcome).evidence_ref_ids).map(text)).filter(Boolean));
+  arrayValue(value.operation_outcomes).forEach((outcome, outcomeIndex) => {
+    const item = objectValue(outcome);
+    if (value.executor_implemented === true && arrayValue(item.file_changes).some((change) => !text(objectValue(change).phase_range))) {
+      add('FILE_CHANGE_PHASE_RANGE_MISSING', 'Implemented executor file changes must declare phase_range.', `operation_outcomes[${outcomeIndex}].file_changes`);
+    }
+  });
   for (const id of outcomeEvidenceIds) {
     if (!evidenceIds.has(id)) add('OPERATION_EVIDENCE_REF_MISSING', 'Operation outcome references evidence not present in evidence_refs.', 'evidence_refs', { evidence_ref_id: id });
   }

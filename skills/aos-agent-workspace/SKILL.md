@@ -121,22 +121,24 @@ the returned `recommended_next`, `recommended_next_commands`, or
   `replacement-proposal build/validate`. The narrow executing exception is
   `repair execute --attempt-plan <path> --execution-root <dir> --artifact-root
   <dir> [--dry-run] --json`: it consumes only a `ready` Repair Attempt Plan,
-  runs only an allowlisted deterministic repo-command/file-fixture operation
-  under the explicit execution root, writes a Repair Attempt Artifact under the
-  explicit artifact root, and still rejects browser, native AX, canvas, live UI,
+  runs only the named deterministic file-fixture registry under the explicit
+  execution root, writes a Repair Attempt Artifact with explicit phase evidence
+  under the explicit artifact root, and still rejects browser, native AX, canvas, live UI,
   coordinate, screenshot, image matching, arbitrary shell, generic patch,
   Workflow engine, source-record mutation, and auto-resume behavior.
   `gate-check` authorization only permits a future gated attempt;
   `plan-attempt` is not proof that repair happened and is only safe to hand to a
   future explicit executor when it reports `ready`. A Repair Attempt Artifact
   records attempted outcome data; it is not a replacement writer. A Replacement
-  Proposal proposes carried-forward evidence, new evidence, supersession
-  metadata, and final proposed health; it is not itself a writer.
+  Proposal proposes carried-forward evidence, new evidence, per-postcondition
+  evidence mapping, supersession metadata, and final proposed health; it is not
+  itself a writer.
 - `aos work-record replacement-proposal write <proposal-path> --output-root
   <dir> [--dry-run] --json` is the narrow Replacement Writer. It validates the
   proposal, materializes a new replacement Work Record under the explicit output
-  root, writes atomically/idempotently, and leaves the source Work Record
-  unchanged. Dry-run reports the exact path, id, digest, idempotency, source
+  root with per-postcondition evidence refs preserved, writes
+  atomically/idempotently, and leaves the source Work Record unchanged. Dry-run
+  reports the exact path, id, digest, idempotency, source
   immutability check, and planned side effects without writing. Write results
   still report `mutates_source_record:false`, `executes_repair:false`,
   `executes_actions:false`, `applies_patches:false`, and

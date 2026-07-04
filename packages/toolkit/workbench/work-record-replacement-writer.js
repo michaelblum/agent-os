@@ -223,8 +223,35 @@ function semanticTargetsFromPostconditions(postconditions = []) {
   }).filter((target) => target && (target.ref || target.target));
 }
 
-function evidenceFromArtifact(newEvidence = [], postconditions = []) {
-  const semanticTargets = semanticTargetsFromPostconditions(postconditions);
+function postconditionEvidenceMap(proposal = {}) {
+  const mapped = new Map();
+  for (const item of arrayValue(proposal.postcondition_evidence_map)) {
+    mapped.set(text(objectValue(item).postcondition_id), arrayValue(objectValue(item).evidence_refs).map(text).filter(Boolean));
+  }
+  return mapped;
+}
+
+function semanticTargetsByEvidence(proposal = {}, postconditions = []) {
+  const targetsByPostcondition = new Map(arrayValue(postconditions).map((postcondition) => [
+    text(objectValue(postcondition).id),
+    semanticTargetsFromPostconditions([postcondition]),
+  ]));
+  const byEvidence = new Map();
+  for (const [postconditionId, evidenceRefs] of postconditionEvidenceMap(proposal)) {
+    const targets = targetsByPostcondition.get(postconditionId) || [];
+    for (const evidenceRef of evidenceRefs) {
+      byEvidence.set(evidenceRef, [
+        ...arrayValue(byEvidence.get(evidenceRef)),
+        ...targets,
+      ]);
+    }
+  }
+  return byEvidence;
+}
+
+function evidenceFromArtifact(proposal = {}, postconditions = []) {
+  const scopedTargets = semanticTargetsByEvidence(proposal, postconditions);
+  const newEvidence = arrayValue(proposal.new_evidence);
   return newEvidence.map((item) => {
     const value = objectValue(item);
     const id = text(value.new_record_evidence_id);
@@ -240,7 +267,12 @@ function evidenceFromArtifact(newEvidence = [], postconditions = []) {
         artifact_evidence_id: text(value.artifact_evidence_id),
         artifact_path: text(value.artifact_path),
         source: 'work_record.repair_attempt_artifact',
-        semantic_targets: semanticTargets,
+        phase: text(value.phase),
+        phase_range: text(value.phase_range),
+        postcondition_refs: arrayValue(value.postcondition_refs).map(text).filter(Boolean),
+        semantic_targets: arrayValue(scopedTargets.get(id)).filter((target, index, values) => (
+          values.findIndex((other) => JSON.stringify(other) === JSON.stringify(target)) === index
+        )),
       },
     };
   });
@@ -283,18 +315,22 @@ export function materializeReplacementWorkRecord(proposal = {}) {
   const proposed = objectValue(proposal.proposed_replacement_work_record);
   const sourceRecord = loadSourceRecord(proposal.source_work_record?.path);
   const carriedEvidence = evidenceFromSource(sourceRecord || {}, proposal.carried_forward_evidence);
-  const newEvidence = evidenceFromArtifact(proposal.new_evidence, proposed.execution_map?.postconditions);
+  const newEvidence = evidenceFromArtifact(proposal, proposed.execution_map?.postconditions);
   const evidence = [...carriedEvidence, ...newEvidence].filter((item) => text(item.id));
   const evidenceIds = uniqueStrings(evidence.map((item) => item.id));
   const finalHealth = text(proposal.final_proposed_health?.classification || proposed.health?.verdict, 'valid');
   const verifierReportId = `verifier-report:${text(proposed.id).replace(/^work-record:/, '')}:replacement-writer`;
   const claims = cloneJson(arrayValue(proposed.claims));
   const executionMap = cloneJson(objectValue(proposed.execution_map));
-  const newEvidenceIds = newEvidence.map((item) => item.id).filter(Boolean);
-  executionMap.postconditions = arrayValue(executionMap.postconditions).map((postcondition) => ({
-    ...cloneJson(objectValue(postcondition)),
-    evidence_refs: newEvidenceIds.length > 0 ? newEvidenceIds : arrayValue(objectValue(postcondition).evidence_refs),
-  }));
+  const mappedEvidence = postconditionEvidenceMap(proposal);
+  executionMap.postconditions = arrayValue(executionMap.postconditions).map((postcondition) => {
+    const value = objectValue(postcondition);
+    const mappedRefs = mappedEvidence.get(text(value.id));
+    return {
+      ...cloneJson(value),
+      evidence_refs: mappedRefs && mappedRefs.length > 0 ? mappedRefs : arrayValue(value.evidence_refs),
+    };
+  });
   const claimResults = arrayValue(proposed.claim_results).length > 0
     ? cloneJson(arrayValue(proposed.claim_results))
     : claimResultsForPostconditions({ claims, postconditions: executionMap.postconditions, finalHealth });

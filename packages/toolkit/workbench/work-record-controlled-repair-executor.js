@@ -11,6 +11,9 @@ import {
 import {
   validateWorkRecordRepairAttemptPlan,
 } from './work-record-repair-attempt-plan.js';
+import {
+  createWorkRecordControlledRepairFixtureRegistry,
+} from './work-record-controlled-repair-fixtures.js';
 
 export const WORK_RECORD_CONTROLLED_REPAIR_EXECUTOR_RESULT_SCHEMA_VERSION = '2026-07-work-record-controlled-repair-executor-result-v0';
 export const WORK_RECORD_CONTROLLED_REPAIR_EXECUTOR_RESULT_TYPE = 'work_record.controlled_repair_executor_result';
@@ -141,71 +144,6 @@ function defaultRepoRoot() {
   return path.resolve(__dirname, '../../..');
 }
 
-function fixtureScript(repoRoot) {
-  return path.join(repoRoot, 'scripts/work-record-fixture-operation.mjs');
-}
-
-function descriptorMap(repoRoot = defaultRepoRoot()) {
-  const script = fixtureScript(repoRoot);
-  const base = {
-    operation_kind: 'deterministic_repo_command_file_fixture',
-    executable: process.execPath,
-    script,
-    timeout_ms: 2000,
-    allowed_mutations: ['output/result.txt'],
-    digest_paths: ['input.txt', 'output/result.txt'],
-    environment: {
-      AOS_CONTROLLED_REPAIR_EXECUTOR: '1',
-    },
-  };
-  return new Map([
-    ['controlled_fixture.write_success', {
-      ...base,
-      id: 'controlled_fixture.write_success',
-      argv: [process.execPath, script, '--mode', 'write', '--file', 'output/result.txt', '--value', 'controlled repair succeeded'],
-      cleanup: { id: 'cleanup:result-file', argv: [process.execPath, script, '--mode', 'cleanup', '--file', 'cleanup.tmp'] },
-    }],
-    ['controlled_fixture.write_failure', {
-      ...base,
-      id: 'controlled_fixture.write_failure',
-      argv: [process.execPath, script, '--mode', 'fail-after-write', '--file', 'output/result.txt', '--value', 'controlled repair failed'],
-      rollback: { id: 'rollback:result-file', argv: [process.execPath, script, '--mode', 'rollback', '--file', 'output/result.txt'] },
-    }],
-    ['controlled_fixture.write_timeout', {
-      ...base,
-      id: 'controlled_fixture.write_timeout',
-      timeout_ms: 50,
-      argv: [process.execPath, script, '--mode', 'sleep', '--ms', '5000'],
-    }],
-    ['controlled_fixture.cleanup_success', {
-      ...base,
-      id: 'controlled_fixture.cleanup_success',
-      allowed_mutations: ['output/result.txt', 'cleanup.tmp'],
-      digest_paths: ['input.txt', 'output/result.txt', 'cleanup.tmp'],
-      argv: [process.execPath, script, '--mode', 'write', '--file', 'output/result.txt', '--value', 'cleanup succeeds'],
-      cleanup: { id: 'cleanup:declared-temp', argv: [process.execPath, script, '--mode', 'cleanup', '--file', 'cleanup.tmp'] },
-    }],
-    ['controlled_fixture.cleanup_failure', {
-      ...base,
-      id: 'controlled_fixture.cleanup_failure',
-      argv: [process.execPath, script, '--mode', 'write', '--file', 'output/result.txt', '--value', 'cleanup fails'],
-      cleanup: { id: 'cleanup:declared-temp', argv: [process.execPath, script, '--mode', 'cleanup-fail', '--file', 'cleanup.tmp'] },
-    }],
-    ['controlled_fixture.rollback_success', {
-      ...base,
-      id: 'controlled_fixture.rollback_success',
-      argv: [process.execPath, script, '--mode', 'fail-after-write', '--file', 'output/result.txt', '--value', 'rollback succeeds'],
-      rollback: { id: 'rollback:result-file', argv: [process.execPath, script, '--mode', 'rollback', '--file', 'output/result.txt'] },
-    }],
-    ['controlled_fixture.rollback_failure', {
-      ...base,
-      id: 'controlled_fixture.rollback_failure',
-      argv: [process.execPath, script, '--mode', 'fail-after-write', '--file', 'output/result.txt', '--value', 'rollback fails'],
-      rollback: { id: 'rollback:result-file', argv: [process.execPath, script, '--mode', 'rollback-fail', '--file', 'output/result.txt'] },
-    }],
-  ]);
-}
-
 function operationAllowlistId(operation = {}) {
   return text(operation.allowlisted_operation_id || operation.allowlisted_operation?.id || operation.controlled_repair_executor?.allowlisted_operation_id);
 }
@@ -319,10 +257,11 @@ function blocked(status, diagnostic, context = {}) {
   });
 }
 
-function snapshotPaths(root, rels = []) {
+function snapshotPaths(root, rels = [], phase = '') {
   return rels.map((rel) => {
     const resolved = path.resolve(root, rel);
     return {
+      phase,
       path: rel,
       exists: fs.existsSync(resolved),
       digest: fileDigest(resolved),
@@ -330,11 +269,14 @@ function snapshotPaths(root, rels = []) {
   });
 }
 
-function fileChanges(before = [], after = []) {
+function fileChanges(before = [], after = [], phaseRange = 'before..final') {
   const afterByPath = new Map(after.map((item) => [item.path, item]));
   return before.map((item) => {
     const next = afterByPath.get(item.path) || { path: item.path, exists: false, digest: '' };
     return {
+      phase_range: phaseRange,
+      before_phase: text(item.phase, phaseRange.split('..')[0] || ''),
+      after_phase: text(next.phase, phaseRange.split('..')[1] || ''),
       path: item.path,
       before_exists: item.exists,
       after_exists: next.exists,
@@ -425,11 +367,14 @@ function commandStatus(result) {
   return result.exit_code === 0 ? 'succeeded' : 'failed';
 }
 
-function cleanupResult(outcomeId, descriptor, result) {
+function cleanupResult(outcomeId, descriptor, result, fileChangesForPhase = []) {
   return {
     id: text(descriptor.id, `cleanup:${outcomeId}`),
     operation_outcome_id: outcomeId,
     status: result.exit_code === 0 && !result.timed_out ? 'passed' : 'failed',
+    phase: 'after_cleanup',
+    phase_range: 'after_primary..after_cleanup',
+    file_changes: fileChangesForPhase,
     command: {
       argv: descriptor.argv,
       exit_code: result.exit_code,
@@ -443,11 +388,14 @@ function cleanupResult(outcomeId, descriptor, result) {
   };
 }
 
-function rollbackResult(outcomeId, descriptor, result) {
+function rollbackResult(outcomeId, descriptor, result, fileChangesForPhase = []) {
   return {
     id: text(descriptor.id, `rollback:${outcomeId}`),
     operation_outcome_id: outcomeId,
     status: result.exit_code === 0 && !result.timed_out ? 'passed' : 'failed',
+    phase: 'after_rollback',
+    phase_range: 'after_primary..after_rollback',
+    file_changes: fileChangesForPhase,
     command: {
       argv: descriptor.argv,
       exit_code: result.exit_code,
@@ -465,6 +413,7 @@ export async function executeControlledWorkRecordRepair(input = {}) {
   const diagnostics = [];
   const mode = input.dryRun === true ? 'dry_run' : 'execute';
   const repoRoot = path.resolve(input.repoRoot || defaultRepoRoot());
+  const operationRegistry = input.operationRegistry || createWorkRecordControlledRepairFixtureRegistry(repoRoot);
   const planPath = text(input.attemptPlanPath);
   if (!planPath || !fs.existsSync(planPath)) {
     return blocked('aborted_precondition', {
@@ -568,7 +517,7 @@ export async function executeControlledWorkRecordRepair(input = {}) {
   }
 
   const allowlistedOperationId = operationAllowlistId(operation);
-  const descriptor = descriptorMap(repoRoot).get(allowlistedOperationId);
+  const descriptor = operationRegistry.get(allowlistedOperationId);
   if (!descriptor) {
     return blocked('blocked_unsupported_operation', {
       severity: 'error',
@@ -614,27 +563,34 @@ export async function executeControlledWorkRecordRepair(input = {}) {
 
   const sourcePath = text(plan.source_work_record?.path);
   const sourceBefore = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : '';
-  const beforeSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths);
+  const beforeSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths, 'before');
   const startedAt = new Date();
   const command = await runCommand(descriptor.argv, {
     cwd: executionRoot,
     env: descriptor.environment,
     timeoutMs: descriptor.timeout_ms,
   });
-  const afterSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths);
-  const changes = fileChanges(beforeSnapshot, afterSnapshot);
+  const afterPrimarySnapshot = snapshotPaths(executionRoot, descriptor.digest_paths, 'after_primary');
   const sourceAfter = sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : sourceBefore;
   const outcomeId = `operation-outcome:${text(operation.id).replace(/[^A-Za-z0-9._:-]+/g, '_')}`;
   const status = commandStatus(command);
   const cleanupResults = [];
   const rollbackResults = [];
+  let afterCleanupSnapshot = null;
+  let afterRollbackSnapshot = null;
   if (descriptor.cleanup) {
     const result = await runCommand(descriptor.cleanup.argv, {
       cwd: executionRoot,
       env: descriptor.environment,
       timeoutMs: descriptor.timeout_ms,
     });
-    cleanupResults.push(cleanupResult(outcomeId, descriptor.cleanup, result));
+    afterCleanupSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths, 'after_cleanup');
+    cleanupResults.push(cleanupResult(
+      outcomeId,
+      descriptor.cleanup,
+      result,
+      fileChanges(afterPrimarySnapshot, afterCleanupSnapshot, 'after_primary..after_cleanup'),
+    ));
   }
   if (descriptor.rollback && status !== 'succeeded') {
     const result = await runCommand(descriptor.rollback.argv, {
@@ -642,8 +598,24 @@ export async function executeControlledWorkRecordRepair(input = {}) {
       env: descriptor.environment,
       timeoutMs: descriptor.timeout_ms,
     });
-    rollbackResults.push(rollbackResult(outcomeId, descriptor.rollback, result));
+    afterRollbackSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths, 'after_rollback');
+    rollbackResults.push(rollbackResult(
+      outcomeId,
+      descriptor.rollback,
+      result,
+      fileChanges(afterPrimarySnapshot, afterRollbackSnapshot, 'after_primary..after_rollback'),
+    ));
   }
+  const finalSnapshot = snapshotPaths(executionRoot, descriptor.digest_paths, 'final');
+  const primaryChanges = fileChanges(beforeSnapshot, afterPrimarySnapshot, 'before..after_primary');
+  const finalChanges = fileChanges(beforeSnapshot, finalSnapshot, 'before..final');
+  const phaseSnapshots = [
+    { phase: 'before', digest_paths: beforeSnapshot },
+    { phase: 'after_primary', digest_paths: afterPrimarySnapshot },
+    ...(afterCleanupSnapshot ? [{ phase: 'after_cleanup', digest_paths: afterCleanupSnapshot }] : []),
+    ...(afterRollbackSnapshot ? [{ phase: 'after_rollback', digest_paths: afterRollbackSnapshot }] : []),
+    { phase: 'final', digest_paths: finalSnapshot },
+  ];
   const cleanupFailed = cleanupResults.some((result) => result.status === 'failed');
   const rollbackFailed = rollbackResults.some((result) => result.status === 'failed');
   const executorStatus = status === 'blocked_timeout'
@@ -675,12 +647,14 @@ export async function executeControlledWorkRecordRepair(input = {}) {
     ...evidenceIds.map((id) => ({
       id,
       uri: `artifact:${digestEvidenceId}`,
-      digest: digestJson({ id, before: beforeSnapshot, after: afterSnapshot }),
+      phase_range: 'before..final',
+      digest: digestJson({ id, before: beforeSnapshot, final: finalSnapshot }),
     })),
     {
       id: digestEvidenceId,
       uri: `artifact:${digestEvidenceId}`,
-      digest: digestJson({ before: beforeSnapshot, after: afterSnapshot }),
+      phase_range: 'before..final',
+      digest: digestJson({ before: beforeSnapshot, final: finalSnapshot }),
     },
   ];
   const operationOutcome = {
@@ -705,9 +679,12 @@ export async function executeControlledWorkRecordRepair(input = {}) {
       stdout_truncated: command.stdout_truncated,
       stderr_truncated: command.stderr_truncated,
     },
+    phase_snapshots: phaseSnapshots,
     before_digests: beforeSnapshot,
-    after_digests: afterSnapshot,
-    file_changes: changes,
+    after_primary_digests: afterPrimarySnapshot,
+    final_digests: finalSnapshot,
+    file_changes: finalChanges,
+    primary_file_changes: primaryChanges,
     evidence_ref_ids: requiredEvidence,
     cleanup_required: Boolean(descriptor.cleanup),
       rollback_required: Boolean(descriptor.rollback) && status !== 'succeeded',
@@ -740,6 +717,7 @@ export async function executeControlledWorkRecordRepair(input = {}) {
       version: WORK_RECORD_CONTROLLED_REPAIR_EXECUTOR_RESULT_SCHEMA_VERSION,
       implemented: true,
       description: 'Controlled Repair Executor V0 for deterministic repo-command/file-fixture operations only.',
+      operation_registry: 'controlled_repair_fixture_registry',
     },
     timing: {
       started_at: startedAt.toISOString(),

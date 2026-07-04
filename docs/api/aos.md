@@ -1089,11 +1089,16 @@ ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`
 and `--artifact-root` directories. Dry-run reports the allowlisted operation id,
 direct argv command identity, execution root, artifact path, timeout, allowed
 mutations, cleanup/rollback plan, and expected side effects without executing.
-Execute mode runs only the repo-owned deterministic file-fixture allowlist with
-`shell:false`, deterministic environment keys, bounded stdout/stderr capture,
-timeout enforcement, before/after digests for declared fixture paths,
-cleanup/rollback result capture, source Work Record immutability proof, Repair
-Attempt Artifact writing, and artifact validation.
+Execute mode runs only the explicitly named fixture registry for repo-owned
+deterministic file-fixture operations. The executor core is separate from that
+fixture registry; fixture operations are not the product repair abstraction.
+Execution uses `shell:false`, deterministic environment keys, bounded
+stdout/stderr capture, timeout enforcement, named phase snapshots
+(`before`, `after_primary`, optional `after_cleanup`, optional
+`after_rollback`, and `final`), source Work Record immutability proof, Repair
+Attempt Artifact writing, and artifact validation. Final artifact evidence uses
+`before..final` file-change and digest evidence; cleanup and rollback phase
+evidence stays inspectable.
 
 The executor result envelope is `work_record.controlled_repair_executor_result`
 with schema version
@@ -1144,6 +1149,11 @@ Both attempt-artifact commands are read-only command surfaces:
 `mutates_state:false`, `executes_repair:false`, `executes_actions:false`,
 `applies_patches:false`, and `automatic_replay_allowed:false`.
 
+The Work Record CLI adapter delegates nested command families to separate
+script handlers for repair execution, attempt artifacts, replacement proposals,
+and supersession indexes. The split is an adapter-maintenance boundary only; it
+does not redesign unrelated AOS command routing.
+
 `replacement-proposal build` consumes an explicit source Work Record, Repair
 Attempt Plan JSON, and validated Repair Attempt Artifact JSON. It emits a
 `work_record.replacement_proposal` envelope with schema version
@@ -1151,10 +1161,10 @@ Attempt Plan JSON, and validated Repair Attempt Artifact JSON. It emits a
 Work Record identity/path/digest, Repair Attempt Plan schema/digest, Repair
 Attempt Artifact schema/digest, replacement proposal identity, proposed
 replacement Work Record id seed, proposed `supersedes` metadata,
-carried-forward evidence refs, new evidence refs, omitted evidence reasons,
-claim provenance, verifier-before and verifier-after health, final proposed
-health, source Work Record mutation check, diagnostics, and recommended next
-step.
+carried-forward evidence refs, new evidence refs, per-postcondition evidence
+mapping, omitted evidence reasons, claim provenance, verifier-before and
+verifier-after health, final proposed health, source Work Record mutation check,
+diagnostics, and recommended next step.
 
 Replacement Proposals are not writers. The build and validate commands always
 report `writes_replacement_record:false`, `mutates_source_record:false`,

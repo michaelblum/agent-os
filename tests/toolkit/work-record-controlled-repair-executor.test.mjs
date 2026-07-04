@@ -199,8 +199,11 @@ test('successful fixture command writes and validates a Repair Attempt Artifact 
   assert.equal(artifact.source_work_record_mutated, false);
   assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'passed');
   assert.equal(result.artifact_validation.status, 'passed');
+  assert.deepEqual(executedOutcome(result).phase_snapshots.map((item) => item.phase), ['before', 'after_primary', 'after_cleanup', 'final']);
+  assert.ok(artifact.evidence_refs.every((item) => item.phase_range === 'before..final'));
   assert.ok(executedOutcome(result).file_changes.some((item) => (
     item.path === 'output/result.txt'
+    && item.phase_range === 'before..final'
     && item.before_exists === false
     && item.after_exists === true
     && item.changed === true
@@ -226,11 +229,13 @@ test('failure, timeout, cleanup, and rollback outcomes stay visible', async () =
   assert.equal(cleanupFailure.status, 'cleanup_failed');
   assert.equal(cleanupFailure.artifact_validation.status, 'passed');
   assert.equal(executedOutcome(cleanupFailure).cleanup_required, true);
+  assert.equal(cleanupFailure.artifact.attempt_artifact_identity.id.startsWith('work-record-repair-attempt-artifact:'), true);
 
   const rollbackSuccess = await run(readyAttemptPlan('controlled_fixture.rollback_success'));
   assert.equal(rollbackSuccess.status, 'failed');
   assert.equal(rollbackSuccess.artifact_validation.status, 'passed');
   assert.equal(executedOutcome(rollbackSuccess).rollback_required, true);
+  assert.ok(executedOutcome(rollbackSuccess).phase_snapshots.some((item) => item.phase === 'after_rollback'));
 
   const rollbackFailure = await run(readyAttemptPlan('controlled_fixture.rollback_failure'));
   assert.equal(rollbackFailure.status, 'rollback_failed');
