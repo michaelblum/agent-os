@@ -33,7 +33,8 @@ function buildCommand(args) {
   const exitCode = result.status ?? 1;
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? (result.error ? `${result.error.message}\n` : '');
-  const binaryRebuilt = exitCode === 0 && !/^Up to date: \.\/aos\b/m.test(stdout);
+  const binaryRebuilt = exitCode === 0 && /^Rebuilt: \.\/aos\b/m.test(stdout);
+  const binaryResigned = exitCode === 0 && /^Signing aos\b/m.test(stdout);
   if (asJSON) {
     printJSON({
       status: exitCode === 0 ? 'success' : 'error',
@@ -41,6 +42,7 @@ function buildCommand(args) {
       build_wrapper: 'build.sh',
       build_source: 'repo-root/build.sh',
       binary_rebuilt: binaryRebuilt,
+      binary_resigned: binaryResigned,
       exit_code: exitCode,
       stdout,
       stderr,

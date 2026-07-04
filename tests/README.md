@@ -95,6 +95,12 @@ Rebuild with `./aos dev build` when both of these are true:
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
 
+The build gate is content-based for Swift runtime inputs. Touching a Swift file
+without changing its content, or editing build tooling alone, should not replace
+the TCC-owning `./aos` binary. Passing `--force`, changing Swift runtime input
+content, changing build mode, or missing output can still rebuild it. A real
+rebuild emits `Rebuilt: ./aos` and plays the configured rebuild alert sound.
+
 GDI is not allowed to perform this rebuild; return native/binary work to
 Foreman instead.
 

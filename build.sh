@@ -7,6 +7,7 @@ OUTPUT_PATH="$REPO_ROOT/aos"
 BUILD_DIR="$REPO_ROOT/.build"
 MODULE_CACHE_DIR="$BUILD_DIR/clang-module-cache"
 MODE_FILE="$BUILD_DIR/aos-build-mode"
+FINGERPRINT_FILE="$BUILD_DIR/aos-build-fingerprint"
 LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
 
 BUILD_MODE="dev"
@@ -102,25 +103,79 @@ sign_output() {
     fi
 }
 
-INPUTS=("$REPO_ROOT/build.sh" "${SOURCES[@]}")
+play_rebuild_alert() {
+    if [[ "${AOS_BUILD_REBUILD_ALERT:-1}" == "0" ]]; then
+        return 0
+    fi
+
+    echo "Alert: repo-mode ./aos binary rebuilt; TCC-owning process identity may need attention."
+
+    if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
+        "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    local sound="${AOS_BUILD_REBUILD_ALERT_SOUND:-/System/Library/Sounds/Sosumi.aiff}"
+    local repeat="${AOS_BUILD_REBUILD_ALERT_REPEAT:-3}"
+    local volume="${AOS_BUILD_REBUILD_ALERT_VOLUME:-2}"
+    case "$repeat" in
+        ''|*[!0-9]*) repeat=3 ;;
+    esac
+
+    if [[ -x /usr/bin/afplay && -f "$sound" ]]; then
+        local i=0
+        while [[ $i -lt $repeat ]]; do
+            /usr/bin/afplay -v "$volume" "$sound" >/dev/null 2>&1 || break
+            i=$((i + 1))
+        done
+        return 0
+    fi
+
+    if command -v osascript >/dev/null 2>&1; then
+        osascript -e "beep $repeat" >/dev/null 2>&1 || true
+    fi
+}
+
+build_fingerprint() {
+    {
+        printf 'mode %s\n' "$BUILD_MODE"
+        for input in "${INPUTS[@]}"; do
+            printf 'file %s\n' "$input"
+            shasum -a 256 "$input"
+        done
+    } | shasum -a 256 | awk '{print $1}'
+}
+
+runtime_inputs_newer_than_output() {
+    for input in "${INPUTS[@]}"; do
+        if [[ "$input" -nt "$OUTPUT_PATH" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+INPUTS=("${SOURCES[@]}")
 SWIFT_INPUTS=("${SOURCES[@]}")
 if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
     INPUTS+=("${SHARED_IPC[@]}")
     SWIFT_INPUTS+=("${SHARED_IPC[@]}")
 fi
+CURRENT_FINGERPRINT="$(build_fingerprint)"
 NEEDS_BUILD=1
 NEEDS_SIGN=0
+BINARY_REBUILT=0
 
 if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
     LAST_MODE="$(cat "$MODE_FILE")"
     if [[ "$LAST_MODE" == "$BUILD_MODE" ]]; then
-        NEEDS_BUILD=0
-        for input in "${INPUTS[@]}"; do
-            if [[ "$input" -nt "$OUTPUT_PATH" ]]; then
-                NEEDS_BUILD=1
-                break
-            fi
-        done
+        if [[ -f "$FINGERPRINT_FILE" && "$(cat "$FINGERPRINT_FILE")" == "$CURRENT_FINGERPRINT" ]]; then
+            NEEDS_BUILD=0
+        elif [[ ! -f "$FINGERPRINT_FILE" ]] && ! runtime_inputs_newer_than_output; then
+            # Migration path for existing binaries: do not rebuild only to create
+            # the content fingerprint stamp.
+            NEEDS_BUILD=0
+        fi
         if [[ $NEEDS_BUILD -eq 0 ]] && ! signature_valid; then
             NEEDS_SIGN=1
         fi
@@ -128,6 +183,7 @@ if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
 fi
 
 if [[ $NEEDS_BUILD -eq 0 && $NEEDS_SIGN -eq 0 ]]; then
+    printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
     echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
     exit 0
 fi
@@ -151,14 +207,20 @@ if [[ $NEEDS_BUILD -eq 1 ]]; then
     cp "$TMP_OUTPUT" "$OUTPUT_PATH"
     rm -f "$TMP_OUTPUT"
     trap - EXIT
+    BINARY_REBUILT=1
+    echo "Rebuilt: ./aos"
 else
     echo "Signing aos ($BUILD_MODE)..."
     sign_output "$OUTPUT_PATH"
     "$OUTPUT_PATH" help --json >/dev/null
 fi
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
+printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
+if [[ $BINARY_REBUILT -eq 1 ]]; then
+    play_rebuild_alert
+fi
 
 # Restart daemon if it's running as a service
 if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("running") is True else 1)'; then

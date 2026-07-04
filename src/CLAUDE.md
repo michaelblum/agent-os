@@ -11,9 +11,16 @@ Unified binary for macOS perception, display, action, and voice.
 ./aos dev build
 ```
 
-Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/`, or when
-the next verification step runs `./aos` directly. Do not rebuild before pure
-Node-based tests or package-local workflows.
+Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/` and the
+next verification step runs `./aos` directly. Do not rebuild before pure
+Node-based tests or package-local workflows. The build script uses a content
+fingerprint for Swift runtime inputs, so touching files or editing build
+tooling does not by itself rebuild the TCC-owning binary; use `--force` only
+when intentionally replacing that binary.
+
+When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
+`Rebuilt: ./aos` marker and plays the configured rebuild alert sound. Treat that
+as a human-attention event for TCC-sensitive sessions.
 
 When you are unsure which loop applies, ask the router first:
 

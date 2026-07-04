@@ -156,8 +156,11 @@ Schema changes also require:
 node --test tests/schemas/*.test.mjs
 ```
 
-Swift source changes still require the repo-mode build and post-permission
-readiness path. Treat a rebuilt repo-mode `./aos` binary as invalidating prior
+Swift runtime input changes still require the repo-mode build and
+post-permission readiness path before native live behavior is trusted. The build
+gate is content-based for Swift runtime inputs, not mtime-based, and edits to
+build tooling alone must not automatically replace the TCC-owning binary. Treat
+a successful rebuild marker (`Rebuilt: ./aos`) as invalidating prior
 TCC/live-proof evidence for that binary: reset or repair the repo-mode TCC grant
 as directed by the permission workflow, then prove readiness again with
 `./aos ready --post-permission` before relying on native live behavior. Command
