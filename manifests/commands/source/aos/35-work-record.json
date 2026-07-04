@@ -393,6 +393,93 @@
         {
           "args": [
             {
+              "id": "artifact-path",
+              "kind": "positional",
+              "required": true,
+              "summary": "Repair Attempt Artifact JSON path",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable validation JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record attempt-artifact validate repair-attempt-artifact.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false
+          },
+          "id": "work-record-attempt-artifact-validate",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record attempt-artifact validate <artifact-path> [--json]"
+        },
+        {
+          "args": [
+            {
+              "id": "input",
+              "kind": "flag",
+              "required": true,
+              "summary": "Fixture/outcome input JSON path",
+              "token": "--input",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable artifact JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false
+          },
+          "id": "work-record-attempt-artifact-build",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record attempt-artifact build --input <outcome-input-path> [--json]"
+        },
+        {
+          "args": [
+            {
               "id": "ref",
               "kind": "positional",
               "required": true,

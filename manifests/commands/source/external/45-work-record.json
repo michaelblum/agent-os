@@ -155,6 +155,48 @@
     {
       "path": [
         "work-record",
+        "attempt-artifact",
+        "validate"
+      ],
+      "summary": "Validate Work Record Repair Attempt Artifacts through an external report-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "attempt-artifact",
+        "validate"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
+        "attempt-artifact",
+        "build"
+      ],
+      "summary": "Build fixture-driven Work Record Repair Attempt Artifacts through an external report-only command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-work-record.mjs",
+        "attempt-artifact",
+        "build"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": [
+        "work-record",
         "gate-check"
       ],
       "summary": "Check terminal gate outcomes against Work Record repair plans through an external report-only command.",

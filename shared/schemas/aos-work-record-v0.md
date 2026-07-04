@@ -439,6 +439,81 @@ source Work Record, or treat authorization as proof that repair happened.
 Future execution must emit a new Work Record or explicit patch artifact, plus
 the evidence required by the attempt plan.
 
+## Repair Attempt Artifact V0
+
+A Work Record Repair Attempt Artifact records outcome data after a future
+explicit repair attempt. It is the receiving artifact for what was attempted,
+what actually happened, which evidence was produced, what cleanup or rollback
+reported, and what the current verifier health says before and after the
+attempt. It is not an executor, replay engine, patch applier, replacement Work
+Record minter, or proof by itself.
+
+The toolkit contract is `work_record.repair_attempt_artifact` with schema
+version `2026-07-work-record-repair-attempt-artifact-v0`. The envelope includes:
+
+```json
+{
+  "type": "work_record.repair_attempt_artifact",
+  "schema_version": "2026-07-work-record-repair-attempt-artifact-v0",
+  "status": "succeeded",
+  "source_work_record": {},
+  "repair_plan": {},
+  "workflow_gate_authorizations": [],
+  "repair_attempt_plan": {},
+  "attempt_artifact_identity": {},
+  "executor": {},
+  "timing": {},
+  "planned_operations": [],
+  "operation_outcomes": [],
+  "candidate_patch_outcomes": [],
+  "recommended_command_outcomes": [],
+  "evidence_refs": [],
+  "verifier_before": {},
+  "verifier_after": {},
+  "final_health": {},
+  "postcondition_results": [],
+  "cleanup_results": [],
+  "rollback_results": [],
+  "source_work_record_mutation_check": {},
+  "source_work_record_mutated": false,
+  "rewrites_historical_evidence": false,
+  "automatic_replay_allowed": false,
+  "executor_implemented": false,
+  "diagnostics": [],
+  "recommended_next": {}
+}
+```
+
+Supported artifact statuses are `succeeded`, `failed`, `partial`,
+`aborted_precondition`, `blocked_authorization`, `blocked_plan_mismatch`,
+`cleanup_failed`, `rollback_failed`, `invalid_artifact`, and `unsupported`.
+Operation outcomes are data records with `planned_operation_id`, `status`,
+timing, mutation boundary, authorization ref, evidence refs, stdout/stderr or
+exit-status refs when relevant, cleanup flags, rollback flags, and diagnostics.
+Candidate patch outcomes must distinguish described, applied, rejected, failed,
+rolled-back, and validation evidence states. Recommended command outcomes must
+distinguish command identity, executed/skipped status, exit code or signal,
+stdout/stderr artifact refs, duration, mutation boundary, and cleanup or
+rollback expectations.
+
+The validator fails closed. Success requires matching source Work Record
+identity, matching Repair Plan and Repair Attempt Plan digests, planned-vs-actual
+operation matching, required evidence refs, passed postconditions, passed or
+not-required cleanup, unchanged source Work Record, and final health derived
+from `verifier_after` when present. Partial, cleanup-failed, rollback-failed,
+missing-evidence, verifier-failed, mismatched-operation, stale-plan,
+wrong-record, wrong-authorization, and source-record-mutated cases cannot be
+reported as success.
+
+Repair Attempt Artifacts must report the non-execution facts honestly:
+`source_work_record_mutated:false`, `rewrites_historical_evidence:false`,
+`automatic_replay_allowed:false`, and `executor_implemented:false` for this V0
+slice. The deterministic fixture builder consumes explicit outcome JSON and
+emits an artifact; it does not execute repair, replay actions, apply patches,
+run recommended commands, auto-resume, mutate source Work Records, or mint
+replacement Work Records. Replacement Work Record minting remains a separate
+future product surface.
+
 ## Work Recording Frame Packs
 
 Work Recording frame packs are an additive recording layer over this Work
@@ -630,6 +705,8 @@ The surface is read-only and supports:
 - `plan-repair` for read-only Repair Plan output;
 - `gate-request` and `gate-check` for Workflow Gate Authorization;
 - `plan-attempt` for non-executing Repair Attempt Plan output;
+- `attempt-artifact validate` and `attempt-artifact build` for read-only Repair
+  Attempt Artifact validation and fixture/outcome artifact generation;
 - `export` for a compact read-only evidence bundle manifest.
 
 The consumer distinguishes embedded historical `claim_results[]` and
@@ -642,6 +719,13 @@ JSON, and id-based
 consumption when duplicate ids make a ref ambiguous. It does not mutate Work
 Records, patch execution maps, repair refs, rewrite Claims, replay actions, or
 inline heavy UI payloads.
+
+`attempt-artifact validate` validates existing
+`work_record.repair_attempt_artifact` JSON. `attempt-artifact build` consumes
+explicit fixture/outcome input and emits deterministic artifact JSON. Both
+surfaces report `read_only:true`, `mutates_state:false`,
+`executes_repair:false`, `executes_actions:false`, `applies_patches:false`, and
+`automatic_replay_allowed:false`.
 
 Recovery guidance covers all Verifier Health verdicts. `valid` recommends no
 repair or redundant proof loop; `stale` and `repairable` point to

@@ -16,8 +16,10 @@ import {
   verifyWorkRecord,
   explainWorkRecordStatus,
   exportWorkRecordBundle,
+  buildWorkRecordRepairAttemptArtifact,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
+  validateWorkRecordRepairAttemptArtifact,
   WORK_RECORD_CONSUMER_VERSION,
 } from '../packages/toolkit/workbench/work-record.js';
 
@@ -44,6 +46,8 @@ function usage() {
   ./aos work-record status <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
+  ./aos work-record attempt-artifact validate <artifact-path> [--json]
+  ./aos work-record attempt-artifact build --input <outcome-input-path> [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record export <id-or-path> [--profile id] [--root path ...] [--json]
@@ -60,6 +64,7 @@ function parseArgs(argv) {
     gateRecord: '',
     resumeEvent: '',
     continuationId: '',
+    input: '',
     positional: [],
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -102,6 +107,11 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--continuation-id requires a continuation id', 'MISSING_ARG');
       options.continuationId = value;
+      index += 1;
+    } else if (arg === '--input') {
+      const value = argv[index + 1];
+      if (!value) fail('--input requires a JSON path', 'MISSING_ARG');
+      options.input = value;
       index += 1;
     } else if (arg.startsWith('--')) {
       fail(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
@@ -155,6 +165,15 @@ async function readAuthorization(file) {
   }
 }
 
+function readJsonFile(file, code = 'INVALID_JSON') {
+  if (!fs.existsSync(file)) fail(`JSON file not found: ${file}`, code);
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    fail(`Invalid JSON: ${error.message}`, code);
+  }
+}
+
 async function gateCheckOutcome(options) {
   const refs = [options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);
   if (refs.length !== 1) {
@@ -194,7 +213,7 @@ async function main(argv = process.argv.slice(2)) {
     process.stdout.write(usage());
     return;
   }
-  if (extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
+  if (command !== 'attempt-artifact' && extra.length > 0) fail(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
   const context = {
     roots: options.roots,
     profileId: options.profileId,
@@ -233,6 +252,23 @@ async function main(argv = process.argv.slice(2)) {
     } else {
       payload = planWorkRecordRepairAttempt(ref, context);
     }
+  } else if (command === 'attempt-artifact') {
+    const [action, target, ...rest] = [ref, ...extra];
+    if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+    if (action === 'validate') {
+      if (!target) fail('attempt-artifact validate requires an artifact path', 'MISSING_ARG');
+      const validation = validateWorkRecordRepairAttemptArtifact(readJsonFile(target, 'INVALID_REPAIR_ATTEMPT_ARTIFACT'));
+      emitJSON(validation, validation.status !== 'passed');
+      if (validation.status !== 'passed') process.exit(1);
+      return;
+    }
+    if (action === 'build') {
+      if (target) fail(`Unexpected argument: ${target}`, 'UNKNOWN_ARG');
+      if (!options.input) fail('attempt-artifact build requires --input <outcome-input-path>', 'MISSING_ARG');
+      emitJSON(buildWorkRecordRepairAttemptArtifact(readJsonFile(options.input, 'INVALID_REPAIR_ATTEMPT_ARTIFACT_INPUT')));
+      return;
+    }
+    fail(`Unknown attempt-artifact subcommand: ${action || ''}`, 'UNKNOWN_COMMAND');
   } else if (command === 'gate-request') {
     payload = buildWorkRecordGateRequest(ref, context);
   } else if (command === 'gate-check') {

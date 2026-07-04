@@ -982,6 +982,8 @@ aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
+aos work-record attempt-artifact validate repair-attempt-artifact.json --json
+aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
@@ -1065,6 +1067,37 @@ preconditions, unapplied candidate patches, and unexecuted recommended
 commands. Missing, denied, dismissed, timeout, insufficient, stale, wrong
 record, wrong plan, wrong gate, invalid, and unsupported authorization all fail
 closed.
+
+`attempt-artifact validate` validates an existing
+`work_record.repair_attempt_artifact` JSON artifact with schema version
+`2026-07-work-record-repair-attempt-artifact-v0`. Artifact statuses are
+`succeeded`, `failed`, `partial`, `aborted_precondition`,
+`blocked_authorization`, `blocked_plan_mismatch`, `cleanup_failed`,
+`rollback_failed`, `invalid_artifact`, and `unsupported`.
+
+`attempt-artifact build` consumes explicit fixture/outcome JSON and emits a
+deterministic Repair Attempt Artifact. The input supplies the Repair Attempt
+Plan plus operation outcomes, candidate patch outcomes, recommended command
+outcomes, evidence refs, verifier-before and verifier-after reports,
+postcondition results, cleanup results, rollback results, and the source Work
+Record mutation check. The builder does not execute repair, replay UI actions,
+apply candidate patches, run recommended commands, patch execution maps, mutate
+source Work Records, mint replacement Work Records, or auto-resume agents.
+
+The validator checks consistency rather than inventing a second verifier health
+authority. Success requires matching source Work Record identity, matching
+Repair Plan and Repair Attempt Plan digests, planned-vs-actual operation
+matching, required evidence refs, passed postconditions, passed or not-required
+cleanup, unchanged source Work Record, and `final_health` derived from
+`verifier_after` when present. Missing evidence, verifier contradiction,
+operation mismatch, stale plan, wrong record, wrong authorization, failed
+cleanup, failed rollback, source-record mutation, candidate patch application
+without evidence, and command execution without command/stdout/stderr/exit
+artifacts fail closed.
+
+Both attempt-artifact commands are read-only command surfaces:
+`mutates_state:false`, `executes_repair:false`, `executes_actions:false`,
+`applies_patches:false`, and `automatic_replay_allowed:false`.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does
