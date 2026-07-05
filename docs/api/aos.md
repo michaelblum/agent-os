@@ -1143,8 +1143,12 @@ scan-first continuation. Consumers should read `recovery_summary.state`,
 `guide_stage_status`, `next`, `artifacts`, `safety`, and
 `diagnostic_codes` before drilling into full guide reports, manifests,
 descriptors, artifacts, or diagnostics. `next.argv` is the only executable
-continuation form; display strings remain display-only. Invalid, missing,
-unsupported, or unknown summaries do not expose a safe continuation argv.
+continuation form; `next.persistence` is the structural stdout persistence
+contract with `stdout_required`, `stdout_artifact`, `save_stdout_to`,
+`requires_saved_output_from`, and display-only `persistence_command`.
+Display strings remain display-only. Invalid, missing, unsupported, or
+unknown summaries do not expose a safe continuation argv or actionable
+persistence path.
 Incomplete bundle-owned artifacts or descriptors, digest mismatches,
 descriptor mismatches, invalid manifests, path escapes, forbidden artifacts,
 unsupported schemas, missing roots, and unknown inspection statuses fail closed
@@ -1227,9 +1231,13 @@ multi-bundle triage. Agents should read the first queue item before drilling
 into rows; the queue is derived only from inspected rows, ranks ready
 continuations before blocked, missing, invalid, unsupported, unknown, and
 finalized bundles, and exposes empty `next.argv` for non-ready rows instead of
-recovering executable argv. Each row also carries the same information in
-`recovery_summary`. Missing or invalid bundle roots stay represented in the
-same report instead of aborting other roots. The command returns
+recovering executable argv. Ready queue items also carry
+`next.persistence`, matching the row `recovery_summary.next.persistence`, so a
+consumer can run `next.argv` and save JSON stdout without reading descriptor
+files. Non-ready queue items expose empty argv and empty/non-actionable
+persistence. Each row also carries the same information in `recovery_summary`.
+Missing or invalid bundle roots stay represented in the same report instead of
+aborting other roots. The command returns
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version
 `2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`, reports
 `ready_count`, `blocked_count`, `invalid_count`, `missing_count`,
@@ -1255,10 +1263,13 @@ execution/write/live/replay claims, and unknown non-false claims fail closed. It
 reports the saved guide stage, the safe next descriptor id, the exact `argv`
 only when the inspection is continuable, whether saved outputs are present,
 missing artifact paths, human-approval and mutation indicators, and a
-`recovery_summary` with the scan-first continuation state and a reminder that
-the command was not run. Invalid, missing, unsupported, unknown, and incomplete
-bundle-owned artifact or descriptor states sanitize top-level `continuation`
-executable fields and report no executable `recovery_summary.next.argv`.
+sanitized `continuation.persistence` object that matches
+`recovery_summary.next.persistence`. `recovery_summary` carries the scan-first
+continuation state and a reminder that the command was not run. Invalid,
+missing, unsupported, unknown, and incomplete bundle-owned artifact or
+descriptor states sanitize top-level `continuation` executable and persistence
+fields and report no executable `recovery_summary.next.argv` or actionable
+persistence path.
 Descriptor `command` and `persistence_command` values are display-only
 shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
 `requires_saved_output_from` are the execution and persistence contract.

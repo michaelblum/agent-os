@@ -512,12 +512,16 @@ machine. The object includes `state`, `headline`, `why`, `source_work_record`,
 `bundle_root`, `guide_stage`, `guide_stage_status`, `next`, `artifacts`,
 `safety`, and `diagnostic_codes`. `state` is one of `ready`, `blocked`,
 `finalized`, `invalid`, `missing`, `unsupported`, or `unknown`. `next.argv` is
-the only executable continuation form; display strings are optional
-display-only derivatives. Invalid, missing, unsupported, and unknown summaries
-must not expose a safe continuation argv. Incomplete bundle-owned artifacts or
-descriptors, digest mismatches, descriptor mismatches, invalid manifests, path
-escapes, forbidden artifacts, unsupported schemas, missing roots, and unknown
-inspection statuses fail closed with empty `next.command_id` and `next.argv`.
+the only executable continuation form. `next.persistence` carries the compact
+stdout persistence contract: `stdout_required`, `stdout_artifact`,
+`save_stdout_to`, `requires_saved_output_from`, and display-only
+`persistence_command`. Invalid, missing, unsupported, and unknown summaries
+must not expose a safe continuation argv or actionable persistence path.
+Incomplete bundle-owned artifacts or descriptors, digest mismatches,
+descriptor mismatches, invalid manifests, path escapes, forbidden artifacts,
+unsupported schemas, missing roots, and unknown inspection statuses fail closed
+with empty `next.command_id`, `next.argv`, and empty/non-actionable
+`next.persistence`.
 Bundle inspection summaries, top-level inspect `continuation`, and lifecycle
 status rows use one classifier for the canonical state set so
 `inspect.recovery_summary.state`,
@@ -642,14 +646,16 @@ final per-bundle rows. It ranks `ready`, `blocked`, `missing`, `invalid`,
 `canonical_bundle_root` within the same state. Queue items include rank, bundle
 root, canonical bundle root, lifecycle state, attention label, short reason,
 source Work Record identity, guide stage and status, structured next command
-data, missing inputs, missing saved outputs, and diagnostic codes.
+data, stdout persistence metadata for ready continuations, missing inputs,
+missing saved outputs, and diagnostic codes.
 `attention_summary` exposes the first queue item and per-state counts. The
 queue must not inspect bundle files, execute commands, write files, submit
 gates, finalize, repair, replay, mutate source/replacement/supersession state,
 or scan globally. It exposes `next.argv` only when the source row is `ready`,
 has `continuation_ready:true`, has required saved outputs present, and already
 has a validated row `next_argv`; invalid, missing, unsupported, unknown,
-finalized, and non-continuable blocked rows expose an empty `next.argv`.
+finalized, and non-continuable blocked rows expose an empty `next.argv` and
+empty/non-actionable `next.persistence`.
 
 Lifecycle statuses are `ready`, `blocked`, `invalid`, `missing`,
 `unsupported`, `finalized`, and `unknown`. A valid inspection with a safe next
@@ -714,10 +720,12 @@ imply a file exists. Forbidden bundle-owned outputs such as
 Continuation output reports the saved guide stage, safe next descriptor id,
 exact `argv`, required saved-output presence, missing artifact paths, whether
 human approval is required, whether the next command would mutate state, and a
-reminder that the inspector did not run the command. Invalid, missing,
-unsupported, unknown, and incomplete bundle-owned artifact or descriptor states
-sanitize top-level `continuation` executable fields and report no executable
-`recovery_summary.next.argv`. The inspector never writes
+compact `persistence` object derived from the same validated descriptor.
+`continuation.persistence` matches `recovery_summary.next.persistence`.
+Invalid, missing, unsupported, unknown, and incomplete bundle-owned artifact or
+descriptor states sanitize top-level `continuation` executable and persistence
+fields and report no executable `recovery_summary.next.argv` or actionable
+persistence path. The inspector never writes
 or repairs bundle files, never re-runs guide/planning, never submits gates,
 never executes repair, finalization, replacement writing, supersession lookup
 or writing, replay, Workflow engine work, live UI, browser, native AX, canvas,

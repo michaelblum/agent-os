@@ -73,17 +73,40 @@ function assertInspection(envelope, status) {
   if (status === 'valid' || status === 'degraded') {
     assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id);
     assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv);
+    assert.deepEqual(envelope.recovery_summary.next.persistence, envelope.continuation.persistence);
+    assert.equal(envelope.continuation.persistence.stdout_required, true);
+    assert.equal(envelope.continuation.persistence.save_stdout_to, envelope.continuation.save_stdout_to);
+    assert.deepEqual(envelope.continuation.persistence.stdout_artifact, envelope.continuation.stdout_artifact);
+    assert.deepEqual(envelope.continuation.persistence.requires_saved_output_from, envelope.continuation.requires_saved_output_from);
+    assert.equal(envelope.continuation.persistence.persistence_command, envelope.continuation.persistence_command);
     assert.notEqual(envelope.continuation.safe_next_descriptor_id, '');
     assert.notDeepEqual(envelope.continuation.argv, []);
   } else {
+    const empty = emptyPersistence();
     assert.equal(envelope.continuation.safe_next_descriptor_id, '');
     assert.deepEqual(envelope.continuation.argv, []);
     assert.equal(envelope.continuation.command, '');
+    assert.deepEqual(envelope.continuation.stdout_artifact, {});
+    assert.equal(envelope.continuation.save_stdout_to, '');
+    assert.deepEqual(envelope.continuation.requires_saved_output_from, []);
+    assert.equal(envelope.continuation.persistence_command, '');
+    assert.deepEqual(envelope.continuation.persistence, empty);
     assert.equal(envelope.continuation.requires_human_approval, false);
     assert.equal(envelope.continuation.would_mutate_state, false);
     assert.equal(envelope.recovery_summary.next.command_id, '');
     assert.deepEqual(envelope.recovery_summary.next.argv, []);
+    assert.deepEqual(envelope.recovery_summary.next.persistence, empty);
   }
+}
+
+function emptyPersistence() {
+  return {
+    stdout_required: false,
+    stdout_artifact: {},
+    save_stdout_to: '',
+    requires_saved_output_from: [],
+    persistence_command: '',
+  };
 }
 
 function manifest(root) {

@@ -14,6 +14,7 @@ import {
 import {
   buildInspectionRecoverySummary,
   classifyInspectionRecovery,
+  projectDescriptorPersistence,
 } from './work-record-recovery-summary.js';
 
 export {
@@ -40,6 +41,10 @@ const STATUS_RANK = Object.freeze({
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function rawString(value) {
+  return value === undefined || value === null ? '' : String(value);
 }
 
 function objectValue(value) {
@@ -239,6 +244,11 @@ function initialEnvelope(bundleRoot, canonicalBundleRoot = '') {
       safe_next_descriptor_id: '',
       argv: [],
       command: '',
+      stdout_artifact: {},
+      save_stdout_to: '',
+      requires_saved_output_from: [],
+      persistence_command: '',
+      persistence: projectDescriptorPersistence({}, false),
       required_saved_outputs_present: false,
       missing_artifact_paths: [],
       requires_human_approval: false,
@@ -469,6 +479,11 @@ function deriveContinuation(envelope, guide, descriptorById) {
     safe_next_descriptor_id: text(descriptor.id),
     argv: arrayValue(descriptor.argv),
     command: text(descriptor.command),
+    stdout_artifact: objectValue(descriptor.stdout_artifact),
+    save_stdout_to: rawString(descriptor.save_stdout_to),
+    requires_saved_output_from: arrayValue(descriptor.requires_saved_output_from).map((item) => ({ ...objectValue(item) })),
+    persistence_command: rawString(descriptor.persistence_command),
+    persistence: projectDescriptorPersistence(descriptor, true),
     required_saved_outputs_present: missing.length === 0,
     missing_artifact_paths: missing,
     requires_human_approval: descriptor.requires_approval === true,
@@ -484,6 +499,11 @@ function deriveContinuation(envelope, guide, descriptorById) {
     safe_next_descriptor_id: '',
     argv: [],
     command: '',
+    stdout_artifact: {},
+    save_stdout_to: '',
+    requires_saved_output_from: [],
+    persistence_command: '',
+    persistence: projectDescriptorPersistence({}, false),
     requires_human_approval: false,
     would_mutate_state: false,
   };

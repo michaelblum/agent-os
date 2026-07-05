@@ -151,9 +151,12 @@ the returned `recommended_next`, `recommended_next_commands`, or
   already inspected rows and ranks ready continuations before blocked, missing,
   invalid, unsupported, unknown, and finalized bundles. It is the compact
   scan/continuation object with state, why, important files, exact
-  `next.argv`, missing inputs, missing saved outputs, mutating/approval flags,
-  safety flags, and diagnostic codes. Execute only structured `next.argv`, not
-  display strings; use full envelopes only for evidence detail. Invalid,
+  `next.argv`, `next.persistence` for JSON stdout saving, missing inputs,
+  missing saved outputs, mutating/approval flags, safety flags, and diagnostic
+  codes. Execute only structured `next.argv`, not display strings; use
+  `next.persistence.save_stdout_to` / `next.persistence.stdout_artifact.path`
+  to save required stdout instead of parsing `persistence_command`. Use full
+  envelopes only for evidence detail. Invalid,
   missing, unsupported, unknown, incomplete bundle-owned artifact/descriptor,
   digest-mismatch, descriptor-mismatch, path-escape, forbidden-artifact, and
   unsupported-schema summaries expose no executable `next.argv` or inspect
@@ -197,8 +200,10 @@ the returned `recommended_next`, `recommended_next_commands`, or
   bundles with deterministic canonical path ordering inside a state, and
   include rank, state, reason, diagnostic codes, missing inputs, missing saved
   outputs, and structured `next.argv` only for ready rows whose inspected
-  `next_argv` is already safe. Invalid, missing, unsupported, unknown,
-  finalized, and non-continuable blocked queue items expose empty `next.argv`.
+  `next_argv` is already safe. Ready queue items also include
+  `next.persistence`, matching the row recovery summary. Invalid, missing,
+  unsupported, unknown, finalized, and non-continuable blocked queue items
+  expose empty `next.argv` and empty/non-actionable `next.persistence`.
   Each row repeats the scan-first contract in `recovery_summary`. Aggregate
   counts include `ready_count`, `blocked_count`, `invalid_count`,
   `missing_count`, `unsupported_count`, `finalized_count`, and `unknown_count`.
@@ -211,7 +216,8 @@ the returned `recommended_next`, `recommended_next_commands`, or
   containment, symlinks, digests, forbidden bundle-owned outputs, and saved
   output readiness, then reports `recovery_summary`, sanitized top-level
   `continuation`, the exact next `argv` only for continuable validated bundles,
-  and whether required saved outputs are present.
+  `continuation.persistence` matching `recovery_summary.next.persistence`, and
+  whether required saved outputs are present.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

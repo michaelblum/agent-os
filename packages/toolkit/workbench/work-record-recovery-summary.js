@@ -11,9 +11,38 @@ function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function rawString(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
 function compactObject(value) {
   const object = objectValue(value);
   return Object.fromEntries(Object.entries(object).filter(([, item]) => item !== '' && item !== undefined && item !== null));
+}
+
+function emptyPersistence() {
+  return {
+    stdout_required: false,
+    stdout_artifact: {},
+    save_stdout_to: '',
+    requires_saved_output_from: [],
+    persistence_command: '',
+  };
+}
+
+export function projectDescriptorPersistence(descriptor = {}, continuable = true) {
+  if (continuable !== true) return emptyPersistence();
+  const safe = objectValue(descriptor);
+  const stdoutArtifact = objectValue(safe.stdout_artifact);
+  const stdoutPath = rawString(stdoutArtifact.path || safe.save_stdout_to);
+  const stdoutRequired = stdoutArtifact.required === true || stdoutPath !== '';
+  return {
+    stdout_required: stdoutRequired,
+    stdout_artifact: stdoutRequired ? { ...stdoutArtifact } : {},
+    save_stdout_to: stdoutRequired ? rawString(safe.save_stdout_to || stdoutArtifact.path) : '',
+    requires_saved_output_from: arrayValue(safe.requires_saved_output_from).map((item) => ({ ...objectValue(item) })),
+    persistence_command: stdoutRequired ? rawString(safe.persistence_command) : '',
+  };
 }
 
 function diagnosticCodes(envelope = {}) {
@@ -67,6 +96,10 @@ export function classifyInspectionRecovery(envelope = {}) {
     argv: continuation.argv,
     mutates_state: continuation.would_mutate_state,
     requires_approval: continuation.requires_human_approval,
+    stdout_artifact: continuation.stdout_artifact,
+    save_stdout_to: continuation.save_stdout_to,
+    requires_saved_output_from: continuation.requires_saved_output_from,
+    persistence_command: continuation.persistence_command,
   };
   const savedOutputsReady = continuation.required_saved_outputs_present === true;
   const descriptorReady = descriptorIsContinuable(descriptor, savedOutputsReady);
@@ -128,6 +161,7 @@ function nextSummary({
     requires_user_approval: continuable === true && (safeDescriptor.requires_approval === true || fallbackRequiresApproval === true),
     ...saved,
     missing_inputs: arrayValue(missingInputs),
+    persistence: projectDescriptorPersistence(safeDescriptor, continuable),
   };
 }
 
@@ -269,6 +303,10 @@ export function buildStatusRowRecoverySummary(row = {}) {
         argv: row.next_argv,
         mutates_state: row.next_command_mutates_state,
         requires_approval: row.requires_user_approval,
+        stdout_artifact: row.next_persistence?.stdout_artifact,
+        save_stdout_to: row.next_persistence?.save_stdout_to,
+        requires_saved_output_from: row.next_persistence?.requires_saved_output_from,
+        persistence_command: row.next_persistence?.persistence_command,
       },
       state,
       missingInputs: row.missing_inputs,

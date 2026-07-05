@@ -151,12 +151,39 @@ function assertSummarySafety(summary) {
   assert.equal(summary.safety.automatic_replay_allowed, false);
 }
 
+function emptyPersistence() {
+  return {
+    stdout_required: false,
+    stdout_artifact: {},
+    save_stdout_to: '',
+    requires_saved_output_from: [],
+    persistence_command: '',
+  };
+}
+
+function expectedPersistence(command = {}, continuable = true) {
+  if (continuable !== true || !command) return emptyPersistence();
+  const stdoutArtifact = command.stdout_artifact || {};
+  const stdoutRequired = stdoutArtifact.required === true || Boolean(stdoutArtifact.path || command.save_stdout_to);
+  return {
+    stdout_required: stdoutRequired,
+    stdout_artifact: stdoutRequired ? stdoutArtifact : {},
+    save_stdout_to: stdoutRequired ? (command.save_stdout_to || stdoutArtifact.path || '') : '',
+    requires_saved_output_from: command.requires_saved_output_from || [],
+    persistence_command: stdoutRequired ? (command.persistence_command || '') : '',
+  };
+}
+
 function assertGuideRecoverySummary(envelope, state) {
   assert.equal(envelope.recovery_summary.state, state);
   assert.equal(envelope.recovery_summary.guide_stage, envelope.current_stage);
   assert.equal(envelope.recovery_summary.guide_stage_status, envelope.stage_status);
   assert.equal(envelope.recovery_summary.next.command_id, envelope.next_explicit_command?.id || '');
   assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_explicit_command?.argv || []);
+  assert.deepEqual(
+    envelope.recovery_summary.next.persistence,
+    expectedPersistence(envelope.next_explicit_command, envelope.recovery_summary.next.argv.length > 0),
+  );
   assert.deepEqual(envelope.recovery_summary.next.missing_inputs, envelope.missing_inputs || []);
   assertSummarySafety(envelope.recovery_summary);
 }
@@ -166,6 +193,10 @@ function assertBundleRecoverySummary(envelope, state) {
   assert.equal(envelope.recovery_summary.bundle_root, envelope.output_root);
   assert.equal(envelope.recovery_summary.next.command_id, envelope.next_recommended_command?.id || '');
   assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_recommended_command?.argv || []);
+  assert.deepEqual(
+    envelope.recovery_summary.next.persistence,
+    expectedPersistence(envelope.next_recommended_command, envelope.recovery_summary.next.argv.length > 0),
+  );
   assertSummarySafety(envelope.recovery_summary);
 }
 
@@ -177,8 +208,12 @@ function assertInspectionRecoverySummary(envelope, state) {
   if (envelope.recovery_summary.next.argv.length === 0) {
     assert.equal(envelope.continuation.safe_next_descriptor_id, '');
     assert.equal(envelope.continuation.command, '');
+    assert.deepEqual(envelope.continuation.persistence, emptyPersistence());
+    assert.deepEqual(envelope.recovery_summary.next.persistence, emptyPersistence());
     assert.equal(envelope.continuation.requires_human_approval, false);
     assert.equal(envelope.continuation.would_mutate_state, false);
+  } else {
+    assert.deepEqual(envelope.recovery_summary.next.persistence, envelope.continuation.persistence);
   }
   assertSummarySafety(envelope.recovery_summary);
 }
@@ -188,6 +223,7 @@ function assertStatusRowRecoverySummary(row) {
   assert.equal(row.recovery_summary.bundle_root, row.bundle_root);
   assert.equal(row.recovery_summary.next.command_id, row.next_command_id || '');
   assert.deepEqual(row.recovery_summary.next.argv, row.next_argv || []);
+  assert.deepEqual(row.recovery_summary.next.persistence, row.next_persistence || emptyPersistence());
   assert.deepEqual(row.recovery_summary.next.missing_inputs, row.missing_inputs || []);
   assertSummarySafety(row.recovery_summary);
 }

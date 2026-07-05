@@ -9,6 +9,7 @@ import { inspectWorkRecordRepairBundle } from './work-record-repair-bundle-inspe
 import {
   buildStatusRowRecoverySummary,
   classifyInspectionRecovery,
+  projectDescriptorPersistence,
 } from './work-record-recovery-summary.js';
 
 export {
@@ -23,6 +24,10 @@ function text(value, fallback = '') {
 
 function arrayValue(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function objectValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function diagnostic(code, message, extra = {}) {
@@ -129,6 +134,7 @@ function bundleSummary(candidate, inspection) {
     continuation_ready: classification.continuable === true,
     next_command_id: descriptorId,
     next_argv: classification.continuable === true ? arrayValue(continuation.argv) : [],
+    next_persistence: classification.continuable === true ? objectValue(continuation.persistence) : projectDescriptorPersistence({}, false),
     next_command_mutates_state: classification.continuable === true && continuation.would_mutate_state === true,
     requires_user_approval: classification.continuable === true && continuation.requires_human_approval === true,
     missing_inputs: arrayValue(inspection.guide_report?.missing_inputs),
@@ -236,6 +242,7 @@ function buildWorkRecordRepairBundleAttentionQueue(bundles = []) {
         requires_user_approval: argv.length > 0 && row.requires_user_approval === true,
         missing_inputs: arrayValue(row.missing_inputs),
         missing_saved_outputs: arrayValue(row.missing_saved_outputs),
+        persistence: argv.length > 0 ? objectValue(row.recovery_summary?.next?.persistence) : projectDescriptorPersistence({}, false),
       },
       diagnostic_codes: diagnosticCodes(row),
     };
