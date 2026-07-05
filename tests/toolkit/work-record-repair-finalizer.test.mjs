@@ -24,6 +24,9 @@ import {
 import {
   commandHintFromArgv,
 } from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
+import {
+  recoveryGuidance,
+} from '../../packages/toolkit/workbench/work-record-repair-finalizer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -297,7 +300,7 @@ test('successful finalization writes valid replacement and supersession outputs'
   assert.equal(lookup.entries[0].replacement_work_record.id, replacementRead.record.id);
 });
 
-test('successful finalization exposes argv-backed recovery recommendations for shell metacharacter roots', () => {
+test('successful finalization preserves exact recovery recommendation path argv', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer base ; quoted '$BASE-"));
   const args = finalizeArgs({
     replacementRoot: path.join(dir, "replacement records ; quoted '$ROOT"),
@@ -323,6 +326,7 @@ test('successful finalization exposes argv-backed recovery recommendations for s
     args.indexRoot,
     '--json',
   ]);
+  assert.equal(lookupRecommendation.argv[7], args.indexRoot);
   assert.equal(lookupRecommendation.command_hint, commandHintFromArgv(lookupRecommendation.argv));
   assert.ok(!lookupRecommendation.command_hint.includes(`--index-root ${args.indexRoot} --json`));
 
@@ -336,6 +340,7 @@ test('successful finalization exposes argv-backed recovery recommendations for s
     args.replacementRoot,
     '--json',
   ]);
+  assert.equal(readRecommendation.argv[5], args.replacementRoot);
   assert.equal(readRecommendation.command_hint, commandHintFromArgv(readRecommendation.argv));
   assert.ok(!readRecommendation.command_hint.includes(`--root ${args.replacementRoot} --json`));
   assert.equal(result.recovery.command, undefined);
@@ -354,6 +359,41 @@ test('successful finalization exposes argv-backed recovery recommendations for s
   });
   assert.equal(readRun.status, 0, readRun.stderr);
   assert.equal(JSON.parse(readRun.stdout).record.id, result.replacement_writer_result.written_replacement_work_record.id);
+});
+
+test('finalizer recovery guidance preserves exact whitespace path argv', () => {
+  const indexRoot = "/tmp/aos  finalizer\tindex\nroot ; quoted '$INDEX";
+  const replacementRoot = "/tmp/aos  finalizer\treplacement\nroot ; quoted '$ROOT";
+  const replacementPath = `${replacementRoot}/work-record:exact  path\twith\nlines.json`;
+  const finalized = recoveryGuidance('finalized', {
+    source_work_record: { id: 'work-record:source' },
+    supersession_index_result: { output: { index_root: indexRoot } },
+    replacement_writer_result: {
+      written_replacement_work_record: { id: 'work-record:replacement' },
+      output: { output_root: replacementRoot },
+    },
+  });
+  const [lookupRecommendation, readRecommendation] = finalized.recommendations;
+  assert.equal(lookupRecommendation.argv[7], indexRoot);
+  assert.equal(readRecommendation.argv[5], replacementRoot);
+  assert.equal(lookupRecommendation.command_hint, commandHintFromArgv(lookupRecommendation.argv));
+  assert.equal(readRecommendation.command_hint, commandHintFromArgv(readRecommendation.argv));
+
+  const partial = recoveryGuidance('partial_finalized', {
+    source_work_record: { id: 'work-record:source' },
+    supersession_index_result: { output: { index_root: indexRoot } },
+    replacement_writer_result: {
+      output: {
+        output_path: replacementPath,
+        output_root: replacementRoot,
+      },
+    },
+  });
+  const [writeRecommendation] = partial.recommendations;
+  assert.equal(writeRecommendation.argv[7], replacementPath);
+  assert.equal(writeRecommendation.argv[9], indexRoot);
+  assert.equal(writeRecommendation.argv[11], replacementRoot);
+  assert.equal(writeRecommendation.command_hint, commandHintFromArgv(writeRecommendation.argv));
 });
 
 test('repeated finalization is idempotent', () => {
@@ -434,6 +474,9 @@ test('partial supersession failure is reserved for post-preflight write failure'
       args.replacementRoot,
       '--json',
     ]);
+    assert.equal(recommendation.argv[7], result.replacement_writer_result.output.output_path);
+    assert.equal(recommendation.argv[9], args.indexRoot);
+    assert.equal(recommendation.argv[11], args.replacementRoot);
     assert.equal(recommendation.command_hint, commandHintFromArgv(recommendation.argv));
     assert.ok(!recommendation.command_hint.includes(`--replacement ${result.replacement_writer_result.output.output_path} --index-root`));
     assert.ok(!recommendation.command_hint.includes(`--index-root ${args.indexRoot} --replacement-root`));

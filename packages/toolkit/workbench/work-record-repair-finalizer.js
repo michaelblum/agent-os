@@ -147,15 +147,15 @@ function sideEffects({ writer = {}, supersession = {} } = {}) {
   ];
 }
 
-function recoveryGuidance(status = '', result = {}) {
+export function recoveryGuidance(status = '', result = {}) {
   if (status === 'finalized' || status === 'already_finalized') {
     const lookupRecommendation = workRecordSupersessionLookupRecommendation(
-      text(result.source_work_record?.id || result.source_work_record?.path),
-      text(result.supersession_index_result?.output?.index_root),
+      result.source_work_record?.id || result.source_work_record?.path,
+      result.supersession_index_result?.output?.index_root,
     );
     const readRecommendation = workRecordReadRecommendation(
-      text(result.replacement_writer_result?.written_replacement_work_record?.id),
-      text(result.replacement_writer_result?.output?.output_root),
+      result.replacement_writer_result?.written_replacement_work_record?.id,
+      result.replacement_writer_result?.output?.output_root,
     );
     return {
       action: 'lookup_or_read_replacement',
@@ -180,10 +180,10 @@ function recoveryGuidance(status = '', result = {}) {
   }
   if (status === 'partial_finalized') {
     const writeRecommendation = workRecordSupersessionWriteRecommendation({
-      source: text(result.source_work_record?.id || result.source_work_record?.path),
-      replacement: text(result.replacement_writer_result?.output?.output_path),
-      indexRoot: text(result.supersession_index_result?.output?.index_root),
-      replacementRoot: text(result.replacement_writer_result?.output?.output_root),
+      source: result.source_work_record?.id || result.source_work_record?.path,
+      replacement: result.replacement_writer_result?.output?.output_path,
+      indexRoot: result.supersession_index_result?.output?.index_root,
+      replacementRoot: result.replacement_writer_result?.output?.output_root,
     });
     return {
       action: 'recover_by_writing_supersession_index',
