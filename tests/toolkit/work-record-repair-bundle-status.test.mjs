@@ -16,6 +16,10 @@ import {
 import {
   WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
 } from '../../packages/toolkit/workbench/work-record-repair-bundle-policy.js';
+import {
+  assertEmptyWorkRecordPersistence,
+  emptyWorkRecordPersistence,
+} from '../lib/work-record-persistence-assertions.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -112,7 +116,7 @@ function assertRowRecoverySummary(row) {
   assert.equal(row.recovery_summary.guide_stage_status, row.guide_stage_status);
   assert.equal(row.recovery_summary.next.command_id, row.next_command_id || '');
   assert.deepEqual(row.recovery_summary.next.argv, row.next_argv || []);
-  assert.deepEqual(row.recovery_summary.next.persistence, row.next_persistence || emptyPersistence());
+  assert.deepEqual(row.recovery_summary.next.persistence, row.next_persistence || emptyWorkRecordPersistence());
   assert.deepEqual(row.recovery_summary.next.missing_inputs, row.missing_inputs || []);
   assert.equal(row.recovery_summary.safety.inspector_ran_command, false);
   assert.equal(row.recovery_summary.safety.uses_live_ui, false);
@@ -154,7 +158,7 @@ function assertAttentionQueue(envelope) {
       assert.equal(item.next.command_id, '');
       assert.equal(item.next.mutates_state, false);
       assert.equal(item.next.requires_user_approval, false);
-      assert.deepEqual(item.next.persistence, emptyPersistence());
+      assertEmptyWorkRecordPersistence(item.next.persistence);
     } else {
       assert.equal(item.next.command_id, row.next_command_id);
       assert.equal(item.next.mutates_state, row.next_command_mutates_state);
@@ -171,16 +175,6 @@ function assertAttentionQueue(envelope) {
     assert.equal(envelope.attention_summary.next_state, envelope.attention_queue[0].state);
     assert.equal(envelope.attention_summary.next_attention, envelope.attention_queue[0].attention);
   }
-}
-
-function emptyPersistence() {
-  return {
-    stdout_required: false,
-    stdout_artifact: {},
-    save_stdout_to: '',
-    requires_saved_output_from: [],
-    persistence_command: '',
-  };
 }
 
 function assertLifecycleCounts(envelope, expected) {

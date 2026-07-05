@@ -44,3 +44,8 @@ test('Workbench aggregate exposes the Work Record facade contract', () => {
   assert.equal(workbench.checkWorkRecordEvidenceAdapters, facade.checkWorkRecordEvidenceAdapters);
   assert.equal(workbench.writeReplacementWorkRecord, facade.writeReplacementWorkRecord);
 });
+
+test('Work Record facade does not expose private persistence projection helpers', () => {
+  assert.equal(Object.hasOwn(facade, 'projectDescriptorPersistence'), false);
+  assert.equal(Object.hasOwn(workbench, 'projectDescriptorPersistence'), false);
+});

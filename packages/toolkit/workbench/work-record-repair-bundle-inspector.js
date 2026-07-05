@@ -14,8 +14,8 @@ import {
 import {
   buildInspectionRecoverySummary,
   classifyInspectionRecovery,
-  projectDescriptorPersistence,
 } from './work-record-recovery-summary.js';
+import { projectDescriptorPersistence } from './work-record-persistence-projection.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,

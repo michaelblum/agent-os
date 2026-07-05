@@ -17,6 +17,9 @@ import {
   WORK_RECORD_REPAIR_GUIDE_STAGES,
   WORK_RECORD_REPAIR_GUIDE_TYPE,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  assertWorkRecordPersistenceMatchesCommand,
+} from '../lib/work-record-persistence-assertions.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -177,9 +180,10 @@ function assertGuideEnvelope(report) {
   assert.deepEqual(report.recovery_summary.next.argv, report.next_explicit_command?.argv || []);
   assert.equal(report.recovery_summary.next.command_id, report.next_explicit_command?.id || '');
   assert.deepEqual(report.recovery_summary.next.missing_inputs, report.missing_inputs || []);
-  assert.deepEqual(
+  assertWorkRecordPersistenceMatchesCommand(
     report.recovery_summary.next.persistence,
-    expectedPersistence(report.next_explicit_command, report.recovery_summary.next.argv.length > 0),
+    report.next_explicit_command,
+    { continuable: report.recovery_summary.next.argv.length > 0 },
   );
   assert.equal(report.recovery_summary.safety.inspector_ran_command, false);
   assert.equal(report.recovery_summary.safety.bundle_wrote_replacement, false);
@@ -218,29 +222,6 @@ function assertStdoutArtifact(command, { kind, path: artifactPath }) {
   assert.equal(command.stdout_artifact.directory_precondition, 'create_parent_directory', command.id);
   assert.equal(command.save_stdout_to, artifactPath, command.id);
   assert.match(command.persistence_command, new RegExp(`> .*${path.basename(artifactPath).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), command.id);
-}
-
-function emptyPersistence() {
-  return {
-    stdout_required: false,
-    stdout_artifact: {},
-    save_stdout_to: '',
-    requires_saved_output_from: [],
-    persistence_command: '',
-  };
-}
-
-function expectedPersistence(command = {}, continuable = true) {
-  if (continuable !== true || !command) return emptyPersistence();
-  const stdoutArtifact = command.stdout_artifact || {};
-  const stdoutRequired = stdoutArtifact.required === true || Boolean(stdoutArtifact.path || command.save_stdout_to);
-  return {
-    stdout_required: stdoutRequired,
-    stdout_artifact: stdoutRequired ? stdoutArtifact : {},
-    save_stdout_to: stdoutRequired ? (command.save_stdout_to || stdoutArtifact.path || '') : '',
-    requires_saved_output_from: command.requires_saved_output_from || [],
-    persistence_command: stdoutRequired ? (command.persistence_command || '') : '',
-  };
 }
 
 function assertRequiresSavedOutput(command, { descriptorId, artifactKind, path: artifactPath }) {

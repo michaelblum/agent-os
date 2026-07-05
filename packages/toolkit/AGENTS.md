@@ -47,11 +47,12 @@ stored identities, readback fields, and argv-backed recommendations. Use
 whitespace-normalizing helpers only for semantic fields such as ids, statuses,
 schema versions, and display text.
 
-For `workbench/` Work Record capture builders, keep
-`work-record-capture.js` as the stable public facade. Internal capture modules
-own command evidence, AOS action phases, step-descriptor promotion, shared
-helpers, and builder versions; do not widen the public `work-record.js` facade
-for private phase-helper testing.
+For `workbench/` Work Record APIs, keep `work-record.js` as the stable public
+facade and keep private projections, planners, and test conveniences out of
+that export surface. Internal capture modules own command evidence, AOS action
+phases, step-descriptor promotion, shared helpers, and builder versions;
+recovery helpers may be shared by direct internal imports, but not through the
+public facade for testing convenience.
 
 ## Child DOX Index
 

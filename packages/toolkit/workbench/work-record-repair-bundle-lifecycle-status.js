@@ -9,8 +9,8 @@ import { inspectWorkRecordRepairBundle } from './work-record-repair-bundle-inspe
 import {
   buildStatusRowRecoverySummary,
   classifyInspectionRecovery,
-  projectDescriptorPersistence,
 } from './work-record-recovery-summary.js';
+import { projectDescriptorPersistence } from './work-record-persistence-projection.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION,

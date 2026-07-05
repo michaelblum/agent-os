@@ -27,6 +27,9 @@ import {
   commandHintFromArgv,
   shellQuoteArg,
 } from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
+import {
+  assertWorkRecordPersistenceMatchesCommand,
+} from '../lib/work-record-persistence-assertions.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -191,9 +194,10 @@ function assertBundleEnvelope(envelope, status) {
   assert.equal(envelope.recovery_summary.bundle_root, envelope.output_root);
   assert.equal(envelope.recovery_summary.next.command_id, envelope.next_recommended_command?.id || '');
   assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_recommended_command?.argv || []);
-  assert.deepEqual(
+  assertWorkRecordPersistenceMatchesCommand(
     envelope.recovery_summary.next.persistence,
-    expectedPersistence(envelope.next_recommended_command, envelope.recovery_summary.next.argv.length > 0),
+    envelope.next_recommended_command,
+    { continuable: envelope.recovery_summary.next.argv.length > 0 },
   );
   assert.equal(envelope.recovery_summary.safety.inspector_ran_command, false);
   assert.equal(envelope.recovery_summary.safety.bundle_wrote_replacement, false);
@@ -207,29 +211,6 @@ function assertBundleEnvelope(envelope, status) {
     assert.ok(artifact.producer);
     assert.ok(Array.isArray(artifact.downstream_consumers));
   }
-}
-
-function emptyPersistence() {
-  return {
-    stdout_required: false,
-    stdout_artifact: {},
-    save_stdout_to: '',
-    requires_saved_output_from: [],
-    persistence_command: '',
-  };
-}
-
-function expectedPersistence(command = {}, continuable = true) {
-  if (continuable !== true || !command) return emptyPersistence();
-  const stdoutArtifact = command.stdout_artifact || {};
-  const stdoutRequired = stdoutArtifact.required === true || Boolean(stdoutArtifact.path || command.save_stdout_to);
-  return {
-    stdout_required: stdoutRequired,
-    stdout_artifact: stdoutRequired ? stdoutArtifact : {},
-    save_stdout_to: stdoutRequired ? (command.save_stdout_to || stdoutArtifact.path || '') : '',
-    requires_saved_output_from: command.requires_saved_output_from || [],
-    persistence_command: stdoutRequired ? (command.persistence_command || '') : '',
-  };
 }
 
 function canonicalFlagKeys() {
