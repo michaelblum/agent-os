@@ -115,6 +115,27 @@ function runAos(args) {
   });
 }
 
+function sectionBetween(text, startPattern, endPattern) {
+  const start = text.search(startPattern);
+  assert.notEqual(start, -1, String(startPattern));
+  const remainder = text.slice(start);
+  const end = remainder.search(endPattern);
+  assert.notEqual(end, -1, String(endPattern));
+  return remainder.slice(0, end);
+}
+
+function skillCommandBullet(skill, command) {
+  const startText = `- \`${command}`;
+  const start = skill.indexOf(startText);
+  assert.notEqual(start, -1, command);
+  const rest = skill.slice(start);
+  const nextBullet = rest.indexOf('\n- `', 1);
+  const nextHeading = rest.search(/\n##? /);
+  const candidates = [nextBullet, nextHeading].filter((index) => index !== -1);
+  const end = candidates.length > 0 ? Math.min(...candidates) : rest.length;
+  return rest.slice(0, end);
+}
+
 test('inspecting a valid bundle returns stable JSON and continuation', () => {
   const root = createBundle();
   const result = inspect(root);
@@ -520,19 +541,19 @@ test('docs, schema, and skill describe inspect as read-only validation, not repa
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
   const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
-  for (const text of [apiDoc, schemaDoc, skill]) {
+
+  const apiInspect = sectionBetween(apiDoc, /\n`repair bundle inspect`/, /\n`repair execute`/);
+  const schemaInspect = sectionBetween(schemaDoc, /^## Repair Recovery Bundle Inspection V0$/m, /^## Controlled Repair Executor Result V0$/m);
+  const skillInspect = skillCommandBullet(skill, 'aos work-record repair bundle inspect');
+
+  for (const text of [apiInspect, schemaInspect, skillInspect]) {
     assert.match(text, /repair bundle inspect/);
     assert.match(text, /read-only|without writing/);
     assert.match(text, /explicit bundle root/);
     assert.match(text, /validates?|checks? .*manifest/s);
-    assert.match(text, /does not run|never .*executes? repair|without .*executing repair/s);
+    assert.match(text, /does not run|never executes repair|never .*repair\s+execution|without .*executing repair/s);
     assert.match(text, /exact (next )?`?argv`?|exact next command/s);
     assert.match(text, /saved outputs? (are )?present|required saved-output presence/s);
-    assert.match(text, /repair bundle status/);
-    assert.match(text, /--bundle-root/);
-    assert.match(text, /--bundle-parent/);
-    assert.match(text, /ready|blocked|stale|next/);
-    assert.match(text, /non-recursive|immediate children/);
     assert.match(text, /live UI|TCC/);
   }
 });

@@ -172,7 +172,9 @@ the returned `recommended_next`, `recommended_next_commands`, or
   validated through the bundle inspector, then reported as ready, blocked,
   invalid, missing, unsupported, finalized, or unknown with source Work Record
   identity, guide stage, saved-output readiness, missing saved outputs, and the
-  exact next command id/`argv`.
+  exact next command id/`argv`; aggregate counts include `ready_count`,
+  `blocked_count`, `invalid_count`, `missing_count`, `unsupported_count`,
+  `finalized_count`, and `unknown_count`.
 - `aos work-record repair bundle inspect <bundle-root> --json` validates an
   existing Recovery Bundle root without writing, repairing, re-running guide or
   planning, submitting gates, executing repair, finalizing, replacing,

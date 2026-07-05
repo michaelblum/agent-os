@@ -581,9 +581,11 @@ aos work-record repair bundle status \
 The envelope type is
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version
 `2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`. It includes
-status, bundle counts, valid/ready/blocked/invalid/missing/unsupported counts,
-the supplied roots, immediate-child roots derived from explicit parents,
-per-bundle summaries, diagnostics, and the canonical non-execution flags.
+status, bundle counts, `valid_count`, `ready_count`, `blocked_count`,
+`invalid_count`, `missing_count`, `unsupported_count`, `finalized_count`,
+`unknown_count`, the supplied roots, immediate-child roots derived from
+explicit parents, per-bundle summaries, diagnostics, and the canonical
+non-execution flags.
 
 Discovery is intentionally bounded. Allowed candidates are exact
 `--bundle-root` paths and immediate children of explicit `--bundle-parent`

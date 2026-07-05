@@ -28,6 +28,14 @@ function digestFile(file) {
   return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`;
 }
 
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function writeJson(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function createBundle(options = {}) {
   const outputRoot = options.outputRoot || tempDir();
   const result = writeWorkRecordRepairBundle({
@@ -38,6 +46,24 @@ function createBundle(options = {}) {
   });
   assert.equal(result.status, 'written');
   return outputRoot;
+}
+
+function refreshManifestDigest(root, relativePath) {
+  const manifestPath = path.join(root, 'bundle-manifest.json');
+  const data = readJson(manifestPath);
+  const artifact = data.artifacts.find((item) => item.relative_path === relativePath);
+  assert.ok(artifact, relativePath);
+  artifact.digest = digestFile(path.join(root, relativePath));
+  writeJson(manifestPath, data);
+}
+
+function markGuideFinalized(root) {
+  const guidePath = path.join(root, 'guide-report.json');
+  const guide = readJson(guidePath);
+  guide.current_stage = 'finalized';
+  guide.stage_status = 'completed';
+  writeJson(guidePath, guide);
+  refreshManifestDigest(root, 'guide-report.json');
 }
 
 function snapshotBundle(root) {
@@ -66,11 +92,50 @@ function assertLifecycleStatus(envelope, status = 'success') {
   assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
 }
 
+function assertLifecycleCounts(envelope, expected) {
+  const defaults = {
+    ready_count: 0,
+    blocked_count: 0,
+    invalid_count: 0,
+    missing_count: 0,
+    unsupported_count: 0,
+    finalized_count: 0,
+    unknown_count: 0,
+  };
+  const counts = { ...defaults, ...expected };
+  for (const [field, value] of Object.entries(counts)) {
+    assert.equal(envelope[field], value, field);
+  }
+  const countedTotal = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  assert.equal(envelope.bundle_count, countedTotal);
+}
+
 function runAos(args) {
   return spawnSync('./aos', args, {
     cwd: repoRoot,
     encoding: 'utf8',
   });
+}
+
+function sectionBetween(text, startPattern, endPattern) {
+  const start = text.search(startPattern);
+  assert.notEqual(start, -1, String(startPattern));
+  const remainder = text.slice(start);
+  const end = remainder.search(endPattern);
+  assert.notEqual(end, -1, String(endPattern));
+  return remainder.slice(0, end);
+}
+
+function skillCommandBullet(skill, command) {
+  const startText = `- \`${command}`;
+  const start = skill.indexOf(startText);
+  assert.notEqual(start, -1, command);
+  const rest = skill.slice(start);
+  const nextBullet = rest.indexOf('\n- `', 1);
+  const nextHeading = rest.search(/\n##? /);
+  const candidates = [nextBullet, nextHeading].filter((index) => index !== -1);
+  const end = candidates.length > 0 ? Math.min(...candidates) : rest.length;
+  return rest.slice(0, end);
 }
 
 test('status summarizes explicit bundle roots through the inspector', () => {
@@ -85,6 +150,9 @@ test('status summarizes explicit bundle roots through the inspector', () => {
   assert.equal(result.invalid_count, 0);
   assert.equal(result.missing_count, 0);
   assert.equal(result.unsupported_count, 0);
+  assert.equal(result.finalized_count, 0);
+  assert.equal(result.unknown_count, 0);
+  assertLifecycleCounts(result, { ready_count: 1 });
   assert.deepEqual(result.roots.supplied_bundle_roots, [root]);
   assert.equal(result.roots.discovery.global_search, false);
   assert.equal(result.roots.discovery.recursive_parent_scan, false);
@@ -121,6 +189,7 @@ test('status keeps missing and invalid bundles in one report', () => {
   assert.equal(result.blocked_count, 1);
   assert.equal(result.missing_count, 1);
   assert.equal(result.invalid_count, 0);
+  assertLifecycleCounts(result, { ready_count: 1, blocked_count: 1, missing_count: 1 });
   const expectedCanonicalRoots = [
     fs.realpathSync(invalidRoot),
     missingRoot,
@@ -141,6 +210,7 @@ test('status parent scan is explicit, bounded, and non-recursive', () => {
 
   assertLifecycleStatus(result);
   assert.equal(result.bundle_count, 1);
+  assertLifecycleCounts(result, { ready_count: 1 });
   assert.equal(result.bundles[0].bundle_root, child);
   assert.equal(result.roots.derived_bundle_roots[0].bundle_parent, parent);
   assert.equal(result.roots.derived_bundle_roots[0].bundle_root, child);
@@ -152,7 +222,21 @@ test('status reports missing input as structured failure', () => {
 
   assertLifecycleStatus(result, 'failed');
   assert.equal(result.bundle_count, 0);
+  assertLifecycleCounts(result, {});
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_STATUS_INPUT_REQUIRED'));
+});
+
+test('status counts finalized lifecycle rows from saved guide state', () => {
+  const root = createBundle();
+  markGuideFinalized(root);
+
+  const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
+
+  assertLifecycleStatus(result);
+  assert.equal(result.bundle_count, 1);
+  assert.equal(result.bundles[0].lifecycle_status, 'finalized');
+  assert.equal(result.finalized_count, 1);
+  assertLifecycleCounts(result, { finalized_count: 1 });
 });
 
 test('status does not write or modify bundle files', () => {
@@ -172,6 +256,7 @@ test('public CLI status returns structured JSON and missing-input failure', () =
   const validJson = JSON.parse(valid.stdout);
   assertLifecycleStatus(validJson);
   assert.equal(validJson.bundle_count, 1);
+  assertLifecycleCounts(validJson, { ready_count: 1 });
   assert.equal(validJson.bundles[0].lifecycle_status, 'ready');
 
   const missing = runAos(['work-record', 'repair', 'bundle', 'status', '--json']);
@@ -187,4 +272,35 @@ test('public CLI help resolves work-record repair bundle status', () => {
   const helpJson = JSON.parse(help.stdout);
   assert.deepEqual(helpJson.path, ['work-record', 'repair', 'bundle', 'status']);
   assert.ok(helpJson.forms.some((form) => form.id === 'work-record-repair-bundle-status'));
+});
+
+test('docs, schema, and skill describe repair bundle status lifecycle contract', () => {
+  const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
+  const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+
+  const apiStatus = sectionBetween(apiDoc, /`repair bundle status`/, /\n`repair bundle inspect`/);
+  const schemaStatus = sectionBetween(schemaDoc, /^## Repair Recovery Bundle Lifecycle Status V0$/m, /^## Repair Recovery Bundle Inspection V0$/m);
+  const skillStatus = skillCommandBullet(skill, 'aos work-record repair bundle status');
+
+  for (const text of [apiStatus, schemaStatus, skillStatus]) {
+    assert.match(text, /repair bundle status/);
+    assert.match(text, /--bundle-root/);
+    assert.match(text, /--bundle-parent/);
+    assert.match(text, /read-only|without writing/);
+    assert.match(text, /explicit/);
+    assert.match(text, /immediate\s+children/);
+    assert.match(text, /non-recursive/);
+    assert.match(text, /does not .*run recovery|executes?\s+no\s+commands|without .*executing/s);
+    assert.match(text, /exact next (command id\/)?`argv`|exact next command id\/`argv`/);
+    assert.match(text, /ready.*blocked.*invalid.*missing.*unsupported.*finalized.*unknown/s);
+    assert.match(text, /finalized_count/);
+  }
+
+  assert.match(schemaStatus, /ready_count/);
+  assert.match(schemaStatus, /blocked_count/);
+  assert.match(schemaStatus, /invalid_count/);
+  assert.match(schemaStatus, /missing_count/);
+  assert.match(schemaStatus, /unsupported_count/);
+  assert.match(schemaStatus, /unknown_count/);
 });

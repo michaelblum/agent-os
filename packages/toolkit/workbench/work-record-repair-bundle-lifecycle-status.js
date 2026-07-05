@@ -185,6 +185,8 @@ export function statusWorkRecordRepairBundles({ bundleRoots = [], bundleParents 
     invalid_count: countByStatus(bundles, 'invalid'),
     missing_count: countByStatus(bundles, 'missing'),
     unsupported_count: countByStatus(bundles, 'unsupported'),
+    finalized_count: countByStatus(bundles, 'finalized'),
+    unknown_count: countByStatus(bundles, 'unknown'),
     roots: {
       supplied_bundle_roots: suppliedBundleRoots,
       supplied_bundle_parents: suppliedBundleParents,

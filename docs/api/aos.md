@@ -1185,19 +1185,22 @@ finalize`, `replacement-proposal write`, `supersession lookup`,
 browser/native AX/canvas/TCC operations, replay, auto-resume, or a Workflow
 engine.
 
-`repair bundle status` is the Work Record Recovery Bundle Lifecycle Status V0
-surface. It accepts repeatable explicit `--bundle-root` values and repeatable
-explicit `--bundle-parent` values. Parent scanning is bounded and non-recursive:
+`repair bundle status` is the read-only Work Record Recovery Bundle Lifecycle
+Status V0 surface. It accepts repeatable explicit `--bundle-root` values and
+repeatable explicit `--bundle-parent` values. Parent scanning is bounded and
+non-recursive:
 only immediate children containing `bundle-manifest.json` are candidates. It
 does not perform global search, infer roots from Work Record ids, read manifest
 paths to discover more bundles, write an index, or run recovery. Each candidate
 is inspected through `repair bundle inspect`, then summarized as `ready`,
 `blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
 source Work Record identity, saved guide stage, saved-output readiness, and the
-next command id/`argv`. Missing or invalid bundle roots stay represented in the
-same report instead of aborting other roots. The command returns
+exact next command id/`argv`. Missing or invalid bundle roots stay represented
+in the same report instead of aborting other roots. The command returns
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version
-`2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0` and reports
+`2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`, reports
+`ready_count`, `blocked_count`, `invalid_count`, `missing_count`,
+`unsupported_count`, `finalized_count`, and `unknown_count`, and reports
 canonical non-execution flags: no bundle writes, repairs, action execution,
 gate submission, finalization, replay, live UI, browser/native AX/canvas/TCC,
 patch application, Workflow engine start, or auto-resume.
