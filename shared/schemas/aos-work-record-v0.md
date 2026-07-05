@@ -1030,9 +1030,25 @@ Lookup is read-only. It accepts a source Work Record ref and explicit
 `index_root`, scans only that root, reports `not_found` for missing index data,
 reports malformed entry data as `malformed_index`, and returns source id,
 source digest when available, replacement id/path/digest, relationship status,
-and the recommended next `aos work-record read` command. Supersession lookup is
-external discovery metadata; it is not verifier health and does not mean the
-source Work Record was mutated.
+and replacement readback state. `--replacement-root` is optional; without a
+replacement root, lookup reports `replacement_readback.status:index_only`,
+`read_proven:false`, and does not claim the replacement is readable. With one
+or more replacement roots, lookup attempts root-backed replacement readback and
+reports `replacement_readback.status`, `read_proven`, resolved root/path/digest
+when available, and diagnostics.
+
+Root-backed lookup can return `readable`, `not_found`, `digest_mismatch`,
+`id_mismatch`, or `path_mismatch` for `replacement_readback.status`.
+Replacement readback failures surface on the lookup envelope as
+`blocked_invalid_replacement` rather than as fully proven active readable
+relationships. A readable replacement exposes `recommended_next.argv`, an
+executable direct argv array such as `["./aos", "work-record", "read", "<id>",
+"--root", "<root>", "--json"]`; `recommended_next.command_hint`, when present,
+is shell-quoted display text derived from that argv and is not the execution
+contract. Supersession write results use the same structured recommendation
+shape for the follow-up lookup. Supersession lookup is external discovery
+metadata; it is not verifier health and does not mean the source Work Record
+was mutated.
 
 ## Repair Finalization Result V0
 

@@ -14,6 +14,9 @@ import {
   text,
   addDiagnostic,
 } from './work-record-supersession-plan.js';
+import {
+  workRecordReadRecommendation,
+} from './work-record-command-recommendation.js';
 
 export {
   WORK_RECORD_SOURCE_SUPERSESSION_ENTRY_TYPE,
@@ -50,11 +53,11 @@ function rootContainingPath(roots = [], file = '') {
   return arrayValue(roots).map(text).find((root) => resolvedRootContainsPath(root, file)) || '';
 }
 
-function replacementReadCommand(identity = {}, resolvedRoot = '') {
+function replacementReadRecommendation(identity = {}, resolvedRoot = '') {
   const id = text(identity.id);
   const root = text(resolvedRoot || (identity.path ? path.dirname(identity.path) : ''));
-  if (!id || !root) return '';
-  return `./aos work-record read ${id} --root ${root} --json`;
+  if (!id || !root) return { argv: [], command_hint: '' };
+  return workRecordReadRecommendation(id, root);
 }
 
 function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot = process.cwd()) {
@@ -68,7 +71,7 @@ function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot 
       identity: cloneJson(indexed),
       resolved_root: '',
       diagnostics: [],
-      recommended_command_hint: '',
+      recommended_read: { argv: [], command_hint: '' },
     };
   }
 
@@ -86,7 +89,7 @@ function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot 
       identity: cloneJson(indexed),
       resolved_root: '',
       diagnostics: read.diagnostics,
-      recommended_command_hint: '',
+      recommended_read: { argv: [], command_hint: '' },
     };
   }
 
@@ -142,7 +145,9 @@ function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot 
     identity: read.identity,
     resolved_root: status === 'readable' ? resolvedRoot : '',
     diagnostics,
-    recommended_command_hint: status === 'readable' ? replacementReadCommand(read.identity, resolvedRoot) : '',
+    recommended_read: status === 'readable'
+      ? replacementReadRecommendation(read.identity, resolvedRoot)
+      : { argv: [], command_hint: '' },
   };
 }
 
@@ -384,7 +389,8 @@ export function lookupWorkRecordSourceSupersession({
           : replacementReadback.status === 'index_only'
             ? 'supply_replacement_root_to_prove_readability'
             : 'inspect_replacement_readback_diagnostics',
-        command_hint: replacementReadback.recommended_command_hint,
+        argv: replacementReadback.recommended_read.argv,
+        command_hint: replacementReadback.recommended_read.command_hint,
       },
       entry: cloneJson(match.entry),
     };

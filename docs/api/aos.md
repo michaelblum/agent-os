@@ -1462,12 +1462,15 @@ status. Without `--replacement-root`, lookup reports replacement readback as
 `index_only`, leaves the read command hint empty, and does not claim readability
 was proven. With one or more `--replacement-root` values, lookup resolves the
 replacement through those roots, validates replacement id/digest against the
-index entry, emits a recommended `aos work-record read` command only when the
-replacement is readable, and reports `replacement_readback.status` such as
+index entry, emits structured `recommended_next.argv` for `aos work-record
+read` only when the replacement is readable, and reports
+`replacement_readback.status` such as
 `readable`, `not_found`, `digest_mismatch`, `id_mismatch`, or `path_mismatch`.
 Root-backed readback failures return `blocked_invalid_replacement` instead of
 masquerading as a fully proven active relationship. Lookup does not change
-verifier health and does not claim the source Work Record was mutated.
+verifier health and does not claim the source Work Record was mutated. Any
+`recommended_next.command_hint` is shell-quoted display text derived from the
+argv; execute the argv directly instead of reparsing the display string.
 `supersession validate` validates one entry file without mutating state.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,

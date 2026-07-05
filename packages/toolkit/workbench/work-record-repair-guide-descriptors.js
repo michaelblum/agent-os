@@ -1,4 +1,8 @@
 import path from 'node:path';
+import {
+  commandHintFromArgv,
+  shellQuoteArg,
+} from './work-record-command-recommendation.js';
 
 export function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -12,16 +16,6 @@ export function arrayValue(value) {
 export function cloneJson(value) {
   if (value === undefined) return undefined;
   return JSON.parse(JSON.stringify(value));
-}
-
-function shellQuote(value = '') {
-  const raw = String(value);
-  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(raw)) return raw;
-  return `'${raw.replace(/'/g, "'\\''")}'`;
-}
-
-function commandFromArgv(argv = []) {
-  return argv.map(shellQuote).join(' ');
 }
 
 export function descriptor({
@@ -40,7 +34,7 @@ export function descriptor({
   const item = {
     id,
     purpose,
-    command: commandFromArgv(argv),
+    command: commandHintFromArgv(argv),
     argv,
     mutates_state: mutatesState,
     requires_approval: requiresApproval,
@@ -53,7 +47,7 @@ export function descriptor({
   if (stdoutArtifact) {
     item.stdout_artifact = stdoutArtifact;
     item.save_stdout_to = stdoutArtifact.path;
-    item.persistence_command = `${item.command} > ${shellQuote(stdoutArtifact.path)}`;
+    item.persistence_command = `${item.command} > ${shellQuoteArg(stdoutArtifact.path)}`;
   }
   if (requiresSavedOutputFrom.length > 0) {
     item.requires_saved_output_from = requiresSavedOutputFrom;

@@ -15,6 +15,9 @@ import {
   WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION,
   WORK_RECORD_REPLACEMENT_WRITER_RESULT_TYPE,
 } from './work-record-replacement-writer.js';
+import {
+  workRecordSupersessionLookupRecommendation,
+} from './work-record-command-recommendation.js';
 
 export const WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION = '2026-07-work-record-source-supersession-index-v0';
 export const WORK_RECORD_SOURCE_SUPERSESSION_ENTRY_TYPE = 'work_record.source_supersession_entry';
@@ -398,6 +401,9 @@ export function baseWriteResult({
   diagnostics = [],
 } = {}) {
   const wrote = status === 'written' || status === 'already_exists';
+  const lookupRecommendation = wrote
+    ? workRecordSupersessionLookupRecommendation(text(source.id), text(index.index_root))
+    : null;
   return {
     type: 'work_record.source_supersession_index_writer_result',
     schema_version: WORK_RECORD_SOURCE_SUPERSESSION_INDEX_SCHEMA_VERSION,
@@ -445,7 +451,8 @@ export function baseWriteResult({
     recommended_next: wrote
       ? {
         action: 'lookup_source_supersession_entry',
-        command_hint: `./aos work-record supersession lookup --source ${text(source.id)} --index-root ${text(index.index_root)} --json`,
+        argv: lookupRecommendation.argv,
+        command_hint: lookupRecommendation.command_hint,
       }
       : {
         action: status === 'dry_run' ? 'rerun_without_dry_run_to_write_index' : 'inspect_index_writer_diagnostics',

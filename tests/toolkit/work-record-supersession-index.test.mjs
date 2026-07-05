@@ -25,6 +25,9 @@ import {
 import {
   planWorkRecordSourceSupersessionFromRecords,
 } from '../../packages/toolkit/workbench/work-record-supersession-plan.js';
+import {
+  commandHintFromArgv,
+} from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -160,7 +163,10 @@ function sourceInput() {
   };
 }
 
-function writeReplacement({ proposedIdSeed = 'work-record:supersession-index-test-replacement' } = {}) {
+function writeReplacement({
+  proposedIdSeed = 'work-record:supersession-index-test-replacement',
+  outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-replacements-')),
+} = {}) {
   const artifactInput = successArtifactInput();
   const artifact = buildWorkRecordRepairAttemptArtifact(artifactInput);
   const proposal = buildWorkRecordReplacementProposal({
@@ -170,7 +176,6 @@ function writeReplacement({ proposedIdSeed = 'work-record:supersession-index-tes
     source_work_record_digest_after: digestFile(repairableFixture),
     proposed_id_seed: proposedIdSeed,
   });
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-replacements-'));
   const writerResult = writeReplacementWorkRecord({ proposal, outputRoot });
   assert.equal(writerResult.status, 'written', JSON.stringify(writerResult.diagnostics, null, 2));
   return { outputRoot, writerResult, replacementPath: writerResult.output.output_path };
@@ -333,6 +338,18 @@ test('write, validate, lookup, idempotency, and immutability are deterministic',
 
   assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
   assert.equal(result.writes_index_entry, true);
+  assert.deepEqual(result.recommended_next.argv, [
+    './aos',
+    'work-record',
+    'supersession',
+    'lookup',
+    '--source',
+    result.source_work_record.id,
+    '--index-root',
+    indexRoot,
+    '--json',
+  ]);
+  assert.equal(result.recommended_next.command_hint, commandHintFromArgv(result.recommended_next.argv));
   assert.equal(result.side_effects.includes('write_source_supersession_index_entry'), true);
   assert.equal(result.atomic_write.temp_file_leftover, false);
   assert.equal(fs.existsSync(result.atomic_write.temp_file), false);
@@ -364,6 +381,16 @@ test('write, validate, lookup, idempotency, and immutability are deterministic',
   assert.equal(lookup.entries[0].replacement_readback.status, 'readable');
   assert.equal(lookup.entries[0].replacement_readback.read_proven, true);
   assert.equal(lookup.entries[0].replacement_readback.resolved_root, outputRoot);
+  assert.deepEqual(lookup.entries[0].recommended_next.argv, [
+    './aos',
+    'work-record',
+    'read',
+    writerResult.written_replacement_work_record.id,
+    '--root',
+    outputRoot,
+    '--json',
+  ]);
+  assert.equal(lookup.entries[0].recommended_next.command_hint, commandHintFromArgv(lookup.entries[0].recommended_next.argv));
   assert.match(lookup.entries[0].recommended_next.command_hint, /aos work-record read/);
   assert.match(lookup.entries[0].recommended_next.command_hint, new RegExp(`--root ${outputRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   const recommendedRead = runAos([
@@ -386,6 +413,7 @@ test('write, validate, lookup, idempotency, and immutability are deterministic',
   assert.equal(indexOnly.status, 'active');
   assert.equal(indexOnly.entries[0].replacement_readback.status, 'index_only');
   assert.equal(indexOnly.entries[0].replacement_readback.read_proven, false);
+  assert.deepEqual(indexOnly.entries[0].recommended_next.argv, []);
   assert.equal(indexOnly.entries[0].recommended_next.command_hint, '');
 
   const repeat = writeWorkRecordSourceSupersessionIndex({
@@ -427,6 +455,7 @@ test('lookup replacement-root readback fails closed for missing, digest mismatch
   });
   assert.equal(missing.status, 'blocked_invalid_replacement');
   assert.equal(missing.entries[0].replacement_readback.status, 'not_found');
+  assert.deepEqual(missing.entries[0].recommended_next.argv, []);
   assert.equal(missing.entries[0].recommended_next.command_hint, '');
 
   const entry = JSON.parse(fs.readFileSync(result.output.index_path, 'utf8'));
@@ -457,6 +486,70 @@ test('lookup replacement-root readback fails closed for missing, digest mismatch
   assert.equal(wrongId.entries[0].replacement_readback.status, 'not_found');
   assert.equal(fs.readFileSync(repairableFixture, 'utf8'), sourceBefore);
   assert.equal(fs.readFileSync(replacementPath, 'utf8'), replacementBefore);
+});
+
+test('supersession recommendations preserve shell metacharacter roots as argv elements', () => {
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos supersession index ; quoted '$INDEX-"));
+  const replacementRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos supersession replacement ; quoted '$ROOT-"));
+  const { outputRoot, replacementPath, writerResult } = writeReplacement({
+    proposedIdSeed: 'work-record:supersession-index-special-root-replacement',
+    outputRoot: replacementRoot,
+  });
+  assert.equal(outputRoot, replacementRoot);
+
+  const write = writeWorkRecordSourceSupersessionIndex({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    replacementRoots: [replacementRoot],
+    indexRoot,
+    repoRoot,
+    writerResultPath: writeTempJson(writerResult),
+  });
+  assert.equal(write.status, 'written', JSON.stringify(write.diagnostics, null, 2));
+  assert.deepEqual(write.recommended_next.argv, [
+    './aos',
+    'work-record',
+    'supersession',
+    'lookup',
+    '--source',
+    write.source_work_record.id,
+    '--index-root',
+    indexRoot,
+    '--json',
+  ]);
+  assert.equal(write.recommended_next.command_hint, commandHintFromArgv(write.recommended_next.argv));
+  assert.ok(write.recommended_next.command_hint.includes(`--index-root '${indexRoot.replace(/'/g, "'\\''")}'`));
+  assert.ok(!write.recommended_next.command_hint.includes(`--index-root ${indexRoot} --json`));
+
+  const lookup = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    sourceRoots: [path.dirname(repairableFixture)],
+    indexRoot,
+    replacementRoots: [replacementRoot],
+    repoRoot,
+  });
+  assert.equal(lookup.status, 'active', JSON.stringify(lookup.diagnostics, null, 2));
+  const recommendation = lookup.entries[0].recommended_next;
+  assert.deepEqual(recommendation.argv, [
+    './aos',
+    'work-record',
+    'read',
+    writerResult.written_replacement_work_record.id,
+    '--root',
+    replacementRoot,
+    '--json',
+  ]);
+  assert.equal(recommendation.argv[5], replacementRoot);
+  assert.equal(recommendation.command_hint, commandHintFromArgv(recommendation.argv));
+  assert.ok(recommendation.command_hint.includes(`--root '${replacementRoot.replace(/'/g, "'\\''")}'`));
+  assert.ok(!recommendation.command_hint.includes(`--root ${replacementRoot} --json`));
+
+  const directRead = spawnSync(recommendation.argv[0], recommendation.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(directRead.status, 0, directRead.stderr);
+  assert.equal(JSON.parse(directRead.stdout).record.id, writerResult.written_replacement_work_record.id);
 });
 
 test('writer fails closed for invalid source, invalid replacement, source drift, relationship mismatch, traversal, symlink escape, malformed lookup, and conflict', () => {
@@ -601,9 +694,11 @@ test('public supersession commands expose stable JSON and never run repair', () 
   assert.ok(lookupForm.args.some((arg) => arg.id === 'replacement-root' && arg.token === '--replacement-root'));
   assert.equal(validateForm.execution.read_only, true);
 
-  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-cli-'));
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos supersession lookup ; quoted '$INDEX-cli-"));
+  const replacementOutputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos supersession lookup ; quoted '$ROOT-cli-"));
   const { outputRoot, replacementPath, writerResult } = writeReplacement({
     proposedIdSeed: 'work-record:supersession-index-cli-replacement',
+    outputRoot: replacementOutputRoot,
   });
   const writerResultPath = writeTempJson(writerResult);
   const sourceBefore = fs.readFileSync(repairableFixture, 'utf8');
@@ -647,6 +742,9 @@ test('public supersession commands expose stable JSON and never run repair', () 
   assert.equal(write.status, 0, write.stderr);
   const writeJson = JSON.parse(write.stdout);
   assert.equal(writeJson.status, 'written');
+  assert.equal(writeJson.recommended_next.argv[7], indexRoot);
+  assert.equal(writeJson.recommended_next.command_hint, commandHintFromArgv(writeJson.recommended_next.argv));
+  assert.ok(!writeJson.recommended_next.command_hint.includes(`--index-root ${indexRoot} --json`));
   assert.equal(writeJson.mutates_source_record, false);
   assert.equal(writeJson.mutates_replacement_record, false);
   assert.equal(writeJson.executes_repair, false);
@@ -674,6 +772,15 @@ test('public supersession commands expose stable JSON and never run repair', () 
   assert.deepEqual(lookupJson.roots.replacement_roots, [outputRoot]);
   assert.equal(lookupJson.entries[0].replacement_readback.status, 'readable');
   assert.equal(lookupJson.entries[0].replacement_readback.resolved_root, outputRoot);
+  assert.equal(lookupJson.entries[0].recommended_next.argv[5], outputRoot);
+  assert.equal(lookupJson.entries[0].recommended_next.command_hint, commandHintFromArgv(lookupJson.entries[0].recommended_next.argv));
+  assert.ok(!lookupJson.entries[0].recommended_next.command_hint.includes(`--root ${outputRoot} --json`));
+  const argvRead = spawnSync(lookupJson.entries[0].recommended_next.argv[0], lookupJson.entries[0].recommended_next.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(argvRead.status, 0, argvRead.stderr);
+  assert.equal(JSON.parse(argvRead.stdout).record.id, lookupJson.entries[0].replacement_work_record.id);
 
   const validate = runAos([
     'work-record',

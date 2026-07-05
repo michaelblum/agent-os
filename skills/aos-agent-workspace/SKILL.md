@@ -218,10 +218,17 @@ the returned `recommended_next`, `recommended_next_commands`, or
   source and replacement identities, checks replacement supersession
   provenance, writes atomically/idempotently, and leaves both Work Records
   unchanged. `supersession lookup --source <id-or-path> --index-root <dir>
-  --json` is read-only external discovery metadata; it is not verifier health
-  and does not mean the source record was mutated. `supersession validate
-  <entry-path> --json` validates one entry file without repair, replay, patch
-  application, recommended-command execution, or auto-resume.
+  [--replacement-root <dir>] --json` is read-only external discovery metadata;
+  it scans only the explicit index root and does not mean the source record was
+  mutated. Without replacement roots, lookup may report
+  `replacement_readback.status:index_only`; that is index metadata, not
+  readability proof. With replacement roots, inspect
+  `replacement_readback.status`, `read_proven`, resolved root/path, and
+  diagnostics. When a follow-up is returned, execute structured
+  `recommended_next.argv`; treat `recommended_next.command_hint` only as
+  shell-quoted display text. `supersession validate <entry-path> --json`
+  validates one entry file without repair, replay, patch application,
+  recommended-command execution, or auto-resume.
 - The saved file contract is `aos.agent-workspace.v0`; see
   `shared/schemas/aos-agent-workspace-v0.md`.
 - Workspace write locks are transient local control state. If a mutation returns
