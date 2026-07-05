@@ -171,4 +171,3 @@ export function normalizeAosActionEvidencePhases(source = {}) {
     evidenceIds,
   };
 }
-

@@ -287,4 +287,3 @@ export function stepDescriptorEvidenceSource(stepDescriptor, evidenceSource) {
     acceptance: text(promotion.acceptance, text(evidenceSource.acceptance)),
   };
 }
-
