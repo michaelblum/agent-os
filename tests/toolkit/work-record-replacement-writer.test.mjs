@@ -17,6 +17,9 @@ import {
   WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION,
   WORK_RECORD_REPLACEMENT_WRITER_STATUSES,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  commandHintFromArgv,
+} from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -267,6 +270,35 @@ test('write is atomic, idempotent, discoverable, and source-immutable', () => {
   const repeat = writeReplacementWorkRecord({ proposal, outputRoot });
   assert.equal(repeat.status, 'already_exists');
   assert.equal(repeat.idempotency.status, 'identical_existing');
+});
+
+test('writer read follow-up is argv-backed and preserves shell metacharacter roots', () => {
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "aos writer root ; quoted '$ROOT-"));
+  const proposal = buildProposal({
+    proposedIdSeed: 'work-record:repairable-stale-saved-ref-writer-special-root',
+  });
+  const result = writeReplacementWorkRecord({ proposal, outputRoot });
+  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
+  assert.deepEqual(result.recommended_next.argv, [
+    './aos',
+    'work-record',
+    'read',
+    result.written_replacement_work_record.id,
+    '--root',
+    outputRoot,
+    '--json',
+  ]);
+  assert.equal(result.recommended_next.argv[5], outputRoot);
+  assert.equal(result.recommended_next.command_hint, commandHintFromArgv(result.recommended_next.argv));
+  assert.ok(result.recommended_next.command_hint.includes(`--root '${outputRoot.replace(/'/g, "'\\''")}'`));
+  assert.ok(!result.recommended_next.command_hint.includes(`--root ${outputRoot} --json`));
+
+  const read = spawnSync(result.recommended_next.argv[0], result.recommended_next.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(read.status, 0, read.stderr);
+  assert.equal(JSON.parse(read.stdout).record.id, result.written_replacement_work_record.id);
 });
 
 test('writer materializes distinct evidence refs per postcondition', () => {

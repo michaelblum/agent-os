@@ -21,6 +21,9 @@ import {
   WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_FINALIZATION_STATUSES,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  commandHintFromArgv,
+} from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -294,6 +297,65 @@ test('successful finalization writes valid replacement and supersession outputs'
   assert.equal(lookup.entries[0].replacement_work_record.id, replacementRead.record.id);
 });
 
+test('successful finalization exposes argv-backed recovery recommendations for shell metacharacter roots', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer base ; quoted '$BASE-"));
+  const args = finalizeArgs({
+    replacementRoot: path.join(dir, "replacement records ; quoted '$ROOT"),
+    indexRoot: path.join(dir, "index root ; quoted '$INDEX"),
+    proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-special-root',
+  });
+  const result = finalizeWorkRecordRepair(args);
+  assert.equal(result.status, 'finalized', JSON.stringify(result.diagnostics, null, 2));
+  assert.equal(result.recovery.action, 'lookup_or_read_replacement');
+  assert.equal(result.recommended_next, result.recovery);
+  assert.equal(result.recovery.recommendations.length, 2);
+
+  const [lookupRecommendation, readRecommendation] = result.recovery.recommendations;
+  assert.equal(lookupRecommendation.action, 'lookup_source_supersession_entry');
+  assert.deepEqual(lookupRecommendation.argv, [
+    './aos',
+    'work-record',
+    'supersession',
+    'lookup',
+    '--source',
+    result.source_work_record.id,
+    '--index-root',
+    args.indexRoot,
+    '--json',
+  ]);
+  assert.equal(lookupRecommendation.command_hint, commandHintFromArgv(lookupRecommendation.argv));
+  assert.ok(!lookupRecommendation.command_hint.includes(`--index-root ${args.indexRoot} --json`));
+
+  assert.equal(readRecommendation.action, 'read_written_replacement_work_record');
+  assert.deepEqual(readRecommendation.argv, [
+    './aos',
+    'work-record',
+    'read',
+    result.replacement_writer_result.written_replacement_work_record.id,
+    '--root',
+    args.replacementRoot,
+    '--json',
+  ]);
+  assert.equal(readRecommendation.command_hint, commandHintFromArgv(readRecommendation.argv));
+  assert.ok(!readRecommendation.command_hint.includes(`--root ${args.replacementRoot} --json`));
+  assert.equal(result.recovery.command, undefined);
+  assert.equal(result.recovery.commands, undefined);
+
+  const lookupRun = spawnSync(lookupRecommendation.argv[0], lookupRecommendation.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(lookupRun.status, 0, lookupRun.stderr);
+  assert.equal(JSON.parse(lookupRun.stdout).status, 'active');
+
+  const readRun = spawnSync(readRecommendation.argv[0], readRecommendation.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(readRun.status, 0, readRun.stderr);
+  assert.equal(JSON.parse(readRun.stdout).record.id, result.replacement_writer_result.written_replacement_work_record.id);
+});
+
 test('repeated finalization is idempotent', () => {
   const args = finalizeArgs({ proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-idempotent' });
   const first = finalizeWorkRecordRepair(args);
@@ -307,6 +369,14 @@ test('repeated finalization is idempotent', () => {
   assert.equal(second.replacement_record_already_existed, true);
   assert.equal(second.wrote_supersession_index_entry, false);
   assert.equal(second.supersession_index_entry_already_existed, true);
+  assert.equal(second.recovery.action, 'lookup_or_read_replacement');
+  assert.equal(second.recovery.recommendations.length, 2);
+  for (const recommendation of second.recovery.recommendations) {
+    assert.ok(Array.isArray(recommendation.argv));
+    assert.equal(recommendation.command_hint, commandHintFromArgv(recommendation.argv));
+  }
+  assert.equal(second.recovery.command, undefined);
+  assert.equal(second.recovery.commands, undefined);
 });
 
 test('invalid index root is preflighted before replacement write', () => {
@@ -327,24 +397,58 @@ test('invalid index root is preflighted before replacement write', () => {
 
 test('partial supersession failure is reserved for post-preflight write failure', () => {
   const args = finalizeArgs({
+    replacementRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer partial replacement ; quoted '$ROOT-")),
+    indexRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer partial index ; quoted '$INDEX-")),
     proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-post-preflight-partial',
   });
   const originalRename = fs.renameSync;
   let renameCount = 0;
+  let result = null;
   fs.renameSync = (from, to) => {
     renameCount += 1;
     if (renameCount === 2) throw new Error('simulated post-preflight supersession race');
     return originalRename(from, to);
   };
   try {
-    const result = finalizeWorkRecordRepair(args);
+    result = finalizeWorkRecordRepair(args);
     assert.equal(result.status, 'partial_finalized', JSON.stringify(result.diagnostics, null, 2));
     assert.equal(result.replacement_writer_result.status, 'written');
     assert.equal(result.supersession_index_result.status, 'blocked_write_failed');
     assert.equal(fs.existsSync(result.replacement_writer_result.output.output_path), true);
+    assert.equal(result.recovery.action, 'recover_by_writing_supersession_index');
+    assert.equal(result.recovery.recommendations.length, 1);
+    const [recommendation] = result.recovery.recommendations;
+    assert.equal(recommendation.action, 'write_source_supersession_entry');
+    assert.deepEqual(recommendation.argv, [
+      './aos',
+      'work-record',
+      'supersession',
+      'write',
+      '--source',
+      result.source_work_record.id,
+      '--replacement',
+      result.replacement_writer_result.output.output_path,
+      '--index-root',
+      args.indexRoot,
+      '--replacement-root',
+      args.replacementRoot,
+      '--json',
+    ]);
+    assert.equal(recommendation.command_hint, commandHintFromArgv(recommendation.argv));
+    assert.ok(!recommendation.command_hint.includes(`--replacement ${result.replacement_writer_result.output.output_path} --index-root`));
+    assert.ok(!recommendation.command_hint.includes(`--index-root ${args.indexRoot} --replacement-root`));
+    assert.equal(result.recovery.command, undefined);
+    assert.equal(result.recovery.commands, undefined);
   } finally {
     fs.renameSync = originalRename;
   }
+  const [recommendation] = result.recovery.recommendations;
+  const recoveryRun = spawnSync(recommendation.argv[0], recommendation.argv.slice(1), {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(recoveryRun.status, 0, recoveryRun.stderr);
+  assert.equal(JSON.parse(recoveryRun.stdout).status, 'written');
 });
 
 test('lower-level supersession then finalizer is already finalized with shared writer-result identity', () => {

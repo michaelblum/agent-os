@@ -15,6 +15,9 @@ import {
   WORK_RECORD_REPLACEMENT_PROPOSAL_SCHEMA_VERSION,
   WORK_RECORD_REPLACEMENT_PROPOSAL_TYPE,
 } from './work-record-replacement-proposal.js';
+import {
+  workRecordReadRecommendation,
+} from './work-record-command-recommendation.js';
 
 export const WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION = '2026-07-work-record-replacement-writer-result-v0';
 export const WORK_RECORD_REPLACEMENT_WRITER_RESULT_TYPE = 'work_record.replacement_writer_result';
@@ -110,6 +113,9 @@ function baseResult({
   replacementRecord = null,
 } = {}) {
   const successfulWrite = status === 'written' || status === 'already_exists';
+  const readRecommendation = successfulWrite
+    ? workRecordReadRecommendation(text(replacementRecord?.id), text(output.output_root))
+    : { argv: [], command_hint: '' };
   return {
     type: WORK_RECORD_REPLACEMENT_WRITER_RESULT_TYPE,
     schema_version: WORK_RECORD_REPLACEMENT_WRITER_RESULT_SCHEMA_VERSION,
@@ -150,7 +156,8 @@ function baseResult({
     recommended_next: successfulWrite
       ? {
         action: 'read_written_replacement_work_record',
-        command_hint: output.output_path ? `./aos work-record read ${text(replacementRecord?.id)} --root ${output.output_root} --json` : '',
+        argv: readRecommendation.argv,
+        command_hint: readRecommendation.command_hint,
       }
       : {
         action: status === 'dry_run' ? 'rerun_without_dry_run_to_write' : 'inspect_writer_diagnostics',

@@ -497,9 +497,11 @@ approval/root requirements, `expected_output`, `next_stage_after_success`, and
 `not_run_by_guide:true`. Descriptors whose JSON stdout must be persisted for a
 later command include `stdout_artifact`, `save_stdout_to`, and downstream
 `requires_saved_output_from` fields. `argv` remains the direct process
-invocation; shell redirection is never the only persistence contract. The guide
-may report mutating commands such as `repair execute` or `repair finalize`, but
-it must not run them.
+invocation; shell redirection is never the only persistence contract. Descriptor
+`command` and `persistence_command` values are display-only shell-quoted text
+derived from `argv` and the structural saved-output fields; consumers must not
+parse them for execution. The guide may report mutating commands such as
+`repair execute` or `repair finalize`, but it must not run them.
 
 Guided Recovery can run only read-only/report-only/planning checks and existing
 non-mutating dry-runs. It must report these flags as false:
@@ -953,6 +955,11 @@ success, reports cleanup failures explicitly, treats identical existing content
 as idempotent `already_exists`, and refuses different existing content as
 `blocked_conflict`.
 
+Successful writes expose `recommended_next.argv` for reading the written
+replacement Work Record. `recommended_next.command_hint` is display-only
+shell-quoted text derived from that argv; execute the argv directly and do not
+parse the display string.
+
 Before writing, the writer validates the Replacement Proposal, materializes the
 proposed replacement as a Work Record v0 shape, validates the materialized shape
 with the existing report-only verifier/profile expectations, and rechecks the
@@ -1134,6 +1141,13 @@ supersession entry is missing or invalid; recovery must be explicit through
 `supersession write`. Preflightable invalid roots, path escapes, relationship
 mismatches, and writer-result provenance mismatches must fail before durable
 finalization writes begin.
+
+Finalization recovery guidance is structured. `finalized` and
+`already_finalized` expose argv-backed recommendations for supersession lookup
+and replacement read. `partial_finalized` exposes an argv-backed recommendation
+for `supersession write`. Any `command_hint` is display-only shell-quoted text
+derived from argv; consumers execute argv directly and do not parse display
+strings.
 
 ## Work Recording Frame Packs
 

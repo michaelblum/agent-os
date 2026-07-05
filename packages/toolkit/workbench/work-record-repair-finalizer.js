@@ -27,6 +27,11 @@ import {
 import {
   planWorkRecordSourceSupersessionFromRecords,
 } from './work-record-supersession-plan.js';
+import {
+  workRecordReadRecommendation,
+  workRecordSupersessionLookupRecommendation,
+  workRecordSupersessionWriteRecommendation,
+} from './work-record-command-recommendation.js';
 
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_SCHEMA_VERSION = '2026-07-work-record-repair-finalization-result-v0';
 export const WORK_RECORD_REPAIR_FINALIZATION_RESULT_TYPE = 'work_record.repair_finalization_result';
@@ -144,11 +149,27 @@ function sideEffects({ writer = {}, supersession = {} } = {}) {
 
 function recoveryGuidance(status = '', result = {}) {
   if (status === 'finalized' || status === 'already_finalized') {
+    const lookupRecommendation = workRecordSupersessionLookupRecommendation(
+      text(result.source_work_record?.id || result.source_work_record?.path),
+      text(result.supersession_index_result?.output?.index_root),
+    );
+    const readRecommendation = workRecordReadRecommendation(
+      text(result.replacement_writer_result?.written_replacement_work_record?.id),
+      text(result.replacement_writer_result?.output?.output_root),
+    );
     return {
       action: 'lookup_or_read_replacement',
-      commands: [
-        `./aos work-record supersession lookup --source ${text(result.source_work_record?.id || result.source_work_record?.path, '<source>')} --index-root ${text(result.supersession_index_result?.output?.index_root, '<index-root>')} --json`,
-        `./aos work-record read ${text(result.replacement_writer_result?.written_replacement_work_record?.id, '<replacement>')} --root ${text(result.replacement_writer_result?.output?.output_root, '<replacement-root>')} --json`,
+      recommendations: [
+        {
+          action: 'lookup_source_supersession_entry',
+          argv: lookupRecommendation.argv,
+          command_hint: lookupRecommendation.command_hint,
+        },
+        {
+          action: 'read_written_replacement_work_record',
+          argv: readRecommendation.argv,
+          command_hint: readRecommendation.command_hint,
+        },
       ],
     };
   }
@@ -158,9 +179,19 @@ function recoveryGuidance(status = '', result = {}) {
     };
   }
   if (status === 'partial_finalized') {
+    const writeRecommendation = workRecordSupersessionWriteRecommendation({
+      source: text(result.source_work_record?.id || result.source_work_record?.path),
+      replacement: text(result.replacement_writer_result?.output?.output_path),
+      indexRoot: text(result.supersession_index_result?.output?.index_root),
+      replacementRoot: text(result.replacement_writer_result?.output?.output_root),
+    });
     return {
       action: 'recover_by_writing_supersession_index',
-      command: `./aos work-record supersession write --source ${text(result.source_work_record?.id || result.source_work_record?.path, '<source>')} --replacement ${text(result.replacement_writer_result?.output?.output_path, '<replacement-path>')} --index-root ${text(result.supersession_index_result?.output?.index_root, '<index-root>')} --replacement-root ${text(result.replacement_writer_result?.output?.output_root, '<replacement-root>')} --json`,
+      recommendations: [{
+        action: 'write_source_supersession_entry',
+        argv: writeRecommendation.argv,
+        command_hint: writeRecommendation.command_hint,
+      }],
     };
   }
   return {

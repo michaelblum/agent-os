@@ -20,6 +20,10 @@ import {
   WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_TYPE,
 } from './work-record-repair-bundle-policy.js';
+import {
+  commandHintFromArgv,
+  shellQuoteArg,
+} from './work-record-command-recommendation.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
@@ -260,7 +264,7 @@ function rebindDescriptor(descriptor = {}, pathMap, materializedKinds) {
   if (rebound.stdout_artifact?.path) {
     rebound.save_stdout_to = rebound.stdout_artifact.path;
     if (rebound.persistence_command) {
-      rebound.persistence_command = `${arrayValue(rebound.argv).join(' ')} > ${rebound.stdout_artifact.path}`;
+      rebound.persistence_command = `${commandHintFromArgv(rebound.argv)} > ${shellQuoteArg(rebound.stdout_artifact.path)}`;
     }
   }
   rebound.not_run_by_bundle = true;

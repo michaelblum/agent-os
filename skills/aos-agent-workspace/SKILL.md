@@ -196,10 +196,14 @@ the returned `recommended_next`, `recommended_next_commands`, or
   mode writes only under the explicit replacement and index roots, preserves
   source Work Record bytes, is idempotent for matching existing outputs, and
   reports `partial_finalized` only for post-preflight durable failures after
-  replacement writing succeeds but supersession writing does not. It does not
-  execute repair, replay actions, run recommended commands, apply patches, use
-  browser/native AX/canvas/live UI surfaces, start a Workflow engine, mutate
-  the source Work Record, or auto-resume agents.
+  replacement writing succeeds but supersession writing does not. For
+  `finalized`/`already_finalized`, execute recovery follow-ups from
+  `recommended_next.recommendations[].argv`; for `partial_finalized`, use the
+  argv-backed `supersession write` recovery recommendation. Treat every
+  `command_hint` as display-only shell-quoted text. It does not execute repair,
+  replay actions, run recommended commands, apply patches, use browser/native
+  AX/canvas/live UI surfaces, start a Workflow engine, mutate the source Work
+  Record, or auto-resume agents.
 - `aos work-record replacement-proposal write <proposal-path> --output-root
   <dir> [--dry-run] --json` is the narrow Replacement Writer. It validates the
   proposal, materializes a new replacement Work Record under the explicit output
@@ -210,7 +214,9 @@ the returned `recommended_next`, `recommended_next_commands`, or
   still report `mutates_source_record:false`, `executes_repair:false`,
   `executes_actions:false`, `applies_patches:false`, and
   `automatic_replay_allowed:false`; do not treat a written replacement record as
-  evidence that repair execution happened.
+  evidence that repair execution happened. Successful writes return
+  `recommended_next.argv` for reading the written replacement; treat
+  `recommended_next.command_hint` as display-only shell-quoted text.
 - `aos work-record supersession write --source <id-or-path> --replacement
   <id-or-path> --index-root <dir> [--replacement-root <dir>] [--writer-result
   <path>] [--dry-run] --json` is the external Source Supersession Index writer.

@@ -23,6 +23,10 @@ import {
   WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
   WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS,
 } from '../../packages/toolkit/workbench/work-record-repair-bundle-policy.js';
+import {
+  commandHintFromArgv,
+  shellQuoteArg,
+} from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -43,8 +47,8 @@ function writeJson(dir, name, value) {
   return file;
 }
 
-function gateRecord(response = { authorization: 'approve' }) {
-  const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
+function gateRecord(response = { authorization: 'approve' }, sourceRef = repairableFixture) {
+  const repairPlan = planWorkRecordRepair(sourceRef, { repoRoot });
   const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
   return {
     schema_version: 'aos.gate.record.v1',
@@ -265,11 +269,14 @@ test('writer output uses shared canonical non-execution policy and inspects as v
 });
 
 test('authorization materializes a ready repair attempt plan and rebundled descriptors', () => {
-  const outputRoot = tempDir();
+  const sourceDir = tempDir("aos bundle source ; quoted '$SOURCE-");
+  const sourcePath = path.join(sourceDir, "repairable ; quoted '$SOURCE.json");
+  fs.copyFileSync(repairableFixture, sourcePath);
+  const outputRoot = tempDir("aos bundle root ; quoted '$BUNDLE-");
   const envelope = writeWorkRecordRepairBundle({
-    sourceRef: repairableFixture,
+    sourceRef: sourcePath,
     outputRoot,
-    gateOutcome: gateRecord(),
+    gateOutcome: gateRecord({ authorization: 'approve' }, sourcePath),
     repoRoot,
   });
 
@@ -281,6 +288,13 @@ test('authorization materializes a ready repair attempt plan and rebundled descr
   assert.equal(descriptor.bundle_artifact_status, 'materialized');
   assert.equal(descriptor.stdout_artifact.path, 'artifacts/repair-attempt-plan.json');
   assert.equal(descriptor.save_stdout_to, 'artifacts/repair-attempt-plan.json');
+  assert.equal(
+    descriptor.persistence_command,
+    `${commandHintFromArgv(descriptor.argv)} > ${shellQuoteArg(descriptor.stdout_artifact.path)}`,
+  );
+  assert.ok(!descriptor.persistence_command.includes(`${descriptor.argv.join(' ')} > ${descriptor.stdout_artifact.path}`));
+  assert.ok(descriptor.persistence_command.includes(shellQuoteArg(sourcePath)));
+  assert.ok(!descriptor.persistence_command.includes(`--source ${sourcePath} `));
 });
 
 test('attempt artifact and finalization roots remain descriptor-only follow-up commands', () => {

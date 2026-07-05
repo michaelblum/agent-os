@@ -1116,7 +1116,10 @@ emits command descriptors with `id`, `purpose`, `command`, `argv`,
 `not_run_by_guide:true`. Descriptors whose JSON stdout must become a later
 artifact include `stdout_artifact`, `save_stdout_to`, and downstream
 `requires_saved_output_from` fields; `argv` remains the direct process
-invocation and never relies on shell redirection.
+invocation and never relies on shell redirection. `command` and
+`persistence_command` are display-only shell-quoted text derived from `argv`
+and the structural saved-output fields; consumers execute `argv` directly and
+must not parse either display string.
 
 Guide stages are `valid_no_repair_needed`, `superseded`,
 `retired_or_impossible`, `repair_plan_unavailable`, `gate_required`,
@@ -1222,6 +1225,9 @@ execution/write/live/replay claims, and unknown non-false claims fail closed. It
 reports the saved guide stage, the safe next descriptor id, the exact `argv`,
 whether saved outputs are present, missing artifact paths, human-approval and
 mutation indicators, and a reminder that the command was not run.
+Descriptor `command` and `persistence_command` values are display-only
+shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
+`requires_saved_output_from` are the execution and persistence contract.
 
 The inspector never writes or repairs bundle files, never re-runs `repair
 guide`, planning, finalization dry-run, supersession lookup, gates, repair
@@ -1352,6 +1358,13 @@ if the replacement write succeeds but supersession writing then fails, the
 command exits non-zero with `partial_finalized`, exposes the replacement path,
 and recommends the explicit supersession recovery command.
 
+Recovery guidance is structured: `finalized` and `already_finalized` expose
+argv-backed recommendations for supersession lookup and replacement read, and
+`partial_finalized` exposes an argv-backed recommendation for `supersession
+write`. `command_hint`, when present, is display-only shell-quoted text derived
+from the same argv. Consumers execute `argv` directly and must not parse display
+strings.
+
 `repair finalize` does not execute repair, replay actions, run recommended
 commands, apply patches, use browser/native AX/canvas/live UI surfaces, start a
 Workflow engine, or auto-resume agents.
@@ -1415,6 +1428,11 @@ schema version `2026-07-work-record-replacement-writer-result-v0`. Statuses are
 `mutates_source_record:false`, `rewrites_historical_evidence:false`,
 `executes_repair:false`, `executes_actions:false`, `applies_patches:false`, and
 `automatic_replay_allowed:false`.
+
+Successful Replacement Writer results expose `recommended_next.argv` for
+reading the written replacement Work Record. `recommended_next.command_hint` is
+display-only shell-quoted text derived from that argv; execute the argv
+directly instead of reparsing the display string.
 
 The written replacement Work Record records supersession only on the replacement
 record, not on the source. Its metadata links the source Work Record,

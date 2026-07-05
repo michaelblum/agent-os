@@ -26,7 +26,9 @@ import {
   planWorkRecordSourceSupersessionFromRecords,
 } from '../../packages/toolkit/workbench/work-record-supersession-plan.js';
 import {
+  commandRecommendation,
   commandHintFromArgv,
+  shellQuoteArg,
 } from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -201,6 +203,15 @@ test('Source Supersession Index statuses are declared', () => {
   ]) {
     assert.ok(WORK_RECORD_SOURCE_SUPERSESSION_INDEX_STATUSES.includes(status));
   }
+});
+
+test('command recommendations preserve empty argv elements and quote display text', () => {
+  assert.equal(shellQuoteArg(''), "''");
+  assert.equal(shellQuoteArg("a'b"), "'a'\\''b'");
+  const recommendation = commandRecommendation(['cmd', '', "a'b"]);
+  assert.deepEqual(recommendation.argv, ['cmd', '', "a'b"]);
+  assert.equal(recommendation.command_hint, "cmd '' 'a'\\''b'");
+  assert.equal(commandHintFromArgv(recommendation.argv), recommendation.command_hint);
 });
 
 test('Source Supersession Index facade stays below the review line threshold', () => {

@@ -15,7 +15,7 @@ export function commandHintFromArgv(argv = []) {
 
 export function commandRecommendation(argv = []) {
   const normalizedArgv = Array.isArray(argv) ? argv.map((arg) => String(arg)) : [];
-  if (normalizedArgv.length === 0 || normalizedArgv.some((arg) => !text(arg))) {
+  if (normalizedArgv.length === 0 || !text(normalizedArgv[0])) {
     return { argv: [], command_hint: '' };
   }
   return {
@@ -25,9 +25,37 @@ export function commandRecommendation(argv = []) {
 }
 
 export function workRecordReadRecommendation(id = '', root = '') {
+  if (!text(id) || !text(root)) return { argv: [], command_hint: '' };
   return commandRecommendation(['./aos', 'work-record', 'read', id, '--root', root, '--json']);
 }
 
 export function workRecordSupersessionLookupRecommendation(source = '', indexRoot = '') {
+  if (!text(source) || !text(indexRoot)) return { argv: [], command_hint: '' };
   return commandRecommendation(['./aos', 'work-record', 'supersession', 'lookup', '--source', source, '--index-root', indexRoot, '--json']);
+}
+
+export function workRecordSupersessionWriteRecommendation({
+  source = '',
+  replacement = '',
+  indexRoot = '',
+  replacementRoot = '',
+} = {}) {
+  if (!text(source) || !text(replacement) || !text(indexRoot) || !text(replacementRoot)) {
+    return { argv: [], command_hint: '' };
+  }
+  return commandRecommendation([
+    './aos',
+    'work-record',
+    'supersession',
+    'write',
+    '--source',
+    source,
+    '--replacement',
+    replacement,
+    '--index-root',
+    indexRoot,
+    '--replacement-root',
+    replacementRoot,
+    '--json',
+  ]);
 }
