@@ -2556,6 +2556,18 @@
       }
     },
     {
+      "path": ["work-record", "repair", "bundle", "inspect"],
+      "summary": "Inspect an existing Work Record Recovery Bundle through a read-only external command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-work-record.mjs", "repair", "bundle", "inspect"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["work-record", "repair", "execute"],
       "summary": "Execute a controlled repo-command/file-fixture Work Record repair attempt through explicit roots.",
       "executable": "/usr/bin/env",

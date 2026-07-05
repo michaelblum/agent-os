@@ -437,8 +437,8 @@ test('docs, schema, and skill describe bundle as a handoff artifact, not executo
     assert.match(text, /handoff/);
     assert.match(text, /not\s+(a\s+)?repair execution|not a\s+repair executor/);
     assert.match(text, /not .*finalization|never run.*repair finalization|never runs .*repair finalize|not .*finalizer/s);
-    assert.doesNotMatch(text, /reports\/finalization-dry-run\.json/);
-    assert.doesNotMatch(text, /reports\/supersession-lookup\.json/);
+    assert.doesNotMatch(text, /bundle (may write|writes|materializes?)[\s\S]{0,240}reports\/finalization-dry-run\.json/);
+    assert.doesNotMatch(text, /bundle (may write|writes|materializes?)[\s\S]{0,240}reports\/supersession-lookup\.json/);
     assert.match(text, /gate submission|aos gate ask\/defer\/submit|`aos gate`\s+submission\s+commands|`aos gate\s+commands/s);
     assert.match(text, /replay/);
     assert.match(text, /auto-resume/);

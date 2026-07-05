@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair bundle/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair bundle/repair bundle inspect/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -159,6 +159,14 @@ the returned `recommended_next`, `recommended_next_commands`, or
   writer. A Replacement Proposal proposes carried-forward evidence, new
   evidence, per-postcondition evidence mapping, supersession metadata, and final
   proposed health; it is not itself a writer.
+- `aos work-record repair bundle inspect <bundle-root> --json` validates an
+  existing Recovery Bundle root without writing, repairing, re-running guide or
+  planning, submitting gates, executing repair, finalizing, replacing,
+  superseding, replaying, or touching live UI/TCC surfaces. It reads only the
+  explicit bundle root by default, checks manifest/guide/descriptors/artifacts,
+  path containment, symlinks, digests, forbidden bundle-owned outputs, and saved
+  output readiness, then reports the exact next `argv` and whether required
+  saved outputs are present.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

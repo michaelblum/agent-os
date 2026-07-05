@@ -370,6 +370,64 @@
         {
           "args": [
             {
+              "id": "bundle-root",
+              "kind": "positional",
+              "required": true,
+              "summary": "Existing Work Record Recovery Bundle root directory",
+              "value_type": "string"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Emit stable machine-readable Recovery Bundle Inspection JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos work-record repair bundle inspect /tmp/aos-work-record-repair-bundle --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": false,
+            "read_only": true,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false,
+            "writes_bundle": false,
+            "repairs_bundle": false,
+            "writes_replacement_record": false,
+            "writes_index_entry": false,
+            "writes_supersession_index_entry": false,
+            "mutates_source_record": false,
+            "executes_repair": false,
+            "executes_actions": false,
+            "uses_live_ui": false,
+            "uses_browser": false,
+            "uses_native_ax": false,
+            "uses_canvas": false,
+            "applies_patches": false,
+            "automatic_replay_allowed": false,
+            "runs_recommended_commands": false,
+            "starts_workflow_engine": false,
+            "auto_resumes": false,
+            "inspection_scope": "explicit_bundle_root_only",
+            "composition_scope": "read_only_recovery_bundle_validation"
+          },
+          "id": "work-record-repair-bundle-inspect",
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          },
+          "usage": "aos work-record repair bundle inspect <bundle-root> [--json]"
+        },
+        {
+          "args": [
+            {
               "id": "source",
               "kind": "flag",
               "required": true,

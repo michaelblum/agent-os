@@ -1002,6 +1002,7 @@ aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
 aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json
 aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json
+aos work-record repair bundle inspect /tmp/aos-work-record-repair-bundle --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
 aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
@@ -1174,6 +1175,28 @@ finalize`, `replacement-proposal write`, `supersession lookup`,
 `supersession write`, `aos gate ask/defer/submit`, `aos do`,
 browser/native AX/canvas/TCC operations, replay, auto-resume, or a Workflow
 engine.
+
+`repair bundle inspect` is the Work Record Recovery Bundle Inspection V0
+surface. It accepts only an existing `<bundle-root>` and returns
+`work_record.repair_recovery_bundle_inspection` with schema version
+`2026-07-work-record-repair-recovery-bundle-inspection-v0`. The inspector is
+read-only, reads only the explicit bundle root by default, validates
+`bundle-manifest.json`, `guide-report.json`, `commands/*.json`, manifest
+artifact paths, descriptor rebinding, materialized artifact existence and
+digests, required saved-output presence, forbidden bundle-owned outputs, and
+path containment. It reports the saved guide stage, the safe next descriptor id,
+the exact `argv`, whether saved outputs are present, missing artifact paths,
+human-approval and mutation indicators, and a reminder that the command was not
+run.
+
+The inspector never writes or repairs bundle files, never re-runs `repair
+guide`, planning, finalization dry-run, supersession lookup, gates, repair
+execution, replacement writing, replay, Workflow engine work, or live UI/TCC
+work. Forbidden bundle-owned outputs such as
+`reports/finalization-dry-run.json`, `reports/supersession-lookup.json`,
+`repair-attempt-artifact.json`, `replacement-records/**`,
+`source-supersession-index/**`, `gate-record*.json`, and
+`gate-response*.json` block continuation.
 
 `repair execute` is the Controlled Repair Executor V0 command. It accepts a
 ready Repair Attempt Plan JSON path plus explicit existing `--execution-root`

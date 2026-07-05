@@ -17,6 +17,7 @@ import {
   explainWorkRecordStatus,
   exportWorkRecordBundle,
   guideWorkRecordRepair,
+  inspectWorkRecordRepairBundle,
   writeWorkRecordRepairBundle,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
@@ -53,6 +54,7 @@ function usage() {
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--execution-root dir] [--artifact-root dir] [--replacement-root dir] [--index-root dir] [--json]
+  ./aos work-record repair bundle inspect <bundle-root> [--json]
   ./aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
   ./aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]
   ./aos work-record repair finalize --source <id-or-path> --attempt-plan <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir> --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path] [--dry-run] [--json]
@@ -374,6 +376,16 @@ async function main(argv = process.argv.slice(2)) {
       return;
     }
     if (action === 'bundle') {
+      if (target === 'inspect') {
+        const [bundleRoot, ...inspectRest] = rest;
+        if (!bundleRoot) fail('repair bundle inspect requires <bundle-root>', 'MISSING_ARG');
+        if (inspectRest.length > 0) fail(`Unexpected argument: ${inspectRest[0]}`, 'UNKNOWN_ARG');
+        payload = inspectWorkRecordRepairBundle({ bundleRoot });
+        const failed = payload.status !== 'valid' && payload.status !== 'degraded';
+        emitJSON(payload, failed);
+        if (failed) process.exit(1);
+        return;
+      }
       if (!target) fail('repair bundle requires a Work Record id or path', 'MISSING_ARG');
       if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
       const refs = [options.authorization, options.gateRecord, options.resumeEvent, options.continuationId].filter(Boolean);

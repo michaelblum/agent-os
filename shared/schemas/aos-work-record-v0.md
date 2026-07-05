@@ -457,6 +457,8 @@ aos work-record repair bundle <id-or-path> --output-root <dir> \
   [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] \
   [--attempt-plan path] [--attempt-artifact path] \
   [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
+
+aos work-record repair bundle inspect <bundle-root> [--json]
 ```
 
 The envelope type is `work_record.repair_guided_recovery` with schema version
@@ -552,6 +554,50 @@ outside `--output-root`. It must never run repair execution, repair
 finalization, replacement writes, supersession lookup, supersession writes,
 `aos gate` submission commands, `aos do`, browser/native AX/canvas/TCC
 surfaces, replay, auto-resume, or a Workflow engine.
+
+## Repair Recovery Bundle Inspection V0
+
+Recovery Bundle Inspection is a read-only validation envelope over an existing
+Recovery Bundle directory. The public command is:
+
+```bash
+aos work-record repair bundle inspect <bundle-root> [--json]
+```
+
+The envelope type is `work_record.repair_recovery_bundle_inspection` with
+schema version
+`2026-07-work-record-repair-recovery-bundle-inspection-v0`. It includes
+status, explicit bundle root, canonical bundle root, manifest summary, guide
+report summary, artifact validation summaries, descriptor validation summaries,
+continuation summary, diagnostics, and non-execution flags.
+
+The inspector reads only the explicit bundle root by default. It validates that
+the root exists, is a directory, is not a symlink, and is not reached through a
+symlinked ancestor. Every file or directory the inspector reads must stay under
+the canonical bundle root and must not be a symlink. Manifest artifact paths
+must be relative bundle paths and the recorded artifact paths must stay under
+the bundle root. Existing materialized artifacts must match their manifest
+digest.
+
+The inspector validates `bundle-manifest.json`, `guide-report.json`,
+`commands/*.json`, descriptor `id`, `argv`, `command`, `not_run_by_guide:true`,
+`not_run_by_bundle:true`, `stdout_artifact.path`/`save_stdout_to` consistency,
+`requires_saved_output_from` presence, and `bundle_artifact_status`.
+`materialized` requires a matching existing artifact; `planned_only` does not
+imply a file exists. Forbidden bundle-owned outputs such as
+`reports/finalization-dry-run.json`, `reports/supersession-lookup.json`,
+`repair-attempt-artifact.json`, `replacement-records/**`,
+`source-supersession-index/**`, `gate-record*.json`, and
+`gate-response*.json` block continuation.
+
+Continuation output reports the saved guide stage, safe next descriptor id,
+exact `argv`, required saved-output presence, missing artifact paths, whether
+human approval is required, whether the next command would mutate state, and a
+reminder that the inspector did not run the command. The inspector never writes
+or repairs bundle files, never re-runs guide/planning, never submits gates,
+never executes repair, finalization, replacement writing, supersession lookup
+or writing, replay, Workflow engine work, live UI, browser, native AX, canvas,
+screenshots, coordinates, or TCC proof.
 
 ## Controlled Repair Executor Result V0
 
@@ -1196,6 +1242,8 @@ The surface is read-only and supports:
   supersession lookup state;
 - `repair bundle` for a controlled output-root handoff bundle of non-mutating
   guide artifacts, rebound command descriptors, and safe planning artifacts;
+- `repair bundle inspect` for read-only validation and continuation summary of
+  an existing recovery bundle root;
 - `attempt-artifact validate` and `attempt-artifact build` for read-only Repair
   Attempt Artifact validation and fixture/outcome artifact generation;
 - `export` for a compact read-only evidence bundle manifest.
