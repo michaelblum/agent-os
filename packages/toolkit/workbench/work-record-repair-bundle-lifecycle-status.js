@@ -216,7 +216,7 @@ function attentionSummary(queue = []) {
   };
 }
 
-export function buildWorkRecordRepairBundleAttentionQueue(bundles = []) {
+function buildWorkRecordRepairBundleAttentionQueue(bundles = []) {
   const items = arrayValue(bundles).map((row) => {
     const state = text(row.lifecycle_status, 'unknown');
     const argv = safeAttentionArgv(row);

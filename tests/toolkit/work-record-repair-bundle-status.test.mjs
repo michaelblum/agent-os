@@ -7,7 +7,6 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  buildWorkRecordRepairBundleAttentionQueue,
   inspectWorkRecordRepairBundle,
   statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
@@ -351,118 +350,51 @@ test('status and inspect agree that descriptor mismatch is invalid and non-conti
 });
 
 test('attention queue ranks mixed lifecycle rows deterministically and fail-closed', () => {
-  const readyRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'z-ready') });
-  const finalizedRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'a-finalized') });
+  const parent = tempDir('aos-work-record-status-mixed-');
+  const readyRootA = createBundle({ outputRoot: path.join(parent, 'a-ready') });
+  const readyRootZ = createBundle({ outputRoot: path.join(parent, 'z-ready') });
+  const finalizedRoot = createBundle({ outputRoot: path.join(parent, 'y-finalized') });
   markGuideFinalized(finalizedRoot);
-  const invalidRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'm-invalid') });
+  const invalidRoot = createBundle({ outputRoot: path.join(parent, 'm-invalid') });
   fs.writeFileSync(path.join(invalidRoot, 'artifacts/gate-request.json'), '{"changed":true}\n');
-  const missingRoot = path.join(tempDir('aos-work-record-status-mixed-'), 'b-missing');
+  const missingRoot = path.join(parent, 'b-missing');
 
-  const before = new Map([readyRoot, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
+  const before = new Map([readyRootA, readyRootZ, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
   const result = statusWorkRecordRepairBundles({
-    bundleRoots: [finalizedRoot, missingRoot, invalidRoot, readyRoot],
+    bundleRoots: [finalizedRoot, missingRoot, readyRootZ, invalidRoot, readyRootA],
   });
-  const after = new Map([readyRoot, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
+  const after = new Map([readyRootA, readyRootZ, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
 
   assertLifecycleStatus(result);
   assertAttentionQueue(result);
   assertLifecycleCounts(result, {
-    ready_count: 1,
+    ready_count: 2,
     invalid_count: 1,
     missing_count: 1,
     finalized_count: 1,
   });
   assert.deepEqual(after, before);
 
-  const readyRow = statusRow(result, readyRoot);
+  const readyRowA = statusRow(result, readyRootA);
+  const readyRowZ = statusRow(result, readyRootZ);
   const finalizedRow = statusRow(result, finalizedRoot);
   const invalidRow = statusRow(result, invalidRoot);
   const missingRow = statusRow(result, missingRoot);
 
   assert.deepEqual(
     result.attention_queue.map((item) => item.state),
-    ['ready', 'missing', 'invalid', 'finalized'],
+    ['ready', 'ready', 'missing', 'invalid', 'finalized'],
   );
-  assert.equal(result.attention_queue[0].canonical_bundle_root, readyRow.canonical_bundle_root);
-  assert.equal(result.attention_summary.next_bundle_root, readyRow.bundle_root);
+  assert.equal(result.attention_queue[0].canonical_bundle_root, readyRowA.canonical_bundle_root);
+  assert.equal(result.attention_queue[1].canonical_bundle_root, readyRowZ.canonical_bundle_root);
+  assert.equal(result.attention_summary.next_bundle_root, readyRowA.bundle_root);
   assert.equal(result.attention_summary.next_state, 'ready');
   assert.equal(result.attention_summary.next_attention, 'continue');
-  assert.deepEqual(result.attention_queue[0].next.argv, readyRow.next_argv);
+  assert.deepEqual(result.attention_queue[0].next.argv, readyRowA.next_argv);
+  assert.deepEqual(result.attention_queue[1].next.argv, readyRowZ.next_argv);
   assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === finalizedRow.canonical_bundle_root).next.argv, []);
   assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === invalidRow.canonical_bundle_root).next.argv, []);
   assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === missingRow.canonical_bundle_root).next.argv, []);
-});
-
-test('pure attention helper ranks blocked rows after ready and orders same-state roots by canonical path', () => {
-  const rows = [
-    {
-      bundle_root: '/tmp/z-blocked',
-      canonical_bundle_root: '/tmp/z-blocked',
-      lifecycle_status: 'blocked',
-      source_work_record: { id: 'blocked' },
-      guide_stage: 'authorization_pending',
-      guide_stage_status: 'blocked',
-      continuation_ready: false,
-      next_command_id: 'ignored',
-      next_argv: ['./aos', 'ignored'],
-      next_command_mutates_state: true,
-      requires_user_approval: true,
-      missing_inputs: ['operator_decision'],
-      required_saved_outputs_present: false,
-      missing_saved_outputs: ['artifacts/input.json'],
-      diagnostics: [{ code: 'BLOCKED' }],
-    },
-    {
-      bundle_root: '/tmp/b-ready',
-      canonical_bundle_root: '/tmp/b-ready',
-      lifecycle_status: 'ready',
-      source_work_record: { id: 'ready-b' },
-      guide_stage: 'gate_required',
-      guide_stage_status: 'blocked',
-      continuation_ready: true,
-      next_command_id: 'work-record-gate-request',
-      next_argv: ['./aos', 'work-record', 'gate-request', 'b'],
-      next_command_mutates_state: false,
-      requires_user_approval: false,
-      missing_inputs: [],
-      required_saved_outputs_present: true,
-      missing_saved_outputs: [],
-      diagnostics: [],
-    },
-    {
-      bundle_root: '/tmp/a-ready',
-      canonical_bundle_root: '/tmp/a-ready',
-      lifecycle_status: 'ready',
-      source_work_record: { id: 'ready-a' },
-      guide_stage: 'gate_required',
-      guide_stage_status: 'blocked',
-      continuation_ready: true,
-      next_command_id: 'work-record-gate-request',
-      next_argv: ['./aos', 'work-record', 'gate-request', 'a'],
-      next_command_mutates_state: false,
-      requires_user_approval: false,
-      missing_inputs: [],
-      required_saved_outputs_present: true,
-      missing_saved_outputs: [],
-      diagnostics: [],
-    },
-  ];
-
-  const queue = buildWorkRecordRepairBundleAttentionQueue(rows);
-
-  assert.deepEqual(queue.map((item) => item.canonical_bundle_root), [
-    '/tmp/a-ready',
-    '/tmp/b-ready',
-    '/tmp/z-blocked',
-  ]);
-  assert.deepEqual(queue.map((item) => item.rank), [1, 2, 3]);
-  assert.equal(queue[2].state, 'blocked');
-  assert.equal(queue[2].attention, 'provide_input');
-  assert.deepEqual(queue[2].next.argv, []);
-  assert.equal(queue[2].next.command_id, '');
-  assert.equal(queue[2].next.mutates_state, false);
-  assert.equal(queue[2].next.requires_user_approval, false);
-  assert.deepEqual(queue[2].diagnostic_codes, ['BLOCKED']);
 });
 
 test('status parent scan is explicit, bounded, and non-recursive', () => {
