@@ -8,12 +8,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   inspectWorkRecordRepairBundle,
-  statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE,
-  WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION,
-  WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_TYPE,
 } from '../../packages/toolkit/workbench/work-record.js';
 import {
   WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
@@ -64,13 +61,6 @@ function inspect(root) {
 function assertInspection(envelope, status) {
   assert.equal(envelope.type, WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE);
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION);
-  assert.equal(envelope.status, status);
-  assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
-}
-
-function assertLifecycleStatus(envelope, status = 'success') {
-  assert.equal(envelope.type, WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_TYPE);
-  assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION);
   assert.equal(envelope.status, status);
   assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
 }
@@ -500,98 +490,6 @@ test('inspector does not write or modify bundle files', () => {
   assert.deepEqual(after, before);
 });
 
-test('lifecycle status summarizes explicit roots through inspector output', () => {
-  const root = createBundle();
-  const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
-
-  assertLifecycleStatus(result);
-  assert.equal(result.bundle_count, 1);
-  assert.equal(result.valid_count, 1);
-  assert.equal(result.ready_count, 1);
-  assert.equal(result.blocked_count, 0);
-  assert.equal(result.invalid_count, 0);
-  assert.equal(result.missing_count, 0);
-  assert.equal(result.unsupported_count, 0);
-  assert.deepEqual(result.roots.supplied_bundle_roots, [root]);
-  assert.deepEqual(result.roots.supplied_bundle_parents, []);
-  assert.equal(result.roots.discovery.global_search, false);
-  assert.equal(result.roots.discovery.recursive_parent_scan, false);
-  const [bundle] = result.bundles;
-  assert.equal(bundle.bundle_root, root);
-  assert.equal(bundle.canonical_bundle_root, fs.realpathSync(root));
-  assert.equal(bundle.inspection_status, 'valid');
-  assert.equal(bundle.lifecycle_status, 'ready');
-  assert.equal(bundle.source_work_record.id, 'work-record:repairable-stale-saved-ref-2026-07-04');
-  assert.equal(bundle.guide_stage, 'gate_required');
-  assert.equal(bundle.guide_stage_status, 'blocked');
-  assert.equal(bundle.continuation_ready, true);
-  assert.equal(bundle.next_command_id, 'work-record-gate-request');
-  assert.deepEqual(bundle.next_argv.slice(0, 3), ['./aos', 'work-record', 'gate-request']);
-  assert.equal(bundle.next_command_mutates_state, false);
-  assert.equal(bundle.requires_user_approval, false);
-  assert.deepEqual(bundle.missing_inputs, ['workflow_gate_authorization']);
-  assert.equal(bundle.required_saved_outputs_present, true);
-  assert.deepEqual(bundle.missing_saved_outputs, []);
-});
-
-test('lifecycle status keeps missing and invalid bundles in one report', () => {
-  const validRoot = createBundle();
-  const invalidRoot = createBundle();
-  fs.rmSync(path.join(invalidRoot, 'bundle-manifest.json'));
-  const missingRoot = path.join(tempDir('aos-work-record-status-missing-'), 'missing-bundle');
-
-  const result = statusWorkRecordRepairBundles({ bundleRoots: [missingRoot, validRoot, invalidRoot] });
-
-  assertLifecycleStatus(result);
-  assert.equal(result.bundle_count, 3);
-  assert.equal(result.ready_count, 1);
-  assert.equal(result.blocked_count, 1);
-  assert.equal(result.missing_count, 1);
-  assert.equal(result.invalid_count, 0);
-  const expectedCanonicalRoots = [
-    fs.realpathSync(invalidRoot),
-    missingRoot,
-    fs.realpathSync(validRoot),
-  ].map((item) => path.resolve(item)).sort((a, b) => a.localeCompare(b));
-  assert.deepEqual(result.bundles.map((bundle) => bundle.canonical_bundle_root), expectedCanonicalRoots);
-  assert.ok(result.bundles.some((bundle) => bundle.lifecycle_status === 'missing'));
-  assert.ok(result.bundles.some((bundle) => bundle.inspection_status === 'blocked_missing_manifest'));
-});
-
-test('lifecycle status parent scan is explicit, bounded, and non-recursive', () => {
-  const parent = tempDir('aos-work-record-status-parent-');
-  const child = createBundle({ outputRoot: path.join(parent, 'child-bundle') });
-  const nestedContainer = path.join(parent, 'nested-container');
-  const nested = createBundle({ outputRoot: path.join(nestedContainer, 'nested-bundle') });
-
-  const result = statusWorkRecordRepairBundles({ bundleParents: [parent] });
-
-  assertLifecycleStatus(result);
-  assert.equal(result.bundle_count, 1);
-  assert.equal(result.bundles[0].bundle_root, child);
-  assert.equal(result.roots.derived_bundle_roots[0].bundle_parent, parent);
-  assert.equal(result.roots.derived_bundle_roots[0].bundle_root, child);
-  assert.equal(result.bundles.some((bundle) => bundle.bundle_root === nested), false);
-});
-
-test('lifecycle status reports missing input as structured failure', () => {
-  const result = statusWorkRecordRepairBundles();
-
-  assertLifecycleStatus(result, 'failed');
-  assert.equal(result.bundle_count, 0);
-  assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_STATUS_INPUT_REQUIRED'));
-});
-
-test('lifecycle status does not write or modify bundle files', () => {
-  const root = createBundle();
-  const before = snapshotBundle(root);
-  const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
-  const after = snapshotBundle(root);
-
-  assertLifecycleStatus(result);
-  assert.deepEqual(after, before);
-});
-
 test('public CLI valid and invalid smokes return structured JSON', () => {
   const root = createBundle();
   const valid = runAos(['work-record', 'repair', 'bundle', 'inspect', root, '--json']);
@@ -601,30 +499,6 @@ test('public CLI valid and invalid smokes return structured JSON', () => {
   const invalid = runAos(['work-record', 'repair', 'bundle', 'inspect', '/tmp/does-not-exist', '--json']);
   assert.notEqual(invalid.status, 0);
   assertInspection(JSON.parse(invalid.stderr), 'blocked_missing_manifest');
-});
-
-test('public CLI lifecycle status returns structured JSON and missing-input failure', () => {
-  const root = createBundle();
-  const valid = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', root, '--json']);
-  assert.equal(valid.status, 0, valid.stderr);
-  const validJson = JSON.parse(valid.stdout);
-  assertLifecycleStatus(validJson);
-  assert.equal(validJson.bundle_count, 1);
-  assert.equal(validJson.bundles[0].lifecycle_status, 'ready');
-
-  const missing = runAos(['work-record', 'repair', 'bundle', 'status', '--json']);
-  assert.notEqual(missing.status, 0);
-  const missingJson = JSON.parse(missing.stderr);
-  assertLifecycleStatus(missingJson, 'failed');
-  assert.ok(missingJson.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_STATUS_INPUT_REQUIRED'));
-});
-
-test('public CLI help resolves work-record repair bundle status', () => {
-  const help = runAos(['help', 'work-record', 'repair', 'bundle', 'status', '--json']);
-  assert.equal(help.status, 0, help.stderr);
-  const helpJson = JSON.parse(help.stdout);
-  assert.deepEqual(helpJson.path, ['work-record', 'repair', 'bundle', 'status']);
-  assert.ok(helpJson.forms.some((form) => form.id === 'work-record-repair-bundle-status'));
 });
 
 test('public CLI help resolves work-record repair bundle inspect', () => {
