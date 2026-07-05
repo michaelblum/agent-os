@@ -575,9 +575,18 @@ The inspector reads only the explicit bundle root by default. It validates that
 the root exists, is a directory, is not a symlink, and is not reached through a
 symlinked ancestor. Every file or directory the inspector reads must stay under
 the canonical bundle root and must not be a symlink. Manifest artifact paths
-must be relative bundle paths and the recorded artifact paths must stay under
-the bundle root. Existing materialized artifacts must match their manifest
-digest.
+must be relative bundle paths and each recorded artifact path must exactly match
+the writer-owned path resolved from `relative_path`. The inspector uses the
+resolved `relative_path` target for file existence and digest checks, so an
+independent manifest path claim cannot mask or redirect validation. Existing
+materialized artifacts must match their manifest digest.
+
+The inspector validates manifest `non_execution_flags` against the same
+no-execution policy as the bundle contract. Missing required flags, non-boolean
+values, boolean `true` values, and unknown non-false execution/write/live/replay
+claims fail closed with diagnostics naming the offending flags and values. The
+inspector's own clean non-execution flags do not override contradictory manifest
+claims.
 
 The inspector validates `bundle-manifest.json`, `guide-report.json`,
 `commands/*.json`, descriptor `id`, `argv`, `command`, `not_run_by_guide:true`,

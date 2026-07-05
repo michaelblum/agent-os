@@ -164,7 +164,8 @@ the returned `recommended_next`, `recommended_next_commands`, or
   planning, submitting gates, executing repair, finalizing, replacing,
   superseding, replaying, or touching live UI/TCC surfaces. It reads only the
   explicit bundle root by default, checks manifest/guide/descriptors/artifacts,
-  path containment, symlinks, digests, forbidden bundle-owned outputs, and saved
+  exact manifest artifact path identity, manifest non-execution flags, path
+  containment, symlinks, digests, forbidden bundle-owned outputs, and saved
   output readiness, then reports the exact next `argv` and whether required
   saved outputs are present.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan

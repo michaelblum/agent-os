@@ -1182,12 +1182,17 @@ surface. It accepts only an existing `<bundle-root>` and returns
 `2026-07-work-record-repair-recovery-bundle-inspection-v0`. The inspector is
 read-only, reads only the explicit bundle root by default, validates
 `bundle-manifest.json`, `guide-report.json`, `commands/*.json`, manifest
-artifact paths, descriptor rebinding, materialized artifact existence and
-digests, required saved-output presence, forbidden bundle-owned outputs, and
-path containment. It reports the saved guide stage, the safe next descriptor id,
-the exact `argv`, whether saved outputs are present, missing artifact paths,
-human-approval and mutation indicators, and a reminder that the command was not
-run.
+artifact paths, manifest `non_execution_flags`, descriptor rebinding,
+materialized artifact existence and digests, required saved-output presence,
+forbidden bundle-owned outputs, and path containment. Manifest artifact paths
+must exactly match the writer-owned path resolved from `relative_path`; the
+inspector reads and digests the `relative_path` target, not an independent
+manifest path claim. Manifest non-execution flags must contain every required
+no-execution flag as boolean `false`; missing flags, non-boolean values, `true`
+execution/write/live/replay claims, and unknown non-false claims fail closed. It
+reports the saved guide stage, the safe next descriptor id, the exact `argv`,
+whether saved outputs are present, missing artifact paths, human-approval and
+mutation indicators, and a reminder that the command was not run.
 
 The inspector never writes or repairs bundle files, never re-runs `repair
 guide`, planning, finalization dry-run, supersession lookup, gates, repair

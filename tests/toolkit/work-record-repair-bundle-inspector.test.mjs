@@ -193,6 +193,106 @@ test('manifest absolute path escape fails closed', () => {
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_ESCAPE'));
 });
 
+test('tampered manifest artifact path mismatch fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  const artifact = data.artifacts.find((item) => item.relative_path === 'commands/work-record-gate-request.json');
+  assert.ok(artifact);
+  artifact.path = 'bundle-manifest.json';
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_path_escape');
+  assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_MISMATCH'));
+});
+
+test('tampered manifest execution flags fail closed with offending flags', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  data.non_execution_flags.executes_repair = true;
+  data.non_execution_flags.writes_replacement_record = true;
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  const diagnostics = result.diagnostics.filter((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG');
+  assert.deepEqual(diagnostics.map((item) => item.flag).sort(), ['executes_repair', 'writes_replacement_record']);
+  assert.deepEqual(diagnostics.map((item) => item.value), [true, true]);
+});
+
+test('missing required manifest non-execution flag fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  delete data.non_execution_flags.executes_actions;
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  assert.ok(result.diagnostics.some((item) => (
+    item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING'
+    && item.flag === 'executes_actions'
+  )));
+});
+
+test('missing manifest non-execution flags object fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  delete data.non_execution_flags;
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  assert.ok(result.diagnostics.some((item) => (
+    item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING'
+    && item.flag === 'non_execution_flags'
+  )));
+});
+
+test('non-boolean manifest non-execution flag fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  data.non_execution_flags.uses_browser = 'false';
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  assert.ok(result.diagnostics.some((item) => (
+    item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG'
+    && item.flag === 'uses_browser'
+    && item.value === 'false'
+  )));
+});
+
+test('unknown non-boolean manifest flag fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  data.non_execution_flags.live_replay_mode = 'enabled';
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  assert.ok(result.diagnostics.some((item) => (
+    item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_UNKNOWN'
+    && item.flag === 'live_replay_mode'
+    && item.value === 'enabled'
+  )));
+});
+
+test('unknown true execution-like manifest flag fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  data.non_execution_flags.writes_index_entry = true;
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  assert.ok(result.diagnostics.some((item) => (
+    item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_UNKNOWN'
+    && item.flag === 'writes_index_entry'
+    && item.value === true
+  )));
+});
+
 test('symlinked bundle-root ancestor fails closed', () => {
   const root = tempDir('aos-work-record-inspect-ancestor-');
   const real = path.join(root, 'real');

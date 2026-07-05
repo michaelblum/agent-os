@@ -30,6 +30,23 @@ const NON_EXECUTION_FLAGS = Object.freeze({
   automatic_replay_allowed: false,
 });
 
+const MANIFEST_REQUIRED_NON_EXECUTION_FLAGS = Object.freeze([
+  'executes_repair',
+  'executes_actions',
+  'runs_recommended_commands',
+  'writes_replacement_record',
+  'writes_supersession_index_entry',
+  'mutates_source_record',
+  'uses_live_ui',
+  'uses_browser',
+  'uses_native_ax',
+  'uses_canvas',
+  'applies_patches',
+  'starts_workflow_engine',
+  'auto_resumes',
+  'automatic_replay_allowed',
+]);
+
 const STATUS_RANK = Object.freeze({
   valid: 0,
   degraded: 1,
@@ -171,6 +188,63 @@ function resolveBundleReadPath(root, canonicalRoot, relativePath) {
   return { ok: true, relativePath: relativeStatus.relative, absolutePath, diagnostics: [] };
 }
 
+function resolveManifestArtifactPath(root, canonicalRoot, artifactPath, expectedPath, relativePath) {
+  const manifestPath = text(artifactPath);
+  if (!manifestPath) {
+    return {
+      ok: false,
+      status: 'blocked_invalid_manifest',
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_REQUIRED', 'Manifest artifact path is required.', { relative_path: relativePath })],
+    };
+  }
+  const absolutePath = path.isAbsolute(manifestPath)
+    ? path.resolve(manifestPath)
+    : path.resolve(root, manifestPath);
+  const contained = fs.existsSync(absolutePath)
+    ? isWithin(canonicalRoot, fs.realpathSync(absolutePath))
+    : isWithin(root, absolutePath);
+  if (!contained) {
+    return {
+      ok: false,
+      status: 'blocked_path_escape',
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_ESCAPE', 'Manifest artifact path must stay under the canonical bundle root.', { relative_path: relativePath, path: manifestPath, resolved_path: absolutePath })],
+    };
+  }
+  if (path.normalize(absolutePath) !== path.normalize(expectedPath)) {
+    return {
+      ok: false,
+      status: 'blocked_path_escape',
+      diagnostics: [diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_MISMATCH', 'Manifest artifact path must match the writer-owned path resolved from relative_path.', { relative_path: relativePath, manifest_path: manifestPath, resolved_manifest_path: absolutePath, expected_path: expectedPath })],
+    };
+  }
+  return { ok: true, absolutePath, diagnostics: [] };
+}
+
+function validateManifestNonExecutionFlags(envelope, manifest = {}) {
+  const flags = manifest.non_execution_flags;
+  if (!flags || typeof flags !== 'object' || Array.isArray(flags)) {
+    addDiagnostics(envelope, 'blocked_invalid_manifest', [
+      diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING', 'Manifest non_execution_flags object is required.', { flag: 'non_execution_flags', value: flags ?? null }),
+    ]);
+    return;
+  }
+  const diagnostics = [];
+  for (const flag of MANIFEST_REQUIRED_NON_EXECUTION_FLAGS) {
+    if (!Object.hasOwn(flags, flag)) {
+      diagnostics.push(diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING', 'Manifest non-execution flag is required and must be boolean false.', { flag }));
+    } else if (flags[flag] !== false) {
+      diagnostics.push(diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG', 'Manifest non-execution flag must be boolean false.', { flag, value: flags[flag] }));
+    }
+  }
+  for (const [flag, value] of Object.entries(flags)) {
+    if (MANIFEST_REQUIRED_NON_EXECUTION_FLAGS.includes(flag)) continue;
+    if (value === true || typeof value !== 'boolean') {
+      diagnostics.push(diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_UNKNOWN', 'Unknown manifest non-execution flag must not make execution, write, live, or replay claims.', { flag, value }));
+    }
+  }
+  if (diagnostics.length > 0) addDiagnostics(envelope, 'blocked_invalid_manifest', diagnostics);
+}
+
 function readJsonReadOnly(file, code) {
   try {
     return { ok: true, value: JSON.parse(fs.readFileSync(file, 'utf8')) };
@@ -286,18 +360,8 @@ function validateArtifact({ envelope, root, canonicalRoot, artifact, plannedOnly
     return null;
   }
   summary.relative_path = resolved.relativePath;
-  const manifestPath = text(artifact.path);
-  if (manifestPath) {
-    const manifestAbsolute = path.resolve(manifestPath);
-    const contained = fs.existsSync(manifestAbsolute)
-      ? isWithin(canonicalRoot, fs.realpathSync(manifestAbsolute))
-      : isWithin(root, manifestAbsolute);
-    if (!contained) {
-      addDiagnostics(envelope, 'blocked_path_escape', [
-        diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_ESCAPE', 'Manifest artifact path must stay under the canonical bundle root.', { relative_path: resolved.relativePath, path: manifestPath }),
-      ]);
-    }
-  }
+  const manifestPath = resolveManifestArtifactPath(root, canonicalRoot, artifact.path, resolved.absolutePath, resolved.relativePath);
+  if (!manifestPath.ok) addDiagnostics(envelope, manifestPath.status, manifestPath.diagnostics);
   const plannedOnly = plannedOnlyPaths.has(resolved.relativePath);
   const exists = fs.existsSync(resolved.absolutePath);
   summary.exists = exists;
@@ -481,6 +545,7 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
       diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_UNSUPPORTED_MANIFEST_SCHEMA', 'Bundle manifest type/schema is not recognized.', { type: text(manifest.type), schema_version: text(manifest.schema_version) }),
     ]);
   }
+  validateManifestNonExecutionFlags(envelope, manifest);
 
   const forbidden = forbiddenArtifacts(root, canonicalRoot);
   if (forbidden.diagnostics.length > 0) addDiagnostics(envelope, 'blocked_path_escape', forbidden.diagnostics);
