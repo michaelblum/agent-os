@@ -1221,7 +1221,13 @@ is inspected through `repair bundle inspect`, then summarized as `ready`,
 `blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
 source Work Record identity, saved guide stage, saved-output readiness, and the
 exact next command id/`argv` only when the inspected bundle is validated enough
-to continue and required saved outputs are present; each row also carries the same information in
+to continue and required saved outputs are present. The envelope also exposes a
+top-level `attention_queue` and `attention_summary` for scan-first
+multi-bundle triage. Agents should read the first queue item before drilling
+into rows; the queue is derived only from inspected rows, ranks ready
+continuations before blocked, missing, invalid, unsupported, unknown, and
+finalized bundles, and exposes empty `next.argv` for non-ready rows instead of
+recovering executable argv. Each row also carries the same information in
 `recovery_summary`. Missing or invalid bundle roots stay represented in the
 same report instead of aborting other roots. The command returns
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version

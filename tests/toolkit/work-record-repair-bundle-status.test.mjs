@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
+  buildWorkRecordRepairBundleAttentionQueue,
   inspectWorkRecordRepairBundle,
   statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
@@ -67,6 +68,13 @@ function markGuideFinalized(root) {
   refreshManifestDigest(root, 'guide-report.json');
 }
 
+function statusRow(result, root) {
+  const canonical = fs.existsSync(root) ? fs.realpathSync(root) : path.resolve(root);
+  const row = result.bundles.find((bundle) => bundle.canonical_bundle_root === canonical);
+  assert.ok(row, root);
+  return row;
+}
+
 function descriptor(root, id) {
   return path.join(root, 'commands', `${id}.json`);
 }
@@ -109,6 +117,58 @@ function assertRowRecoverySummary(row) {
   assert.equal(row.recovery_summary.safety.inspector_ran_command, false);
   assert.equal(row.recovery_summary.safety.uses_live_ui, false);
   assert.equal(row.recovery_summary.safety.automatic_replay_allowed, false);
+}
+
+function assertAttentionQueue(envelope) {
+  assert.ok(Array.isArray(envelope.attention_queue));
+  assert.equal(envelope.attention_queue.length, envelope.bundle_count);
+  assert.ok(envelope.attention_summary);
+  const expectedSummary = {
+    ready: envelope.ready_count,
+    blocked: envelope.blocked_count,
+    invalid: envelope.invalid_count,
+    missing: envelope.missing_count,
+    unsupported: envelope.unsupported_count,
+    finalized: envelope.finalized_count,
+    unknown: envelope.unknown_count,
+  };
+  for (const [field, value] of Object.entries(expectedSummary)) {
+    assert.equal(envelope.attention_summary[field], value, field);
+  }
+  for (const item of envelope.attention_queue) {
+    const row = envelope.bundles.find((bundle) => bundle.canonical_bundle_root === item.canonical_bundle_root);
+    assert.ok(row, item.canonical_bundle_root);
+    assert.equal(item.state, row.lifecycle_status);
+    assert.deepEqual(item.source_work_record, row.source_work_record);
+    assert.equal(item.guide_stage, row.guide_stage);
+    assert.equal(item.guide_stage_status, row.guide_stage_status);
+    assert.deepEqual(item.next.missing_inputs, row.missing_inputs || []);
+    assert.deepEqual(item.next.missing_saved_outputs, row.missing_saved_outputs || []);
+    const expectedArgv = row.lifecycle_status === 'ready'
+      && row.continuation_ready === true
+      && row.required_saved_outputs_present === true
+      ? row.next_argv || []
+      : [];
+    assert.deepEqual(item.next.argv, expectedArgv);
+    if (expectedArgv.length === 0) {
+      assert.equal(item.next.command_id, '');
+      assert.equal(item.next.mutates_state, false);
+      assert.equal(item.next.requires_user_approval, false);
+    } else {
+      assert.equal(item.next.command_id, row.next_command_id);
+      assert.equal(item.next.mutates_state, row.next_command_mutates_state);
+      assert.equal(item.next.requires_user_approval, row.requires_user_approval);
+    }
+    assert.deepEqual(
+      item.diagnostic_codes,
+      (row.diagnostics || []).map((diagnostic) => diagnostic.code).filter(Boolean),
+    );
+  }
+  if (envelope.attention_queue[0]) {
+    assert.equal(envelope.attention_summary.next_bundle_root, envelope.attention_queue[0].bundle_root);
+    assert.equal(envelope.attention_summary.next_state, envelope.attention_queue[0].state);
+    assert.equal(envelope.attention_summary.next_attention, envelope.attention_queue[0].attention);
+  }
 }
 
 function assertLifecycleCounts(envelope, expected) {
@@ -162,6 +222,7 @@ test('status summarizes explicit bundle roots through the inspector', () => {
   const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
 
   assertLifecycleStatus(result);
+  assertAttentionQueue(result);
   assert.equal(result.bundle_count, 1);
   assert.equal(result.valid_count, 1);
   assert.equal(result.ready_count, 1);
@@ -193,6 +254,9 @@ test('status summarizes explicit bundle roots through the inspector', () => {
   assert.equal(bundle.required_saved_outputs_present, true);
   assert.deepEqual(bundle.missing_saved_outputs, []);
   assertRowRecoverySummary(bundle);
+  assert.equal(result.attention_queue[0].state, 'ready');
+  assert.equal(result.attention_queue[0].attention, 'continue');
+  assert.deepEqual(result.attention_queue[0].next.argv, bundle.next_argv);
 });
 
 test('status keeps missing and invalid bundles in one report', () => {
@@ -204,6 +268,7 @@ test('status keeps missing and invalid bundles in one report', () => {
   const result = statusWorkRecordRepairBundles({ bundleRoots: [missingRoot, validRoot, invalidRoot] });
 
   assertLifecycleStatus(result);
+  assertAttentionQueue(result);
   assert.equal(result.bundle_count, 3);
   assert.equal(result.ready_count, 1);
   assert.equal(result.blocked_count, 0);
@@ -219,6 +284,12 @@ test('status keeps missing and invalid bundles in one report', () => {
   assert.ok(result.bundles.some((bundle) => bundle.lifecycle_status === 'missing'));
   assert.ok(result.bundles.some((bundle) => bundle.inspection_status === 'blocked_missing_manifest'));
   for (const bundle of result.bundles) assertRowRecoverySummary(bundle);
+  const readyRow = statusRow(result, validRoot);
+  const missingItems = result.attention_queue.filter((item) => item.state === 'missing');
+  assert.equal(result.attention_queue[0].canonical_bundle_root, readyRow.canonical_bundle_root);
+  assert.deepEqual(result.attention_queue[0].next.argv, readyRow.next_argv);
+  assert.equal(missingItems.length, 2);
+  assert.ok(missingItems.every((item) => item.next.argv.length === 0));
 });
 
 test('status and inspect agree that digest mismatch is invalid and non-continuable', () => {
@@ -229,6 +300,7 @@ test('status and inspect agree that digest mismatch is invalid and non-continuab
   const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
   const [bundle] = result.bundles;
 
+  assertAttentionQueue(result);
   assert.equal(inspection.status, 'blocked_digest_mismatch');
   assert.equal(inspection.recovery_summary.state, 'invalid');
   assert.equal(inspection.continuation.safe_next_descriptor_id, '');
@@ -244,6 +316,7 @@ test('status and inspect agree that digest mismatch is invalid and non-continuab
   assert.deepEqual(bundle.next_argv, []);
   assert.deepEqual(bundle.recovery_summary.next.argv, []);
   assertLifecycleCounts(result, { invalid_count: 1 });
+  assert.deepEqual(result.attention_queue[0].next.argv, []);
 });
 
 test('status and inspect agree that descriptor mismatch is invalid and non-continuable', () => {
@@ -258,6 +331,7 @@ test('status and inspect agree that descriptor mismatch is invalid and non-conti
   const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
   const [bundle] = result.bundles;
 
+  assertAttentionQueue(result);
   assert.equal(inspection.status, 'blocked_descriptor_mismatch');
   assert.equal(inspection.recovery_summary.state, 'invalid');
   assert.equal(inspection.continuation.safe_next_descriptor_id, '');
@@ -273,6 +347,122 @@ test('status and inspect agree that descriptor mismatch is invalid and non-conti
   assert.deepEqual(bundle.next_argv, []);
   assert.deepEqual(bundle.recovery_summary.next.argv, []);
   assertLifecycleCounts(result, { invalid_count: 1 });
+  assert.deepEqual(result.attention_queue[0].next.argv, []);
+});
+
+test('attention queue ranks mixed lifecycle rows deterministically and fail-closed', () => {
+  const readyRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'z-ready') });
+  const finalizedRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'a-finalized') });
+  markGuideFinalized(finalizedRoot);
+  const invalidRoot = createBundle({ outputRoot: path.join(tempDir('aos-work-record-status-mixed-'), 'm-invalid') });
+  fs.writeFileSync(path.join(invalidRoot, 'artifacts/gate-request.json'), '{"changed":true}\n');
+  const missingRoot = path.join(tempDir('aos-work-record-status-mixed-'), 'b-missing');
+
+  const before = new Map([readyRoot, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
+  const result = statusWorkRecordRepairBundles({
+    bundleRoots: [finalizedRoot, missingRoot, invalidRoot, readyRoot],
+  });
+  const after = new Map([readyRoot, finalizedRoot, invalidRoot].map((root) => [root, snapshotBundle(root)]));
+
+  assertLifecycleStatus(result);
+  assertAttentionQueue(result);
+  assertLifecycleCounts(result, {
+    ready_count: 1,
+    invalid_count: 1,
+    missing_count: 1,
+    finalized_count: 1,
+  });
+  assert.deepEqual(after, before);
+
+  const readyRow = statusRow(result, readyRoot);
+  const finalizedRow = statusRow(result, finalizedRoot);
+  const invalidRow = statusRow(result, invalidRoot);
+  const missingRow = statusRow(result, missingRoot);
+
+  assert.deepEqual(
+    result.attention_queue.map((item) => item.state),
+    ['ready', 'missing', 'invalid', 'finalized'],
+  );
+  assert.equal(result.attention_queue[0].canonical_bundle_root, readyRow.canonical_bundle_root);
+  assert.equal(result.attention_summary.next_bundle_root, readyRow.bundle_root);
+  assert.equal(result.attention_summary.next_state, 'ready');
+  assert.equal(result.attention_summary.next_attention, 'continue');
+  assert.deepEqual(result.attention_queue[0].next.argv, readyRow.next_argv);
+  assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === finalizedRow.canonical_bundle_root).next.argv, []);
+  assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === invalidRow.canonical_bundle_root).next.argv, []);
+  assert.deepEqual(result.attention_queue.find((item) => item.canonical_bundle_root === missingRow.canonical_bundle_root).next.argv, []);
+});
+
+test('pure attention helper ranks blocked rows after ready and orders same-state roots by canonical path', () => {
+  const rows = [
+    {
+      bundle_root: '/tmp/z-blocked',
+      canonical_bundle_root: '/tmp/z-blocked',
+      lifecycle_status: 'blocked',
+      source_work_record: { id: 'blocked' },
+      guide_stage: 'authorization_pending',
+      guide_stage_status: 'blocked',
+      continuation_ready: false,
+      next_command_id: 'ignored',
+      next_argv: ['./aos', 'ignored'],
+      next_command_mutates_state: true,
+      requires_user_approval: true,
+      missing_inputs: ['operator_decision'],
+      required_saved_outputs_present: false,
+      missing_saved_outputs: ['artifacts/input.json'],
+      diagnostics: [{ code: 'BLOCKED' }],
+    },
+    {
+      bundle_root: '/tmp/b-ready',
+      canonical_bundle_root: '/tmp/b-ready',
+      lifecycle_status: 'ready',
+      source_work_record: { id: 'ready-b' },
+      guide_stage: 'gate_required',
+      guide_stage_status: 'blocked',
+      continuation_ready: true,
+      next_command_id: 'work-record-gate-request',
+      next_argv: ['./aos', 'work-record', 'gate-request', 'b'],
+      next_command_mutates_state: false,
+      requires_user_approval: false,
+      missing_inputs: [],
+      required_saved_outputs_present: true,
+      missing_saved_outputs: [],
+      diagnostics: [],
+    },
+    {
+      bundle_root: '/tmp/a-ready',
+      canonical_bundle_root: '/tmp/a-ready',
+      lifecycle_status: 'ready',
+      source_work_record: { id: 'ready-a' },
+      guide_stage: 'gate_required',
+      guide_stage_status: 'blocked',
+      continuation_ready: true,
+      next_command_id: 'work-record-gate-request',
+      next_argv: ['./aos', 'work-record', 'gate-request', 'a'],
+      next_command_mutates_state: false,
+      requires_user_approval: false,
+      missing_inputs: [],
+      required_saved_outputs_present: true,
+      missing_saved_outputs: [],
+      diagnostics: [],
+    },
+  ];
+
+  const queue = buildWorkRecordRepairBundleAttentionQueue(rows);
+
+  assert.deepEqual(queue.map((item) => item.canonical_bundle_root), [
+    '/tmp/a-ready',
+    '/tmp/b-ready',
+    '/tmp/z-blocked',
+  ]);
+  assert.deepEqual(queue.map((item) => item.rank), [1, 2, 3]);
+  assert.equal(queue[2].state, 'blocked');
+  assert.equal(queue[2].attention, 'provide_input');
+  assert.deepEqual(queue[2].next.argv, []);
+  assert.equal(queue[2].next.command_id, '');
+  assert.equal(queue[2].next.mutates_state, false);
+  assert.equal(queue[2].next.requires_user_approval, false);
+  assert.deepEqual(queue[2].diagnostic_codes, ['BLOCKED']);
 });
 
 test('status parent scan is explicit, bounded, and non-recursive', () => {
@@ -284,6 +474,7 @@ test('status parent scan is explicit, bounded, and non-recursive', () => {
   const result = statusWorkRecordRepairBundles({ bundleParents: [parent] });
 
   assertLifecycleStatus(result);
+  assertAttentionQueue(result);
   assert.equal(result.bundle_count, 1);
   assertLifecycleCounts(result, { ready_count: 1 });
   assert.equal(result.bundles[0].bundle_root, child);
@@ -297,6 +488,7 @@ test('status reports missing input as structured failure', () => {
   const result = statusWorkRecordRepairBundles();
 
   assertLifecycleStatus(result, 'failed');
+  assertAttentionQueue(result);
   assert.equal(result.bundle_count, 0);
   assertLifecycleCounts(result, {});
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_STATUS_INPUT_REQUIRED'));
@@ -309,6 +501,7 @@ test('status counts finalized lifecycle rows from saved guide state', () => {
   const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
 
   assertLifecycleStatus(result);
+  assertAttentionQueue(result);
   assert.equal(result.bundle_count, 1);
   assert.equal(result.bundles[0].lifecycle_status, 'finalized');
   assertRowRecoverySummary(result.bundles[0]);
@@ -323,6 +516,7 @@ test('status does not write or modify bundle files', () => {
   const after = snapshotBundle(root);
 
   assertLifecycleStatus(result);
+  assertAttentionQueue(result);
   assert.deepEqual(after, before);
 });
 
@@ -332,6 +526,7 @@ test('public CLI status returns structured JSON and missing-input failure', () =
   assert.equal(valid.status, 0, valid.stderr);
   const validJson = JSON.parse(valid.stdout);
   assertLifecycleStatus(validJson);
+  assertAttentionQueue(validJson);
   assert.equal(validJson.bundle_count, 1);
   assertLifecycleCounts(validJson, { ready_count: 1 });
   assert.equal(validJson.bundles[0].lifecycle_status, 'ready');
@@ -340,6 +535,7 @@ test('public CLI status returns structured JSON and missing-input failure', () =
   assert.notEqual(missing.status, 0);
   const missingJson = JSON.parse(missing.stderr);
   assertLifecycleStatus(missingJson, 'failed');
+  assertAttentionQueue(missingJson);
   assert.ok(missingJson.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_STATUS_INPUT_REQUIRED'));
 });
 
@@ -371,6 +567,10 @@ test('docs, schema, and skill describe repair bundle status lifecycle contract',
     assert.match(text, /does not .*run recovery|executes?\s+no\s+commands|without .*executing/s);
     assert.match(text, /exact next (command id\/)?`argv`|exact next command id\/`argv`/);
     assert.match(text, /recovery_summary/);
+    assert.match(text, /attention_queue/);
+    assert.match(text, /attention_summary/);
+    assert.match(text, /ready.*blocked.*missing.*invalid.*unsupported.*unknown.*finalized/s);
+    assert.match(text, /empty `next\.argv`|expose an empty `next\.argv`|expose empty `next\.argv`/);
     assert.match(text, /ready.*blocked.*invalid.*missing.*unsupported.*finalized.*unknown/s);
     assert.match(text, /finalized_count/);
   }

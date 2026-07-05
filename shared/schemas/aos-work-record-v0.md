@@ -610,8 +610,8 @@ The envelope type is
 status, bundle counts, `valid_count`, `ready_count`, `blocked_count`,
 `invalid_count`, `missing_count`, `unsupported_count`, `finalized_count`,
 `unknown_count`, the supplied roots, immediate-child roots derived from
-explicit parents, per-bundle summaries, diagnostics, and the canonical
-non-execution flags.
+explicit parents, `attention_queue`, `attention_summary`, per-bundle
+summaries, diagnostics, and the canonical non-execution flags.
 
 Discovery is intentionally bounded. Allowed candidates are exact
 `--bundle-root` paths and immediate children of explicit `--bundle-parent`
@@ -636,6 +636,20 @@ Each row also includes `recovery_summary` with the row lifecycle state, guide
 stage, exact next `argv`, missing inputs, missing saved outputs, and safety
 flags, so agents can choose the next bundle without scanning the whole status
 envelope.
+The top-level `attention_queue` is a compact read-only queue derived from those
+final per-bundle rows. It ranks `ready`, `blocked`, `missing`, `invalid`,
+`unsupported`, `unknown`, then `finalized`, with deterministic ordering by
+`canonical_bundle_root` within the same state. Queue items include rank, bundle
+root, canonical bundle root, lifecycle state, attention label, short reason,
+source Work Record identity, guide stage and status, structured next command
+data, missing inputs, missing saved outputs, and diagnostic codes.
+`attention_summary` exposes the first queue item and per-state counts. The
+queue must not inspect bundle files, execute commands, write files, submit
+gates, finalize, repair, replay, mutate source/replacement/supersession state,
+or scan globally. It exposes `next.argv` only when the source row is `ready`,
+has `continuation_ready:true`, has required saved outputs present, and already
+has a validated row `next_argv`; invalid, missing, unsupported, unknown,
+finalized, and non-continuable blocked rows expose an empty `next.argv`.
 
 Lifecycle statuses are `ready`, `blocked`, `invalid`, `missing`,
 `unsupported`, `finalized`, and `unknown`. A valid inspection with a safe next

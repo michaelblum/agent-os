@@ -144,8 +144,12 @@ the returned `recommended_next`, `recommended_next_commands`, or
   `--execution-root`, and `--artifact-root` are all supplied; descriptors that
   need JSON stdout saved expose `stdout_artifact`, `save_stdout_to`, and
   `requires_saved_output_from` instead of hidden shell inference. For
-  `repair guide`, `repair bundle`, `repair bundle inspect`, and each
-  `repair bundle status` row, read `recovery_summary` first. It is the compact
+  `repair guide`, `repair bundle`, and `repair bundle inspect`, read
+  `recovery_summary` first. For multi-bundle `repair bundle status`, read
+  top-level `attention_queue[0]` or `attention_summary` first, then drill into
+  the referenced row if more evidence is needed. The queue is derived from the
+  already inspected rows and ranks ready continuations before blocked, missing,
+  invalid, unsupported, unknown, and finalized bundles. It is the compact
   scan/continuation object with state, why, important files, exact
   `next.argv`, missing inputs, missing saved outputs, mutating/approval flags,
   safety flags, and diagnostic codes. Execute only structured `next.argv`, not
@@ -187,10 +191,17 @@ the returned `recommended_next`, `recommended_next_commands`, or
   validated through the bundle inspector, then reported as ready, blocked,
   invalid, missing, unsupported, finalized, or unknown with source Work Record
   identity, guide stage, saved-output readiness, missing saved outputs, and the
-  exact next command id/`argv` only when validated enough to continue; each row repeats the scan-first contract in
-  `recovery_summary`. Aggregate counts include `ready_count`,
-  `blocked_count`, `invalid_count`, `missing_count`, `unsupported_count`,
-  `finalized_count`, and `unknown_count`.
+  exact next command id/`argv` only when validated enough to continue. Read
+  `attention_queue[0]` or `attention_summary` before scanning rows; queue items
+  rank ready, blocked, missing, invalid, unsupported, unknown, then finalized
+  bundles with deterministic canonical path ordering inside a state, and
+  include rank, state, reason, diagnostic codes, missing inputs, missing saved
+  outputs, and structured `next.argv` only for ready rows whose inspected
+  `next_argv` is already safe. Invalid, missing, unsupported, unknown,
+  finalized, and non-continuable blocked queue items expose empty `next.argv`.
+  Each row repeats the scan-first contract in `recovery_summary`. Aggregate
+  counts include `ready_count`, `blocked_count`, `invalid_count`,
+  `missing_count`, `unsupported_count`, `finalized_count`, and `unknown_count`.
 - `aos work-record repair bundle inspect <bundle-root> --json` validates an
   existing Recovery Bundle root without writing, repairing, re-running guide or
   planning, submitting gates, executing repair, finalizing, replacing,

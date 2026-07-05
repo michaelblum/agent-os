@@ -146,6 +146,109 @@ function countByStatus(bundles, lifecycleStatusValue) {
   return bundles.filter((bundle) => bundle.lifecycle_status === lifecycleStatusValue).length;
 }
 
+const ATTENTION_PRIORITY = {
+  ready: 1,
+  blocked: 2,
+  missing: 3,
+  invalid: 4,
+  unsupported: 5,
+  unknown: 6,
+  finalized: 7,
+};
+
+function diagnosticCodes(row = {}) {
+  return arrayValue(row.diagnostics)
+    .map((item) => text(item?.code))
+    .filter(Boolean);
+}
+
+function attentionForState(row = {}, argv = []) {
+  const state = text(row.lifecycle_status, 'unknown');
+  if (state === 'ready' && argv.length > 0) return 'continue';
+  if (state === 'blocked') return 'provide_input';
+  if (state === 'missing') return 'restore_bundle';
+  if (state === 'invalid') return 'inspect_integrity';
+  if (state === 'unsupported') return 'unsupported_schema';
+  if (state === 'finalized') return 'closed';
+  return 'inspect_status';
+}
+
+function whyForState(row = {}, argv = []) {
+  const state = text(row.lifecycle_status, 'unknown');
+  if (state === 'ready' && argv.length > 0) {
+    return 'Validated bundle has a safe next argv and required saved outputs are present.';
+  }
+  if (state === 'blocked') {
+    if (arrayValue(row.missing_inputs).length > 0) return 'Bundle is waiting for operator inputs before it can continue.';
+    if (arrayValue(row.missing_saved_outputs).length > 0) return 'Bundle is waiting for required saved outputs before it can continue.';
+    return 'Bundle is blocked without a safe continuation argv.';
+  }
+  if (state === 'missing') return 'Bundle root or a bundle-owned artifact is missing.';
+  if (state === 'invalid') return 'Bundle inspection found integrity or contract failures.';
+  if (state === 'unsupported') return 'Bundle schema or lifecycle shape is unsupported.';
+  if (state === 'finalized') return 'Bundle is finalized and is visible for audit, not next work.';
+  return 'Bundle status is unknown; inspect row diagnostics before continuing.';
+}
+
+function safeAttentionArgv(row = {}) {
+  const state = text(row.lifecycle_status, 'unknown');
+  const argv = arrayValue(row.next_argv);
+  if (
+    state === 'ready'
+    && row.continuation_ready === true
+    && row.required_saved_outputs_present === true
+    && argv.length > 0
+  ) {
+    return [...argv];
+  }
+  return [];
+}
+
+function attentionSummary(queue = []) {
+  const states = ['ready', 'blocked', 'missing', 'invalid', 'unsupported', 'unknown', 'finalized'];
+  const counts = Object.fromEntries(states.map((state) => [state, queue.filter((item) => item.state === state).length]));
+  const next = queue[0] || {};
+  return {
+    next_bundle_root: text(next.bundle_root),
+    next_state: text(next.state),
+    next_attention: text(next.attention),
+    ...counts,
+  };
+}
+
+export function buildWorkRecordRepairBundleAttentionQueue(bundles = []) {
+  const items = arrayValue(bundles).map((row) => {
+    const state = text(row.lifecycle_status, 'unknown');
+    const argv = safeAttentionArgv(row);
+    return {
+      bundle_root: text(row.bundle_root),
+      canonical_bundle_root: text(row.canonical_bundle_root, text(row.bundle_root)),
+      state,
+      attention: attentionForState(row, argv),
+      why: whyForState(row, argv),
+      source_work_record: row.source_work_record || {},
+      guide_stage: text(row.guide_stage),
+      guide_stage_status: text(row.guide_stage_status),
+      next: {
+        command_id: argv.length > 0 ? text(row.next_command_id) : '',
+        argv,
+        mutates_state: argv.length > 0 && row.next_command_mutates_state === true,
+        requires_user_approval: argv.length > 0 && row.requires_user_approval === true,
+        missing_inputs: arrayValue(row.missing_inputs),
+        missing_saved_outputs: arrayValue(row.missing_saved_outputs),
+      },
+      diagnostic_codes: diagnosticCodes(row),
+    };
+  });
+  const ordered = items.sort((a, b) => {
+    const priority = (ATTENTION_PRIORITY[a.state] || ATTENTION_PRIORITY.unknown)
+      - (ATTENTION_PRIORITY[b.state] || ATTENTION_PRIORITY.unknown);
+    if (priority !== 0) return priority;
+    return a.canonical_bundle_root.localeCompare(b.canonical_bundle_root);
+  });
+  return ordered.map((item, index) => ({ rank: index + 1, ...item }));
+}
+
 export function statusWorkRecordRepairBundles({ bundleRoots = [], bundleParents = [] } = {}) {
   const suppliedBundleRoots = bundleRoots.map(text).filter(Boolean).map((root) => path.resolve(root));
   const suppliedBundleParents = bundleParents.map(text).filter(Boolean).map((root) => path.resolve(root));
@@ -163,6 +266,7 @@ export function statusWorkRecordRepairBundles({ bundleRoots = [], bundleParents 
   const bundles = rootResult.candidates.map((candidate) => (
     bundleSummary(candidate, inspectWorkRecordRepairBundle({ bundleRoot: candidate.bundle_root }))
   ));
+  const attentionQueue = buildWorkRecordRepairBundleAttentionQueue(bundles);
 
   const envelope = {
     type: WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_TYPE,
@@ -188,6 +292,8 @@ export function statusWorkRecordRepairBundles({ bundleRoots = [], bundleParents 
         parent_scan_depth: 1,
       },
     },
+    attention_queue: attentionQueue,
+    attention_summary: attentionSummary(attentionQueue),
     bundles,
     diagnostics,
     non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
