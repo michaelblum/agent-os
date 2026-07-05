@@ -131,6 +131,54 @@ function template(value, rootsByID) {
     .replace(/\$\{repo_root\}/g, repoRoot);
 }
 
+function contentURLIdentity(rawURL) {
+  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
+  try {
+    const parsed = new URL(rawURL);
+    if (parsed.protocol === 'aos:') {
+      const root = parsed.hostname;
+      const pathPart = parsed.pathname || '';
+      return { root, path: pathPart.startsWith('/') ? pathPart : `/${pathPart}`, query: parsed.search };
+    }
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const host = parsed.hostname.toLowerCase();
+      if (!['127.0.0.1', 'localhost', '::1'].includes(host)) return null;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (parts.length === 0) return null;
+      return {
+        root: parts[0],
+        path: `/${parts.slice(1).join('/')}`,
+        query: parsed.search,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function equivalentContentURLs(left, right) {
+  if (left === right) return true;
+  const leftIdentity = contentURLIdentity(left);
+  const rightIdentity = contentURLIdentity(right);
+  if (!leftIdentity || !rightIdentity) return false;
+  return leftIdentity.root === rightIdentity.root
+    && leftIdentity.path === rightIdentity.path
+    && leftIdentity.query === rightIdentity.query;
+}
+
+function liveCanvasURL(id) {
+  const result = runAos(['show', 'list', '--json'], { timeout: 10000 });
+  if (result.status !== 0) return null;
+  try {
+    const parsed = JSON.parse(result.stdout);
+    const canvas = (parsed.canvases || []).find((item) => item?.id === id);
+    return typeof canvas?.url === 'string' ? canvas.url : null;
+  } catch {
+    return null;
+  }
+}
+
 function runContentStatus() {
   const result = runAos(['content', 'status', '--json']);
   if (result.status !== 0) return {};
@@ -373,6 +421,7 @@ function configureStatusItem(manifest, roots, steps) {
   const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
   const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
   const nextToggleURL = template(surface.url, rootsByID);
+  const existingCanvasURL = liveCanvasURL(surface.id);
   const values = [
     ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
     ['status_item.toggle_id', surface.id],
@@ -380,12 +429,18 @@ function configureStatusItem(manifest, roots, steps) {
     ['status_item.toggle_track', surface.track],
   ];
   for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
-  if (previousToggleID === surface.id && previousToggleURL && previousToggleURL !== nextToggleURL) {
+  const stalePreviousTarget = previousToggleID === surface.id
+    && previousToggleURL
+    && !equivalentContentURLs(previousToggleURL, nextToggleURL);
+  const staleExistingCanvas = existingCanvasURL
+    && !equivalentContentURLs(existingCanvasURL, nextToggleURL);
+  if (stalePreviousTarget || staleExistingCanvas) {
     const remove = runAos(['show', 'remove', '--id', surface.id], { timeout: 10000 });
     steps.push({
       id: `status-item:stale-target:${surface.id}`,
       status: remove.status === 0 ? 'success' : 'skipped',
-      previous_url: previousToggleURL,
+      previous_url: previousToggleURL || null,
+      canvas_url: existingCanvasURL || null,
       current_url: nextToggleURL,
       action: remove.status === 0 ? 'removed-canvas' : 'canvas-not-present-or-daemon-unavailable',
     });

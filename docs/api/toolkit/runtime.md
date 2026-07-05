@@ -345,6 +345,29 @@ Use `advanceMenuActivation(request, phase, extra?)` to move through the
 lifecycle. Unknown phases throw, so provider or app mismatches fail loudly
 instead of creating ad-hoc status names.
 
+`packages/toolkit/runtime/operator-annotation-menu.js` provides the reusable
+surface-side bridge for app-owned status item entries that start operator
+selection/annotation mode. Experience manifests declare menu items with
+`kind: "operator_annotation"` and a target `surface`. The native status item
+still emits the generic `status_item.menu_action` event; the toolkit helper maps
+that action id to a `canvas.send` message for the declared operator surface.
+
+Use `operatorAnnotationStatusMenuItems(menu)` to project manifest menu entries
+to native menu descriptors, and `routeOperatorAnnotationMenuAction(message,
+menu, host)` inside the mounted status-item surface to route an incoming menu
+event. The default routed message type is `aos.operator_annotation.start`; it
+includes the menu item id, action id, source, selection mode, creation intent,
+origin point, and modifiers. The helper does not create pending annotations by
+itself; the receiving operator surface owns capture/comment/commit behavior and
+should write pending annotations through `aos see annotation`.
+
+`packages/toolkit/runtime/operator-annotation-surface.js` provides the minimal
+state model for that receiving surface. `createOperatorAnnotationSurface()`
+handles `aos.operator_annotation.start`, accepts comment updates, supports
+commit/cancel, and writes through an injected `createPendingAnnotation` adapter.
+Successful commits report the pending annotation id/path; missing or failing
+adapters move to `failed` instead of creating in-memory-only intent.
+
 `packages/toolkit/runtime/radial-item-transition.js` defines the companion
 transition contract for 3D radial menu items. The vanilla preset,
 `radial-3d-vanilla`, describes item focus/zoom/hold, menu fade/dissolve, incoming

@@ -90,6 +90,17 @@ export {
   normalizeMenuActivationTransition,
 } from './menu-activation.js'
 export {
+  OPERATOR_ANNOTATION_MENU_KIND,
+  OPERATOR_ANNOTATION_START_EVENT,
+  operatorAnnotationMenuRoutes,
+  operatorAnnotationStatusMenuItems,
+  routeOperatorAnnotationMenuAction,
+} from './operator-annotation-menu.js'
+export {
+  OPERATOR_ANNOTATION_SURFACE_STATES,
+  createOperatorAnnotationSurface,
+} from './operator-annotation-surface.js'
+export {
   DEFAULT_RADIAL_ITEM_ACTIVATION_TRANSITION_PRESET,
   RADIAL_ITEM_ACTIVATION_TRANSITION_PRESETS,
   RADIAL_ITEM_ACTIVATION_TRANSITION_SCHEMA_VERSION,

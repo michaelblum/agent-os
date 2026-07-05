@@ -49,6 +49,7 @@
           "workspaces",
           "workspace",
           "snapshot",
+          "annotation",
           "zone"
         ]
       },
@@ -212,6 +213,138 @@
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation"
+      ],
+      "summary": "Validate see annotation subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "see annotation",
+        "MISSING_SUBCOMMAND",
+        "see annotation requires a subcommand. Usage: aos see annotation <create|list|read|consume|link-work-record|delete> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "see annotation subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "create"
+      ],
+      "summary": "Create or ingest pending operator annotations through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "create"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "list"
+      ],
+      "summary": "List compact pending operator annotations through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "list"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "read"
+      ],
+      "summary": "Read a pending operator annotation through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "read"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "consume"
+      ],
+      "summary": "Consume a pending operator annotation once through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "consume"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "link-work-record"
+      ],
+      "summary": "Link pending annotation evidence to a Work Record through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "link-work-record"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "delete"
+      ],
+      "summary": "Delete a pending operator annotation through external composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-pending-annotation.mjs",
+        "delete"
+      ],
+      "cwd": "repo",
+      "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }

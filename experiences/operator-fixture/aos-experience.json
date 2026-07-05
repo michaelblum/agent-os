@@ -1,0 +1,56 @@
+{
+  "$schema": "../../shared/schemas/aos-experience-v0.schema.json",
+  "schema_version": 0,
+  "id": "operator-fixture",
+  "title": "Operator Fixture",
+  "version": "0.1.0",
+  "exclusive": true,
+  "default_activation": {
+    "kind": "status_item",
+    "status_item_first": true,
+    "primary_entry": "operator-surface"
+  },
+  "vanilla_fallback": {
+    "status_item": true,
+    "tools": ["operator-annotation"]
+  },
+  "content_roots": [
+    {
+      "id": "toolkit",
+      "path": "packages/toolkit",
+      "branch_scoped": false
+    }
+  ],
+  "status_item": {
+    "enabled": true,
+    "label": "Operator Fixture",
+    "icon": "aos",
+    "toggle_surface": {
+      "id": "operator-fixture-surface",
+      "url": "aos://${root:toolkit}/runtime/_smoke/operator-annotation.html",
+      "track": "union"
+    }
+  },
+  "branding": {
+    "display_name": "Operator Fixture",
+    "surface_title_prefix": "Operator",
+    "theme_ref": "packages/toolkit/runtime",
+    "about": "Fixture experience proving the reusable app-owned operator annotation contract."
+  },
+  "menu": [
+    {
+      "id": "annotate-visible-target",
+      "label": "Annotate Visible Target",
+      "kind": "operator_annotation",
+      "surface": "operator-fixture-surface",
+      "action_id": "aos.operator_fixture.annotation",
+      "mode": "selection_annotation",
+      "create_pending_annotation": true
+    }
+  ],
+  "surfaces": {
+    "operator-surface": {
+      "summary": "Fixture status-item surface that receives operator annotation menu actions."
+    }
+  }
+}

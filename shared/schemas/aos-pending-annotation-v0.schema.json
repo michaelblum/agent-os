@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-pending-annotation-v0.schema.json",
+  "title": "AOS Pending Annotation v0",
+  "description": "Runtime-mode-scoped pending operator annotation records for compact agent list/read/consume flows.",
+  "anyOf": [
+    { "$ref": "#/$defs/record" },
+    { "$ref": "#/$defs/index" },
+    { "$ref": "#/$defs/list_result" },
+    { "$ref": "#/$defs/read_result" },
+    { "$ref": "#/$defs/compact_result" }
+  ],
+  "$defs": {
+    "schema_version": {
+      "const": "aos.pending-annotation.v0"
+    },
+    "local_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": ["string", "null"]
+    },
+    "runtime_mode": {
+      "enum": ["repo", "installed"]
+    },
+    "lifecycle_state": {
+      "enum": ["pending", "consumed", "resolved", "deleted", "stale", "unsupported", "blocked"]
+    },
+    "target_kind": {
+      "enum": ["desktop", "display", "window", "browser", "canvas", "native_ax", "region", "fallback"]
+    },
+    "capability_status": {
+      "enum": ["saved_ref", "fallback_only", "unsupported", "ambiguous", "blocked"]
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/non_empty_string" }
+    },
+    "session": {
+      "type": "object",
+      "required": ["id", "mode", "harness"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/nullable_string" },
+        "mode": { "$ref": "#/$defs/non_empty_string" },
+        "harness": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "required": ["source", "session"],
+      "additionalProperties": true,
+      "properties": {
+        "source": { "$ref": "#/$defs/non_empty_string" },
+        "session": { "$ref": "#/$defs/session" }
+      }
+    },
+    "saved_ref": {
+      "type": ["object", "null"],
+      "required": ["workspace_id", "snapshot_id", "ref", "action_target"],
+      "additionalProperties": true,
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/local_id" },
+        "snapshot_id": { "$ref": "#/$defs/local_id" },
+        "ref": { "$ref": "#/$defs/local_id" },
+        "action_target": { "$ref": "#/$defs/nullable_string" }
+      }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "required": ["role", "path"],
+      "additionalProperties": true,
+      "properties": {
+        "role": { "$ref": "#/$defs/non_empty_string" },
+        "path": { "$ref": "#/$defs/non_empty_string" },
+        "media_type": { "$ref": "#/$defs/non_empty_string" },
+        "bytes": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "fallback_evidence": {
+      "type": "object",
+      "required": ["kind", "reason", "summary", "artifact_refs"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": { "$ref": "#/$defs/non_empty_string" },
+        "reason": { "$ref": "#/$defs/non_empty_string" },
+        "summary": { "$ref": "#/$defs/non_empty_string" },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        }
+      }
+    },
+    "recommended_next": {
+      "type": "object",
+      "required": ["kind", "reason", "argv"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": { "$ref": "#/$defs/non_empty_string" },
+        "reason": { "$ref": "#/$defs/non_empty_string" },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        }
+      }
+    },
+    "source_capture": {
+      "type": ["object", "null"],
+      "required": ["kind", "schema_version", "status", "workspace_id", "snapshot_id", "selected_ref", "ref_count"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": { "const": "saved_capture" },
+        "schema_version": { "$ref": "#/$defs/non_empty_string" },
+        "status": { "$ref": "#/$defs/non_empty_string" },
+        "workspace_id": { "$ref": "#/$defs/nullable_string" },
+        "snapshot_id": { "$ref": "#/$defs/nullable_string" },
+        "selected_ref": { "$ref": "#/$defs/nullable_string" },
+        "capture_target": { "$ref": "#/$defs/nullable_string" },
+        "capture_mode": { "$ref": "#/$defs/nullable_string" },
+        "query": { "$ref": "#/$defs/nullable_string" },
+        "ref_count": { "type": "integer", "minimum": 0 },
+        "selected_backend": { "$ref": "#/$defs/nullable_string" },
+        "selected_resolution_class": { "$ref": "#/$defs/nullable_string" }
+      }
+    },
+    "work_record_link": {
+      "type": "object",
+      "required": ["ref", "relationship", "status", "artifact_refs"],
+      "additionalProperties": true,
+      "properties": {
+        "ref": { "$ref": "#/$defs/non_empty_string" },
+        "relationship": { "$ref": "#/$defs/non_empty_string" },
+        "status": { "$ref": "#/$defs/non_empty_string" },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "linked_at": { "$ref": "#/$defs/non_empty_string" },
+        "linked_by": { "$ref": "#/$defs/actor" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "id",
+        "state",
+        "created_at",
+        "updated_at",
+        "consumed_at",
+        "target_kind",
+        "target_summary",
+        "comment_text",
+        "capability_status",
+        "saved_ref",
+        "fallback_count",
+        "recommended_next_count",
+        "path"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/local_id" },
+        "state": { "$ref": "#/$defs/lifecycle_state" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" },
+        "consumed_at": { "$ref": "#/$defs/nullable_string" },
+        "target_kind": { "$ref": "#/$defs/target_kind" },
+        "target_summary": { "$ref": "#/$defs/non_empty_string" },
+        "comment_text": { "$ref": "#/$defs/nullable_string" },
+        "capability_status": { "$ref": "#/$defs/capability_status" },
+        "saved_ref": { "$ref": "#/$defs/saved_ref" },
+        "fallback_count": { "type": "integer", "minimum": 0 },
+        "recommended_next_count": { "type": "integer", "minimum": 0 },
+        "work_record_link_count": { "type": "integer", "minimum": 0 },
+        "path": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "id",
+        "runtime_mode",
+        "lifecycle",
+        "actor",
+        "comment",
+        "target",
+        "capability",
+        "fallback_evidence",
+        "artifact_refs",
+        "recommended_next",
+        "work_record_links",
+        "paths"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "id": { "$ref": "#/$defs/local_id" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "lifecycle": {
+          "type": "object",
+          "required": ["state", "created_at", "updated_at", "consumed_at", "consumed_by", "deleted_at"],
+          "additionalProperties": true,
+          "properties": {
+            "state": { "$ref": "#/$defs/lifecycle_state" },
+            "created_at": { "$ref": "#/$defs/non_empty_string" },
+            "updated_at": { "$ref": "#/$defs/non_empty_string" },
+            "consumed_at": { "$ref": "#/$defs/nullable_string" },
+            "consumed_by": {
+              "anyOf": [
+                { "type": "null" },
+                { "$ref": "#/$defs/actor" }
+              ]
+            },
+            "deleted_at": { "$ref": "#/$defs/nullable_string" }
+          }
+        },
+        "actor": { "$ref": "#/$defs/actor" },
+        "comment": {
+          "type": "object",
+          "required": ["text"],
+          "additionalProperties": true,
+          "properties": {
+            "text": { "$ref": "#/$defs/nullable_string" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "required": ["kind", "summary", "saved_ref"],
+          "additionalProperties": true,
+          "properties": {
+            "kind": { "$ref": "#/$defs/target_kind" },
+            "summary": { "$ref": "#/$defs/non_empty_string" },
+            "saved_ref": { "$ref": "#/$defs/saved_ref" }
+          }
+        },
+        "capability": {
+          "type": "object",
+          "required": ["status", "reasons", "fallback_used", "saved_ref_available"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "$ref": "#/$defs/capability_status" },
+            "reasons": { "$ref": "#/$defs/string_array" },
+            "fallback_used": { "type": "boolean" },
+            "saved_ref_available": { "type": "boolean" }
+          }
+        },
+        "fallback_evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fallback_evidence" }
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "recommended_next": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/recommended_next" }
+        },
+        "source_capture": { "$ref": "#/$defs/source_capture" },
+        "work_record_links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/work_record_link" }
+        },
+        "paths": {
+          "type": "object",
+          "required": ["root", "record"],
+          "additionalProperties": false,
+          "properties": {
+            "root": { "$ref": "#/$defs/non_empty_string" },
+            "record": { "$ref": "#/$defs/non_empty_string" }
+          }
+        }
+      }
+    },
+    "index": {
+      "type": "object",
+      "required": ["schema_version", "runtime_mode", "state_root", "created_at", "updated_at", "annotations"],
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "state_root": { "$ref": "#/$defs/non_empty_string" },
+        "created_at": { "$ref": "#/$defs/non_empty_string" },
+        "updated_at": { "$ref": "#/$defs/non_empty_string" },
+        "annotations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/summary" }
+        }
+      }
+    },
+    "list_result": {
+      "type": "object",
+      "required": ["status", "schema_version", "runtime_mode", "state_root", "pending_annotations_root", "count", "annotations"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "const": "success" },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "state_root": { "$ref": "#/$defs/non_empty_string" },
+        "pending_annotations_root": { "$ref": "#/$defs/non_empty_string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "annotations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/summary" }
+        }
+      }
+    },
+    "read_result": {
+      "type": "object",
+      "required": ["status", "schema_version", "runtime_mode", "annotation"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "const": "success" },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "annotation": { "$ref": "#/$defs/record" }
+      }
+    },
+    "compact_result": {
+      "type": "object",
+      "required": ["status", "schema_version", "runtime_mode", "annotation"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["created", "consumed", "deleted", "linked", "success"] },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+        "annotation": { "$ref": "#/$defs/summary" }
+      }
+    }
+  }
+}

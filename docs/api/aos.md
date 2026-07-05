@@ -146,6 +146,12 @@ Use the narrowest handle that preserves semantic identity:
 4. Native AX direct actions use selector flags such as `--pid`, `--role`, and
    filters; there is no current public `ax:` CLI target grammar.
 
+Pending operator annotations are durable human intent records that sit between
+perception and action. They are not target handles themselves; they carry target
+summary, optional comment, saved-ref linkage when available, fallback evidence
+when no stable ref exists, and structured next-command argv for the agent that
+consumes the record.
+
 Semantic Targets are structured perception records that contain refs, bounds,
 roles, names, state, and provenance. They report what can be resolved inside a
 target; they are not a separate address grammar. Window, channel, browser, and
@@ -218,6 +224,32 @@ lists all local workspaces without consulting `AOS_AGENT_WORKSPACE`; cleanup
 commands require explicit workspace or snapshot ids. This keeps parallel agents
 from mutating hidden shared workspace state. Any future session-bound default
 must first define a multi-agent-safe contract.
+
+Pending operator annotations live under
+`~/.config/aos/{repo|installed}/pending-annotations/`, or
+`$AOS_STATE_ROOT/{repo|installed}/pending-annotations/` when the state root is
+overridden. Use `aos see annotation create` to create or ingest one pending
+record, `aos see annotation list` for compact summaries, `aos see annotation
+read <id>` for one compact record, `aos see annotation consume <id>` to drain it
+once, `aos see annotation link-work-record <id> --work-record <ref>` to attach
+action/readback evidence, and `aos see annotation delete <id>` to make it
+non-consumable. Consuming
+a non-`pending` annotation fails closed with structured JSON, as do pending
+annotations whose capability status is `unsupported`, `ambiguous`, or
+`blocked`; stdout stays compact and heavy evidence remains path-backed. `aos
+see annotation create --from-capture-json <path|-> [--ref <id>]` projects
+compact saved capture or refs readback into a pending annotation, preferring
+browser, AOS canvas, and native AX saved refs over coordinate or prose fallback
+evidence. The pending annotation contract is `aos.pending-annotation.v0`; see
+`shared/schemas/aos-pending-annotation-v0.md`.
+
+Experience manifests can declare app-owned operator selection affordances in
+their status-item `menu[]` with `kind: "operator_annotation"` and a target
+`surface`. Native status item dispatch remains generic
+(`status_item.menu_action`); mounted surfaces use the toolkit runtime helper
+`routeOperatorAnnotationMenuAction()` to route that menu action to
+`aos.operator_annotation.start` on the declared operator surface. The
+`operator-fixture` experience is the non-Sigil contract fixture for this route.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,
@@ -748,6 +780,7 @@ Primary public verbs:
 | `observe` | stream perception events from the daemon |
 | `list` | enumerate capture/display targets |
 | `selection` | interactive region selection |
+| `annotation` | pending operator annotation lifecycle |
 | `zone` | zone helpers |
 
 Shorthand capture is supported:

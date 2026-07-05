@@ -1412,6 +1412,447 @@
       "summary" : "Manage named capture zones"
     },
     {
+      "path" : [
+        "see",
+        "annotation"
+      ],
+      "summary" : "Create, list, read, consume, and delete compact pending operator annotations",
+      "forms" : [
+        {
+          "id" : "see-annotation-create",
+          "summary" : "Create or ingest one pending operator annotation record under the runtime-mode state root",
+          "usage" : "aos see annotation create (--target-kind <kind> --target-summary <text> | --from-json <path|-> | --from-capture-json <path|->) [--comment <text>] [--workspace <id>] [--snapshot <id>] [--ref <id>] [--fallback-reason <text>] [--artifact <role=path>] [--next-argv <json-array>] [--json]",
+          "args" : [
+            {
+              "id" : "target-kind",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Target kind: desktop, display, window, browser, canvas, native_ax, region, or fallback",
+              "token" : "--target-kind",
+              "value_type" : "string"
+            },
+            {
+              "id" : "target-summary",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Compact human-readable target summary",
+              "token" : "--target-summary",
+              "value_type" : "string"
+            },
+            {
+              "id" : "from-json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Read annotation input JSON from a file or stdin with '-'",
+              "token" : "--from-json",
+              "value_type" : "string"
+            },
+            {
+              "id" : "from-capture-json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Project compact saved capture or refs readback JSON from a file or stdin with '-'",
+              "token" : "--from-capture-json",
+              "value_type" : "string"
+            },
+            {
+              "id" : "id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Optional stable annotation id; generated when omitted",
+              "token" : "--id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "comment",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Optional operator comment",
+              "token" : "--comment",
+              "value_type" : "string"
+            },
+            {
+              "id" : "workspace",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Saved perception workspace for the target ref",
+              "token" : "--workspace",
+              "value_type" : "string"
+            },
+            {
+              "id" : "snapshot",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Saved perception snapshot for the target ref",
+              "token" : "--snapshot",
+              "value_type" : "string"
+            },
+            {
+              "id" : "ref",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Saved perception ref id for the target, or selected ref when projecting capture JSON",
+              "token" : "--ref",
+              "value_type" : "string"
+            },
+            {
+              "id" : "fallback-reason",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Reason fallback evidence is needed when no saved ref exists",
+              "token" : "--fallback-reason",
+              "value_type" : "string"
+            },
+            {
+              "id" : "artifact",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Disk-backed artifact reference as <role=path>; repeatable",
+              "token" : "--artifact",
+              "value_type" : "string"
+            },
+            {
+              "id" : "next-argv",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Structured recommended next command argv JSON array; repeatable",
+              "token" : "--next-argv",
+              "value_type" : "json"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "constraints" : {
+            "required_groups" : [
+              {
+                "summary" : "annotation input",
+                "one_of" : [
+                  [
+                    "target-kind",
+                    "target-summary"
+                  ],
+                  [
+                    "from-json"
+                  ],
+                  [
+                    "from-capture-json"
+                  ]
+                ]
+              }
+            ]
+          },
+          "examples" : [
+            "aos see annotation create --target-kind region --target-summary 'button near top right' --comment 'Use this one' --json",
+            "aos see annotation create --target-kind browser --target-summary 'Save button' --workspace default --snapshot snap1 --ref r2 --json",
+            "aos see annotation create --from-json annotation.json --json",
+            "aos see annotation create --from-capture-json capture.json --ref r2 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        },
+        {
+          "id" : "see-annotation-list",
+          "summary" : "List compact pending annotation summaries without opening heavy artifacts",
+          "usage" : "aos see annotation list [--state <state>] [--json]",
+          "args" : [
+            {
+              "id" : "state",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Filter by lifecycle state",
+              "token" : "--state",
+              "value_type" : {
+                "enum" : [
+                  {
+                    "value" : "pending",
+                    "summary" : "Pending and consumable"
+                  },
+                  {
+                    "value" : "consumed",
+                    "summary" : "Already consumed"
+                  },
+                  {
+                    "value" : "resolved",
+                    "summary" : "Resolved by a consumer"
+                  },
+                  {
+                    "value" : "deleted",
+                    "summary" : "Deleted by an operator"
+                  },
+                  {
+                    "value" : "stale",
+                    "summary" : "Stale and not consumable"
+                  },
+                  {
+                    "value" : "unsupported",
+                    "summary" : "Unsupported and not consumable"
+                  },
+                  {
+                    "value" : "blocked",
+                    "summary" : "Blocked and not consumable"
+                  }
+                ]
+              }
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos see annotation list --json",
+            "aos see annotation list --state pending --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        },
+        {
+          "id" : "see-annotation-read",
+          "summary" : "Read one pending annotation record with compact target, ref, fallback, and next-command context",
+          "usage" : "aos see annotation read <id> [--json]",
+          "args" : [
+            {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Annotation id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos see annotation read ann-example --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        },
+        {
+          "id" : "see-annotation-consume",
+          "summary" : "Consume one pending annotation exactly once; non-pending states fail closed",
+          "usage" : "aos see annotation consume <id> [--actor <name>] [--json]",
+          "args" : [
+            {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Annotation id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "actor",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Consumer actor label",
+              "token" : "--actor",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos see annotation consume ann-example --actor agent --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        },
+        {
+          "id" : "see-annotation-link-work-record",
+          "summary" : "Link annotation-driven action or readback evidence to a Work Record without replay",
+          "usage" : "aos see annotation link-work-record <id> --work-record <ref> [--relation <name>] [--link-status <status>] [--artifact <role=path>] [--actor <name>] [--json]",
+          "args" : [
+            {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Annotation id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "work-record",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Work Record id, path, or subject ref to attach",
+              "token" : "--work-record",
+              "value_type" : "string"
+            },
+            {
+              "id" : "relation",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Relationship between the annotation and Work Record evidence",
+              "token" : "--relation",
+              "value_type" : "string"
+            },
+            {
+              "id" : "link-status",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Status label for this evidence link",
+              "token" : "--link-status",
+              "value_type" : "string"
+            },
+            {
+              "id" : "artifact",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Disk-backed action or readback evidence as <role=path>; repeatable",
+              "token" : "--artifact",
+              "value_type" : "string"
+            },
+            {
+              "id" : "actor",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Actor label that attached the Work Record",
+              "token" : "--actor",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos see annotation link-work-record ann-example --work-record work-record:annotation-action-proof --relation annotation_action_evidence --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        },
+        {
+          "id" : "see-annotation-delete",
+          "summary" : "Mark one annotation deleted so it cannot be consumed later",
+          "usage" : "aos see annotation delete <id> [--json]",
+          "args" : [
+            {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Annotation id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Return JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos see annotation delete ann-example --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
       "forms" : [
         {
           "args" : [

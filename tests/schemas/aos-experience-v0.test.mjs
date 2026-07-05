@@ -10,6 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-v0.schema.json');
 const sigilManifestPath = path.join(repoRoot, 'experiences/sigil/aos-experience.json');
+const operatorFixtureManifestPath = path.join(repoRoot, 'experiences/operator-fixture/aos-experience.json');
 
 function scopedRootName(prefix) {
   const result = spawnSync('git', ['-C', repoRoot, 'branch', '--show-current'], { encoding: 'utf8' });
@@ -49,6 +50,113 @@ if errors:
 test('Sigil experience manifest validates against the experience schema', () => {
   const result = validate(sigilManifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});
+
+test('operator fixture experience proves reusable annotation menu affordance', async () => {
+  const result = validate(operatorFixtureManifestPath);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const annotationItem = manifest.menu.find((item) => item.kind === 'operator_annotation');
+  assert.equal(manifest.id, 'operator-fixture');
+  assert.equal(manifest.status_item.toggle_surface.id, 'operator-fixture-surface');
+  assert.equal(annotationItem.id, 'annotate-visible-target');
+  assert.equal(annotationItem.surface, 'operator-fixture-surface');
+  assert.equal(annotationItem.action_id, 'aos.operator_fixture.annotation');
+  assert(!JSON.stringify(manifest).includes('sigil'));
+
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
+  const payload = JSON.parse(dryRun.stdout);
+  assert.equal(payload.status, 'dry_run');
+  assert.equal(payload.experience.id, 'operator-fixture');
+  assert.equal(payload.status_item.toggle_surface.id, 'operator-fixture-surface');
+  assert.equal(payload.status_item.toggle_surface.url, 'aos://toolkit/runtime/_smoke/operator-annotation.html');
+  assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
+});
+
+test('operator annotation experience menu items require a target surface', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-invalid-operator-menu-'));
+  const invalidPath = path.join(tmp, 'aos-experience.json');
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  delete manifest.menu[0].surface;
+  await fs.writeFile(invalidPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  const result = validate(invalidPath);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /'surface' is a required property/);
+});
+
+test('experience activation removes same-id stale toggle canvas even when previous target differed', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-stale-toggle-canvas-'));
+  const fakeAos = path.join(tmp, 'fake-aos.mjs');
+  const logPath = path.join(tmp, 'aos-calls.jsonl');
+  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
+  await fs.writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
+if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
+  console.log(JSON.stringify({ roots: { toolkit: '${path.join(repoRoot, 'packages/toolkit')}' } }));
+}
+if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
+  console.log(JSON.stringify({
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: 'http://127.0.0.1:58012/sigil/renderer/index.html?toolkit-root=toolkit',
+      lifecycleState: 'active',
+    }],
+  }));
+}
+process.exit(0);
+`, { mode: 0o755 });
+  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
+    content: {
+      roots: {
+        toolkit: path.join(repoRoot, 'packages/toolkit'),
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'avatar-main',
+      toggle_url: 'aos://sigil/renderer/index.html?toolkit-root=toolkit',
+      toggle_track: 'union',
+      icon: 'sigil',
+    },
+  }));
+
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_PATH: fakeAos,
+      AOS_STATE_ROOT: tmp,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+      FAKE_AOS_LOG: logPath,
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const payload = JSON.parse(activate.stdout);
+  const staleStep = payload.steps.find((step) => step.id === 'status-item:stale-target:operator-fixture-surface');
+  assert.equal(staleStep.status, 'success');
+  assert.equal(staleStep.canvas_url, 'http://127.0.0.1:58012/sigil/renderer/index.html?toolkit-root=toolkit');
+  assert.equal(staleStep.current_url, 'aos://toolkit/runtime/_smoke/operator-annotation.html');
+
+  const calls = (await fs.readFile(logPath, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert(calls.some((args) => args.join('\0') === ['show', 'remove', '--id', 'operator-fixture-surface'].join('\0')), calls);
 });
 
 test('Sigil experience is exclusive and status-item-first', async () => {

@@ -31,3 +31,5 @@ composition metadata.
 ## Child DOX Index
 
 - `sigil/` contains Sigil experience material.
+- `operator-fixture/` contains the non-Sigil fixture experience for app-owned
+  operator annotation status-menu contracts.

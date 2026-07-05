@@ -111,6 +111,102 @@ else
 fi
 rm -rf "$ZONE_ROOT" /tmp/aos-see-zone-define.out /tmp/aos-see-zone-define.err /tmp/aos-see-zone-list.out /tmp/aos-see-zone-list.err
 
+if ./aos see annotation >/tmp/aos-see-annotation-missing.out 2>/tmp/aos-see-annotation-missing.err; then
+    fail "see annotation missing subcommand succeeded"
+else
+    if grep -q '"code" : "MISSING_SUBCOMMAND"' /tmp/aos-see-annotation-missing.err \
+        && grep -q 'see annotation requires a subcommand' /tmp/aos-see-annotation-missing.err; then
+        pass "see annotation missing subcommand routes through external subcommand router"
+    else
+        fail "see annotation missing subcommand error drifted: $(cat /tmp/aos-see-annotation-missing.err)"
+    fi
+fi
+rm -f /tmp/aos-see-annotation-missing.out /tmp/aos-see-annotation-missing.err
+
+if ./aos see annotation external-dispatch-bogus >/tmp/aos-see-annotation-bogus.out 2>/tmp/aos-see-annotation-bogus.err; then
+    fail "see annotation unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-see-annotation-bogus.err \
+        && grep -q 'Unknown see annotation subcommand: external-dispatch-bogus' /tmp/aos-see-annotation-bogus.err; then
+        pass "see annotation unknown subcommands route through external subcommand router"
+    else
+        fail "see annotation unknown subcommand error drifted: $(cat /tmp/aos-see-annotation-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-see-annotation-bogus.out /tmp/aos-see-annotation-bogus.err
+
+ANNOTATION_ROOT="$(mktemp -d)"
+cat >/tmp/aos-see-annotation-capture.json <<'JSON'
+{
+  "schema_version": "aos.agent-workspace.v0",
+  "status": "success",
+  "workspace_id": "ws-dispatch",
+  "snapshot_id": "snap-dispatch",
+  "capture_target": "browser:dispatch",
+  "capture_mode": "som",
+  "artifact_refs": [
+    {
+      "role": "capture_summary",
+      "path": "/tmp/aos-see-annotation-capture-summary.json"
+    }
+  ],
+  "refs": [
+    {
+      "ref": "r1",
+      "workspace_id": "ws-dispatch",
+      "snapshot_id": "snap-dispatch",
+      "backend": "browser",
+      "resolution_class": "snapshot_scoped",
+      "confidence": "high",
+      "target_summary": "Dispatch saved ref",
+      "action_target": "ref:snap-dispatch:r1",
+      "artifact_refs": []
+    }
+  ]
+}
+JSON
+if AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation create --id ann-dispatch --target-kind region --target-summary dispatch --comment ok --json >/tmp/aos-see-annotation-create.out 2>/tmp/aos-see-annotation-create.err \
+    && AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation create --id ann-dispatch-capture --from-capture-json /tmp/aos-see-annotation-capture.json --ref r1 --json >/tmp/aos-see-annotation-capture-create.out 2>/tmp/aos-see-annotation-capture-create.err \
+    && AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation list --state pending --json >/tmp/aos-see-annotation-list.out 2>/tmp/aos-see-annotation-list.err \
+    && AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation consume ann-dispatch --json >/tmp/aos-see-annotation-consume.out 2>/tmp/aos-see-annotation-consume.err \
+    && AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation link-work-record ann-dispatch --work-record work-record:dispatch-proof --artifact after=/tmp/aos-see-annotation-after.json --json >/tmp/aos-see-annotation-link.out 2>/tmp/aos-see-annotation-link.err \
+    && ! AOS_STATE_ROOT="$ANNOTATION_ROOT" ./aos see annotation consume ann-dispatch --json >/tmp/aos-see-annotation-reconsume.out 2>/tmp/aos-see-annotation-reconsume.err \
+    && python3 - <<'PY'
+import json
+
+created = json.load(open('/tmp/aos-see-annotation-create.out', encoding='utf-8'))
+capture_created = json.load(open('/tmp/aos-see-annotation-capture-create.out', encoding='utf-8'))
+listed = json.load(open('/tmp/aos-see-annotation-list.out', encoding='utf-8'))
+consumed = json.load(open('/tmp/aos-see-annotation-consume.out', encoding='utf-8'))
+linked = json.load(open('/tmp/aos-see-annotation-link.out', encoding='utf-8'))
+reconsume = json.load(open('/tmp/aos-see-annotation-reconsume.err', encoding='utf-8'))
+assert created['status'] == 'created', created
+assert created['annotation']['id'] == 'ann-dispatch', created
+assert capture_created['annotation']['saved_ref']['workspace_id'] == 'ws-dispatch', capture_created
+assert capture_created['annotation']['capability_status'] == 'saved_ref', capture_created
+assert listed['count'] == 2 and {item['id'] for item in listed['annotations']} == {'ann-dispatch', 'ann-dispatch-capture'}, listed
+assert consumed['status'] == 'consumed', consumed
+assert consumed['annotation']['state'] == 'consumed', consumed
+assert linked['status'] == 'linked', linked
+assert linked['annotation']['work_record_link_count'] == 1, linked
+assert linked['work_record_link']['ref'] == 'work-record:dispatch-proof', linked
+assert reconsume['code'] == 'PENDING_ANNOTATION_NOT_CONSUMABLE', reconsume
+assert reconsume['state'] == 'consumed', reconsume
+PY
+then
+    pass "see annotation lifecycle runs through external command manifest"
+else
+    fail "see annotation external command drifted: $(cat /tmp/aos-see-annotation-create.err /tmp/aos-see-annotation-capture-create.err /tmp/aos-see-annotation-list.err /tmp/aos-see-annotation-consume.err /tmp/aos-see-annotation-link.err /tmp/aos-see-annotation-reconsume.err 2>/dev/null)"
+fi
+rm -rf "$ANNOTATION_ROOT" \
+    /tmp/aos-see-annotation-capture.json \
+    /tmp/aos-see-annotation-create.out /tmp/aos-see-annotation-create.err \
+    /tmp/aos-see-annotation-capture-create.out /tmp/aos-see-annotation-capture-create.err \
+    /tmp/aos-see-annotation-list.out /tmp/aos-see-annotation-list.err \
+    /tmp/aos-see-annotation-consume.out /tmp/aos-see-annotation-consume.err \
+    /tmp/aos-see-annotation-link.out /tmp/aos-see-annotation-link.err \
+    /tmp/aos-see-annotation-reconsume.out /tmp/aos-see-annotation-reconsume.err
+
 if python3 - <<'PY'
 import json
 import re
