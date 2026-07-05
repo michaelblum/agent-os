@@ -13,6 +13,9 @@ import {
   validateWorkRecordRepairAttemptArtifact,
   WORK_RECORD_CONTROLLED_REPAIR_EXECUTOR_RESULT_SCHEMA_VERSION,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  digestJson,
+} from '../../packages/toolkit/workbench/work-record-repair-attempt-artifact.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -196,6 +199,7 @@ test('successful fixture command writes and validates a Repair Attempt Artifact 
   assert.equal(artifact.type, 'work_record.repair_attempt_artifact');
   assert.equal(artifact.executor.implemented, true);
   assert.equal(artifact.executor.kind, 'controlled_repair_executor');
+  assert.equal(artifact.attempt_artifact_identity.repair_attempt_plan.digest, digestJson(JSON.parse(fs.readFileSync(result.repair_attempt_plan.path, 'utf8'))));
   assert.equal(artifact.source_work_record_mutated, false);
   assert.equal(validateWorkRecordRepairAttemptArtifact(artifact).status, 'passed');
   assert.equal(result.artifact_validation.status, 'passed');

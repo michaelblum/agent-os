@@ -389,9 +389,9 @@ export function planWorkRecordRepairBundle({
     gateOutcome,
     attemptPlanPath,
     attemptArtifactPath,
-    replacementRoot: '',
-    replacementRoots: [],
-    indexRoot: '',
+    replacementRoot,
+    replacementRoots,
+    indexRoot,
     proposedIdSeed,
     replacementOutputPath,
   });

@@ -9,10 +9,12 @@ import { fileURLToPath } from 'node:url';
 import {
   buildWorkRecordGateRequestFromRepairPlan,
   buildWorkRecordRepairAttemptArtifact,
+  finalizeWorkRecordRepair,
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
   resolveWorkRecordRepairBundlePath,
   inspectWorkRecordRepairBundle,
+  statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
   WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_TYPE,
@@ -304,6 +306,40 @@ test('attempt artifact and finalization roots remain descriptor-only follow-up c
   assert.equal(descriptor.not_run_by_bundle, true);
   assert.equal(descriptor.bundle_artifact_status, 'not_applicable');
   assert.deepEqual(descriptor.argv.slice(0, 5), ['./aos', 'work-record', 'repair', 'finalize', '--source']);
+});
+
+test('finalized bundle preserves finalized guide lifecycle from explicit roots', () => {
+  const input = finalizationInputs();
+  fs.mkdirSync(input.replacementRoot, { recursive: true });
+  fs.mkdirSync(input.indexRoot, { recursive: true });
+  const finalization = finalizeWorkRecordRepair({
+    sourceRef: repairableFixture,
+    attemptPlanPath: input.planPath,
+    attemptArtifactPath: input.artifactPath,
+    replacementRoot: input.replacementRoot,
+    indexRoot: input.indexRoot,
+    repoRoot,
+  });
+  assert.equal(finalization.status, 'finalized', JSON.stringify(finalization.diagnostics, null, 2));
+
+  const outputRoot = path.join(input.dir, 'finalized-bundle');
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    gateOutcome: gateRecord(),
+    attemptPlanPath: input.planPath,
+    attemptArtifactPath: input.artifactPath,
+    replacementRoot: input.replacementRoot,
+    indexRoot: input.indexRoot,
+    repoRoot,
+  });
+  assertBundleEnvelope(envelope, 'written');
+  const guide = JSON.parse(fs.readFileSync(path.join(outputRoot, 'guide-report.json'), 'utf8'));
+  assert.equal(guide.current_stage, 'finalized');
+  assert.equal(guide.stage_status, 'complete');
+  const lifecycle = statusWorkRecordRepairBundles({ bundleRoots: [outputRoot] });
+  assert.equal(lifecycle.bundles[0].lifecycle_status, 'finalized');
+  assert.equal(lifecycle.finalized_count, 1);
 });
 
 test('identical existing files are accepted and conflicting files fail closed', () => {

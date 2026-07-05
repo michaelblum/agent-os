@@ -174,6 +174,7 @@ export function handleSupersessionFamily({ action, target, rest, options, fail, 
       sourceRef: options.source,
       indexRoot: options.indexRoot,
       sourceRoots: options.roots,
+      replacementRoots: options.replacementRoots,
       repoRoot: process.cwd(),
     });
     emitJSON(result, failedResult(result));

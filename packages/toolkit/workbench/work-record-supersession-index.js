@@ -165,6 +165,7 @@ export function lookupWorkRecordSourceSupersession({
   sourceRef = '',
   indexRoot = '',
   sourceRoots = [],
+  replacementRoots = [],
   repoRoot = process.cwd(),
 } = {}) {
   const diagnostics = [];
@@ -262,6 +263,10 @@ export function lookupWorkRecordSourceSupersession({
     status: relationshipStatus,
     relationship_status: relationshipStatus,
     index_root: rootResolved,
+    roots: {
+      source_roots: cloneJson(sourceRoots),
+      replacement_roots: cloneJson(replacementRoots),
+    },
     source_work_record: sourceRead.identity,
     entries,
     malformed_entries: existing.malformed.map((item) => ({

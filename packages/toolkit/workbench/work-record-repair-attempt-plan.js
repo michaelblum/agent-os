@@ -333,10 +333,22 @@ function plannedOperations(plan = {}, authorization = null, status = '') {
     }),
     ...arrayValue(plan.candidate_patches).map((patch) => {
       const item = objectValue(patch);
+      const controlledFixtureOperationId = text(item.id) === 'candidate_patch:execution_map_refs'
+        ? 'controlled_fixture.write_success'
+        : '';
       return {
         id: `planned_operation:${text(item.id)}`,
         kind: 'candidate_patch',
         source_candidate_patch_id: text(item.id),
+        ...(controlledFixtureOperationId
+          ? {
+              allowlisted_operation_id: controlledFixtureOperationId,
+              controlled_repair_executor: {
+                allowlisted_operation_id: controlledFixtureOperationId,
+                registry_kind: 'controlled_repair_fixture_registry',
+              },
+            }
+          : {}),
         requires_workflow_gate: item.requires_workflow_gate === true,
         workflow_gate_refs: arrayValue(item.workflow_gate_refs).map(text).filter(Boolean).sort(),
         authorization_status: operationAuthorizationStatus(item, authorization, status),

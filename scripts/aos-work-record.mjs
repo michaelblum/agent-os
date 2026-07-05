@@ -66,7 +66,7 @@ function usage() {
   ./aos work-record replacement-proposal validate <proposal-path> [--json]
   ./aos work-record replacement-proposal write <proposal-path> --output-root <dir> [--output-path path] [--dry-run] [--json]
   ./aos work-record supersession write --source <id-or-path> --replacement <id-or-path> --index-root <dir> [--replacement-root path ...] [--writer-result path] [--dry-run] [--json]
-  ./aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--json]
+  ./aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--replacement-root path ...] [--json]
   ./aos work-record supersession validate <entry-path> [--json]
   ./aos work-record gate-request <id-or-path> [--profile id] [--root path ...] [--workflow-gate id] [--json]
   ./aos work-record gate-check <id-or-path> (--gate-record id-or-path|--resume-event path|--continuation-id id) [--profile id] [--root path ...] [--workflow-gate id] [--json]

@@ -11489,6 +11489,14 @@
               "value_type" : "string"
             },
             {
+              "id" : "replacement-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Explicit replacement Work Record file or directory root; repeatable",
+              "token" : "--replacement-root",
+              "value_type" : "string"
+            },
+            {
               "id" : "json",
               "kind" : "flag",
               "required" : false,
@@ -11498,7 +11506,7 @@
             }
           ],
           "examples" : [
-            "aos work-record supersession lookup --source source.json --index-root /tmp/work-record-index --json"
+            "aos work-record supersession lookup --source source.json --index-root /tmp/work-record-index --replacement-root /tmp/replacement-records --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -11522,7 +11530,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--json]"
+          "usage" : "aos work-record supersession lookup --source <id-or-path> --index-root <dir> [--root path ...] [--replacement-root path ...] [--json]"
         },
         {
           "args" : [

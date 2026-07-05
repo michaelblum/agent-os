@@ -113,6 +113,13 @@ test('matching authorization makes attempt ready without claiming repair executi
   assert.ok(attempt.planned_operations
     .filter((operation) => operation.requires_workflow_gate)
     .every((operation) => operation.authorization_status === 'authorized'));
+  const executableOperation = attempt.planned_operations.find((operation) => operation.allowlisted_operation_id);
+  assert.equal(executableOperation.source_candidate_patch_id, 'candidate_patch:execution_map_refs');
+  assert.equal(executableOperation.allowlisted_operation_id, 'controlled_fixture.write_success');
+  assert.equal(executableOperation.controlled_repair_executor.allowlisted_operation_id, 'controlled_fixture.write_success');
+  assert.equal(executableOperation.controlled_repair_executor.registry_kind, 'controlled_repair_fixture_registry');
+  assert.equal(executableOperation.command, undefined);
+  assert.equal(executableOperation.argv, undefined);
   assertNonExecutingAttempt(attempt);
 });
 
@@ -223,7 +230,12 @@ test('aos work-record plan-attempt exposes read-only public JSON and accepts aut
     '--json',
   ]);
   assert.equal(readyFromGate.status, 0, readyFromGate.stderr);
-  assert.equal(JSON.parse(readyFromGate.stdout).status, 'ready');
+  const readyFromGateJson = JSON.parse(readyFromGate.stdout);
+  assert.equal(readyFromGateJson.status, 'ready');
+  assert.ok(readyFromGateJson.planned_operations.some((operation) => (
+    operation.allowlisted_operation_id === 'controlled_fixture.write_success'
+    && operation.executes_in_plan === false
+  )));
 
   const authorizationPath = writeTempJson(JSON.parse(runAos([
     'work-record',

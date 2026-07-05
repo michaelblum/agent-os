@@ -425,7 +425,11 @@ export async function executeControlledWorkRecordRepair(input = {}) {
   }
 
   const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
-  plan.__path = path.resolve(planPath);
+  Object.defineProperty(plan, '__path', {
+    value: path.resolve(planPath),
+    enumerable: false,
+    configurable: true,
+  });
   const executionRoot = resolveContainedRoot(input.executionRoot, 'execution_root', diagnostics);
   const artifactRoot = resolveContainedRoot(input.artifactRoot, 'artifact_root', diagnostics);
   const plannedArtifactPath = artifactRoot ? artifactPath(artifactRoot, plan) : '';

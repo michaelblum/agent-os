@@ -513,6 +513,7 @@ test('public supersession commands expose stable JSON and never run repair', () 
   assert.equal(writeForm.execution.applies_patches, false);
   assert.equal(writeForm.execution.automatic_replay_allowed, false);
   assert.equal(lookupForm.execution.read_only, true);
+  assert.ok(lookupForm.args.some((arg) => arg.id === 'replacement-root' && arg.token === '--replacement-root'));
   assert.equal(validateForm.execution.read_only, true);
 
   const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-cli-'));
@@ -578,10 +579,14 @@ test('public supersession commands expose stable JSON and never run repair', () 
     repairableFixture,
     '--index-root',
     indexRoot,
+    '--replacement-root',
+    outputRoot,
     '--json',
   ]);
   assert.equal(lookup.status, 0, lookup.stderr);
-  assert.equal(JSON.parse(lookup.stdout).status, 'active');
+  const lookupJson = JSON.parse(lookup.stdout);
+  assert.equal(lookupJson.status, 'active');
+  assert.deepEqual(lookupJson.roots.replacement_roots, [outputRoot]);
 
   const validate = runAos([
     'work-record',
