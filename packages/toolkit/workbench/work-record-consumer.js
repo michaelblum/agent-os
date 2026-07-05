@@ -29,6 +29,11 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -275,7 +280,7 @@ export function resolveWorkRecord(ref, {
   roots = [],
   repoRoot = process.cwd(),
 } = {}) {
-  const value = text(ref);
+  const value = rawText(ref);
   if (!value) {
     return {
       status: 'failed',

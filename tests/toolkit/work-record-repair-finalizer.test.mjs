@@ -24,9 +24,6 @@ import {
 import {
   commandHintFromArgv,
 } from '../../packages/toolkit/workbench/work-record-command-recommendation.js';
-import {
-  recoveryGuidance,
-} from '../../packages/toolkit/workbench/work-record-repair-finalizer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -301,10 +298,10 @@ test('successful finalization writes valid replacement and supersession outputs'
 });
 
 test('successful finalization preserves exact recovery recommendation path argv', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer base ; quoted '$BASE-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aos  finalizer\tbase\n; quoted '$BASE-"));
   const args = finalizeArgs({
-    replacementRoot: path.join(dir, "replacement records ; quoted '$ROOT"),
-    indexRoot: path.join(dir, "index root ; quoted '$INDEX"),
+    replacementRoot: path.join(dir, "replacement  records\troot\n; quoted '$ROOT"),
+    indexRoot: path.join(dir, "index  root\tpath\n; quoted '$INDEX"),
     proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-special-root',
   });
   const result = finalizeWorkRecordRepair(args);
@@ -361,41 +358,6 @@ test('successful finalization preserves exact recovery recommendation path argv'
   assert.equal(JSON.parse(readRun.stdout).record.id, result.replacement_writer_result.written_replacement_work_record.id);
 });
 
-test('finalizer recovery guidance preserves exact whitespace path argv', () => {
-  const indexRoot = "/tmp/aos  finalizer\tindex\nroot ; quoted '$INDEX";
-  const replacementRoot = "/tmp/aos  finalizer\treplacement\nroot ; quoted '$ROOT";
-  const replacementPath = `${replacementRoot}/work-record:exact  path\twith\nlines.json`;
-  const finalized = recoveryGuidance('finalized', {
-    source_work_record: { id: 'work-record:source' },
-    supersession_index_result: { output: { index_root: indexRoot } },
-    replacement_writer_result: {
-      written_replacement_work_record: { id: 'work-record:replacement' },
-      output: { output_root: replacementRoot },
-    },
-  });
-  const [lookupRecommendation, readRecommendation] = finalized.recommendations;
-  assert.equal(lookupRecommendation.argv[7], indexRoot);
-  assert.equal(readRecommendation.argv[5], replacementRoot);
-  assert.equal(lookupRecommendation.command_hint, commandHintFromArgv(lookupRecommendation.argv));
-  assert.equal(readRecommendation.command_hint, commandHintFromArgv(readRecommendation.argv));
-
-  const partial = recoveryGuidance('partial_finalized', {
-    source_work_record: { id: 'work-record:source' },
-    supersession_index_result: { output: { index_root: indexRoot } },
-    replacement_writer_result: {
-      output: {
-        output_path: replacementPath,
-        output_root: replacementRoot,
-      },
-    },
-  });
-  const [writeRecommendation] = partial.recommendations;
-  assert.equal(writeRecommendation.argv[7], replacementPath);
-  assert.equal(writeRecommendation.argv[9], indexRoot);
-  assert.equal(writeRecommendation.argv[11], replacementRoot);
-  assert.equal(writeRecommendation.command_hint, commandHintFromArgv(writeRecommendation.argv));
-});
-
 test('repeated finalization is idempotent', () => {
   const args = finalizeArgs({ proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-idempotent' });
   const first = finalizeWorkRecordRepair(args);
@@ -437,8 +399,8 @@ test('invalid index root is preflighted before replacement write', () => {
 
 test('partial supersession failure is reserved for post-preflight write failure', () => {
   const args = finalizeArgs({
-    replacementRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer partial replacement ; quoted '$ROOT-")),
-    indexRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos finalizer partial index ; quoted '$INDEX-")),
+    replacementRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos  finalizer\tpartial\nreplacement ; quoted '$ROOT-")),
+    indexRoot: fs.mkdtempSync(path.join(os.tmpdir(), "aos  finalizer\tpartial\nindex ; quoted '$INDEX-")),
     proposedIdSeed: 'work-record:repairable-stale-saved-ref-finalizer-post-preflight-partial',
   });
   const originalRename = fs.renameSync;

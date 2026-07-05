@@ -65,6 +65,11 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -147,7 +152,7 @@ function sideEffects({ writer = {}, supersession = {} } = {}) {
   ];
 }
 
-export function recoveryGuidance(status = '', result = {}) {
+function recoveryGuidance(status = '', result = {}) {
   if (status === 'finalized' || status === 'already_finalized') {
     const lookupRecommendation = workRecordSupersessionLookupRecommendation(
       result.source_work_record?.id || result.source_work_record?.path,
@@ -555,7 +560,7 @@ export function finalizeWorkRecordRepair({
     });
   }
 
-  const replacementPath = text(writerResult.output?.output_path);
+  const replacementPath = rawText(writerResult.output?.output_path);
   const replacementRead = readWorkRecord(replacementPath, {
     roots: [replacementRoot],
     repoRoot,
@@ -616,7 +621,7 @@ export function finalizeWorkRecordRepair({
     });
   }
 
-  const entryPath = text(supersessionResult.output?.index_path);
+  const entryPath = rawText(supersessionResult.output?.index_path);
   const entry = entryPath && fs.existsSync(entryPath) ? JSON.parse(fs.readFileSync(entryPath, 'utf8')) : null;
   const supersessionValidation = entry ? validateWorkRecordSourceSupersessionEntry(entry) : {
     status: 'failed',

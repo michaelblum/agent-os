@@ -29,14 +29,19 @@ function arrayValue(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function containedPath(child, root) {
   const relative = path.relative(root, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function resolvedRootContainsPath(root = '', file = '') {
-  const rootValue = text(root);
-  const fileValue = text(file);
+  const rootValue = rawText(root);
+  const fileValue = rawText(file);
   if (!rootValue || !fileValue || rawPathHasTraversal(rootValue) || rawPathHasTraversal(fileValue)) return false;
   const rootResolved = path.resolve(rootValue);
   const fileResolved = path.resolve(fileValue);
@@ -50,19 +55,19 @@ function resolvedRootContainsPath(root = '', file = '') {
 }
 
 function rootContainingPath(roots = [], file = '') {
-  return arrayValue(roots).map(text).find((root) => resolvedRootContainsPath(root, file)) || '';
+  return arrayValue(roots).map(rawText).find((root) => resolvedRootContainsPath(root, file)) || '';
 }
 
 function replacementReadRecommendation(identity = {}, resolvedRoot = '') {
   const id = text(identity.id);
-  const root = text(resolvedRoot || (identity.path ? path.dirname(identity.path) : ''));
+  const root = rawText(resolvedRoot || (identity.path ? path.dirname(identity.path) : ''));
   if (!id || !root) return { argv: [], command_hint: '' };
   return workRecordReadRecommendation(id, root);
 }
 
 function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot = process.cwd()) {
   const indexed = entry && typeof entry === 'object' ? entry.replacement_work_record || {} : {};
-  const roots = arrayValue(replacementRoots).map(text).filter(Boolean);
+  const roots = arrayValue(replacementRoots).map(rawText).filter(Boolean);
   if (roots.length === 0) {
     return {
       status: 'index_only',
@@ -104,13 +109,13 @@ function resolveReplacementReadback(entry = {}, replacementRoots = [], repoRoot 
       { replacement_path: read.identity.path, replacement_roots: roots },
     );
   }
-  if (text(indexed.path) && !rootContainingPath(roots, indexed.path)) {
+  if (rawText(indexed.path) && !rootContainingPath(roots, indexed.path)) {
     addDiagnostic(
       diagnostics,
       'SUPERSESSION_LOOKUP_INDEXED_REPLACEMENT_PATH_OUTSIDE_ROOT',
       'Indexed replacement path is not under any supplied replacement root.',
       'entry.replacement_work_record.path',
-      { indexed_replacement_path: text(indexed.path), replacement_roots: roots },
+      { indexed_replacement_path: rawText(indexed.path), replacement_roots: roots },
     );
   }
   if (text(indexed.id) && text(indexed.id) !== read.identity.id) {
@@ -379,7 +384,7 @@ export function lookupWorkRecordSourceSupersession({
         readable: replacementReadback.readable,
         read_proven: replacementReadback.read_proven,
         resolved_root: replacementReadback.resolved_root,
-        resolved_path: text(replacementReadback.identity?.path),
+        resolved_path: rawText(replacementReadback.identity?.path),
         resolved_digest: text(replacementReadback.identity?.digest),
         diagnostics: replacementReadback.diagnostics,
       },
@@ -397,7 +402,7 @@ export function lookupWorkRecordSourceSupersession({
   });
   const replacementKeys = new Set(entries.map((entry) => `${text(entry.replacement_work_record.id)}\0${text(entry.replacement_work_record.digest)}`));
   const readbackDiagnostics = entries.flatMap((entry) => arrayValue(entry.replacement_readback?.diagnostics));
-  const hasReplacementRoot = arrayValue(replacementRoots).some((root) => text(root));
+  const hasReplacementRoot = arrayValue(replacementRoots).some((root) => rawText(root));
   const readbackFailed = hasReplacementRoot && entries.some((entry) => text(entry.replacement_readback?.status) !== 'readable');
   const relationshipStatus = existing.malformed.length > 0
     ? 'malformed_index'

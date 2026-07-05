@@ -42,6 +42,11 @@ the scoped API file for the layer you are changing:
 `docs/api/toolkit/workbench.md`, `docs/api/toolkit/components.md`, or
 `docs/api/toolkit/content-host.md`.
 
+For `workbench/` Work Record filesystem paths, preserve raw path strings in
+stored identities, readback fields, and argv-backed recommendations. Use
+whitespace-normalizing helpers only for semantic fields such as ids, statuses,
+schema versions, and display text.
+
 ## Child DOX Index
 
 - `controls/AGENTS.md` governs reusable semantic app-control behavior.

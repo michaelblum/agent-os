@@ -43,6 +43,11 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -114,7 +119,7 @@ function baseResult({
 } = {}) {
   const successfulWrite = status === 'written' || status === 'already_exists';
   const readRecommendation = successfulWrite
-    ? workRecordReadRecommendation(text(replacementRecord?.id), text(output.output_root))
+    ? workRecordReadRecommendation(text(replacementRecord?.id), rawText(output.output_root))
     : { argv: [], command_hint: '' };
   return {
     type: WORK_RECORD_REPLACEMENT_WRITER_RESULT_TYPE,
@@ -462,7 +467,7 @@ function resolveOutput({ outputRoot = '', outputPath = '', replacementId = '' } 
     addDiagnostic(diagnostics, 'REPLACEMENT_WRITER_OUTPUT_ID_UNSAFE', 'Replacement Work Record id cannot round-trip to a safe output filename.', 'written_replacement_work_record.id');
     return { diagnostics };
   }
-  const requestedOutput = text(outputPath) ? path.resolve(outputPath) : path.join(rootResolved, `${stem}.json`);
+  const requestedOutput = rawText(outputPath) ? path.resolve(outputPath) : path.join(rootResolved, `${stem}.json`);
   const outputExistingReal = realExistingPath(requestedOutput);
   const outputParent = path.dirname(requestedOutput);
   const outputParentExistingReal = realExistingPath(outputParent);
@@ -472,7 +477,7 @@ function resolveOutput({ outputRoot = '', outputPath = '', replacementId = '' } 
   if (outputExistingReal && !containedPath(outputExistingReal, rootExistingReal)) {
     addDiagnostic(diagnostics, 'REPLACEMENT_WRITER_OUTPUT_SYMLINK_ESCAPE', 'Replacement Writer output path resolves outside output_root.', 'output_path');
   }
-  if (text(outputPath) && path.basename(requestedOutput) !== `${stem}.json`) {
+  if (rawText(outputPath) && path.basename(requestedOutput) !== `${stem}.json`) {
     addDiagnostic(diagnostics, 'REPLACEMENT_WRITER_OUTPUT_NAME_MISMATCH', 'Explicit output_path must use the deterministic replacement id filename.', 'output_path', {
       expected_basename: `${stem}.json`,
       actual_basename: path.basename(requestedOutput),

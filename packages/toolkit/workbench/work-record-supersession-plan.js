@@ -49,6 +49,11 @@ export function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function rawText(value, fallback = '') {
+  const raw = String(value ?? '');
+  return raw || fallback;
+}
+
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -135,14 +140,14 @@ export function readRecordIdentity(ref, {
         }],
     };
   }
-  const sourcePath = text(read.source?.path);
+  const sourcePath = rawText(read.source?.path);
   return {
     status: 'success',
     record: read.record,
     identity: {
       id: text(read.record?.id || read.summary?.id),
       path: sourcePath,
-      requested_ref: text(ref),
+      requested_ref: rawText(ref),
       schema_version: text(read.record?.schema_version || read.summary?.schema_version),
       digest: sourcePath && fs.existsSync(sourcePath) ? fileDigest(sourcePath) : digestJsonValue(read.record),
       digest_algorithm: 'sha256',
@@ -186,7 +191,7 @@ function validateWriterResultObject(value = {}, { allowDryRun = false } = {}) {
 }
 
 function loadWriterResult(file = '', { allowDryRun = false } = {}) {
-  const writerResultPath = text(file);
+  const writerResultPath = rawText(file);
   if (!writerResultPath) return { writerResult: {}, diagnostics: [] };
   if (!fs.existsSync(writerResultPath)) {
     return {
@@ -235,11 +240,11 @@ function normalizeWriterResult({
 }
 
 function identityFromRecord(ref, record = {}, { recordPath = '', requestedRef = '' } = {}) {
-  const resolvedPath = text(recordPath || ref);
+  const resolvedPath = rawText(recordPath || ref);
   return {
     id: text(record?.id),
     path: resolvedPath,
-    requested_ref: text(requestedRef || ref || resolvedPath),
+    requested_ref: rawText(requestedRef || ref || resolvedPath),
     schema_version: text(record?.schema_version),
     digest: resolvedPath && fs.existsSync(resolvedPath) ? fileDigest(resolvedPath) : digestTextValue(stableJson(record)),
     digest_algorithm: 'sha256',
@@ -298,13 +303,13 @@ function relationshipIdentity({ source = {}, replacement = {}, writerResult = {}
     relationship: 'superseded_by',
     source_work_record: {
       id: text(source.id),
-      path: text(source.path),
+      path: rawText(source.path),
       digest: text(source.digest),
       schema_version: text(source.schema_version),
     },
     replacement_work_record: {
       id: text(replacement.id),
-      path: text(replacement.path),
+      path: rawText(replacement.path),
       digest: text(replacement.digest),
       schema_version: text(replacement.schema_version),
     },
@@ -336,16 +341,16 @@ function entryFromInputs({
     id: identity.id,
     source_work_record: {
       id: text(source.id),
-      path: text(source.path),
-      requested_ref: text(source.requested_ref),
+      path: rawText(source.path),
+      requested_ref: rawText(source.requested_ref),
       schema_version: text(source.schema_version),
       digest: text(source.digest),
       digest_algorithm: 'sha256',
     },
     replacement_work_record: {
       id: text(replacement.id),
-      path: text(replacement.path),
-      requested_ref: text(replacement.requested_ref),
+      path: rawText(replacement.path),
+      requested_ref: rawText(replacement.requested_ref),
       schema_version: text(replacement.schema_version),
       digest: text(replacement.digest),
       digest_algorithm: 'sha256',
@@ -370,13 +375,13 @@ function entryFromInputs({
     replacement_proposal: writerResult && Object.keys(writerResult).length > 0 ? cloneJson(objectValue(writerResult.replacement_proposal)) : {},
     source_immutability_check: {
       status: 'passed',
-      source_path: text(source.path),
+      source_path: rawText(source.path),
       expected_digest: text(source.digest),
       actual_digest: text(source.digest),
       digest_algorithm: 'sha256',
     },
-    index_root: text(index.index_root),
-    index_path: text(index.index_path),
+    index_root: rawText(index.index_root),
+    index_path: rawText(index.index_path),
     created_at: CREATED_AT,
     metadata: {},
     mutates_source_record: false,
@@ -402,7 +407,7 @@ export function baseWriteResult({
 } = {}) {
   const wrote = status === 'written' || status === 'already_exists';
   const lookupRecommendation = wrote
-    ? workRecordSupersessionLookupRecommendation(text(source.id), text(index.index_root))
+    ? workRecordSupersessionLookupRecommendation(text(source.id), rawText(index.index_root))
     : null;
   return {
     type: 'work_record.source_supersession_index_writer_result',
@@ -411,29 +416,29 @@ export function baseWriteResult({
     mode,
     index_writer_result: {
       status,
-      index_root: text(index.index_root),
-      index_path: text(index.index_path),
+      index_root: rawText(index.index_root),
+      index_path: rawText(index.index_path),
       relationship: 'superseded_by',
     },
     supersession_entry: entry ? {
       id: text(entry.id),
       digest: text(entry.supersession_entry_identity?.digest),
-      path: text(index.index_path),
+      path: rawText(index.index_path),
       status: text(entry.status),
     } : {},
     source_work_record: {
       id: text(source.id),
-      path: text(source.path),
+      path: rawText(source.path),
       digest: text(source.digest),
     },
     replacement_work_record: {
       id: text(replacement.id),
-      path: text(replacement.path),
+      path: rawText(replacement.path),
       digest: text(replacement.digest),
     },
     output: {
-      index_root: text(index.index_root),
-      index_path: text(index.index_path),
+      index_root: rawText(index.index_root),
+      index_path: rawText(index.index_path),
       deterministic_filename: text(index.deterministic_filename),
     },
     idempotency,
