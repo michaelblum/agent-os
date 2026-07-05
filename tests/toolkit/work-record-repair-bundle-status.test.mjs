@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
+  inspectWorkRecordRepairBundle,
   statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
   WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION,
@@ -64,6 +65,10 @@ function markGuideFinalized(root) {
   guide.stage_status = 'completed';
   writeJson(guidePath, guide);
   refreshManifestDigest(root, 'guide-report.json');
+}
+
+function descriptor(root, id) {
+  return path.join(root, 'commands', `${id}.json`);
 }
 
 function snapshotBundle(root) {
@@ -201,10 +206,10 @@ test('status keeps missing and invalid bundles in one report', () => {
   assertLifecycleStatus(result);
   assert.equal(result.bundle_count, 3);
   assert.equal(result.ready_count, 1);
-  assert.equal(result.blocked_count, 1);
-  assert.equal(result.missing_count, 1);
+  assert.equal(result.blocked_count, 0);
+  assert.equal(result.missing_count, 2);
   assert.equal(result.invalid_count, 0);
-  assertLifecycleCounts(result, { ready_count: 1, blocked_count: 1, missing_count: 1 });
+  assertLifecycleCounts(result, { ready_count: 1, missing_count: 2 });
   const expectedCanonicalRoots = [
     fs.realpathSync(invalidRoot),
     missingRoot,
@@ -214,6 +219,50 @@ test('status keeps missing and invalid bundles in one report', () => {
   assert.ok(result.bundles.some((bundle) => bundle.lifecycle_status === 'missing'));
   assert.ok(result.bundles.some((bundle) => bundle.inspection_status === 'blocked_missing_manifest'));
   for (const bundle of result.bundles) assertRowRecoverySummary(bundle);
+});
+
+test('status and inspect agree that digest mismatch is invalid and non-continuable', () => {
+  const root = createBundle();
+  fs.writeFileSync(path.join(root, 'artifacts/gate-request.json'), '{"changed":true}\n');
+
+  const inspection = inspectWorkRecordRepairBundle({ bundleRoot: root });
+  const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
+  const [bundle] = result.bundles;
+
+  assert.equal(inspection.status, 'blocked_digest_mismatch');
+  assert.equal(inspection.recovery_summary.state, 'invalid');
+  assert.deepEqual(inspection.recovery_summary.next.argv, []);
+  assert.equal(bundle.inspection_status, 'blocked_digest_mismatch');
+  assert.equal(bundle.lifecycle_status, 'invalid');
+  assert.equal(bundle.recovery_summary.state, 'invalid');
+  assert.equal(bundle.next_command_id, '');
+  assert.deepEqual(bundle.next_argv, []);
+  assert.deepEqual(bundle.recovery_summary.next.argv, []);
+  assertLifecycleCounts(result, { invalid_count: 1 });
+});
+
+test('status and inspect agree that descriptor mismatch is invalid and non-continuable', () => {
+  const root = createBundle();
+  const file = descriptor(root, 'work-record-gate-request');
+  const data = readJson(file);
+  data.bundle_artifact_status = 'planned_only';
+  writeJson(file, data);
+  refreshManifestDigest(root, 'commands/work-record-gate-request.json');
+
+  const inspection = inspectWorkRecordRepairBundle({ bundleRoot: root });
+  const result = statusWorkRecordRepairBundles({ bundleRoots: [root] });
+  const [bundle] = result.bundles;
+
+  assert.equal(inspection.status, 'blocked_descriptor_mismatch');
+  assert.equal(inspection.recovery_summary.state, 'invalid');
+  assert.deepEqual(inspection.recovery_summary.next.argv, []);
+  assert.equal(bundle.inspection_status, 'blocked_descriptor_mismatch');
+  assert.equal(bundle.lifecycle_status, 'invalid');
+  assert.equal(bundle.recovery_summary.state, 'invalid');
+  assert.equal(bundle.next_command_id, '');
+  assert.deepEqual(bundle.next_argv, []);
+  assert.deepEqual(bundle.recovery_summary.next.argv, []);
+  assertLifecycleCounts(result, { invalid_count: 1 });
 });
 
 test('status parent scan is explicit, bounded, and non-recursive', () => {

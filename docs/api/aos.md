@@ -1145,6 +1145,12 @@ scan-first continuation. Consumers should read `recovery_summary.state`,
 descriptors, artifacts, or diagnostics. `next.argv` is the only executable
 continuation form; display strings remain display-only. Invalid, missing,
 unsupported, or unknown summaries do not expose a safe continuation argv.
+Incomplete bundle-owned artifacts or descriptors, digest mismatches,
+descriptor mismatches, invalid manifests, path escapes, forbidden artifacts,
+unsupported schemas, missing roots, and unknown inspection statuses fail closed
+without `next.command_id` or `next.argv`. Inspection summaries and lifecycle
+status rows use the same classifier for `ready`, `blocked`, `finalized`,
+`invalid`, `missing`, `unsupported`, and `unknown`.
 `safety` reports that inspectors did not run commands, bundles did not write
 replacement or supersession outputs, live UI is not involved, and automatic
 replay is not allowed. The summary is derived from existing validated guide,
@@ -1213,7 +1219,8 @@ paths to discover more bundles, write an index, or run recovery. Each candidate
 is inspected through `repair bundle inspect`, then summarized as `ready`,
 `blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
 source Work Record identity, saved guide stage, saved-output readiness, and the
-exact next command id/`argv`; each row also carries the same information in
+exact next command id/`argv` only when the inspected bundle is validated enough
+to continue and required saved outputs are present; each row also carries the same information in
 `recovery_summary`. Missing or invalid bundle roots stay represented in the
 same report instead of aborting other roots. The command returns
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version
@@ -1241,7 +1248,9 @@ execution/write/live/replay claims, and unknown non-false claims fail closed. It
 reports the saved guide stage, the safe next descriptor id, the exact `argv`,
 whether saved outputs are present, missing artifact paths, human-approval and
 mutation indicators, and a `recovery_summary` with the scan-first continuation
-state and a reminder that the command was not run.
+state and a reminder that the command was not run. Invalid, missing,
+unsupported, unknown, and incomplete bundle-owned artifact or descriptor states
+report no executable `recovery_summary.next.argv`.
 Descriptor `command` and `persistence_command` values are display-only
 shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
 `requires_saved_output_from` are the execution and persistence contract.

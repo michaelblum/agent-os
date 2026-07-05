@@ -8,6 +8,7 @@ import {
 import { inspectWorkRecordRepairBundle } from './work-record-repair-bundle-inspector.js';
 import {
   buildStatusRowRecoverySummary,
+  classifyInspectionRecovery,
 } from './work-record-recovery-summary.js';
 
 export {
@@ -113,44 +114,26 @@ function candidateRecords(bundleRoots = [], bundleParents = []) {
   };
 }
 
-function lifecycleStatus(inspection) {
-  const status = text(inspection.status);
-  const diagnostics = arrayValue(inspection.diagnostics);
-  if (diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_ROOT_NOT_FOUND')) return 'missing';
-  if (status === 'unsupported_schema') return 'unsupported';
-  if (status === 'valid' || status === 'degraded') {
-    const guide = inspection.guide_report || {};
-    const stageText = `${text(guide.status)} ${text(guide.current_stage)} ${text(guide.stage_status)}`.toLowerCase();
-    if (/\b(finalized|complete|completed)\b/.test(stageText)) return 'finalized';
-    const continuation = inspection.continuation || {};
-    if (text(continuation.safe_next_descriptor_id) && continuation.required_saved_outputs_present === true) return 'ready';
-    return 'blocked';
-  }
-  if (status.startsWith('blocked_missing')) return 'blocked';
-  if (status.startsWith('blocked_invalid') || status === 'blocked_path_escape' || status === 'blocked_forbidden_artifact') return 'invalid';
-  if (status.startsWith('blocked_')) return 'blocked';
-  return 'unknown';
-}
-
 function bundleSummary(candidate, inspection) {
   const continuation = inspection.continuation || {};
-  const descriptorId = text(continuation.safe_next_descriptor_id);
+  const classification = classifyInspectionRecovery(inspection);
+  const descriptorId = classification.continuable === true ? text(continuation.safe_next_descriptor_id) : '';
   const row = {
     bundle_root: candidate.bundle_root,
     canonical_bundle_root: text(inspection.canonical_bundle_root, candidate.canonical_bundle_root),
     inspection_status: text(inspection.status, 'unknown'),
-    lifecycle_status: lifecycleStatus(inspection),
+    lifecycle_status: classification.state,
     source_work_record: inspection.manifest?.source_work_record || {},
     guide_stage: text(inspection.guide_report?.current_stage || continuation.current_guide_stage),
     guide_stage_status: text(inspection.guide_report?.stage_status || continuation.stage_status),
-    continuation_ready: descriptorId !== '' && continuation.required_saved_outputs_present === true,
+    continuation_ready: classification.continuable === true,
     next_command_id: descriptorId,
-    next_argv: arrayValue(continuation.argv),
-    next_command_mutates_state: continuation.would_mutate_state === true,
-    requires_user_approval: continuation.requires_human_approval === true,
+    next_argv: classification.continuable === true ? arrayValue(continuation.argv) : [],
+    next_command_mutates_state: classification.continuable === true && continuation.would_mutate_state === true,
+    requires_user_approval: classification.continuable === true && continuation.requires_human_approval === true,
     missing_inputs: arrayValue(inspection.guide_report?.missing_inputs),
-    required_saved_outputs_present: continuation.required_saved_outputs_present === true,
-    missing_saved_outputs: arrayValue(continuation.missing_artifact_paths),
+    required_saved_outputs_present: classification.continuable === true && continuation.required_saved_outputs_present === true,
+    missing_saved_outputs: classification.continuable === true ? arrayValue(continuation.missing_artifact_paths) : [],
     diagnostics: arrayValue(inspection.diagnostics),
   };
   return {

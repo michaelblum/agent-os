@@ -73,7 +73,8 @@ function assertInspection(envelope, status) {
   if (status === 'valid' || status === 'degraded') {
     assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id);
     assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv);
-  } else if (status !== 'blocked_missing_artifact') {
+  } else {
+    assert.equal(envelope.recovery_summary.next.command_id, '');
     assert.deepEqual(envelope.recovery_summary.next.argv, []);
   }
 }
@@ -185,7 +186,9 @@ test('missing guide-report.json fails closed', () => {
   const root = createBundle();
   fs.rmSync(path.join(root, 'guide-report.json'));
 
-  assertInspection(inspect(root), 'blocked_missing_artifact');
+  const result = inspect(root);
+  assertInspection(result, 'blocked_missing_artifact');
+  assert.equal(result.recovery_summary.state, 'missing');
 });
 
 test('missing descriptor file fails closed', () => {
@@ -194,6 +197,9 @@ test('missing descriptor file fails closed', () => {
 
   const result = inspect(root);
   assertInspection(result, 'blocked_missing_artifact');
+  assert.equal(result.recovery_summary.state, 'missing');
+  assert.equal(result.recovery_summary.next.command_id, '');
+  assert.deepEqual(result.recovery_summary.next.argv, []);
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MISSING_DESCRIPTOR'));
 });
 
@@ -203,6 +209,9 @@ test('missing materialized artifact fails closed', () => {
 
   const result = inspect(root);
   assertInspection(result, 'blocked_missing_artifact');
+  assert.equal(result.recovery_summary.state, 'missing');
+  assert.equal(result.recovery_summary.next.command_id, '');
+  assert.deepEqual(result.recovery_summary.next.argv, []);
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MISSING_ARTIFACT'));
 });
 
@@ -212,6 +221,9 @@ test('digest mismatch fails closed', () => {
 
   const result = inspect(root);
   assertInspection(result, 'blocked_digest_mismatch');
+  assert.equal(result.recovery_summary.state, 'invalid');
+  assert.equal(result.recovery_summary.next.command_id, '');
+  assert.deepEqual(result.recovery_summary.next.argv, []);
   assert.ok(result.artifacts.some((item) => item.relative_path === 'artifacts/gate-request.json' && item.status === 'digest_mismatch'));
 });
 
@@ -515,6 +527,9 @@ test('planned_only descriptor is blocked when the artifact file exists', () => {
 
   const result = inspect(root);
   assertInspection(result, 'blocked_descriptor_mismatch');
+  assert.equal(result.recovery_summary.state, 'invalid');
+  assert.equal(result.recovery_summary.next.command_id, '');
+  assert.deepEqual(result.recovery_summary.next.argv, []);
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_DESCRIPTOR_PLANNED_ONLY_PRESENT'));
 });
 

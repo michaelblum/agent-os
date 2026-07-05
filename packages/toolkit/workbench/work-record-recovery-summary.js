@@ -41,13 +41,61 @@ function stateFromInspectionStatus(status = '') {
   if (value === 'unsupported_schema') return 'unsupported';
   if (value === 'blocked_missing_manifest') return 'missing';
   if (value === 'blocked_invalid_manifest' || value === 'blocked_path_escape' || value === 'blocked_forbidden_artifact' || value === 'blocked_digest_mismatch' || value === 'blocked_descriptor_mismatch') return 'invalid';
-  if (value.startsWith('blocked_missing')) return 'blocked';
+  if (value.startsWith('blocked_missing')) return 'missing';
   if (value.startsWith('blocked_')) return 'blocked';
   return 'unknown';
 }
 
-function safeDescriptorForState(descriptor = {}, state = '') {
-  if (state === 'invalid' || state === 'missing' || state === 'unsupported' || state === 'unknown') return {};
+function descriptorIsContinuable(descriptor = {}, savedOutputsReady = true) {
+  const safe = objectValue(descriptor);
+  return text(safe.id) !== ''
+    && arrayValue(safe.argv).length > 0
+    && savedOutputsReady === true;
+}
+
+export function classifyInspectionRecovery(envelope = {}) {
+  const status = text(envelope.status);
+  const continuation = objectValue(envelope.continuation);
+  const guide = objectValue(envelope.guide_report);
+  const guideState = stateFromGuideStage(
+    guide.current_stage || continuation.current_guide_stage,
+    guide.stage_status || continuation.stage_status,
+    guide.status,
+  );
+  const descriptor = {
+    id: continuation.safe_next_descriptor_id,
+    argv: continuation.argv,
+    mutates_state: continuation.would_mutate_state,
+    requires_approval: continuation.requires_human_approval,
+  };
+  const savedOutputsReady = continuation.required_saved_outputs_present === true;
+  const descriptorReady = descriptorIsContinuable(descriptor, savedOutputsReady);
+
+  if (status === 'valid' || status === 'degraded') {
+    const state = guideState === 'finalized' ? 'finalized' : (descriptorReady ? 'ready' : 'blocked');
+    return {
+      state,
+      continuable: descriptorReady,
+      reason: status,
+      descriptor,
+      saved_outputs_ready: savedOutputsReady,
+      missing_saved_outputs: arrayValue(continuation.missing_artifact_paths),
+    };
+  }
+
+  const state = stateFromInspectionStatus(status);
+  return {
+    state,
+    continuable: false,
+    reason: status || 'missing_status',
+    descriptor: {},
+    saved_outputs_ready: false,
+    missing_saved_outputs: arrayValue(continuation.missing_artifact_paths),
+  };
+}
+
+function safeDescriptorForContinuation(descriptor = {}, continuable = true) {
+  if (continuable !== true) return {};
   return objectValue(descriptor);
 }
 
@@ -67,14 +115,17 @@ function nextSummary({
   missingSavedOutputs = [],
   fallbackMutates = false,
   fallbackRequiresApproval = false,
+  continuable = true,
 } = {}) {
-  const safeDescriptor = safeDescriptorForState(descriptor, state);
-  const saved = savedOutputsFromDescriptor(safeDescriptor, savedOutputsReady, missingSavedOutputs);
+  const safeDescriptor = safeDescriptorForContinuation(descriptor, continuable);
+  const saved = continuable === true
+    ? savedOutputsFromDescriptor(safeDescriptor, savedOutputsReady, missingSavedOutputs)
+    : { saved_outputs_ready: false, missing_saved_outputs: arrayValue(missingSavedOutputs).filter(Boolean) };
   return {
     command_id: text(safeDescriptor.id),
     argv: arrayValue(safeDescriptor.argv),
-    mutates_state: safeDescriptor.mutates_state === true || fallbackMutates === true,
-    requires_user_approval: safeDescriptor.requires_approval === true || fallbackRequiresApproval === true,
+    mutates_state: continuable === true && (safeDescriptor.mutates_state === true || fallbackMutates === true),
+    requires_user_approval: continuable === true && (safeDescriptor.requires_approval === true || fallbackRequiresApproval === true),
     ...saved,
     missing_inputs: arrayValue(missingInputs),
   };
@@ -171,17 +222,10 @@ export function buildBundleRecoverySummary(envelope = {}) {
 }
 
 export function buildInspectionRecoverySummary(envelope = {}) {
-  const continuation = objectValue(envelope.continuation);
   const guide = objectValue(envelope.guide_report);
-  const baseState = stateFromInspectionStatus(envelope.status);
-  const guideState = stateFromGuideStage(guide.current_stage || continuation.current_guide_stage, guide.stage_status || continuation.stage_status, guide.status);
-  const state = baseState === 'ready' && guideState === 'finalized' ? 'finalized' : baseState;
-  const descriptor = {
-    id: continuation.safe_next_descriptor_id,
-    argv: continuation.argv,
-    mutates_state: continuation.would_mutate_state,
-    requires_approval: continuation.requires_human_approval,
-  };
+  const continuation = objectValue(envelope.continuation);
+  const classification = classifyInspectionRecovery(envelope);
+  const { state } = classification;
   return {
     state,
     headline: `Recovery bundle inspection is ${text(envelope.status, state)}.`,
@@ -191,11 +235,12 @@ export function buildInspectionRecoverySummary(envelope = {}) {
     guide_stage: text(guide.current_stage || continuation.current_guide_stage),
     guide_stage_status: text(guide.stage_status || continuation.stage_status),
     next: nextSummary({
-      descriptor,
+      descriptor: classification.descriptor,
       state,
       missingInputs: guide.missing_inputs,
-      savedOutputsReady: continuation.required_saved_outputs_present === true,
-      missingSavedOutputs: continuation.missing_artifact_paths,
+      savedOutputsReady: classification.saved_outputs_ready,
+      missingSavedOutputs: classification.missing_saved_outputs,
+      continuable: classification.continuable,
     }),
     artifacts: compactObject({
       bundle_manifest: text(envelope.manifest_path || 'bundle-manifest.json'),
@@ -229,6 +274,7 @@ export function buildStatusRowRecoverySummary(row = {}) {
       missingInputs: row.missing_inputs,
       savedOutputsReady: row.required_saved_outputs_present === true,
       missingSavedOutputs: row.missing_saved_outputs,
+      continuable: row.continuation_ready === true,
     }),
     artifacts: {},
     safety: safetySummary({}, { inspector_ran_command: false }),

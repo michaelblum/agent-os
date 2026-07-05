@@ -514,7 +514,14 @@ machine. The object includes `state`, `headline`, `why`, `source_work_record`,
 `finalized`, `invalid`, `missing`, `unsupported`, or `unknown`. `next.argv` is
 the only executable continuation form; display strings are optional
 display-only derivatives. Invalid, missing, unsupported, and unknown summaries
-must not expose a safe continuation argv. `safety` reports whether an inspector
+must not expose a safe continuation argv. Incomplete bundle-owned artifacts or
+descriptors, digest mismatches, descriptor mismatches, invalid manifests, path
+escapes, forbidden artifacts, unsupported schemas, missing roots, and unknown
+inspection statuses fail closed with empty `next.command_id` and `next.argv`.
+Bundle inspection summaries and lifecycle status rows use one classifier for
+the canonical state set so `inspect.recovery_summary.state`,
+`status.bundles[].lifecycle_status`, and
+`status.bundles[].recovery_summary.state` do not drift. `safety` reports whether an inspector
 ran a command, whether the bundle wrote replacement or supersession outputs,
 whether live UI is involved, and whether automatic replay is allowed.
 
@@ -620,9 +627,10 @@ invalid bundle roots remain represented in the same report so one bad root does
 not abort the whole status index. Per-bundle summaries include bundle root,
 canonical bundle root, inspection status, lifecycle status, source Work Record
 identity, guide stage and stage status, continuation readiness, next command
-id, exact next `argv`, whether the next command mutates state, user-approval
-requirements, required saved-output presence, missing saved outputs, and
-diagnostics.
+id, exact next `argv` when the inspected bundle is validated enough to continue
+and required saved outputs are present, whether the next command mutates state,
+user-approval requirements, required saved-output presence, missing saved
+outputs, and diagnostics.
 Each row also includes `recovery_summary` with the row lifecycle state, guide
 stage, exact next `argv`, missing inputs, missing saved outputs, and safety
 flags, so agents can choose the next bundle without scanning the whole status
@@ -691,7 +699,9 @@ imply a file exists. Forbidden bundle-owned outputs such as
 Continuation output reports the saved guide stage, safe next descriptor id,
 exact `argv`, required saved-output presence, missing artifact paths, whether
 human approval is required, whether the next command would mutate state, and a
-reminder that the inspector did not run the command. The inspector never writes
+reminder that the inspector did not run the command. Invalid, missing,
+unsupported, unknown, and incomplete bundle-owned artifact or descriptor states
+report no executable `recovery_summary.next.argv`. The inspector never writes
 or repairs bundle files, never re-runs guide/planning, never submits gates,
 never executes repair, finalization, replacement writing, supersession lookup
 or writing, replay, Workflow engine work, live UI, browser, native AX, canvas,

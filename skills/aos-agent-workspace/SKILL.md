@@ -150,8 +150,13 @@ the returned `recommended_next`, `recommended_next_commands`, or
   `next.argv`, missing inputs, missing saved outputs, mutating/approval flags,
   safety flags, and diagnostic codes. Execute only structured `next.argv`, not
   display strings; use full envelopes only for evidence detail. Invalid,
-  missing, unsupported, unknown, or blocked summaries are not authorization to
-  continue unsafe work. Bundle/status/inspect remain read-only and
+  missing, unsupported, unknown, incomplete bundle-owned artifact/descriptor,
+  digest-mismatch, descriptor-mismatch, path-escape, forbidden-artifact, and
+  unsupported-schema summaries expose no executable `next.argv`. Bundle
+  inspection and lifecycle status use the same canonical state classifier.
+  Blocked summaries are authorization to continue only when `next.argv` is
+  populated from a validated descriptor and required saved outputs are present.
+  Bundle/status/inspect remain read-only and
   non-executing. Use
   `repair bundle <id-or-path> --output-root <dir> [--dry-run] --json` when a
   future session needs an explicit handoff root containing `bundle-manifest`,
@@ -181,7 +186,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   validated through the bundle inspector, then reported as ready, blocked,
   invalid, missing, unsupported, finalized, or unknown with source Work Record
   identity, guide stage, saved-output readiness, missing saved outputs, and the
-  exact next command id/`argv`; each row repeats the scan-first contract in
+  exact next command id/`argv` only when validated enough to continue; each row repeats the scan-first contract in
   `recovery_summary`. Aggregate counts include `ready_count`,
   `blocked_count`, `invalid_count`, `missing_count`, `unsupported_count`,
   `finalized_count`, and `unknown_count`.
@@ -192,8 +197,9 @@ the returned `recommended_next`, `recommended_next_commands`, or
   explicit bundle root by default, checks manifest/guide/descriptors/artifacts,
   exact manifest artifact path identity, manifest non-execution flags, path
   containment, symlinks, digests, forbidden bundle-owned outputs, and saved
-  output readiness, then reports `recovery_summary`, the exact next `argv`, and
-  whether required saved outputs are present.
+  output readiness, then reports `recovery_summary`, the exact next `argv` only
+  for continuable validated bundles, and whether required saved outputs are
+  present, including required saved-output presence.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

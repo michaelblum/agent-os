@@ -170,10 +170,11 @@ function assertBundleRecoverySummary(envelope, state) {
 }
 
 function assertInspectionRecoverySummary(envelope, state) {
+  const continuable = !['invalid', 'missing', 'unsupported', 'unknown'].includes(state);
   assert.equal(envelope.recovery_summary.state, state);
   assert.equal(envelope.recovery_summary.bundle_root, envelope.bundle_root);
-  assert.equal(envelope.recovery_summary.next.command_id, state === 'invalid' ? '' : envelope.continuation.safe_next_descriptor_id);
-  assert.deepEqual(envelope.recovery_summary.next.argv, state === 'invalid' ? [] : envelope.continuation.argv);
+  assert.equal(envelope.recovery_summary.next.command_id, continuable ? envelope.continuation.safe_next_descriptor_id : '');
+  assert.deepEqual(envelope.recovery_summary.next.argv, continuable ? envelope.continuation.argv : []);
   assertSummarySafety(envelope.recovery_summary);
 }
 
@@ -517,6 +518,10 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
     artifact.relative_path === 'guide-report.json'
     && artifact.status === 'digest_mismatch'
   )));
+  const tamperedStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', tamperedBundle, '--json']).json;
+  assert.equal(tamperedStatus.bundles[0].inspection_status, 'blocked_digest_mismatch');
+  assert.equal(tamperedStatus.bundles[0].lifecycle_status, 'invalid');
+  assertStatusRowRecoverySummary(tamperedStatus.bundles[0]);
 
   assert.equal(digestFile(sourcePath), sourceBefore);
 });
