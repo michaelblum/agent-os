@@ -458,6 +458,10 @@ aos work-record repair bundle <id-or-path> --output-root <dir> \
   [--attempt-plan path] [--attempt-artifact path] \
   [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
 
+aos work-record repair bundle status \
+  --bundle-root <dir> [--bundle-root <dir> ...] \
+  [--bundle-parent <dir> ...] [--json]
+
 aos work-record repair bundle inspect <bundle-root> [--json]
 ```
 
@@ -561,6 +565,57 @@ outside `--output-root`. It must never run repair execution, repair
 finalization, replacement writes, supersession lookup, supersession writes,
 `aos gate` submission commands, `aos do`, browser/native AX/canvas/TCC
 surfaces, replay, auto-resume, or a Workflow engine.
+
+## Repair Recovery Bundle Lifecycle Status V0
+
+Recovery Bundle Lifecycle Status is a read-only status index over explicitly
+named Recovery Bundle roots. It is not a registry, crawler, recovery runner, or
+persistent status store. The public command is:
+
+```bash
+aos work-record repair bundle status \
+  --bundle-root <dir> [--bundle-root <dir> ...] \
+  [--bundle-parent <dir> ...] [--json]
+```
+
+The envelope type is
+`work_record.repair_recovery_bundle_lifecycle_status` with schema version
+`2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`. It includes
+status, bundle counts, valid/ready/blocked/invalid/missing/unsupported counts,
+the supplied roots, immediate-child roots derived from explicit parents,
+per-bundle summaries, diagnostics, and the canonical non-execution flags.
+
+Discovery is intentionally bounded. Allowed candidates are exact
+`--bundle-root` paths and immediate children of explicit `--bundle-parent`
+directories that contain `bundle-manifest.json`. Parent scanning is
+non-recursive and operator-owned. The command must not perform global search,
+recursive home/tmp/repo scans, shell-glob expansion, root inference from Work
+Record ids, manifest-driven discovery, registry writes, or status index writes.
+Without at least one `--bundle-root` or `--bundle-parent`, it fails with a
+structured missing-input diagnostic.
+
+Every candidate bundle is inspected through the existing Recovery Bundle
+Inspector. Lifecycle Status does not reimplement bundle validation. Missing and
+invalid bundle roots remain represented in the same report so one bad root does
+not abort the whole status index. Per-bundle summaries include bundle root,
+canonical bundle root, inspection status, lifecycle status, source Work Record
+identity, guide stage and stage status, continuation readiness, next command
+id, exact next `argv`, whether the next command mutates state, user-approval
+requirements, required saved-output presence, missing saved outputs, and
+diagnostics.
+
+Lifecycle statuses are `ready`, `blocked`, `invalid`, `missing`,
+`unsupported`, `finalized`, and `unknown`. A valid inspection with a safe next
+descriptor and all required saved outputs present is `ready`; a valid
+inspection with missing inputs or saved outputs is `blocked`; nonexistent
+candidate roots are `missing`; unsupported schemas are `unsupported`; invalid
+bundle structure is `invalid`; saved finalized guide state is `finalized`.
+
+Lifecycle Status is read-only. It writes nothing, repairs nothing, executes no
+commands or actions, runs no recommended commands, writes no replacement Work
+Record or supersession entry, mutates no source record, uses no live UI,
+browser/native AX/canvas/TCC surface, applies no patches, starts no Workflow
+engine, and never auto-resumes or replays.
 
 ## Repair Recovery Bundle Inspection V0
 

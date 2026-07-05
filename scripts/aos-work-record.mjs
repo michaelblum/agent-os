@@ -18,6 +18,7 @@ import {
   exportWorkRecordBundle,
   guideWorkRecordRepair,
   inspectWorkRecordRepairBundle,
+  statusWorkRecordRepairBundles,
   writeWorkRecordRepairBundle,
   planWorkRecordRepairAttempt,
   planWorkRecordRepair,
@@ -54,6 +55,7 @@ function usage() {
   ./aos work-record plan-repair <id-or-path> [--profile id] [--root path ...] [--json]
   ./aos work-record plan-attempt <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--workflow-gate id] [--json]
   ./aos work-record repair guide <id-or-path> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--execution-root dir] [--artifact-root dir] [--replacement-root dir] [--index-root dir] [--json]
+  ./aos work-record repair bundle status --bundle-root <dir> [--bundle-root <dir> ...] [--bundle-parent <dir> ...] [--json]
   ./aos work-record repair bundle inspect <bundle-root> [--json]
   ./aos work-record repair bundle <id-or-path> --output-root <dir> [--profile id] [--root path ...] [--authorization path|--gate-record id-or-path|--resume-event path|--continuation-id id] [--attempt-plan path] [--attempt-artifact path] [--replacement-root dir] [--index-root dir] [--dry-run] [--json]
   ./aos work-record repair execute --attempt-plan <plan-path> --execution-root <dir> --artifact-root <dir> [--operation-id id] [--dry-run] [--json]
@@ -88,6 +90,8 @@ function parseArgs(argv) {
     attemptArtifact: '',
     proposedIdSeed: '',
     outputRoot: '',
+    bundleRoots: [],
+    bundleParents: [],
     outputPath: '',
     replacement: '',
     replacementRoots: [],
@@ -170,6 +174,16 @@ function parseArgs(argv) {
       const value = argv[index + 1];
       if (!value) fail('--output-root requires a directory path', 'MISSING_ARG');
       options.outputRoot = value;
+      index += 1;
+    } else if (arg === '--bundle-root') {
+      const value = argv[index + 1];
+      if (!value) fail('--bundle-root requires a directory path', 'MISSING_ARG');
+      options.bundleRoots.push(value);
+      index += 1;
+    } else if (arg === '--bundle-parent') {
+      const value = argv[index + 1];
+      if (!value) fail('--bundle-parent requires a directory path', 'MISSING_ARG');
+      options.bundleParents.push(value);
       index += 1;
     } else if (arg === '--output-path') {
       const value = argv[index + 1];
@@ -376,6 +390,16 @@ async function main(argv = process.argv.slice(2)) {
       return;
     }
     if (action === 'bundle') {
+      if (target === 'status') {
+        if (rest.length > 0) fail(`Unexpected argument: ${rest[0]}`, 'UNKNOWN_ARG');
+        payload = statusWorkRecordRepairBundles({
+          bundleRoots: options.bundleRoots,
+          bundleParents: options.bundleParents,
+        });
+        emitJSON(payload, payload.status === 'failed');
+        if (payload.status === 'failed') process.exit(1);
+        return;
+      }
       if (target === 'inspect') {
         const [bundleRoot, ...inspectRest] = rest;
         if (!bundleRoot) fail('repair bundle inspect requires <bundle-root>', 'MISSING_ARG');

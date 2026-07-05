@@ -500,6 +500,7 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
   envelope.manifest = {
     type: text(manifest.type),
     schema_version: text(manifest.schema_version),
+    source_work_record: objectValue(manifest.bundle?.source_work_record),
     artifact_count: arrayValue(manifest.artifacts).length,
   };
   if (manifest.type !== WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE || manifest.schema_version !== WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION) {
@@ -537,6 +538,7 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
     status: text(guide.status),
     current_stage: text(guide.current_stage),
     stage_status: text(guide.stage_status),
+    missing_inputs: arrayValue(guide.missing_inputs),
   };
   if (guide.type !== GUIDE_TYPE || guide.schema_version !== GUIDE_SCHEMA_VERSION) {
     addDiagnostics(envelope, 'unsupported_schema', [

@@ -11,6 +11,7 @@ export * from './work-record-repair-attempt-plan.js';
 export * from './work-record-repair-finalizer.js';
 export * from './work-record-repair-bundle.js';
 export * from './work-record-repair-bundle-inspector.js';
+export * from './work-record-repair-bundle-lifecycle-status.js';
 export * from './work-record-repair-guide.js';
 export * from './work-record-repair-plan.js';
 export * from './work-record-replacement-proposal.js';

@@ -108,7 +108,7 @@ the returned `recommended_next`, `recommended_next_commands`, or
   about specific handles. Treat these as saved-ref diff gates, not complete
   visual assertions.
 - Use
-  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair bundle/repair bundle inspect/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
+  `aos work-record list/read/verify/status/plan-repair/plan-attempt/repair guide/repair bundle/repair bundle status/repair bundle inspect/repair execute/repair finalize/attempt-artifact validate/attempt-artifact build/replacement-proposal build/replacement-proposal validate/replacement-proposal write/supersession write/supersession lookup/supersession validate/gate-request/gate-check/export --json`
   when the task is consuming an existing Work Record rather than operating saved
   perception state. Most of that command family is report-only: it
   distinguishes historical `claim_results[]` from the current verifier report,
@@ -164,6 +164,15 @@ the returned `recommended_next`, `recommended_next_commands`, or
   outcome data; it is not a replacement writer. A Replacement Proposal proposes
   carried-forward evidence, new evidence, per-postcondition evidence mapping,
   supersession metadata, and final proposed health; it is not itself a writer.
+- `aos work-record repair bundle status --bundle-root <dir> [--bundle-root <dir> ...] [--bundle-parent <dir> ...] --json`
+  summarizes one or more explicit Recovery Bundle roots without writing,
+  repairing, executing, replaying, touching live UI/TCC surfaces, or discovering
+  global state. `--bundle-parent` is bounded and non-recursive: only immediate
+  children containing `bundle-manifest.json` are inspected. Every bundle is
+  validated through the bundle inspector, then reported as ready, blocked,
+  invalid, missing, unsupported, finalized, or unknown with source Work Record
+  identity, guide stage, saved-output readiness, missing saved outputs, and the
+  exact next command id/`argv`.
 - `aos work-record repair bundle inspect <bundle-root> --json` validates an
   existing Recovery Bundle root without writing, repairing, re-running guide or
   planning, submitting gates, executing repair, finalizing, replacing,

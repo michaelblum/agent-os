@@ -1002,6 +1002,8 @@ aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
 aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json
 aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json
+aos work-record repair bundle status --bundle-root /tmp/aos-work-record-repair-bundle --json
+aos work-record repair bundle status --bundle-parent /tmp/aos-recovery-bundles --json
 aos work-record repair bundle inspect /tmp/aos-work-record-repair-bundle --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
@@ -1182,6 +1184,23 @@ finalize`, `replacement-proposal write`, `supersession lookup`,
 `supersession write`, `aos gate ask/defer/submit`, `aos do`,
 browser/native AX/canvas/TCC operations, replay, auto-resume, or a Workflow
 engine.
+
+`repair bundle status` is the Work Record Recovery Bundle Lifecycle Status V0
+surface. It accepts repeatable explicit `--bundle-root` values and repeatable
+explicit `--bundle-parent` values. Parent scanning is bounded and non-recursive:
+only immediate children containing `bundle-manifest.json` are candidates. It
+does not perform global search, infer roots from Work Record ids, read manifest
+paths to discover more bundles, write an index, or run recovery. Each candidate
+is inspected through `repair bundle inspect`, then summarized as `ready`,
+`blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
+source Work Record identity, saved guide stage, saved-output readiness, and the
+next command id/`argv`. Missing or invalid bundle roots stay represented in the
+same report instead of aborting other roots. The command returns
+`work_record.repair_recovery_bundle_lifecycle_status` with schema version
+`2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0` and reports
+canonical non-execution flags: no bundle writes, repairs, action execution,
+gate submission, finalization, replay, live UI, browser/native AX/canvas/TCC,
+patch application, Workflow engine start, or auto-resume.
 
 `repair bundle inspect` is the Work Record Recovery Bundle Inspection V0
 surface. It accepts only an existing `<bundle-root>` and returns

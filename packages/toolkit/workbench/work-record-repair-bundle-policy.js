@@ -7,6 +7,9 @@ export const WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE = 'work_record.repair_recov
 export const WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE = 'work_record.repair_recovery_bundle_inspection';
 export const WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-inspection-v0';
 
+export const WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_TYPE = 'work_record.repair_recovery_bundle_lifecycle_status';
+export const WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0';
+
 export const WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS = Object.freeze({
   mutates_record: false,
   writes_bundle: false,
