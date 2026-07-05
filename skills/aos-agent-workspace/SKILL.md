@@ -154,11 +154,16 @@ the returned `recommended_next`, `recommended_next_commands`, or
   auto-resume, `aos do`, live UI, browser, native AX, canvas, patch
   application, replacement writing, supersession writing, or source-record
   mutation. Finalization dry-run and supersession lookup remain explicit
-  follow-up command descriptors only, not bundle-generated reports. A Repair
-  Attempt Artifact records attempted outcome data; it is not a replacement
-  writer. A Replacement Proposal proposes carried-forward evidence, new
-  evidence, per-postcondition evidence mapping, supersession metadata, and final
-  proposed health; it is not itself a writer.
+  follow-up command descriptors only, not bundle-generated reports. Recovery
+  Bundle V0 is greenfield with no legacy compatibility contract: current writer
+  output is the contract, same-schema manifests missing canonical required
+  `non_execution_flags` such as `mutates_record`, `writes_bundle`, or
+  `repairs_bundle` are invalid, and old generated smoke/test bundle directories
+  should be regenerated. Any future compatibility support requires an explicit
+  schema/versioned migration stance. A Repair Attempt Artifact records attempted
+  outcome data; it is not a replacement writer. A Replacement Proposal proposes
+  carried-forward evidence, new evidence, per-postcondition evidence mapping,
+  supersession metadata, and final proposed health; it is not itself a writer.
 - `aos work-record repair bundle inspect <bundle-root> --json` validates an
   existing Recovery Bundle root without writing, repairing, re-running guide or
   planning, submitting gates, executing repair, finalizing, replacing,

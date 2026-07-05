@@ -12,6 +12,10 @@ import {
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
+  WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS,
+} from '../../packages/toolkit/workbench/work-record-repair-bundle-policy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -58,9 +62,7 @@ function assertInspection(envelope, status) {
   assert.equal(envelope.type, WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE);
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION);
   assert.equal(envelope.status, status);
-  for (const [key, value] of Object.entries(envelope.non_execution_flags)) {
-    assert.equal(value, false, key);
-  }
+  assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
 }
 
 function manifest(root) {
@@ -69,6 +71,10 @@ function manifest(root) {
 
 function writeManifest(root, value) {
   writeJson(path.join(root, 'bundle-manifest.json'), value);
+}
+
+function canonicalFlagKeys() {
+  return Object.keys(WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS).sort();
 }
 
 function refreshManifestDigest(root, relativePath) {
@@ -220,6 +226,39 @@ test('tampered manifest execution flags fail closed with offending flags', () =>
   assert.deepEqual(diagnostics.map((item) => item.value), [true, true]);
 });
 
+for (const flag of ['mutates_record', 'writes_bundle', 'repairs_bundle']) {
+  test(`same-schema manifest missing canonical ${flag} flag fails closed`, () => {
+    const root = createBundle();
+    const data = manifest(root);
+    delete data.non_execution_flags[flag];
+    writeManifest(root, data);
+
+    const result = inspect(root);
+    assertInspection(result, 'blocked_invalid_manifest');
+    assert.ok(result.diagnostics.some((item) => (
+      item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING'
+      && item.flag === flag
+    )), flag);
+  });
+}
+
+test('same-schema generated bundle missing all canonical write and repair flags fails closed', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  delete data.non_execution_flags.mutates_record;
+  delete data.non_execution_flags.writes_bundle;
+  delete data.non_execution_flags.repairs_bundle;
+  writeManifest(root, data);
+
+  const result = inspect(root);
+  assertInspection(result, 'blocked_invalid_manifest');
+  const missing = result.diagnostics
+    .filter((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING')
+    .map((item) => item.flag)
+    .sort();
+  assert.deepEqual(missing, ['mutates_record', 'repairs_bundle', 'writes_bundle']);
+});
+
 test('missing required manifest non-execution flag fails closed', () => {
   const root = createBundle();
   const data = manifest(root);
@@ -238,25 +277,8 @@ test('every emitted manifest non-execution flag is required', () => {
   const baselineRoot = createBundle();
   const flags = Object.keys(manifest(baselineRoot).non_execution_flags).sort();
 
-  assert.deepEqual(flags, [
-    'applies_patches',
-    'auto_resumes',
-    'automatic_replay_allowed',
-    'executes_actions',
-    'executes_repair',
-    'mutates_record',
-    'mutates_source_record',
-    'repairs_bundle',
-    'runs_recommended_commands',
-    'starts_workflow_engine',
-    'uses_browser',
-    'uses_canvas',
-    'uses_live_ui',
-    'uses_native_ax',
-    'writes_bundle',
-    'writes_replacement_record',
-    'writes_supersession_index_entry',
-  ]);
+  assert.deepEqual(flags, canonicalFlagKeys());
+  assert.deepEqual(WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS.slice().sort(), canonicalFlagKeys());
 
   for (const flag of flags) {
     const root = createBundle();

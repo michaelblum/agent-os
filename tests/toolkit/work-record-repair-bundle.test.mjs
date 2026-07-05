@@ -12,10 +12,15 @@ import {
   planWorkRecordRepair,
   planWorkRecordRepairAttempt,
   resolveWorkRecordRepairBundlePath,
+  inspectWorkRecordRepairBundle,
   writeWorkRecordRepairBundle,
   WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
   WORK_RECORD_REPAIR_BUNDLE_TYPE,
 } from '../../packages/toolkit/workbench/work-record.js';
+import {
+  WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
+  WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS,
+} from '../../packages/toolkit/workbench/work-record-repair-bundle-policy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -175,9 +180,7 @@ function assertBundleEnvelope(envelope, status) {
   assert.equal(envelope.type, WORK_RECORD_REPAIR_BUNDLE_TYPE);
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION);
   assert.equal(envelope.status, status);
-  for (const [key, value] of Object.entries(envelope.non_execution_flags)) {
-    assert.equal(value, false, key);
-  }
+  assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
   for (const artifact of envelope.planned_artifacts) {
     assert.ok(artifact.relative_path);
     assert.ok(artifact.path);
@@ -185,6 +188,10 @@ function assertBundleEnvelope(envelope, status) {
     assert.ok(artifact.producer);
     assert.ok(Array.isArray(artifact.downstream_consumers));
   }
+}
+
+function canonicalFlagKeys() {
+  return Object.keys(WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS).sort();
 }
 
 test('dry-run plans bundle artifacts and writes nothing', () => {
@@ -235,6 +242,24 @@ test('write materializes guide, manifest, descriptors, and gate request only und
   assert.ok(!fs.existsSync(path.join(outputRoot, 'repair-attempt-artifact.json')));
   assert.ok(!fs.existsSync(path.join(outputRoot, 'replacement-records')));
   assert.ok(!fs.existsSync(path.join(outputRoot, 'source-supersession-index')));
+});
+
+test('writer output uses shared canonical non-execution policy and inspects as valid', () => {
+  const outputRoot = tempDir();
+  const envelope = writeWorkRecordRepairBundle({
+    sourceRef: repairableFixture,
+    outputRoot,
+    repoRoot,
+  });
+  const manifest = JSON.parse(fs.readFileSync(path.join(outputRoot, 'bundle-manifest.json'), 'utf8'));
+  const inspection = inspectWorkRecordRepairBundle({ bundleRoot: outputRoot });
+
+  assertBundleEnvelope(envelope, 'written');
+  assert.deepEqual(Object.keys(envelope.non_execution_flags).sort(), canonicalFlagKeys());
+  assert.deepEqual(Object.keys(manifest.non_execution_flags).sort(), canonicalFlagKeys());
+  assert.deepEqual(WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS.slice().sort(), canonicalFlagKeys());
+  assert.deepEqual(manifest.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
+  assert.equal(inspection.status, 'valid');
 });
 
 test('authorization materializes a ready repair attempt plan and rebundled descriptors', () => {
@@ -442,9 +467,28 @@ test('docs, schema, and skill describe bundle as a handoff artifact, not executo
     assert.match(text, /gate submission|aos gate ask\/defer\/submit|`aos gate`\s+submission\s+commands|`aos gate\s+commands/s);
     assert.match(text, /replay/);
     assert.match(text, /auto-resume/);
+    assert.match(text, /greenfield/);
+    assert.match(text, /no legacy compatibility contract/);
+    assert.match(text, /current writer\s+output is the contract/i);
+    assert.match(text, /missing canonical\s+required[\s\S]{0,180}non_execution_flags/);
+    assert.match(text, /old generated smoke\/test bundle directories\s+should be regenerated/i);
+    assert.match(text, /schema\/versioned migration stance/);
   }
   assert.doesNotMatch(bundleSource, /work-record-repair-finalizer/);
   assert.doesNotMatch(bundleSource, /work-record-supersession-index/);
   assert.doesNotMatch(bundleSource, /finalizeWorkRecordRepair/);
   assert.doesNotMatch(bundleSource, /lookupWorkRecordSourceSupersession/);
+});
+
+test('bundle policy is shared instead of hand-duplicated in writer and inspector', () => {
+  const writerSource = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-bundle.js'), 'utf8');
+  const inspectorSource = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-bundle-inspector.js'), 'utf8');
+  const policySource = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-bundle-policy.js'), 'utf8');
+
+  assert.match(writerSource, /work-record-repair-bundle-policy\.js/);
+  assert.match(inspectorSource, /work-record-repair-bundle-policy\.js/);
+  assert.doesNotMatch(writerSource, /const\s+NON_EXECUTION_FLAGS\s*=\s*Object\.freeze/);
+  assert.doesNotMatch(inspectorSource, /const\s+NON_EXECUTION_FLAGS\s*=\s*Object\.freeze/);
+  assert.match(policySource, /WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS\s*=\s*Object\.freeze/);
+  assert.match(policySource, /WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS\s*=\s*Object\.freeze\(\s*Object\.keys\(WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS\)/s);
 });

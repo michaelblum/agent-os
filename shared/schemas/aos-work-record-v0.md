@@ -526,6 +526,13 @@ The envelope type is `work_record.repair_recovery_bundle` with schema version
 path, manifest path, planned/written/skipped artifact arrays, conflicts,
 diagnostics, non-execution flags, and the next recommended command descriptor.
 
+Recovery Bundle V0 is greenfield and has no legacy compatibility contract.
+Current writer output is the contract. Same-schema manifests missing canonical
+required `non_execution_flags` such as `mutates_record`, `writes_bundle`, or
+`repairs_bundle` are invalid. Old generated smoke/test bundle directories
+should be regenerated, not accepted through inspector compatibility. Any future
+compatibility support requires an explicit schema/versioned migration stance.
+
 The bundle may write only `bundle-manifest.json`, `guide-report.json`,
 `commands/*.json`, and JSON stdout artifacts explicitly described by guide
 descriptors such as `artifacts/gate-request.json` and

@@ -1151,6 +1151,13 @@ version `2026-07-work-record-repair-recovery-bundle-v0`. The bundle writes only
 under the explicit output root. Dry-run writes nothing and reports the planned
 file set.
 
+Recovery Bundle V0 is greenfield and has no legacy compatibility contract.
+Current writer output is the contract. Same-schema manifests missing canonical
+required `non_execution_flags` such as `mutates_record`, `writes_bundle`, or
+`repairs_bundle` are invalid; old generated smoke/test bundle directories
+should be regenerated. Any future compatibility support requires an explicit
+schema/versioned migration stance, not inspector leniency.
+
 Bundle writes are limited to `bundle-manifest.json`, `guide-report.json`,
 `commands/*.json` descriptors, and safe JSON stdout artifacts explicitly
 described by guide descriptors such as `artifacts/gate-request.json` and

@@ -13,30 +13,19 @@ import {
 import {
   planWorkRecordRepairAttempt,
 } from './work-record-repair-attempt-plan.js';
+import {
+  WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE,
+  WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
+  WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_TYPE,
+} from './work-record-repair-bundle-policy.js';
 
-export const WORK_RECORD_REPAIR_BUNDLE_TYPE = 'work_record.repair_recovery_bundle';
-export const WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-v0';
-export const WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION = '2026-07-work-record-repair-bundle-v0';
-
-const NON_EXECUTION_FLAGS = Object.freeze({
-  mutates_record: false,
-  writes_bundle: false,
-  repairs_bundle: false,
-  executes_repair: false,
-  executes_actions: false,
-  runs_recommended_commands: false,
-  writes_replacement_record: false,
-  writes_supersession_index_entry: false,
-  mutates_source_record: false,
-  uses_live_ui: false,
-  uses_browser: false,
-  uses_native_ax: false,
-  uses_canvas: false,
-  applies_patches: false,
-  starts_workflow_engine: false,
-  auto_resumes: false,
-  automatic_replay_allowed: false,
-});
+export {
+  WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_TYPE,
+};
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -319,7 +308,7 @@ function commandConsumers(descriptors = [], relativePath = '') {
 
 function bundleManifestFromEnvelope(envelope, artifacts) {
   return {
-    type: 'work_record.repair_recovery_bundle_manifest',
+    type: WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE,
     schema_version: WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
     bundle: {
       type: envelope.type,
@@ -329,7 +318,7 @@ function bundleManifestFromEnvelope(envelope, artifacts) {
       source_work_record: cloneJson(envelope.source_work_record),
       output_root: envelope.output_root,
     },
-    non_execution_flags: { ...NON_EXECUTION_FLAGS },
+    non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
     artifacts: artifacts.map((artifact) => ({
       relative_path: artifact.relative_path,
       path: artifact.path,
@@ -360,7 +349,7 @@ function failureEnvelope({ status, mode, sourceRef, outputRoot, diagnostics = []
     skipped_artifacts: [],
     conflicts: [],
     diagnostics,
-    non_execution_flags: { ...NON_EXECUTION_FLAGS },
+    non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
     next_recommended_command: null,
   };
 }
@@ -509,7 +498,7 @@ export function planWorkRecordRepairBundle({
     skipped_artifacts: [],
     conflicts: [],
     diagnostics: [],
-    non_execution_flags: { ...NON_EXECUTION_FLAGS },
+    non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
     next_recommended_command: reboundGuide.next_explicit_command,
   };
   const manifest = plannedArtifact({

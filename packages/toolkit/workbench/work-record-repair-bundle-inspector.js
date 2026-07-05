@@ -1,36 +1,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {
+  WORK_RECORD_REPAIR_BUNDLE_FORBIDDEN_EXACT_OUTPUTS,
+  WORK_RECORD_REPAIR_BUNDLE_FORBIDDEN_OUTPUT_DIRS,
+  WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE,
+  WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE,
+  WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
+  WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS,
+  WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
+} from './work-record-repair-bundle-policy.js';
 
-export const WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE = 'work_record.repair_recovery_bundle_inspection';
-export const WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-inspection-v0';
+export {
+  WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,
+  WORK_RECORD_REPAIR_BUNDLE_INSPECTION_TYPE,
+};
 
-const BUNDLE_MANIFEST_TYPE = 'work_record.repair_recovery_bundle_manifest';
-const BUNDLE_SCHEMA_VERSION = '2026-07-work-record-repair-recovery-bundle-v0';
 const GUIDE_TYPE = 'work_record.repair_guided_recovery';
 const GUIDE_SCHEMA_VERSION = '2026-07-work-record-repair-guided-recovery-v0';
-
-const NON_EXECUTION_FLAGS = Object.freeze({
-  mutates_record: false,
-  writes_bundle: false,
-  repairs_bundle: false,
-  executes_repair: false,
-  executes_actions: false,
-  runs_recommended_commands: false,
-  writes_replacement_record: false,
-  writes_supersession_index_entry: false,
-  mutates_source_record: false,
-  uses_live_ui: false,
-  uses_browser: false,
-  uses_native_ax: false,
-  uses_canvas: false,
-  applies_patches: false,
-  starts_workflow_engine: false,
-  auto_resumes: false,
-  automatic_replay_allowed: false,
-});
-
-const MANIFEST_REQUIRED_NON_EXECUTION_FLAGS = Object.freeze(Object.keys(NON_EXECUTION_FLAGS));
 
 const STATUS_RANK = Object.freeze({
   valid: 0,
@@ -44,17 +32,6 @@ const STATUS_RANK = Object.freeze({
   blocked_forbidden_artifact: 8,
   blocked_path_escape: 9,
 });
-
-const FORBIDDEN_EXACT = Object.freeze([
-  'reports/finalization-dry-run.json',
-  'reports/supersession-lookup.json',
-  'repair-attempt-artifact.json',
-]);
-
-const FORBIDDEN_DIRS = Object.freeze([
-  'replacement-records',
-  'source-supersession-index',
-]);
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -214,7 +191,7 @@ function validateManifestNonExecutionFlags(envelope, manifest = {}) {
     return;
   }
   const diagnostics = [];
-  for (const flag of MANIFEST_REQUIRED_NON_EXECUTION_FLAGS) {
+  for (const flag of WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS) {
     if (!Object.hasOwn(flags, flag)) {
       diagnostics.push(diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING', 'Manifest non-execution flag is required and must be boolean false.', { flag }));
     } else if (flags[flag] !== false) {
@@ -222,7 +199,7 @@ function validateManifestNonExecutionFlags(envelope, manifest = {}) {
     }
   }
   for (const [flag, value] of Object.entries(flags)) {
-    if (MANIFEST_REQUIRED_NON_EXECUTION_FLAGS.includes(flag)) continue;
+    if (WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS.includes(flag)) continue;
     if (value === true || typeof value !== 'boolean') {
       diagnostics.push(diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_UNKNOWN', 'Unknown manifest non-execution flag must not make execution, write, live, or replay claims.', { flag, value }));
     }
@@ -266,7 +243,7 @@ function initialEnvelope(bundleRoot, canonicalBundleRoot = '') {
       reminder: 'Inspector did not run the command.',
     },
     diagnostics: [],
-    non_execution_flags: { ...NON_EXECUTION_FLAGS },
+    non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
   };
 }
 
@@ -454,12 +431,12 @@ function validateDescriptor(envelope, descriptor, descriptorPath, artifactByPath
 function forbiddenArtifacts(root, canonicalRoot) {
   const found = [];
   const diagnostics = [];
-  for (const relative of FORBIDDEN_EXACT) {
+  for (const relative of WORK_RECORD_REPAIR_BUNDLE_FORBIDDEN_EXACT_OUTPUTS) {
     const resolved = resolveBundleReadPath(root, canonicalRoot, relative);
     if (!resolved.ok) diagnostics.push(...resolved.diagnostics);
     if (resolved.ok && fs.existsSync(resolved.absolutePath)) found.push(relative);
   }
-  for (const relative of FORBIDDEN_DIRS) {
+  for (const relative of WORK_RECORD_REPAIR_BUNDLE_FORBIDDEN_OUTPUT_DIRS) {
     const resolved = resolveBundleReadPath(root, canonicalRoot, relative);
     if (!resolved.ok) diagnostics.push(...resolved.diagnostics);
     if (resolved.ok && fs.existsSync(resolved.absolutePath)) found.push(`${relative}/**`);
@@ -525,7 +502,7 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
     schema_version: text(manifest.schema_version),
     artifact_count: arrayValue(manifest.artifacts).length,
   };
-  if (manifest.type !== BUNDLE_MANIFEST_TYPE || manifest.schema_version !== BUNDLE_SCHEMA_VERSION) {
+  if (manifest.type !== WORK_RECORD_REPAIR_BUNDLE_MANIFEST_TYPE || manifest.schema_version !== WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION) {
     addDiagnostics(envelope, 'unsupported_schema', [
       diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_UNSUPPORTED_MANIFEST_SCHEMA', 'Bundle manifest type/schema is not recognized.', { type: text(manifest.type), schema_version: text(manifest.schema_version) }),
     ]);
@@ -567,7 +544,7 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
     ]);
   }
   for (const [key, value] of Object.entries(objectValue(guide.non_execution_flags))) {
-    if (NON_EXECUTION_FLAGS[key] === false && value !== false) {
+    if (WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS[key] === false && value !== false) {
       addDiagnostics(envelope, 'blocked_invalid_manifest', [
         diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_GUIDE_EXECUTION_FLAG', 'Guide report non-execution flag must remain false.', { flag: key, value }),
       ]);
