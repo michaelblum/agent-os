@@ -13,6 +13,7 @@ export * from './work-record-repair-bundle.js';
 export * from './work-record-repair-bundle-inspector.js';
 export * from './work-record-repair-bundle-lifecycle-status.js';
 export * from './work-record-repair-guide.js';
+export * from './work-record-recovery-summary.js';
 export * from './work-record-repair-plan.js';
 export * from './work-record-replacement-proposal.js';
 export * from './work-record-replacement-writer.js';

@@ -1136,6 +1136,21 @@ dry-run can compute the replacement and supersession outputs; `finalized` is
 reported only when supersession lookup resolves a readable replacement with
 status output.
 
+`repair guide`, `repair bundle`, `repair bundle inspect`, and each
+`repair bundle status` row include a compact `recovery_summary` object for
+scan-first continuation. Consumers should read `recovery_summary.state`,
+`why`, `source_work_record`, `bundle_root`, `guide_stage`,
+`guide_stage_status`, `next`, `artifacts`, `safety`, and
+`diagnostic_codes` before drilling into full guide reports, manifests,
+descriptors, artifacts, or diagnostics. `next.argv` is the only executable
+continuation form; display strings remain display-only. Invalid, missing,
+unsupported, or unknown summaries do not expose a safe continuation argv.
+`safety` reports that inspectors did not run commands, bundles did not write
+replacement or supersession outputs, live UI is not involved, and automatic
+replay is not allowed. The summary is derived from existing validated guide,
+bundle, inspection, or lifecycle fields and is not a second recovery state
+machine.
+
 The guide may run only read-only/report-only/planning checks and existing
 non-mutating dry-runs. It never runs recommended commands, never executes
 repair, never calls `repair finalize` in write mode, never calls
@@ -1198,8 +1213,9 @@ paths to discover more bundles, write an index, or run recovery. Each candidate
 is inspected through `repair bundle inspect`, then summarized as `ready`,
 `blocked`, `invalid`, `missing`, `unsupported`, `finalized`, or `unknown` with
 source Work Record identity, saved guide stage, saved-output readiness, and the
-exact next command id/`argv`. Missing or invalid bundle roots stay represented
-in the same report instead of aborting other roots. The command returns
+exact next command id/`argv`; each row also carries the same information in
+`recovery_summary`. Missing or invalid bundle roots stay represented in the
+same report instead of aborting other roots. The command returns
 `work_record.repair_recovery_bundle_lifecycle_status` with schema version
 `2026-07-work-record-repair-recovery-bundle-lifecycle-status-v0`, reports
 `ready_count`, `blocked_count`, `invalid_count`, `missing_count`,
@@ -1224,7 +1240,8 @@ no-execution flag as boolean `false`; missing flags, non-boolean values, `true`
 execution/write/live/replay claims, and unknown non-false claims fail closed. It
 reports the saved guide stage, the safe next descriptor id, the exact `argv`,
 whether saved outputs are present, missing artifact paths, human-approval and
-mutation indicators, and a reminder that the command was not run.
+mutation indicators, and a `recovery_summary` with the scan-first continuation
+state and a reminder that the command was not run.
 Descriptor `command` and `persistence_command` values are display-only
 shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
 `requires_saved_output_from` are the execution and persistence contract.

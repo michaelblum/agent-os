@@ -63,6 +63,19 @@ function assertInspection(envelope, status) {
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION);
   assert.equal(envelope.status, status);
   assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
+  assert.ok(envelope.recovery_summary);
+  assert.equal(envelope.recovery_summary.bundle_root, envelope.bundle_root);
+  assert.equal(envelope.recovery_summary.safety.inspector_ran_command, false);
+  assert.equal(envelope.recovery_summary.safety.bundle_wrote_replacement, false);
+  assert.equal(envelope.recovery_summary.safety.bundle_wrote_supersession, false);
+  assert.equal(envelope.recovery_summary.safety.uses_live_ui, false);
+  assert.equal(envelope.recovery_summary.safety.automatic_replay_allowed, false);
+  if (status === 'valid' || status === 'degraded') {
+    assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id);
+    assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv);
+  } else if (status !== 'blocked_missing_artifact') {
+    assert.deepEqual(envelope.recovery_summary.next.argv, []);
+  }
 }
 
 function manifest(root) {
@@ -146,6 +159,8 @@ test('inspecting a valid bundle returns stable JSON and continuation', () => {
   assert.equal(result.manifest.type, 'work_record.repair_recovery_bundle_manifest');
   assert.equal(result.guide_report.type, 'work_record.repair_guided_recovery');
   assert.equal(result.continuation.current_guide_stage, 'gate_required');
+  assert.equal(result.recovery_summary.state, 'ready');
+  assert.equal(result.recovery_summary.guide_stage, 'gate_required');
   assert.equal(result.continuation.safe_next_descriptor_id, 'work-record-gate-request');
   assert.deepEqual(result.continuation.argv.slice(0, 3), ['./aos', 'work-record', 'gate-request']);
   assert.equal(result.continuation.required_saved_outputs_present, true);
@@ -230,6 +245,7 @@ test('tampered manifest artifact path mismatch fails closed', () => {
 
   const result = inspect(root);
   assertInspection(result, 'blocked_path_escape');
+  assert.equal(result.recovery_summary.state, 'invalid');
   assert.ok(result.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_PATH_MISMATCH'));
 });
 
@@ -242,6 +258,7 @@ test('tampered manifest execution flags fail closed with offending flags', () =>
 
   const result = inspect(root);
   assertInspection(result, 'blocked_invalid_manifest');
+  assert.equal(result.recovery_summary.state, 'invalid');
   const diagnostics = result.diagnostics.filter((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG');
   assert.deepEqual(diagnostics.map((item) => item.flag).sort(), ['executes_repair', 'writes_replacement_record']);
   assert.deepEqual(diagnostics.map((item) => item.value), [true, true]);
@@ -553,6 +570,7 @@ test('docs, schema, and skill describe inspect as read-only validation, not repa
     assert.match(text, /validates?|checks? .*manifest/s);
     assert.match(text, /does not run|never executes repair|never .*repair\s+execution|without .*executing repair/s);
     assert.match(text, /exact (next )?`?argv`?|exact next command/s);
+    assert.match(text, /recovery_summary/);
     assert.match(text, /saved outputs? (are )?present|required saved-output presence/s);
     assert.match(text, /live UI|TCC/);
   }

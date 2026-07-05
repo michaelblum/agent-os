@@ -171,6 +171,21 @@ function assertGuideEnvelope(report) {
   assert.equal(report.starts_workflow_engine, false);
   assert.equal(report.auto_resumes, false);
   assert.equal(report.automatic_replay_allowed, false);
+  assert.ok(report.recovery_summary);
+  assert.equal(report.recovery_summary.guide_stage, report.current_stage);
+  assert.equal(report.recovery_summary.guide_stage_status, report.stage_status);
+  assert.deepEqual(report.recovery_summary.next.argv, report.next_explicit_command?.argv || []);
+  assert.equal(report.recovery_summary.next.command_id, report.next_explicit_command?.id || '');
+  assert.deepEqual(report.recovery_summary.next.missing_inputs, report.missing_inputs || []);
+  assert.equal(report.recovery_summary.safety.inspector_ran_command, false);
+  assert.equal(report.recovery_summary.safety.bundle_wrote_replacement, false);
+  assert.equal(report.recovery_summary.safety.bundle_wrote_supersession, false);
+  assert.equal(report.recovery_summary.safety.uses_live_ui, false);
+  assert.equal(report.recovery_summary.safety.automatic_replay_allowed, false);
+}
+
+function assertGuideSummaryState(report, state) {
+  assert.equal(report.recovery_summary.state, state);
 }
 
 function allDescriptors(report) {
@@ -242,6 +257,7 @@ test('valid Work Record returns valid_no_repair_needed without mutating next com
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'valid_no_repair_needed');
   assert.equal(report.stage_status, 'not_required');
+  assertGuideSummaryState(report, 'finalized');
   assert.equal(report.next_explicit_command.mutates_state, false);
   assertDescriptorsNotRun(report);
   assertReadyToExecuteReadyRequiresInputs(report);
@@ -255,6 +271,7 @@ test('repairable Work Record without authorization returns gate_required and gat
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'gate_required');
   assert.equal(report.stage_status, 'blocked');
+  assertGuideSummaryState(report, 'blocked');
   assert.equal(report.next_explicit_command.id, 'work-record-gate-request');
   assert.equal(report.next_explicit_command.mutates_state, false);
   assertStdoutArtifact(report.next_explicit_command, {
@@ -281,6 +298,7 @@ test('denied and insufficient authorization return blocked authorization stages'
   assertGuideEnvelope(denied);
   assert.equal(denied.current_stage, 'authorization_denied');
   assert.equal(denied.stage_status, 'blocked');
+  assertGuideSummaryState(denied, 'blocked');
 
   const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
   const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
@@ -292,6 +310,7 @@ test('denied and insufficient authorization return blocked authorization stages'
   assertGuideEnvelope(insufficient);
   assert.equal(insufficient.current_stage, 'authorization_insufficient');
   assert.equal(insufficient.stage_status, 'blocked');
+  assertGuideSummaryState(insufficient, 'blocked');
   assertDescriptorsNotRun(insufficient);
 });
 
@@ -305,6 +324,7 @@ test('authorized repairable Work Record plans attempt before execute inputs are 
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'ready_to_plan_attempt');
   assert.equal(report.stage_status, 'blocked');
+  assertGuideSummaryState(report, 'blocked');
   assert.deepEqual(report.missing_inputs, ['attempt_plan_path', 'execution_root', 'artifact_root']);
   assert.equal(report.next_explicit_command.id, 'work-record-plan-attempt');
   assertStdoutArtifact(report.next_explicit_command, {
@@ -328,6 +348,7 @@ test('authorized repairable Work Record blocks ready_to_execute until roots are 
   });
   assert.equal(noExecutionRoot.current_stage, 'ready_to_execute');
   assert.equal(noExecutionRoot.stage_status, 'blocked');
+  assertGuideSummaryState(noExecutionRoot, 'blocked');
   assert.deepEqual(noExecutionRoot.missing_inputs, ['execution_root']);
   assertReadyToExecuteReadyRequiresInputs(noExecutionRoot);
 
@@ -340,6 +361,7 @@ test('authorized repairable Work Record blocks ready_to_execute until roots are 
   });
   assert.equal(noArtifactRoot.current_stage, 'ready_to_execute');
   assert.equal(noArtifactRoot.stage_status, 'blocked');
+  assertGuideSummaryState(noArtifactRoot, 'blocked');
   assert.deepEqual(noArtifactRoot.missing_inputs, ['artifact_root']);
   assertReadyToExecuteReadyRequiresInputs(noArtifactRoot);
 });
@@ -361,6 +383,7 @@ test('authorized repairable Work Record returns ready_to_execute only with execu
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'ready_to_execute');
   assert.equal(report.stage_status, 'ready');
+  assertGuideSummaryState(report, 'ready');
   assert.equal(report.repair_attempt_plan_summary.status, 'ready');
   assert.equal(report.next_explicit_command.id, 'work-record-repair-execute-dry-run');
   assert.equal(report.next_explicit_command.mutates_state, false);
@@ -400,6 +423,7 @@ test('valid Attempt Artifact plus roots returns ready_to_finalize after dry-run'
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'ready_to_finalize');
   assert.equal(report.stage_status, 'ready');
+  assertGuideSummaryState(report, 'ready');
   assert.equal(report.repair_attempt_artifact_validation.validation.status, 'passed');
   assert.equal(report.finalization_dry_run_summary.status, 'dry_run');
   assert.equal(report.next_explicit_command.id, 'work-record-repair-finalize');
@@ -421,6 +445,7 @@ test('invalid Attempt Artifact returns attempt_artifact_invalid', () => {
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'attempt_artifact_invalid');
   assert.equal(report.stage_status, 'blocked');
+  assertGuideSummaryState(report, 'blocked');
   assert.equal(report.repair_attempt_artifact_validation.validation.status, 'failed');
   assert.equal(report.next_explicit_command.id, 'work-record-attempt-artifact-validate');
   assertDescriptorsNotRun(report);
@@ -451,6 +476,7 @@ test('existing supersession index and replacement returns finalized', () => {
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'finalized');
   assert.equal(report.stage_status, 'complete');
+  assertGuideSummaryState(report, 'finalized');
   assert.equal(report.supersession_lookup_summary.status, 'active');
   assert.equal(report.replacement_summary.read.status, 'success');
   assertDescriptorsNotRun(report);
@@ -474,6 +500,7 @@ test('finalization dry-run blocker returns exact recovery command without writes
   assertGuideEnvelope(report);
   assert.equal(report.current_stage, 'finalization_blocked');
   assert.equal(report.stage_status, 'blocked');
+  assertGuideSummaryState(report, 'blocked');
   assert.equal(report.finalization_dry_run_summary.status, 'blocked_path_escape');
   assert.match(report.next_explicit_command.command, /repair finalize/);
   assertDescriptorsNotRun(report);
@@ -497,6 +524,11 @@ test('advertised guide stages match implementation-supported stages', () => {
     advertisedGuideStages(skill, 'Guide stages are'),
     WORK_RECORD_REPAIR_GUIDE_STAGES,
   );
+  for (const text of [apiDoc, schemaDoc, skill]) {
+    assert.match(text, /recovery_summary/);
+    assert.match(text, /next\.argv/);
+    assert.match(text, /scan-first|scan\/continuation/);
+  }
   for (const removed of ['attempt_artifact_missing', 'partial_recovery', 'blocked']) {
     assert.ok(!WORK_RECORD_REPAIR_GUIDE_STAGES.includes(removed));
   }

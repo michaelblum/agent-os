@@ -187,6 +187,15 @@ function assertBundleEnvelope(envelope, status) {
   assert.equal(envelope.schema_version, WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION);
   assert.equal(envelope.status, status);
   assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
+  assert.ok(envelope.recovery_summary);
+  assert.equal(envelope.recovery_summary.bundle_root, envelope.output_root);
+  assert.equal(envelope.recovery_summary.next.command_id, envelope.next_recommended_command?.id || '');
+  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_recommended_command?.argv || []);
+  assert.equal(envelope.recovery_summary.safety.inspector_ran_command, false);
+  assert.equal(envelope.recovery_summary.safety.bundle_wrote_replacement, false);
+  assert.equal(envelope.recovery_summary.safety.bundle_wrote_supersession, false);
+  assert.equal(envelope.recovery_summary.safety.uses_live_ui, false);
+  assert.equal(envelope.recovery_summary.safety.automatic_replay_allowed, false);
   for (const artifact of envelope.planned_artifacts) {
     assert.ok(artifact.relative_path);
     assert.ok(artifact.path);
@@ -211,6 +220,7 @@ test('dry-run plans bundle artifacts and writes nothing', () => {
   });
 
   assertBundleEnvelope(envelope, 'dry_run');
+  assert.equal(envelope.recovery_summary.state, 'blocked');
   assert.deepEqual(fs.readdirSync(outputRoot), before);
   assert.deepEqual(artifactPaths(envelope), [
     'artifacts/gate-request.json',
@@ -232,6 +242,7 @@ test('write materializes guide, manifest, descriptors, and gate request only und
   });
 
   assertBundleEnvelope(envelope, 'written');
+  assert.equal(envelope.recovery_summary.state, 'blocked');
   assert.equal(digestFile(repairableFixture), beforeDigest);
   for (const artifact of envelope.written_artifacts) {
     assert.ok(artifact.path.startsWith(outputRoot));
@@ -348,6 +359,7 @@ test('finalized bundle preserves finalized guide lifecycle from explicit roots',
     repoRoot,
   });
   assertBundleEnvelope(envelope, 'written');
+  assert.equal(envelope.recovery_summary.state, 'finalized');
   const guide = JSON.parse(fs.readFileSync(path.join(outputRoot, 'guide-report.json'), 'utf8'));
   assert.equal(guide.current_stage, 'finalized');
   assert.equal(guide.stage_status, 'complete');
@@ -367,6 +379,7 @@ test('identical existing files are accepted and conflicting files fail closed', 
   fs.writeFileSync(path.join(outputRoot, 'guide-report.json'), '{"conflict":true}\n');
   const conflict = writeWorkRecordRepairBundle({ sourceRef: repairableFixture, outputRoot, repoRoot });
   assert.equal(conflict.status, 'blocked_conflict');
+  assert.equal(conflict.recovery_summary.state, 'blocked');
   assert.ok(conflict.conflicts.some((artifact) => artifact.relative_path === 'guide-report.json'));
 });
 
@@ -380,6 +393,7 @@ test('symlink escape under output root fails closed', () => {
   });
 
   assert.equal(envelope.status, 'blocked_path_escape');
+  assert.equal(envelope.recovery_summary.state, 'invalid');
   assert.ok(envelope.diagnostics.some((item) => item.code === 'WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE'));
   assertNoCoreBundleFiles(outputRoot);
 });

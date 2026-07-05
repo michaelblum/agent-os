@@ -143,7 +143,16 @@ the returned `recommended_next`, `recommended_next_commands`, or
   A `ready_to_execute` guide report is ready only when `--attempt-plan`,
   `--execution-root`, and `--artifact-root` are all supplied; descriptors that
   need JSON stdout saved expose `stdout_artifact`, `save_stdout_to`, and
-  `requires_saved_output_from` instead of hidden shell inference. Use
+  `requires_saved_output_from` instead of hidden shell inference. For
+  `repair guide`, `repair bundle`, `repair bundle inspect`, and each
+  `repair bundle status` row, read `recovery_summary` first. It is the compact
+  scan/continuation object with state, why, important files, exact
+  `next.argv`, missing inputs, missing saved outputs, mutating/approval flags,
+  safety flags, and diagnostic codes. Execute only structured `next.argv`, not
+  display strings; use full envelopes only for evidence detail. Invalid,
+  missing, unsupported, unknown, or blocked summaries are not authorization to
+  continue unsafe work. Bundle/status/inspect remain read-only and
+  non-executing. Use
   `repair bundle <id-or-path> --output-root <dir> [--dry-run] --json` when a
   future session needs an explicit handoff root containing `bundle-manifest`,
   `guide-report`, `commands/*.json`, and safe non-mutating guide/planning
@@ -172,7 +181,8 @@ the returned `recommended_next`, `recommended_next_commands`, or
   validated through the bundle inspector, then reported as ready, blocked,
   invalid, missing, unsupported, finalized, or unknown with source Work Record
   identity, guide stage, saved-output readiness, missing saved outputs, and the
-  exact next command id/`argv`; aggregate counts include `ready_count`,
+  exact next command id/`argv`; each row repeats the scan-first contract in
+  `recovery_summary`. Aggregate counts include `ready_count`,
   `blocked_count`, `invalid_count`, `missing_count`, `unsupported_count`,
   `finalized_count`, and `unknown_count`.
 - `aos work-record repair bundle inspect <bundle-root> --json` validates an
@@ -182,8 +192,8 @@ the returned `recommended_next`, `recommended_next_commands`, or
   explicit bundle root by default, checks manifest/guide/descriptors/artifacts,
   exact manifest artifact path identity, manifest non-execution flags, path
   containment, symlinks, digests, forbidden bundle-owned outputs, and saved
-  output readiness, then reports the exact next `argv` and whether required
-  saved outputs are present.
+  output readiness, then reports `recovery_summary`, the exact next `argv`, and
+  whether required saved outputs are present.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

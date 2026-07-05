@@ -24,6 +24,9 @@ import {
   commandHintFromArgv,
   shellQuoteArg,
 } from './work-record-command-recommendation.js';
+import {
+  buildBundleRecoverySummary,
+} from './work-record-recovery-summary.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
@@ -337,7 +340,7 @@ function bundleManifestFromEnvelope(envelope, artifacts) {
 }
 
 function failureEnvelope({ status, mode, sourceRef, outputRoot, diagnostics = [] }) {
-  return {
+  const envelope = {
     type: WORK_RECORD_REPAIR_BUNDLE_TYPE,
     schema_version: WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
     bundle_implementation_version: WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION,
@@ -355,6 +358,10 @@ function failureEnvelope({ status, mode, sourceRef, outputRoot, diagnostics = []
     diagnostics,
     non_execution_flags: { ...WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS },
     next_recommended_command: null,
+  };
+  return {
+    ...envelope,
+    recovery_summary: buildBundleRecoverySummary(envelope),
   };
 }
 
@@ -535,6 +542,7 @@ export function planWorkRecordRepairBundle({
   }
   return {
     ...envelope,
+    recovery_summary: buildBundleRecoverySummary({ ...envelope, guide_report: reboundGuide }),
     _artifacts: planned,
   };
 }
@@ -546,9 +554,11 @@ export function writeWorkRecordRepairBundle(options = {}) {
   const publicPlan = cloneJson(plan);
   delete publicPlan._artifacts;
   publicPlan.mode = dryRun ? 'dry_run' : 'write';
+  publicPlan.recovery_summary = buildBundleRecoverySummary(publicPlan);
   if (plan.status !== 'planned') return publicPlan;
   if (dryRun) {
     publicPlan.status = 'dry_run';
+    publicPlan.recovery_summary = buildBundleRecoverySummary(publicPlan);
     return publicPlan;
   }
 
@@ -558,13 +568,17 @@ export function writeWorkRecordRepairBundle(options = {}) {
     .map((artifact) => artifactPathViolation(outputRoot, canonicalRoot, artifact.path))
     .find((item) => item.escaped);
   if (escape) {
-    return {
+    const envelope = {
       ...publicPlan,
       status: 'blocked_path_escape',
       diagnostics: [
         ...arrayValue(publicPlan.diagnostics),
         diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact path would traverse or write through a symlink escape.', escape),
       ],
+    };
+    return {
+      ...envelope,
+      recovery_summary: buildBundleRecoverySummary(envelope),
     };
   }
 
@@ -574,7 +588,7 @@ export function writeWorkRecordRepairBundle(options = {}) {
     const bytes = stableJsonBytes(artifact.value);
     if (fs.existsSync(artifact.path)) {
       if (fs.lstatSync(artifact.path).isSymbolicLink()) {
-        return {
+        const envelope = {
           ...publicPlan,
           status: 'blocked_path_escape',
           diagnostics: [
@@ -582,9 +596,13 @@ export function writeWorkRecordRepairBundle(options = {}) {
             diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact path would write through an existing symlink.', { path: artifact.path, reason: 'symlink_escape' }),
           ],
         };
+        return {
+          ...envelope,
+          recovery_summary: buildBundleRecoverySummary(envelope),
+        };
       }
       if (!fs.lstatSync(artifact.path).isFile() || fs.readFileSync(artifact.path, 'utf8') !== bytes) {
-        return {
+        const envelope = {
           ...publicPlan,
           status: 'blocked_conflict',
           conflicts: [artifact],
@@ -593,6 +611,10 @@ export function writeWorkRecordRepairBundle(options = {}) {
             diagnostic('WORK_RECORD_REPAIR_BUNDLE_CONFLICT', 'Bundle artifact path already exists with different bytes.', { path: artifact.path }),
           ],
         };
+        return {
+          ...envelope,
+          recovery_summary: buildBundleRecoverySummary(envelope),
+        };
       }
       written.push({ ...artifact, write_status: 'already_exists', digest: fileDigest(artifact.path) });
       continue;
@@ -600,7 +622,7 @@ export function writeWorkRecordRepairBundle(options = {}) {
     fs.mkdirSync(path.dirname(artifact.path), { recursive: true });
     const parentRealpath = fs.realpathSync(path.dirname(artifact.path));
     if (!isWithin(canonicalRoot, parentRealpath)) {
-      return {
+      const envelope = {
         ...publicPlan,
         status: 'blocked_path_escape',
         diagnostics: [
@@ -608,12 +630,16 @@ export function writeWorkRecordRepairBundle(options = {}) {
           diagnostic('WORK_RECORD_REPAIR_BUNDLE_SYMLINK_ESCAPE', 'A bundle artifact parent resolved outside --output-root.', { path: path.dirname(artifact.path), realpath: parentRealpath, reason: 'realpath_escape' }),
         ],
       };
+      return {
+        ...envelope,
+        recovery_summary: buildBundleRecoverySummary(envelope),
+      };
     }
     fs.writeFileSync(artifact.path, bytes);
     written.push({ ...artifact, write_status: 'written', digest: fileDigest(artifact.path) });
   }
 
-  return {
+  const envelope = {
     ...publicPlan,
     status: 'written',
     written_artifacts: written.map((artifact) => ({
@@ -630,5 +656,9 @@ export function writeWorkRecordRepairBundle(options = {}) {
       const match = written.find((item) => item.relative_path === artifact.relative_path);
       return match ? { ...artifact, digest: match.digest } : artifact;
     }),
+  };
+  return {
+    ...envelope,
+    recovery_summary: buildBundleRecoverySummary(envelope),
   };
 }

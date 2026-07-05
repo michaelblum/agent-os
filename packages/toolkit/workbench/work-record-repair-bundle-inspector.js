@@ -11,6 +11,9 @@ import {
   WORK_RECORD_REPAIR_BUNDLE_REQUIRED_MANIFEST_NON_EXECUTION_FLAGS,
   WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION,
 } from './work-record-repair-bundle-policy.js';
+import {
+  buildInspectionRecoverySummary,
+} from './work-record-recovery-summary.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_INSPECTION_SCHEMA_VERSION,
@@ -477,24 +480,28 @@ function deriveContinuation(envelope, guide, descriptorById) {
 export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
   const rootResult = rootEnvelope(bundleRoot);
   const { envelope } = rootResult;
-  if (!rootResult.ok) return envelope;
+  const withRecoverySummary = () => ({
+    ...envelope,
+    recovery_summary: buildInspectionRecoverySummary(envelope),
+  });
+  if (!rootResult.ok) return withRecoverySummary();
   const { root, canonicalRoot } = rootResult;
 
   const manifestResolved = resolveBundleReadPath(root, canonicalRoot, 'bundle-manifest.json');
   if (!manifestResolved.ok) {
     addDiagnostics(envelope, manifestResolved.status, manifestResolved.diagnostics);
-    return envelope;
+    return withRecoverySummary();
   }
   if (!fs.existsSync(manifestResolved.absolutePath)) {
     addDiagnostics(envelope, 'blocked_missing_manifest', [
       diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MISSING_MANIFEST', 'bundle-manifest.json is required.', { relative_path: 'bundle-manifest.json' }),
     ]);
-    return envelope;
+    return withRecoverySummary();
   }
   const manifestRead = readJsonReadOnly(manifestResolved.absolutePath, 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_INVALID_MANIFEST_JSON');
   if (!manifestRead.ok) {
     addDiagnostics(envelope, 'blocked_invalid_manifest', manifestRead.diagnostics);
-    return envelope;
+    return withRecoverySummary();
   }
   const manifest = objectValue(manifestRead.value);
   envelope.manifest = {
@@ -524,12 +531,12 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
     addDiagnostics(envelope, 'blocked_missing_artifact', [
       diagnostic('WORK_RECORD_REPAIR_BUNDLE_INSPECT_MISSING_GUIDE_REPORT', 'guide-report.json is required.', { relative_path: 'guide-report.json' }),
     ]);
-    return envelope;
+    return withRecoverySummary();
   }
   const guideRead = readJsonReadOnly(guideResolved.absolutePath, 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_INVALID_GUIDE_JSON');
   if (!guideRead.ok) {
     addDiagnostics(envelope, 'blocked_invalid_manifest', guideRead.diagnostics);
-    return envelope;
+    return withRecoverySummary();
   }
   const guide = objectValue(guideRead.value);
   envelope.guide_report = {
@@ -615,5 +622,5 @@ export function inspectWorkRecordRepairBundle({ bundleRoot = '' } = {}) {
   deriveContinuation(envelope, guide, descriptorById);
 
   if (envelope.status === 'valid' && envelope.diagnostics.length > 0) envelope.status = 'degraded';
-  return envelope;
+  return withRecoverySummary();
 }

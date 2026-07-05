@@ -503,6 +503,21 @@ derived from `argv` and the structural saved-output fields; consumers must not
 parse them for execution. The guide may report mutating commands such as
 `repair execute` or `repair finalize`, but it must not run them.
 
+Public recovery envelopes expose a compact `recovery_summary` for scan-first
+continuation. `repair guide`, `repair bundle`, `repair bundle inspect`, and
+each `repair bundle status` row derive this summary from existing validated
+stage, descriptor, manifest, continuation, lifecycle, and diagnostic fields.
+It is not authoritative state and must not become a second recovery state
+machine. The object includes `state`, `headline`, `why`, `source_work_record`,
+`bundle_root`, `guide_stage`, `guide_stage_status`, `next`, `artifacts`,
+`safety`, and `diagnostic_codes`. `state` is one of `ready`, `blocked`,
+`finalized`, `invalid`, `missing`, `unsupported`, or `unknown`. `next.argv` is
+the only executable continuation form; display strings are optional
+display-only derivatives. Invalid, missing, unsupported, and unknown summaries
+must not expose a safe continuation argv. `safety` reports whether an inspector
+ran a command, whether the bundle wrote replacement or supersession outputs,
+whether live UI is involved, and whether automatic replay is allowed.
+
 Guided Recovery can run only read-only/report-only/planning checks and existing
 non-mutating dry-runs. It must report these flags as false:
 `mutates_record`, `writes_replacement_record`,
@@ -530,7 +545,8 @@ The envelope type is `work_record.repair_recovery_bundle` with schema version
 `2026-07-work-record-repair-recovery-bundle-v0`. It includes status, mode
 (`dry_run` or `write`), source Work Record identity, output root, guide report
 path, manifest path, planned/written/skipped artifact arrays, conflicts,
-diagnostics, non-execution flags, and the next recommended command descriptor.
+diagnostics, non-execution flags, the next recommended command descriptor, and
+`recovery_summary`.
 
 Recovery Bundle V0 is greenfield and has no legacy compatibility contract.
 Current writer output is the contract. Same-schema manifests missing canonical
@@ -607,6 +623,10 @@ identity, guide stage and stage status, continuation readiness, next command
 id, exact next `argv`, whether the next command mutates state, user-approval
 requirements, required saved-output presence, missing saved outputs, and
 diagnostics.
+Each row also includes `recovery_summary` with the row lifecycle state, guide
+stage, exact next `argv`, missing inputs, missing saved outputs, and safety
+flags, so agents can choose the next bundle without scanning the whole status
+envelope.
 
 Lifecycle statuses are `ready`, `blocked`, `invalid`, `missing`,
 `unsupported`, `finalized`, and `unknown`. A valid inspection with a safe next
@@ -636,6 +656,9 @@ schema version
 status, explicit bundle root, canonical bundle root, manifest summary, guide
 report summary, artifact validation summaries, descriptor validation summaries,
 continuation summary, diagnostics, and non-execution flags.
+The inspection envelope also includes `recovery_summary`, derived from the
+validated manifest, guide report, descriptors, artifact checks, continuation,
+and diagnostics.
 
 The inspector reads only the explicit bundle root by default. It validates that
 the root exists, is a directory, is not a symlink, and is not reached through a

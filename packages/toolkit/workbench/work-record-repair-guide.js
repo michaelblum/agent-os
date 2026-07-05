@@ -44,6 +44,9 @@ import {
   supersessionDescriptors,
   text,
 } from './work-record-repair-guide-descriptors.js';
+import {
+  buildGuideRecoverySummary,
+} from './work-record-recovery-summary.js';
 
 export const WORK_RECORD_REPAIR_GUIDE_SCHEMA_VERSION = '2026-07-work-record-repair-guided-recovery-v0';
 export const WORK_RECORD_REPAIR_GUIDE_TYPE = 'work_record.repair_guided_recovery';
@@ -206,10 +209,14 @@ export function guideWorkRecordRepair({
     ...NON_EXECUTION_FLAGS,
     diagnostics: [],
   };
+  const withRecoverySummary = (envelope) => ({
+    ...envelope,
+    recovery_summary: buildGuideRecoverySummary(envelope),
+  });
 
   if (read.status !== 'success') {
     report.diagnostics = arrayValue(read.diagnostics);
-    return {
+    return withRecoverySummary({
       ...report,
       status: 'failed',
       ...stageEnvelope({
@@ -220,7 +227,7 @@ export function guideWorkRecordRepair({
         blockers: arrayValue(read.diagnostics),
         missingInputs: ['valid_source_work_record'],
       }),
-    };
+    });
   }
 
   const status = explainWorkRecordStatus(sourceRef, context);
@@ -259,7 +266,7 @@ export function guideWorkRecordRepair({
           argv: ['./aos', 'work-record', 'status', replacement.read.source.path || replacement.read.summary.id, '--json'],
           nextStageAfterSuccess: 'finalized',
         });
-        return {
+        return withRecoverySummary({
           ...report,
           ...stageEnvelope({
             stage: 'finalized',
@@ -269,7 +276,7 @@ export function guideWorkRecordRepair({
             nextCommand: next,
             alternatives: supersessionDescriptors(sourceRef, source, indexRoot),
           }),
-        };
+        });
       }
     }
   }
@@ -281,7 +288,7 @@ export function guideWorkRecordRepair({
       argv: ['./aos', 'work-record', 'read', sourceArg(sourceRef, source), '--json'],
       nextStageAfterSuccess: 'valid_no_repair_needed',
     });
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'valid_no_repair_needed',
@@ -298,11 +305,11 @@ export function guideWorkRecordRepair({
           }),
         ],
       }),
-    };
+    });
   }
 
   if (repairPlan.status === 'superseded') {
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'superseded',
@@ -313,11 +320,11 @@ export function guideWorkRecordRepair({
         missingInputs: indexRoot ? [] : ['index_root'],
         alternatives: supersessionDescriptors(sourceRef, source, indexRoot),
       }),
-    };
+    });
   }
 
   if (repairPlan.status === 'retired' || repairPlan.status === 'not_repairable') {
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'retired_or_impossible',
@@ -326,11 +333,11 @@ export function guideWorkRecordRepair({
         evidence: [`repair_plan:${repairPlan.status}`],
         blockers: arrayValue(repairPlan.diagnostics),
       }),
-    };
+    });
   }
 
   if (repairPlan.status !== 'planned' && repairPlan.status !== 'blocked') {
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'repair_plan_unavailable',
@@ -339,7 +346,7 @@ export function guideWorkRecordRepair({
         evidence: [`repair_plan:${repairPlan.status}`],
         blockers: arrayValue(repairPlan.diagnostics),
       }),
-    };
+    });
   }
 
   const gateRequest = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
@@ -359,7 +366,7 @@ export function guideWorkRecordRepair({
 
   if (!authorizationInput && attemptPlan.status === 'blocked_authorization_required') {
     const commands = gateDescriptors(sourceRef, source, repairPlan, paths);
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'gate_required',
@@ -372,13 +379,13 @@ export function guideWorkRecordRepair({
         requiresUserApproval: true,
         alternatives: commands.slice(1),
       }),
-    };
+    });
   }
 
   const [attemptStage, attemptStageStatus] = stageFromAttemptStatus(attemptPlan.status);
   if (attemptPlan.status !== 'ready') {
     const commands = gateDescriptors(sourceRef, source, repairPlan, paths);
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: attemptStage,
@@ -391,7 +398,7 @@ export function guideWorkRecordRepair({
         requiresUserApproval: attemptPlan.status === 'blocked_authorization_required',
         alternatives: commands,
       }),
-    };
+    });
   }
 
   if (attemptArtifactPath) {
@@ -405,7 +412,7 @@ export function guideWorkRecordRepair({
       };
     report.repair_attempt_artifact_validation = summarizeAttemptArtifact(validation, artifactRead);
     if (validation.status !== 'passed') {
-      return {
+      return withRecoverySummary({
         ...report,
         ...stageEnvelope({
           stage: 'attempt_artifact_invalid',
@@ -420,7 +427,7 @@ export function guideWorkRecordRepair({
           }),
           blockers: arrayValue(validation.diagnostics),
         }),
-      };
+      });
     }
 
     const missingFinalization = [];
@@ -453,7 +460,7 @@ export function guideWorkRecordRepair({
           replacementOutputPath,
           dryRun: false,
         });
-        return {
+        return withRecoverySummary({
           ...report,
           ...stageEnvelope({
             stage: 'ready_to_finalize',
@@ -477,9 +484,9 @@ export function guideWorkRecordRepair({
               }),
             ],
           }),
-        };
+        });
       }
-      return {
+      return withRecoverySummary({
         ...report,
         ...stageEnvelope({
           stage: 'finalization_blocked',
@@ -499,7 +506,7 @@ export function guideWorkRecordRepair({
           }),
           blockers: arrayValue(dryRun.diagnostics),
         }),
-      };
+      });
     }
     const next = finalizationDescriptor({
       sourceRef,
@@ -512,7 +519,7 @@ export function guideWorkRecordRepair({
       replacementOutputPath,
       dryRun: true,
     });
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: 'ready_to_finalize',
@@ -523,7 +530,7 @@ export function guideWorkRecordRepair({
         missingInputs: missingFinalization,
         requiresUserApproval: true,
       }),
-    };
+    });
   }
 
   const commands = attemptDescriptors({
@@ -541,7 +548,7 @@ export function guideWorkRecordRepair({
   ];
   if (missingExecuteInputs.length > 0) {
     const needsPlan = missingExecuteInputs.includes('attempt_plan_path');
-    return {
+    return withRecoverySummary({
       ...report,
       ...stageEnvelope({
         stage: needsPlan ? 'ready_to_plan_attempt' : 'ready_to_execute',
@@ -556,9 +563,9 @@ export function guideWorkRecordRepair({
         requiresUserApproval: true,
         alternatives: needsPlan ? [commands[0]] : commands,
       }),
-    };
+    });
   }
-  return {
+  return withRecoverySummary({
     ...report,
     ...stageEnvelope({
       stage: 'ready_to_execute',
@@ -571,5 +578,5 @@ export function guideWorkRecordRepair({
       requiresUserApproval: true,
       alternatives: [commands[0], commands[2]],
     }),
-  };
+  });
 }

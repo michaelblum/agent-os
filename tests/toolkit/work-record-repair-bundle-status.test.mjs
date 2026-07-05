@@ -92,6 +92,20 @@ function assertLifecycleStatus(envelope, status = 'success') {
   assert.deepEqual(envelope.non_execution_flags, WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS);
 }
 
+function assertRowRecoverySummary(row) {
+  assert.ok(row.recovery_summary);
+  assert.equal(row.recovery_summary.state, row.lifecycle_status);
+  assert.equal(row.recovery_summary.bundle_root, row.bundle_root);
+  assert.equal(row.recovery_summary.guide_stage, row.guide_stage);
+  assert.equal(row.recovery_summary.guide_stage_status, row.guide_stage_status);
+  assert.equal(row.recovery_summary.next.command_id, row.next_command_id || '');
+  assert.deepEqual(row.recovery_summary.next.argv, row.next_argv || []);
+  assert.deepEqual(row.recovery_summary.next.missing_inputs, row.missing_inputs || []);
+  assert.equal(row.recovery_summary.safety.inspector_ran_command, false);
+  assert.equal(row.recovery_summary.safety.uses_live_ui, false);
+  assert.equal(row.recovery_summary.safety.automatic_replay_allowed, false);
+}
+
 function assertLifecycleCounts(envelope, expected) {
   const defaults = {
     ready_count: 0,
@@ -173,6 +187,7 @@ test('status summarizes explicit bundle roots through the inspector', () => {
   assert.deepEqual(bundle.missing_inputs, ['workflow_gate_authorization']);
   assert.equal(bundle.required_saved_outputs_present, true);
   assert.deepEqual(bundle.missing_saved_outputs, []);
+  assertRowRecoverySummary(bundle);
 });
 
 test('status keeps missing and invalid bundles in one report', () => {
@@ -198,6 +213,7 @@ test('status keeps missing and invalid bundles in one report', () => {
   assert.deepEqual(result.bundles.map((bundle) => bundle.canonical_bundle_root), expectedCanonicalRoots);
   assert.ok(result.bundles.some((bundle) => bundle.lifecycle_status === 'missing'));
   assert.ok(result.bundles.some((bundle) => bundle.inspection_status === 'blocked_missing_manifest'));
+  for (const bundle of result.bundles) assertRowRecoverySummary(bundle);
 });
 
 test('status parent scan is explicit, bounded, and non-recursive', () => {
@@ -212,6 +228,7 @@ test('status parent scan is explicit, bounded, and non-recursive', () => {
   assert.equal(result.bundle_count, 1);
   assertLifecycleCounts(result, { ready_count: 1 });
   assert.equal(result.bundles[0].bundle_root, child);
+  assertRowRecoverySummary(result.bundles[0]);
   assert.equal(result.roots.derived_bundle_roots[0].bundle_parent, parent);
   assert.equal(result.roots.derived_bundle_roots[0].bundle_root, child);
   assert.equal(result.bundles.some((bundle) => bundle.bundle_root === nested), false);
@@ -235,6 +252,7 @@ test('status counts finalized lifecycle rows from saved guide state', () => {
   assertLifecycleStatus(result);
   assert.equal(result.bundle_count, 1);
   assert.equal(result.bundles[0].lifecycle_status, 'finalized');
+  assertRowRecoverySummary(result.bundles[0]);
   assert.equal(result.finalized_count, 1);
   assertLifecycleCounts(result, { finalized_count: 1 });
 });
@@ -293,6 +311,7 @@ test('docs, schema, and skill describe repair bundle status lifecycle contract',
     assert.match(text, /non-recursive/);
     assert.match(text, /does not .*run recovery|executes?\s+no\s+commands|without .*executing/s);
     assert.match(text, /exact next (command id\/)?`argv`|exact next command id\/`argv`/);
+    assert.match(text, /recovery_summary/);
     assert.match(text, /ready.*blocked.*invalid.*missing.*unsupported.*finalized.*unknown/s);
     assert.match(text, /finalized_count/);
   }

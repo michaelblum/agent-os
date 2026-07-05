@@ -6,6 +6,9 @@ import {
   WORK_RECORD_REPAIR_BUNDLE_NON_EXECUTION_FLAGS,
 } from './work-record-repair-bundle-policy.js';
 import { inspectWorkRecordRepairBundle } from './work-record-repair-bundle-inspector.js';
+import {
+  buildStatusRowRecoverySummary,
+} from './work-record-recovery-summary.js';
 
 export {
   WORK_RECORD_REPAIR_BUNDLE_LIFECYCLE_STATUS_SCHEMA_VERSION,
@@ -132,7 +135,7 @@ function lifecycleStatus(inspection) {
 function bundleSummary(candidate, inspection) {
   const continuation = inspection.continuation || {};
   const descriptorId = text(continuation.safe_next_descriptor_id);
-  return {
+  const row = {
     bundle_root: candidate.bundle_root,
     canonical_bundle_root: text(inspection.canonical_bundle_root, candidate.canonical_bundle_root),
     inspection_status: text(inspection.status, 'unknown'),
@@ -149,6 +152,10 @@ function bundleSummary(candidate, inspection) {
     required_saved_outputs_present: continuation.required_saved_outputs_present === true,
     missing_saved_outputs: arrayValue(continuation.missing_artifact_paths),
     diagnostics: arrayValue(inspection.diagnostics),
+  };
+  return {
+    ...row,
+    recovery_summary: buildStatusRowRecoverySummary(row),
   };
 }
 

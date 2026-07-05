@@ -143,6 +143,49 @@ function assertContainedPath(child, root) {
   assert.ok(relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)), `${child} is not under ${root}`);
 }
 
+function assertSummarySafety(summary) {
+  assert.equal(summary.safety.inspector_ran_command, false);
+  assert.equal(summary.safety.bundle_wrote_replacement, false);
+  assert.equal(summary.safety.bundle_wrote_supersession, false);
+  assert.equal(summary.safety.uses_live_ui, false);
+  assert.equal(summary.safety.automatic_replay_allowed, false);
+}
+
+function assertGuideRecoverySummary(envelope, state) {
+  assert.equal(envelope.recovery_summary.state, state);
+  assert.equal(envelope.recovery_summary.guide_stage, envelope.current_stage);
+  assert.equal(envelope.recovery_summary.guide_stage_status, envelope.stage_status);
+  assert.equal(envelope.recovery_summary.next.command_id, envelope.next_explicit_command?.id || '');
+  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_explicit_command?.argv || []);
+  assert.deepEqual(envelope.recovery_summary.next.missing_inputs, envelope.missing_inputs || []);
+  assertSummarySafety(envelope.recovery_summary);
+}
+
+function assertBundleRecoverySummary(envelope, state) {
+  assert.equal(envelope.recovery_summary.state, state);
+  assert.equal(envelope.recovery_summary.bundle_root, envelope.output_root);
+  assert.equal(envelope.recovery_summary.next.command_id, envelope.next_recommended_command?.id || '');
+  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.next_recommended_command?.argv || []);
+  assertSummarySafety(envelope.recovery_summary);
+}
+
+function assertInspectionRecoverySummary(envelope, state) {
+  assert.equal(envelope.recovery_summary.state, state);
+  assert.equal(envelope.recovery_summary.bundle_root, envelope.bundle_root);
+  assert.equal(envelope.recovery_summary.next.command_id, state === 'invalid' ? '' : envelope.continuation.safe_next_descriptor_id);
+  assert.deepEqual(envelope.recovery_summary.next.argv, state === 'invalid' ? [] : envelope.continuation.argv);
+  assertSummarySafety(envelope.recovery_summary);
+}
+
+function assertStatusRowRecoverySummary(row) {
+  assert.equal(row.recovery_summary.state, row.lifecycle_status);
+  assert.equal(row.recovery_summary.bundle_root, row.bundle_root);
+  assert.equal(row.recovery_summary.next.command_id, row.next_command_id || '');
+  assert.deepEqual(row.recovery_summary.next.argv, row.next_argv || []);
+  assert.deepEqual(row.recovery_summary.next.missing_inputs, row.missing_inputs || []);
+  assertSummarySafety(row.recovery_summary);
+}
+
 test('public Work Record recovery lifecycle composes from repairable fixture to finalized bundle', () => {
   const root = proofRoot();
   const bundleParent = path.join(root, 'bundles');
@@ -167,6 +210,7 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
   assert.equal(preflightGuide.current_stage, 'gate_required');
   assert.equal(preflightGuide.stage_status, 'blocked');
   assert.equal(preflightGuide.next_explicit_command.id, 'work-record-gate-request');
+  assertGuideRecoverySummary(preflightGuide, 'blocked');
 
   const gateRecordPath = writeJson(path.join(root, 'gate-record.json'), approvedGateRecord());
   const authorization = runAos(['work-record', 'gate-check', source, '--gate-record', gateRecordPath, '--json']).json;
@@ -188,6 +232,7 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
     '--json',
   ]).json;
   assert.equal(initial.status, 'written');
+  assertBundleRecoverySummary(initial, 'blocked');
   assertBundleFilesAreSafe(initialBundle);
   const attemptPlanPath = path.join(initialBundle, 'artifacts/repair-attempt-plan.json');
   assertJsonArtifact(attemptPlanPath);
@@ -201,9 +246,11 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
   const initialInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', initialBundle, '--json']).json;
   assert.equal(initialInspection.status, 'valid');
   assert.equal(initialInspection.continuation.current_guide_stage, 'ready_to_plan_attempt');
+  assertInspectionRecoverySummary(initialInspection, 'ready');
   const initialLifecycle = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', initialBundle, '--json']).json;
   assert.equal(initialLifecycle.bundles[0].lifecycle_status, 'ready');
   assert.deepEqual(initialLifecycle.bundles[0].missing_inputs, ['attempt_plan_path', 'execution_root', 'artifact_root']);
+  assertStatusRowRecoverySummary(initialLifecycle.bundles[0]);
 
   fs.mkdirSync(executionRoot, { recursive: true });
   fs.mkdirSync(artifactRoot, { recursive: true });
@@ -272,6 +319,7 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
   assert.equal(readyGuide.stage_status, 'ready');
   assert.equal(readyGuide.next_explicit_command.id, 'work-record-repair-finalize');
   assert.equal(readyGuide.next_explicit_command.not_run_by_guide, true);
+  assertGuideRecoverySummary(readyGuide, 'ready');
 
   const readyBundle = runAos([
     'work-record',
@@ -293,11 +341,16 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
     '--json',
   ]).json;
   assert.equal(readyBundle.status, 'written');
+  assertBundleRecoverySummary(readyBundle, 'ready');
   assertBundleFilesAreSafe(readyFinalizeBundle);
   assert.equal(fs.existsSync(path.join(readyFinalizeBundle, 'reports/finalization-dry-run.json')), false);
   assert.equal(fs.existsSync(path.join(readyFinalizeBundle, 'reports/supersession-lookup.json')), false);
-  assert.equal(runAos(['work-record', 'repair', 'bundle', 'inspect', readyFinalizeBundle, '--json']).json.status, 'valid');
-  assert.equal(runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', readyFinalizeBundle, '--json']).json.bundles[0].lifecycle_status, 'ready');
+  const readyInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', readyFinalizeBundle, '--json']).json;
+  assert.equal(readyInspection.status, 'valid');
+  assertInspectionRecoverySummary(readyInspection, 'ready');
+  const readyStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', readyFinalizeBundle, '--json']).json;
+  assert.equal(readyStatus.bundles[0].lifecycle_status, 'ready');
+  assertStatusRowRecoverySummary(readyStatus.bundles[0]);
 
   const replacementBeforeDryRun = snapshotTree(replacementRoot);
   const indexBeforeDryRun = snapshotTree(indexRoot);
@@ -414,8 +467,9 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
   ]).json;
   assert.equal(finalizedGuide.current_stage, 'finalized');
   assert.equal(finalizedGuide.stage_status, 'complete');
+  assertGuideRecoverySummary(finalizedGuide, 'finalized');
 
-  assert.equal(runAos([
+  const finalizedBundleOutput = runAos([
     'work-record',
     'repair',
     'bundle',
@@ -433,9 +487,15 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
     '--index-root',
     indexRoot,
     '--json',
-  ]).json.status, 'written');
-  assert.equal(runAos(['work-record', 'repair', 'bundle', 'inspect', finalizedBundle, '--json']).json.status, 'valid');
-  assert.equal(runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', finalizedBundle, '--json']).json.bundles[0].lifecycle_status, 'finalized');
+  ]).json;
+  assert.equal(finalizedBundleOutput.status, 'written');
+  assertBundleRecoverySummary(finalizedBundleOutput, 'finalized');
+  const finalizedInspection = runAos(['work-record', 'repair', 'bundle', 'inspect', finalizedBundle, '--json']).json;
+  assert.equal(finalizedInspection.status, 'valid');
+  assertInspectionRecoverySummary(finalizedInspection, 'finalized');
+  const finalizedStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-root', finalizedBundle, '--json']).json;
+  assert.equal(finalizedStatus.bundles[0].lifecycle_status, 'finalized');
+  assertStatusRowRecoverySummary(finalizedStatus.bundles[0]);
 
   const bundlesBeforeParentStatus = snapshotTree(bundleParent);
   const parentStatus = runAos(['work-record', 'repair', 'bundle', 'status', '--bundle-parent', bundleParent, '--json']).json;
@@ -445,12 +505,14 @@ test('public Work Record recovery lifecycle composes from repairable fixture to 
   assert.equal(parentStatus.unsupported_count, 0);
   assert.ok(parentStatus.finalized_count >= 1);
   assert.deepEqual(new Set(parentStatus.bundles.map((bundle) => path.basename(bundle.bundle_root))), new Set(['01-authorized', '02-ready-finalize', '03-finalized']));
+  for (const bundle of parentStatus.bundles) assertStatusRowRecoverySummary(bundle);
   assert.deepEqual(snapshotTree(bundleParent), bundlesBeforeParentStatus);
 
   const tamperedBundle = readyFinalizeBundle;
   fs.writeFileSync(path.join(tamperedBundle, 'guide-report.json'), '{"tampered":true}\n');
   const tamperedInspect = runAos(['work-record', 'repair', 'bundle', 'inspect', tamperedBundle, '--json'], { ok: [1] }).json;
   assert.equal(tamperedInspect.status, 'blocked_digest_mismatch');
+  assertInspectionRecoverySummary(tamperedInspect, 'invalid');
   assert.ok(tamperedInspect.artifacts.some((artifact) => (
     artifact.relative_path === 'guide-report.json'
     && artifact.status === 'digest_mismatch'
