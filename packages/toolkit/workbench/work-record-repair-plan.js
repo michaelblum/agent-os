@@ -267,6 +267,10 @@ function candidatePatches({ verdict = '', verify = {}, recovery = {} } = {}) {
     applied: false,
     requires_workflow_gate: true,
     workflow_gate_refs: arrayValue(recovery.next_gates),
+    controlled_repair_executor: {
+      registry_kind: 'controlled_repair_fixture_registry',
+      allowlisted_operation_id: 'controlled_fixture.write_success',
+    },
     rationale: 'Current report-only diagnostics indicate refs or postconditions may be patched in a future gated repair attempt.',
     failure_classes: arrayValue(verify.failure_classes),
     diagnostic_codes: uniqueStrings(arrayValue(verify.diagnostics).map((diagnostic) => objectValue(diagnostic).code)),
@@ -435,6 +439,19 @@ export function validateWorkRecordRepairPlan(plan = {}) {
     }
     if (item.requires_workflow_gate !== true) {
       add('CANDIDATE_PATCH_WITHOUT_WORKFLOW_GATE', 'Candidate patches must require a workflow gate.', `candidate_patches[${index}].requires_workflow_gate`);
+    }
+    if (item.controlled_repair_executor !== undefined) {
+      const executor = objectValue(item.controlled_repair_executor);
+      if (
+        text(executor.registry_kind) !== 'controlled_repair_fixture_registry'
+        || !text(executor.allowlisted_operation_id).startsWith('controlled_fixture.')
+      ) {
+        add(
+          'CANDIDATE_PATCH_CONTROLLED_EXECUTOR_INVALID',
+          'Candidate patch controlled executor provenance must name the fixture registry and a controlled_fixture operation.',
+          `candidate_patches[${index}].controlled_repair_executor`,
+        );
+      }
     }
   });
 

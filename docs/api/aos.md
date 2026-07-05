@@ -1457,10 +1457,18 @@ The index entry is `work_record.source_supersession_entry` with schema version
 It reports missing index data as `not_found`, malformed entry data as
 `malformed_index`, conflicting active replacements as `conflict`, and active
 relationships as external discovery metadata with source id/digest,
-replacement id/path/digest, relationship status, and a recommended
-`aos work-record read` command. Lookup does not change verifier health and does
-not claim the source Work Record was mutated. `supersession validate` validates
-one entry file without mutating state.
+replacement id/path/digest, relationship status, and replacement readback
+status. Without `--replacement-root`, lookup reports replacement readback as
+`index_only`, leaves the read command hint empty, and does not claim readability
+was proven. With one or more `--replacement-root` values, lookup resolves the
+replacement through those roots, validates replacement id/digest against the
+index entry, emits a recommended `aos work-record read` command only when the
+replacement is readable, and reports `replacement_readback.status` such as
+`readable`, `not_found`, `digest_mismatch`, `id_mismatch`, or `path_mismatch`.
+Root-backed readback failures return `blocked_invalid_replacement` instead of
+masquerading as a fully proven active relationship. Lookup does not change
+verifier health and does not claim the source Work Record was mutated.
+`supersession validate` validates one entry file without mutating state.
 
 `export` emits a read-only bundle manifest. It preserves evidence refs,
 artifact paths, and metadata such as digest and size when available, but it does

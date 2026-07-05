@@ -355,12 +355,38 @@ test('write, validate, lookup, idempotency, and immutability are deterministic',
     sourceRef: repairableFixture,
     sourceRoots: [path.dirname(repairableFixture)],
     indexRoot,
+    replacementRoots: [outputRoot],
     repoRoot,
   });
   assert.equal(lookup.status, 'active', JSON.stringify(lookup.diagnostics, null, 2));
   assert.equal(lookup.entries.length, 1);
   assert.equal(lookup.entries[0].replacement_work_record.id, writerResult.written_replacement_work_record.id);
+  assert.equal(lookup.entries[0].replacement_readback.status, 'readable');
+  assert.equal(lookup.entries[0].replacement_readback.read_proven, true);
+  assert.equal(lookup.entries[0].replacement_readback.resolved_root, outputRoot);
   assert.match(lookup.entries[0].recommended_next.command_hint, /aos work-record read/);
+  assert.match(lookup.entries[0].recommended_next.command_hint, new RegExp(`--root ${outputRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  const recommendedRead = runAos([
+    'work-record',
+    'read',
+    writerResult.written_replacement_work_record.id,
+    '--root',
+    outputRoot,
+    '--json',
+  ]);
+  assert.equal(recommendedRead.status, 0, recommendedRead.stderr);
+  assert.equal(JSON.parse(recommendedRead.stdout).record.id, writerResult.written_replacement_work_record.id);
+
+  const indexOnly = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    sourceRoots: [path.dirname(repairableFixture)],
+    indexRoot,
+    repoRoot,
+  });
+  assert.equal(indexOnly.status, 'active');
+  assert.equal(indexOnly.entries[0].replacement_readback.status, 'index_only');
+  assert.equal(indexOnly.entries[0].replacement_readback.read_proven, false);
+  assert.equal(indexOnly.entries[0].recommended_next.command_hint, '');
 
   const repeat = writeWorkRecordSourceSupersessionIndex({
     sourceRef: repairableFixture,
@@ -372,6 +398,65 @@ test('write, validate, lookup, idempotency, and immutability are deterministic',
   });
   assert.equal(repeat.status, 'already_exists');
   assert.equal(repeat.idempotency.status, 'identical_existing');
+});
+
+test('lookup replacement-root readback fails closed for missing, digest mismatch, and wrong replacement id', () => {
+  const indexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-index-readback-'));
+  const { outputRoot, replacementPath, writerResult } = writeReplacement({
+    proposedIdSeed: 'work-record:supersession-index-readback-replacement',
+  });
+  const result = writeWorkRecordSourceSupersessionIndex({
+    sourceRef: repairableFixture,
+    replacementRef: replacementPath,
+    replacementRoots: [outputRoot],
+    indexRoot,
+    repoRoot,
+    writerResultPath: writeTempJson(writerResult),
+  });
+  assert.equal(result.status, 'written', JSON.stringify(result.diagnostics, null, 2));
+  const sourceBefore = fs.readFileSync(repairableFixture, 'utf8');
+  const replacementBefore = fs.readFileSync(replacementPath, 'utf8');
+
+  const wrongRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-work-record-supersession-missing-root-'));
+  const missing = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    sourceRoots: [path.dirname(repairableFixture)],
+    indexRoot,
+    replacementRoots: [wrongRoot],
+    repoRoot,
+  });
+  assert.equal(missing.status, 'blocked_invalid_replacement');
+  assert.equal(missing.entries[0].replacement_readback.status, 'not_found');
+  assert.equal(missing.entries[0].recommended_next.command_hint, '');
+
+  const entry = JSON.parse(fs.readFileSync(result.output.index_path, 'utf8'));
+  entry.replacement_work_record.digest = 'sha256:not-current';
+  fs.writeFileSync(result.output.index_path, `${JSON.stringify(entry, null, 2)}\n`);
+  const digestMismatch = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    sourceRoots: [path.dirname(repairableFixture)],
+    indexRoot,
+    replacementRoots: [outputRoot],
+    repoRoot,
+  });
+  assert.equal(digestMismatch.status, 'blocked_invalid_replacement');
+  assert.equal(digestMismatch.entries[0].replacement_readback.status, 'digest_mismatch');
+  assert.ok(digestMismatch.diagnostics.some((diagnostic) => diagnostic.code === 'SUPERSESSION_LOOKUP_REPLACEMENT_DIGEST_MISMATCH'));
+
+  entry.replacement_work_record.digest = writerResult.written_replacement_work_record.digest;
+  entry.replacement_work_record.id = 'work-record:not-the-written-replacement';
+  fs.writeFileSync(result.output.index_path, `${JSON.stringify(entry, null, 2)}\n`);
+  const wrongId = lookupWorkRecordSourceSupersession({
+    sourceRef: repairableFixture,
+    sourceRoots: [path.dirname(repairableFixture)],
+    indexRoot,
+    replacementRoots: [outputRoot],
+    repoRoot,
+  });
+  assert.equal(wrongId.status, 'blocked_invalid_replacement');
+  assert.equal(wrongId.entries[0].replacement_readback.status, 'not_found');
+  assert.equal(fs.readFileSync(repairableFixture, 'utf8'), sourceBefore);
+  assert.equal(fs.readFileSync(replacementPath, 'utf8'), replacementBefore);
 });
 
 test('writer fails closed for invalid source, invalid replacement, source drift, relationship mismatch, traversal, symlink escape, malformed lookup, and conflict', () => {
@@ -587,6 +672,8 @@ test('public supersession commands expose stable JSON and never run repair', () 
   const lookupJson = JSON.parse(lookup.stdout);
   assert.equal(lookupJson.status, 'active');
   assert.deepEqual(lookupJson.roots.replacement_roots, [outputRoot]);
+  assert.equal(lookupJson.entries[0].replacement_readback.status, 'readable');
+  assert.equal(lookupJson.entries[0].replacement_readback.resolved_root, outputRoot);
 
   const validate = runAos([
     'work-record',

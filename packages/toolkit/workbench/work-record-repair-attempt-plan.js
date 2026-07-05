@@ -307,6 +307,21 @@ function operationAuthorizationStatus(operation = {}, authorization = null, stat
   return text(authorization.status || authorization.authorization_status, 'missing');
 }
 
+function controlledExecutorDescriptor(candidatePatch = {}) {
+  const executor = objectValue(candidatePatch.controlled_repair_executor);
+  const registryKind = text(executor.registry_kind);
+  const operationId = text(executor.allowlisted_operation_id);
+  if (registryKind !== 'controlled_repair_fixture_registry') return {};
+  if (!operationId.startsWith('controlled_fixture.')) return {};
+  return {
+    allowlisted_operation_id: operationId,
+    controlled_repair_executor: {
+      registry_kind: registryKind,
+      allowlisted_operation_id: operationId,
+    },
+  };
+}
+
 function plannedOperations(plan = {}, authorization = null, status = '') {
   return [
     ...arrayValue(plan.plan_steps).map((step) => {
@@ -333,22 +348,12 @@ function plannedOperations(plan = {}, authorization = null, status = '') {
     }),
     ...arrayValue(plan.candidate_patches).map((patch) => {
       const item = objectValue(patch);
-      const controlledFixtureOperationId = text(item.id) === 'candidate_patch:execution_map_refs'
-        ? 'controlled_fixture.write_success'
-        : '';
+      const executorDescriptor = controlledExecutorDescriptor(item);
       return {
         id: `planned_operation:${text(item.id)}`,
         kind: 'candidate_patch',
         source_candidate_patch_id: text(item.id),
-        ...(controlledFixtureOperationId
-          ? {
-              allowlisted_operation_id: controlledFixtureOperationId,
-              controlled_repair_executor: {
-                allowlisted_operation_id: controlledFixtureOperationId,
-                registry_kind: 'controlled_repair_fixture_registry',
-              },
-            }
-          : {}),
+        ...executorDescriptor,
         requires_workflow_gate: item.requires_workflow_gate === true,
         workflow_gate_refs: arrayValue(item.workflow_gate_refs).map(text).filter(Boolean).sort(),
         authorization_status: operationAuthorizationStatus(item, authorization, status),

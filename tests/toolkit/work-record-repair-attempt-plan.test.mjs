@@ -123,6 +123,44 @@ test('matching authorization makes attempt ready without claiming repair executi
   assertNonExecutingAttempt(attempt);
 });
 
+test('attempt plan copies executor provenance from candidate metadata instead of patch id', () => {
+  const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
+  assert.equal(
+    repairPlan.candidate_patches[0].controlled_repair_executor.allowlisted_operation_id,
+    'controlled_fixture.write_success',
+  );
+
+  const renamedPlan = JSON.parse(JSON.stringify(repairPlan));
+  renamedPlan.candidate_patches[0].id = 'candidate_patch:renamed_execution_map_refs';
+  const renamedAttempt = planWorkRecordRepairAttempt(repairableFixture, {
+    repoRoot,
+    repairPlan: renamedPlan,
+  });
+  const renamedOperation = renamedAttempt.planned_operations.find((operation) => (
+    operation.source_candidate_patch_id === 'candidate_patch:renamed_execution_map_refs'
+  ));
+  assert.equal(renamedOperation.allowlisted_operation_id, 'controlled_fixture.write_success');
+  assert.equal(renamedOperation.controlled_repair_executor.registry_kind, 'controlled_repair_fixture_registry');
+
+  const missingMetadataPlan = JSON.parse(JSON.stringify(repairPlan));
+  delete missingMetadataPlan.candidate_patches[0].controlled_repair_executor;
+  const missingMetadataAttempt = planWorkRecordRepairAttempt(repairableFixture, {
+    repoRoot,
+    repairPlan: missingMetadataPlan,
+  });
+  const originalIdOperation = missingMetadataAttempt.planned_operations.find((operation) => (
+    operation.source_candidate_patch_id === 'candidate_patch:execution_map_refs'
+  ));
+  assert.equal(originalIdOperation.allowlisted_operation_id, undefined);
+  assert.equal(originalIdOperation.controlled_repair_executor, undefined);
+
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-attempt-plan.js'),
+    'utf8',
+  );
+  assert.equal(source.includes('candidate_patch:execution_map_refs'), false);
+});
+
 test('denied, timeout, insufficient, stale, mismatch, and unsupported authorization inputs fail closed', () => {
   const repairPlan = planWorkRecordRepair(repairableFixture, { repoRoot });
   const request = buildWorkRecordGateRequestFromRepairPlan(repairPlan);
