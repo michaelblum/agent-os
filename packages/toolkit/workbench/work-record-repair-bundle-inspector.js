@@ -30,22 +30,7 @@ const NON_EXECUTION_FLAGS = Object.freeze({
   automatic_replay_allowed: false,
 });
 
-const MANIFEST_REQUIRED_NON_EXECUTION_FLAGS = Object.freeze([
-  'executes_repair',
-  'executes_actions',
-  'runs_recommended_commands',
-  'writes_replacement_record',
-  'writes_supersession_index_entry',
-  'mutates_source_record',
-  'uses_live_ui',
-  'uses_browser',
-  'uses_native_ax',
-  'uses_canvas',
-  'applies_patches',
-  'starts_workflow_engine',
-  'auto_resumes',
-  'automatic_replay_allowed',
-]);
+const MANIFEST_REQUIRED_NON_EXECUTION_FLAGS = Object.freeze(Object.keys(NON_EXECUTION_FLAGS));
 
 const STATUS_RANK = Object.freeze({
   valid: 0,

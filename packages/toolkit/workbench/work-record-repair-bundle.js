@@ -19,6 +19,9 @@ export const WORK_RECORD_REPAIR_BUNDLE_SCHEMA_VERSION = '2026-07-work-record-rep
 export const WORK_RECORD_REPAIR_BUNDLE_IMPLEMENTATION_VERSION = '2026-07-work-record-repair-bundle-v0';
 
 const NON_EXECUTION_FLAGS = Object.freeze({
+  mutates_record: false,
+  writes_bundle: false,
+  repairs_bundle: false,
   executes_repair: false,
   executes_actions: false,
   runs_recommended_commands: false,

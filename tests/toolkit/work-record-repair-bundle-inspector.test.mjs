@@ -234,6 +234,45 @@ test('missing required manifest non-execution flag fails closed', () => {
   )));
 });
 
+test('every emitted manifest non-execution flag is required', () => {
+  const baselineRoot = createBundle();
+  const flags = Object.keys(manifest(baselineRoot).non_execution_flags).sort();
+
+  assert.deepEqual(flags, [
+    'applies_patches',
+    'auto_resumes',
+    'automatic_replay_allowed',
+    'executes_actions',
+    'executes_repair',
+    'mutates_record',
+    'mutates_source_record',
+    'repairs_bundle',
+    'runs_recommended_commands',
+    'starts_workflow_engine',
+    'uses_browser',
+    'uses_canvas',
+    'uses_live_ui',
+    'uses_native_ax',
+    'writes_bundle',
+    'writes_replacement_record',
+    'writes_supersession_index_entry',
+  ]);
+
+  for (const flag of flags) {
+    const root = createBundle();
+    const data = manifest(root);
+    delete data.non_execution_flags[flag];
+    writeManifest(root, data);
+
+    const result = inspect(root);
+    assertInspection(result, 'blocked_invalid_manifest');
+    assert.ok(result.diagnostics.some((item) => (
+      item.code === 'WORK_RECORD_REPAIR_BUNDLE_INSPECT_MANIFEST_EXECUTION_FLAG_MISSING'
+      && item.flag === flag
+    )), flag);
+  }
+});
+
 test('missing manifest non-execution flags object fails closed', () => {
   const root = createBundle();
   const data = manifest(root);
@@ -276,6 +315,15 @@ test('unknown non-boolean manifest flag fails closed', () => {
     && item.flag === 'live_replay_mode'
     && item.value === 'enabled'
   )));
+});
+
+test('unknown false manifest non-execution flags are permitted', () => {
+  const root = createBundle();
+  const data = manifest(root);
+  data.non_execution_flags.future_read_only_claim = false;
+  writeManifest(root, data);
+
+  assertInspection(inspect(root), 'valid');
 });
 
 test('unknown true execution-like manifest flag fails closed', () => {
