@@ -47,6 +47,12 @@ stored identities, readback fields, and argv-backed recommendations. Use
 whitespace-normalizing helpers only for semantic fields such as ids, statuses,
 schema versions, and display text.
 
+For `workbench/` Work Record capture builders, keep
+`work-record-capture.js` as the stable public facade. Internal capture modules
+own command evidence, AOS action phases, step-descriptor promotion, shared
+helpers, and builder versions; do not widen the public `work-record.js` facade
+for private phase-helper testing.
+
 ## Child DOX Index
 
 - `controls/AGENTS.md` governs reusable semantic app-control behavior.
