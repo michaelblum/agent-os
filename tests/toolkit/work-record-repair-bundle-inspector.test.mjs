@@ -73,7 +73,14 @@ function assertInspection(envelope, status) {
   if (status === 'valid' || status === 'degraded') {
     assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id);
     assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv);
+    assert.notEqual(envelope.continuation.safe_next_descriptor_id, '');
+    assert.notDeepEqual(envelope.continuation.argv, []);
   } else {
+    assert.equal(envelope.continuation.safe_next_descriptor_id, '');
+    assert.deepEqual(envelope.continuation.argv, []);
+    assert.equal(envelope.continuation.command, '');
+    assert.equal(envelope.continuation.requires_human_approval, false);
+    assert.equal(envelope.continuation.would_mutate_state, false);
     assert.equal(envelope.recovery_summary.next.command_id, '');
     assert.deepEqual(envelope.recovery_summary.next.argv, []);
   }

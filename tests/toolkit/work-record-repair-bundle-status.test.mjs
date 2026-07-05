@@ -231,6 +231,11 @@ test('status and inspect agree that digest mismatch is invalid and non-continuab
 
   assert.equal(inspection.status, 'blocked_digest_mismatch');
   assert.equal(inspection.recovery_summary.state, 'invalid');
+  assert.equal(inspection.continuation.safe_next_descriptor_id, '');
+  assert.deepEqual(inspection.continuation.argv, []);
+  assert.equal(inspection.continuation.command, '');
+  assert.equal(inspection.continuation.requires_human_approval, false);
+  assert.equal(inspection.continuation.would_mutate_state, false);
   assert.deepEqual(inspection.recovery_summary.next.argv, []);
   assert.equal(bundle.inspection_status, 'blocked_digest_mismatch');
   assert.equal(bundle.lifecycle_status, 'invalid');
@@ -255,6 +260,11 @@ test('status and inspect agree that descriptor mismatch is invalid and non-conti
 
   assert.equal(inspection.status, 'blocked_descriptor_mismatch');
   assert.equal(inspection.recovery_summary.state, 'invalid');
+  assert.equal(inspection.continuation.safe_next_descriptor_id, '');
+  assert.deepEqual(inspection.continuation.argv, []);
+  assert.equal(inspection.continuation.command, '');
+  assert.equal(inspection.continuation.requires_human_approval, false);
+  assert.equal(inspection.continuation.would_mutate_state, false);
   assert.deepEqual(inspection.recovery_summary.next.argv, []);
   assert.equal(bundle.inspection_status, 'blocked_descriptor_mismatch');
   assert.equal(bundle.lifecycle_status, 'invalid');

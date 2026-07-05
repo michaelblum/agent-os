@@ -152,8 +152,9 @@ the returned `recommended_next`, `recommended_next_commands`, or
   display strings; use full envelopes only for evidence detail. Invalid,
   missing, unsupported, unknown, incomplete bundle-owned artifact/descriptor,
   digest-mismatch, descriptor-mismatch, path-escape, forbidden-artifact, and
-  unsupported-schema summaries expose no executable `next.argv`. Bundle
-  inspection and lifecycle status use the same canonical state classifier.
+  unsupported-schema summaries expose no executable `next.argv` or inspect
+  `continuation.argv`. Bundle inspection continuation, recovery summary, and
+  lifecycle status use the same canonical state classifier.
   Blocked summaries are authorization to continue only when `next.argv` is
   populated from a validated descriptor and required saved outputs are present.
   Bundle/status/inspect remain read-only and
@@ -197,9 +198,9 @@ the returned `recommended_next`, `recommended_next_commands`, or
   explicit bundle root by default, checks manifest/guide/descriptors/artifacts,
   exact manifest artifact path identity, manifest non-execution flags, path
   containment, symlinks, digests, forbidden bundle-owned outputs, and saved
-  output readiness, then reports `recovery_summary`, the exact next `argv` only
-  for continuable validated bundles, and whether required saved outputs are
-  present, including required saved-output presence.
+  output readiness, then reports `recovery_summary`, sanitized top-level
+  `continuation`, the exact next `argv` only for continuable validated bundles,
+  and whether required saved outputs are present.
 - `aos work-record repair finalize --source <id-or-path> --attempt-plan
   <plan-path> --attempt-artifact <artifact-path> --replacement-root <dir>
   --index-root <dir> [--proposed-id-seed id] [--replacement-output-path path]

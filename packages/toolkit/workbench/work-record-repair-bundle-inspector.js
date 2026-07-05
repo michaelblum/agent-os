@@ -13,6 +13,7 @@ import {
 } from './work-record-repair-bundle-policy.js';
 import {
   buildInspectionRecoverySummary,
+  classifyInspectionRecovery,
 } from './work-record-recovery-summary.js';
 
 export {
@@ -462,7 +463,7 @@ function deriveContinuation(envelope, guide, descriptorById) {
   const descriptor = descriptorById.get(text(next.id)) || next;
   const summary = envelope.descriptors.find((item) => item.id === text(descriptor.id)) || null;
   const missing = summary?.missing_saved_outputs || [];
-  envelope.continuation = {
+  const continuation = {
     current_guide_stage: text(guide.current_stage),
     stage_status: text(guide.stage_status),
     safe_next_descriptor_id: text(descriptor.id),
@@ -474,6 +475,17 @@ function deriveContinuation(envelope, guide, descriptorById) {
     would_mutate_state: descriptor.mutates_state === true,
     inspector_ran_command: false,
     reminder: 'Inspector did not run the command.',
+  };
+  envelope.continuation = continuation;
+
+  if (classifyInspectionRecovery(envelope).continuable === true) return;
+  envelope.continuation = {
+    ...continuation,
+    safe_next_descriptor_id: '',
+    argv: [],
+    command: '',
+    requires_human_approval: false,
+    would_mutate_state: false,
   };
 }
 

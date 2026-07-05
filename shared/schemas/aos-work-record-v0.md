@@ -518,8 +518,9 @@ must not expose a safe continuation argv. Incomplete bundle-owned artifacts or
 descriptors, digest mismatches, descriptor mismatches, invalid manifests, path
 escapes, forbidden artifacts, unsupported schemas, missing roots, and unknown
 inspection statuses fail closed with empty `next.command_id` and `next.argv`.
-Bundle inspection summaries and lifecycle status rows use one classifier for
-the canonical state set so `inspect.recovery_summary.state`,
+Bundle inspection summaries, top-level inspect `continuation`, and lifecycle
+status rows use one classifier for the canonical state set so
+`inspect.recovery_summary.state`,
 `status.bundles[].lifecycle_status`, and
 `status.bundles[].recovery_summary.state` do not drift. `safety` reports whether an inspector
 ran a command, whether the bundle wrote replacement or supersession outputs,
@@ -701,7 +702,8 @@ exact `argv`, required saved-output presence, missing artifact paths, whether
 human approval is required, whether the next command would mutate state, and a
 reminder that the inspector did not run the command. Invalid, missing,
 unsupported, unknown, and incomplete bundle-owned artifact or descriptor states
-report no executable `recovery_summary.next.argv`. The inspector never writes
+sanitize top-level `continuation` executable fields and report no executable
+`recovery_summary.next.argv`. The inspector never writes
 or repairs bundle files, never re-runs guide/planning, never submits gates,
 never executes repair, finalization, replacement writing, supersession lookup
 or writing, replay, Workflow engine work, live UI, browser, native AX, canvas,

@@ -170,11 +170,16 @@ function assertBundleRecoverySummary(envelope, state) {
 }
 
 function assertInspectionRecoverySummary(envelope, state) {
-  const continuable = !['invalid', 'missing', 'unsupported', 'unknown'].includes(state);
   assert.equal(envelope.recovery_summary.state, state);
   assert.equal(envelope.recovery_summary.bundle_root, envelope.bundle_root);
-  assert.equal(envelope.recovery_summary.next.command_id, continuable ? envelope.continuation.safe_next_descriptor_id : '');
-  assert.deepEqual(envelope.recovery_summary.next.argv, continuable ? envelope.continuation.argv : []);
+  assert.equal(envelope.recovery_summary.next.command_id, envelope.continuation.safe_next_descriptor_id || '');
+  assert.deepEqual(envelope.recovery_summary.next.argv, envelope.continuation.argv || []);
+  if (envelope.recovery_summary.next.argv.length === 0) {
+    assert.equal(envelope.continuation.safe_next_descriptor_id, '');
+    assert.equal(envelope.continuation.command, '');
+    assert.equal(envelope.continuation.requires_human_approval, false);
+    assert.equal(envelope.continuation.would_mutate_state, false);
+  }
   assertSummarySafety(envelope.recovery_summary);
 }
 

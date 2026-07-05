@@ -1148,7 +1148,8 @@ unsupported, or unknown summaries do not expose a safe continuation argv.
 Incomplete bundle-owned artifacts or descriptors, digest mismatches,
 descriptor mismatches, invalid manifests, path escapes, forbidden artifacts,
 unsupported schemas, missing roots, and unknown inspection statuses fail closed
-without `next.command_id` or `next.argv`. Inspection summaries and lifecycle
+without `next.command_id`, `next.argv`, or top-level inspect `continuation`
+executable fields. Inspection summaries, inspect `continuation`, and lifecycle
 status rows use the same classifier for `ready`, `blocked`, `finalized`,
 `invalid`, `missing`, `unsupported`, and `unknown`.
 `safety` reports that inspectors did not run commands, bundles did not write
@@ -1245,12 +1246,13 @@ inspector reads and digests the `relative_path` target, not an independent
 manifest path claim. Manifest non-execution flags must contain every required
 no-execution flag as boolean `false`; missing flags, non-boolean values, `true`
 execution/write/live/replay claims, and unknown non-false claims fail closed. It
-reports the saved guide stage, the safe next descriptor id, the exact `argv`,
-whether saved outputs are present, missing artifact paths, human-approval and
-mutation indicators, and a `recovery_summary` with the scan-first continuation
-state and a reminder that the command was not run. Invalid, missing,
-unsupported, unknown, and incomplete bundle-owned artifact or descriptor states
-report no executable `recovery_summary.next.argv`.
+reports the saved guide stage, the safe next descriptor id, the exact `argv`
+only when the inspection is continuable, whether saved outputs are present,
+missing artifact paths, human-approval and mutation indicators, and a
+`recovery_summary` with the scan-first continuation state and a reminder that
+the command was not run. Invalid, missing, unsupported, unknown, and incomplete
+bundle-owned artifact or descriptor states sanitize top-level `continuation`
+executable fields and report no executable `recovery_summary.next.argv`.
 Descriptor `command` and `persistence_command` values are display-only
 shell-quoted text; `argv`, `stdout_artifact`, `save_stdout_to`, and
 `requires_saved_output_from` are the execution and persistence contract.
