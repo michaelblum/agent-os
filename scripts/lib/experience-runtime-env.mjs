@@ -1,5 +1,8 @@
 import os from 'node:os';
 import path from 'node:path';
+import {
+  runtimeMode,
+} from './agent-workspace/core.mjs';
 
 function envValue(env, key) {
   const value = env[key];
@@ -14,7 +17,7 @@ export function experienceRuntimeEnv({
   const stateRoot = envValue(env, 'AOS_STATE_ROOT')
     ? path.resolve(envValue(env, 'AOS_STATE_ROOT'))
     : path.join(os.homedir(), '.config', 'aos');
-  const mode = envValue(env, 'AOS_RUNTIME_MODE') || 'repo';
+  const mode = runtimeMode(env);
   const aos = envValue(env, 'AOS_PATH')
     ? envValue(env, 'AOS_PATH')
     : path.join(resolvedRepoRoot, 'aos');

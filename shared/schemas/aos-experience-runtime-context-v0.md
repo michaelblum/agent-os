@@ -17,8 +17,12 @@ The envelope includes:
 - `command` with the exact read-only status argv.
 - `experience` and `active_experience` identity.
 - `runtime` readiness from passive service and permission readbacks.
-- `state` paths for mode-scoped experience/config/pending annotation state.
-- `content_roots`, `status_item`, and `pending_annotations` status blocks.
+- `state` paths for mode-scoped experience/config state, plus pending
+  annotation state only for supported annotation experiences.
+- `content_roots`, `status_item`, and discriminated `pending_annotations`
+  status blocks. Unsupported annotation experiences emit only
+  `{ "status": "not_applicable", "supported": false }` and do not expose
+  pending annotation store paths.
 - `diagnostics`, `capabilities`, and `recommended_next` for machine routing.
 
 Status output must stay passive. It may read local state and run read-only AOS

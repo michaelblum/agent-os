@@ -39,18 +39,17 @@ function buildPendingAnnotationStatus({
   env,
   manifest,
 }) {
-  const supported = (manifest.menu || []).some((item) => item?.kind === 'operator_annotation' || item?.create_pending_annotation === true);
-  const store = pendingAnnotationStoreStatus(env);
+  const supported = (manifest.menu || []).some((item) => item?.kind === 'operator_annotation');
   if (!supported) {
     return {
-      ...store,
       status: 'not_applicable',
-      supported,
+      supported: false,
     };
   }
+  const store = pendingAnnotationStoreStatus(env);
   return {
     ...store,
-    supported,
+    supported: true,
   };
 }
 
@@ -125,6 +124,14 @@ export async function buildExperienceRuntimeContext(id, {
   const status = diagnostics.some((item) => item.severity === 'error')
     ? 'blocked'
     : (diagnostics.some((item) => item.severity === 'warning') ? 'degraded' : 'ok');
+  const state = {
+    root: runtimeEnv.stateRoot,
+    mode_root: runtimeEnv.stateDir,
+    experience_state_path: runtimeEnv.experienceStatePath,
+    config_path: config.path,
+    config_status: config.status,
+    ...(pendingAnnotations.supported === true ? { pending_annotations_root: pendingAnnotations.root } : {}),
+  };
   return {
     schema_version: EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION,
     collected_at: collectedAt,
@@ -146,14 +153,7 @@ export async function buildExperienceRuntimeContext(id, {
       source_path: active.source_path,
     },
     runtime,
-    state: {
-      root: runtimeEnv.stateRoot,
-      mode_root: runtimeEnv.stateDir,
-      experience_state_path: runtimeEnv.experienceStatePath,
-      config_path: config.path,
-      config_status: config.status,
-      pending_annotations_root: pendingAnnotations.root,
-    },
+    state,
     content_roots: contentRoots,
     status_item: statusItem,
     pending_annotations: pendingAnnotations,

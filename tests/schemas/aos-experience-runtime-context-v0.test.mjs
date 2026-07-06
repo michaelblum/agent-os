@@ -94,6 +94,113 @@ test('experience runtime context schema accepts a degraded status envelope', asy
   await validatePayload(payload, 'aos-runtime-context-schema-degraded-instance-');
 });
 
+test('experience runtime context schema validates normalized fallback runtime mode', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-invalid-mode-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', {
+    AOS_STATE_ROOT: tmp,
+    AOS_RUNTIME_MODE: 'bogus',
+  });
+  await writeOperatorFixtureState(tmp, expectedURL);
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+  const responses = baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: tmp,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'bogus',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = await buildExperienceRuntimeContext('operator-fixture', { env });
+  assert.equal(payload.runtime.mode, 'repo');
+  await validatePayload(payload, 'aos-runtime-context-schema-invalid-mode-instance-');
+});
+
+test('experience runtime context schema accepts unsupported annotation status without store internals', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-no-annotation-'));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = 'non-annotation-schema-fixture';
+  const contentRoot = path.join(tempRepoRoot, 'content-root');
+  const expectedURL = 'aos://plain/runtime/schema.html';
+  await fs.mkdir(contentRoot, { recursive: true });
+  await writeExperienceManifestFixture({
+    experiencesRoot,
+    id,
+    title: 'Non Annotation Schema Fixture',
+    contentRootId: 'plainroot',
+    contentRootPath: 'content-root',
+    surfaceId: 'plain-schema-surface',
+    expectedURL,
+    menu: [{
+      id: 'plain-tool',
+      label: 'Plain Tool',
+      kind: 'future_tool',
+      tool: 'plain',
+    }],
+  });
+  await writeRuntimeStateFixture({
+    stateRoot,
+    id,
+    contentRootKey: 'plainroot',
+    contentRootPath: contentRoot,
+    surfaceId: 'plain-schema-surface',
+    expectedURL,
+  });
+  await fs.writeFile(path.join(stateRoot, 'repo', 'pending-annotations'), 'corrupt if inspected\n', 'utf8');
+  const responses = baseResponses(stateRoot, {
+    contentRoots: { plainroot: contentRoot },
+    canvases: [{
+      id: 'plain-schema-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = await buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+  assert.deepEqual(payload.pending_annotations, {
+    status: 'not_applicable',
+    supported: false,
+  });
+  assert.equal(Object.hasOwn(payload.state, 'pending_annotations_root'), false);
+  await validatePayload(payload, 'aos-runtime-context-schema-no-annotation-instance-');
+
+  const invalidPendingInternals = JSON.parse(JSON.stringify(payload));
+  invalidPendingInternals.pending_annotations.root = path.join(stateRoot, 'repo', 'pending-annotations');
+  rejectJSONAgainstSchema(await writeTempRuntimeContextPayload(
+    invalidPendingInternals,
+    'aos-runtime-context-schema-no-annotation-pending-leak-instance-',
+  ));
+
+  const invalidStateInternals = JSON.parse(JSON.stringify(payload));
+  invalidStateInternals.state.pending_annotations_root = path.join(stateRoot, 'repo', 'pending-annotations');
+  rejectJSONAgainstSchema(await writeTempRuntimeContextPayload(
+    invalidStateInternals,
+    'aos-runtime-context-schema-no-annotation-state-leak-instance-',
+  ));
+});
+
 test('experience runtime context schema accepts corrupt pending annotation state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-corrupt-pending-'));
   const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });

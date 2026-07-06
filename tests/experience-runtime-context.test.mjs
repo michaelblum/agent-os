@@ -49,6 +49,7 @@ test('experience status id path treats placeholder state root as legacy fallback
   const env = {
     HOME: home,
     AOS_STATE_ROOT: '$AOS_STATE_ROOT',
+    AOS_RUNTIME_MODE: '$AOS_RUNTIME_MODE',
     AOS_PATH: fake,
     FAKE_AOS_LOG: log,
     FAKE_AOS_RESPONSES: JSON.stringify(baseResponses(stateRoot)),
@@ -61,6 +62,7 @@ test('experience status id path treats placeholder state root as legacy fallback
   const context = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], env);
   assert.equal(context.status, 0, `${context.stdout}${context.stderr}`);
   const payload = JSON.parse(context.stdout);
+  assert.equal(payload.runtime.mode, 'repo');
   assert.equal(payload.runtime.state_root, stateRoot);
   assert.equal(payload.runtime.state_root.includes('$AOS_STATE_ROOT'), false);
   assert.equal(payload.active_experience.source_path, expectedStatePath);
@@ -78,6 +80,66 @@ test('experience status id path treats placeholder state root as legacy fallback
     'service status --mode repo --json',
     'show list --json',
   ].sort());
+});
+
+test('experience status normalizes invalid runtime mode to repo before public JSON', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-invalid-mode-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', {
+    AOS_STATE_ROOT: tmp,
+    AOS_RUNTIME_MODE: 'bogus',
+  });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+
+  const responses = baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp, responses);
+  const result = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], {
+    AOS_STATE_ROOT: tmp,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'bogus',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.runtime.mode, 'repo');
+  assert.equal(payload.runtime.repo_mode, true);
+  assert.equal(payload.runtime.installed_mode, false);
+  assert.equal(payload.runtime.state_dir, path.join(tmp, 'repo'));
+  assert.equal(payload.state.experience_state_path, path.join(tmp, 'repo', 'experience-state.json'));
+
+  const callText = (await fs.readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line).join(' '));
+  assert(callText.includes('service status --mode repo --json'), callText);
+  assert(!callText.some((line) => line.includes('--mode bogus')), callText);
 });
 
 test('experience activation and id status use the same normalized state paths', async () => {
@@ -328,6 +390,87 @@ test('experience status does not treat Sigil state as operator fixture success',
     item.id === 'activate-requested-experience'
     && item.argv.join(' ') === './aos experience activate operator-fixture --json --allow-start'
   )), payload.recommended_next);
+});
+
+test('experience status omits pending annotation store internals for non-annotation fixtures', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-no-annotation-'));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = 'non-annotation-fixture';
+  const contentRoot = path.join(tempRepoRoot, 'content-root');
+  const expectedURL = 'aos://plain/runtime/index.html';
+  await fs.mkdir(contentRoot, { recursive: true });
+  await writeExperienceManifestFixture({
+    experiencesRoot,
+    id,
+    title: 'Non Annotation Fixture',
+    contentRootId: 'plainroot',
+    contentRootPath: 'content-root',
+    surfaceId: 'plain-surface',
+    expectedURL,
+    menu: [{
+      id: 'plain-tool',
+      label: 'Plain Tool',
+      kind: 'future_tool',
+      tool: 'plain',
+    }],
+  });
+  await writeRuntimeStateFixture({
+    stateRoot,
+    id,
+    contentRootKey: 'plainroot',
+    contentRootPath: contentRoot,
+    surfaceId: 'plain-surface',
+    expectedURL,
+  });
+  await fs.writeFile(path.join(stateRoot, 'repo', 'pending-annotations'), 'corrupt if inspected\n', 'utf8');
+
+  const responses = baseResponses(stateRoot, {
+    contentRoots: { plainroot: contentRoot },
+    canvases: [{
+      id: 'plain-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp, responses);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = await buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+  assert.equal(payload.status, 'ok');
+  assert.deepEqual(payload.pending_annotations, {
+    status: 'not_applicable',
+    supported: false,
+  });
+  for (const key of ['root', 'records_dir', 'index_path', 'lock', 'root_status', 'records_status', 'index_status', 'record_count']) {
+    assert.equal(Object.hasOwn(payload.pending_annotations, key), false, key);
+  }
+  assert.equal(Object.hasOwn(payload.state, 'pending_annotations_root'), false);
+  assert.equal(payload.capabilities.annotation.status, 'unsupported');
+  assert.deepEqual(payload.capabilities.annotation.blockers, []);
+  assert(!payload.diagnostics.some((item) => item.id.startsWith('pending-annotation')), payload.diagnostics);
+
+  const callText = (await fs.readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line).join(' '));
+  assert.deepEqual(callText.sort(), [
+    'content status --json',
+    'permissions check --json',
+    'service status --mode repo --json',
+    'show list --json',
+  ].sort());
 });
 
 test('experience status reports stale target, missing content root, and uninitialized pending state', async () => {

@@ -46,6 +46,18 @@ export function buildCapabilities({
   const targetReady = statusItem.target.status === 'current';
   const mountedReady = ['current', 'not_applicable'].includes(statusItem.mounted_surface.status);
   const annotationStoreCorrupt = pendingAnnotations.supported === true && pendingAnnotations.status === 'corrupt';
+  const annotation = pendingAnnotations.supported === false
+    ? capability('unsupported', [])
+    : capability(
+      annotationStoreCorrupt ? 'blocked' : (serviceReady && permissionReady && targetReady && mountedReady ? 'ready' : 'degraded'),
+      [
+        ...(!serviceReady ? ['service_not_ready'] : []),
+        ...permissionBlockers,
+        ...(!targetReady ? ['status_item_target_not_current'] : []),
+        ...(!mountedReady ? ['mounted_surface_not_current'] : []),
+        ...(annotationStoreCorrupt ? ['pending_annotation_state_corrupt'] : []),
+      ],
+    );
   return {
     perception: capability(
       serviceReady && permissionReady && permissions.screen_recording ? 'ready' : 'blocked',
@@ -55,18 +67,7 @@ export function buildCapabilities({
         ...requiredPermissionBlockers(['screen_recording']),
       ],
     ),
-    annotation: capability(
-      !pendingAnnotations.supported
-        ? 'unsupported'
-        : (annotationStoreCorrupt ? 'blocked' : (serviceReady && permissionReady && targetReady && mountedReady ? 'ready' : 'degraded')),
-      [
-        ...(!serviceReady ? ['service_not_ready'] : []),
-        ...permissionBlockers,
-        ...(!targetReady ? ['status_item_target_not_current'] : []),
-        ...(!mountedReady ? ['mounted_surface_not_current'] : []),
-        ...(annotationStoreCorrupt ? ['pending_annotation_state_corrupt'] : []),
-      ],
-    ),
+    annotation,
     saved_ref_action: capability(
       serviceReady && permissionReady && permissions.accessibility && permissions.listen_access && permissions.post_access ? 'ready' : 'blocked',
       [

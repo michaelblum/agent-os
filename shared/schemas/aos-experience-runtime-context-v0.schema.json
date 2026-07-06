@@ -44,6 +44,38 @@
       "items": { "$ref": "#/$defs/recommended_next" }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["pending_annotations"],
+        "properties": {
+          "pending_annotations": {
+            "type": "object",
+            "required": ["supported"],
+            "properties": {
+              "supported": { "const": true }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "required": ["pending_annotations_root"]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "state": {
+            "not": {
+              "required": ["pending_annotations_root"]
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "non_empty_string": {
       "type": "string",
@@ -269,8 +301,7 @@
         "mode_root",
         "experience_state_path",
         "config_path",
-        "config_status",
-        "pending_annotations_root"
+        "config_status"
       ],
       "additionalProperties": true,
       "properties": {
@@ -413,6 +444,12 @@
       }
     },
     "pending_annotations": {
+      "oneOf": [
+        { "$ref": "#/$defs/supported_pending_annotations" },
+        { "$ref": "#/$defs/unsupported_pending_annotations" }
+      ]
+    },
+    "supported_pending_annotations": {
       "type": "object",
       "required": [
         "status",
@@ -428,7 +465,7 @@
       ],
       "additionalProperties": true,
       "properties": {
-        "status": { "enum": ["initialized", "not_initialized", "stale", "corrupt", "not_applicable"] },
+        "status": { "enum": ["initialized", "not_initialized", "stale", "corrupt"] },
         "root": { "$ref": "#/$defs/path_string" },
         "records_dir": { "$ref": "#/$defs/path_string" },
         "index_path": { "$ref": "#/$defs/path_string" },
@@ -437,13 +474,22 @@
         "records_status": { "$ref": "#/$defs/path_status" },
         "index_status": { "$ref": "#/$defs/path_status" },
         "record_count": { "type": "integer", "minimum": 0 },
-        "supported": { "type": "boolean" },
+        "supported": { "const": true },
         "root_error_status": { "$ref": "#/$defs/path_status" },
         "root_error_path": { "$ref": "#/$defs/path_string" },
         "records_error_status": { "$ref": "#/$defs/path_status" },
         "records_error_path": { "$ref": "#/$defs/path_string" },
         "index_error_status": { "$ref": "#/$defs/path_status" },
         "index_error_path": { "$ref": "#/$defs/path_string" }
+      }
+    },
+    "unsupported_pending_annotations": {
+      "type": "object",
+      "required": ["status", "supported"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "const": "not_applicable" },
+        "supported": { "const": false }
       }
     },
     "diagnostic": {
