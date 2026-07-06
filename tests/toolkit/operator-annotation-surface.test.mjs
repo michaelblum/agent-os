@@ -1,10 +1,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
   createOperatorAnnotationSurface,
   OPERATOR_ANNOTATION_SURFACE_STATES,
 } from '../../packages/toolkit/runtime/operator-annotation-surface.js'
 import * as runtime from '../../packages/toolkit/runtime/index.js'
+import {
+  createPendingAnnotation,
+  pendingAnnotationInputFromOperatorSelection,
+} from '../../scripts/lib/pending-annotations.mjs'
 
 test('operator annotation surface exposes the expected V0 states', () => {
   assert.deepEqual(OPERATOR_ANNOTATION_SURFACE_STATES, [
@@ -120,7 +127,7 @@ test('operator annotation surface can select without target but commit requires 
   assert.deepEqual(writes, [])
 })
 
-test('operator annotation surface commits explicit fallback, saved-ref, and source-capture evidence', async () => {
+test('operator annotation surface commits explicit fallback, saved-ref, and preserves source-capture evidence', async () => {
   const writes = []
   const surface = createOperatorAnnotationSurface({
     now: () => '2026-07-05T12:00:00Z',
@@ -155,6 +162,8 @@ test('operator annotation surface commits explicit fallback, saved-ref, and sour
 
   surface.start()
   assert.equal((await surface.commit({
+    targetKind: 'region',
+    targetSummary: 'Capture target',
     evidence: {
       sourceCapture: {
         kind: 'region',
@@ -179,8 +188,83 @@ test('operator annotation surface commits explicit fallback, saved-ref, and sour
     ref: 'r1',
   })
   assert.equal(writes[2].target.kind, 'region')
+  assert.equal(writes[2].target.summary, 'Capture target')
   assert.deepEqual(writes[2].evidence.sourceCapture, {
     kind: 'region',
     summary: 'Capture target',
   })
+})
+
+test('operator annotation commit reaches pending annotation adapter without source-capture target promotion', async () => {
+  const sourceCapture = {
+    kind: 'saved_capture',
+    schema_version: 'aos.agent-workspace.v0',
+    status: 'success',
+    workspace_id: 'workspace',
+    snapshot_id: 'snapshot',
+    selected_ref: 'r1',
+    capture_target: 'main',
+    capture_mode: 'ax',
+    ref_count: 1,
+  }
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-operator-annotation-surface-'))
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_SESSION_ID: 'operator-annotation-surface-test',
+  }
+  const adapterCalls = []
+  const createAnnotation = async (selection) => {
+    const input = pendingAnnotationInputFromOperatorSelection(selection)
+    adapterCalls.push(input)
+    return createPendingAnnotation(input, env)
+  }
+
+  const sourceOnly = createOperatorAnnotationSurface({ createAnnotation })
+  sourceOnly.start({
+    evidence: {
+      sourceCapture,
+    },
+  })
+  const sourceOnlyResult = await sourceOnly.commit()
+  assert.equal(sourceOnlyResult.status, 'failed')
+  assert.equal(sourceOnlyResult.error.code, 'OPERATOR_ANNOTATION_TARGET_REQUIRED')
+  assert.equal(adapterCalls.length, 0)
+
+  const explicitTarget = createOperatorAnnotationSurface({ createAnnotation })
+  explicitTarget.start({
+    targetKind: 'browser',
+    targetSummary: 'Main capture target',
+    evidence: {
+      sourceCapture,
+    },
+  })
+  const explicitResult = await explicitTarget.commit({ comment: 'Use explicit target' })
+  assert.equal(explicitResult.status, 'committed')
+  const explicitRecord = JSON.parse(await fs.readFile(explicitResult.result.raw.annotation.path, 'utf8'))
+  assert.equal(adapterCalls[0].target_kind, 'browser')
+  assert.deepEqual(adapterCalls[0].source_capture, sourceCapture)
+  assert.deepEqual(explicitRecord.source_capture, sourceCapture)
+
+  const fallbackEvidence = {
+    kind: 'region',
+    reason: 'operator_explicit_fallback',
+    summary: 'Fallback capture target',
+    artifact_refs: [{ role: 'capture_summary', path: '/tmp/fallback-capture.json' }],
+  }
+  const explicitFallback = createOperatorAnnotationSurface({ createAnnotation })
+  explicitFallback.start({
+    evidence: {
+      fallback: [fallbackEvidence],
+      sourceCapture,
+    },
+  })
+  const fallbackResult = await explicitFallback.commit({ comment: 'Use fallback target' })
+  assert.equal(fallbackResult.status, 'committed')
+  const fallbackRecord = JSON.parse(await fs.readFile(fallbackResult.result.raw.annotation.path, 'utf8'))
+  assert.equal(adapterCalls[1].target_kind, 'region')
+  assert.deepEqual(adapterCalls[1].fallback_evidence, [fallbackEvidence])
+  assert.deepEqual(adapterCalls[1].source_capture, sourceCapture)
+  assert.deepEqual(fallbackRecord.fallback_evidence, [fallbackEvidence])
+  assert.deepEqual(fallbackRecord.source_capture, sourceCapture)
 })

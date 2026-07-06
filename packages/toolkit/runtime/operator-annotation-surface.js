@@ -46,11 +46,6 @@ function targetFromEvidence(evidence) {
     const summary = text(fallback.summary)
     if (kind && summary) return { kind, summary, savedRef: null }
   }
-  if (evidence.sourceCapture && typeof evidence.sourceCapture === 'object') {
-    const kind = text(evidence.sourceCapture.targetKind || evidence.sourceCapture.kind, 'capture')
-    const summary = text(evidence.sourceCapture.targetSummary || evidence.sourceCapture.summary || evidence.sourceCapture.captureTarget)
-    if (kind && summary) return { kind, summary, savedRef: null }
-  }
   return null
 }
 

@@ -236,6 +236,78 @@ test('experience activation projects mounted-surface menu entries for the target
   assert(projection.menu.every((item) => item.surface === 'operator-fixture-surface'));
 });
 
+test('experience activation accepts declared non-toggle menu surfaces without projecting them', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-two-surface-menu-'));
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  manifest.default_activation.primary_entry = 'surface-a';
+  manifest.status_item.toggle_surface.id = 'surface-a';
+  manifest.surfaces = {
+    'surface-a': {
+      summary: 'Mounted toggle surface.',
+    },
+    'surface-b': {
+      summary: 'Declared non-toggle surface.',
+    },
+  };
+  manifest.menu = [
+    {
+      id: 'surface-a-entry',
+      label: 'Surface A Entry',
+      kind: 'future_tool',
+      surface: 'surface-a',
+      tool: 'surface-a-tool',
+    },
+    {
+      id: 'surface-b-entry',
+      label: 'Surface B Entry',
+      kind: 'future_tool',
+      surface: 'surface-b',
+      tool: 'surface-b-tool',
+    },
+  ];
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
+  const payload = JSON.parse(dryRun.stdout);
+  assert.equal(payload.status_item.toggle_surface.id, 'surface-a');
+  assert.deepEqual(payload.menu.map((item) => item.id), ['surface-a-entry', 'surface-b-entry']);
+  const projectedURL = new URL(payload.status_item.toggle_surface.url);
+  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
+  assert.equal(projection.surface_id, 'surface-a');
+  assert.deepEqual(projection.menu.map((item) => item.id), ['surface-a-entry']);
+  assert(projection.menu.every((item) => item.surface === 'surface-a'));
+
+  manifest.menu[1].surface = 'surface-c';
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  const invalid = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.notEqual(invalid.status, 0);
+  const error = JSON.parse(invalid.stderr);
+  assert.equal(error.code, 'INVALID_EXPERIENCE_MANIFEST');
+  assert.match(error.error, /targets undeclared surface: surface-c/);
+});
+
 test('operator annotation experience menu items require a target surface', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-invalid-operator-menu-'));
   const invalidPath = path.join(tmp, 'aos-experience.json');

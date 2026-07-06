@@ -82,14 +82,10 @@ function validateManifestTargets(manifest, file) {
   if (primaryEntry && !surfaceIDs.has(primaryEntry)) {
     throw new ExperienceFailure(`Experience manifest primary_entry has no declared surface: ${primaryEntry}`, 'INVALID_EXPERIENCE_MANIFEST');
   }
-  const toggleID = manifest.status_item?.toggle_surface?.id;
   for (const item of manifest.menu || []) {
     if (!item?.surface) continue;
     if (!surfaceIDs.has(item.surface)) {
       throw new ExperienceFailure(`Experience manifest menu item ${item.id} targets undeclared surface: ${item.surface}`, 'INVALID_EXPERIENCE_MANIFEST');
-    }
-    if (toggleID && item.surface !== toggleID) {
-      throw new ExperienceFailure(`Experience manifest menu item ${item.id} targets ${item.surface}, but mounted status surface is ${toggleID}`, 'INVALID_EXPERIENCE_MANIFEST');
     }
   }
   return file;
