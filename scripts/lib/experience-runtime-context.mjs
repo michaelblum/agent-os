@@ -288,21 +288,36 @@ function buildPendingAnnotationStatus({
 function buildServiceStatus(serviceStatus) {
   if (!serviceStatus.ok) {
     return {
-      status: 'unknown',
+      status: serviceStatus.status === 'failed' ? 'failed' : 'unknown',
       command_status: serviceStatus.status,
+      canonical_status: null,
       error: serviceStatus.error,
       running: null,
     };
   }
   const value = serviceStatus.value;
+  const canonicalStatus = typeof value.status === 'string' ? value.status : 'unknown';
+  const status = canonicalStatus === 'ok'
+    ? 'ready'
+    : (canonicalStatus === 'degraded' ? 'degraded' : 'unknown');
   return {
-    status: value.running && value.target_matches_expected !== false ? 'ready' : 'degraded',
+    status,
+    canonical_status: canonicalStatus,
+    reason: value.reason ?? null,
     mode: value.mode ?? null,
+    installed: value.installed ?? null,
     loaded: Boolean(value.loaded),
     running: Boolean(value.running),
     pid: value.pid ?? null,
     label: value.label ?? value.launchd_label ?? null,
+    launchd_label: value.launchd_label ?? value.label ?? null,
+    actual_binary_path: value.actual_binary_path ?? null,
+    expected_binary_path: value.expected_binary_path ?? null,
+    actual_log_path: value.actual_log_path ?? null,
+    expected_log_path: value.expected_log_path ?? null,
     target_matches_expected: value.target_matches_expected ?? null,
+    log_path_matches_expected: value.log_path_matches_expected ?? null,
+    plist_path: value.plist_path ?? null,
     state_dir: value.state_dir ?? null,
     notes: value.notes ?? [],
   };
@@ -319,12 +334,16 @@ function buildPermissionStatus(permissionStatus) {
     };
   }
   const value = permissionStatus.value;
+  const readyForTesting = Boolean(value.ready_for_testing);
   return {
-    status: value.ready_for_testing && (value.missing_permissions || []).length === 0 ? 'ready' : 'degraded',
-    ready_for_testing: Boolean(value.ready_for_testing),
+    status: readyForTesting ? 'ready' : 'degraded',
+    canonical_status: value.status ?? null,
+    ready_for_testing: readyForTesting,
     ready_source: value.ready_source ?? null,
     permissions: value.permissions ?? {},
+    cli_view: value.cli_view ?? {},
     daemon_view: value.daemon_view ?? {},
+    requirements: value.requirements ?? [],
     missing_permissions: value.missing_permissions ?? [],
     notes: value.notes ?? [],
   };
@@ -346,13 +365,6 @@ function buildRuntimeSummary({
       message: 'AOS repo service is not reporting ready from passive service status.',
     });
   }
-  for (const permission of permissions.missing_permissions || []) {
-    blockers.push({
-      id: `permission:${permission}`,
-      kind: 'permission',
-      message: `${permission} permission is missing or unknown.`,
-    });
-  }
   if (permissions.status !== 'ready') {
     blockers.push({
       id: 'permissions_not_ready',
@@ -360,6 +372,13 @@ function buildRuntimeSummary({
       status: permissions.status,
       message: 'Permission preflight is not ready for testing.',
     });
+    for (const permission of permissions.missing_permissions || []) {
+      blockers.push({
+        id: `permission:${permission}`,
+        kind: 'permission',
+        message: `${permission} permission is missing or unknown.`,
+      });
+    }
   }
   return {
     mode,
@@ -390,35 +409,46 @@ function buildCapabilities({
   pendingAnnotations,
 }) {
   const serviceReady = runtime.service.status === 'ready';
+  const permissionReady = runtime.permissions.ready_for_testing === true;
   const permissions = runtime.permissions.permissions || {};
+  const permissionBlockers = permissionReady
+    ? []
+    : [
+        'permissions_not_ready',
+        ...(runtime.permissions.missing_permissions || []).map((permission) => `permission:${permission}`),
+      ];
+  const requiredPermissionBlockers = (ids) => ids
+    .filter((id) => !permissions[id])
+    .map((id) => `${id}_missing`);
   const targetReady = statusItem.target.status === 'current';
   const mountedReady = ['current', 'not_applicable'].includes(statusItem.mounted_surface.status);
   return {
     perception: capability(
-      serviceReady && permissions.screen_recording ? 'ready' : 'blocked',
+      serviceReady && permissionReady && permissions.screen_recording ? 'ready' : 'blocked',
       [
         ...(!serviceReady ? ['service_not_ready'] : []),
-        ...(!permissions.screen_recording ? ['screen_recording_missing'] : []),
+        ...permissionBlockers,
+        ...requiredPermissionBlockers(['screen_recording']),
       ],
     ),
     annotation: capability(
       !pendingAnnotations.supported
         ? 'unsupported'
-        : (serviceReady && targetReady && mountedReady && pendingAnnotations.status !== 'corrupt' ? 'ready' : 'degraded'),
+        : (serviceReady && permissionReady && targetReady && mountedReady && pendingAnnotations.status !== 'corrupt' ? 'ready' : 'degraded'),
       [
         ...(!serviceReady ? ['service_not_ready'] : []),
+        ...permissionBlockers,
         ...(!targetReady ? ['status_item_target_not_current'] : []),
         ...(!mountedReady ? ['mounted_surface_not_current'] : []),
         ...(pendingAnnotations.status === 'corrupt' ? ['pending_annotation_state_corrupt'] : []),
       ],
     ),
     saved_ref_action: capability(
-      serviceReady && permissions.accessibility && permissions.listen_access && permissions.post_access ? 'ready' : 'blocked',
+      serviceReady && permissionReady && permissions.accessibility && permissions.listen_access && permissions.post_access ? 'ready' : 'blocked',
       [
         ...(!serviceReady ? ['service_not_ready'] : []),
-        ...(!permissions.accessibility ? ['accessibility_missing'] : []),
-        ...(!permissions.listen_access ? ['listen_access_missing'] : []),
-        ...(!permissions.post_access ? ['post_access_missing'] : []),
+        ...permissionBlockers,
+        ...requiredPermissionBlockers(['accessibility', 'listen_access', 'post_access']),
       ],
     ),
     evidence_handoff: capability(

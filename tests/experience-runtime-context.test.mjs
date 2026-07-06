@@ -106,6 +106,7 @@ function baseResponses(tmp, {
             listen_access: true,
             post_access: true,
           },
+          ...(permissions.daemon_view || {}),
         },
         cli_view: {
           accessibility: true,
@@ -113,8 +114,9 @@ function baseResponses(tmp, {
           listen_access: true,
           post_access: true,
           ...(permissions.permissions || {}),
+          ...(permissions.cli_view || {}),
         },
-        requirements: [],
+        requirements: permissions.requirements || [],
         setup: {
           marker_exists: true,
           setup_completed: true,
@@ -122,8 +124,9 @@ function baseResponses(tmp, {
         },
         missing_permissions: permissions.missing_permissions || [],
         ready_for_testing: permissions.ready_for_testing ?? true,
-        ready_source: 'daemon',
+        ready_source: permissions.ready_source || 'daemon',
         notes: permissions.notes || [],
+        ...(permissions.status ? { status: permissions.status } : {}),
       },
     },
     'content status --json': {
@@ -253,6 +256,124 @@ test('experience status reports healthy operator fixture runtime context without
   ].sort());
 });
 
+test('experience status preserves degraded service status even when service is running', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-service-degraded-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+
+  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+    service: {
+      status: 'degraded',
+      running: true,
+      target_matches_expected: true,
+      reason: 'log_path_mismatch',
+      log_path_matches_expected: false,
+      actual_log_path: path.join(tmp, 'wrong.log'),
+      expected_log_path: path.join(tmp, 'repo', 'aos.err.log'),
+      notes: ['Launch agent log path differs from the expected repo state directory.'],
+    },
+  }));
+
+  assert.equal(payload.status, 'degraded');
+  assert.equal(payload.runtime.service.status, 'degraded');
+  assert.equal(payload.runtime.service.canonical_status, 'degraded');
+  assert.equal(payload.runtime.service.reason, 'log_path_mismatch');
+  assert.equal(payload.runtime.service.log_path_matches_expected, false);
+  assert.equal(payload.runtime.readiness.ready, false);
+  assert(payload.runtime.readiness.blockers.some((item) => (
+    item.id === 'service_not_ready' && item.status === 'degraded'
+  )), payload.runtime.readiness);
+});
+
+test('experience status trusts canonical permission readiness over true CLI booleans', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-permissions-degraded-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+
+  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+    permissions: {
+      status: 'degraded',
+      ready_for_testing: false,
+      ready_source: 'daemon',
+      daemon_view: {
+        reachable: true,
+        accessibility: true,
+        input_tap: {
+          status: 'retrying',
+          attempts: 3,
+          listen_access: false,
+          post_access: false,
+        },
+      },
+      missing_permissions: ['listen_access', 'post_access'],
+      notes: ['Input tap is not active.'],
+    },
+  }));
+
+  assert.equal(payload.status, 'blocked');
+  assert.equal(payload.runtime.permissions.status, 'degraded');
+  assert.equal(payload.runtime.permissions.canonical_status, 'degraded');
+  assert.equal(payload.runtime.permissions.ready_for_testing, false);
+  assert.equal(payload.runtime.permissions.ready_source, 'daemon');
+  assert.equal(payload.runtime.permissions.permissions.accessibility, true);
+  assert.equal(payload.runtime.permissions.permissions.listen_access, true);
+  assert.equal(payload.runtime.permissions.permissions.post_access, true);
+  assert.equal(payload.runtime.permissions.daemon_view.input_tap.status, 'retrying');
+  assert(payload.runtime.readiness.blockers.some((item) => item.id === 'permissions_not_ready'), payload.runtime.readiness);
+  assert.equal(payload.capabilities.perception.status, 'blocked');
+  assert.equal(payload.capabilities.annotation.status, 'degraded');
+  assert.equal(payload.capabilities.saved_ref_action.status, 'blocked');
+  assert(payload.capabilities.saved_ref_action.blockers.includes('permissions_not_ready'), payload.capabilities.saved_ref_action);
+});
+
 test('experience status does not treat Sigil state as operator fixture success', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-cross-app-'));
   const sigilURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
@@ -370,8 +491,10 @@ test('experience status blocks corrupt pending state and reports passive readine
       lifecycleState: 'active',
     }],
     service: {
+      status: 'degraded',
       running: false,
       pid: null,
+      notes: ['Service is not running.'],
     },
     permissions: {
       permissions: {
