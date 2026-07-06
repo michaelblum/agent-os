@@ -197,8 +197,12 @@ function equivalentContentURLs(left, right) {
     && leftIdentity.query === rightIdentity.query;
 }
 
+function operatorAnnotationMenuItemsForSurface(manifest, surfaceID) {
+  return (manifest.menu || []).filter((item) => item?.kind === 'operator_annotation' && item?.surface === surfaceID);
+}
+
 function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = (manifest.menu || []).filter((item) => item?.surface === surfaceID || item?.kind !== 'operator_annotation');
+  const menu = operatorAnnotationMenuItemsForSurface(manifest, surfaceID);
   return Buffer.from(JSON.stringify({
     schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
     experience_id: manifest.id,
@@ -215,6 +219,7 @@ function appendQueryParam(rawURL, key, value) {
 
 function projectedToggleURL(manifest, surface, rootsByID) {
   const nextURL = template(surface.url, rootsByID);
+  if (operatorAnnotationMenuItemsForSurface(manifest, surface.id).length === 0) return nextURL;
   return appendQueryParam(nextURL, OPERATOR_ANNOTATION_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
 }
 

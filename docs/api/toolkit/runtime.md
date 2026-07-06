@@ -349,10 +349,12 @@ instead of creating ad-hoc status names.
 surface-side bridge for app-owned status item entries that start operator
 selection/annotation mode. Experience manifests declare menu items with
 `kind: "operator_annotation"` and a target `surface`. Activation validates
-those targets, projects the manifest-owned menu into the mounted surface URL via
-`aos_manifest_menu`, and keeps smoke/runtime surfaces from owning duplicate menu
-data. Runtime decode validates the projection schema, experience id, mounted
-surface id, current surface match when available, and menu array before
+those targets and projects the manifest-owned operator annotation menu into the
+mounted surface URL via `aos_manifest_menu` only when the mounted surface has
+matching operator annotation entries. Non-annotation status surfaces keep their
+templated URLs unchanged. Runtime decode validates the projection schema,
+experience id, mounted surface id, current surface match when available, and
+menu array before
 producing routable actions. Operator annotation entries whose declared target
 differs from the projected mounted surface fail closed and are not routed from
 URL data. The native status item still emits the generic
@@ -373,11 +375,14 @@ commit behavior and should write pending annotations through
 `packages/toolkit/runtime/operator-annotation-surface.js` provides the minimal
 state model for that receiving surface. `createOperatorAnnotationSurface()`
 handles `aos.operator_annotation.start`, accepts comment updates, supports
-commit/cancel, and writes through an injected `createPendingAnnotation` adapter.
+commit/cancel, and emits generic operator-selection evidence through an
+injected `createAnnotation` adapter.
 Selection may start without a target, but commit fails closed with
 `OPERATOR_ANNOTATION_TARGET_REQUIRED` unless the surface has selected-target,
-saved-ref, source-capture, or explicit fallback evidence. Successful commits
-report the pending annotation id/path; missing or failing adapters move to
+saved-ref, capture, or explicit fallback evidence. The runtime helper does not
+construct pending annotation records; pending-annotation-owned adapters convert
+the generic selection payload to `aos see annotation` create input. Successful
+commits report the adapter result id/path; missing or failing adapters move to
 `failed` instead of creating in-memory-only intent.
 
 `packages/toolkit/runtime/radial-item-transition.js` defines the companion

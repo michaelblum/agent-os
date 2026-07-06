@@ -10,14 +10,12 @@ import {
   captureInspectNext,
   captureRefreshNext,
 } from './pending-annotations-recommendations.mjs';
-
-const CAPTURE_SCHEMA_VERSION = 'aos.agent-workspace.v0';
-const SAVED_REF_BACKEND_TARGETS = new Map([
-  ['browser', 'browser'],
-  ['aos_canvas', 'canvas'],
-  ['native_ax', 'native_ax'],
-]);
-const ACTIONABLE_REF_CLASSES = new Set(['stable', 'reacquirable', 'snapshot_scoped']);
+import {
+  AGENT_WORKSPACE_SCHEMA_VERSION,
+} from './agent-workspace/contracts.mjs';
+import {
+  annotationCapabilityFromSavedRef,
+} from './agent-workspace/refs.mjs';
 
 function normalizeArtifactRefs(items) {
   return array(items).map((item, index) => {
@@ -73,7 +71,7 @@ export function normalizeSavedRef(input) {
 
 function isSavedCaptureResult(value) {
   return isObject(value) && (
-    value.schema_version === CAPTURE_SCHEMA_VERSION
+    value.schema_version === AGENT_WORKSPACE_SCHEMA_VERSION
     || (Array.isArray(value.refs) && value.workspace_id && value.snapshot_id)
   );
 }
@@ -100,7 +98,7 @@ function captureResultEnvelope(input) {
 function compactSourceCapture(capture, selectedRef, selectedRecord = null) {
   return {
     kind: 'saved_capture',
-    schema_version: capture.schema_version || CAPTURE_SCHEMA_VERSION,
+    schema_version: capture.schema_version || AGENT_WORKSPACE_SCHEMA_VERSION,
     status: capture.status || 'success',
     workspace_id: capture.workspace_id ?? null,
     snapshot_id: capture.snapshot_id ?? null,
@@ -213,14 +211,15 @@ export function projectCaptureInput(input) {
     };
   }
 
-  const targetKind = SAVED_REF_BACKEND_TARGETS.get(refRecord.backend);
-  if (!targetKind || refRecord.resolution_class === 'unsupported') {
+  const refCapability = annotationCapabilityFromSavedRef(refRecord);
+  const targetKind = refCapability.target_kind;
+  if (refCapability.status === 'unsupported') {
     return {
       ...overrides,
       state: 'unsupported',
       target_kind: overrides.target_kind || targetKind || 'fallback',
       target_summary: targetSummary,
-      capability: { status: 'unsupported', reasons: [`unsupported_saved_ref:${refRecord.backend || 'unknown'}:${refRecord.resolution_class || 'unknown'}`] },
+      capability: { status: 'unsupported', reasons: refCapability.reasons },
       fallback_evidence: [{
         kind: 'saved_capture',
         reason: 'saved_ref_unsupported',
@@ -233,12 +232,12 @@ export function projectCaptureInput(input) {
     };
   }
 
-  if (!ACTIONABLE_REF_CLASSES.has(refRecord.resolution_class)) {
+  if (refCapability.status === 'fallback_only') {
     return {
       ...overrides,
       target_kind: overrides.target_kind || targetKind,
       target_summary: targetSummary,
-      capability: { status: 'fallback_only', reasons: [`saved_ref_not_actionable:${refRecord.resolution_class || 'unknown'}`] },
+      capability: { status: 'fallback_only', reasons: refCapability.reasons },
       fallback_evidence: [{
         kind: 'saved_capture',
         reason: 'saved_ref_not_actionable',

@@ -13,13 +13,17 @@ Good runtime responsibilities:
 - subscribe/unsubscribe helpers for daemon event streams;
 - canvas mutation helpers that wrap daemon create/update/remove/eval/suspend;
 - DesktopWorld coordinate adapters and generic interaction routing helpers.
-- generic manifest-projected operator annotation menu routing helpers that stay
-  app-neutral and consume manifest data supplied by activation.
+- generic manifest-projected operator annotation menu routing and selection
+  evidence helpers that stay app-neutral and consume manifest data supplied by
+  activation.
 
 Keep windowing and product policy out of runtime. A helper here may expose a
 generic capability, but default panel state, chip placement, workbench layout,
 surface-manager UI, and Sigil-specific behavior belong in `panel/`,
 `workbench/`, `components/`, or `apps/`.
+Pending annotation record construction belongs outside runtime; runtime may
+emit generic operator-selection evidence to an injected adapter, but it must not
+manufacture pending annotation DTOs.
 
 If a runtime helper becomes a workaround for missing daemon functionality, name
 the missing primitive in a work card instead of letting the workaround become

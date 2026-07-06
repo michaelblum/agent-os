@@ -9,6 +9,8 @@ import {
   savedRefActionKnownLimit,
   savedRefProofStory,
   savedRefProducerActionsForBrowserElement,
+  SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES,
+  SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND,
   savedRefSupportedActionsForBackend,
 } from './contracts.mjs';
 
@@ -94,6 +96,33 @@ export function refSummary(record) {
     conformance: record.conformance,
     warnings: record.warnings,
     known_limits: record.known_limits,
+  };
+}
+
+export function annotationCapabilityFromSavedRef(record = {}) {
+  const targetKind = SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND[record.backend] ?? null;
+  const resolutionClass = textValue(record.resolution_class) ?? 'unknown';
+  if (!targetKind || resolutionClass === 'unsupported') {
+    return {
+      status: 'unsupported',
+      target_kind: targetKind,
+      reasons: [`unsupported_saved_ref:${record.backend || 'unknown'}:${record.resolution_class || 'unknown'}`],
+      saved_ref_available: false,
+    };
+  }
+  if (!SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES.includes(resolutionClass)) {
+    return {
+      status: 'fallback_only',
+      target_kind: targetKind,
+      reasons: [`saved_ref_not_actionable:${record.resolution_class || 'unknown'}`],
+      saved_ref_available: false,
+    };
+  }
+  return {
+    status: 'saved_ref',
+    target_kind: targetKind,
+    reasons: [],
+    saved_ref_available: true,
   };
 }
 

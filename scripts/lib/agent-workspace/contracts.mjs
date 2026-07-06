@@ -4,6 +4,16 @@ export const CAPTURE_MODE_VALUES = ['ax', 'vision', 'som'];
 export const CAPTURE_SOURCE_KIND_VALUES = Object.freeze(['default_target', 'target', 'source_flags']);
 export const CAPTURE_SOURCE_VALUE_FLAGS = Object.freeze(['--region', '--canvas', '--channel']);
 export const SAVED_REF_BACKENDS = ['aos_canvas', 'browser', 'native_ax'];
+export const SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND = Object.freeze({
+  browser: 'browser',
+  aos_canvas: 'canvas',
+  native_ax: 'native_ax',
+});
+export const SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES = Object.freeze([
+  'stable',
+  'reacquirable',
+  'snapshot_scoped',
+]);
 export const NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS = Object.freeze([
   'app_pid',
   'window_id',

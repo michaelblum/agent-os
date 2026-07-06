@@ -13,7 +13,8 @@ backend validation, and local cleanup.
 - `capture.mjs`, `store.mjs`, and `commands.mjs` own persisted workspace state,
   compact stdout/readback, atomic snapshot commits, and cleanup commands.
 - `refs.mjs`, `contracts.mjs`, and `browser-ref-validation.mjs` own saved-ref
-  conformance, backend action matrices, and browser current-target validation.
+  conformance, backend action matrices, browser current-target validation, and
+  saved-ref capability projections consumed by annotation surfaces.
 - `ref-action-*.mjs` and `actions.mjs` own saved-ref grammar, resolution,
   dry-run envelopes, and dispatch wrappers.
 - Native capability facts are produced by `src/`; public contract docs and

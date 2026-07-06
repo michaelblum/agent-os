@@ -15,67 +15,81 @@ function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value))
 }
 
-function normalizeTarget(input = {}) {
-  const target = input.target && typeof input.target === 'object' ? input.target : {}
-  const kind = text(target.kind || input.kind || input.target_kind)
-  const summary = text(target.summary || input.summary || input.target_summary)
-  const savedRef = target.saved_ref || input.saved_ref || null
-  if (!kind && !summary && !savedRef) return null
-  if (!kind || !summary) return null
-  return { kind, summary, saved_ref: savedRef }
+function array(value) {
+  return Array.isArray(value) ? value : []
 }
 
-function fallbackTarget(fallbackEvidence = [], sourceCapture = null) {
-  const explicit = fallbackEvidence.find((item) => item && typeof item === 'object')
-  if (explicit) {
-    const kind = text(explicit.kind)
-    const summary = text(explicit.summary)
-    if (kind && summary) return { kind, summary, saved_ref: null }
+function normalizeTarget(input = {}) {
+  const target = input.target && typeof input.target === 'object' ? input.target : {}
+  const kind = text(target.kind || input.kind || input.targetKind)
+  const summary = text(target.summary || input.summary || input.targetSummary)
+  const savedRef = target.savedRef || input.savedRef || null
+  if (!kind && !summary && !savedRef) return null
+  if (!kind || !summary) return null
+  return { kind, summary, savedRef }
+}
+
+function normalizeEvidence(input = {}) {
+  const evidence = input.evidence && typeof input.evidence === 'object' ? input.evidence : {}
+  return {
+    fallback: array(evidence.fallback || input.fallback),
+    artifacts: array(evidence.artifacts || input.artifacts),
+    next: array(evidence.next || input.next),
+    sourceCapture: evidence.sourceCapture || input.sourceCapture || null,
   }
-  if (sourceCapture && typeof sourceCapture === 'object') {
-    const kind = text(sourceCapture.target_kind || sourceCapture.kind, 'source_capture')
-    const summary = text(sourceCapture.target_summary || sourceCapture.summary || sourceCapture.capture_target)
-    if (kind && summary) return { kind, summary, saved_ref: null }
+}
+
+function targetFromEvidence(evidence) {
+  const fallback = evidence.fallback.find((item) => item && typeof item === 'object')
+  if (fallback) {
+    const kind = text(fallback.kind)
+    const summary = text(fallback.summary)
+    if (kind && summary) return { kind, summary, savedRef: null }
+  }
+  if (evidence.sourceCapture && typeof evidence.sourceCapture === 'object') {
+    const kind = text(evidence.sourceCapture.targetKind || evidence.sourceCapture.kind, 'capture')
+    const summary = text(evidence.sourceCapture.targetSummary || evidence.sourceCapture.summary || evidence.sourceCapture.captureTarget)
+    if (kind && summary) return { kind, summary, savedRef: null }
   }
   return null
 }
 
-function annotationInputFromState(state, options = {}) {
-  const fallbackEvidence = Array.isArray(options.fallback_evidence)
-    ? options.fallback_evidence
-    : (Array.isArray(state.fallback_evidence) ? state.fallback_evidence : [])
-  const sourceCapture = options.source_capture || state.source_capture || null
-  const targetInput = options.target || state.target || options || state || {}
-  const target = normalizeTarget(targetInput)
-    || fallbackTarget(fallbackEvidence, sourceCapture)
+function selectionFromState(state, options = {}) {
+  const optionEvidence = options.evidence && typeof options.evidence === 'object' ? options.evidence : {}
+  const evidence = normalizeEvidence({
+    evidence: {
+      fallback: optionEvidence.fallback ?? options.fallback ?? state.evidence.fallback,
+      artifacts: optionEvidence.artifacts ?? options.artifacts ?? state.evidence.artifacts,
+      next: optionEvidence.next ?? options.next ?? state.evidence.next,
+      sourceCapture: optionEvidence.sourceCapture ?? options.sourceCapture ?? state.evidence.sourceCapture,
+    },
+  })
+  const target = normalizeTarget(options) || state.target || targetFromEvidence(evidence)
   if (!target) return null
   return {
-    source: 'operator_annotation_surface',
+    origin: 'operator_annotation_surface',
     comment: text(options.comment, state.comment) || null,
-    target_kind: target?.kind,
-    target_summary: target?.summary,
-    saved_ref: target?.saved_ref || null,
-    capability: options.capability || state.capability || undefined,
-    fallback_evidence: fallbackEvidence,
-    artifact_refs: Array.isArray(options.artifact_refs) ? options.artifact_refs : (state.artifact_refs || []),
-    recommended_next: Array.isArray(options.recommended_next) ? options.recommended_next : (state.recommended_next || undefined),
-    source_capture: sourceCapture,
+    target,
+    readiness: options.readiness || state.readiness || null,
+    evidence,
   }
 }
 
 export function createOperatorAnnotationSurface(options = {}) {
-  const createPendingAnnotation = options.createPendingAnnotation
+  const createAnnotation = options.createAnnotation
   let state = {
     status: 'idle',
     started_at: null,
     updated_at: null,
     comment: '',
     target: null,
-    capability: null,
-    fallback_evidence: [],
-    artifact_refs: [],
-    recommended_next: null,
-    source_capture: null,
+    readiness: null,
+    evidence: {
+      fallback: [],
+      artifacts: [],
+      next: [],
+      sourceCapture: null,
+    },
     result: null,
     error: null,
   }
@@ -97,11 +111,8 @@ export function createOperatorAnnotationSurface(options = {}) {
       started_at: now(),
       comment: text(input.comment),
       target: normalizeTarget(input),
-      capability: input.capability || null,
-      fallback_evidence: Array.isArray(input.fallback_evidence) ? input.fallback_evidence : [],
-      artifact_refs: Array.isArray(input.artifact_refs) ? input.artifact_refs : [],
-      recommended_next: Array.isArray(input.recommended_next) ? input.recommended_next : null,
-      source_capture: input.source_capture || null,
+      readiness: input.readiness || null,
+      evidence: normalizeEvidence(input),
       result: null,
       error: null,
     })
@@ -122,19 +133,19 @@ export function createOperatorAnnotationSurface(options = {}) {
         },
       })
     }
-    if (typeof createPendingAnnotation !== 'function') {
+    if (typeof createAnnotation !== 'function') {
       return update({
         status: 'failed',
         error: {
           code: 'OPERATOR_ANNOTATION_CREATE_MISSING',
-          message: 'No pending annotation create adapter is installed.',
+          message: 'No operator annotation create adapter is installed.',
         },
       })
     }
     update({ status: 'committing', error: null })
     try {
-      const annotationInput = annotationInputFromState(state, input)
-      if (!annotationInput) {
+      const selection = selectionFromState(state, input)
+      if (!selection) {
         return update({
           status: 'failed',
           error: {
@@ -143,7 +154,7 @@ export function createOperatorAnnotationSurface(options = {}) {
           },
         })
       }
-      const result = await createPendingAnnotation(annotationInput)
+      const result = await createAnnotation(selection)
       return update({
         status: 'committed',
         result: {

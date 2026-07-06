@@ -6,6 +6,12 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  annotationCapabilityFromSavedRef,
+} from '../../scripts/lib/agent-workspace/refs.mjs';
+import {
+  pendingAnnotationInputFromOperatorSelection,
+} from '../../scripts/lib/pending-annotations-surface-adapter.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -107,6 +113,99 @@ function savedRefFixture({ ref = 'r1', snapshot = 'snap1', backend = 'browser', 
     artifact_refs: [{ role: 'ref_summary', path: `/tmp/${snapshot}-${ref}.json` }],
   };
 }
+
+test('agent workspace owns annotation capability projection for saved refs', () => {
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+    backend: 'browser',
+    resolutionClass: 'snapshot_scoped',
+  })), {
+    status: 'saved_ref',
+    target_kind: 'browser',
+    reasons: [],
+    saved_ref_available: true,
+  });
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+    backend: 'aos_canvas',
+    resolutionClass: 'reacquirable',
+  })), {
+    status: 'saved_ref',
+    target_kind: 'canvas',
+    reasons: [],
+    saved_ref_available: true,
+  });
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+    backend: 'native_ax',
+    resolutionClass: 'stable',
+  })), {
+    status: 'saved_ref',
+    target_kind: 'native_ax',
+    reasons: [],
+    saved_ref_available: true,
+  });
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+    backend: 'browser',
+    resolutionClass: 'volatile',
+  })), {
+    status: 'fallback_only',
+    target_kind: 'browser',
+    reasons: ['saved_ref_not_actionable:volatile'],
+    saved_ref_available: false,
+  });
+  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+    backend: 'unknown',
+    resolutionClass: 'stable',
+  })), {
+    status: 'unsupported',
+    target_kind: null,
+    reasons: ['unsupported_saved_ref:unknown:stable'],
+    saved_ref_available: false,
+  });
+});
+
+test('pending annotation adapter owns conversion from operator selection evidence', () => {
+  assert.deepEqual(pendingAnnotationInputFromOperatorSelection({
+    origin: 'operator_annotation_surface',
+    comment: 'Use this',
+    target: {
+      kind: 'browser',
+      summary: 'Save button',
+      savedRef: {
+        workspace_id: 'default',
+        snapshot_id: 'snap1',
+        ref: 'r1',
+      },
+    },
+    readiness: { status: 'saved_ref', reasons: [] },
+    evidence: {
+      fallback: [],
+      artifacts: [{ role: 'capture_summary', path: '/tmp/capture.json' }],
+      next: [{ kind: 'inspect_saved_refs', argv: ['aos', 'see', 'refs'] }],
+      sourceCapture: { kind: 'saved_capture', selected_ref: 'r1' },
+    },
+  }), {
+    source: 'operator_annotation_surface',
+    comment: 'Use this',
+    target_kind: 'browser',
+    target_summary: 'Save button',
+    saved_ref: {
+      workspace_id: 'default',
+      snapshot_id: 'snap1',
+      ref: 'r1',
+    },
+    capability: { status: 'saved_ref', reasons: [] },
+    fallback_evidence: [],
+    artifact_refs: [{ role: 'capture_summary', path: '/tmp/capture.json' }],
+    recommended_next: [{ kind: 'inspect_saved_refs', argv: ['aos', 'see', 'refs'] }],
+    source_capture: { kind: 'saved_capture', selected_ref: 'r1' },
+  });
+});
+
+test('pending annotation projection does not own saved-ref actionability policy constants', async () => {
+  const source = await fs.readFile(path.join(repoRoot, 'scripts/lib/pending-annotations-projection.mjs'), 'utf8');
+  assert(!source.includes('SAVED_REF_BACKEND_TARGETS'));
+  assert(!source.includes('ACTIONABLE_REF_CLASSES'));
+  assert(!source.includes("aos.agent-workspace.v0';"));
+});
 
 test('pending annotation CLI creates compact saved-ref record and consumes it once', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-'));

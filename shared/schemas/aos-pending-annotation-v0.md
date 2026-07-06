@@ -83,6 +83,9 @@ aos see annotation delete ann-example --json
 `create --from-json <path|->` accepts the same logical fields as the stored
 record input and normalizes missing ids, lifecycle timestamps, default
 recommended next commands, fallback evidence, and paths.
+Operator-selection surfaces should pass generic selection evidence through the
+pending-owned `pendingAnnotationInputFromOperatorSelection()` adapter before
+calling create; toolkit runtime helpers must not manufacture this record shape.
 
 `create --from-capture-json <path|->` projects compact saved perception output
 from `aos see capture --save --json` or `aos see refs --json` into an

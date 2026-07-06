@@ -86,7 +86,70 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(projection.experience_id, 'operator-fixture');
   assert.equal(projection.surface_id, 'operator-fixture-surface');
   assert(Array.isArray(projection.menu));
+  assert.equal(projection.menu.length, 1);
+  assert(projection.menu.every((item) => item.kind === 'operator_annotation'));
+  assert(projection.menu.every((item) => item.surface === 'operator-fixture-surface'));
   assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
+});
+
+test('experience activation does not project annotation menu data for non-annotation status surfaces', () => {
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
+  const payload = JSON.parse(dryRun.stdout);
+  assert.equal(payload.experience.id, 'sigil');
+  assert.equal(payload.status_item.toggle_surface.id, 'avatar-main');
+  const projectedURL = new URL(payload.status_item.toggle_surface.url);
+  assert.equal(projectedURL.searchParams.has('aos_manifest_menu'), false);
+});
+
+test('operator annotation projection ignores unrelated non-annotation menu changes', async () => {
+  const base = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(base.status, 0, `${base.stdout}${base.stderr}`);
+  const basePayload = JSON.parse(base.stdout);
+  const baseURL = basePayload.status_item.toggle_surface.url;
+
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-unrelated-menu-'));
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  manifest.menu.push({
+    id: 'unrelated-status-item-entry',
+    label: 'Unrelated Entry',
+    kind: 'future_tool',
+    tool: 'irrelevant',
+  });
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  const changed = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(changed.status, 0, `${changed.stdout}${changed.stderr}`);
+  const changedPayload = JSON.parse(changed.stdout);
+  assert.equal(changedPayload.status_item.toggle_surface.url, baseURL);
 });
 
 test('operator annotation experience menu items require a target surface', async () => {
