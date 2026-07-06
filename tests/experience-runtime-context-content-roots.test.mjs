@@ -195,4 +195,3 @@ test('experience status does not mark a regular file content root current', asyn
     && item.argv.join(' ') === './aos experience activate file-root-fixture --json --allow-start'
   )), payload.recommended_next);
 });
-

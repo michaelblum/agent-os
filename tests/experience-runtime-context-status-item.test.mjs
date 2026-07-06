@@ -347,4 +347,3 @@ test('experience status marks mounted-surface menu projection stale on full payl
     assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-projection-target']);
   }
 });
-
