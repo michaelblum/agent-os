@@ -17,6 +17,13 @@
         {
           "args": [
             {
+              "id": "id",
+              "kind": "positional",
+              "required": false,
+              "summary": "Experience id for app-owned runtime context status",
+              "value_type": "string"
+            },
+            {
               "id": "json",
               "kind": "flag",
               "required": false,
@@ -26,7 +33,8 @@
             }
           ],
           "examples": [
-            "aos experience status --json"
+            "aos experience status --json",
+            "aos experience status <experience> --json"
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -44,14 +52,14 @@
             "streaming": false,
             "supports_json_flag": true
           },
-          "usage": "aos experience status [--json]"
+          "usage": "aos experience status [<id>] [--json]"
         }
       ],
       "path": [
         "experience",
         "status"
       ],
-      "summary": "Inspect active source-owned AOS experience state"
+      "summary": "Inspect active or app-owned source-owned AOS experience runtime context"
     },
     {
       "forms": [

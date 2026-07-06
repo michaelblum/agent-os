@@ -6,17 +6,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 import {
-  MOUNTED_SURFACE_MENU_QUERY_PARAM,
-  mountedSurfaceMenuItemsForSurface,
-  mountedSurfaceMenuProjectionEnvelope,
-} from '../packages/toolkit/contracts/mounted-surface-menu-projection.js';
-
-class ExperienceFailure extends Error {
-  constructor(message, code) {
-    super(message);
-    this.code = code;
-  }
-}
+  discoverExperience,
+  equivalentContentURLs,
+  ExperienceManifestError as ExperienceFailure,
+  findExperience,
+  projectedToggleURL,
+  resolveContentRoots,
+  resolveRepoPath,
+  rootMap,
+  template,
+} from './lib/experience-manifest.mjs';
+import { buildExperienceRuntimeContext } from './lib/experience-runtime-context.mjs';
 
 const repoRoot = process.cwd();
 const experiencesRoot = process.env.AOS_EXPERIENCES_DIR && !process.env.AOS_EXPERIENCES_DIR.startsWith('$')
@@ -63,156 +63,6 @@ function runAos(args, options = {}) {
 function requireSuccess(result, summary) {
   if (result.status === 0) return result;
   throw new ExperienceFailure(`${summary}: ${result.stderr || result.stdout}`.trim(), 'COMMAND_FAILED');
-}
-
-function readJSON(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (err) {
-    throw new ExperienceFailure(`Could not read ${file}: ${err.message}`, 'EXPERIENCE_MANIFEST_READ_FAILED');
-  }
-}
-
-function validateManifestTargets(manifest, file) {
-  const surfaces = manifest.surfaces && typeof manifest.surfaces === 'object' && !Array.isArray(manifest.surfaces)
-    ? manifest.surfaces
-    : {};
-  const surfaceIDs = new Set(Object.keys(surfaces));
-  const primaryEntry = manifest.default_activation?.primary_entry;
-  if (primaryEntry && !surfaceIDs.has(primaryEntry)) {
-    throw new ExperienceFailure(`Experience manifest primary_entry has no declared surface: ${primaryEntry}`, 'INVALID_EXPERIENCE_MANIFEST');
-  }
-  for (const item of manifest.menu || []) {
-    if (!item?.surface) continue;
-    if (!surfaceIDs.has(item.surface)) {
-      throw new ExperienceFailure(`Experience manifest menu item ${item.id} targets undeclared surface: ${item.surface}`, 'INVALID_EXPERIENCE_MANIFEST');
-    }
-  }
-  return file;
-}
-
-function discoverExperience(id) {
-  const file = path.join(experiencesRoot, id, 'aos-experience.json');
-  if (!fs.existsSync(file)) throw new ExperienceFailure(`Experience manifest not found: experiences/${id}/aos-experience.json`, 'EXPERIENCE_NOT_FOUND');
-  const manifest = readJSON(file);
-  if (manifest.id !== id) throw new ExperienceFailure(`Manifest id ${manifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
-  if (manifest.schema_version !== 0 || manifest.exclusive !== true) throw new ExperienceFailure(`Invalid experience manifest: ${file}`, 'INVALID_EXPERIENCE_MANIFEST');
-  validateManifestTargets(manifest, file);
-  return manifest;
-}
-
-function findExperience(id) {
-  if (!id) return null;
-  const file = path.join(experiencesRoot, id, 'aos-experience.json');
-  return fs.existsSync(file) ? discoverExperience(id) : null;
-}
-
-function branchName() {
-  const result = run('git', ['-C', repoRoot, 'branch', '--show-current']);
-  return result.status === 0 ? result.stdout.trim() : '';
-}
-
-function scopedRootName(prefix) {
-  const branch = branchName();
-  if (!branch || branch === 'main') return prefix;
-  const suffix = branch.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'worktree';
-  return `${prefix}_${suffix}`;
-}
-
-function resolveRepoPath(relPath, fieldName) {
-  if (typeof relPath !== 'string' || !relPath || path.isAbsolute(relPath)) {
-    throw new ExperienceFailure(`${fieldName} must be a repo-relative path`, 'INVALID_EXPERIENCE_MANIFEST');
-  }
-  const resolved = path.resolve(repoRoot, relPath);
-  if (resolved !== repoRoot && !resolved.startsWith(`${repoRoot}${path.sep}`)) {
-    throw new ExperienceFailure(`${fieldName} must stay under the repo: ${relPath}`, 'INVALID_EXPERIENCE_MANIFEST');
-  }
-  return resolved;
-}
-
-function resolveContentRoots(manifest) {
-  return (manifest.content_roots || []).map((root) => {
-    if (!root.id || !root.path) throw new ExperienceFailure('content_roots entries require id and path', 'INVALID_EXPERIENCE_MANIFEST');
-    return {
-      id: root.id,
-      key: root.branch_scoped === false ? root.id : scopedRootName(root.id),
-      path: resolveRepoPath(root.path, `content_roots.${root.id}.path`),
-      branch_scoped: root.branch_scoped !== false,
-    };
-  });
-}
-
-function rootMap(roots) {
-  return Object.fromEntries(roots.map((root) => [root.id, root]));
-}
-
-function template(value, rootsByID) {
-  if (typeof value !== 'string') return value;
-  return value
-    .replace(/\$\{root:([A-Za-z0-9_-]+)\}/g, (_, id) => {
-      const root = rootsByID[id];
-      if (!root) throw new ExperienceFailure(`Unknown content root template: ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
-      return root.key;
-    })
-    .replace(/\$\{mode\}/g, mode)
-    .replace(/\$\{repo_root\}/g, repoRoot);
-}
-
-function contentURLIdentity(rawURL) {
-  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
-  try {
-    const parsed = new URL(rawURL);
-    if (parsed.protocol === 'aos:') {
-      const root = parsed.hostname;
-      const pathPart = parsed.pathname || '';
-      return { root, path: pathPart.startsWith('/') ? pathPart : `/${pathPart}`, query: parsed.search };
-    }
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      const host = parsed.hostname.toLowerCase();
-      if (!['127.0.0.1', 'localhost', '::1'].includes(host)) return null;
-      const parts = parsed.pathname.split('/').filter(Boolean);
-      if (parts.length === 0) return null;
-      return {
-        root: parts[0],
-        path: `/${parts.slice(1).join('/')}`,
-        query: parsed.search,
-      };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function equivalentContentURLs(left, right) {
-  if (left === right) return true;
-  const leftIdentity = contentURLIdentity(left);
-  const rightIdentity = contentURLIdentity(right);
-  if (!leftIdentity || !rightIdentity) return false;
-  return leftIdentity.root === rightIdentity.root
-    && leftIdentity.path === rightIdentity.path
-    && leftIdentity.query === rightIdentity.query;
-}
-
-function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = mountedSurfaceMenuItemsForSurface(manifest.menu, surfaceID);
-  return Buffer.from(JSON.stringify(mountedSurfaceMenuProjectionEnvelope({
-    experienceId: manifest.id,
-    surfaceId: surfaceID,
-    menu,
-  })), 'utf8').toString('base64url');
-}
-
-function appendQueryParam(rawURL, key, value) {
-  if (!rawURL || !value) return rawURL;
-  const separator = rawURL.includes('?') ? '&' : '?';
-  return `${rawURL}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-}
-
-function projectedToggleURL(manifest, surface, rootsByID) {
-  const nextURL = template(surface.url, rootsByID);
-  if (mountedSurfaceMenuItemsForSurface(manifest.menu, surface.id).length === 0) return nextURL;
-  return appendQueryParam(nextURL, MOUNTED_SURFACE_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
 }
 
 function liveCanvasURL(id) {
@@ -334,7 +184,7 @@ function parseArgs(argv) {
     else if (arg === '--dry-run') dryRun = true;
     else if (arg === '--allow-start') allowStart = true;
     else if (arg.startsWith('--')) throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
-    else if (subcommand === 'activate' && id === null) id = arg;
+    else if ((subcommand === 'activate' || subcommand === 'status') && id === null) id = arg;
     else extra.push(arg);
   }
   if (!subcommand || !['status', 'activate', 'deactivate'].includes(subcommand)) {
@@ -352,7 +202,15 @@ function vanillaFallback() {
   };
 }
 
-function status(asJSON) {
+function status(id, asJSON) {
+  if (id) {
+    const result = buildExperienceRuntimeContext(id, { env: process.env, repoRoot });
+    if (asJSON) emitJSON(result);
+    else {
+      process.stdout.write(`experience=${id} status=${result.status} active=${result.active_experience.id || 'none'} readiness=${result.runtime.readiness.status}\n`);
+    }
+    return;
+  }
   const activeID = readActiveExperience();
   const result = {
     status: 'success',
@@ -387,7 +245,7 @@ function plan(manifest, roots, dryRun) {
       ...manifest.status_item,
       toggle_surface: {
         ...surface,
-        url: projectedToggleURL(manifest, surface, rootsByID),
+        url: projectedToggleURL(manifest, surface, rootsByID, { mode, repoRoot }),
       },
     },
     branding: manifest.branding,
@@ -469,7 +327,7 @@ function configureStatusItem(manifest, roots, steps) {
   const previousConfig = readRuntimeConfig();
   const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
   const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
-  const nextToggleURL = projectedToggleURL(manifest, surface, rootsByID);
+  const nextToggleURL = projectedToggleURL(manifest, surface, rootsByID, { mode, repoRoot });
   const existingCanvasURL = liveCanvasURL(surface.id);
   const values = [
     ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
@@ -501,16 +359,16 @@ function runHooks(manifest, phase, roots, steps) {
   const rootsByID = rootMap(roots);
   for (const hook of manifest.hooks || []) {
     if (hook.phase !== phase) continue;
-    const scriptPath = resolveRepoPath(hook.script, 'hook.script');
-    const argv = (hook.argv || []).map((arg) => template(arg, rootsByID));
+    const scriptPath = resolveRepoPath(hook.script, 'hook.script', { repoRoot });
+    const argv = (hook.argv || []).map((arg) => template(arg, rootsByID, { mode, repoRoot }));
     requireSuccess(run(scriptPath, argv, { cwd: repoRoot }), `hook ${hook.script}`);
     steps.push({ id: `hook:${phase}:${hook.script}`, status: 'success', argv });
   }
 }
 
 function activate(id, asJSON, dryRun, allowStart) {
-  const manifest = discoverExperience(id);
-  const roots = resolveContentRoots(manifest);
+  const manifest = discoverExperience(id, { experiencesRoot });
+  const roots = resolveContentRoots(manifest, { repoRoot });
   const planned = plan(manifest, roots, dryRun);
   if (dryRun) {
     if (asJSON) emitJSON({ status: 'dry_run', code: 'OK', ...planned });
@@ -550,8 +408,8 @@ function deactivate(asJSON, dryRun) {
     else process.stdout.write('dry-run deactivate experience: disable status item\n');
     return;
   }
-  const manifest = findExperience(activeID);
-  const roots = manifest ? resolveContentRoots(manifest) : [];
+  const manifest = findExperience(activeID, { experiencesRoot });
+  const roots = manifest ? resolveContentRoots(manifest, { repoRoot }) : [];
   const steps = [];
   if (manifest) runHooks(manifest, 'before_deactivate', roots, steps);
   const values = [
@@ -571,7 +429,7 @@ function deactivate(asJSON, dryRun) {
 
 try {
   const args = parseArgs(process.argv.slice(2));
-  if (args.subcommand === 'status') status(args.json);
+  if (args.subcommand === 'status') status(args.id, args.json);
   else if (args.subcommand === 'activate') activate(args.id, args.json, args.dryRun, args.allowStart);
   else deactivate(args.json, args.dryRun);
 } catch (err) {

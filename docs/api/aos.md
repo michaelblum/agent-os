@@ -132,6 +132,35 @@ The current top-level commands are:
 | `aos inspect` | live AX inspector overlay |
 | `aos log` | log overlay |
 
+## Experience Runtime Context
+
+Use `aos experience status <id> --json` before an agent trusts app-owned
+desktop state for perception, annotation, saved-ref action, or evidence
+handoff loops. The command is read-only: it does not activate, repair, restart,
+remove canvases, initialize pending annotation state, or reset permissions.
+
+The JSON envelope uses
+`schema_version: "aos.experience-runtime-context.v0"` and includes:
+
+- requested and active experience identity;
+- runtime mode, state root, mode-scoped state directory, config path, and
+  pending annotation root;
+- status-item target URL, expected URL, mounted surface id/URL, and
+  mounted-surface menu projection status;
+- content root declared/configured/live status;
+- passive service and permission readiness from `aos service status`,
+  `aos permissions check`, `aos content status`, and `aos show list`;
+- diagnostics for active-experience mismatch, status-item drift, mounted
+  surface drift, stale/missing content roots, pending annotation state, stale
+  locks, and runtime blockers;
+- capability summaries for perception, annotation, saved-ref action, and
+  evidence handoff;
+- `recommended_next[]` entries with executable argv arrays. Entries that
+  contain placeholders are marked `display_only: true`.
+
+`aos experience status --json` without an id remains the compact legacy
+active-experience readback.
+
 ## Target And Handle Ladder
 
 Use the narrowest handle that preserves semantic identity:

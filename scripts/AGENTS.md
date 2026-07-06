@@ -11,6 +11,12 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 
 - `aos-*` scripts implement command-surface adapters and developer tooling.
 - `lib/` owns shared JavaScript helpers for scripts.
+- `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
+  content-root resolution, status-item URL equivalence, and mounted-surface
+  menu projection helpers used by experience activation and status.
+- `lib/experience-runtime-context.mjs` owns the read-only
+  `aos.experience-runtime-context.v0` status envelope behind
+  `aos experience status <id> --json`.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
   saved-ref DTO normalization, artifact-ref DTO normalization, source-capture

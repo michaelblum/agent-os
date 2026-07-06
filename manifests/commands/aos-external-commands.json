@@ -2030,7 +2030,7 @@
     },
     {
       "path": ["experience", "status"],
-      "summary": "Inspect active source-owned AOS experience state.",
+      "summary": "Inspect active or app-owned source-owned AOS experience runtime context.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-experience.mjs", "status"],
       "cwd": "repo",
