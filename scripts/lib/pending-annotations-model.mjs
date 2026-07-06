@@ -12,10 +12,6 @@ import {
 import {
   normalizeRecommendedNext,
 } from './pending-annotations-recommendations.mjs';
-import {
-  normalizeSavedRef,
-  uniqueArtifactRefs,
-} from './pending-annotations-projection.mjs';
 
 export const SCHEMA_VERSION = 'aos.pending-annotation.v0';
 export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -41,8 +37,60 @@ export function sessionMetadata(env = process.env) {
   };
 }
 
+function normalizeArtifactRefList(items) {
+  return array(items).map((item, index) => {
+    if (typeof item === 'string') {
+      const split = item.indexOf('=');
+      if (split <= 0 || split === item.length - 1) {
+        fail('--artifact must use <role>=<path>', 'INVALID_ARG');
+      }
+      return {
+        role: requiredText(item.slice(0, split), `artifact[${index}].role`),
+        path: requiredText(item.slice(split + 1), `artifact[${index}].path`),
+      };
+    }
+    if (!isObject(item)) {
+      fail(`artifact_refs[${index}] must be an object`, 'INVALID_ARG');
+    }
+    return {
+      ...item,
+      role: requiredText(item.role, `artifact_refs[${index}].role`),
+      path: requiredText(item.path, `artifact_refs[${index}].path`),
+    };
+  });
+}
+
+export function uniqueArtifactRefs(items) {
+  const seen = new Set();
+  const refs = [];
+  for (const item of normalizeArtifactRefList(items)) {
+    const key = `${item.role}\0${item.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push(item);
+  }
+  return refs;
+}
+
 export function normalizeArtifactRefs(items) {
   return uniqueArtifactRefs(items);
+}
+
+export function normalizeSavedRef(input = {}) {
+  const workspace = localIDOrNull(input.workspace_id ?? input.workspace, 'workspace id');
+  const snapshot = localIDOrNull(input.snapshot_id ?? input.snapshot, 'snapshot id');
+  const ref = localIDOrNull(input.ref, 'ref id');
+  if (!snapshot && !ref) return null;
+  if (!snapshot || !ref) fail('saved_ref requires both snapshot_id and ref', 'INVALID_ARG');
+  return {
+    workspace_id: workspace || 'default',
+    snapshot_id: snapshot,
+    ref,
+    action_target: input.action_target ?? null,
+    ...(input.backend ? { backend: input.backend } : {}),
+    ...(input.resolution_class ? { resolution_class: input.resolution_class } : {}),
+    ...(input.confidence ? { confidence: input.confidence } : {}),
+  };
 }
 
 function normalizeFallbackEvidence(items, targetSummary) {

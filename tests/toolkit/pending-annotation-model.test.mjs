@@ -116,6 +116,11 @@ test('pending annotation projection does not own saved-ref actionability policy 
   assert(!source.includes("aos.agent-workspace.v0';"));
 });
 
+test('pending annotation model does not import capture projection', async () => {
+  const source = await fs.readFile(path.join(repoRoot, 'scripts/lib/pending-annotations-model.mjs'), 'utf8');
+  assert(!source.includes('pending-annotations-projection.mjs'));
+});
+
 test('pending annotation create rejects saved-ref capability without saved ref', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capability-'));
   const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capability-fixtures-'));

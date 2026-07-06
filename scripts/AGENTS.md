@@ -13,8 +13,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
-  source-capture normalization, capability invariants, full record validation,
-  summary projection, and create-input normalization.
+  saved-ref DTO normalization, artifact-ref DTO normalization, source-capture
+  normalization, capability invariants, full record validation, summary
+  projection, and create-input normalization.
 - `lib/pending-annotations-store.mjs` owns the pending annotation persistence
   boundary: canonical path containment, symlink rejection, locks, full-store
   preflight, single-record durable mutation writes, record listing, and
