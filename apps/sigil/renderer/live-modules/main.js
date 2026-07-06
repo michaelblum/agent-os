@@ -139,8 +139,21 @@ const {
 const {
     writeClipboardText,
 } = await import(toolkitSpecifier('runtime/canvas.js'));
+const {
+    operatorAnnotationMenuFromLocation,
+    operatorAnnotationStatusMenuItems,
+    routeOperatorAnnotationMenuAction,
+} = await import(toolkitSpecifier('runtime/operator-annotation-menu.js'));
 
 const host = createHostRuntime();
+const sigilMountedSurfaceId = (
+    typeof window !== 'undefined'
+    && (window.__aosSurfaceCanvasId || window.__aosCanvasId)
+) || 'avatar-main';
+const sigilOperatorAnnotationMenu = operatorAnnotationMenuFromLocation(
+    typeof window !== 'undefined' ? window.location : null,
+    { surfaceId: sigilMountedSurfaceId },
+);
 const interactionTrace = createInteractionTrace({
     storageKey: 'sigil.interactionTrace.captures',
 });
@@ -1181,7 +1194,10 @@ function isUtilityCanvasVisible(id) {
 
 function publishStatusMenuItems() {
     if (!isPrimarySurfaceSegment()) return;
+    const operatorAnnotationItems = operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu);
     host.setStatusMenuItems([
+        ...operatorAnnotationItems,
+        ...(operatorAnnotationItems.length ? [{ type: 'separator' }] : []),
         {
             id: 'sigil.status.console',
             title: 'Console Log',
@@ -1232,6 +1248,8 @@ async function reloadFromStatusMenu() {
 async function handleStatusMenuAction(msg = {}) {
     const id = String(msg.id || msg.action_id || '').trim();
     if (!id) return false;
+    const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
+    if (operatorRoute.handled) return true;
     if (id === 'sigil.status.console') {
         await toggleUtilityCanvas('log-console');
         return true;

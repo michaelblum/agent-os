@@ -92,7 +92,7 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
 });
 
-test('experience activation does not project annotation menu data for non-annotation status surfaces', () => {
+test('Sigil activation projects the mounted operator annotation menu entry', () => {
   const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
@@ -107,8 +107,18 @@ test('experience activation does not project annotation menu data for non-annota
   assert.equal(payload.experience.id, 'sigil');
   assert.equal(payload.status_item.toggle_surface.id, 'avatar-main');
   const projectedURL = new URL(payload.status_item.toggle_surface.url);
-  assert.equal(projectedURL.searchParams.has('aos_mounted_surface_menu'), false);
+  assert.equal(projectedURL.searchParams.has('aos_mounted_surface_menu'), true);
   assert.equal(projectedURL.searchParams.has('aos_manifest_menu'), false);
+  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
+  assert.equal(projection.schema_version, 'aos.mounted-surface-menu-projection.v0');
+  assert.equal(projection.experience_id, 'sigil');
+  assert.equal(projection.surface_id, 'avatar-main');
+  assert.deepEqual(projection.menu.map((item) => item.id), ['annotate-this-thing']);
+  assert.deepEqual(projection.menu.map((item) => item.kind), ['operator_annotation']);
+  assert.deepEqual(projection.menu.map((item) => item.surface), ['avatar-main']);
+  assert.equal(projection.menu[0].action_id, 'aos.sigil.operator_annotation.start');
+  assert.equal(projection.menu[0].mode, 'selection_annotation');
+  assert.equal(projection.menu[0].create_pending_annotation, true);
 });
 
 test('experience activation does not import operator annotation runtime contracts', async () => {
@@ -415,8 +425,13 @@ test('Sigil experience is exclusive and status-item-first', async () => {
   assert.equal(manifest.exclusive, true);
   assert.equal(manifest.default_activation.kind, 'status_item');
   assert.equal(manifest.default_activation.status_item_first, true);
-  assert.equal(manifest.default_activation.primary_entry, 'avatar');
+  assert.equal(manifest.default_activation.primary_entry, 'avatar-main');
   assert.equal(manifest.status_item.toggle_surface.id, 'avatar-main');
+  const annotationItem = manifest.menu.find((item) => item.kind === 'operator_annotation');
+  assert.equal(annotationItem.id, 'annotate-this-thing');
+  assert.equal(annotationItem.surface, 'avatar-main');
+  assert.equal(annotationItem.action_id, 'aos.sigil.operator_annotation.start');
+  assert.equal(manifest.surfaces['avatar-main'].summary.includes('operator annotation'), true);
   assert.deepEqual(manifest.hooks, [
     {
       phase: 'before_activate',

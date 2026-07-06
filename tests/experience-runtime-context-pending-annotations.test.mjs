@@ -10,6 +10,7 @@ import {
   readFakeAosCalls,
   runContext,
   runNode,
+  repoRoot,
   toolkitRoot,
   writeCwdRecordingFakeAos,
   writeExperienceManifestFixture,
@@ -23,6 +24,8 @@ import {
   parseJSON as parsePendingAnnotationJSON,
   run as runPendingAnnotation,
 } from './lib/pending-annotation-fixtures.mjs';
+
+const sigilRoot = path.join(repoRoot, 'apps/sigil');
 
 test('experience status omits pending annotation store internals for non-annotation fixtures', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-no-annotation-'));
@@ -103,6 +106,102 @@ test('experience status omits pending annotation store internals for non-annotat
     'service status --mode repo --json',
     'show list --json',
   ].sort());
+});
+
+test('Sigil experience status reports supported pending annotations when runtime state is current', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-sigil-annotation-'));
+  const expectedURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'sigil',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+        sigil: sigilRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'avatar-main',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'sigil',
+    },
+  });
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+
+  const { payload } = await runContext(tmp, 'sigil', baseResponses(tmp, {
+    contentRoots: {
+      toolkit: toolkitRoot,
+      sigil: sigilRoot,
+    },
+    canvases: [{
+      id: 'avatar-main',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  }));
+
+  assert.equal(payload.status, 'ok');
+  assert.equal(payload.experience.id, 'sigil');
+  assert.equal(payload.status_item.target.status, 'current');
+  assert.equal(payload.status_item.mounted_surface.status, 'current');
+  assert.equal(payload.status_item.menu_projection.status, 'current');
+  assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-this-thing']);
+  assert.equal(payload.pending_annotations.supported, true);
+  assert.equal(payload.pending_annotations.status, 'initialized');
+  assert.equal(payload.pending_annotations.record_count, 0);
+  assert.equal(Object.hasOwn(payload.state, 'pending_annotations_root'), true);
+  assert.equal(payload.capabilities.annotation.status, 'ready');
+});
+
+test('Sigil experience status fails closed on corrupt pending annotation state', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-sigil-corrupt-'));
+  const expectedURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'sigil',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+        sigil: sigilRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'avatar-main',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'sigil',
+    },
+  });
+  await fs.writeFile(path.join(tmp, 'repo', 'pending-annotations'), 'not a directory\n', 'utf8');
+
+  const { payload } = await runContext(tmp, 'sigil', baseResponses(tmp, {
+    contentRoots: {
+      toolkit: toolkitRoot,
+      sigil: sigilRoot,
+    },
+    canvases: [{
+      id: 'avatar-main',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  }));
+
+  assert.equal(payload.status, 'blocked');
+  assert.equal(payload.pending_annotations.supported, true);
+  assert.equal(payload.pending_annotations.status, 'corrupt');
+  assert.equal(payload.capabilities.annotation.status, 'blocked');
+  assert(payload.capabilities.annotation.blockers.includes('pending_annotation_state_corrupt'), payload.capabilities.annotation);
+  assert.equal(payload.capabilities.evidence_handoff.status, 'blocked');
+  assert(payload.diagnostics.some((item) => item.id === 'pending-annotation-state-corrupt'), payload.diagnostics);
 });
 
 test('experience status blocks corrupt pending state and reports passive readiness blockers', async () => {

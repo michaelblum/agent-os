@@ -39,6 +39,11 @@ menu, terminal, or workbench surfaces. New Sigil code should not invent private
 warm-hidden WebView tricks now that explicit `warm_suspended` canvas lifecycle
 state and toolkit warm helpers are available.
 
+Sigil's status-item menu includes the first-party operator annotation entry
+point. Keep the manifest-owned `operator_annotation` item targeted at the
+mounted `avatar-main` surface, and keep renderer routing on the generic toolkit
+`operator-annotation-menu` helper before Sigil-private menu actions run.
+
 ## Run
 
 For canonical `main` checks, start the AOS daemon, then launch the avatar

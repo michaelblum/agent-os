@@ -40,6 +40,10 @@ test('status item menu is a native shell over external descriptors and actions',
   assert.match(hostRuntime, /setStatusMenuItems\(items = \[\]\)/);
   assert.match(main, /function publishStatusMenuItems\(\)/);
   assert.match(main, /status_item\.menu_action/);
+  assert.match(main, /toolkitSpecifier\('runtime\/operator-annotation-menu\.js'\)/);
+  assert.match(main, /operatorAnnotationMenuFromLocation/);
+  assert.match(main, /operatorAnnotationStatusMenuItems/);
+  assert.match(main, /routeOperatorAnnotationMenuAction\(msg, sigilOperatorAnnotationMenu, host\)/);
   assert.match(main, /function reloadFromStatusMenu\(\)/);
   assert.match(main, /window\.location\.reload\(\)/);
   assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Reload"/);

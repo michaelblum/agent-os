@@ -8,7 +8,7 @@
   "default_activation": {
     "kind": "status_item",
     "status_item_first": true,
-    "primary_entry": "avatar"
+    "primary_entry": "avatar-main"
   },
   "vanilla_fallback": {
     "status_item": true,
@@ -66,6 +66,15 @@
       "entry": "avatar"
     },
     {
+      "id": "annotate-this-thing",
+      "label": "Annotate This Thing",
+      "kind": "operator_annotation",
+      "surface": "avatar-main",
+      "action_id": "aos.sigil.operator_annotation.start",
+      "mode": "selection_annotation",
+      "create_pending_annotation": true
+    },
+    {
       "id": "agent-terminal",
       "label": "Agent Terminal",
       "kind": "launch_tool",
@@ -85,8 +94,11 @@
     }
   ],
   "surfaces": {
+    "avatar-main": {
+      "summary": "Mounted status-item Sigil avatar shell and operator annotation entry point."
+    },
     "avatar": {
-      "summary": "Status-item controlled Sigil avatar shell."
+      "summary": "Logical Sigil avatar product surface; avatar-main is the mounted status-item canvas."
     },
     "legacy-workbench": {
       "summary": "Historical multi-tab Sigil workbench retained for explicit dev use only.",

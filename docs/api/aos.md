@@ -298,8 +298,11 @@ mounted surfaces validate the projection envelope and refuse cross-surface
 operator routes before using the toolkit runtime helper
 `routeOperatorAnnotationMenuAction()` to filter and route
 `operator_annotation` menu actions to `aos.operator_annotation.start` on the
-projected operator surface. The `operator-fixture` experience is the non-Sigil
-contract fixture for this route.
+projected operator surface. `operator-fixture` remains the minimal reusable
+contract fixture for this route; `sigil` is the first-party AOS-owned status
+item entry point and projects `annotate-this-thing` onto its mounted
+`avatar-main` surface. Downstream consumers such as Med Ops should consume this
+AOS-owned primitive instead of owning a forked Sigil surface.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,
