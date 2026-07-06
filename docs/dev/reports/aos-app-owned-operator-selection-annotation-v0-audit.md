@@ -60,8 +60,12 @@ Epic: https://github.com/michaelblum/agent-os/issues/584
 ## Implemented In This Slice
 
 - `aos.pending-annotation.v0` JSON schema and schema documentation.
-- `scripts/lib/pending-annotations.mjs` runtime-mode-scoped store helper with
-  atomic writes and corrupt-state failure.
+- `scripts/lib/pending-annotations.mjs` public facade backed by focused
+  pending annotation store, lifecycle, record, projection, and recommendation
+  modules.
+- Pending annotation create, consume, Work Record link, delete, and index
+  updates now run under one bounded mutation lock. Records are authoritative;
+  index readback is rebuilt from records when stale or corrupt.
 - `scripts/aos-pending-annotation.mjs` CLI adapter.
 - `aos see annotation ...` command registry and external routes.
 - `create --from-capture-json <path|-> [--ref <id>]` projection from compact
@@ -72,9 +76,13 @@ Epic: https://github.com/michaelblum/agent-os/issues/584
 - Non-Sigil `operator-fixture` experience manifest with an
   `operator_annotation` status-item menu affordance targeting a mounted
   operator surface.
-- Toolkit runtime helpers that project `operator_annotation` menu entries into
-  native status menu descriptors and route generic `status_item.menu_action`
-  events to `aos.operator_annotation.start`.
+- Toolkit runtime helpers that project manifest-owned `operator_annotation`
+  menu entries into native status menu descriptors and route generic
+  `status_item.menu_action` events to `aos.operator_annotation.start`.
+- Experience activation validates operator menu surface targets against
+  declared surfaces and the mounted status surface, then projects manifest menu
+  data into the mounted operator surface URL. The fixture smoke surface no
+  longer owns duplicate menu data.
 - Experience activation now removes a same-id live toggle canvas when its URL
   does not match the newly configured status-item target, including the case
   where the previous status-item target was a different canvas id.
@@ -87,11 +95,19 @@ Epic: https://github.com/michaelblum/agent-os/issues/584
 - API docs for pending annotations in the target ladder and `aos see` reference.
 - Deterministic tests for saved-ref records, browser/canvas/native capture
   projection, fallback-only capture projection, stale/unsupported/ambiguous
-  failure states, corrupt state, non-Sigil status-item operator menu routing,
-  operator surface state transitions, Work Record evidence linking, and external
-  command dispatch.
+  failure states, corrupt record failure, corrupt index recovery, concurrent
+  consume-once behavior, serialized create/link/delete/index mutation,
+  manifest-owned non-Sigil status-item operator menu routing, invalid menu
+  target rejection, operator surface state transitions, Work Record evidence
+  linking, and external command dispatch.
 
-## Guarded Live Proof
+## Guarded Route/Queue V0 Proof
+
+This proof is route/queue V0 evidence only. It proves generic status-item menu
+routing, pending annotation creation, consume-once lifecycle behavior, and
+evidence linking through the non-Sigil fixture. It does not prove the full
+saved-ref/action loop for epic #584 because the created annotation was
+`fallback_only`.
 
 - Live proof report:
   `docs/dev/reports/aos-app-owned-operator-selection-annotation-v0-live-proof.md`.
@@ -120,3 +136,10 @@ Epic: https://github.com/michaelblum/agent-os/issues/584
   reconciled stale branch-scoped roots and restored the status item target.
 - No TCC-owning binary was rebuilt or re-signed; no TCC reset or permission
   repair was run.
+
+## Open Epic #584 Proof
+
+Epic #584 remains open for saved-ref or explicit fallback action/readback proof.
+The next proof must consume a saved-ref annotation, perform a dry-run or safe
+action/readback, and record before/after evidence before claiming the full
+action loop complete.

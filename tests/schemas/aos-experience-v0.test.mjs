@@ -79,7 +79,7 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(payload.status, 'dry_run');
   assert.equal(payload.experience.id, 'operator-fixture');
   assert.equal(payload.status_item.toggle_surface.id, 'operator-fixture-surface');
-  assert.equal(payload.status_item.toggle_surface.url, 'aos://toolkit/runtime/_smoke/operator-annotation.html');
+  assert.match(payload.status_item.toggle_surface.url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_manifest_menu=/);
   assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
 });
 
@@ -93,6 +93,31 @@ test('operator annotation experience menu items require a target surface', async
   const result = validate(invalidPath);
   assert.notEqual(result.status, 0);
   assert.match(result.stdout, /'surface' is a required property/);
+});
+
+test('experience activation rejects operator menu targets outside declared mounted surfaces', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-invalid-target-'));
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  manifest.menu[0].surface = 'missing-operator-surface';
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.notEqual(dryRun.status, 0);
+  const payload = JSON.parse(dryRun.stderr);
+  assert.equal(payload.code, 'INVALID_EXPERIENCE_MANIFEST');
+  assert.match(payload.error, /targets undeclared surface: missing-operator-surface/);
 });
 
 test('experience activation removes same-id stale toggle canvas even when previous target differed', async () => {
@@ -150,7 +175,7 @@ process.exit(0);
   const staleStep = payload.steps.find((step) => step.id === 'status-item:stale-target:operator-fixture-surface');
   assert.equal(staleStep.status, 'success');
   assert.equal(staleStep.canvas_url, 'http://127.0.0.1:58012/sigil/renderer/index.html?toolkit-root=toolkit');
-  assert.equal(staleStep.current_url, 'aos://toolkit/runtime/_smoke/operator-annotation.html');
+  assert.match(staleStep.current_url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_manifest_menu=/);
 
   const calls = (await fs.readFile(logPath, 'utf8'))
     .trim()

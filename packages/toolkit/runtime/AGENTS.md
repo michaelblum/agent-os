@@ -13,6 +13,8 @@ Good runtime responsibilities:
 - subscribe/unsubscribe helpers for daemon event streams;
 - canvas mutation helpers that wrap daemon create/update/remove/eval/suspend;
 - DesktopWorld coordinate adapters and generic interaction routing helpers.
+- generic manifest-projected operator annotation menu routing helpers that stay
+  app-neutral and consume manifest data supplied by activation.
 
 Keep windowing and product policy out of runtime. A helper here may expose a
 generic capability, but default panel state, chip placement, workbench layout,

@@ -14,6 +14,9 @@ class ExperienceFailure extends Error {
 }
 
 const repoRoot = process.cwd();
+const experiencesRoot = process.env.AOS_EXPERIENCES_DIR && !process.env.AOS_EXPERIENCES_DIR.startsWith('$')
+  ? path.resolve(process.env.AOS_EXPERIENCES_DIR)
+  : path.join(repoRoot, 'experiences');
 const aos = process.env.AOS_PATH && !process.env.AOS_PATH.startsWith('$')
   ? process.env.AOS_PATH
   : path.join(repoRoot, 'aos');
@@ -65,18 +68,41 @@ function readJSON(file) {
   }
 }
 
+function validateManifestTargets(manifest, file) {
+  const surfaces = manifest.surfaces && typeof manifest.surfaces === 'object' && !Array.isArray(manifest.surfaces)
+    ? manifest.surfaces
+    : {};
+  const surfaceIDs = new Set(Object.keys(surfaces));
+  const primaryEntry = manifest.default_activation?.primary_entry;
+  if (primaryEntry && !surfaceIDs.has(primaryEntry)) {
+    throw new ExperienceFailure(`Experience manifest primary_entry has no declared surface: ${primaryEntry}`, 'INVALID_EXPERIENCE_MANIFEST');
+  }
+  const toggleID = manifest.status_item?.toggle_surface?.id;
+  for (const item of manifest.menu || []) {
+    if (item?.kind !== 'operator_annotation') continue;
+    if (!surfaceIDs.has(item.surface)) {
+      throw new ExperienceFailure(`Experience manifest operator menu item ${item.id} targets undeclared surface: ${item.surface}`, 'INVALID_EXPERIENCE_MANIFEST');
+    }
+    if (toggleID && item.surface !== toggleID) {
+      throw new ExperienceFailure(`Experience manifest operator menu item ${item.id} targets ${item.surface}, but mounted status surface is ${toggleID}`, 'INVALID_EXPERIENCE_MANIFEST');
+    }
+  }
+  return file;
+}
+
 function discoverExperience(id) {
-  const file = path.join(repoRoot, 'experiences', id, 'aos-experience.json');
+  const file = path.join(experiencesRoot, id, 'aos-experience.json');
   if (!fs.existsSync(file)) throw new ExperienceFailure(`Experience manifest not found: experiences/${id}/aos-experience.json`, 'EXPERIENCE_NOT_FOUND');
   const manifest = readJSON(file);
   if (manifest.id !== id) throw new ExperienceFailure(`Manifest id ${manifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
   if (manifest.schema_version !== 0 || manifest.exclusive !== true) throw new ExperienceFailure(`Invalid experience manifest: ${file}`, 'INVALID_EXPERIENCE_MANIFEST');
+  validateManifestTargets(manifest, file);
   return manifest;
 }
 
 function findExperience(id) {
   if (!id) return null;
-  const file = path.join(repoRoot, 'experiences', id, 'aos-experience.json');
+  const file = path.join(experiencesRoot, id, 'aos-experience.json');
   return fs.existsSync(file) ? discoverExperience(id) : null;
 }
 
@@ -165,6 +191,27 @@ function equivalentContentURLs(left, right) {
   return leftIdentity.root === rightIdentity.root
     && leftIdentity.path === rightIdentity.path
     && leftIdentity.query === rightIdentity.query;
+}
+
+function encodeManifestMenuProjection(manifest, surfaceID) {
+  const menu = (manifest.menu || []).filter((item) => item?.surface === surfaceID || item?.kind !== 'operator_annotation');
+  return Buffer.from(JSON.stringify({
+    schema_version: 'aos.operator-annotation-menu-projection.v0',
+    experience_id: manifest.id,
+    surface_id: surfaceID,
+    menu,
+  }), 'utf8').toString('base64url');
+}
+
+function appendQueryParam(rawURL, key, value) {
+  if (!rawURL || !value) return rawURL;
+  const separator = rawURL.includes('?') ? '&' : '?';
+  return `${rawURL}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+}
+
+function projectedToggleURL(manifest, surface, rootsByID) {
+  const nextURL = template(surface.url, rootsByID);
+  return appendQueryParam(nextURL, 'aos_manifest_menu', encodeManifestMenuProjection(manifest, surface.id));
 }
 
 function liveCanvasURL(id) {
@@ -320,6 +367,7 @@ function status(asJSON) {
 
 function plan(manifest, roots, dryRun) {
   const rootsByID = rootMap(roots);
+  const surface = manifest.status_item.toggle_surface;
   return {
     experience: {
       id: manifest.id,
@@ -337,8 +385,8 @@ function plan(manifest, roots, dryRun) {
     status_item: {
       ...manifest.status_item,
       toggle_surface: {
-        ...manifest.status_item.toggle_surface,
-        url: template(manifest.status_item.toggle_surface.url, rootsByID),
+        ...surface,
+        url: projectedToggleURL(manifest, surface, rootsByID),
       },
     },
     branding: manifest.branding,
@@ -420,7 +468,7 @@ function configureStatusItem(manifest, roots, steps) {
   const previousConfig = readRuntimeConfig();
   const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
   const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
-  const nextToggleURL = template(surface.url, rootsByID);
+  const nextToggleURL = projectedToggleURL(manifest, surface, rootsByID);
   const existingCanvasURL = liveCanvasURL(surface.id);
   const values = [
     ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],

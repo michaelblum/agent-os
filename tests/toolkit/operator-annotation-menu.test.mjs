@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   OPERATOR_ANNOTATION_START_EVENT,
+  operatorAnnotationMenuFromLocation,
   operatorAnnotationMenuRoutes,
   operatorAnnotationStatusMenuItems,
   routeOperatorAnnotationMenuAction,
@@ -89,4 +90,37 @@ test('operator annotation routing ignores unrelated status menu actions', () => 
     action_id: 'settings',
   })
   assert.deepEqual(posts, [])
+})
+
+test('operator annotation smoke surface reads menu projection from manifest-owned URL data', () => {
+  const projectedMenu = [
+    {
+      id: 'annotate-runtime-target',
+      label: 'Annotate Runtime Target',
+      kind: 'operator_annotation',
+      surface: 'operator-fixture-surface',
+      action_id: 'aos.operator_fixture.runtime_annotation',
+      mode: 'selection_annotation',
+    },
+  ]
+  const projection = Buffer.from(JSON.stringify({
+    schema_version: 'aos.operator-annotation-menu-projection.v0',
+    experience_id: 'operator-fixture',
+    surface_id: 'operator-fixture-surface',
+    menu: projectedMenu,
+  }), 'utf8').toString('base64url')
+  const runtimeMenu = operatorAnnotationMenuFromLocation({
+    search: `?aos_manifest_menu=${projection}`,
+  })
+  assert.deepEqual(runtimeMenu, projectedMenu)
+  assert.deepEqual(operatorAnnotationStatusMenuItems(runtimeMenu), [{
+    id: 'aos.operator_fixture.runtime_annotation',
+    title: 'Annotate Runtime Target',
+    enabled: true,
+    checked: false,
+  }])
+  assert.equal(
+    operatorAnnotationMenuRoutes(runtimeMenu).get('aos.operator_fixture.runtime_annotation').surface,
+    'operator-fixture-surface',
+  )
 })

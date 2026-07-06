@@ -10,19 +10,13 @@
   </main>
   <script type="module">
     import {
+      operatorAnnotationMenuFromLocation,
       operatorAnnotationStatusMenuItems,
       routeOperatorAnnotationMenuAction,
     } from '../operator-annotation-menu.js'
     import { createOperatorAnnotationSurface } from '../operator-annotation-surface.js'
 
-    const menu = [{
-      id: 'annotate-visible-target',
-      label: 'Annotate Visible Target',
-      kind: 'operator_annotation',
-      surface: 'operator-fixture-surface',
-      action_id: 'aos.operator_fixture.annotation',
-      mode: 'selection_annotation',
-    }]
+    const menu = operatorAnnotationMenuFromLocation(window.location)
     const status = document.querySelector('#status')
     const surface = createOperatorAnnotationSurface({
       createPendingAnnotation: window.__aosCreatePendingAnnotation || (async () => ({
@@ -33,6 +27,7 @@
       })),
     })
     window.__aosOperatorAnnotationFixture = surface
+    window.__aosOperatorAnnotationMenu = menu
 
     const host = {
       post(type, payload) {

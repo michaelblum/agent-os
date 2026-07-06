@@ -348,18 +348,23 @@ instead of creating ad-hoc status names.
 `packages/toolkit/runtime/operator-annotation-menu.js` provides the reusable
 surface-side bridge for app-owned status item entries that start operator
 selection/annotation mode. Experience manifests declare menu items with
-`kind: "operator_annotation"` and a target `surface`. The native status item
-still emits the generic `status_item.menu_action` event; the toolkit helper maps
-that action id to a `canvas.send` message for the declared operator surface.
+`kind: "operator_annotation"` and a target `surface`. Activation validates
+those targets, projects the manifest-owned menu into the mounted surface URL via
+`aos_manifest_menu`, and keeps smoke/runtime surfaces from owning duplicate menu
+data. The native status item still emits the generic `status_item.menu_action`
+event; the toolkit helper maps that action id to a `canvas.send` message for
+the declared operator surface.
 
 Use `operatorAnnotationStatusMenuItems(menu)` to project manifest menu entries
-to native menu descriptors, and `routeOperatorAnnotationMenuAction(message,
-menu, host)` inside the mounted status-item surface to route an incoming menu
-event. The default routed message type is `aos.operator_annotation.start`; it
-includes the menu item id, action id, source, selection mode, creation intent,
-origin point, and modifiers. The helper does not create pending annotations by
-itself; the receiving operator surface owns capture/comment/commit behavior and
-should write pending annotations through `aos see annotation`.
+to native menu descriptors, `operatorAnnotationMenuFromLocation(location)` to
+read the activation-projected menu inside the mounted surface, and
+`routeOperatorAnnotationMenuAction(message, menu, host)` to route an incoming
+menu event. The default routed message type is `aos.operator_annotation.start`;
+it includes the menu item id, action id, source, selection mode, creation
+intent, origin point, and modifiers. The helper does not create pending
+annotations by itself; the receiving operator surface owns capture/comment/
+commit behavior and should write pending annotations through
+`aos see annotation`.
 
 `packages/toolkit/runtime/operator-annotation-surface.js` provides the minimal
 state model for that receiving surface. `createOperatorAnnotationSurface()`

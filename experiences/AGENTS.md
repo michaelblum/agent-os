@@ -18,6 +18,9 @@ composition metadata.
 
 - Keep experience ids, content roots, status-item targets, and app references
   aligned with the owning app.
+- Operator annotation menu entries must target declared mounted surfaces.
+  Activation projects manifest menu data into the mounted status surface; smoke
+  surfaces must not duplicate fixture menu data as their source of truth.
 - Do not encode app-private behavior here when it belongs in app source or
   toolkit policy.
 

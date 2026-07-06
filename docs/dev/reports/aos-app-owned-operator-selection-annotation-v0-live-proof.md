@@ -2,13 +2,18 @@
 
 Date: 2026-07-05
 
-Status: passed
+Status: passed for route/queue V0; saved-ref/action proof remains open
 
 ## Scope
 
 This guarded proof used the non-Sigil `operator-fixture` experience and the
 generic status-item menu route. It did not rebuild or re-sign the AOS binary,
 and no TCC reset or permission repair was run.
+
+This is not a full epic #584 completion proof. The annotation created here used
+`fallback_only` capability, so this report proves routing, queue lifecycle, and
+evidence linking only. A saved-ref or explicit fallback action/readback proof
+remains required before claiming the full action loop complete.
 
 ## Commands And Evidence
 
@@ -22,6 +27,9 @@ and no TCC reset or permission repair was run.
 - Mounted operator surface:
   - `operator-fixture-surface`
   - URL: `aos://toolkit/runtime/_smoke/operator-annotation.html`
+  - Current activation appends `?aos_manifest_menu=...` so the smoke surface
+    receives menu/action data projected from the manifest rather than owning a
+    duplicate fixture menu.
 - Posted menu action:
   - `./aos show post --id operator-fixture-surface --event ...`
   - Surface state changed from `idle` to `selecting`.
@@ -71,3 +79,9 @@ and no TCC reset or permission repair was run.
   `./aos experience activate sigil --json --allow-start`.
 - Sigil activation reconciled stale branch-scoped content roots and restored the
   status item target to `aos://sigil/renderer/index.html?toolkit-root=toolkit`.
+
+## Remaining Proof Gap
+
+Epic #584 still needs a saved-ref or explicit fallback action/readback proof
+with before/after evidence. This report should be cited only as route/queue V0
+proof.

@@ -8,7 +8,7 @@
   "default_activation": {
     "kind": "status_item",
     "status_item_first": true,
-    "primary_entry": "operator-surface"
+    "primary_entry": "operator-fixture-surface"
   },
   "vanilla_fallback": {
     "status_item": true,
@@ -49,7 +49,7 @@
     }
   ],
   "surfaces": {
-    "operator-surface": {
+    "operator-fixture-surface": {
       "summary": "Fixture status-item surface that receives operator annotation menu actions."
     }
   }

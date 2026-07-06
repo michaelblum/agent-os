@@ -11,6 +11,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 
 - `aos-*` scripts implement command-surface adapters and developer tooling.
 - `lib/` owns shared JavaScript helpers for scripts.
+- `lib/pending-annotations*.mjs` owns the pending annotation queue facade,
+  serialized store boundary, lifecycle transitions, capture projection, record
+  construction, and next-command recommendations behind `aos see annotation`.
 - `aos_agents/` owns the AOS project-agent runner implementation.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.

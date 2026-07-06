@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,27 @@ function run(args, env) {
     cwd: repoRoot,
     encoding: 'utf8',
     env: { ...process.env, ...env },
+  });
+}
+
+function runAsync(args, env) {
+  return new Promise((resolve) => {
+    const child = spawn('node', [cliPath, ...args], {
+      cwd: repoRoot,
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('close', (status) => {
+      resolve({ status, stdout, stderr });
+    });
   });
 }
 
@@ -365,4 +387,104 @@ test('pending annotation corrupt record read fails closed', async () => {
   assert.notEqual(result.status, 0);
   const err = JSON.parse(result.stderr);
   assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation concurrent consume succeeds exactly once', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-concurrent-consume-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS: '10000',
+  };
+  parseJSON(run([
+    'create',
+    '--id',
+    'ann-race',
+    '--target-kind',
+    'browser',
+    '--target-summary',
+    'Race target',
+    '--workspace',
+    'ws1',
+    '--snapshot',
+    'snap1',
+    '--ref',
+    'r1',
+    '--json',
+  ], env));
+
+  const attempts = await Promise.all(Array.from({ length: 16 }, (_, index) => runAsync([
+    'consume',
+    'ann-race',
+    '--actor',
+    `consumer-${index}`,
+    '--json',
+  ], env)));
+  const successes = attempts.filter((result) => result.status === 0).map((result) => JSON.parse(result.stdout));
+  const failures = attempts.filter((result) => result.status !== 0).map((result) => JSON.parse(result.stderr));
+  assert.equal(successes.length, 1, attempts);
+  assert.equal(successes[0].status, 'consumed');
+  assert.equal(failures.length, 15);
+  assert(failures.every((failure) => failure.code === 'PENDING_ANNOTATION_NOT_CONSUMABLE'), failures);
+  assert(failures.every((failure) => failure.state === 'consumed'), failures);
+
+  const listed = parseJSON(run(['list', '--state', 'consumed', '--json'], env));
+  assert.equal(listed.count, 1);
+  assert.equal(listed.annotations[0].id, 'ann-race');
+});
+
+test('pending annotation create link delete keep index serialized and recover stale index', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-recovery-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS: '10000',
+  };
+  const created = await Promise.all(Array.from({ length: 8 }, (_, index) => runAsync([
+    'create',
+    '--id',
+    `ann-index-${index}`,
+    '--target-kind',
+    'region',
+    '--target-summary',
+    `Serialized target ${index}`,
+    '--json',
+  ], env)));
+  assert(created.every((result) => result.status === 0), created);
+
+  const linked = await Promise.all(Array.from({ length: 8 }, (_, index) => runAsync([
+    'link-work-record',
+    `ann-index-${index}`,
+    '--work-record',
+    `work-record:index-${index}`,
+    '--json',
+  ], env)));
+  assert(linked.every((result) => result.status === 0), linked);
+
+  const deleted = await Promise.all(Array.from({ length: 4 }, (_, index) => runAsync([
+    'delete',
+    `ann-index-${index}`,
+    '--json',
+  ], env)));
+  assert(deleted.every((result) => result.status === 0), deleted);
+
+  const all = parseJSON(run(['list', '--json'], env));
+  assert.equal(all.count, 8);
+  assert.equal(all.annotations.filter((item) => item.state === 'deleted').length, 4);
+  assert.equal(all.annotations.filter((item) => item.work_record_link_count === 1).length, 8);
+
+  const indexPath = path.join(stateRoot, 'repo', 'pending-annotations', 'index.json');
+  const staleIndex = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  staleIndex.annotations[0].state = 'pending';
+  staleIndex.annotations[0].work_record_link_count = 0;
+  await fs.writeFile(indexPath, `${JSON.stringify(staleIndex, null, 2)}\n`, 'utf8');
+  const repairedStale = parseJSON(run(['list', '--json'], env));
+  assert.equal(repairedStale.annotations.filter((item) => item.state === 'deleted').length, 4);
+  assert.equal(repairedStale.annotations.filter((item) => item.work_record_link_count === 1).length, 8);
+
+  await fs.writeFile(indexPath, '{partial', 'utf8');
+  const recovered = parseJSON(run(['list', '--state', 'deleted', '--json'], env));
+  assert.equal(recovered.count, 4);
+  const recoveredIndex = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  assert.equal(recoveredIndex.annotations.length, 8);
 });

@@ -1,5 +1,6 @@
 export const OPERATOR_ANNOTATION_MENU_KIND = 'operator_annotation'
 export const OPERATOR_ANNOTATION_START_EVENT = 'aos.operator_annotation.start'
+export const OPERATOR_ANNOTATION_MENU_QUERY_PARAM = 'aos_manifest_menu'
 
 function nonEmptyString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
@@ -39,6 +40,29 @@ export function operatorAnnotationMenuRoutes(menu = []) {
     })
   }
   return routes
+}
+
+function decodeBase64Url(value) {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/')
+  const padding = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : ''
+  return atob(`${normalized}${padding}`)
+}
+
+export function operatorAnnotationMenuFromProjection(projection = {}) {
+  if (!projection || typeof projection !== 'object') return []
+  return Array.isArray(projection.menu) ? projection.menu : []
+}
+
+export function operatorAnnotationMenuFromLocation(locationObject = globalThis.location) {
+  if (!locationObject?.search) return []
+  const params = new URLSearchParams(locationObject.search)
+  const encoded = params.get(OPERATOR_ANNOTATION_MENU_QUERY_PARAM)
+  if (!encoded) return []
+  try {
+    return operatorAnnotationMenuFromProjection(JSON.parse(decodeBase64Url(encoded)))
+  } catch {
+    return []
+  }
 }
 
 export function routeOperatorAnnotationMenuAction(message = {}, menu = [], host = {}) {
