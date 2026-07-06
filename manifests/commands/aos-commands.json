@@ -12177,7 +12177,7 @@
           },
           "examples" : [
             "aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json",
-            "aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json"
+            "aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root \"$(pwd -P)/.aos-work/work-records\" --index-root \"$(pwd -P)/.aos-work/work-record-index\" --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

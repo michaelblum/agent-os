@@ -32,7 +32,9 @@ derivatives consumed by the AOS-owned runner.
 
 ## Verification
 
-- For runner-facing changes, use `bash tests/aos-agents-runner.sh`.
+- For runner-facing TOML/model/effort/sandbox/instruction changes, use
+  `./aos dev agents --runtime-info --json` for executable role-set readback and
+  `bash tests/aos-agents-runner.sh` for runner regression coverage.
 - For provider smoke coverage, use the focused `./aos dev agents` check named by
   the task or local docs.
 

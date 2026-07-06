@@ -94,7 +94,11 @@ The separation is intentional: **`.docks/` = runtime, `ai-agents/` = source defi
 1. Edit the relevant `ai-agents/agents/<name>.md`.
 2. Update the provider-shaped material under `ai-agents/providers/codex/` when
    the runner-facing model, effort, sandbox, or instructions change.
-3. Verify with `./aos dev agents --self-test --json`.
+3. Verify runner-facing TOML changes with
+   `./aos dev agents --runtime-info --json`.
+
+`./aos dev agents --self-test --json` is a parser/path smoke check. It is not
+the executable runner role-set readback.
 
 ## Provider skill conventions
 
