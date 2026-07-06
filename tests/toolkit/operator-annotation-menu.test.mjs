@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
-  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
+  MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,
+  MOUNTED_SURFACE_MENU_QUERY_PARAM,
   OPERATOR_ANNOTATION_START_EVENT,
   operatorAnnotationMenuFromProjection,
   operatorAnnotationMenuFromLocation,
@@ -20,17 +20,18 @@ const menu = [
     action_id: 'aos.operator_fixture.annotation',
     mode: 'selection_annotation',
   },
-  {
-    id: 'settings',
-    label: 'Settings',
-    kind: 'future_tool',
-    tool: 'settings',
-  },
-]
+    {
+      id: 'settings',
+      label: 'Settings',
+      kind: 'future_tool',
+      tool: 'settings',
+      surface: 'operator-fixture-surface',
+    },
+  ]
 
 function encodedProjection(overrides = {}) {
   return Buffer.from(JSON.stringify({
-    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+    schema_version: MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,
     experience_id: 'operator-fixture',
     surface_id: 'operator-fixture-surface',
     menu,
@@ -115,17 +116,24 @@ test('operator annotation smoke surface reads menu projection from manifest-owne
       action_id: 'aos.operator_fixture.runtime_annotation',
       mode: 'selection_annotation',
     },
+    {
+      id: 'runtime-settings',
+      label: 'Runtime Settings',
+      kind: 'future_tool',
+      surface: 'operator-fixture-surface',
+      tool: 'settings',
+    },
   ]
   const projection = Buffer.from(JSON.stringify({
-    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+    schema_version: MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,
     experience_id: 'operator-fixture',
     surface_id: 'operator-fixture-surface',
     menu: projectedMenu,
   }), 'utf8').toString('base64url')
   const runtimeMenu = operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${projection}`,
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=${projection}`,
   }, { surfaceId: 'operator-fixture-surface' })
-  assert.deepEqual(runtimeMenu, projectedMenu)
+  assert.deepEqual(runtimeMenu, [projectedMenu[0]])
   assert.deepEqual(operatorAnnotationStatusMenuItems(runtimeMenu), [{
     id: 'aos.operator_fixture.runtime_annotation',
     title: 'Annotate Runtime Target',
@@ -143,27 +151,27 @@ test('operator annotation projected menu fails closed for malformed or stale env
     null,
     {},
     { schema_version: 'wrong', experience_id: 'operator-fixture', surface_id: 'operator-fixture-surface', menu },
-    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, surface_id: 'operator-fixture-surface', menu },
-    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', menu },
-    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', surface_id: 'operator-fixture-surface', menu: {} },
+    { schema_version: MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION, surface_id: 'operator-fixture-surface', menu },
+    { schema_version: MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', menu },
+    { schema_version: MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', surface_id: 'operator-fixture-surface', menu: {} },
   ]
   for (const projection of invalidCases) {
     assert.deepEqual(operatorAnnotationMenuFromProjection(projection), [])
   }
   assert.deepEqual(operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=not-valid-base64`,
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=not-valid-base64`,
   }), [])
   assert.deepEqual(operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${Buffer.from('{not json', 'utf8').toString('base64url')}`,
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=${Buffer.from('{not json', 'utf8').toString('base64url')}`,
   }), [])
   assert.deepEqual(operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection()}`,
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=${encodedProjection()}`,
   }, { surfaceId: 'stale-surface' }), [])
 })
 
 test('operator annotation projected menu refuses cross-surface routes from tampered URL data', () => {
   const runtimeMenu = operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection({
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=${encodedProjection({
       menu: [{
         id: 'annotate-wrong-surface',
         label: 'Annotate Wrong Surface',
@@ -194,7 +202,7 @@ test('operator annotation projected menu refuses cross-surface routes from tampe
 
 test('operator annotation projected menu refuses arbitrary matching surface tampering when mounted surface is known', () => {
   const runtimeMenu = operatorAnnotationMenuFromLocation({
-    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection({
+    search: `?${MOUNTED_SURFACE_MENU_QUERY_PARAM}=${encodedProjection({
       surface_id: 'attacker-surface',
       menu: [{
         id: 'annotate-attacker-surface',

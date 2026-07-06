@@ -31,7 +31,7 @@ export function createPendingAnnotation(input, env = process.env) {
     const file = recordPath(record.id, env);
     if (fs.existsSync(file)) fail(`Pending annotation already exists: ${record.id}`, 'PENDING_ANNOTATION_EXISTS', { id: record.id });
     saveRecordAndRebuildIndex(record, env);
-    return compactResult(record, 'created');
+    return compactResult(record, 'created', env);
   });
 }
 
@@ -88,7 +88,7 @@ export function consumePendingAnnotation(id, options = {}, env = process.env) {
     };
     saveRecordAndRebuildIndex(consumed, env);
     return {
-      ...compactResult(consumed, 'consumed'),
+      ...compactResult(consumed, 'consumed', env),
       consumed_annotation: consumed,
     };
   });
@@ -123,7 +123,7 @@ export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.en
     };
     saveRecordAndRebuildIndex(linked, env);
     return {
-      ...compactResult(linked, 'linked'),
+      ...compactResult(linked, 'linked', env),
       work_record_link: link,
       linked_annotation: linked,
     };
@@ -151,6 +151,6 @@ export function deletePendingAnnotation(id, env = process.env) {
       },
     };
     saveRecordAndRebuildIndex(deleted, env);
-    return compactResult(deleted, 'deleted');
+    return compactResult(deleted, 'deleted', env);
   });
 }

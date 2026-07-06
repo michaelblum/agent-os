@@ -52,6 +52,11 @@ function parseJSON(result) {
   return JSON.parse(result.stdout);
 }
 
+function parseError(result) {
+  assert.notEqual(result.status, 0, `${result.stdout}${result.stderr}`);
+  return JSON.parse(result.stderr);
+}
+
 function validateJSONFile(instancePath) {
   const result = spawnSync(
     'python3',
@@ -507,8 +512,104 @@ test('pending annotation corrupt record read fails closed', async () => {
   ], env));
   await fs.writeFile(created.annotation.path, '{not json', 'utf8');
   const result = run(['read', 'ann-corrupt', '--json'], env);
-  assert.notEqual(result.status, 0);
-  const err = JSON.parse(result.stderr);
+  const err = parseError(result);
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation record id must match its filename', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-wrong-id-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-wrong-id',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Wrong id target',
+    '--json',
+  ], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.id = 'ann-other-id';
+  record.paths.record = path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-other-id.json');
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+
+  const err = parseError(run(['read', 'ann-wrong-id', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation record root must match the canonical runtime root', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-wrong-root-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-wrong-root',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Wrong root target',
+    '--json',
+  ], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.paths.root = path.join(stateRoot, 'installed', 'pending-annotations');
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+
+  const err = parseError(run(['list', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation record path must equal the canonical record path', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-wrong-record-path-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-wrong-path',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Wrong path target',
+    '--json',
+  ], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.paths.record = path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-other-path.json');
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+
+  const err = parseError(run(['read', 'ann-wrong-path', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation record path escapes fail closed', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-path-escape-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-path-escape',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Path escape target',
+    '--json',
+  ], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.paths.record = path.join(stateRoot, 'repo', 'pending-annotations', '..', 'outside.json');
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+
+  const err = parseError(run(['list', '--json'], env));
   assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
 });
 
@@ -674,4 +775,30 @@ test('pending annotation create link delete keep index serialized and recover st
   assert.equal(recovered.count, 4);
   const recoveredIndex = JSON.parse(await fs.readFile(indexPath, 'utf8'));
   assert.equal(recoveredIndex.annotations.length, 8);
+});
+
+test('pending annotation corrupt index rebuild fails closed on invalid records', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-invalid-record-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-index-invalid',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Invalid record during rebuild',
+    '--json',
+  ], env));
+  const indexPath = path.join(stateRoot, 'repo', 'pending-annotations', 'index.json');
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.paths.root = path.join(stateRoot, 'installed', 'pending-annotations');
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+  await fs.writeFile(indexPath, '{partial', 'utf8');
+
+  const err = parseError(run(['list', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
 });

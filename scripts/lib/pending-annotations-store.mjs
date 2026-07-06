@@ -60,30 +60,136 @@ export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
   }
 }
 
-export function assertRecord(value, file, env = process.env) {
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function nullableString(value) {
+  return value === null || nonEmptyString(value);
+}
+
+function assertStringArray(value) {
+  return Array.isArray(value) && value.every(nonEmptyString);
+}
+
+function assertActor(value) {
+  return isObject(value)
+    && nonEmptyString(value.source)
+    && isObject(value.session)
+    && (value.session.id === null || typeof value.session.id === 'string')
+    && nonEmptyString(value.session.mode)
+    && nonEmptyString(value.session.harness);
+}
+
+function assertArtifactRefs(value) {
+  return Array.isArray(value) && value.every((item) => (
+    isObject(item)
+    && nonEmptyString(item.role)
+    && nonEmptyString(item.path)
+    && (item.media_type === undefined || nonEmptyString(item.media_type))
+    && (item.bytes === undefined || item.bytes === null || (Number.isInteger(item.bytes) && item.bytes >= 0))
+  ));
+}
+
+function assertSavedRef(value) {
+  return value === null || (
+    isObject(value)
+    && SAFE_ID.test(value.workspace_id)
+    && SAFE_ID.test(value.snapshot_id)
+    && SAFE_ID.test(value.ref)
+    && nullableString(value.action_target)
+  );
+}
+
+function assertSchemaShape(value) {
   if (
-    !value
-    || typeof value !== 'object'
-    || Array.isArray(value)
+    !isObject(value)
     || value.schema_version !== SCHEMA_VERSION
     || !SAFE_ID.test(value.id)
-    || value.runtime_mode !== runtimeMode(env)
-    || !value.lifecycle
+    || !['repo', 'installed'].includes(value.runtime_mode)
+    || !isObject(value.lifecycle)
     || !LIFECYCLE_STATES.has(value.lifecycle.state)
-    || !value.target
+    || !nonEmptyString(value.lifecycle.created_at)
+    || !nonEmptyString(value.lifecycle.updated_at)
+    || !nullableString(value.lifecycle.consumed_at)
+    || !(value.lifecycle.consumed_by === null || assertActor(value.lifecycle.consumed_by))
+    || !nullableString(value.lifecycle.deleted_at)
+    || !assertActor(value.actor)
+    || !isObject(value.comment)
+    || !nullableString(value.comment.text)
+    || !isObject(value.target)
     || !TARGET_KINDS.has(value.target.kind)
-    || !value.capability
+    || !nonEmptyString(value.target.summary)
+    || !assertSavedRef(value.target.saved_ref)
+    || !isObject(value.capability)
     || !CAPABILITY_STATUSES.has(value.capability.status)
+    || !assertStringArray(value.capability.reasons)
+    || typeof value.capability.fallback_used !== 'boolean'
+    || typeof value.capability.saved_ref_available !== 'boolean'
+    || !Array.isArray(value.fallback_evidence)
+    || !assertArtifactRefs(value.artifact_refs)
     || !Array.isArray(value.recommended_next)
-    || !Array.isArray(value.artifact_refs)
+    || value.recommended_next.length < 1
+    || !Array.isArray(value.work_record_links)
+    || !isObject(value.paths)
+    || !nonEmptyString(value.paths.root)
+    || !nonEmptyString(value.paths.record)
   ) {
-    fail(`Pending annotation record is schema-invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    return false;
   }
+  if (!value.fallback_evidence.every((item) => (
+    isObject(item)
+    && nonEmptyString(item.kind)
+    && nonEmptyString(item.reason)
+    && nonEmptyString(item.summary)
+    && assertArtifactRefs(item.artifact_refs)
+  ))) return false;
   for (const item of value.recommended_next) {
-    if (!item || typeof item !== 'object' || !Array.isArray(item.argv) || item.argv.some((arg) => typeof arg !== 'string' || arg.length === 0)) {
-      fail(`Pending annotation record has invalid recommended argv: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    if (!isObject(item) || !nonEmptyString(item.kind) || !nonEmptyString(item.reason) || !assertStringArray(item.argv)) {
+      return false;
     }
   }
+  if (!value.work_record_links.every((item) => (
+    isObject(item)
+    && nonEmptyString(item.ref)
+    && nonEmptyString(item.relationship)
+    && nonEmptyString(item.status)
+    && assertArtifactRefs(item.artifact_refs)
+    && (item.linked_at === undefined || nonEmptyString(item.linked_at))
+    && (item.linked_by === undefined || assertActor(item.linked_by))
+  ))) return false;
+  return true;
+}
+
+function assertPathInvariants(record, file, env) {
+  const expectedRoot = pendingRoot(env);
+  const expectedRecord = recordPath(record.id, env);
+  const expectedName = `${record.id}.json`;
+  const resolvedRoot = path.resolve(expectedRoot);
+  const resolvedRecord = path.resolve(record.paths.record);
+  const resolvedExpectedRecord = path.resolve(expectedRecord);
+  const resolvedFile = path.resolve(file);
+  if (
+    path.basename(file) !== expectedName
+    || resolvedFile !== resolvedExpectedRecord
+    || record.paths.root !== expectedRoot
+    || record.paths.record !== expectedRecord
+    || resolvedRecord !== resolvedExpectedRecord
+    || (resolvedRecord !== resolvedRoot && !resolvedRecord.startsWith(`${resolvedRoot}${path.sep}`))
+  ) {
+    fail(`Pending annotation record has invalid path invariants: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id: record.id });
+  }
+}
+
+export function validatePendingAnnotationRecord(value, file, env = process.env) {
+  if (!assertSchemaShape(value) || value.runtime_mode !== runtimeMode(env)) {
+    fail(`Pending annotation record is schema-invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+  }
+  assertPathInvariants(value, file, env);
   return value;
 }
 
@@ -91,10 +197,11 @@ export function loadRecord(id, env = process.env) {
   const file = recordPath(id, env);
   const record = readJSONExisting(file);
   if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
-  return assertRecord(record, file, env);
+  return validatePendingAnnotationRecord(record, file, env);
 }
 
-export function annotationSummary(record) {
+export function annotationSummary(record, env = process.env) {
+  validatePendingAnnotationRecord(record, recordPath(record.id, env), env);
   return {
     id: record.id,
     state: record.lifecycle.state,
@@ -109,7 +216,7 @@ export function annotationSummary(record) {
     fallback_count: record.fallback_evidence.length,
     recommended_next_count: record.recommended_next.length,
     work_record_link_count: Array.isArray(record.work_record_links) ? record.work_record_links.length : 0,
-    path: record.paths.record,
+    path: recordPath(record.id, env),
   };
 }
 
@@ -165,13 +272,13 @@ function listRecordFiles(env = process.env) {
 }
 
 export function loadAllRecords(env = process.env) {
-  return listRecordFiles(env).map((file) => assertRecord(readJSONExisting(file), file, env));
+  return listRecordFiles(env).map((file) => validatePendingAnnotationRecord(readJSONExisting(file), file, env));
 }
 
 export function rebuildIndexFromRecords(env = process.env, previousIndex = null) {
   const previousCreatedAt = previousIndex?.created_at || nowISO();
   const annotations = loadAllRecords(env)
-    .map(annotationSummary)
+    .map((record) => annotationSummary(record, env))
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   const index = {
     ...defaultIndex(env),
@@ -188,7 +295,7 @@ export function loadIndex(env = process.env) {
   const asserted = assertIndex(raw, indexPath(env), env);
   if (!asserted) return rebuildIndexFromRecords(env, raw);
   const records = loadAllRecords(env);
-  const summaries = records.map(annotationSummary);
+  const summaries = records.map((record) => annotationSummary(record, env));
   const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
   const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
   const drift = asserted.annotations.length !== summaries.length

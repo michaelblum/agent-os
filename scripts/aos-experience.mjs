@@ -6,9 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 import {
-  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
-  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
-} from '../packages/toolkit/runtime/operator-annotation-menu-contract.js';
+  MOUNTED_SURFACE_MENU_QUERY_PARAM,
+  mountedSurfaceMenuProjectionEnvelope,
+} from '../experiences/mounted-surface-menu-projection.mjs';
 
 class ExperienceFailure extends Error {
   constructor(message, code) {
@@ -83,12 +83,12 @@ function validateManifestTargets(manifest, file) {
   }
   const toggleID = manifest.status_item?.toggle_surface?.id;
   for (const item of manifest.menu || []) {
-    if (item?.kind !== 'operator_annotation') continue;
+    if (!item?.surface) continue;
     if (!surfaceIDs.has(item.surface)) {
-      throw new ExperienceFailure(`Experience manifest operator menu item ${item.id} targets undeclared surface: ${item.surface}`, 'INVALID_EXPERIENCE_MANIFEST');
+      throw new ExperienceFailure(`Experience manifest menu item ${item.id} targets undeclared surface: ${item.surface}`, 'INVALID_EXPERIENCE_MANIFEST');
     }
     if (toggleID && item.surface !== toggleID) {
-      throw new ExperienceFailure(`Experience manifest operator menu item ${item.id} targets ${item.surface}, but mounted status surface is ${toggleID}`, 'INVALID_EXPERIENCE_MANIFEST');
+      throw new ExperienceFailure(`Experience manifest menu item ${item.id} targets ${item.surface}, but mounted status surface is ${toggleID}`, 'INVALID_EXPERIENCE_MANIFEST');
     }
   }
   return file;
@@ -197,18 +197,17 @@ function equivalentContentURLs(left, right) {
     && leftIdentity.query === rightIdentity.query;
 }
 
-function operatorAnnotationMenuItemsForSurface(manifest, surfaceID) {
-  return (manifest.menu || []).filter((item) => item?.kind === 'operator_annotation' && item?.surface === surfaceID);
+function mountedSurfaceMenuItemsForSurface(manifest, surfaceID) {
+  return (manifest.menu || []).filter((item) => item?.surface === surfaceID);
 }
 
 function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = operatorAnnotationMenuItemsForSurface(manifest, surfaceID);
-  return Buffer.from(JSON.stringify({
-    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
-    experience_id: manifest.id,
-    surface_id: surfaceID,
+  const menu = mountedSurfaceMenuItemsForSurface(manifest, surfaceID);
+  return Buffer.from(JSON.stringify(mountedSurfaceMenuProjectionEnvelope({
+    experienceId: manifest.id,
+    surfaceId: surfaceID,
     menu,
-  }), 'utf8').toString('base64url');
+  })), 'utf8').toString('base64url');
 }
 
 function appendQueryParam(rawURL, key, value) {
@@ -219,8 +218,8 @@ function appendQueryParam(rawURL, key, value) {
 
 function projectedToggleURL(manifest, surface, rootsByID) {
   const nextURL = template(surface.url, rootsByID);
-  if (operatorAnnotationMenuItemsForSurface(manifest, surface.id).length === 0) return nextURL;
-  return appendQueryParam(nextURL, OPERATOR_ANNOTATION_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
+  if (mountedSurfaceMenuItemsForSurface(manifest, surface.id).length === 0) return nextURL;
+  return appendQueryParam(nextURL, MOUNTED_SURFACE_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
 }
 
 function liveCanvasURL(id) {

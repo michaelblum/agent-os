@@ -251,16 +251,17 @@ readback contradict records.
 
 Experience manifests can declare app-owned operator selection affordances in
 their status-item `menu[]` with `kind: "operator_annotation"` and a target
-`surface`. Activation validates operator annotation menu targets against
-declared surfaces and the mounted status surface, then projects only
-operator-annotation menu entries for that mounted surface into the URL with
-`aos_manifest_menu`. Surfaces without matching operator annotation menu entries
-keep their templated URLs unchanged. Native status item dispatch remains
-generic (`status_item.menu_action`); mounted surfaces validate the projection
-envelope and refuse cross-surface operator routes before using the toolkit
-runtime helper `routeOperatorAnnotationMenuAction()` to route that menu action
-to `aos.operator_annotation.start` on the projected operator surface. The
-`operator-fixture` experience is the non-Sigil contract fixture for this route.
+`surface`. Activation validates mounted-surface menu targets against declared
+surfaces and the mounted status surface, then projects manifest menu entries
+for that mounted surface into the URL with `aos_mounted_surface_menu`. Surfaces
+without matching mounted menu entries keep their templated URLs unchanged.
+Native status item dispatch remains generic (`status_item.menu_action`);
+mounted surfaces validate the projection envelope and refuse cross-surface
+operator routes before using the toolkit runtime helper
+`routeOperatorAnnotationMenuAction()` to filter and route
+`operator_annotation` menu actions to `aos.operator_annotation.start` on the
+projected operator surface. The `operator-fixture` experience is the non-Sigil
+contract fixture for this route.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,

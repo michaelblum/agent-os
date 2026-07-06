@@ -18,9 +18,12 @@ composition metadata.
 
 - Keep experience ids, content roots, status-item targets, and app references
   aligned with the owning app.
-- Operator annotation menu entries must target declared mounted surfaces.
-  Activation projects manifest menu data into the mounted status surface; smoke
+- Menu entries with a `surface` must target declared mounted surfaces.
+  Activation projects matching manifest menu data into the mounted status
+  surface through the generic mounted-surface menu projection contract; smoke
   surfaces must not duplicate fixture menu data as their source of truth.
+- `mounted-surface-menu-projection.mjs` owns the activation-side projection
+  envelope and query parameter for mounted status surfaces.
 - Do not encode app-private behavior here when it belongs in app source or
   toolkit policy.
 

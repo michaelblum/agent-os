@@ -21,6 +21,14 @@ The state root contains:
 - `index.json` with compact summaries for list output.
 - `records/<annotation-id>.json` with the full compact annotation record.
 
+Store readback validates record shape and filesystem invariants before records
+can contribute to list, index, or summary output. Each record id must match its
+filename, `paths.root` must equal the runtime-mode pending annotation root,
+`paths.record` must equal the canonical `records/<id>.json` path, and the
+resolved record path must stay under the pending annotation root. Corrupt
+records or mismatched paths fail closed with structured pending annotation
+state errors.
+
 Heavy evidence such as screenshots, UI trees, snapshots, bundles, overlays, and
 Work Records stays in separate disk-backed artifacts referenced by path.
 

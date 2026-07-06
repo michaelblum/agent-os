@@ -37,12 +37,12 @@ export function sessionMetadata(env = process.env) {
   };
 }
 
-export function compactResult(record, status = 'success') {
+export function compactResult(record, status = 'success', env = process.env) {
   return {
     status,
     schema_version: SCHEMA_VERSION,
     runtime_mode: record.runtime_mode,
-    annotation: annotationSummary(record),
+    annotation: annotationSummary(record, env),
   };
 }
 
