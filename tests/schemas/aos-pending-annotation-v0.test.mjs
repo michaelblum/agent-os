@@ -366,6 +366,30 @@ test('pending annotation fallback record stays explicit when no saved ref exists
   validateJSONFile(created.annotation.path);
 });
 
+test('pending annotation selected target does not manufacture fallback evidence', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-no-fake-fallback-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-selected-target',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Explicit selected target',
+    '--json',
+  ], env));
+  const read = parseJSON(run(['read', 'ann-selected-target', '--json'], env));
+  assert.equal(created.annotation.fallback_count, 0);
+  assert.deepEqual(read.annotation.fallback_evidence, []);
+  assert.equal(read.annotation.capability.fallback_used, false);
+  validateJSONFile(created.annotation.path);
+});
+
 test('pending annotation corrupt record read fails closed', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-corrupt-'));
   const env = {
@@ -431,6 +455,70 @@ test('pending annotation concurrent consume succeeds exactly once', async () => 
   const listed = parseJSON(run(['list', '--state', 'consumed', '--json'], env));
   assert.equal(listed.count, 1);
   assert.equal(listed.annotations[0].id, 'ann-race');
+});
+
+test('pending annotation lock with live owner PID fails closed instead of reaping by age', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-live-lock-'));
+  const lockDir = path.join(stateRoot, 'repo', 'pending-annotations', '.mutation.lock');
+  await fs.mkdir(lockDir, { recursive: true });
+  await writeJSON(lockDir, 'owner.json', {
+    pid: process.pid,
+    acquired_at: '2026-07-05T12:00:00Z',
+  });
+  const old = new Date(Date.now() - 60_000);
+  await fs.utimes(lockDir, old, old);
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS: '0',
+    AOS_PENDING_ANNOTATION_STALE_LOCK_MS: '0',
+  };
+
+  const result = run([
+    'create',
+    '--id',
+    'ann-live-lock',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Live lock target',
+    '--json',
+  ], env);
+  assert.notEqual(result.status, 0);
+  const err = JSON.parse(result.stderr);
+  assert.equal(err.code, 'PENDING_ANNOTATION_LOCKED');
+  assert.equal((await fs.stat(lockDir)).isDirectory(), true);
+});
+
+test('pending annotation stale ownerless lock is reaped before mutation', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-stale-lock-'));
+  const lockDir = path.join(stateRoot, 'repo', 'pending-annotations', '.mutation.lock');
+  await fs.mkdir(lockDir, { recursive: true });
+  await writeJSON(lockDir, 'owner.json', {
+    pid: 'not-a-pid',
+    acquired_at: '2026-07-05T12:00:00Z',
+  });
+  const old = new Date(Date.now() - 60_000);
+  await fs.utimes(lockDir, old, old);
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS: '1000',
+    AOS_PENDING_ANNOTATION_STALE_LOCK_MS: '0',
+  };
+
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-stale-lock',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Stale lock target',
+    '--json',
+  ], env));
+  assert.equal(created.annotation.id, 'ann-stale-lock');
+  await assert.rejects(fs.stat(lockDir), /ENOENT/);
 });
 
 test('pending annotation create link delete keep index serialized and recover stale index', async () => {

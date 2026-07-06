@@ -80,6 +80,12 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(payload.experience.id, 'operator-fixture');
   assert.equal(payload.status_item.toggle_surface.id, 'operator-fixture-surface');
   assert.match(payload.status_item.toggle_surface.url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_manifest_menu=/);
+  const projectedURL = new URL(payload.status_item.toggle_surface.url);
+  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_manifest_menu'), 'base64url').toString('utf8'));
+  assert.equal(projection.schema_version, 'aos.operator-annotation-menu-projection.v0');
+  assert.equal(projection.experience_id, 'operator-fixture');
+  assert.equal(projection.surface_id, 'operator-fixture-surface');
+  assert(Array.isArray(projection.menu));
   assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
 });
 

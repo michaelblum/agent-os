@@ -243,19 +243,23 @@ browser, AOS canvas, and native AX saved refs over coordinate or prose fallback
 evidence. The pending annotation contract is `aos.pending-annotation.v0`; see
 `shared/schemas/aos-pending-annotation-v0.md`. Create, consume,
 link-work-record, delete, and index persistence share one bounded local
-mutation lock. Records are the authoritative state; `index.json` is rebuilt
-from records when stale or corrupt so a partial index write cannot make
-lifecycle readback contradict records.
+mutation lock backed by the shared local state helpers. The lock records its
+owner PID, refuses to reap live owners, and only reaps dead-owner or ownerless
+stale locks. Records are the authoritative state; `index.json` is rebuilt from
+records when stale or corrupt so a partial index write cannot make lifecycle
+readback contradict records.
 
 Experience manifests can declare app-owned operator selection affordances in
 their status-item `menu[]` with `kind: "operator_annotation"` and a target
 `surface`. Activation validates operator annotation menu targets against
 declared surfaces and the mounted status surface, then projects the manifest
 menu into the mounted surface URL with `aos_manifest_menu`. Native status item
-dispatch remains generic (`status_item.menu_action`); mounted surfaces use the
-toolkit runtime helper `routeOperatorAnnotationMenuAction()` to route that menu
-action to `aos.operator_annotation.start` on the declared operator surface. The
-`operator-fixture` experience is the non-Sigil contract fixture for this route.
+dispatch remains generic (`status_item.menu_action`); mounted surfaces validate
+the projection envelope and refuse cross-surface operator routes before using
+the toolkit runtime helper `routeOperatorAnnotationMenuAction()` to route that
+menu action to `aos.operator_annotation.start` on the projected operator
+surface. The `operator-fixture` experience is the non-Sigil contract fixture
+for this route.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,

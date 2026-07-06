@@ -1,9 +1,17 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import {
-  JSON_SPACING,
+  AgentWorkspaceError,
+  readJSONExisting as readSharedJSONExisting,
+  runtimeMode,
+  stateDir,
+  stateRoot,
+  writeJSONAtomic,
+} from './agent-workspace/core.mjs';
+import {
+  withLocalStateMutationLock,
+} from './local-state-lock.mjs';
+import {
   LIFECYCLE_STATES,
   SAFE_ID,
   SCHEMA_VERSION,
@@ -17,16 +25,10 @@ import {
 const DEFAULT_LOCK_TIMEOUT_MS = 5000;
 const DEFAULT_LOCK_STALE_MS = 30000;
 
-export function runtimeMode(env = process.env) {
-  return env.AOS_RUNTIME_MODE?.toLowerCase() === 'installed' ? 'installed' : 'repo';
-}
-
-export function stateRoot(env = process.env) {
-  return path.resolve(env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
-}
+export { runtimeMode, stateRoot };
 
 export function pendingRoot(env = process.env) {
-  return path.join(stateRoot(env), runtimeMode(env), 'pending-annotations');
+  return path.join(stateDir(env), 'pending-annotations');
 }
 
 export function indexPath(env = process.env) {
@@ -45,27 +47,15 @@ function lockDir(env = process.env) {
   return path.join(pendingRoot(env), '.mutation.lock');
 }
 
-function sortObject(value) {
-  if (Array.isArray(value)) return value.map(sortObject);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortObject(value[key])]));
-  }
-  return value;
-}
-
-export function writeJSONAtomic(file, value) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}-${crypto.randomUUID()}`;
-  fs.writeFileSync(tmp, `${JSON.stringify(sortObject(value), null, JSON_SPACING)}\n`);
-  fs.renameSync(tmp, file);
-}
-
 export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    return readSharedJSONExisting(file);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     if (!failOnCorrupt) return null;
+    if (error instanceof AgentWorkspaceError || error?.code === 'AGENT_WORKSPACE_STATE_CORRUPT') {
+      fail(`Pending annotation state is corrupt or unreadable: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    }
     fail(`Pending annotation state is corrupt or unreadable: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
   }
 }
@@ -215,70 +205,22 @@ export function saveRecordAndRebuildIndex(record, env = process.env) {
   rebuildIndexFromRecords(env);
 }
 
-function lockNumber(envValue, fallback) {
-  const parsed = Number(envValue);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function sleep(ms) {
-  if (ms <= 0) return;
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-function lockOwnerPath(dir) {
-  return path.join(dir, 'owner.json');
-}
-
-function lockIsStale(dir, staleMs) {
-  try {
-    const stat = fs.statSync(dir);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return true;
-  }
-}
-
-function acquireLock(env = process.env) {
-  const dir = lockDir(env);
-  const timeoutMs = lockNumber(env.AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS, DEFAULT_LOCK_TIMEOUT_MS);
-  const staleMs = lockNumber(env.AOS_PENDING_ANNOTATION_STALE_LOCK_MS, DEFAULT_LOCK_STALE_MS);
-  const deadline = Date.now() + timeoutMs;
-  fs.mkdirSync(pendingRoot(env), { recursive: true });
-  for (;;) {
-    try {
-      fs.mkdirSync(dir);
-      writeJSONAtomic(lockOwnerPath(dir), {
-        pid: process.pid,
-        acquired_at: nowISO(),
-        runtime_mode: runtimeMode(env),
-      });
-      return dir;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-      if (lockIsStale(dir, staleMs)) {
-        try {
-          fs.rmSync(dir, { recursive: true, force: true });
-          continue;
-        } catch {
-          // Another process may have acquired or removed it; retry until deadline.
-        }
-      }
-      if (Date.now() >= deadline) {
-        fail('Pending annotation store is locked by another mutation', 'PENDING_ANNOTATION_LOCKED', {
-          status: 'locked',
-          lock_path: dir,
-        });
-      }
-      sleep(Math.min(25, Math.max(1, deadline - Date.now())));
-    }
-  }
-}
-
 export function withPendingAnnotationMutation(env, mutate) {
-  const dir = acquireLock(env);
-  try {
-    return mutate();
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  const dir = lockDir(env);
+  return withLocalStateMutationLock({
+    lockDir: dir,
+    ensureDir: pendingRoot(env),
+    timeoutMs: env.AOS_PENDING_ANNOTATION_LOCK_TIMEOUT_MS ?? DEFAULT_LOCK_TIMEOUT_MS,
+    staleMs: env.AOS_PENDING_ANNOTATION_STALE_LOCK_MS ?? DEFAULT_LOCK_STALE_MS,
+    owner: {
+      schema_version: SCHEMA_VERSION,
+      runtime_mode: runtimeMode(env),
+    },
+    lockedError() {
+      fail('Pending annotation store is locked by another mutation', 'PENDING_ANNOTATION_LOCKED', {
+        status: 'locked',
+        lock_path: dir,
+      });
+    },
+  }, mutate);
 }

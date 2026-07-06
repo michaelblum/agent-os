@@ -351,9 +351,13 @@ selection/annotation mode. Experience manifests declare menu items with
 `kind: "operator_annotation"` and a target `surface`. Activation validates
 those targets, projects the manifest-owned menu into the mounted surface URL via
 `aos_manifest_menu`, and keeps smoke/runtime surfaces from owning duplicate menu
-data. The native status item still emits the generic `status_item.menu_action`
-event; the toolkit helper maps that action id to a `canvas.send` message for
-the declared operator surface.
+data. Runtime decode validates the projection schema, experience id, mounted
+surface id, current surface match when available, and menu array before
+producing routable actions. Operator annotation entries whose declared target
+differs from the projected mounted surface fail closed and are not routed from
+URL data. The native status item still emits the generic
+`status_item.menu_action` event; the toolkit helper maps that action id to a
+`canvas.send` message for the projected operator surface.
 
 Use `operatorAnnotationStatusMenuItems(menu)` to project manifest menu entries
 to native menu descriptors, `operatorAnnotationMenuFromLocation(location)` to
@@ -370,8 +374,11 @@ commit behavior and should write pending annotations through
 state model for that receiving surface. `createOperatorAnnotationSurface()`
 handles `aos.operator_annotation.start`, accepts comment updates, supports
 commit/cancel, and writes through an injected `createPendingAnnotation` adapter.
-Successful commits report the pending annotation id/path; missing or failing
-adapters move to `failed` instead of creating in-memory-only intent.
+Selection may start without a target, but commit fails closed with
+`OPERATOR_ANNOTATION_TARGET_REQUIRED` unless the surface has selected-target,
+saved-ref, source-capture, or explicit fallback evidence. Successful commits
+report the pending annotation id/path; missing or failing adapters move to
+`failed` instead of creating in-memory-only intent.
 
 `packages/toolkit/runtime/radial-item-transition.js` defines the companion
 transition contract for 3D radial menu items. The vanilla preset,

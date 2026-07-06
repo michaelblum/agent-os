@@ -1,6 +1,16 @@
-export const OPERATOR_ANNOTATION_MENU_KIND = 'operator_annotation'
-export const OPERATOR_ANNOTATION_START_EVENT = 'aos.operator_annotation.start'
-export const OPERATOR_ANNOTATION_MENU_QUERY_PARAM = 'aos_manifest_menu'
+export {
+  OPERATOR_ANNOTATION_MENU_KIND,
+  OPERATOR_ANNOTATION_START_EVENT,
+  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
+  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+} from './operator-annotation-menu-contract.js'
+
+import {
+  OPERATOR_ANNOTATION_MENU_KIND,
+  OPERATOR_ANNOTATION_START_EVENT,
+  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
+  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+} from './operator-annotation-menu-contract.js'
 
 function nonEmptyString(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
@@ -48,18 +58,41 @@ function decodeBase64Url(value) {
   return atob(`${normalized}${padding}`)
 }
 
-export function operatorAnnotationMenuFromProjection(projection = {}) {
-  if (!projection || typeof projection !== 'object') return []
-  return Array.isArray(projection.menu) ? projection.menu : []
+function expectedSurfaceID(options = {}) {
+  return nonEmptyString(options.surface_id || options.surfaceId)
+    || nonEmptyString(globalThis.__aosCanvasId)
+    || nonEmptyString(globalThis.__aosSurfaceCanvasId)
 }
 
-export function operatorAnnotationMenuFromLocation(locationObject = globalThis.location) {
+export function operatorAnnotationMenuFromProjection(projection = {}, options = {}) {
+  if (!projection || typeof projection !== 'object') return []
+  if (projection.schema_version !== OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION) return []
+  const experienceID = nonEmptyString(projection.experience_id)
+  const surfaceID = nonEmptyString(projection.surface_id)
+  if (!experienceID || !surfaceID || !Array.isArray(projection.menu)) return []
+  const expected = expectedSurfaceID(options)
+  if (expected && expected !== surfaceID) return []
+  return projection.menu
+    .filter((item) => {
+      if (!isOperatorAnnotationMenuItem(item)) return true
+      return nonEmptyString(item.surface) === surfaceID
+    })
+    .map((item) => {
+      if (!isOperatorAnnotationMenuItem(item)) return item
+      return {
+        ...item,
+        surface: surfaceID,
+      }
+    })
+}
+
+export function operatorAnnotationMenuFromLocation(locationObject = globalThis.location, options = {}) {
   if (!locationObject?.search) return []
   const params = new URLSearchParams(locationObject.search)
   const encoded = params.get(OPERATOR_ANNOTATION_MENU_QUERY_PARAM)
   if (!encoded) return []
   try {
-    return operatorAnnotationMenuFromProjection(JSON.parse(decodeBase64Url(encoded)))
+    return operatorAnnotationMenuFromProjection(JSON.parse(decodeBase64Url(encoded)), options)
   } catch {
     return []
   }

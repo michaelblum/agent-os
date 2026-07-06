@@ -89,3 +89,83 @@ test('operator annotation surface cancel and missing adapter fail closed', async
   assert.equal(failed.status, 'failed')
   assert.equal(failed.error.code, 'OPERATOR_ANNOTATION_CREATE_MISSING')
 })
+
+test('operator annotation surface can select without target but commit requires evidence', async () => {
+  const writes = []
+  const surface = createOperatorAnnotationSurface({
+    now: () => '2026-07-05T12:00:00Z',
+    async createPendingAnnotation(input) {
+      writes.push(input)
+      return { id: 'should-not-write' }
+    },
+  })
+  const started = surface.start()
+  assert.equal(started.status, 'selecting')
+  assert.equal(started.target, null)
+
+  const failed = await surface.commit()
+  assert.equal(failed.status, 'failed')
+  assert.equal(failed.error.code, 'OPERATOR_ANNOTATION_TARGET_REQUIRED')
+  assert.deepEqual(writes, [])
+})
+
+test('operator annotation surface commits explicit fallback, saved-ref, and source-capture evidence', async () => {
+  const writes = []
+  const surface = createOperatorAnnotationSurface({
+    now: () => '2026-07-05T12:00:00Z',
+    async createPendingAnnotation(input) {
+      writes.push(input)
+      return { id: `ann-${writes.length}` }
+    },
+  })
+
+  surface.start()
+  assert.equal((await surface.commit({
+    fallback_evidence: [{
+      kind: 'region',
+      reason: 'operator_explicit_fallback',
+      summary: 'Fallback target',
+      artifact_refs: [],
+    }],
+  })).status, 'committed')
+
+  surface.start()
+  assert.equal((await surface.commit({
+    target_kind: 'browser',
+    target_summary: 'Saved ref target',
+    saved_ref: {
+      workspace_id: 'default',
+      snapshot_id: 'snap1',
+      ref: 'r1',
+    },
+  })).status, 'committed')
+
+  surface.start()
+  assert.equal((await surface.commit({
+    source_capture: {
+      kind: 'region',
+      summary: 'Capture target',
+    },
+  })).status, 'committed')
+
+  assert.equal(writes.length, 3)
+  assert.equal(writes[0].target_kind, 'region')
+  assert.equal(writes[0].target_summary, 'Fallback target')
+  assert.deepEqual(writes[0].fallback_evidence, [{
+    kind: 'region',
+    reason: 'operator_explicit_fallback',
+    summary: 'Fallback target',
+    artifact_refs: [],
+  }])
+  assert.equal(writes[1].target_kind, 'browser')
+  assert.deepEqual(writes[1].saved_ref, {
+    workspace_id: 'default',
+    snapshot_id: 'snap1',
+    ref: 'r1',
+  })
+  assert.equal(writes[2].target_kind, 'region')
+  assert.deepEqual(writes[2].source_capture, {
+    kind: 'region',
+    summary: 'Capture target',
+  })
+})

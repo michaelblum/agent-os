@@ -62,14 +62,6 @@ function normalizeFallbackEvidence(items, targetSummary, savedRef) {
       artifact_refs: normalizeArtifactRefs(item.artifact_refs ?? []),
     };
   });
-  if (!savedRef && !fallback.length) {
-    fallback.push({
-      kind: 'operator_target',
-      reason: 'semantic_ref_unavailable',
-      summary: targetSummary,
-      artifact_refs: [],
-    });
-  }
   return fallback;
 }
 
@@ -105,7 +97,7 @@ function normalizeCapability(input, savedRef, fallbackEvidence) {
   return {
     status,
     reasons: array(explicit.reasons).map((item) => requiredText(item, 'capability reason')),
-    fallback_used: status !== 'saved_ref' || fallbackEvidence.length > 0,
+    fallback_used: fallbackEvidence.length > 0,
     saved_ref_available: Boolean(savedRef),
   };
 }

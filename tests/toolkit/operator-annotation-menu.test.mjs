@@ -1,7 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
   OPERATOR_ANNOTATION_START_EVENT,
+  operatorAnnotationMenuFromProjection,
   operatorAnnotationMenuFromLocation,
   operatorAnnotationMenuRoutes,
   operatorAnnotationStatusMenuItems,
@@ -24,6 +27,16 @@ const menu = [
     tool: 'settings',
   },
 ]
+
+function encodedProjection(overrides = {}) {
+  return Buffer.from(JSON.stringify({
+    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+    experience_id: 'operator-fixture',
+    surface_id: 'operator-fixture-surface',
+    menu,
+    ...overrides,
+  }), 'utf8').toString('base64url')
+}
 
 test('operator annotation menu entries project to native status menu descriptors', () => {
   assert.deepEqual(operatorAnnotationStatusMenuItems(menu), [
@@ -104,14 +117,14 @@ test('operator annotation smoke surface reads menu projection from manifest-owne
     },
   ]
   const projection = Buffer.from(JSON.stringify({
-    schema_version: 'aos.operator-annotation-menu-projection.v0',
+    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
     experience_id: 'operator-fixture',
     surface_id: 'operator-fixture-surface',
     menu: projectedMenu,
   }), 'utf8').toString('base64url')
   const runtimeMenu = operatorAnnotationMenuFromLocation({
-    search: `?aos_manifest_menu=${projection}`,
-  })
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${projection}`,
+  }, { surfaceId: 'operator-fixture-surface' })
   assert.deepEqual(runtimeMenu, projectedMenu)
   assert.deepEqual(operatorAnnotationStatusMenuItems(runtimeMenu), [{
     id: 'aos.operator_fixture.runtime_annotation',
@@ -123,4 +136,86 @@ test('operator annotation smoke surface reads menu projection from manifest-owne
     operatorAnnotationMenuRoutes(runtimeMenu).get('aos.operator_fixture.runtime_annotation').surface,
     'operator-fixture-surface',
   )
+})
+
+test('operator annotation projected menu fails closed for malformed or stale envelopes', () => {
+  const invalidCases = [
+    null,
+    {},
+    { schema_version: 'wrong', experience_id: 'operator-fixture', surface_id: 'operator-fixture-surface', menu },
+    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, surface_id: 'operator-fixture-surface', menu },
+    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', menu },
+    { schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION, experience_id: 'operator-fixture', surface_id: 'operator-fixture-surface', menu: {} },
+  ]
+  for (const projection of invalidCases) {
+    assert.deepEqual(operatorAnnotationMenuFromProjection(projection), [])
+  }
+  assert.deepEqual(operatorAnnotationMenuFromLocation({
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=not-valid-base64`,
+  }), [])
+  assert.deepEqual(operatorAnnotationMenuFromLocation({
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${Buffer.from('{not json', 'utf8').toString('base64url')}`,
+  }), [])
+  assert.deepEqual(operatorAnnotationMenuFromLocation({
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection()}`,
+  }, { surfaceId: 'stale-surface' }), [])
+})
+
+test('operator annotation projected menu refuses cross-surface routes from tampered URL data', () => {
+  const runtimeMenu = operatorAnnotationMenuFromLocation({
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection({
+      menu: [{
+        id: 'annotate-wrong-surface',
+        label: 'Annotate Wrong Surface',
+        kind: 'operator_annotation',
+        surface: 'attacker-surface',
+        action_id: 'aos.operator_fixture.annotation',
+      }],
+    })}`,
+  })
+  const posts = []
+  const result = routeOperatorAnnotationMenuAction({
+    type: 'status_item.menu_action',
+    id: 'aos.operator_fixture.annotation',
+  }, runtimeMenu, {
+    post(type, payload) {
+      posts.push({ type, payload })
+    },
+  })
+
+  assert.deepEqual(runtimeMenu, [])
+  assert.deepEqual(result, {
+    handled: false,
+    reason: 'unknown_action_id',
+    action_id: 'aos.operator_fixture.annotation',
+  })
+  assert.deepEqual(posts, [])
+})
+
+test('operator annotation projected menu refuses arbitrary matching surface tampering when mounted surface is known', () => {
+  const runtimeMenu = operatorAnnotationMenuFromLocation({
+    search: `?${OPERATOR_ANNOTATION_MENU_QUERY_PARAM}=${encodedProjection({
+      surface_id: 'attacker-surface',
+      menu: [{
+        id: 'annotate-attacker-surface',
+        label: 'Annotate Attacker Surface',
+        kind: 'operator_annotation',
+        surface: 'attacker-surface',
+        action_id: 'aos.operator_fixture.annotation',
+      }],
+    })}`,
+  }, { surfaceId: 'operator-fixture-surface' })
+  const posts = []
+  const result = routeOperatorAnnotationMenuAction({
+    type: 'status_item.menu_action',
+    id: 'aos.operator_fixture.annotation',
+  }, runtimeMenu, {
+    post(type, payload) {
+      posts.push({ type, payload })
+    },
+  })
+
+  assert.deepEqual(runtimeMenu, [])
+  assert.equal(result.handled, false)
+  assert.deepEqual(posts, [])
 })

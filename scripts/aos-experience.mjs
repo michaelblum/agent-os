@@ -5,6 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
+import {
+  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
+  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
+} from '../packages/toolkit/runtime/operator-annotation-menu-contract.js';
 
 class ExperienceFailure extends Error {
   constructor(message, code) {
@@ -196,7 +200,7 @@ function equivalentContentURLs(left, right) {
 function encodeManifestMenuProjection(manifest, surfaceID) {
   const menu = (manifest.menu || []).filter((item) => item?.surface === surfaceID || item?.kind !== 'operator_annotation');
   return Buffer.from(JSON.stringify({
-    schema_version: 'aos.operator-annotation-menu-projection.v0',
+    schema_version: OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
     experience_id: manifest.id,
     surface_id: surfaceID,
     menu,
@@ -211,7 +215,7 @@ function appendQueryParam(rawURL, key, value) {
 
 function projectedToggleURL(manifest, surface, rootsByID) {
   const nextURL = template(surface.url, rootsByID);
-  return appendQueryParam(nextURL, 'aos_manifest_menu', encodeManifestMenuProjection(manifest, surface.id));
+  return appendQueryParam(nextURL, OPERATOR_ANNOTATION_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
 }
 
 function liveCanvasURL(id) {

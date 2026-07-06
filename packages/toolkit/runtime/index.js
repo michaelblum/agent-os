@@ -91,6 +91,7 @@ export {
 } from './menu-activation.js'
 export {
   OPERATOR_ANNOTATION_MENU_KIND,
+  OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION,
   OPERATOR_ANNOTATION_START_EVENT,
   operatorAnnotationMenuRoutes,
   operatorAnnotationStatusMenuItems,

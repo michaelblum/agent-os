@@ -61,8 +61,11 @@ Each record includes:
 - `recommended_next[]` as structured argv arrays;
 - `work_record_links[]` for later action/readback evidence connection.
 
-Saved refs are preferred. Coordinate, region, screenshot, or prose-only target
-data must be represented as fallback evidence with an honest capability status.
+Saved refs are preferred. A selected target may be represented by explicit
+`target.kind` and `target.summary` without manufacturing fallback evidence.
+Coordinate, region, screenshot, or prose-only fallback context must be supplied
+as explicit `fallback_evidence[]` with an honest capability status; the
+normalizer does not invent fallback rows for missing refs.
 
 ## CLI
 
