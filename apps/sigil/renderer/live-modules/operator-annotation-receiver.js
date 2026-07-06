@@ -5,14 +5,11 @@ function finiteNumber(value) {
     return Number.isFinite(numeric) ? numeric : null;
 }
 
-function pointFromMessage(message = {}, fallback = null) {
-    const x = finiteNumber(message.origin_x ?? message.x);
-    const y = finiteNumber(message.origin_y ?? message.y);
-    if (x !== null && y !== null) return { x, y, valid: true };
-    const fallbackX = finiteNumber(fallback?.x);
-    const fallbackY = finiteNumber(fallback?.y);
+function normalizePointer(point = null) {
+    const fallbackX = finiteNumber(point?.x);
+    const fallbackY = finiteNumber(point?.y);
     if (fallbackX !== null && fallbackY !== null) {
-        return { x: fallbackX, y: fallbackY, valid: fallback?.valid !== false };
+        return { x: fallbackX, y: fallbackY, valid: point?.valid !== false };
     }
     return null;
 }
@@ -21,6 +18,8 @@ export function createSigilOperatorAnnotationReceiver({
     startEventType,
     mountedSurfaceId = 'avatar-main',
     getPointer = () => null,
+    resolvePointer = null,
+    isPrimarySurfaceSegment = () => true,
     enterSelectionMode = null,
     resetAvatarDoubleClick = () => {},
     setInteractionState = () => {},
@@ -33,11 +32,17 @@ export function createSigilOperatorAnnotationReceiver({
         if (!expectedType || message?.type !== expectedType) {
             return { handled: false, reason: 'not_operator_annotation_start' };
         }
+        if (isPrimarySurfaceSegment() !== true) {
+            return { handled: true, ignored: true, reason: 'secondary_surface_segment' };
+        }
         if (typeof enterSelectionMode !== 'function') {
             return { handled: false, reason: 'missing_selection_mode_receiver' };
         }
 
-        const pointer = pointFromMessage(message, getPointer());
+        const resolved = typeof resolvePointer === 'function'
+            ? resolvePointer(message, normalizePointer(getPointer()))
+            : null;
+        const pointer = normalizePointer(resolved) || normalizePointer(getPointer());
         const snapshot = enterSelectionMode(pointer, SIGIL_OPERATOR_ANNOTATION_ENTRY_SOURCE);
         resetAvatarDoubleClick();
         setInteractionState('IDLE', 'operator-annotation-start');

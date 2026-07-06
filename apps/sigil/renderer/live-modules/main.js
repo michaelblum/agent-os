@@ -305,6 +305,8 @@ const sigilOperatorAnnotationReceiver = createSigilOperatorAnnotationReceiver({
     startEventType: OPERATOR_ANNOTATION_START_EVENT,
     mountedSurfaceId: sigilMountedSurfaceId,
     getPointer: () => liveJs.pointerPos,
+    resolvePointer: resolveOperatorAnnotationPointer,
+    isPrimarySurfaceSegment,
     enterSelectionMode,
     resetAvatarDoubleClick,
     setInteractionState,
@@ -637,8 +639,10 @@ function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (isPrimarySurfaceSegment()) return true;
     if (
         msg.type === 'status_item.toggle'
+        || msg.type === 'status_item.menu_action'
         || msg.type === 'status_item.show'
         || msg.type === 'status_item.hide'
+        || msg.type === OPERATOR_ANNOTATION_START_EVENT
     ) return false;
     if (msg.type === 'display_geometry') return false;
     if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
@@ -1258,6 +1262,7 @@ async function reloadFromStatusMenu() {
 }
 
 async function handleStatusMenuAction(msg = {}) {
+    if (!isPrimarySurfaceSegment()) return true;
     const id = String(msg.id || msg.action_id || '').trim();
     if (!id) return false;
     const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
@@ -4423,6 +4428,19 @@ function originFromMessage(msg = {}) {
     const y = Number(msg.origin_y ?? msg.originY);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     return nativeToDesktopWorldPoint({ x, y }, liveJs.displays) ?? { x, y, valid: true };
+}
+
+function pointerFromSelectionState(fallback = liveJs.pointerPos) {
+    const x = Number(fallback?.x);
+    const y = Number(fallback?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, valid: fallback?.valid !== false };
+}
+
+function resolveOperatorAnnotationPointer(msg = {}, fallback = null) {
+    return originFromMessage(msg)
+        || pointerFromSelectionState(fallback)
+        || pointerFromSelectionState(liveJs.pointerPos);
 }
 
 function desktopWorldPointFromInputMessage(msg = {}) {
