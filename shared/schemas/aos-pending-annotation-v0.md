@@ -18,16 +18,17 @@ $AOS_STATE_ROOT/{repo|installed}/pending-annotations/
 
 The state root contains:
 
-- `index.json` with compact summaries for list output.
 - `records/<annotation-id>.json` with the full compact annotation record.
+- optional `index.json` compact summaries as a rebuildable cache.
 
 Store readback validates record shape and filesystem invariants before records
-can contribute to list, index, or summary output. Each record id must match its
-filename, `paths.root` must equal the runtime-mode pending annotation root,
-`paths.record` must equal the canonical `records/<id>.json` path, and the
-resolved record path must stay under the pending annotation root. Corrupt
-records or mismatched paths fail closed with structured pending annotation
-state errors.
+can contribute to list, cache, or summary output. Records are the authoritative
+durable state; `index.json` is optional and cannot decide mutation success.
+Each record id must match its filename, `paths.root` must equal the
+runtime-mode pending annotation root, `paths.record` must equal the canonical
+`records/<id>.json` path, and the resolved record path must stay under the
+pending annotation root. Corrupt records or mismatched paths fail closed with
+structured pending annotation state errors.
 
 Heavy evidence such as screenshots, UI trees, snapshots, bundles, overlays, and
 Work Records stays in separate disk-backed artifacts referenced by path.
@@ -100,7 +101,7 @@ aos see annotation delete ann-example --json
 normalizes missing ids, lifecycle timestamps, default recommended next
 commands, fallback evidence, and paths. It can create `pending`, `blocked`,
 `unsupported`, and `stale` records, but it cannot import terminal lifecycle
-states.
+states or saved-capture envelopes.
 Operator-selection surfaces should pass generic selection evidence through the
 pending-owned `pendingAnnotationInputFromOperatorSelection()` adapter before
 calling create; toolkit runtime helpers must not manufacture this record shape.

@@ -6,9 +6,6 @@ import {
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
 } from '../../packages/toolkit/contracts/mounted-surface-menu-projection.js'
 import {
-  OPERATOR_ANNOTATION_MENU_QUERY_PARAM,
-} from '../../packages/toolkit/runtime/operator-annotation-menu-contract.js'
-import {
   OPERATOR_ANNOTATION_START_EVENT,
   operatorAnnotationMenuFromProjection,
   operatorAnnotationMenuFromLocation,
@@ -155,8 +152,8 @@ test('operator annotation smoke surface reads menu projection from manifest-owne
 test('operator annotation menu contract exports the current mounted-surface query name', () => {
   assert.equal(MOUNTED_SURFACE_MENU_QUERY_PARAM, 'aos_mounted_surface_menu')
   assert.equal(LEGACY_MOUNTED_SURFACE_MENU_QUERY_PARAM, 'aos_manifest_menu')
-  assert.equal(OPERATOR_ANNOTATION_MENU_QUERY_PARAM, MOUNTED_SURFACE_MENU_QUERY_PARAM)
-  assert.notEqual(OPERATOR_ANNOTATION_MENU_QUERY_PARAM, LEGACY_MOUNTED_SURFACE_MENU_QUERY_PARAM)
+  assert.equal(MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION, 'aos.mounted-surface-menu-projection.v0')
+  assert.notEqual(MOUNTED_SURFACE_MENU_QUERY_PARAM, LEGACY_MOUNTED_SURFACE_MENU_QUERY_PARAM)
 })
 
 test('operator annotation runtime still accepts legacy mounted-surface query data internally', () => {

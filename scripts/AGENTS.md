@@ -17,9 +17,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   summary projection, and create-input normalization.
 - `lib/pending-annotations-store.mjs` owns the pending annotation persistence
   boundary: canonical path containment, symlink rejection, locks, full-store
-  preflight, single-record-plus-index mutation writes, record listing, and
-  index read/write/rebuild. It must call model helpers for record validation
-  and summary projection rather than reimplementing schema logic.
+  preflight, single-record durable mutation writes, record listing, and
+  disposable index cache projection. It must call model helpers for record
+  validation and summary projection rather than reimplementing schema logic.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.
@@ -48,8 +48,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Pending annotation records must be closed derived models at persistence and
   readback: saved-ref actionability is derived from `target.saved_ref`, and
   `source_capture` is either `null` or the public saved-capture shape.
-- Pending annotation read/list surfaces must not repair durable state; keep
-  index rebuilds behind mutation-locked create, consume, link, or delete paths.
+- Pending annotation read/list surfaces must not repair durable state. Records
+  are the authoritative durable state; `index.json` is an optional cache and
+  must not decide mutation success.
 
 ## Work Guidance
 

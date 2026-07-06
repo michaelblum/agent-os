@@ -11,6 +11,9 @@ import {
   listPendingAnnotations,
   readPendingAnnotation,
 } from './lib/pending-annotations.mjs';
+import {
+  projectCaptureInput,
+} from './lib/pending-annotations-projection.mjs';
 
 function printJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -105,7 +108,7 @@ function createInput(values) {
     argv: parseJSONArg(argvJSON, '--next-argv'),
   }));
   if (values.has('--from-capture-json')) {
-    return {
+    return projectCaptureInput({
       capture_result: loadJSONInput(values.get('--from-capture-json'), '--from-capture-json'),
       id: values.get('--id') || undefined,
       selected_ref: values.get('--ref') || undefined,
@@ -116,7 +119,7 @@ function createInput(values) {
       source: values.get('--source') || 'cli',
       artifact_refs: values.get('--artifact') || [],
       recommended_next: recommendedNext.length ? recommendedNext : undefined,
-    };
+    });
   }
   if (values.has('--from-json')) {
     return loadJSONInput(values.get('--from-json'), '--from-json');

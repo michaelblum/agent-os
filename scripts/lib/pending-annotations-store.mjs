@@ -265,22 +265,7 @@ export function rebuildIndexFromRecords(env = process.env, previousIndex = null)
 }
 
 export function loadIndex(env = process.env) {
-  return withPendingAnnotationMutation(env, () => {
-    const raw = readIndexCandidate(env);
-    const asserted = assertIndex(raw, indexPath(env), env);
-    if (!asserted) return rebuildIndexFromRecords(env, raw);
-    const records = loadAllRecords(env);
-    const summaries = summariesFromRecords(records, env);
-    const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
-    const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
-    const drift = asserted.annotations.length !== summaries.length
-      || summaries.some((summary) => {
-        const entry = assertedByID.get(summary.id);
-        return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
-      });
-    if (drift) return rebuildIndexFromRecords(env, asserted);
-    return asserted;
-  });
+  return loadIndexReadOnly(env);
 }
 
 function readIndexCandidate(env = process.env) {
@@ -306,6 +291,18 @@ export function loadIndexReadOnly(env = process.env) {
   const summaries = summariesFromRecords(records, env);
   if (indexDrifted(asserted, summaries)) return buildIndexFromRecords(env, asserted, { write: false });
   return asserted;
+}
+
+function bestEffortWriteIndexFromRecords(records, env = process.env) {
+  try {
+    const previousIndex = readIndexCandidate(env);
+    const assertedPreviousIndex = assertIndex(previousIndex, indexPath(env), env);
+    const proposedIndex = buildIndexFromRecordList(records, env, assertedPreviousIndex);
+    if (!assertIndex(proposedIndex, indexPath(env), env)) return;
+    writeJSONAtomic(indexPath(env), proposedIndex);
+  } catch {
+    // Records are the durable source of truth; index.json is a disposable cache.
+  }
 }
 
 function recordsByID(records) {
@@ -343,17 +340,12 @@ export function commitPendingAnnotationRecordMutation(env, planMutation) {
     const proposedRecords = [...proposedByID.values()]
       .sort((a, b) => a.id.localeCompare(b.id));
     validateProposedRecords(proposedRecords, env);
-    const previousIndex = readIndexCandidate(env);
-    const proposedIndex = buildIndexFromRecordList(proposedRecords, env, assertIndex(previousIndex, indexPath(env), env));
-    if (!assertIndex(proposedIndex, indexPath(env), env)) {
-      fail(`Pending annotation proposed index is invalid: ${indexPath(env)}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: indexPath(env) });
-    }
     canonicalRecordsDir(env, { forWrite: true });
     if (changedRecord) {
       canonicalRecordPath(changedRecord.id, env);
       writeJSONAtomic(recordPath(changedRecord.id, env), changedRecord);
     }
-    writeJSONAtomic(indexPath(env), proposedIndex);
+    bestEffortWriteIndexFromRecords(proposedRecords, env);
     return planned?.result;
   });
 }

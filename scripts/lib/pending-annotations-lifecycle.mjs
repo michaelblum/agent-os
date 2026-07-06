@@ -8,6 +8,10 @@ import {
   LIFECYCLE_STATES,
   SCHEMA_VERSION,
   assertConsumableCapability,
+  compactResult,
+  normalizeRecordInput,
+  normalizeWorkRecordLink,
+  sessionMetadata,
 } from './pending-annotations-model.mjs';
 import {
   commitPendingAnnotationRecordMutation,
@@ -18,13 +22,6 @@ import {
   pendingRoot,
   runtimeMode,
 } from './pending-annotations-store.mjs';
-import {
-  compactResult,
-  normalizeRecordInput,
-  normalizeWorkRecordLink,
-  sessionMetadata,
-} from './pending-annotations-record.mjs';
-
 function modelContext(env = process.env) {
   return {
     env,

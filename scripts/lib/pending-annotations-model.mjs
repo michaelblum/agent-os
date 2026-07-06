@@ -14,7 +14,6 @@ import {
 } from './pending-annotations-recommendations.mjs';
 import {
   normalizeSavedRef,
-  projectCaptureInput,
   uniqueArtifactRefs,
 } from './pending-annotations-projection.mjs';
 
@@ -157,7 +156,6 @@ function recordContext(context = {}) {
 }
 
 export function normalizeRecordInput(input, context = {}) {
-  input = projectCaptureInput(input);
   if (!isObject(input)) fail('Annotation input must be a JSON object', 'INVALID_ARG');
   const ctx = recordContext(context);
   const id = localIDOrNull(input.id, 'annotation id') || `ann-${crypto.randomUUID()}`;

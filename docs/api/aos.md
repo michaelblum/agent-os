@@ -242,12 +242,12 @@ compact saved capture or refs readback into a pending annotation, preferring
 browser, AOS canvas, and native AX saved refs over coordinate or prose fallback
 evidence. The pending annotation contract is `aos.pending-annotation.v0`; see
 `shared/schemas/aos-pending-annotation-v0.md`. Create, consume,
-link-work-record, delete, and index persistence share one bounded local
-mutation lock backed by the shared local state helpers. The lock records its
-owner PID, refuses to reap live owners, and only reaps dead-owner or ownerless
-stale locks. Records are the authoritative state; `index.json` is rebuilt from
-records when stale or corrupt so a partial index write cannot make lifecycle
-readback contradict records.
+link-work-record, delete, and optional index cache refresh share one bounded
+local mutation lock backed by the shared local state helpers. The lock records
+its owner PID, refuses to reap live owners, and only reaps dead-owner or
+ownerless stale locks. Records are the authoritative state; `index.json` is a
+rebuildable cache, and read/list derives from records without repairing state
+so an index write failure cannot make a successful record mutation look failed.
 
 Experience manifests can declare app-owned operator selection affordances in
 their status-item `menu[]` with `kind: "operator_annotation"` and a target
