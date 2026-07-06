@@ -12,6 +12,9 @@ import {
 import {
   pendingAnnotationInputFromOperatorSelection,
 } from '../../scripts/lib/pending-annotations-surface-adapter.mjs';
+import {
+  commitPendingAnnotationRecordMutation,
+} from '../../scripts/lib/pending-annotations-store.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -428,6 +431,59 @@ test('pending annotation mutations preflight existing records before changing ta
   const beforeDelete = await fs.readFile(target.annotation.path, 'utf8');
   assert.equal(parseError(run(['delete', 'ann-target-healthy', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
   assert.equal(await fs.readFile(target.annotation.path, 'utf8'), beforeDelete);
+});
+
+test('pending annotation store rejects multi-record mutation plans', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-multi-record-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const first = parseJSON(run([
+    'create',
+    '--id',
+    'ann-multi-first',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'First target',
+    '--json',
+  ], env));
+  const second = parseJSON(run([
+    'create',
+    '--id',
+    'ann-multi-second',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Second target',
+    '--json',
+  ], env));
+  const firstBefore = await fs.readFile(first.annotation.path, 'utf8');
+  const secondBefore = await fs.readFile(second.annotation.path, 'utf8');
+
+  assert.throws(() => commitPendingAnnotationRecordMutation(env, ({ recordsByID }) => {
+    const nextFirst = {
+      ...recordsByID.get('ann-multi-first'),
+      lifecycle: {
+        ...recordsByID.get('ann-multi-first').lifecycle,
+        updated_at: '2099-01-01T00:00:00Z',
+      },
+    };
+    const nextSecond = {
+      ...recordsByID.get('ann-multi-second'),
+      lifecycle: {
+        ...recordsByID.get('ann-multi-second').lifecycle,
+        updated_at: '2099-01-01T00:00:00Z',
+      },
+    };
+    return {
+      changedRecords: [nextFirst, nextSecond],
+      result: { status: 'should-not-write' },
+    };
+  }), /Pending annotation mutations support one changed record plus index only/);
+  assert.equal(await fs.readFile(first.annotation.path, 'utf8'), firstBefore);
+  assert.equal(await fs.readFile(second.annotation.path, 'utf8'), secondBefore);
 });
 
 test('pending annotation list stays read-only while mutations repair stale index', async () => {

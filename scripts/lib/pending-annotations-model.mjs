@@ -21,6 +21,7 @@ import {
 export const SCHEMA_VERSION = 'aos.pending-annotation.v0';
 export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 export const LIFECYCLE_STATES = new Set(['pending', 'consumed', 'resolved', 'deleted', 'stale', 'unsupported', 'blocked']);
+export const CREATE_LIFECYCLE_STATES = new Set(['pending', 'stale', 'unsupported', 'blocked']);
 export const TARGET_KINDS = new Set(['desktop', 'display', 'window', 'browser', 'canvas', 'native_ax', 'region', 'fallback']);
 export const CAPABILITY_STATUSES = new Set(['saved_ref', 'fallback_only', 'unsupported', 'ambiguous', 'blocked']);
 
@@ -163,6 +164,12 @@ export function normalizeRecordInput(input, context = {}) {
   const created = text(input.created_at || input.lifecycle?.created_at, nowISO());
   const state = input.lifecycle?.state || input.state || 'pending';
   if (!LIFECYCLE_STATES.has(state)) fail(`Unsupported annotation state: ${state}`, 'INVALID_ARG');
+  if (!CREATE_LIFECYCLE_STATES.has(state)) {
+    fail(`Annotation create cannot import terminal lifecycle state: ${state}`, 'INVALID_ARG', {
+      state,
+      status: 'terminal_state_requires_transition',
+    });
+  }
   const targetKind = input.target?.kind || input.target_kind;
   if (!TARGET_KINDS.has(targetKind)) fail(`Unsupported target kind: ${targetKind || '<missing>'}`, 'INVALID_ARG');
   const targetSummary = requiredText(input.target?.summary || input.target_summary, 'target summary');
@@ -289,6 +296,16 @@ export function validateCapabilityInvariants(value) {
   return true;
 }
 
+export function validateLifecycleInvariants(value) {
+  if (value.lifecycle.state === 'consumed') {
+    return nonEmptyString(value.lifecycle.consumed_at) && assertActor(value.lifecycle.consumed_by);
+  }
+  if (value.lifecycle.state === 'deleted') {
+    return nonEmptyString(value.lifecycle.deleted_at);
+  }
+  return true;
+}
+
 export function isPendingAnnotationRecord(value) {
   if (
     !isObject(value)
@@ -328,6 +345,7 @@ export function isPendingAnnotationRecord(value) {
     return false;
   }
   if (!validateCapabilityInvariants(value)) return false;
+  if (!validateLifecycleInvariants(value)) return false;
   if (!value.fallback_evidence.every((item) => (
     isObject(item)
     && nonEmptyString(item.kind)

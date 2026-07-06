@@ -10,7 +10,7 @@ import {
   assertConsumableCapability,
 } from './pending-annotations-model.mjs';
 import {
-  commitPendingAnnotationMutation,
+  commitPendingAnnotationRecordMutation,
   loadIndexReadOnly,
   loadRecord,
   recordPath,
@@ -39,11 +39,11 @@ function summaryContext(record, env = process.env) {
 }
 
 export function createPendingAnnotation(input, env = process.env) {
-  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+  return commitPendingAnnotationRecordMutation(env, ({ recordsByID }) => {
     const record = normalizeRecordInput(input, modelContext(env));
     if (recordsByID.has(record.id)) fail(`Pending annotation already exists: ${record.id}`, 'PENDING_ANNOTATION_EXISTS', { id: record.id });
     return {
-      changedRecords: [record],
+      changedRecord: record,
       result: compactResult(record, 'created', summaryContext(record, env)),
     };
   });
@@ -75,7 +75,7 @@ export function readPendingAnnotation(id, env = process.env) {
 }
 
 export function consumePendingAnnotation(id, options = {}, env = process.env) {
-  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+  return commitPendingAnnotationRecordMutation(env, ({ recordsByID }) => {
     const record = recordsByID.get(id);
     if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     assertConsumableCapability(record, id);
@@ -103,7 +103,7 @@ export function consumePendingAnnotation(id, options = {}, env = process.env) {
       },
     };
     return {
-      changedRecords: [consumed],
+      changedRecord: consumed,
       result: {
         ...compactResult(consumed, 'consumed', summaryContext(consumed, env)),
         consumed_annotation: consumed,
@@ -113,7 +113,7 @@ export function consumePendingAnnotation(id, options = {}, env = process.env) {
 }
 
 export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.env) {
-  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+  return commitPendingAnnotationRecordMutation(env, ({ recordsByID }) => {
     const record = recordsByID.get(id);
     if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     if (record.lifecycle.state === 'deleted') {
@@ -141,7 +141,7 @@ export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.en
       work_record_links: [...array(record.work_record_links), link],
     };
     return {
-      changedRecords: [linked],
+      changedRecord: linked,
       result: {
         ...compactResult(linked, 'linked', summaryContext(linked, env)),
         work_record_link: link,
@@ -152,7 +152,7 @@ export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.en
 }
 
 export function deletePendingAnnotation(id, env = process.env) {
-  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+  return commitPendingAnnotationRecordMutation(env, ({ recordsByID }) => {
     const record = recordsByID.get(id);
     if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     if (record.lifecycle.state === 'deleted') {
@@ -173,7 +173,7 @@ export function deletePendingAnnotation(id, env = process.env) {
       },
     };
     return {
-      changedRecords: [deleted],
+      changedRecord: deleted,
       result: compactResult(deleted, 'deleted', summaryContext(deleted, env)),
     };
   });

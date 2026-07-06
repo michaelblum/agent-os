@@ -159,51 +159,51 @@ function sourceCaptureRecordFixture({ selectedRef = 'r1', refCount = 1 } = {}) {
 }
 
 test('agent workspace owns annotation capability projection for saved refs', () => {
-  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-    backend: 'browser',
-    resolutionClass: 'snapshot_scoped',
-  })), {
-    status: 'saved_ref',
-    target_kind: 'browser',
-    reasons: [],
-    saved_ref_available: true,
-  });
-  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-    backend: 'aos_canvas',
-    resolutionClass: 'reacquirable',
-  })), {
-    status: 'saved_ref',
-    target_kind: 'canvas',
-    reasons: [],
-    saved_ref_available: true,
-  });
-  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-    backend: 'native_ax',
-    resolutionClass: 'stable',
-  })), {
-    status: 'saved_ref',
-    target_kind: 'native_ax',
-    reasons: [],
-    saved_ref_available: true,
-  });
-  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-    backend: 'browser',
-    resolutionClass: 'volatile',
-  })), {
-    status: 'fallback_only',
-    target_kind: 'browser',
-    reasons: ['saved_ref_not_actionable:volatile'],
-    saved_ref_available: false,
-  });
-  assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
-    backend: 'unknown',
-    resolutionClass: 'stable',
-  })), {
-    status: 'unsupported',
-    target_kind: null,
-    reasons: ['unsupported_saved_ref:unknown:stable'],
-    saved_ref_available: false,
-  });
+  for (const [backend, resolutionClass, targetKind] of [
+    ['browser', 'snapshot_scoped', 'browser'],
+    ['aos_canvas', 'reacquirable', 'canvas'],
+    ['native_ax', 'stable', 'native_ax'],
+  ]) {
+    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+      backend,
+      resolutionClass,
+    })), {
+      status: 'saved_ref',
+      target_kind: targetKind,
+      reasons: [],
+      saved_ref_available: true,
+    });
+  }
+
+  for (const [backend, resolutionClass, targetKind] of [
+    ['native_ax', 'snapshot_scoped', 'native_ax'],
+    ['browser', 'stable', 'browser'],
+    ['aos_canvas', 'stable', 'canvas'],
+    ['browser', 'reacquirable', 'browser'],
+    ['browser', 'volatile', 'browser'],
+  ]) {
+    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+      backend,
+      resolutionClass,
+    })), {
+      status: 'fallback_only',
+      target_kind: targetKind,
+      reasons: [`saved_ref_not_actionable:${backend}:${resolutionClass}`],
+      saved_ref_available: false,
+    });
+  }
+
+  for (const resolutionClass of ['stable', 'snapshot_scoped', 'reacquirable']) {
+    assert.deepEqual(annotationCapabilityFromSavedRef(savedRefFixture({
+      backend: 'unknown',
+      resolutionClass,
+    })), {
+      status: 'unsupported',
+      target_kind: null,
+      reasons: [`unsupported_saved_ref:unknown:${resolutionClass}`],
+      saved_ref_available: false,
+    });
+  }
 });
 
 test('pending annotation adapter owns conversion from operator selection evidence', () => {

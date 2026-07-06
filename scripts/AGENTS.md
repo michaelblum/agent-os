@@ -16,10 +16,10 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   source-capture normalization, capability invariants, full record validation,
   summary projection, and create-input normalization.
 - `lib/pending-annotations-store.mjs` owns the pending annotation persistence
-  boundary: canonical path containment, symlink rejection, locks, transaction
-  preflight, atomic writes, record listing, and index read/write/rebuild. It
-  must call model helpers for record validation and summary projection rather
-  than reimplementing schema logic.
+  boundary: canonical path containment, symlink rejection, locks, full-store
+  preflight, single-record-plus-index mutation writes, record listing, and
+  index read/write/rebuild. It must call model helpers for record validation
+  and summary projection rather than reimplementing schema logic.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.

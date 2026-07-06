@@ -45,10 +45,18 @@ Valid lifecycle states are:
 - `blocked`: permission, ambiguity, or other blocker prevents use.
 
 `aos see annotation consume <id> --json` transitions only consumable `pending`
-records. Consuming `consumed`, `resolved`, `deleted`, `stale`, `unsupported`,
-or `blocked` records fails closed with structured JSON. Pending records whose
-`capability.status` is `unsupported`, `ambiguous`, or `blocked` also fail
-closed instead of pretending a target can be acted on.
+records and writes `consumed_at` plus `consumed_by`. `aos see annotation
+delete <id> --json` writes the deleted state plus `deleted_at`. Consuming
+`consumed`, `resolved`, `deleted`, `stale`, `unsupported`, or `blocked` records
+fails closed with structured JSON. Pending records whose `capability.status` is
+`unsupported`, `ambiguous`, or `blocked` also fail closed instead of pretending
+a target can be acted on.
+
+Durable terminal records must carry their transition evidence: `consumed`
+requires `consumed_at` and `consumed_by`, and `deleted` requires `deleted_at`.
+Public create input cannot import `consumed`, `resolved`, or `deleted`; future
+full-record import must be a separate explicit API with its own lifecycle
+evidence validation.
 
 ## Target Evidence
 
@@ -88,9 +96,11 @@ aos see annotation link-work-record ann-example --work-record work-record:annota
 aos see annotation delete ann-example --json
 ```
 
-`create --from-json <path|->` accepts the same logical fields as the stored
-record input and normalizes missing ids, lifecycle timestamps, default
-recommended next commands, fallback evidence, and paths.
+`create --from-json <path|->` accepts create-time annotation fields and
+normalizes missing ids, lifecycle timestamps, default recommended next
+commands, fallback evidence, and paths. It can create `pending`, `blocked`,
+`unsupported`, and `stale` records, but it cannot import terminal lifecycle
+states.
 Operator-selection surfaces should pass generic selection evidence through the
 pending-owned `pendingAnnotationInputFromOperatorSelection()` adapter before
 calling create; toolkit runtime helpers must not manufacture this record shape.
@@ -98,8 +108,10 @@ calling create; toolkit runtime helpers must not manufacture this record shape.
 `create --from-capture-json <path|->` projects compact saved perception output
 from `aos see capture --save --json` or `aos see refs --json` into an
 annotation record. Browser, AOS canvas, and native AX saved refs become
-`saved_ref` annotations when their ref class is actionable. Missing refs become
-`fallback_only`; stale captures become `stale`; unsupported refs become
+`saved_ref` annotations only when their backend-specific ref class is
+actionable: browser `snapshot_scoped`, AOS canvas `reacquirable`, and native AX
+`stable`. Backend/resolution mismatches become `fallback_only`; missing refs
+become `fallback_only`; stale captures become `stale`; unsupported refs become
 `unsupported`; multiple refs without `--ref <id>` become blocked records with
 `capability.status: ambiguous`.
 

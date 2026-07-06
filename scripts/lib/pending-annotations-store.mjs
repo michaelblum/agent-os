@@ -323,7 +323,7 @@ function validateProposedRecords(records, env = process.env) {
   }
 }
 
-export function commitPendingAnnotationMutation(env, planMutation) {
+export function commitPendingAnnotationRecordMutation(env, planMutation) {
   return withPendingAnnotationMutation(env, () => {
     const existingRecords = loadAllRecords(env);
     const existingByID = recordsByID(existingRecords);
@@ -331,9 +331,15 @@ export function commitPendingAnnotationMutation(env, planMutation) {
       records: existingRecords,
       recordsByID: existingByID,
     });
-    const changedRecords = Array.isArray(planned?.changedRecords) ? planned.changedRecords : [];
+    if (Array.isArray(planned?.changedRecords)) {
+      fail('Pending annotation mutations support one changed record plus index only', 'PENDING_ANNOTATION_INTERNAL_CONTRACT', {
+        status: 'invalid_mutation_plan',
+        changed_record_count: planned.changedRecords.length,
+      });
+    }
+    const changedRecord = planned?.changedRecord ?? null;
     const proposedByID = recordsByID(existingRecords);
-    for (const record of changedRecords) proposedByID.set(record.id, record);
+    if (changedRecord) proposedByID.set(changedRecord.id, changedRecord);
     const proposedRecords = [...proposedByID.values()]
       .sort((a, b) => a.id.localeCompare(b.id));
     validateProposedRecords(proposedRecords, env);
@@ -343,9 +349,9 @@ export function commitPendingAnnotationMutation(env, planMutation) {
       fail(`Pending annotation proposed index is invalid: ${indexPath(env)}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: indexPath(env) });
     }
     canonicalRecordsDir(env, { forWrite: true });
-    for (const record of changedRecords) {
-      canonicalRecordPath(record.id, env);
-      writeJSONAtomic(recordPath(record.id, env), record);
+    if (changedRecord) {
+      canonicalRecordPath(changedRecord.id, env);
+      writeJSONAtomic(recordPath(changedRecord.id, env), changedRecord);
     }
     writeJSONAtomic(indexPath(env), proposedIndex);
     return planned?.result;

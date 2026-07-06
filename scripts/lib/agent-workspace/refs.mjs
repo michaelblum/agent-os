@@ -9,7 +9,7 @@ import {
   savedRefActionKnownLimit,
   savedRefProofStory,
   savedRefProducerActionsForBrowserElement,
-  SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES,
+  SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES_BY_BACKEND,
   SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND,
   savedRefSupportedActionsForBackend,
 } from './contracts.mjs';
@@ -101,8 +101,9 @@ export function refSummary(record) {
 
 export function annotationCapabilityFromSavedRef(record = {}) {
   const targetKind = SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND[record.backend] ?? null;
+  const allowedResolutionClasses = SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES_BY_BACKEND[record.backend] ?? null;
   const resolutionClass = textValue(record.resolution_class) ?? 'unknown';
-  if (!targetKind || resolutionClass === 'unsupported') {
+  if (!targetKind || !allowedResolutionClasses || resolutionClass === 'unsupported') {
     return {
       status: 'unsupported',
       target_kind: targetKind,
@@ -110,11 +111,11 @@ export function annotationCapabilityFromSavedRef(record = {}) {
       saved_ref_available: false,
     };
   }
-  if (!SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES.includes(resolutionClass)) {
+  if (!allowedResolutionClasses.includes(resolutionClass)) {
     return {
       status: 'fallback_only',
       target_kind: targetKind,
-      reasons: [`saved_ref_not_actionable:${record.resolution_class || 'unknown'}`],
+      reasons: [`saved_ref_not_actionable:${record.backend}:${record.resolution_class || 'unknown'}`],
       saved_ref_available: false,
     };
   }

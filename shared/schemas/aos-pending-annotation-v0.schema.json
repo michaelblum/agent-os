@@ -182,6 +182,55 @@
     },
     "record": {
       "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "properties": {
+                  "state": { "const": "consumed" }
+                },
+                "required": ["state"]
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "lifecycle": {
+                "properties": {
+                  "consumed_at": { "$ref": "#/$defs/non_empty_string" },
+                  "consumed_by": { "$ref": "#/$defs/actor" }
+                },
+                "required": ["consumed_at", "consumed_by"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "properties": {
+                  "state": { "const": "deleted" }
+                },
+                "required": ["state"]
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "lifecycle": {
+                "properties": {
+                  "deleted_at": { "$ref": "#/$defs/non_empty_string" }
+                },
+                "required": ["deleted_at"]
+              }
+            }
+          }
+        }
+      ],
       "required": [
         "schema_version",
         "id",

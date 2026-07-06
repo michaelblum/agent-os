@@ -9,11 +9,11 @@ export const SAVED_REF_ANNOTATION_TARGET_KIND_BY_BACKEND = Object.freeze({
   aos_canvas: 'canvas',
   native_ax: 'native_ax',
 });
-export const SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES = Object.freeze([
-  'stable',
-  'reacquirable',
-  'snapshot_scoped',
-]);
+export const SAVED_REF_ANNOTATION_ACTIONABLE_RESOLUTION_CLASSES_BY_BACKEND = Object.freeze({
+  browser: Object.freeze(['snapshot_scoped']),
+  aos_canvas: Object.freeze(['reacquirable']),
+  native_ax: Object.freeze(['stable']),
+});
 export const NATIVE_AX_SAVED_REF_REQUIRED_IDENTITY_FACTS = Object.freeze([
   'app_pid',
   'window_id',

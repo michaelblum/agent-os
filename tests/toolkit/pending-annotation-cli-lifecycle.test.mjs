@@ -221,6 +221,7 @@ test('pending annotation CLI creates compact saved-ref record and consumes it on
   const consumed = parseJSON(run(['consume', 'ann-test', '--actor', 'test-agent', '--json'], env));
   assert.equal(consumed.status, 'consumed');
   assert.equal(consumed.annotation.state, 'consumed');
+  assert.equal(typeof consumed.consumed_annotation.lifecycle.consumed_at, 'string');
   assert.equal(consumed.consumed_annotation.lifecycle.consumed_by.source, 'test-agent');
 
   const linked = parseJSON(run([
@@ -403,6 +404,34 @@ test('pending annotation capture projection reports fallback and fail-closed sta
     assert(annotation.recommended_next.length >= 1);
     assert.equal(annotation.source_capture.kind, 'saved_capture');
     assert.equal(typeof annotation.source_capture.snapshot_id, 'string');
+  }
+});
+
+test('pending annotation create rejects terminal lifecycle state imports', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-terminal-state-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-terminal-fixtures-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+
+  for (const state of ['consumed', 'resolved', 'deleted']) {
+    const inputPath = await writeJSON(fixtureRoot, `${state}.json`, {
+      id: `ann-terminal-${state}`,
+      state,
+      target_kind: 'region',
+      target_summary: `${state} import target`,
+    });
+    const result = run(['create', '--from-json', inputPath, '--json'], env);
+    assert.notEqual(result.status, 0);
+    const error = JSON.parse(result.stderr);
+    assert.equal(error.code, 'INVALID_ARG');
+    assert.equal(error.state, state);
+    assert.equal(error.status, 'terminal_state_requires_transition');
+    assert.equal(
+      await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', `ann-terminal-${state}.json`)),
+      null,
+    );
   }
 });
 
