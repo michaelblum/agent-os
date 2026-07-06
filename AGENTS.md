@@ -228,9 +228,9 @@ mechanics.
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live
   project-agent policy stays in AOS-owned docs and runner material.
-- `_dev/`, `memory/`, and `tasks/` are root-owned scratch, historical, or task
-  packet surfaces. They are not canonical contracts unless a current doc links
-  to them as active authority.
+- `_dev/` and `memory/` are root-owned scratch or historical surfaces. They are
+  not canonical contracts unless a current doc links to them as active
+  authority.
 - `ai-agents/AGENTS.md` governs provider-neutral and provider-shaped agent role
   source material.
 - `apps/AGENTS.md` governs application consumers. Its current child is
