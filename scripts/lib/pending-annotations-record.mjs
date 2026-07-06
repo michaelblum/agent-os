@@ -94,11 +94,64 @@ function normalizeCapability(input, savedRef, fallbackEvidence) {
   const explicit = input.capability ?? {};
   const status = explicit.status || (savedRef ? 'saved_ref' : 'fallback_only');
   if (!CAPABILITY_STATUSES.has(status)) fail(`Unsupported capability status: ${status}`, 'INVALID_ARG');
+  const savedRefAvailable = Boolean(savedRef);
+  if (status === 'saved_ref' && !savedRefAvailable) {
+    fail('capability.status saved_ref requires target.saved_ref', 'INVALID_ARG');
+  }
+  if (
+    Object.hasOwn(explicit, 'saved_ref_available')
+    && explicit.saved_ref_available !== savedRefAvailable
+  ) {
+    fail('capability.saved_ref_available must match target.saved_ref availability', 'INVALID_ARG');
+  }
   return {
     status,
     reasons: array(explicit.reasons).map((item) => requiredText(item, 'capability reason')),
     fallback_used: fallbackEvidence.length > 0,
-    saved_ref_available: Boolean(savedRef),
+    saved_ref_available: savedRefAvailable,
+  };
+}
+
+function optionalNullableText(input, key) {
+  if (!Object.hasOwn(input, key)) return {};
+  const value = input[key];
+  if (value !== null && typeof value !== 'string') {
+    fail(`source_capture.${key} must be a string or null`, 'INVALID_ARG');
+  }
+  return { [key]: value };
+}
+
+function requiredNullableText(input, key) {
+  if (!Object.hasOwn(input, key)) fail(`source_capture.${key} is required`, 'INVALID_ARG');
+  const value = input[key];
+  if (value !== null && typeof value !== 'string') {
+    fail(`source_capture.${key} must be a string or null`, 'INVALID_ARG');
+  }
+  return value;
+}
+
+export function normalizeSourceCapture(value) {
+  if (value === null || value === undefined) return null;
+  if (!isObject(value)) fail('source_capture must be an object or null', 'INVALID_ARG');
+  if (value.kind !== 'saved_capture') fail('source_capture.kind must be saved_capture', 'INVALID_ARG');
+  const schemaVersion = requiredText(value.schema_version, 'source_capture.schema_version');
+  const status = requiredText(value.status, 'source_capture.status');
+  if (!Number.isInteger(value.ref_count) || value.ref_count < 0) {
+    fail('source_capture.ref_count must be an integer >= 0', 'INVALID_ARG');
+  }
+  return {
+    kind: 'saved_capture',
+    schema_version: schemaVersion,
+    status,
+    workspace_id: requiredNullableText(value, 'workspace_id'),
+    snapshot_id: requiredNullableText(value, 'snapshot_id'),
+    selected_ref: requiredNullableText(value, 'selected_ref'),
+    ref_count: value.ref_count,
+    ...optionalNullableText(value, 'capture_target'),
+    ...optionalNullableText(value, 'capture_mode'),
+    ...optionalNullableText(value, 'query'),
+    ...optionalNullableText(value, 'selected_backend'),
+    ...optionalNullableText(value, 'selected_resolution_class'),
   };
 }
 
@@ -151,7 +204,7 @@ export function normalizeRecordInput(input, env = process.env) {
     fallback_evidence: fallbackEvidence,
     artifact_refs: normalizeArtifactRefs(input.artifact_refs ?? []),
     recommended_next: recommendedNext,
-    source_capture: isObject(input.source_capture) ? input.source_capture : null,
+    source_capture: normalizeSourceCapture(input.source_capture),
     work_record_links: normalizeWorkRecordLinks(input.work_record_links),
     paths: {
       root: pendingRoot(env),

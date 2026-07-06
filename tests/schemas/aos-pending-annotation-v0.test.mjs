@@ -85,6 +85,19 @@ if errors:
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 }
 
+async function validateAllPendingRecordFiles(env) {
+  const recordsDir = path.join(env.AOS_STATE_ROOT, env.AOS_RUNTIME_MODE, 'pending-annotations', 'records');
+  let names = [];
+  try {
+    names = await fs.readdir(recordsDir);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  for (const name of names.filter((item) => item.endsWith('.json')).sort()) {
+    validateJSONFile(path.join(recordsDir, name));
+  }
+}
+
 async function writeJSON(dir, name, value) {
   const file = path.join(dir, name);
   await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
@@ -116,6 +129,23 @@ function savedRefFixture({ ref = 'r1', snapshot = 'snap1', backend = 'browser', 
     target_summary: summary,
     action_target: `ref:${snapshot}:${ref}`,
     artifact_refs: [{ role: 'ref_summary', path: `/tmp/${snapshot}-${ref}.json` }],
+  };
+}
+
+function sourceCaptureRecordFixture({ selectedRef = 'r1', refCount = 1 } = {}) {
+  return {
+    kind: 'saved_capture',
+    schema_version: 'aos.agent-workspace.v0',
+    status: 'success',
+    workspace_id: 'ws1',
+    snapshot_id: 'snap1',
+    selected_ref: selectedRef,
+    capture_target: 'browser:fixture',
+    capture_mode: 'som',
+    query: 'operator selection',
+    ref_count: refCount,
+    selected_backend: 'browser',
+    selected_resolution_class: 'stable',
   };
 }
 
@@ -468,6 +498,93 @@ test('pending annotation fallback record stays explicit when no saved ref exists
     'som',
   ]);
   validateJSONFile(created.annotation.path);
+});
+
+test('pending annotation create rejects saved-ref capability without saved ref', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capability-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-capability-fixtures-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+
+  const savedRefStatusPath = await writeJSON(fixtureRoot, 'saved-ref-status.json', {
+    id: 'ann-claimed-saved-ref',
+    target_kind: 'region',
+    target_summary: 'Claimed saved ref target',
+    capability: { status: 'saved_ref' },
+  });
+  const savedRefStatus = parseError(run(['create', '--from-json', savedRefStatusPath, '--json'], env));
+  assert.equal(savedRefStatus.code, 'INVALID_ARG');
+
+  const savedRefAvailablePath = await writeJSON(fixtureRoot, 'saved-ref-available.json', {
+    id: 'ann-claimed-available',
+    target_kind: 'region',
+    target_summary: 'Claimed availability target',
+    capability: { saved_ref_available: true },
+  });
+  const savedRefAvailable = parseError(run(['create', '--from-json', savedRefAvailablePath, '--json'], env));
+  assert.equal(savedRefAvailable.code, 'INVALID_ARG');
+
+  await validateAllPendingRecordFiles(env);
+});
+
+test('pending annotation consume fails closed on corrupt saved-ref capability', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-corrupt-capability-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-corrupt-capability',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Corrupt capability target',
+    '--json',
+  ], env));
+  validateJSONFile(created.annotation.path);
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  record.capability.status = 'saved_ref';
+  await fs.writeFile(created.annotation.path, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+
+  const err = parseError(run(['consume', 'ann-corrupt-capability', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation source_capture is normalized to the public saved-capture shape', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-source-capture-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-source-capture-fixtures-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+
+  const invalidPath = await writeJSON(fixtureRoot, 'invalid-source-capture.json', {
+    id: 'ann-invalid-source-capture',
+    target_kind: 'region',
+    target_summary: 'Invalid source capture target',
+    source_capture: { kind: 'region' },
+  });
+  const invalid = parseError(run(['create', '--from-json', invalidPath, '--json'], env));
+  assert.equal(invalid.code, 'INVALID_ARG');
+
+  const acceptedPath = await writeJSON(fixtureRoot, 'accepted-source-capture.json', {
+    id: 'ann-source-capture',
+    target_kind: 'region',
+    target_summary: 'Accepted source capture target',
+    source_capture: {
+      ...sourceCaptureRecordFixture(),
+      ignored_private_field: 'drop me',
+    },
+  });
+  const created = parseJSON(run(['create', '--from-json', acceptedPath, '--json'], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+  assert.deepEqual(record.source_capture, sourceCaptureRecordFixture());
+  validateJSONFile(created.annotation.path);
+  await validateAllPendingRecordFiles(env);
 });
 
 test('pending annotation selected target does not manufacture fallback evidence', async () => {

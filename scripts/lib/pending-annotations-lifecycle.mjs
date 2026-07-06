@@ -60,9 +60,20 @@ export function readPendingAnnotation(id, env = process.env) {
   };
 }
 
+function assertConsumableCapability(record, id) {
+  if (record.capability?.status !== 'saved_ref') return;
+  if (record.target?.saved_ref && record.capability.saved_ref_available === true) return;
+  fail(`Pending annotation saved_ref capability is corrupt: ${id}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+    id,
+    status: 'corrupt',
+    capability_status: record.capability?.status || null,
+  });
+}
+
 export function consumePendingAnnotation(id, options = {}, env = process.env) {
   return withPendingAnnotationMutation(env, () => {
     const record = loadRecord(id, env);
+    assertConsumableCapability(record, id);
     const status = record.capability?.status || 'blocked';
     if (record.lifecycle.state !== 'pending' || status === 'unsupported' || status === 'ambiguous' || status === 'blocked') {
       fail(`Pending annotation is not consumable: ${id}`, 'PENDING_ANNOTATION_NOT_CONSUMABLE', {

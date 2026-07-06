@@ -72,6 +72,14 @@ function nullableString(value) {
   return value === null || nonEmptyString(value);
 }
 
+function hasNullableString(value, key) {
+  return Object.hasOwn(value, key) && nullableString(value[key]);
+}
+
+function optionalNullableString(value, key) {
+  return !Object.hasOwn(value, key) || nullableString(value[key]);
+}
+
 function assertStringArray(value) {
   return Array.isArray(value) && value.every(nonEmptyString);
 }
@@ -105,6 +113,34 @@ function assertSavedRef(value) {
   );
 }
 
+function assertSourceCapture(value) {
+  return value === null || (
+    isObject(value)
+    && value.kind === 'saved_capture'
+    && nonEmptyString(value.schema_version)
+    && nonEmptyString(value.status)
+    && hasNullableString(value, 'workspace_id')
+    && hasNullableString(value, 'snapshot_id')
+    && hasNullableString(value, 'selected_ref')
+    && Number.isInteger(value.ref_count)
+    && value.ref_count >= 0
+    && optionalNullableString(value, 'capture_target')
+    && optionalNullableString(value, 'capture_mode')
+    && optionalNullableString(value, 'query')
+    && optionalNullableString(value, 'selected_backend')
+    && optionalNullableString(value, 'selected_resolution_class')
+  );
+}
+
+function assertCapabilityInvariants(value) {
+  const savedRefAvailable = value.target.saved_ref !== null;
+  if (value.capability.saved_ref_available !== savedRefAvailable) return false;
+  if (value.capability.status === 'saved_ref') {
+    return savedRefAvailable && value.capability.saved_ref_available === true;
+  }
+  return true;
+}
+
 function assertSchemaShape(value) {
   if (
     !isObject(value)
@@ -134,6 +170,8 @@ function assertSchemaShape(value) {
     || !assertArtifactRefs(value.artifact_refs)
     || !Array.isArray(value.recommended_next)
     || value.recommended_next.length < 1
+    || !Object.hasOwn(value, 'source_capture')
+    || !assertSourceCapture(value.source_capture)
     || !Array.isArray(value.work_record_links)
     || !isObject(value.paths)
     || !nonEmptyString(value.paths.root)
@@ -141,6 +179,7 @@ function assertSchemaShape(value) {
   ) {
     return false;
   }
+  if (!assertCapabilityInvariants(value)) return false;
   if (!value.fallback_evidence.every((item) => (
     isObject(item)
     && nonEmptyString(item.kind)
