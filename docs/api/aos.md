@@ -1082,7 +1082,7 @@ aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
-aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
+aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --json
 aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --dry-run --json
 aos work-record repair bundle source.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --authorization workflow-gate-authorization.json --json
 aos work-record repair bundle status --bundle-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
@@ -1090,16 +1090,16 @@ aos work-record repair bundle status --bundle-parent "$(pwd -P)/.aos-work/repair
 aos work-record repair bundle inspect "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
-aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
-aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
+aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --dry-run --json
+aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root "$(pwd -P)/.aos-work/work-records" --index-root "$(pwd -P)/.aos-work/work-record-index" --json
 aos work-record attempt-artifact validate repair-attempt-artifact.json --json
 aos work-record attempt-artifact build --input repair-attempt-outcome-input.json --json
 aos work-record replacement-proposal build --source shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --json
 aos work-record replacement-proposal validate replacement-proposal.json --json
-aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --dry-run --json
-aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --json
-aos work-record supersession write --source source.json --replacement replacement.json --index-root /tmp/work-record-index --dry-run --json
-aos work-record supersession lookup --source source.json --index-root /tmp/work-record-index --json
+aos work-record replacement-proposal write replacement-proposal.json --output-root "$(pwd -P)/.aos-work/work-records" --dry-run --json
+aos work-record replacement-proposal write replacement-proposal.json --output-root "$(pwd -P)/.aos-work/work-records" --json
+aos work-record supersession write --source source.json --replacement replacement.json --index-root "$(pwd -P)/.aos-work/work-record-index" --dry-run --json
+aos work-record supersession lookup --source source.json --index-root "$(pwd -P)/.aos-work/work-record-index" --replacement-root "$(pwd -P)/.aos-work/work-records" --json
 aos work-record supersession validate source-supersession-entry.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
@@ -1110,6 +1110,10 @@ For `repair bundle`, `--output-root` must resolve through real, non-symlinked
 ancestors. On macOS, `/tmp` is a symlinked ancestor and is not safe for these
 copy-paste examples. Use a caller-owned real directory such as the physical
 workspace path from `pwd -P`, or another verified non-symlinked root.
+Replacement writer, supersession writer, and finalization surfaces enforce
+their own explicit-root traversal, symlink-escape, and containment checks; keep
+their examples on the same caller-owned real-root pattern without implying the
+bundle-specific symlinked-ancestor rule applies identically to every writer.
 
 The current verifier profile is
 `aos.verifier.work-record.v0.report-only`. It reads Work Records and returns a

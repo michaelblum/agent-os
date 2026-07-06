@@ -1,14 +1,22 @@
 # Agent Roster
 
-Canonical seven-agent roster for agent-os.  This table is the authoritative
-reference for names, roles, model tiers, and routing intent.  Definitions are in
+Canonical provider-neutral role catalog for agent-os. This table is the source
+reference for names, roles, model tiers, and routing intent. Definitions are in
 `ai-agents/agents/<name>.md`.
+
+Current executable runner support is narrower than the catalog. Treat
+`scripts/aos_agents/runner.py` and `./aos dev agents --runtime-info --json` as
+the active runner truth. Today, the AOS runner reports read-only execution for
+`explorer`, `historian`, `reviewer`, and `validator`, plus patch-artifact-only
+support for `implementer`. `architect`, `operator`, and `steward` remain source
+catalog/provider material unless runtime-info reports them as enabled.
 
 | Agent | Role | Model tier | Effort | Sandbox |
 |---|---|---|---|---|
 | **architect** | System design, decomposition, interface contracts, tradeoff analysis, RFC-style planning | Full (gpt-5.5 / claude-opus) | high | read-only |
 | **implementer** | Focused, incremental code authoring and refactoring of well-scoped tasks | Mini (gpt-5.4-mini / claude-haiku) | low | workspace-write |
 | **explorer** | Open-ended research, codebase spelunking, dependency audits, API surface surveys | Mini | low | read-only |
+| **historian** | Chronology synthesis, stale-source reconciliation, authority-order readback, and narrative reconstruction | Mini (gpt-5.4-mini / claude-haiku) | medium | read-only |
 | **reviewer** | Code review, diff analysis, security, correctness, style, actionable PR feedback | Standard (gpt-5.4 / claude-sonnet) | medium | read-only |
 | **validator** | Bounded verification — runs named checks, reports pass/fail facts, edits nothing | Mini | low | read-only |
 | **operator** | Supervised HITL inspector — probes live surfaces, evaluates stop conditions | Standard | medium | workspace-write |
@@ -19,6 +27,7 @@ reference for names, roles, model tiers, and routing intent.  Definitions are in
 - **New feature or major refactor** → architect first, then implementer
 - **Completed diff or PR** → reviewer, then validator
 - **"Find all X" or wide scan** → explorer (returns raw findings only)
+- **Thread/source chronology or stale-source reconciliation** → historian
 - **Live surface probe** → operator
 - **Git hygiene / PR mechanics** → steward
 - **Implementer blocked by TCC or native boundary** → stop, return blocker to Foreman

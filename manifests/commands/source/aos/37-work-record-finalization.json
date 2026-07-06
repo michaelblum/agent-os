@@ -579,8 +579,8 @@
             }
           ],
           "examples": [
-            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json",
-            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json"
+            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root \"$(pwd -P)/.aos-work/work-records\" --index-root \"$(pwd -P)/.aos-work/work-record-index\" --dry-run --json",
+            "aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root \"$(pwd -P)/.aos-work/work-records\" --index-root \"$(pwd -P)/.aos-work/work-record-index\" --json"
           ],
           "execution": {
             "auto_starts_daemon": false,

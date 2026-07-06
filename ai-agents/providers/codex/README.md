@@ -2,9 +2,17 @@
 
 Preserved Codex-flavored role material for the AOS-owned agent runner.
 
-These TOML files are read by `./aos dev agents` and should not be copied into
-Codex global config. The old `$agent-sync` path is retired because it
-re-registers native Codex custom agents.
+These TOML files are source material and should not be copied into Codex global
+config. `./aos dev agents` reads the TOML for roles enabled by its runner
+allowlist; the provider directory listing is not itself an executable role
+registry. The old `$agent-sync` path is retired because it re-registers native
+Codex custom agents.
+
+Discover the currently executable role set from the runner:
+
+```bash
+./aos dev agents --runtime-info --json
+```
 
 Current execution path:
 

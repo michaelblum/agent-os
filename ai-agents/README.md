@@ -1,27 +1,38 @@
 # ai-agents/
 
-Provider-neutral agent roster for agent-os.
+Provider-neutral agent source material for agent-os.
 
-This folder is the **single source of truth** for who the agents are, what
-they do, what model tier they run on, and what their behavioral contracts are.
-It is not a Codex folder, not a Claude folder, not a Gemini folder — it is the
-human-readable, VCS-tracked definition layer that provider adapters and the
-AOS-owned runner read from.
+This folder is the source catalog for who the agents are, what they do, what
+model tier they use, and what their behavioral contracts are. It is not a Codex
+folder, not a Claude folder, and not a Gemini folder. It is the human-readable,
+VCS-tracked definition layer that provider adapters and the AOS-owned runner
+draw from.
+
+The current executable AOS runner role set is a narrower runtime allowlist owned
+by `scripts/aos_agents/runner.py` and discoverable with:
+
+```bash
+./aos dev agents --runtime-info --json
+```
+
+Provider-shaped material may exist for source catalog or future roles that are
+not currently executable by the runner.
 
 ```
 ai-agents/
 ├── README.md          ← this file
-├── roster.md          ← canonical list: names, roles, model tiers, routing rules
+├── roster.md          ← source catalog: names, roles, model tiers, routing rules
 ├── agents/            ← one .md definition file per agent (provider-agnostic)
 │   ├── architect.md
 │   ├── implementer.md
 │   ├── explorer.md
+│   ├── historian.md
 │   ├── reviewer.md
 │   ├── validator.md
 │   ├── operator.md
 │   └── steward.md
 └── providers/
-    ├── codex/         ← Codex-flavored role TOML read by ./aos dev agents
+    ├── codex/         ← Codex-flavored role TOML consumed for enabled roles
     │   ├── SKILL.md   ← archive/runner contract; native sync is retired
     │   └── README.md
     ├── claude/        ← placeholder for Claude Code sync (not yet implemented)
@@ -38,9 +49,9 @@ ai-agents/
 context with an `AGENTS.md`, a Foreman config, and scripts that run *inside*
 an active session. Docks are alive; they execute.
 
-`ai-agents/` is **static definition data** — it describes who the agents are
-and how the AOS runner should load provider-shaped role material. It never
-executes. It has more in common with `docs/` than with `.docks/`.
+`ai-agents/` is **static definition data** - it describes who the agents are
+and how provider-shaped role material is represented. It never executes. It has
+more in common with `docs/` than with `.docks/`.
 
 Mixing them would:
 - Blur the dock concept for agents scanning `.docks/` for runtime context
@@ -49,19 +60,22 @@ Mixing them would:
 - Create confusion for any future contributor (human or agent) learning the
   codebase
 
-The separation is intentional: **`.docks/` = runtime, `ai-agents/` = definitions.**
+The separation is intentional: **`.docks/` = runtime, `ai-agents/` = source definitions.**
 
 ---
 
 ## How it works
 
-1. **Edit agent definitions here** (`ai-agents/agents/*.md`) — this is the
-   authoritative source for role, model tier, behavioral constraints, and
-   routing criteria.
+1. **Edit agent definitions here** (`ai-agents/agents/*.md`) - this is the
+   source catalog for role, model tier, behavioral constraints, and routing
+   criteria.
 2. **Keep provider-specific material under `ai-agents/providers/<provider>/`.**
    The Codex-shaped TOML files under `ai-agents/providers/codex/` are preserved
-   source material for the AOS-owned runner.
-3. **Execute through `./aos dev agents`.** Do not sync agent-os roles into
+   source material for AOS-owned runner roles and future provider work.
+3. **Discover executable roles through `./aos dev agents --runtime-info --json`.**
+   The runner allowlist, not the provider directory listing, decides what can
+   execute today.
+4. **Execute through `./aos dev agents`.** Do not sync agent-os roles into
    Codex global config, `~/.codex/agents`, repo `.codex/agents`, or native
    custom-agent registration.
 
@@ -70,9 +84,10 @@ The separation is intentional: **`.docks/` = runtime, `ai-agents/` = definitions
 1. Create `ai-agents/agents/<name>.md` following the template in any existing
    agent file.
 2. Add or update the matching provider-shaped material under
-   `ai-agents/providers/codex/<name>.toml` if the AOS runner needs a Codex TOML
-   role shape.
-3. Verify with `./aos dev agents --runtime-info --json`.
+   `ai-agents/providers/codex/<name>.toml` if the role needs a Codex TOML
+   shape.
+3. Update the runner allowlist only when the role should become executable.
+4. Verify with `./aos dev agents --runtime-info --json`.
 
 ## Updating an existing agent
 
@@ -87,6 +102,7 @@ Each `providers/<provider>/SKILL.md` should describe:
 
 - the provider-shaped material kept in git;
 - whether it is active runner input or archival material;
+- how to discover the currently executable runner role set;
 - forbidden generated config outputs;
 - provider-specific runtime environment variables.
 

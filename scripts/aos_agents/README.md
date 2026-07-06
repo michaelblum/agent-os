@@ -28,7 +28,8 @@ validation/application.
 
 ## What Stays In `runner.py`
 
-- Loading `ai-agents/providers/codex/*.toml` role specs.
+- Loading `ai-agents/providers/codex/<enabled-role>.toml` role specs for the
+  runner allowlist.
 - Loading `.docks/profiles/active-profile.json` and profile packs.
 - Deterministic runtime artifact paths under `.runtime/dev/aos-agents/`.
 - Optional provider SDK adapter execution.

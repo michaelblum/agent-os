@@ -4,7 +4,8 @@ provider: codex
 description: >
   Preserved Codex-flavored role TOML source for the AOS-owned agent runner.
   This material is not synced into Codex user config and must not register
-  Codex native custom agents.
+  Codex native custom agents. The runner allowlist decides which TOML roles are
+  currently executable.
 source_of_truth: ai-agents/providers/codex/
 active_execution_surface: ./aos dev agents
 retired_script: scripts/agent-sync.sh
@@ -12,17 +13,20 @@ retired_script: scripts/agent-sync.sh
 
 # Codex Role Material Archive
 
-`ai-agents/providers/codex/*.toml` is preserved role material for the
-AOS-owned agent runner. The files define role names, instructions, model, effort,
-and sandbox posture in the Codex TOML shape, but they are not an active Codex
-custom-agent registry.
+`ai-agents/providers/codex/*.toml` is preserved role material for the AOS-owned
+agent runner. The files define role names, instructions, model, effort, and
+sandbox posture in the Codex TOML shape, but they are not an active Codex
+custom-agent registry and are not automatically executable just because a TOML
+file exists.
 
 ## Current Contract
 
 - `./aos dev agents` is the execution surface.
 - `provider-sdk` is the default engine.
-- The runner reads these TOML files directly and can be pointed at an
-  OpenAI-compatible proxy with provider environment variables.
+- The runner reads TOML files for roles enabled by its allowlist and can be
+  pointed at an OpenAI-compatible proxy with provider environment variables.
+- Use `./aos dev agents --runtime-info --json` to discover the current
+  executable role set.
 - `scripts/agent-sync.sh` is retired and intentionally exits non-zero.
 
 ## Forbidden Outputs

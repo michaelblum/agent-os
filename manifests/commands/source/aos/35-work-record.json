@@ -729,8 +729,8 @@
             }
           ],
           "examples": [
-            "aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --dry-run --json",
-            "aos work-record replacement-proposal write replacement-proposal.json --output-root /tmp/work-records --json"
+            "aos work-record replacement-proposal write replacement-proposal.json --output-root \"$(pwd -P)/.aos-work/work-records\" --dry-run --json",
+            "aos work-record replacement-proposal write replacement-proposal.json --output-root \"$(pwd -P)/.aos-work/work-records\" --json"
           ],
           "execution": {
             "auto_starts_daemon": false,
