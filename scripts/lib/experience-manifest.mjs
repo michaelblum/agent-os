@@ -1,12 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
   mountedSurfaceMenuItemsForSurface,
   mountedSurfaceMenuProjectionEnvelope,
 } from '../../packages/toolkit/contracts/mounted-surface-menu-projection.js';
+import { experienceRuntimeEnv } from './experience-runtime-env.mjs';
 
 export class ExperienceManifestError extends Error {
   constructor(message, code) {
@@ -16,44 +16,7 @@ export class ExperienceManifestError extends Error {
   }
 }
 
-function envValue(env, key) {
-  const value = env[key];
-  return typeof value === 'string' && value && !value.startsWith('$') ? value : null;
-}
-
-export function experienceEnvironment({
-  env = process.env,
-  repoRoot = process.cwd(),
-} = {}) {
-  const resolvedRepoRoot = path.resolve(repoRoot);
-  const stateRoot = envValue(env, 'AOS_STATE_ROOT')
-    ? path.resolve(envValue(env, 'AOS_STATE_ROOT'))
-    : path.join(os.homedir(), '.config', 'aos');
-  const mode = envValue(env, 'AOS_RUNTIME_MODE') || 'repo';
-  const experiencesRoot = envValue(env, 'AOS_EXPERIENCES_DIR')
-    ? path.resolve(envValue(env, 'AOS_EXPERIENCES_DIR'))
-    : path.join(resolvedRepoRoot, 'experiences');
-  const aos = envValue(env, 'AOS_PATH')
-    ? envValue(env, 'AOS_PATH')
-    : path.join(resolvedRepoRoot, 'aos');
-  const stateDir = path.join(stateRoot, mode);
-  const normalizedEnv = {
-    ...env,
-    AOS_EXPERIENCES_DIR: experiencesRoot,
-    AOS_PATH: aos,
-    AOS_RUNTIME_MODE: mode,
-    AOS_STATE_ROOT: stateRoot,
-  };
-  return {
-    aos,
-    env: normalizedEnv,
-    experiencesRoot,
-    mode,
-    repoRoot: resolvedRepoRoot,
-    stateDir,
-    stateRoot,
-  };
-}
+export const experienceEnvironment = experienceRuntimeEnv;
 
 function readJSON(file) {
   try {

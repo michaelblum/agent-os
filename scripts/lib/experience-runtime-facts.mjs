@@ -1,9 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 import {
-  experienceEnvironment,
-} from './experience-manifest.mjs';
+  experienceRuntimeEnv,
+} from './experience-runtime-env.mjs';
 
 function readJSONIfExists(file) {
   try {
@@ -62,10 +61,8 @@ function runAosJSON(aos, args, {
   }
 }
 
-function readActiveExperience(stateDirPath, stateRootPath) {
-  const scoped = path.join(stateDirPath, 'experience-state.json');
-  const legacy = path.join(stateRootPath, 'experience-state.json');
-  for (const file of [scoped, legacy]) {
+function readActiveExperience(runtimeEnv) {
+  for (const file of [runtimeEnv.experienceStatePath, runtimeEnv.legacyExperienceStatePath]) {
     const read = readJSONIfExists(file);
     if (read.status === 'ok') {
       return {
@@ -85,7 +82,7 @@ function readActiveExperience(stateDirPath, stateRootPath) {
   }
   return {
     id: null,
-    source_path: scoped,
+    source_path: runtimeEnv.experienceStatePath,
     source_status: 'missing',
   };
 }
@@ -106,16 +103,12 @@ export function collectExperienceRuntimeFacts({
   env = process.env,
   repoRoot = process.cwd(),
 } = {}) {
-  const runtimeEnv = experienceEnvironment({ env, repoRoot });
+  const runtimeEnv = experienceRuntimeEnv({ env, repoRoot });
   const normalizedEnv = runtimeEnv.env;
-  const stateRootPath = runtimeEnv.stateRoot;
-  const stateDirPath = runtimeEnv.stateDir;
   return {
     runtimeEnv,
-    stateRootPath,
-    stateDirPath,
-    active: readActiveExperience(stateDirPath, stateRootPath),
-    config: readRuntimeConfig(path.join(stateDirPath, 'config.json')),
+    active: readActiveExperience(runtimeEnv),
+    config: readRuntimeConfig(runtimeEnv.configPath),
     serviceStatus: runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
       env: normalizedEnv,
       mode: runtimeEnv.mode,

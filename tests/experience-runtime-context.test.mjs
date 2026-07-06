@@ -67,6 +67,30 @@ process.exit(response.exit_code ?? 0);
   return { fake, log };
 }
 
+async function writeMutableFakeAos(tmp, responses) {
+  const fake = path.join(tmp, 'fake-mutable-aos.mjs');
+  const log = path.join(tmp, 'aos-calls.jsonl');
+  await fs.writeFile(fake, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
+const key = args.join(' ');
+if (key.startsWith('config set ')) process.exit(0);
+if (key === 'content wait --root toolkit --auto-start --allow-start --timeout 15s') process.exit(0);
+const responses = JSON.parse(process.env.FAKE_AOS_RESPONSES || '{}');
+if (!Object.hasOwn(responses, key)) {
+  console.error(JSON.stringify({ code: 'UNEXPECTED_FAKE_AOS_CALL', argv: args }));
+  process.exit(2);
+}
+const response = responses[key];
+if (response.stderr) process.stderr.write(response.stderr);
+if (Object.hasOwn(response, 'value')) process.stdout.write(JSON.stringify(response.value));
+else if (response.stdout) process.stdout.write(response.stdout);
+process.exit(response.exit_code ?? 0);
+`, { mode: 0o755 });
+  return { fake, log };
+}
+
 function baseResponses(tmp, {
   contentRoots = { toolkit: toolkitRoot },
   canvases = [],
@@ -200,6 +224,41 @@ test('experience status id path treats placeholder state root as legacy fallback
     'service status --mode repo --json',
     'show list --json',
   ].sort());
+});
+
+test('experience activation and id status use the same normalized state paths', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-shared-env-'));
+  const responses = baseResponses(tmp, {
+    contentRoots: { toolkit: toolkitRoot },
+    canvases: [],
+  });
+  const { fake, log } = await writeMutableFakeAos(tmp, responses);
+  const env = {
+    AOS_STATE_ROOT: tmp,
+    AOS_PATH: fake,
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const activate = runNode(['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json', '--allow-start'], env);
+  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const activationPayload = JSON.parse(activate.stdout);
+  assert.equal(activationPayload.active_experience, 'operator-fixture');
+
+  const expectedStatePath = path.join(tmp, 'repo', 'experience-state.json');
+  assert.deepEqual(JSON.parse(await fs.readFile(expectedStatePath, 'utf8')), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+
+  const context = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], env);
+  assert.equal(context.status, 0, `${context.stdout}${context.stderr}`);
+  const payload = JSON.parse(context.stdout);
+  assert.equal(payload.runtime.state_root, tmp);
+  assert.equal(payload.runtime.state_dir, path.join(tmp, 'repo'));
+  assert.equal(payload.state.experience_state_path, expectedStatePath);
+  assert.equal(payload.active_experience.source_path, expectedStatePath);
+  assert.equal(payload.active_experience.status, 'current');
 });
 
 test('experience status reports healthy operator fixture runtime context without mutation', async () => {

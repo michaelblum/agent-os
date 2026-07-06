@@ -11,16 +11,22 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 
 - `aos-*` scripts implement command-surface adapters and developer tooling.
 - `lib/` owns shared JavaScript helpers for scripts.
+- `lib/experience-runtime-env.mjs` owns normalized experience runtime
+  environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
+  `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the
+  legacy active-experience fallback path.
 - `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
-  experience runtime environment normalization, content-root resolution,
-  status-item URL equivalence, and mounted-surface menu projection helpers used
-  by experience activation and status.
+  content-root resolution, status-item URL equivalence, and mounted-surface
+  menu projection helpers used by experience activation and status.
 - `lib/experience-runtime-facts.mjs` owns read-only fact collection for
   `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
   active-experience and runtime-config file reads.
 - `lib/experience-runtime-context.mjs` owns the read-only
-  `aos.experience-runtime-context.v0` envelope/projection assembler behind
-  `aos experience status <id> --json`.
+  `aos.experience-runtime-context.v0` envelope assembler behind
+  `aos experience status <id> --json`; focused `lib/experience-runtime-*`
+  projector modules own content-root status, status-item/menu status,
+  runtime readiness, status ranking, diagnostics, capabilities, and
+  recommendations.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
   saved-ref DTO normalization, artifact-ref DTO normalization, source-capture

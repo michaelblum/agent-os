@@ -2,7 +2,6 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 import {
@@ -17,17 +16,11 @@ import {
   template,
 } from './lib/experience-manifest.mjs';
 import { buildExperienceRuntimeContext } from './lib/experience-runtime-context.mjs';
+import { experienceRuntimeEnv } from './lib/experience-runtime-env.mjs';
 
 const repoRoot = process.cwd();
-const experiencesRoot = process.env.AOS_EXPERIENCES_DIR && !process.env.AOS_EXPERIENCES_DIR.startsWith('$')
-  ? path.resolve(process.env.AOS_EXPERIENCES_DIR)
-  : path.join(repoRoot, 'experiences');
-const aos = process.env.AOS_PATH && !process.env.AOS_PATH.startsWith('$')
-  ? process.env.AOS_PATH
-  : path.join(repoRoot, 'aos');
-const mode = process.env.AOS_RUNTIME_MODE && !process.env.AOS_RUNTIME_MODE.startsWith('$')
-  ? process.env.AOS_RUNTIME_MODE
-  : 'repo';
+const runtimeEnv = experienceRuntimeEnv({ env: process.env, repoRoot });
+const { aos, experiencesRoot, mode } = runtimeEnv;
 
 function prettyJSON(value) {
   return `${JSON.stringify(value, null, 2).replace(/"([A-Za-z0-9_]+)":/g, '"$1" :')}\n`;
@@ -46,7 +39,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     maxBuffer: 100 * 1024 * 1024,
-    env: process.env,
+    env: runtimeEnv.env,
     ...options,
   });
   return {
@@ -96,59 +89,27 @@ function rootsLive(roots) {
   return roots.every((root) => live[root.key] && norm(live[root.key]) === norm(root.path));
 }
 
-function configGet(key) {
-  const result = runAos(['config', 'get', key, '--json']);
-  if (result.status !== 0) return null;
-  try {
-    return JSON.parse(result.stdout).value ?? null;
-  } catch {
-    return result.stdout.trim() || null;
-  }
-}
-
 function nestedGet(object, keyPath) {
   return keyPath.split('.').reduce((value, key) => (
     value && typeof value === 'object' ? value[key] : undefined
   ), object);
 }
 
-function stateDir() {
-  const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
-    ? path.resolve(process.env.AOS_STATE_ROOT)
-    : path.join(os.homedir(), '.config', 'aos');
-  return path.join(root, mode);
-}
-
-function statePath() {
-  return path.join(stateDir(), 'experience-state.json');
-}
-
-function configPath() {
-  return path.join(stateDir(), 'config.json');
-}
-
-function legacyStatePath() {
-  const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
-    ? path.resolve(process.env.AOS_STATE_ROOT)
-    : path.join(os.homedir(), '.config', 'aos');
-  return path.join(root, 'experience-state.json');
-}
-
 function readRuntimeConfig() {
   try {
-    return JSON.parse(fs.readFileSync(configPath(), 'utf8'));
+    return JSON.parse(fs.readFileSync(runtimeEnv.configPath, 'utf8'));
   } catch {
     return {};
   }
 }
 
 function writeRuntimeConfig(config) {
-  fs.mkdirSync(stateDir(), { recursive: true });
-  fs.writeFileSync(configPath(), prettyJSON(config), 'utf8');
+  fs.mkdirSync(runtimeEnv.stateDir, { recursive: true });
+  fs.writeFileSync(runtimeEnv.configPath, prettyJSON(config), 'utf8');
 }
 
 function readActiveExperience() {
-  for (const file of [statePath(), legacyStatePath()]) {
+  for (const file of [runtimeEnv.experienceStatePath, runtimeEnv.legacyExperienceStatePath]) {
     try {
       const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
       return parsed.active_experience || null;
@@ -160,12 +121,11 @@ function readActiveExperience() {
 }
 
 function writeActiveExperience(id) {
-  fs.mkdirSync(stateDir(), { recursive: true });
-  fs.writeFileSync(statePath(), prettyJSON({ active_experience: id || null, exclusive: true }), 'utf8');
-  const legacy = legacyStatePath();
-  if (legacy !== statePath()) {
+  fs.mkdirSync(runtimeEnv.stateDir, { recursive: true });
+  fs.writeFileSync(runtimeEnv.experienceStatePath, prettyJSON({ active_experience: id || null, exclusive: true }), 'utf8');
+  if (runtimeEnv.legacyExperienceStatePath !== runtimeEnv.experienceStatePath) {
     try {
-      fs.rmSync(legacy, { force: true });
+      fs.rmSync(runtimeEnv.legacyExperienceStatePath, { force: true });
     } catch {
       // Best-effort cleanup; the mode-scoped state file is authoritative.
     }
