@@ -17,6 +17,7 @@ import {
   writeJSON,
   writeMutableFakeAos,
   writeRuntimeStateFixture,
+  writeSigtermIgnoringFakeAos,
 } from './lib/experience-runtime-fixtures.mjs';
 
 test('experience status rejects invalid id before passive fake AOS probes', async () => {
@@ -517,6 +518,68 @@ test('experience status reports stale target, missing content root, and uninitia
   )));
 });
 
+test('experience status recommends activation for repairable content-root drift', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-root-repairable-'));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = 'repairable-root-fixture';
+  const contentRoot = path.join(tempRepoRoot, 'content-root');
+  const staleRoot = path.join(tempRepoRoot, 'stale-content-root');
+  const expectedURL = 'aos://repairroot/runtime/index.html';
+  await fs.mkdir(contentRoot, { recursive: true });
+  await writeExperienceManifestFixture({
+    experiencesRoot,
+    id,
+    title: 'Repairable Root Fixture',
+    contentRootId: 'repairroot',
+    contentRootPath: 'content-root',
+    surfaceId: 'repair-root-surface',
+    expectedURL,
+  });
+  await writeRuntimeStateFixture({
+    stateRoot,
+    id,
+    contentRootKey: 'repairroot',
+    contentRootPath: staleRoot,
+    surfaceId: 'repair-root-surface',
+    expectedURL,
+  });
+  const responses = baseResponses(stateRoot, {
+    contentRoots: {},
+    canvases: [{
+      id: 'repair-root-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp, responses);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = await buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+  const root = payload.content_roots.roots[0];
+  assert.equal(root.declared_path_status, 'current');
+  assert.equal(root.configured_status, 'stale');
+  assert.equal(root.live_status, 'missing');
+  assert.equal(root.repair_action, 'activate_experience');
+  const configDiagnostic = payload.diagnostics.find((item) => item.id === 'content-root-config-drift:repairroot');
+  const liveDiagnostic = payload.diagnostics.find((item) => item.id === 'content-root-live-drift:repairroot');
+  assert.equal(configDiagnostic?.repair_action, 'activate_experience');
+  assert.equal(liveDiagnostic?.repair_action, 'activate_experience');
+  assert.equal(configDiagnostic?.recommended_next_id, 'activate-requested-experience');
+  assert.equal(liveDiagnostic?.recommended_next_id, 'activate-requested-experience');
+  assert(payload.recommended_next.some((item) => item.id === 'activate-requested-experience'), payload.recommended_next);
+});
+
 test('experience status blocks corrupt pending state and reports passive readiness blockers', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-corrupt-'));
   const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
@@ -748,6 +811,62 @@ test('experience runtime passive AOS readbacks run from normalized repo root', a
   assert.deepEqual([...new Set(calls.map((entry) => entry.cwd))], [expectedCwd]);
 });
 
+test('experience status hard-bounds passive AOS probes that ignore SIGTERM', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-timeout-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
+
+  const { fake, log } = await writeSigtermIgnoringFakeAos(tmp);
+  const startedAt = Date.now();
+  const result = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], {
+    AOS_STATE_ROOT: tmp,
+    AOS_PATH: fake,
+    AOS_EXPERIENCE_RUNTIME_PROBE_TIMEOUT_MS: '300',
+    AOS_EXPERIENCE_RUNTIME_PROBE_KILL_GRACE_MS: '50',
+    FAKE_AOS_LOG: log,
+  });
+  const elapsedMs = Date.now() - startedAt;
+
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert(elapsedMs < 3000, `status took ${elapsedMs}ms`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.runtime.service.command_status, 'timeout');
+  assert.equal(payload.runtime.permissions.command_status, 'timeout');
+  assert.equal(payload.content_roots.command_status, 'timeout');
+  assert.equal(payload.status_item.mounted_surface.show_list_status, 'timeout');
+  assert.equal(payload.content_roots.roots[0].repair_action, 'inspect_runtime');
+  assert(payload.diagnostics.some((item) => (
+    item.id === 'content-root-live-readback-unknown:toolkit'
+    && item.repair_action === 'inspect_runtime'
+  )), payload.diagnostics);
+
+  const calls = await readFakeAosCalls(log);
+  assert.deepEqual(calls.filter(Array.isArray).map((args) => args.join(' ')).sort(), [
+    'content status --json',
+    'permissions check --json',
+    'service status --mode repo --json',
+    'show list --json',
+  ].sort());
+});
+
 test('experience status does not mark a regular file content root current', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-file-root-'));
   const tempRepoRoot = path.join(tmp, 'repo-root');
@@ -803,6 +922,17 @@ test('experience status does not mark a regular file content root current', asyn
   assert.equal(root.declared_path_type, 'file');
   assert.equal(root.configured_status, 'current');
   assert.equal(root.live_status, 'current');
+  assert.equal(root.repair_action, 'fix_declared_path');
   assert.equal(root.status, 'not_directory');
   assert.notEqual(payload.content_roots.status, 'current');
+  assert(!payload.diagnostics.some((item) => item.id.startsWith('content-root:')), payload.diagnostics);
+  assert(payload.diagnostics.some((item) => (
+    item.id === 'content-root-declared-path-invalid:badroot'
+    && item.repair_action === 'fix_declared_path'
+    && item.recommended_next_id === undefined
+  )), payload.diagnostics);
+  assert(!payload.recommended_next.some((item) => (
+    item.id === 'activate-requested-experience'
+    && item.argv.join(' ') === './aos experience activate file-root-fixture --json --allow-start'
+  )), payload.recommended_next);
 });

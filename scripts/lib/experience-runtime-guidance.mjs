@@ -101,15 +101,46 @@ export function diagnosticsFor({
     add('active-experience-mismatch', 'warning', 'Active experience differs from requested experience.', {
       active_experience: active.id,
       requested_experience: requestedId,
+      repair_action: 'activate_experience',
     });
   }
   if (config.status === 'corrupt') {
     add('runtime-config-corrupt', 'error', 'Runtime config is corrupt.', { path: config.path });
   }
   for (const root of contentRoots.roots) {
-    if (root.status !== 'current') {
-      add(`content-root:${root.key}`, root.status === 'missing' ? 'warning' : 'warning', `Content root ${root.key} is ${root.status}.`, {
-        status: root.status,
+    if (root.declared_path_status !== 'current') {
+      add(`content-root-declared-path-invalid:${root.key}`, 'warning', `Declared content root ${root.key} is ${root.declared_path_status}.`, {
+        status: root.declared_path_status,
+        repair_action: 'fix_declared_path',
+        declared_path: root.declared_path,
+        declared_path_type: root.declared_path_type,
+        ...(root.declared_path_error_code ? { declared_path_error_code: root.declared_path_error_code } : {}),
+        configured_path: root.configured_path,
+        live_path: root.live_path,
+      });
+      continue;
+    }
+    if (root.configured_status !== 'current') {
+      add(`content-root-config-drift:${root.key}`, 'warning', `Configured content root ${root.key} is ${root.configured_status}.`, {
+        status: root.configured_status,
+        repair_action: 'activate_experience',
+        declared_path: root.declared_path,
+        configured_path: root.configured_path,
+        live_path: root.live_path,
+      });
+    }
+    if (root.live_status === 'unknown') {
+      add(`content-root-live-readback-unknown:${root.key}`, 'warning', `Live content root ${root.key} could not be read.`, {
+        status: root.live_status,
+        repair_action: 'inspect_runtime',
+        declared_path: root.declared_path,
+        configured_path: root.configured_path,
+        live_path: root.live_path,
+      });
+    } else if (root.live_status !== 'current') {
+      add(`content-root-live-drift:${root.key}`, 'warning', `Live content root ${root.key} is ${root.live_status}.`, {
+        status: root.live_status,
+        repair_action: 'activate_experience',
         declared_path: root.declared_path,
         configured_path: root.configured_path,
         live_path: root.live_path,
@@ -119,6 +150,7 @@ export function diagnosticsFor({
   if (statusItem.target.status !== 'current' && statusItem.target.status !== 'not_applicable') {
     add('status-item-target-drift', 'warning', 'Status item target does not match the requested experience.', {
       status: statusItem.target.status,
+      repair_action: 'activate_experience',
       current_url: statusItem.target.current_url,
       expected_url: statusItem.target.expected_url,
     });
@@ -126,6 +158,7 @@ export function diagnosticsFor({
   if (!['current', 'not_applicable'].includes(statusItem.mounted_surface.status)) {
     add('mounted-surface-drift', 'warning', 'Mounted status surface is missing, stale, or unknown.', {
       status: statusItem.mounted_surface.status,
+      repair_action: 'activate_experience',
       surface_id: statusItem.mounted_surface.id,
       url: statusItem.mounted_surface.url,
     });
@@ -162,11 +195,8 @@ export function attachRecommendations({
   pendingAnnotations,
   runtime,
 }) {
-  const needsActivation = diagnostics.some((item) => [
-    'active-experience-mismatch',
-    'status-item-target-drift',
-    'mounted-surface-drift',
-  ].includes(item.id) || item.id.startsWith('content-root:'));
+  const activationDiagnostics = diagnostics.filter((item) => item.repair_action === 'activate_experience');
+  const needsActivation = activationDiagnostics.length > 0;
   if (needsActivation) {
     const id = addRecommendation(recommendations, {
       id: 'activate-requested-experience',
@@ -174,14 +204,8 @@ export function attachRecommendations({
       reason: 'Reconcile active experience, content roots, status item target, and mounted surface.',
       argv: commandArgv(prefix, 'experience', 'activate', requestedId, '--json', '--allow-start'),
     });
-    for (const item of diagnostics) {
-      if ([
-        'active-experience-mismatch',
-        'status-item-target-drift',
-        'mounted-surface-drift',
-      ].includes(item.id) || item.id.startsWith('content-root:')) {
-        item.recommended_next_id = id;
-      }
+    for (const item of activationDiagnostics) {
+      item.recommended_next_id = id;
     }
   }
   if (statusItem.mounted_surface.status === 'stale') {

@@ -45,6 +45,17 @@ function contentRootPathStatus(file) {
       mtime_ms: stat.mtime_ms,
     };
   }
+  try {
+    fs.accessSync(file, fs.constants.R_OK | fs.constants.X_OK);
+  } catch (error) {
+    const status = ['EACCES', 'EPERM'].includes(error?.code) ? 'unreadable' : 'unknown';
+    return {
+      status,
+      type: 'directory',
+      mtime_ms: stat.mtime_ms,
+      error_code: error?.code || 'UNKNOWN',
+    };
+  }
   return {
     status: 'current',
     type: 'directory',
@@ -54,6 +65,18 @@ function contentRootPathStatus(file) {
 
 function normalizePathForCompare(repoRoot, value) {
   return path.resolve(repoRoot, value);
+}
+
+function contentRootRepairAction({
+  declaredPathStatus,
+  configuredStatus,
+  liveStatus,
+}) {
+  if (declaredPathStatus !== 'current') return 'fix_declared_path';
+  if (configuredStatus !== 'current') return 'activate_experience';
+  if (liveStatus === 'unknown') return 'inspect_runtime';
+  if (liveStatus !== 'current') return 'activate_experience';
+  return 'none';
 }
 
 export function buildContentRootStatus({
@@ -95,6 +118,11 @@ export function buildContentRootStatus({
       configured_status: configuredStatus,
       live_path: livePath,
       live_status: liveStatus,
+      repair_action: contentRootRepairAction({
+        declaredPathStatus: declaredPath.status,
+        configuredStatus,
+        liveStatus,
+      }),
       status: worstStatus([declaredPath.status, configuredStatus, liveStatus]),
     };
   });

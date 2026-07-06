@@ -20,7 +20,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   menu projection helpers used by experience activation and status.
 - `lib/experience-runtime-facts.mjs` owns read-only fact collection for
   `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
-  active-experience and runtime-config file reads.
+  active-experience and runtime-config file reads. Passive probes must be
+  hard-bounded; test-only timing overrides must preserve the default public
+  timeout posture.
 - `lib/experience-runtime-context.mjs` owns the read-only
   `aos.experience-runtime-context.v0` envelope assembler behind
   `aos experience status <id> --json`; focused `lib/experience-runtime-*`

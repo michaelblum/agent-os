@@ -274,7 +274,15 @@ test('experience runtime context schema accepts invalid content root status outp
   const payload = await buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
   assert.equal(payload.status, 'degraded');
   assert.equal(payload.content_roots.roots[0].declared_path_status, 'not_directory');
+  assert.equal(payload.content_roots.roots[0].repair_action, 'fix_declared_path');
   await validatePayload(payload, 'aos-runtime-context-schema-file-root-instance-');
+
+  const missingRepairAction = JSON.parse(JSON.stringify(payload));
+  delete missingRepairAction.content_roots.roots[0].repair_action;
+  rejectJSONAgainstSchema(await writeTempRuntimeContextPayload(
+    missingRepairAction,
+    'aos-runtime-context-schema-file-root-missing-repair-action-instance-',
+  ));
 });
 
 test('experience runtime context schema rejects non-status command argv', async () => {

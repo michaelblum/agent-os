@@ -25,6 +25,16 @@ The envelope includes:
   pending annotation store paths.
 - `diagnostics`, `capabilities`, and `recommended_next` for machine routing.
 
+Each `content_roots.roots[]` row includes `repair_action`:
+
+- `none` when no root repair is needed.
+- `activate_experience` only when the declared path is current and activation
+  can repair config or live-root drift.
+- `fix_declared_path` when the declared path is missing, not a directory, a
+  symlink, unreadable, or otherwise unknown.
+- `inspect_runtime` when the declared path is current but passive readback is
+  unknown.
+
 Status output must stay passive. It may read local state and run read-only AOS
 readbacks, but it must not activate, repair, start, restart, remove, reset TCC,
 or mutate pending annotation storage.

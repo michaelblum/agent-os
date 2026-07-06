@@ -111,6 +111,9 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9_:-]*$"
     },
+    "repair_action": {
+      "enum": ["none", "activate_experience", "fix_declared_path", "inspect_runtime"]
+    },
     "path_status": {
       "enum": [
         "current",
@@ -327,6 +330,7 @@
         "configured_status",
         "live_path",
         "live_status",
+        "repair_action",
         "status"
       ],
       "additionalProperties": true,
@@ -343,6 +347,7 @@
         "configured_status": { "enum": ["current", "missing", "stale"] },
         "live_path": { "$ref": "#/$defs/nullable_path" },
         "live_status": { "enum": ["current", "missing", "stale", "unknown"] },
+        "repair_action": { "$ref": "#/$defs/repair_action" },
         "status": { "$ref": "#/$defs/path_status" }
       }
     },
@@ -502,6 +507,7 @@
         "message": { "$ref": "#/$defs/non_empty_string" },
         "path": { "$ref": "#/$defs/path_string" },
         "status": { "$ref": "#/$defs/status_word" },
+        "repair_action": { "$ref": "#/$defs/repair_action" },
         "recommended_next_id": { "$ref": "#/$defs/non_empty_string" }
       }
     },

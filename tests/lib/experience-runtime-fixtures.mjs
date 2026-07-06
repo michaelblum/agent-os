@@ -107,6 +107,21 @@ export function writeMutableFakeAos(tmp, _responses = null) {
   });
 }
 
+export async function writeSigtermIgnoringFakeAos(tmp) {
+  const fake = path.join(tmp, 'fake-aos-ignore-sigterm.mjs');
+  const log = path.join(tmp, 'aos-ignore-sigterm-calls.jsonl');
+  await fs.writeFile(fake, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
+process.on('SIGTERM', () => {
+  fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify({ args, ignored_signal: 'SIGTERM' }) + '\\n');
+});
+setInterval(() => {}, 1000);
+`, { mode: 0o755 });
+  return { fake, log };
+}
+
 export function baseResponses(tmp, {
   contentRoots = { toolkit: toolkitRoot },
   canvases = [],
