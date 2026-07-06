@@ -87,15 +87,28 @@ The separation is intentional: **`.docks/` = runtime, `ai-agents/` = source defi
    `ai-agents/providers/codex/<name>.toml` if the role needs a Codex TOML
    shape.
 3. Update the runner allowlist only when the role should become executable.
-4. Verify with `./aos dev agents --runtime-info --json`.
+4. For catalog-only source/provider material, verify only the touched
+   source/provider surface named by the task. Do not use
+   `./aos dev agents --runtime-info --json` as catalog proof; runtime-info reads
+   the executable runner role set.
+5. If the role should become executable or the runner-facing TOML/model/effort/
+   sandbox/instructions/allowlist changed, verify with
+   `./aos dev agents --runtime-info --json` and
+   `bash tests/aos-agents-runner.sh`.
 
 ## Updating an existing agent
 
 1. Edit the relevant `ai-agents/agents/<name>.md`.
 2. Update the provider-shaped material under `ai-agents/providers/codex/` when
    the runner-facing model, effort, sandbox, or instructions change.
-3. Verify runner-facing TOML changes with
-   `./aos dev agents --runtime-info --json`.
+3. For catalog-only source/provider edits, verify only the touched
+   source/provider surface named by the task. Do not use
+   `./aos dev agents --runtime-info --json` as catalog proof; runtime-info reads
+   the executable runner role set.
+4. For runner-facing TOML/model/effort/sandbox/instruction/allowlist changes,
+   verify with `./aos dev agents --runtime-info --json` for executable role-set
+   readback and `bash tests/aos-agents-runner.sh` for runner regression
+   coverage.
 
 `./aos dev agents --self-test --json` is a parser/path smoke check. It is not
 the executable runner role-set readback.
