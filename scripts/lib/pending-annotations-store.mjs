@@ -12,14 +12,16 @@ import {
   withLocalStateMutationLock,
 } from './local-state-lock.mjs';
 import {
-  LIFECYCLE_STATES,
-  SAFE_ID,
   SCHEMA_VERSION,
-  TARGET_KINDS,
-  CAPABILITY_STATUSES,
+  SAFE_ID,
+  LIFECYCLE_STATES,
+  annotationSummary as modelAnnotationSummary,
+  validateID,
+  validatePendingAnnotationRecord as validateModelPendingAnnotationRecord,
+} from './pending-annotations-model.mjs';
+import {
   fail,
   nowISO,
-  validateID,
 } from './pending-annotations-constants.mjs';
 
 const DEFAULT_LOCK_TIMEOUT_MS = 5000;
@@ -60,176 +62,13 @@ export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
   }
 }
 
-function isObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function nonEmptyString(value) {
-  return typeof value === 'string' && value.length > 0;
-}
-
-function nullableString(value) {
-  return value === null || nonEmptyString(value);
-}
-
-function hasNullableString(value, key) {
-  return Object.hasOwn(value, key) && nullableString(value[key]);
-}
-
-function optionalNullableString(value, key) {
-  return !Object.hasOwn(value, key) || nullableString(value[key]);
-}
-
-function assertStringArray(value) {
-  return Array.isArray(value) && value.every(nonEmptyString);
-}
-
-function assertActor(value) {
-  return isObject(value)
-    && nonEmptyString(value.source)
-    && isObject(value.session)
-    && (value.session.id === null || typeof value.session.id === 'string')
-    && nonEmptyString(value.session.mode)
-    && nonEmptyString(value.session.harness);
-}
-
-function assertArtifactRefs(value) {
-  return Array.isArray(value) && value.every((item) => (
-    isObject(item)
-    && nonEmptyString(item.role)
-    && nonEmptyString(item.path)
-    && (item.media_type === undefined || nonEmptyString(item.media_type))
-    && (item.bytes === undefined || item.bytes === null || (Number.isInteger(item.bytes) && item.bytes >= 0))
-  ));
-}
-
-function assertSavedRef(value) {
-  return value === null || (
-    isObject(value)
-    && SAFE_ID.test(value.workspace_id)
-    && SAFE_ID.test(value.snapshot_id)
-    && SAFE_ID.test(value.ref)
-    && nullableString(value.action_target)
-  );
-}
-
-function assertSourceCapture(value) {
-  return value === null || (
-    isObject(value)
-    && value.kind === 'saved_capture'
-    && nonEmptyString(value.schema_version)
-    && nonEmptyString(value.status)
-    && hasNullableString(value, 'workspace_id')
-    && hasNullableString(value, 'snapshot_id')
-    && hasNullableString(value, 'selected_ref')
-    && Number.isInteger(value.ref_count)
-    && value.ref_count >= 0
-    && optionalNullableString(value, 'capture_target')
-    && optionalNullableString(value, 'capture_mode')
-    && optionalNullableString(value, 'query')
-    && optionalNullableString(value, 'selected_backend')
-    && optionalNullableString(value, 'selected_resolution_class')
-  );
-}
-
-function assertCapabilityInvariants(value) {
-  const savedRefAvailable = value.target.saved_ref !== null;
-  if (value.capability.saved_ref_available !== savedRefAvailable) return false;
-  if (value.capability.status === 'saved_ref') {
-    return savedRefAvailable && value.capability.saved_ref_available === true;
-  }
-  return true;
-}
-
-function assertSchemaShape(value) {
-  if (
-    !isObject(value)
-    || value.schema_version !== SCHEMA_VERSION
-    || !SAFE_ID.test(value.id)
-    || !['repo', 'installed'].includes(value.runtime_mode)
-    || !isObject(value.lifecycle)
-    || !LIFECYCLE_STATES.has(value.lifecycle.state)
-    || !nonEmptyString(value.lifecycle.created_at)
-    || !nonEmptyString(value.lifecycle.updated_at)
-    || !nullableString(value.lifecycle.consumed_at)
-    || !(value.lifecycle.consumed_by === null || assertActor(value.lifecycle.consumed_by))
-    || !nullableString(value.lifecycle.deleted_at)
-    || !assertActor(value.actor)
-    || !isObject(value.comment)
-    || !nullableString(value.comment.text)
-    || !isObject(value.target)
-    || !TARGET_KINDS.has(value.target.kind)
-    || !nonEmptyString(value.target.summary)
-    || !assertSavedRef(value.target.saved_ref)
-    || !isObject(value.capability)
-    || !CAPABILITY_STATUSES.has(value.capability.status)
-    || !assertStringArray(value.capability.reasons)
-    || typeof value.capability.fallback_used !== 'boolean'
-    || typeof value.capability.saved_ref_available !== 'boolean'
-    || !Array.isArray(value.fallback_evidence)
-    || !assertArtifactRefs(value.artifact_refs)
-    || !Array.isArray(value.recommended_next)
-    || value.recommended_next.length < 1
-    || !Object.hasOwn(value, 'source_capture')
-    || !assertSourceCapture(value.source_capture)
-    || !Array.isArray(value.work_record_links)
-    || !isObject(value.paths)
-    || !nonEmptyString(value.paths.root)
-    || !nonEmptyString(value.paths.record)
-  ) {
-    return false;
-  }
-  if (!assertCapabilityInvariants(value)) return false;
-  if (!value.fallback_evidence.every((item) => (
-    isObject(item)
-    && nonEmptyString(item.kind)
-    && nonEmptyString(item.reason)
-    && nonEmptyString(item.summary)
-    && assertArtifactRefs(item.artifact_refs)
-  ))) return false;
-  for (const item of value.recommended_next) {
-    if (!isObject(item) || !nonEmptyString(item.kind) || !nonEmptyString(item.reason) || !assertStringArray(item.argv)) {
-      return false;
-    }
-  }
-  if (!value.work_record_links.every((item) => (
-    isObject(item)
-    && nonEmptyString(item.ref)
-    && nonEmptyString(item.relationship)
-    && nonEmptyString(item.status)
-    && assertArtifactRefs(item.artifact_refs)
-    && (item.linked_at === undefined || nonEmptyString(item.linked_at))
-    && (item.linked_by === undefined || assertActor(item.linked_by))
-  ))) return false;
-  return true;
-}
-
-function assertPathInvariants(record, file, env) {
-  const expectedRoot = pendingRoot(env);
-  const expectedRecord = recordPath(record.id, env);
-  const expectedName = `${record.id}.json`;
-  const resolvedRoot = path.resolve(expectedRoot);
-  const resolvedRecord = path.resolve(record.paths.record);
-  const resolvedExpectedRecord = path.resolve(expectedRecord);
-  const resolvedFile = path.resolve(file);
-  if (
-    path.basename(file) !== expectedName
-    || resolvedFile !== resolvedExpectedRecord
-    || record.paths.root !== expectedRoot
-    || record.paths.record !== expectedRecord
-    || resolvedRecord !== resolvedExpectedRecord
-    || (resolvedRecord !== resolvedRoot && !resolvedRecord.startsWith(`${resolvedRoot}${path.sep}`))
-  ) {
-    fail(`Pending annotation record has invalid path invariants: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id: record.id });
-  }
-}
-
 export function validatePendingAnnotationRecord(value, file, env = process.env) {
-  if (!assertSchemaShape(value) || value.runtime_mode !== runtimeMode(env)) {
-    fail(`Pending annotation record is schema-invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
-  }
-  assertPathInvariants(value, file, env);
-  return value;
+  return validateModelPendingAnnotationRecord(value, {
+    file,
+    runtime_mode: runtimeMode(env),
+    pending_root: pendingRoot(env),
+    record_path_for_id: (id) => recordPath(id, env),
+  });
 }
 
 export function loadRecord(id, env = process.env) {
@@ -241,22 +80,7 @@ export function loadRecord(id, env = process.env) {
 
 export function annotationSummary(record, env = process.env) {
   validatePendingAnnotationRecord(record, recordPath(record.id, env), env);
-  return {
-    id: record.id,
-    state: record.lifecycle.state,
-    created_at: record.lifecycle.created_at,
-    updated_at: record.lifecycle.updated_at,
-    consumed_at: record.lifecycle.consumed_at ?? null,
-    target_kind: record.target.kind,
-    target_summary: record.target.summary,
-    comment_text: record.comment?.text ?? null,
-    capability_status: record.capability.status,
-    saved_ref: record.target.saved_ref ?? null,
-    fallback_count: record.fallback_evidence.length,
-    recommended_next_count: record.recommended_next.length,
-    work_record_link_count: Array.isArray(record.work_record_links) ? record.work_record_links.length : 0,
-    path: recordPath(record.id, env),
-  };
+  return modelAnnotationSummary(record, { path: recordPath(record.id, env) });
 }
 
 function defaultIndex(env = process.env) {

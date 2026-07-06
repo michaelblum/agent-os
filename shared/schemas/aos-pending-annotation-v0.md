@@ -63,8 +63,8 @@ Each record includes:
 - `fallback_evidence[]` when no saved ref is available or when fallback context
   remains relevant;
 - `capability.status` and reasons;
-- optional `source_capture` metadata when the record was projected from a saved
-  perception capture or refs readback;
+- `source_capture` metadata when the record was projected from a saved
+  perception capture or refs readback, or `null` when no source capture exists;
 - `artifact_refs[]` for disk-backed heavy evidence;
 - `recommended_next[]` as structured argv arrays;
 - `work_record_links[]` for later action/readback evidence connection.
@@ -115,6 +115,7 @@ Run:
 
 ```bash
 node --test tests/schemas/aos-pending-annotation-v0.test.mjs
+node --test tests/toolkit/pending-annotation-model.test.mjs tests/toolkit/pending-annotation-cli-lifecycle.test.mjs tests/toolkit/pending-annotation-store-index.test.mjs tests/toolkit/pending-annotation-lock.test.mjs
 bash tests/help-contract.sh
 bash tests/external-command-dispatch.sh
 node scripts/generate-command-manifests.mjs --check

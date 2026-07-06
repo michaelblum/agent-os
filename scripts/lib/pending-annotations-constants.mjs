@@ -1,9 +1,5 @@
-export const SCHEMA_VERSION = 'aos.pending-annotation.v0';
-export const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 export const JSON_SPACING = 2;
-export const LIFECYCLE_STATES = new Set(['pending', 'consumed', 'resolved', 'deleted', 'stale', 'unsupported', 'blocked']);
-export const TARGET_KINDS = new Set(['desktop', 'display', 'window', 'browser', 'canvas', 'native_ax', 'region', 'fallback']);
-export const CAPABILITY_STATUSES = new Set(['saved_ref', 'fallback_only', 'unsupported', 'ambiguous', 'blocked']);
+const LOCAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 
 export class PendingAnnotationError extends Error {
   constructor(message, code, extra = {}) {
@@ -42,9 +38,9 @@ export function nowISO() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function validateID(value, label = 'id') {
-  if (typeof value !== 'string' || !SAFE_ID.test(value)) {
-    fail(`${label} must match ${SAFE_ID.source}`, 'INVALID_ID');
+function validateID(value, label = 'id') {
+  if (typeof value !== 'string' || !LOCAL_ID_PATTERN.test(value)) {
+    fail(`${label} must match ${LOCAL_ID_PATTERN.source}`, 'INVALID_ID');
   }
   return value;
 }

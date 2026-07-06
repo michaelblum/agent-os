@@ -194,6 +194,7 @@
         "fallback_evidence",
         "artifact_refs",
         "recommended_next",
+        "source_capture",
         "work_record_links",
         "paths"
       ],

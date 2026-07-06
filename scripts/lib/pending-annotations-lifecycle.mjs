@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import {
-  LIFECYCLE_STATES,
-  SCHEMA_VERSION,
   array,
   fail,
   nowISO,
   text,
 } from './pending-annotations-constants.mjs';
+import {
+  LIFECYCLE_STATES,
+  SCHEMA_VERSION,
+  assertConsumableCapability,
+} from './pending-annotations-model.mjs';
 import {
   loadIndexReadOnly,
   loadRecord,
@@ -24,13 +27,26 @@ import {
   sessionMetadata,
 } from './pending-annotations-record.mjs';
 
+function modelContext(env = process.env) {
+  return {
+    env,
+    runtime_mode: runtimeMode(env),
+    pending_root: pendingRoot(env),
+    record_path_for_id: (id) => recordPath(id, env),
+  };
+}
+
+function summaryContext(record, env = process.env) {
+  return { path: recordPath(record.id, env) };
+}
+
 export function createPendingAnnotation(input, env = process.env) {
   return withPendingAnnotationMutation(env, () => {
-    const record = normalizeRecordInput(input, env);
+    const record = normalizeRecordInput(input, modelContext(env));
     const file = recordPath(record.id, env);
     if (fs.existsSync(file)) fail(`Pending annotation already exists: ${record.id}`, 'PENDING_ANNOTATION_EXISTS', { id: record.id });
     saveRecordAndRebuildIndex(record, env);
-    return compactResult(record, 'created', env);
+    return compactResult(record, 'created', summaryContext(record, env));
   });
 }
 
@@ -57,16 +73,6 @@ export function readPendingAnnotation(id, env = process.env) {
     runtime_mode: runtimeMode(env),
     annotation: loadRecord(id, env),
   };
-}
-
-function assertConsumableCapability(record, id) {
-  if (record.capability?.status !== 'saved_ref') return;
-  if (record.target?.saved_ref && record.capability.saved_ref_available === true) return;
-  fail(`Pending annotation saved_ref capability is corrupt: ${id}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
-    id,
-    status: 'corrupt',
-    capability_status: record.capability?.status || null,
-  });
 }
 
 export function consumePendingAnnotation(id, options = {}, env = process.env) {
@@ -98,7 +104,7 @@ export function consumePendingAnnotation(id, options = {}, env = process.env) {
     };
     saveRecordAndRebuildIndex(consumed, env);
     return {
-      ...compactResult(consumed, 'consumed', env),
+      ...compactResult(consumed, 'consumed', summaryContext(consumed, env)),
       consumed_annotation: consumed,
     };
   });
@@ -133,7 +139,7 @@ export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.en
     };
     saveRecordAndRebuildIndex(linked, env);
     return {
-      ...compactResult(linked, 'linked', env),
+      ...compactResult(linked, 'linked', summaryContext(linked, env)),
       work_record_link: link,
       linked_annotation: linked,
     };
@@ -161,6 +167,6 @@ export function deletePendingAnnotation(id, env = process.env) {
       },
     };
     saveRecordAndRebuildIndex(deleted, env);
-    return compactResult(deleted, 'deleted', env);
+    return compactResult(deleted, 'deleted', summaryContext(deleted, env));
   });
 }

@@ -1,9 +1,16 @@
+import {
+  SCHEMA_VERSION,
+} from './pending-annotations-model.mjs';
+
 export {
   PendingAnnotationError,
   emitPendingAnnotationError,
   isPendingAnnotationError,
-  SCHEMA_VERSION,
 } from './pending-annotations-constants.mjs';
+
+export {
+  SCHEMA_VERSION,
+};
 
 export {
   createPendingAnnotation,
@@ -19,5 +26,5 @@ export {
 } from './pending-annotations-surface-adapter.mjs';
 
 export function schemaVersion() {
-  return 'aos.pending-annotation.v0';
+  return SCHEMA_VERSION;
 }
