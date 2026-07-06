@@ -302,6 +302,134 @@ test('pending annotation record path escapes fail closed', async () => {
   assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
 });
 
+test('pending annotation store rejects symlinked records directory before read or write', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-symlink-state-'));
+  const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-symlink-outside-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const pendingRoot = path.join(stateRoot, 'repo', 'pending-annotations');
+  const recordsDir = path.join(pendingRoot, 'records');
+  await fs.mkdir(pendingRoot, { recursive: true });
+  await fs.symlink(outsideRoot, recordsDir);
+
+  const create = run([
+    'create',
+    '--id',
+    'ann-symlink-write',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Symlink write target',
+    '--json',
+  ], env);
+  assert.notEqual(create.status, 0);
+  assert.equal(JSON.parse(create.stderr).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+
+  const outsideNames = await fs.readdir(outsideRoot);
+  assert.deepEqual(outsideNames.filter((name) => /^ann-.*\.json$/.test(name)), []);
+
+  await fs.writeFile(path.join(outsideRoot, 'ann-symlink-read.json'), JSON.stringify({
+    schema_version: 'aos.pending-annotation.v0',
+    id: 'ann-symlink-read',
+  }), 'utf8');
+  assert.equal(parseError(run(['read', 'ann-symlink-read', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(parseError(run(['list', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation create preflights existing records before writing new durable state', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-create-preflight-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const existing = parseJSON(run([
+    'create',
+    '--id',
+    'ann-existing-corrupt',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Existing corrupt target',
+    '--json',
+  ], env));
+  const record = JSON.parse(await fs.readFile(existing.annotation.path, 'utf8'));
+  record.paths.root = path.join(stateRoot, 'installed', 'pending-annotations');
+  const corruptText = `${JSON.stringify(record, null, 2)}\n`;
+  await fs.writeFile(existing.annotation.path, corruptText, 'utf8');
+
+  const created = run([
+    'create',
+    '--id',
+    'ann-new-after-corrupt',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Should not be written',
+    '--json',
+  ], env);
+  assert.notEqual(created.status, 0);
+  assert.equal(JSON.parse(created.stderr).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(await readTextIfExists(path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-new-after-corrupt.json')), null);
+  assert.equal(await fs.readFile(existing.annotation.path, 'utf8'), corruptText);
+});
+
+test('pending annotation mutations preflight existing records before changing target record', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-mutation-preflight-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const target = parseJSON(run([
+    'create',
+    '--id',
+    'ann-target-healthy',
+    '--target-kind',
+    'browser',
+    '--target-summary',
+    'Healthy target',
+    '--workspace',
+    'ws1',
+    '--snapshot',
+    'snap1',
+    '--ref',
+    'r1',
+    '--json',
+  ], env));
+  const corrupt = parseJSON(run([
+    'create',
+    '--id',
+    'ann-other-corrupt',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Other corrupt target',
+    '--json',
+  ], env));
+  const corruptRecord = JSON.parse(await fs.readFile(corrupt.annotation.path, 'utf8'));
+  corruptRecord.paths.record = path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-other-name.json');
+  await fs.writeFile(corrupt.annotation.path, `${JSON.stringify(corruptRecord, null, 2)}\n`, 'utf8');
+
+  const beforeConsume = await fs.readFile(target.annotation.path, 'utf8');
+  assert.equal(parseError(run(['consume', 'ann-target-healthy', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(await fs.readFile(target.annotation.path, 'utf8'), beforeConsume);
+
+  const beforeLink = await fs.readFile(target.annotation.path, 'utf8');
+  assert.equal(parseError(run([
+    'link-work-record',
+    'ann-target-healthy',
+    '--work-record',
+    'work-record:should-not-link',
+    '--json',
+  ], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(await fs.readFile(target.annotation.path, 'utf8'), beforeLink);
+
+  const beforeDelete = await fs.readFile(target.annotation.path, 'utf8');
+  assert.equal(parseError(run(['delete', 'ann-target-healthy', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(await fs.readFile(target.annotation.path, 'utf8'), beforeDelete);
+});
+
 test('pending annotation list stays read-only while mutations repair stale index', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-recovery-'));
   const env = {

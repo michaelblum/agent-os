@@ -49,6 +49,97 @@ function lockDir(env = process.env) {
   return path.join(pendingRoot(env), '.mutation.lock');
 }
 
+function pathInside(root, candidate) {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function lstatIfExists(file) {
+  try {
+    return fs.lstatSync(file);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    fail(`Pending annotation path cannot be inspected: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+  }
+}
+
+function realpathIfExists(file) {
+  try {
+    return fs.realpathSync(file);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    fail(`Pending annotation path cannot be resolved: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+  }
+}
+
+function failSymlink(file, label) {
+  fail(`Pending annotation ${label} cannot be a symlink: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+}
+
+export function canonicalPendingRoot(env = process.env, { forWrite = false } = {}) {
+  const root = pendingRoot(env);
+  const resolved = path.resolve(root);
+  const existing = lstatIfExists(root);
+  if (!existing) {
+    if (!forWrite) return { path: root, resolved, real: resolved, exists: false };
+    fs.mkdirSync(root, { recursive: true });
+    return canonicalPendingRoot(env, { forWrite: false });
+  }
+  if (existing.isSymbolicLink()) failSymlink(root, 'root');
+  if (!existing.isDirectory()) {
+    fail(`Pending annotation root is not a directory: ${root}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: root });
+  }
+  return { path: root, resolved, real: fs.realpathSync(root), exists: true };
+}
+
+export function canonicalRecordsDir(env = process.env, { forWrite = false } = {}) {
+  const root = canonicalPendingRoot(env, { forWrite });
+  const dir = recordsDir(env);
+  const existing = lstatIfExists(dir);
+  if (!existing) {
+    if (!forWrite) return null;
+    fs.mkdirSync(dir, { recursive: true });
+    return canonicalRecordsDir(env, { forWrite: false });
+  }
+  if (existing.isSymbolicLink()) failSymlink(dir, 'records directory');
+  if (!existing.isDirectory()) {
+    fail(`Pending annotation records path is not a directory: ${dir}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: dir });
+  }
+  const real = fs.realpathSync(dir);
+  if (!pathInside(root.real, real)) {
+    fail(`Pending annotation records directory escapes root: ${dir}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: dir });
+  }
+  return { path: dir, real, root };
+}
+
+export function canonicalIndexPath(env = process.env) {
+  const root = canonicalPendingRoot(env);
+  const file = indexPath(env);
+  const existing = lstatIfExists(file);
+  if (!existing) return { path: file, real: null, root };
+  if (existing.isSymbolicLink()) failSymlink(file, 'index file');
+  const real = realpathIfExists(file);
+  if (real && !pathInside(root.real, real)) {
+    fail(`Pending annotation index escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+  }
+  return { path: file, real, root };
+}
+
+export function canonicalRecordPath(id, env = process.env) {
+  const dir = canonicalRecordsDir(env);
+  const file = recordPath(id, env);
+  const existing = lstatIfExists(file);
+  if (!existing) return { path: file, real: null, records: dir };
+  if (!dir) {
+    fail(`Pending annotation record exists without records directory: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id });
+  }
+  if (existing.isSymbolicLink()) failSymlink(file, 'record file');
+  const real = realpathIfExists(file);
+  if (real && !pathInside(dir.root.real, real)) {
+    fail(`Pending annotation record escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id });
+  }
+  return { path: file, real, records: dir };
+}
+
 export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
   try {
     return readSharedJSONExisting(file);
@@ -63,16 +154,22 @@ export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
 }
 
 export function validatePendingAnnotationRecord(value, file, env = process.env) {
-  return validateModelPendingAnnotationRecord(value, {
+  const record = validateModelPendingAnnotationRecord(value, {
     file,
     runtime_mode: runtimeMode(env),
     pending_root: pendingRoot(env),
     record_path_for_id: (id) => recordPath(id, env),
   });
+  const expected = recordPath(record.id, env);
+  if (file !== expected || record.paths.record !== expected) {
+    fail(`Pending annotation record path does not match id: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id: record.id });
+  }
+  canonicalRecordPath(record.id, env);
+  return record;
 }
 
 export function loadRecord(id, env = process.env) {
-  const file = recordPath(id, env);
+  const file = canonicalRecordPath(id, env).path;
   const record = readJSONExisting(file);
   if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
   return validatePendingAnnotationRecord(record, file, env);
@@ -123,14 +220,16 @@ function assertIndex(value, file, env = process.env) {
 }
 
 function listRecordFiles(env = process.env) {
+  const dir = canonicalRecordsDir(env);
+  if (!dir) return [];
   try {
-    return fs.readdirSync(recordsDir(env))
+    return fs.readdirSync(dir.path)
       .filter((name) => name.endsWith('.json') && !name.includes('.tmp-'))
       .sort()
-      .map((name) => path.join(recordsDir(env), name));
+      .map((name) => path.join(dir.path, name));
   } catch (error) {
     if (error?.code === 'ENOENT') return [];
-    fail(`Pending annotation records cannot be listed: ${recordsDir(env)}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: recordsDir(env) });
+    fail(`Pending annotation records cannot be listed: ${dir.path}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: dir.path });
   }
 }
 
@@ -138,17 +237,25 @@ export function loadAllRecords(env = process.env) {
   return listRecordFiles(env).map((file) => validatePendingAnnotationRecord(readJSONExisting(file), file, env));
 }
 
-export function buildIndexFromRecords(env = process.env, previousIndex = null, { write = false } = {}) {
-  const previousCreatedAt = previousIndex?.created_at || nowISO();
-  const annotations = loadAllRecords(env)
+function summariesFromRecords(records, env = process.env) {
+  return records
     .map((record) => annotationSummary(record, env))
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  const index = {
+}
+
+function buildIndexFromRecordList(records, env = process.env, previousIndex = null) {
+  const previousCreatedAt = previousIndex?.created_at || nowISO();
+  return {
     ...defaultIndex(env),
     created_at: previousCreatedAt,
     updated_at: nowISO(),
-    annotations,
+    annotations: summariesFromRecords(records, env),
   };
+}
+
+export function buildIndexFromRecords(env = process.env, previousIndex = null, { write = false } = {}) {
+  const records = loadAllRecords(env);
+  const index = buildIndexFromRecordList(records, env, previousIndex);
   if (write) writeJSONAtomic(indexPath(env), index);
   return index;
 }
@@ -158,47 +265,95 @@ export function rebuildIndexFromRecords(env = process.env, previousIndex = null)
 }
 
 export function loadIndex(env = process.env) {
-  const raw = readJSONExisting(indexPath(env), { failOnCorrupt: false });
-  const asserted = assertIndex(raw, indexPath(env), env);
-  if (!asserted) return rebuildIndexFromRecords(env, raw);
-  const records = loadAllRecords(env);
-  const summaries = records.map((record) => annotationSummary(record, env));
+  return withPendingAnnotationMutation(env, () => {
+    const raw = readIndexCandidate(env);
+    const asserted = assertIndex(raw, indexPath(env), env);
+    if (!asserted) return rebuildIndexFromRecords(env, raw);
+    const records = loadAllRecords(env);
+    const summaries = summariesFromRecords(records, env);
+    const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
+    const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
+    const drift = asserted.annotations.length !== summaries.length
+      || summaries.some((summary) => {
+        const entry = assertedByID.get(summary.id);
+        return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
+      });
+    if (drift) return rebuildIndexFromRecords(env, asserted);
+    return asserted;
+  });
+}
+
+function readIndexCandidate(env = process.env) {
+  canonicalIndexPath(env);
+  return readJSONExisting(indexPath(env), { failOnCorrupt: false });
+}
+
+function indexDrifted(asserted, summaries) {
   const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
   const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
-  const drift = asserted.annotations.length !== summaries.length
+  return asserted.annotations.length !== summaries.length
     || summaries.some((summary) => {
       const entry = assertedByID.get(summary.id);
       return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
     });
-  if (drift) return rebuildIndexFromRecords(env, asserted);
-  return asserted;
 }
 
 export function loadIndexReadOnly(env = process.env) {
-  const raw = readJSONExisting(indexPath(env), { failOnCorrupt: false });
+  const raw = readIndexCandidate(env);
   const asserted = assertIndex(raw, indexPath(env), env);
   if (!asserted) return buildIndexFromRecords(env, null, { write: false });
   const records = loadAllRecords(env);
-  const summaries = records
-    .map((record) => annotationSummary(record, env))
-    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
-  const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
-  const drift = asserted.annotations.length !== summaries.length
-    || summaries.some((summary) => {
-      const entry = assertedByID.get(summary.id);
-      return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
-    });
-  if (drift) return buildIndexFromRecords(env, asserted, { write: false });
+  const summaries = summariesFromRecords(records, env);
+  if (indexDrifted(asserted, summaries)) return buildIndexFromRecords(env, asserted, { write: false });
   return asserted;
 }
 
-export function saveRecordAndRebuildIndex(record, env = process.env) {
-  writeJSONAtomic(recordPath(record.id, env), record);
-  rebuildIndexFromRecords(env);
+function recordsByID(records) {
+  return new Map(records.map((record) => [record.id, record]));
+}
+
+function validateProposedRecords(records, env = process.env) {
+  const seen = new Set();
+  for (const record of records) {
+    if (seen.has(record.id)) {
+      fail(`Duplicate pending annotation id in proposed store: ${record.id}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { id: record.id });
+    }
+    seen.add(record.id);
+    validatePendingAnnotationRecord(record, recordPath(record.id, env), env);
+  }
+}
+
+export function commitPendingAnnotationMutation(env, planMutation) {
+  return withPendingAnnotationMutation(env, () => {
+    const existingRecords = loadAllRecords(env);
+    const existingByID = recordsByID(existingRecords);
+    const planned = planMutation({
+      records: existingRecords,
+      recordsByID: existingByID,
+    });
+    const changedRecords = Array.isArray(planned?.changedRecords) ? planned.changedRecords : [];
+    const proposedByID = recordsByID(existingRecords);
+    for (const record of changedRecords) proposedByID.set(record.id, record);
+    const proposedRecords = [...proposedByID.values()]
+      .sort((a, b) => a.id.localeCompare(b.id));
+    validateProposedRecords(proposedRecords, env);
+    const previousIndex = readIndexCandidate(env);
+    const proposedIndex = buildIndexFromRecordList(proposedRecords, env, assertIndex(previousIndex, indexPath(env), env));
+    if (!assertIndex(proposedIndex, indexPath(env), env)) {
+      fail(`Pending annotation proposed index is invalid: ${indexPath(env)}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: indexPath(env) });
+    }
+    canonicalRecordsDir(env, { forWrite: true });
+    for (const record of changedRecords) {
+      canonicalRecordPath(record.id, env);
+      writeJSONAtomic(recordPath(record.id, env), record);
+    }
+    writeJSONAtomic(indexPath(env), proposedIndex);
+    return planned?.result;
+  });
 }
 
 export function withPendingAnnotationMutation(env, mutate) {
+  canonicalPendingRoot(env, { forWrite: true });
   const dir = lockDir(env);
   return withLocalStateMutationLock({
     lockDir: dir,

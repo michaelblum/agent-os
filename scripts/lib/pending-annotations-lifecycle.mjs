@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import {
   array,
   fail,
@@ -11,14 +10,13 @@ import {
   assertConsumableCapability,
 } from './pending-annotations-model.mjs';
 import {
+  commitPendingAnnotationMutation,
   loadIndexReadOnly,
   loadRecord,
   recordPath,
-  saveRecordAndRebuildIndex,
   stateRoot,
   pendingRoot,
   runtimeMode,
-  withPendingAnnotationMutation,
 } from './pending-annotations-store.mjs';
 import {
   compactResult,
@@ -41,12 +39,13 @@ function summaryContext(record, env = process.env) {
 }
 
 export function createPendingAnnotation(input, env = process.env) {
-  return withPendingAnnotationMutation(env, () => {
+  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
     const record = normalizeRecordInput(input, modelContext(env));
-    const file = recordPath(record.id, env);
-    if (fs.existsSync(file)) fail(`Pending annotation already exists: ${record.id}`, 'PENDING_ANNOTATION_EXISTS', { id: record.id });
-    saveRecordAndRebuildIndex(record, env);
-    return compactResult(record, 'created', summaryContext(record, env));
+    if (recordsByID.has(record.id)) fail(`Pending annotation already exists: ${record.id}`, 'PENDING_ANNOTATION_EXISTS', { id: record.id });
+    return {
+      changedRecords: [record],
+      result: compactResult(record, 'created', summaryContext(record, env)),
+    };
   });
 }
 
@@ -76,8 +75,9 @@ export function readPendingAnnotation(id, env = process.env) {
 }
 
 export function consumePendingAnnotation(id, options = {}, env = process.env) {
-  return withPendingAnnotationMutation(env, () => {
-    const record = loadRecord(id, env);
+  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+    const record = recordsByID.get(id);
+    if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     assertConsumableCapability(record, id);
     const status = record.capability?.status || 'blocked';
     if (record.lifecycle.state !== 'pending' || status === 'unsupported' || status === 'ambiguous' || status === 'blocked') {
@@ -102,17 +102,20 @@ export function consumePendingAnnotation(id, options = {}, env = process.env) {
         },
       },
     };
-    saveRecordAndRebuildIndex(consumed, env);
     return {
-      ...compactResult(consumed, 'consumed', summaryContext(consumed, env)),
-      consumed_annotation: consumed,
+      changedRecords: [consumed],
+      result: {
+        ...compactResult(consumed, 'consumed', summaryContext(consumed, env)),
+        consumed_annotation: consumed,
+      },
     };
   });
 }
 
 export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.env) {
-  return withPendingAnnotationMutation(env, () => {
-    const record = loadRecord(id, env);
+  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+    const record = recordsByID.get(id);
+    if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     if (record.lifecycle.state === 'deleted') {
       fail(`Pending annotation is deleted and cannot be linked: ${id}`, 'PENDING_ANNOTATION_NOT_LINKABLE', {
         id,
@@ -137,18 +140,21 @@ export function linkPendingAnnotationWorkRecord(id, input = {}, env = process.en
       },
       work_record_links: [...array(record.work_record_links), link],
     };
-    saveRecordAndRebuildIndex(linked, env);
     return {
-      ...compactResult(linked, 'linked', summaryContext(linked, env)),
-      work_record_link: link,
-      linked_annotation: linked,
+      changedRecords: [linked],
+      result: {
+        ...compactResult(linked, 'linked', summaryContext(linked, env)),
+        work_record_link: link,
+        linked_annotation: linked,
+      },
     };
   });
 }
 
 export function deletePendingAnnotation(id, env = process.env) {
-  return withPendingAnnotationMutation(env, () => {
-    const record = loadRecord(id, env);
+  return commitPendingAnnotationMutation(env, ({ recordsByID }) => {
+    const record = recordsByID.get(id);
+    if (!record) fail(`Pending annotation not found: ${id}`, 'PENDING_ANNOTATION_NOT_FOUND', { id });
     if (record.lifecycle.state === 'deleted') {
       fail(`Pending annotation is already deleted: ${id}`, 'PENDING_ANNOTATION_NOT_CONSUMABLE', {
         id,
@@ -166,7 +172,9 @@ export function deletePendingAnnotation(id, env = process.env) {
         deleted_at: now,
       },
     };
-    saveRecordAndRebuildIndex(deleted, env);
-    return compactResult(deleted, 'deleted', summaryContext(deleted, env));
+    return {
+      changedRecords: [deleted],
+      result: compactResult(deleted, 'deleted', summaryContext(deleted, env)),
+    };
   });
 }
