@@ -7,6 +7,9 @@ import {
   collectExperienceRuntimeFacts,
 } from './experience-runtime-facts.mjs';
 import {
+  experienceRuntimeEnv,
+} from './experience-runtime-env.mjs';
+import {
   buildContentRootStatus,
 } from './experience-runtime-content-status.mjs';
 import {
@@ -56,6 +59,9 @@ export function buildExperienceRuntimeContext(id, {
   repoRoot = process.cwd(),
   prefix = env.AOS_INVOCATION_DISPLAY_NAME || './aos',
 } = {}) {
+  const initialRuntimeEnv = experienceRuntimeEnv({ env, repoRoot });
+  const manifest = discoverExperience(id, { experiencesRoot: initialRuntimeEnv.experiencesRoot });
+  const roots = resolveContentRoots(manifest, { repoRoot: initialRuntimeEnv.repoRoot });
   const {
     runtimeEnv,
     active,
@@ -65,8 +71,6 @@ export function buildExperienceRuntimeContext(id, {
     contentStatus,
     showList,
   } = collectExperienceRuntimeFacts({ env, repoRoot });
-  const manifest = discoverExperience(id, { experiencesRoot: runtimeEnv.experiencesRoot });
-  const roots = resolveContentRoots(manifest, { repoRoot: runtimeEnv.repoRoot });
   const rootsByID = rootMap(roots);
   const service = buildServiceStatus(serviceStatus);
   const permissions = buildPermissionStatus(permissionStatus);

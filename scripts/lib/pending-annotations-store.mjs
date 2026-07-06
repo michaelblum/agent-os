@@ -350,8 +350,8 @@ export function pendingAnnotationStoreStatus(env = process.env) {
     root: pendingRoot(env),
     records_dir: recordsDir(env),
     index_path: indexPath(env),
-    lock: inspectLockStatus(env),
   };
+  const unknownLock = () => ({ status: 'unknown', path: lockDir(env) });
 
   try {
     const root = canonicalPendingRoot(env, { forWrite: false });
@@ -359,6 +359,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
       return {
         status: 'not_initialized',
         ...base,
+        lock: unknownLock(),
         root_status: 'missing',
         records_status: 'missing',
         index_status: 'missing',
@@ -369,6 +370,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
     return {
       status: 'corrupt',
       ...base,
+      lock: unknownLock(),
       root_status: storageErrorStatus(error),
       records_status: 'unknown',
       index_status: 'unknown',
@@ -376,10 +378,13 @@ export function pendingAnnotationStoreStatus(env = process.env) {
     };
   }
 
-  if (base.lock.status === 'corrupt') {
+  const lock = inspectLockStatus(env);
+  const baseWithLock = { ...base, lock };
+
+  if (lock.status === 'corrupt') {
     return {
       status: 'corrupt',
-      ...base,
+      ...baseWithLock,
       root_status: 'exists',
       records_status: 'unknown',
       index_status: 'unknown',
@@ -398,7 +403,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
   } catch (error) {
     return {
       status: 'corrupt',
-      ...base,
+      ...baseWithLock,
       root_status: 'exists',
       records_status: storageErrorStatus(error),
       index_status: 'unknown',
@@ -416,7 +421,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
   } catch (error) {
     return {
       status: 'corrupt',
-      ...base,
+      ...baseWithLock,
       root_status: 'exists',
       records_status: recordsStatus,
       index_status: storageErrorStatus(error),
@@ -425,8 +430,8 @@ export function pendingAnnotationStoreStatus(env = process.env) {
   }
 
   return {
-    status: base.lock.status === 'stale' ? 'stale' : (recordsStatus === 'exists' ? 'initialized' : 'not_initialized'),
-    ...base,
+    status: lock.status === 'stale' ? 'stale' : (recordsStatus === 'exists' ? 'initialized' : 'not_initialized'),
+    ...baseWithLock,
     root_status: 'exists',
     records_status: recordsStatus,
     index_status: indexStatus,

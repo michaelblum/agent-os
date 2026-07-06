@@ -173,13 +173,39 @@ async function runContext(tmp, id, responses) {
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   return {
     payload: JSON.parse(result.stdout),
-    calls: (await fs.readFile(log, 'utf8'))
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line)),
+    calls: await readFakeAosCalls(log),
   };
 }
+
+async function readFakeAosCalls(log) {
+  let text = '';
+  try {
+    text = await fs.readFile(log, 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  return text
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+test('experience status rejects invalid id before passive fake AOS probes', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-invalid-id-'));
+  const { fake, log } = await writeFakeAos(tmp, {});
+
+  const result = runNode(['scripts/aos-experience.mjs', 'status', 'missing-experience', '--json'], {
+    AOS_STATE_ROOT: tmp,
+    AOS_PATH: fake,
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify({}),
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.equal(JSON.parse(result.stderr).code, 'EXPERIENCE_NOT_FOUND');
+  assert.deepEqual(await readFakeAosCalls(log), []);
+});
 
 test('experience status id path treats placeholder state root as legacy fallback', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-placeholder-'));

@@ -196,6 +196,30 @@ test('pending annotation store rejects symlinked records directory before read o
   assert.equal(parseError(run(['list', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
 });
 
+test('pending annotation store status rejects symlinked root before inspecting lock owner', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-root-symlink-'));
+  const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-root-outside-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const pendingRoot = path.join(stateRoot, 'repo', 'pending-annotations');
+  await fs.mkdir(path.dirname(pendingRoot), { recursive: true });
+  await fs.mkdir(path.join(outsideRoot, '.mutation.lock'), { recursive: true });
+  await fs.writeFile(path.join(outsideRoot, '.mutation.lock', 'owner.json'), `${JSON.stringify({
+    pid: process.pid,
+  })}\n`, 'utf8');
+  await fs.symlink(outsideRoot, pendingRoot);
+
+  const status = pendingAnnotationStoreStatus(env);
+  assert.equal(status.status, 'corrupt');
+  assert.equal(status.root_status, 'symlink');
+  assert.equal(status.records_status, 'unknown');
+  assert.equal(status.index_status, 'unknown');
+  assert.equal(status.lock.status, 'unknown');
+  assert.equal(Object.hasOwn(status.lock, 'owner_pid'), false);
+});
+
 test('pending annotation store status classifies symlinked index without following it', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-symlink-'));
   const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-outside-'));
