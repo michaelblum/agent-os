@@ -29,6 +29,9 @@
 
 ## Child DOX Index
 
+- `agent-sync/` is a retired historical tombstone for ADR 0017. It must not
+  sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
+  user-global agent registrations.
 - `aos-agent-workspace/` contains the saved perception workspace and compact
   ref loop skill for normal `aos see` / `aos do` workflows.
 - Each direct child folder is a standalone skill package.

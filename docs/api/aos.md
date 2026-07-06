@@ -1083,11 +1083,11 @@ aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
 aos work-record repair guide shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record repair guide source.json --authorization workflow-gate-authorization.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --json
-aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json
-aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json
-aos work-record repair bundle status --bundle-root /tmp/aos-work-record-repair-bundle --json
-aos work-record repair bundle status --bundle-parent /tmp/aos-recovery-bundles --json
-aos work-record repair bundle inspect /tmp/aos-work-record-repair-bundle --json
+aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --dry-run --json
+aos work-record repair bundle source.json --output-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --authorization workflow-gate-authorization.json --json
+aos work-record repair bundle status --bundle-root "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
+aos work-record repair bundle status --bundle-parent "$(pwd -P)/.aos-work/repair-bundles" --json
+aos work-record repair bundle inspect "$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref" --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --dry-run --json
 aos work-record repair execute --attempt-plan repair-attempt-plan.json --execution-root /tmp/aos-exec --artifact-root /tmp/aos-artifacts --json
 aos work-record repair finalize --source source.json --attempt-plan repair-attempt-plan.json --attempt-artifact repair-attempt-artifact.json --replacement-root /tmp/work-records --index-root /tmp/work-record-index --dry-run --json
@@ -1105,6 +1105,11 @@ aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/re
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
 aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
 ```
+
+For `repair bundle`, `--output-root` must resolve through real, non-symlinked
+ancestors. On macOS, `/tmp` is a symlinked ancestor and is not safe for these
+copy-paste examples. Use a caller-owned real directory such as the physical
+workspace path from `pwd -P`, or another verified non-symlinked root.
 
 The current verifier profile is
 `aos.verifier.work-record.v0.report-only`. It reads Work Records and returns a

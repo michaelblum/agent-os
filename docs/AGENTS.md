@@ -23,6 +23,9 @@ developer workflow docs, design notes, reports, references, and archives.
 - Put stable contracts in the narrowest durable home.
 - Do not bury architecture decisions in reports or work cards when an ADR,
   schema, API doc, or guide is the owner.
+- Treat reports and work cards as historical evidence or dispatch context until
+  current source manifests, schemas, `docs/api/`, help output, tests, Git, or
+  live AOS state confirm the claim.
 - Keep archives clearly historical and avoid linking them as active authority
   unless the current doc names the reason.
 

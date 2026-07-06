@@ -4,10 +4,11 @@
   "title": "AOS External Command Manifest",
   "description": "Manifest-backed external command launcher contract for the stable AOS Swift dispatcher.",
   "type": "object",
-  "required": ["schema_version", "commands"],
+  "required": ["generated", "schema_version", "commands"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
+    "generated": { "$ref": "#/$defs/generated_manifest" },
     "schema_version": { "const": 1 },
     "commands": {
       "type": "array",
@@ -16,6 +17,30 @@
     }
   },
   "$defs": {
+    "generated_manifest": {
+      "type": "object",
+      "required": ["artifact", "description", "source_owner", "source_path", "regeneration_command"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact": { "const": true },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_owner": {
+          "type": "string",
+          "const": "manifests/AGENTS.md"
+        },
+        "source_path": {
+          "type": "string",
+          "const": "manifests/commands/source/external/"
+        },
+        "regeneration_command": {
+          "type": "string",
+          "const": "node scripts/generate-command-manifests.mjs"
+        }
+      }
+    },
     "command": {
       "type": "object",
       "required": ["path", "summary", "executable", "argv_prefix"],

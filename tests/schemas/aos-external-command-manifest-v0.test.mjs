@@ -97,6 +97,26 @@ test('canonical external command manifest matches the schema', () => {
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
+test('generated command manifests advertise source provenance', async () => {
+  const registry = await loadJson(registryPath);
+  const external = await loadJson(manifestPath);
+
+  assert.deepEqual(registry.generated, {
+    artifact: true,
+    description: 'Generated command manifest. Edit source fragments, not this file.',
+    source_owner: 'manifests/AGENTS.md',
+    source_path: 'manifests/commands/source/aos/',
+    regeneration_command: 'node scripts/generate-command-manifests.mjs',
+  });
+  assert.deepEqual(external.generated, {
+    artifact: true,
+    description: 'Generated command manifest. Edit source fragments, not this file.',
+    source_owner: 'manifests/AGENTS.md',
+    source_path: 'manifests/commands/source/external/',
+    regeneration_command: 'node scripts/generate-command-manifests.mjs',
+  });
+});
+
 test('external command manifest executable targets exist', async () => {
   const manifest = await loadJson(manifestPath);
   for (const command of manifest.commands) {

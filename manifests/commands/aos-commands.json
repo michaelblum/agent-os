@@ -1,4 +1,11 @@
 {
+  "generated" : {
+    "artifact" : true,
+    "description" : "Generated command manifest. Edit source fragments, not this file.",
+    "source_owner" : "manifests/AGENTS.md",
+    "source_path" : "manifests/commands/source/aos/",
+    "regeneration_command" : "node scripts/generate-command-manifests.mjs"
+  },
   "commands" : [
     {
       "forms" : [
@@ -12348,8 +12355,8 @@
             ]
           },
           "examples" : [
-            "aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root /tmp/aos-work-record-repair-bundle --dry-run --json",
-            "aos work-record repair bundle source.json --output-root /tmp/aos-work-record-repair-bundle --authorization workflow-gate-authorization.json --json"
+            "aos work-record repair bundle shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --output-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --dry-run --json",
+            "aos work-record repair bundle source.json --output-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --authorization workflow-gate-authorization.json --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -12424,8 +12431,8 @@
             ]
           },
           "examples" : [
-            "aos work-record repair bundle status --bundle-root /tmp/aos-work-record-repair-bundle --json",
-            "aos work-record repair bundle status --bundle-parent /tmp/aos-recovery-bundles --json"
+            "aos work-record repair bundle status --bundle-root \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --json",
+            "aos work-record repair bundle status --bundle-parent \"$(pwd -P)/.aos-work/repair-bundles\" --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -12483,7 +12490,7 @@
             }
           ],
           "examples" : [
-            "aos work-record repair bundle inspect /tmp/aos-work-record-repair-bundle --json"
+            "aos work-record repair bundle inspect \"$(pwd -P)/.aos-work/repair-bundles/repairable-stale-saved-ref\" --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

@@ -109,8 +109,10 @@ Validate each finding in the report:
 Also validate the aligned-area claims:
 
 - Workbench Subject model aligns with schema/helpers.
-- Work Record v0 terminology aligns with the schema, with the caveat that the
-  schema is not wired to live toolkit helpers yet.
+- Work Record v0 terminology aligns with the schema. Historical caveat: this
+  card predated live bounded Work Record CLI/toolkit surfaces. Verify current
+  Work Record truth in the schema, `docs/api/aos.md`, `aos work-record` help,
+  and toolkit tests.
 
 For each item, classify it as:
 

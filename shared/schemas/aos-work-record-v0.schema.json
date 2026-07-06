@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-v0.schema.json",
   "title": "AOS Work Record v0",
-  "description": "Design-schema sketch for the durable AOS Work Record artifact. This is not wired to live toolkit helpers yet.",
+  "description": "Schema-backed v0 contract for durable AOS Work Record artifacts. Work Records are live through bounded CLI and toolkit producer/consumer surfaces, while autonomous replay and broad workflow automation remain outside this report-oriented contract.",
   "type": "object",
   "required": [
     "type",

@@ -200,8 +200,12 @@ Evidence:
 
 The Work Record terminology in `CONTEXT.md` broadly matches the v0 schema for
 origin, references, execution map, evidence, claims, claim results, verifier
-report, and health. The key caveat is that the schema describes itself as a
-design-schema sketch that is not wired to live toolkit helpers yet.
+report, and health. Historical caveat: at the time of this audit, the schema
+described itself as a design-schema sketch before the bounded live CLI/toolkit
+surfaces existed.
+That caveat is no longer current; verify Work Record truth in
+`shared/schemas/aos-work-record-v0.schema.json`, `docs/api/aos.md`, current
+`aos work-record` help, and toolkit tests.
 
 Evidence:
 

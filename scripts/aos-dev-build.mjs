@@ -13,7 +13,28 @@ function error(message, code = 'UNKNOWN_FLAG') {
   process.exit(1);
 }
 
+function usage() {
+  return [
+    'Usage: aos dev build [--release] [--force] [--no-restart] [--json]',
+    '',
+    'Wraps repo-root build.sh and always passes --no-restart unless already supplied.',
+    'Running this command may rebuild and ad-hoc re-sign the repo-mode ./aos binary.',
+    '',
+    'Options:',
+    '  --release     Build optimized release binary',
+    '  --force       Force rebuild even when inputs appear current',
+    '  --no-restart  Do not restart the managed daemon after building',
+    '  --json        Emit machine-readable build result',
+    '  --help, -h    Print this help without building',
+    '',
+  ].join('\n');
+}
+
 function buildCommand(args) {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(usage());
+    process.exit(0);
+  }
   const asJSON = args.includes('--json');
   const passthrough = args.filter((arg) => !['--help', '-h', '--json'].includes(arg));
   for (const arg of passthrough) {

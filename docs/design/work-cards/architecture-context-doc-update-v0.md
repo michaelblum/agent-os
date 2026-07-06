@@ -106,8 +106,10 @@ Preserve the validated aligned areas:
 - Workbench Subject model: high-level `capabilities[]`, dotted `contracts[]`,
   `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`.
 - Work Record v0 terminology: origin, references, execution map, evidence,
-  claims, claim results, verifier report, and health. Keep the caveat that the
-  v0 schema is a design-schema sketch not wired to live toolkit helpers yet.
+  claims, claim results, verifier report, and health. Historical caveat: this
+  card predated live bounded Work Record CLI/toolkit surfaces. Verify current
+  Work Record truth in the schema, `docs/api/aos.md`, `aos work-record` help,
+  and toolkit tests.
 
 ## Existing Code To Use As Evidence
 

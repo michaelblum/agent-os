@@ -72,6 +72,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from sign-only repair or no-op checks. Only actual rebuilds
   should drive TCC-sensitive human-attention behavior.
+- Mutating command adapters must handle `--help` and `-h` before execution so
+  help reads never trigger builds, service restarts, TCC-sensitive signing, or
+  other runtime mutation.
 - Pending annotation records must be closed derived models at persistence and
   readback: saved-ref actionability is derived from `target.saved_ref`, and
   `source_capture` is either `null` or the public saved-capture shape.

@@ -738,6 +738,21 @@ else
     fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
+if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/tmp/aos-dev-build-help.err \
+    && node scripts/aos-dev-build.mjs build -h >/tmp/aos-dev-build-help-short.out 2>/tmp/aos-dev-build-help-short.err \
+    && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help.out \
+    && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help-short.out \
+    && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help.out \
+    && ! grep -q '^Signing aos' /tmp/aos-dev-build-help.out \
+    && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \
+    && ! grep -q '^Signing aos' /tmp/aos-dev-build-help-short.out
+then
+    pass "direct dev build help is non-mutating"
+else
+    fail "direct dev build help triggered build output or failed"
+fi
+rm -f /tmp/aos-dev-build-help.out /tmp/aos-dev-build-help.err /tmp/aos-dev-build-help-short.out /tmp/aos-dev-build-help-short.err
+
 # --- 20. native source keeps product names out of the repo-mode binary path ---
 if python3 - <<'PY'
 from pathlib import Path

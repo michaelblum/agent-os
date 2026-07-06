@@ -17,6 +17,7 @@ const SOURCE_SCHEMA_VERSION = 1;
 const SOURCE_FILE_RE = /^\d{2}-[a-z0-9_.-]+\.json$/;
 const AOS_REGISTRY_NAME = 'aos';
 const AOS_REGISTRY_VERSION = '0.1.0';
+const REGENERATION_COMMAND = 'node scripts/generate-command-manifests.mjs';
 const EXTERNAL_EXECUTABLES = new Set(['$AOS_PATH', '/usr/bin/env', '/bin/bash']);
 const EXTERNAL_STDIO = new Set(['capture', 'inherit']);
 const EXTERNAL_CWD = new Set(['repo']);
@@ -70,6 +71,16 @@ function sortedJSONString(value) {
 
 function sourceIDFromFile(file) {
   return file.replace(/^\d{2}-/, '').replace(/\.json$/, '');
+}
+
+function generatedMetadata(sourcePath) {
+  return {
+    artifact: true,
+    description: 'Generated command manifest. Edit source fragments, not this file.',
+    source_owner: 'manifests/AGENTS.md',
+    source_path: sourcePath,
+    regeneration_command: REGENERATION_COMMAND,
+  };
 }
 
 async function readJSON(file) {
@@ -389,11 +400,13 @@ async function main() {
   validateExternalManifest(externalCommands, registryCommands);
 
   const registry = {
+    generated: generatedMetadata('manifests/commands/source/aos/'),
     commands: registryCommands,
     name: AOS_REGISTRY_NAME,
     version: AOS_REGISTRY_VERSION,
   };
   const external = {
+    generated: generatedMetadata('manifests/commands/source/external/'),
     schema_version: 1,
     commands: externalCommands,
   };

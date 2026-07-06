@@ -12,3 +12,8 @@ verification was expected.
 When reconstructing state, query live Git, GitHub, and AOS state first. Read
 Foreman narratives, issue comments, and old work cards as rationale and history,
 not as current status sources.
+
+For current contracts, prefer the owning source surface: ADRs, schemas,
+`docs/api/`, command source manifests, generated help output, applicable
+`AGENTS.md` files, tests, and live source code. Use work cards only as evidence
+pointers after checking that source truth.

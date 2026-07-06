@@ -23,6 +23,13 @@ the agent-relay readiness state, read
 `docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md` before
 inferring active work from old work cards, stashes, or branch names.
 
+Reports and work cards under `docs/dev/` are evidence and routing history, not
+standing command, schema, runtime, or architecture contracts. Before acting on a
+claim from those files, verify the current source surface first: command source
+manifests under `manifests/commands/source/`, generated help output, schemas
+under `shared/schemas/`, `docs/api/`, applicable `AGENTS.md` files, tests, and
+live Git/AOS state when the task allows runtime reads.
+
 `agent-capabilities.json` is the source of truth for typed developer
 capabilities exposed through `./aos dev capabilities`. `.docks/*/dock.json`
 profiles resolve against that manifest through `./aos dev docks`, so dock

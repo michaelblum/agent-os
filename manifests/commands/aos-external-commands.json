@@ -1,4 +1,11 @@
 {
+  "generated": {
+    "artifact": true,
+    "description": "Generated command manifest. Edit source fragments, not this file.",
+    "source_owner": "manifests/AGENTS.md",
+    "source_path": "manifests/commands/source/external/",
+    "regeneration_command": "node scripts/generate-command-manifests.mjs"
+  },
   "schema_version": 1,
   "commands": [
     {

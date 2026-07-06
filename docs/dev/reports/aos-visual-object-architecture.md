@@ -1,5 +1,10 @@
 # AOS Visual Object Architecture: Avatar as Reference Implementation
 
+> Historical report: do not treat this file as the current architecture
+> contract by itself. Verify current Visual Object contract truth in
+> `docs/adr/0014-visual-object-descriptor-contract.md`, shared schemas,
+> `docs/api/`, source code, and tests before using report prose as guidance.
+
 **Date**: 2026-05-31  
 **Status**: Accepted architecture. Phase 5 consolidation and Phase 6 closure
 now provide reusable descriptor/update contracts, resource-lifecycle evidence,
