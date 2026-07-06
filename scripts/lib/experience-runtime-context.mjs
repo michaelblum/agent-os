@@ -607,7 +607,7 @@ export function buildExperienceRuntimeContext(id, {
     mode: runtimeEnv.mode,
     repoRoot: runtimeEnv.repoRoot,
   });
-  const pendingAnnotations = buildPendingAnnotationStatus({ env, manifest });
+  const pendingAnnotations = buildPendingAnnotationStatus({ env: runtimeEnv.env, manifest });
   const runtime = buildRuntimeSummary({
     mode: runtimeEnv.mode,
     stateRootPath,

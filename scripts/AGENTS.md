@@ -12,8 +12,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - `aos-*` scripts implement command-surface adapters and developer tooling.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
-  content-root resolution, status-item URL equivalence, and mounted-surface
-  menu projection helpers used by experience activation and status.
+  experience runtime environment normalization, content-root resolution,
+  status-item URL equivalence, and mounted-surface menu projection helpers used
+  by experience activation and status.
 - `lib/experience-runtime-facts.mjs` owns read-only fact collection for
   `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
   active-experience and runtime-config file reads.

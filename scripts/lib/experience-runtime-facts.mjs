@@ -4,10 +4,6 @@ import path from 'node:path';
 import {
   experienceEnvironment,
 } from './experience-manifest.mjs';
-import {
-  stateDir as workspaceStateDir,
-  stateRoot as workspaceStateRoot,
-} from './agent-workspace/core.mjs';
 
 function readJSONIfExists(file) {
   try {
@@ -111,8 +107,9 @@ export function collectExperienceRuntimeFacts({
   repoRoot = process.cwd(),
 } = {}) {
   const runtimeEnv = experienceEnvironment({ env, repoRoot });
-  const stateRootPath = workspaceStateRoot(env);
-  const stateDirPath = workspaceStateDir(env);
+  const normalizedEnv = runtimeEnv.env;
+  const stateRootPath = runtimeEnv.stateRoot;
+  const stateDirPath = runtimeEnv.stateDir;
   return {
     runtimeEnv,
     stateRootPath,
@@ -120,19 +117,19 @@ export function collectExperienceRuntimeFacts({
     active: readActiveExperience(stateDirPath, stateRootPath),
     config: readRuntimeConfig(path.join(stateDirPath, 'config.json')),
     serviceStatus: runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
-      env,
+      env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     permissionStatus: runAosJSON(runtimeEnv.aos, ['permissions', 'check', '--json'], {
-      env,
+      env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     contentStatus: runAosJSON(runtimeEnv.aos, ['content', 'status', '--json'], {
-      env,
+      env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     showList: runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
-      env,
+      env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
   };

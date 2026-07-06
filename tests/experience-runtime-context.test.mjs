@@ -154,6 +154,51 @@ async function runContext(tmp, id, responses) {
   };
 }
 
+test('experience status id path treats placeholder state root as legacy fallback', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-placeholder-'));
+  const home = path.join(tmp, 'home');
+  const stateRoot = path.join(home, '.config', 'aos');
+  const expectedStatePath = path.join(stateRoot, 'repo', 'experience-state.json');
+  await writeJSON(expectedStatePath, {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+
+  const { fake, log } = await writeFakeAos(tmp, baseResponses(stateRoot));
+  const env = {
+    HOME: home,
+    AOS_STATE_ROOT: '$AOS_STATE_ROOT',
+    AOS_PATH: fake,
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(baseResponses(stateRoot)),
+  };
+
+  const legacy = runNode(['scripts/aos-experience.mjs', 'status', '--json'], env);
+  assert.equal(legacy.status, 0, `${legacy.stdout}${legacy.stderr}`);
+  assert.equal(JSON.parse(legacy.stdout).active_experience, 'operator-fixture');
+
+  const context = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], env);
+  assert.equal(context.status, 0, `${context.stdout}${context.stderr}`);
+  const payload = JSON.parse(context.stdout);
+  assert.equal(payload.runtime.state_root, stateRoot);
+  assert.equal(payload.runtime.state_root.includes('$AOS_STATE_ROOT'), false);
+  assert.equal(payload.active_experience.source_path, expectedStatePath);
+  assert.equal(payload.active_experience.status, 'current');
+  assert.equal(payload.pending_annotations.root, path.join(stateRoot, 'repo', 'pending-annotations'));
+
+  const callText = (await fs.readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line).join(' '));
+  assert.deepEqual(callText.sort(), [
+    'content status --json',
+    'permissions check --json',
+    'service status --mode repo --json',
+    'show list --json',
+  ].sort());
+});
+
 test('experience status reports healthy operator fixture runtime context without mutation', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-healthy-'));
   const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });

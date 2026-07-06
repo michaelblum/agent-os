@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
@@ -15,26 +16,42 @@ export class ExperienceManifestError extends Error {
   }
 }
 
+function envValue(env, key) {
+  const value = env[key];
+  return typeof value === 'string' && value && !value.startsWith('$') ? value : null;
+}
+
 export function experienceEnvironment({
   env = process.env,
   repoRoot = process.cwd(),
 } = {}) {
   const resolvedRepoRoot = path.resolve(repoRoot);
-  const experiencesRoot = env.AOS_EXPERIENCES_DIR && !env.AOS_EXPERIENCES_DIR.startsWith('$')
-    ? path.resolve(env.AOS_EXPERIENCES_DIR)
+  const stateRoot = envValue(env, 'AOS_STATE_ROOT')
+    ? path.resolve(envValue(env, 'AOS_STATE_ROOT'))
+    : path.join(os.homedir(), '.config', 'aos');
+  const mode = envValue(env, 'AOS_RUNTIME_MODE') || 'repo';
+  const experiencesRoot = envValue(env, 'AOS_EXPERIENCES_DIR')
+    ? path.resolve(envValue(env, 'AOS_EXPERIENCES_DIR'))
     : path.join(resolvedRepoRoot, 'experiences');
-  const aos = env.AOS_PATH && !env.AOS_PATH.startsWith('$')
-    ? env.AOS_PATH
+  const aos = envValue(env, 'AOS_PATH')
+    ? envValue(env, 'AOS_PATH')
     : path.join(resolvedRepoRoot, 'aos');
-  const mode = env.AOS_RUNTIME_MODE && !env.AOS_RUNTIME_MODE.startsWith('$')
-    ? env.AOS_RUNTIME_MODE
-    : 'repo';
+  const stateDir = path.join(stateRoot, mode);
+  const normalizedEnv = {
+    ...env,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: aos,
+    AOS_RUNTIME_MODE: mode,
+    AOS_STATE_ROOT: stateRoot,
+  };
   return {
     aos,
-    env,
+    env: normalizedEnv,
     experiencesRoot,
     mode,
     repoRoot: resolvedRepoRoot,
+    stateDir,
+    stateRoot,
   };
 }
 
