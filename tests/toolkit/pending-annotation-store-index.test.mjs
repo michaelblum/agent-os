@@ -83,6 +83,37 @@ test('pending annotation store status validates record JSON before reporting ini
   assert.notEqual(status.status, 'initialized');
 });
 
+test('pending annotation invalid durable record filename is corrupt state, not input error', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-status-invalid-filename-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const recordPath = path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'bad name.json');
+  await fs.mkdir(path.dirname(recordPath), { recursive: true });
+  await fs.writeFile(recordPath, '{"schema_version":"aos.pending-annotation.v0"}\n', 'utf8');
+  const beforeText = await fs.readFile(recordPath, 'utf8');
+  const indexPath = path.join(stateRoot, 'repo', 'pending-annotations', 'index.json');
+
+  const err = parseError(run(['list', '--json'], env));
+  assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+  assert.equal(err.storage_status, 'invalid_record_filename');
+  assert.equal(err.path_status, 'corrupt');
+  assert.equal(err.path, recordPath);
+  assert.notEqual(err.code, 'INVALID_ID');
+  assert.equal(await fs.readFile(recordPath, 'utf8'), beforeText);
+  assert.equal(await readTextIfExists(indexPath), null);
+
+  const status = pendingAnnotationStoreStatus(env);
+  assert.equal(status.status, 'corrupt');
+  assert.equal(status.records_status, 'corrupt');
+  assert.equal(status.records_error_status, 'corrupt');
+  assert.equal(status.records_error_storage_status, 'invalid_record_filename');
+  assert.equal(status.records_error_path_status, 'corrupt');
+  assert.equal(status.records_error_path, recordPath);
+  assert.equal(status.record_count, 0);
+});
+
 test('pending annotation record id must match its filename', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-wrong-id-'));
   const env = {

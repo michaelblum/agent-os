@@ -28,7 +28,8 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   `aos experience status <id> --json`; focused `lib/experience-runtime-*`
   projector modules own content-root status, status-item/menu status,
   runtime readiness, status ranking, diagnostics, capabilities, and
-  recommendations.
+  recommendations. Mounted-surface menu projection status must compare the full
+  canonical projection envelope, not only menu ids.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
   saved-ref DTO normalization, artifact-ref DTO normalization, source-capture
@@ -40,7 +41,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   disposable index cache projection. It also owns the read-only pending
   annotation store status projection consumed by experience runtime context.
   It must call model helpers for record validation and summary projection
-  rather than reimplementing schema logic.
+  rather than reimplementing schema logic. Store scans must classify durable
+  record filenames with store-owned parsing; invalid filenames under
+  `records/` are corrupt durable state, not public input-id errors.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.

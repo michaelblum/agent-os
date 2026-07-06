@@ -41,7 +41,11 @@ export function recordsDir(env = process.env) {
 }
 
 export function recordPath(id, env = process.env) {
-  return path.join(recordsDir(env), `${validateID(id, 'annotation id')}.json`);
+  return recordPathForValidatedID(validateID(id, 'annotation id'), env);
+}
+
+function recordPathForValidatedID(id, env = process.env) {
+  return path.join(recordsDir(env), `${id}.json`);
 }
 
 function lockDir(env = process.env) {
@@ -193,6 +197,11 @@ export function canonicalIndexPath(env = process.env) {
 export function canonicalRecordPath(id, env = process.env) {
   const dir = canonicalRecordsDir(env);
   const file = recordPath(id, env);
+  return canonicalRecordFile({ id, path: file }, dir);
+}
+
+function canonicalRecordFile(recordFile, dir) {
+  const { id, path: file } = recordFile;
   const existing = lstatIfExists(file);
   if (!existing) return { path: file, real: null, records: dir };
   if (!dir) {
@@ -236,9 +245,9 @@ export function validatePendingAnnotationRecord(value, file, env = process.env) 
     file,
     runtime_mode: runtimeMode(env),
     pending_root: pendingRoot(env),
-    record_path_for_id: (id) => recordPath(id, env),
+    record_path_for_id: (id) => recordPathForValidatedID(id, env),
   });
-  const expected = recordPath(record.id, env);
+  const expected = recordPathForValidatedID(record.id, env);
   if (file !== expected || record.paths.record !== expected) {
     fail(`Pending annotation record path does not match id: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
       path: file,
@@ -246,7 +255,7 @@ export function validatePendingAnnotationRecord(value, file, env = process.env) 
       storage_status: 'invalid_record_shape',
     });
   }
-  canonicalRecordPath(record.id, env);
+  canonicalRecordFile({ id: record.id, path: expected }, canonicalRecordsDir(env));
   return record;
 }
 
@@ -258,8 +267,11 @@ export function loadRecord(id, env = process.env) {
 }
 
 export function annotationSummary(record, env = process.env) {
-  validatePendingAnnotationRecord(record, recordPath(record.id, env), env);
-  return modelAnnotationSummary(record, { path: recordPath(record.id, env) });
+  const file = record && typeof record.id === 'string'
+    ? recordPathForValidatedID(record.id, env)
+    : path.join(recordsDir(env), 'unknown.json');
+  validatePendingAnnotationRecord(record, file, env);
+  return modelAnnotationSummary(record, { path: file });
 }
 
 function defaultIndex(env = process.env) {
@@ -301,6 +313,20 @@ function assertIndex(value, file, env = process.env) {
   return value;
 }
 
+function classifyRecordFileName(name, dir) {
+  const file = path.join(dir.path, name);
+  const id = name.endsWith('.json') ? name.slice(0, -'.json'.length) : name;
+  if (!SAFE_ID.test(id)) {
+    fail(`Pending annotation record filename is invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      id,
+      path_status: 'corrupt',
+      storage_status: 'invalid_record_filename',
+    });
+  }
+  return { id, path: file };
+}
+
 function listRecordFiles(env = process.env) {
   const dir = canonicalRecordsDir(env);
   if (!dir) return [];
@@ -308,8 +334,9 @@ function listRecordFiles(env = process.env) {
     return fs.readdirSync(dir.path)
       .filter((name) => name.endsWith('.json') && !name.includes('.tmp-'))
       .sort()
-      .map((name) => path.join(dir.path, name));
+      .map((name) => classifyRecordFileName(name, dir));
   } catch (error) {
+    if (isPendingAnnotationError(error)) throw error;
     if (error?.code === 'ENOENT') return [];
     fail(`Pending annotation records cannot be listed: ${dir.path}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
       path: dir.path,
@@ -320,9 +347,9 @@ function listRecordFiles(env = process.env) {
 }
 
 export function loadAllRecords(env = process.env) {
-  return listRecordFiles(env).map((file) => {
-    const id = path.basename(file, '.json');
-    const canonical = canonicalRecordPath(id, env);
+  const dir = canonicalRecordsDir(env);
+  return listRecordFiles(env).map((recordFile) => {
+    const canonical = canonicalRecordFile(recordFile, dir);
     return validatePendingAnnotationRecord(readJSONExisting(canonical.path), canonical.path, env);
   });
 }
@@ -395,6 +422,7 @@ function storageErrorStatus(error, fallbackStatus = 'corrupt') {
     case 'corrupt':
       return structuredStatus;
     case 'corrupt_json':
+    case 'invalid_record_filename':
     case 'invalid_record_shape':
     case 'invalid_index_shape':
       return 'corrupt';

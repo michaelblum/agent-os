@@ -20,6 +20,81 @@ import {
   writeSigtermIgnoringFakeAos,
 } from './lib/experience-runtime-fixtures.mjs';
 
+async function buildContextWithStaleProjectedMenu(caseName, mutateMenu) {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), `aos-experience-context-menu-${caseName}-`));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = `projection-${caseName}`;
+  const contentRootId = 'projectionroot';
+  const contentRoot = path.join(tempRepoRoot, 'content-root');
+  const surfaceId = 'projection-surface';
+  const baseURL = `aos://${contentRootId}/runtime/index.html`;
+  const baseMenu = [{
+    id: 'annotate-projection-target',
+    label: 'Annotate Projection Target',
+    kind: 'operator_annotation',
+    surface: surfaceId,
+    action_id: 'aos.operator_fixture.annotation',
+    mode: 'selection_annotation',
+    create_pending_annotation: true,
+  }];
+  await fs.mkdir(contentRoot, { recursive: true });
+  await writeExperienceManifestFixture({
+    experiencesRoot,
+    id,
+    title: `Projection ${caseName}`,
+    contentRootId,
+    contentRootPath: 'content-root',
+    surfaceId,
+    expectedURL: baseURL,
+    menu: baseMenu,
+  });
+  const staleURL = dryRunToggleURL(id, {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+  });
+  await writeExperienceManifestFixture({
+    experiencesRoot,
+    id,
+    title: `Projection ${caseName}`,
+    contentRootId,
+    contentRootPath: 'content-root',
+    surfaceId,
+    expectedURL: baseURL,
+    menu: mutateMenu(JSON.parse(JSON.stringify(baseMenu))),
+  });
+  await writeRuntimeStateFixture({
+    stateRoot,
+    id,
+    contentRootKey: contentRootId,
+    contentRootPath: contentRoot,
+    surfaceId,
+    expectedURL: staleURL,
+  });
+  await fs.mkdir(path.join(stateRoot, 'repo', 'pending-annotations', 'records'), { recursive: true });
+  const responses = baseResponses(stateRoot, {
+    contentRoots: { [contentRootId]: contentRoot },
+    canvases: [{
+      id: surfaceId,
+      url: staleURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+  return buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+}
+
 test('experience status rejects invalid id before passive fake AOS probes', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-invalid-id-'));
   const { fake, log } = await writeFakeAos(tmp, {});
@@ -742,6 +817,44 @@ test('experience status reports symlinked pending index through store-owned stat
     'service status --mode repo --json',
     'show list --json',
   ].sort());
+});
+
+test('experience status marks mounted-surface menu projection stale on full payload drift', async () => {
+  const cases = [
+    {
+      name: 'label',
+      mutateMenu(menu) {
+        menu[0].label = 'Annotate Changed Label';
+        return menu;
+      },
+    },
+    {
+      name: 'action-id',
+      mutateMenu(menu) {
+        menu[0].action_id = 'aos.operator_fixture.changed_annotation';
+        return menu;
+      },
+    },
+    {
+      name: 'payload',
+      mutateMenu(menu) {
+        menu[0].create_pending_annotation = false;
+        menu[0].mode = 'selection_review';
+        return menu;
+      },
+    },
+  ];
+
+  for (const item of cases) {
+    const payload = await buildContextWithStaleProjectedMenu(item.name, item.mutateMenu);
+    assert.equal(payload.status, 'degraded', item.name);
+    assert.equal(payload.status_item.target.status, 'drift', item.name);
+    assert.equal(payload.status_item.mounted_surface.status, 'stale', item.name);
+    assert.equal(payload.status_item.menu_projection.status, 'stale', item.name);
+    assert.equal(payload.status_item.menu_projection.status_item_target.status, 'stale', item.name);
+    assert.equal(payload.status_item.menu_projection.mounted_surface.status, 'stale', item.name);
+    assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-projection-target']);
+  }
 });
 
 test('experience runtime passive AOS readbacks run from normalized repo root', async () => {

@@ -10,13 +10,8 @@ function decodeProjectionStatus(rawURL, expectedProjection) {
   const projection = mountedSurfaceMenuProjectionFromURL(rawURL);
   if (projection === null) return { status: 'missing', projection: null };
   if (projection === false) return { status: 'corrupt', projection: null };
-  const expectedMenuIDs = (expectedProjection?.menu || []).map((item) => item.id).sort();
   const actualMenuIDs = (projection?.menu || []).map((item) => item.id).sort();
-  const sameIDs = JSON.stringify(expectedMenuIDs) === JSON.stringify(actualMenuIDs);
-  const current = projection?.schema_version === expectedProjection?.schema_version
-    && projection?.experience_id === expectedProjection?.experience_id
-    && projection?.surface_id === expectedProjection?.surface_id
-    && sameIDs;
+  const current = canonicalProjectionJSON(projection) === canonicalProjectionJSON(expectedProjection);
   return {
     status: current ? 'current' : 'stale',
     projection: {
@@ -26,6 +21,21 @@ function decodeProjectionStatus(rawURL, expectedProjection) {
       menu_ids: actualMenuIDs,
     },
   };
+}
+
+function canonicalProjectionJSON(value) {
+  if (!value || typeof value !== 'object') return null;
+  return JSON.stringify(sortProjectionValue(value));
+}
+
+function sortProjectionValue(value) {
+  if (Array.isArray(value)) return value.map(sortProjectionValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortProjectionValue(value[key])]),
+  );
 }
 
 export function buildStatusItemStatus({
