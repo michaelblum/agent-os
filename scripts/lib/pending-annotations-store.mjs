@@ -327,13 +327,17 @@ function classifyRecordFileName(name, dir) {
   return { id, path: file };
 }
 
+function isAtomicTempRecordFileName(name) {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.json\.tmp-[0-9]+-[a-z0-9]+$/.test(name);
+}
+
 function listRecordFiles(env = process.env) {
   const dir = canonicalRecordsDir(env);
   if (!dir) return [];
   try {
     return fs.readdirSync(dir.path)
-      .filter((name) => name.endsWith('.json') && !name.includes('.tmp-'))
       .sort()
+      .filter((name) => !isAtomicTempRecordFileName(name))
       .map((name) => classifyRecordFileName(name, dir));
   } catch (error) {
     if (isPendingAnnotationError(error)) throw error;

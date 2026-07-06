@@ -151,10 +151,11 @@
             { "$ref": "#/$defs/non_empty_string" },
             { "const": "experience" },
             { "const": "status" },
-            { "$ref": "#/$defs/local_id" }
+            { "$ref": "#/$defs/local_id" },
+            { "const": "--json" }
           ],
-          "contains": { "const": "--json" },
           "minItems": 5,
+          "maxItems": 5,
           "items": { "$ref": "#/$defs/non_empty_string" }
         },
         "read_only": { "const": true }

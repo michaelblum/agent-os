@@ -302,4 +302,13 @@ test('experience runtime context schema rejects non-status command argv', async 
   invalid.command.argv = ['./aos', 'experience', 'activate', 'operator-fixture', '--json'];
   const instancePath = await writeTempRuntimeContextPayload(invalid, 'aos-runtime-context-schema-invalid-command-instance-');
   rejectJSONAgainstSchema(instancePath);
+
+  for (const flag of ['--dry-run', '--allow-start']) {
+    const invalidFlag = JSON.parse(JSON.stringify(payload));
+    invalidFlag.command.argv = ['./aos', 'experience', 'status', 'operator-fixture', '--json', flag];
+    rejectJSONAgainstSchema(await writeTempRuntimeContextPayload(
+      invalidFlag,
+      `aos-runtime-context-schema-invalid-command-${flag.slice(2)}-instance-`,
+    ));
+  }
 });

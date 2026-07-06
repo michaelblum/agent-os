@@ -83,6 +83,43 @@ test('pending annotation store status validates record JSON before reporting ini
   assert.notEqual(status.status, 'initialized');
 });
 
+test('pending annotation durable ids containing .tmp- stay visible while atomic temp writes are ignored', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-status-tmp-id-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann.tmp-final',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Durable id containing tmp marker',
+    '--json',
+  ], env));
+  assert.equal(created.annotation.id, 'ann.tmp-final');
+  validateJSONFile(created.annotation.path);
+
+  const atomicTempPath = `${created.annotation.path}.tmp-12345-abc123xy`;
+  await fs.writeFile(atomicTempPath, '{incomplete', 'utf8');
+
+  const read = parseJSON(run(['read', 'ann.tmp-final', '--json'], env));
+  assert.equal(read.annotation.id, 'ann.tmp-final');
+
+  const listed = parseJSON(run(['list', '--json'], env));
+  assert.equal(listed.count, 1);
+  assert.deepEqual(listed.annotations.map((item) => item.id), ['ann.tmp-final']);
+
+  const status = pendingAnnotationStoreStatus(env);
+  assert.equal(status.status, 'initialized');
+  assert.equal(status.records_status, 'exists');
+  assert.equal(status.record_count, 1);
+  assert.equal(await readTextIfExists(atomicTempPath), '{incomplete');
+});
+
 test('pending annotation invalid durable record filename is corrupt state, not input error', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-status-invalid-filename-'));
   const env = {

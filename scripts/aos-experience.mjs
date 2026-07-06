@@ -134,25 +134,59 @@ function writeActiveExperience(id) {
 
 function parseArgs(argv) {
   const [subcommand, ...tail] = argv;
+  if (!subcommand || !['status', 'activate', 'deactivate'].includes(subcommand)) {
+    throw new ExperienceFailure('Usage: aos experience <status|activate|deactivate> [id] [--json] [--dry-run]', 'MISSING_ARG');
+  }
+  if (subcommand === 'status') return parseStatusArgs(tail);
+  if (subcommand === 'activate') return parseActivateArgs(tail);
+  return parseDeactivateArgs(tail);
+}
+
+function rejectFlagForSubcommand(subcommand, arg) {
+  throw new ExperienceFailure(`Flag ${arg} is not valid for aos experience ${subcommand}`, 'INVALID_ARG');
+}
+
+function parseStatusArgs(tail) {
+  let json = false;
+  let id = null;
+  for (const arg of tail) {
+    if (arg === '--json') json = true;
+    else if (arg === '--dry-run' || arg === '--allow-start') rejectFlagForSubcommand('status', arg);
+    else if (arg.startsWith('--')) throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    else if (id === null) id = arg;
+    else throw new ExperienceFailure(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
+  }
+  return { subcommand: 'status', id, json, dryRun: false, allowStart: false };
+}
+
+function parseActivateArgs(tail) {
   let json = false;
   let dryRun = false;
   let allowStart = false;
-  const extra = [];
   let id = null;
   for (const arg of tail) {
     if (arg === '--json') json = true;
     else if (arg === '--dry-run') dryRun = true;
     else if (arg === '--allow-start') allowStart = true;
     else if (arg.startsWith('--')) throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
-    else if ((subcommand === 'activate' || subcommand === 'status') && id === null) id = arg;
-    else extra.push(arg);
+    else if (id === null) id = arg;
+    else throw new ExperienceFailure(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
   }
-  if (!subcommand || !['status', 'activate', 'deactivate'].includes(subcommand)) {
-    throw new ExperienceFailure('Usage: aos experience <status|activate|deactivate> [id] [--json] [--dry-run]', 'MISSING_ARG');
+  if (!id) throw new ExperienceFailure('Usage: aos experience activate <id> [--json] [--dry-run]', 'MISSING_ARG');
+  return { subcommand: 'activate', id, json, dryRun, allowStart };
+}
+
+function parseDeactivateArgs(tail) {
+  let json = false;
+  let dryRun = false;
+  for (const arg of tail) {
+    if (arg === '--json') json = true;
+    else if (arg === '--dry-run') dryRun = true;
+    else if (arg === '--allow-start') rejectFlagForSubcommand('deactivate', arg);
+    else if (arg.startsWith('--')) throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    else throw new ExperienceFailure(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
   }
-  if (subcommand === 'activate' && !id) throw new ExperienceFailure('Usage: aos experience activate <id> [--json] [--dry-run]', 'MISSING_ARG');
-  if (extra.length) throw new ExperienceFailure(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
-  return { subcommand, id, json, dryRun, allowStart };
+  return { subcommand: 'deactivate', id: null, json, dryRun, allowStart: false };
 }
 
 function vanillaFallback() {

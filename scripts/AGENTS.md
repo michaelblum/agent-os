@@ -43,7 +43,10 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   It must call model helpers for record validation and summary projection
   rather than reimplementing schema logic. Store scans must classify durable
   record filenames with store-owned parsing; invalid filenames under
-  `records/` are corrupt durable state, not public input-id errors.
+  `records/` are corrupt durable state, not public input-id errors. Atomic
+  write leftovers are the only ignored record entries, and only when they match
+  the writer shape `*.json.tmp-<pid>-<token>`; `.tmp-` remains valid inside
+  annotation ids.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.
@@ -75,6 +78,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Pending annotation read/list surfaces must not repair durable state. Records
   are the authoritative durable state; `index.json` is an optional cache and
   must not decide mutation success.
+- Command adapter parsers must keep flags scoped to the manifest form they
+  execute. Read-only status forms must reject mutation, dry-run, or lifecycle
+  flags instead of accepting and silently dropping them.
 
 ## Work Guidance
 

@@ -44,7 +44,7 @@ or mutate pending annotation storage.
 Run:
 
 ```bash
-node --test tests/experience-runtime-context.test.mjs
+node --test tests/experience-runtime-context-*.test.mjs
 node --test tests/schemas/aos-experience-runtime-context-v0.test.mjs
 node --test tests/schemas/*.test.mjs
 ```
