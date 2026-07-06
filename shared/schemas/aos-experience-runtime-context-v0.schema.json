@@ -1,0 +1,498 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-experience-runtime-context-v0.schema.json",
+  "title": "AOS Experience Runtime Context v0",
+  "description": "Read-only runtime context envelope emitted by aos experience status <id> --json.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "collected_at",
+    "status",
+    "command",
+    "experience",
+    "active_experience",
+    "runtime",
+    "state",
+    "content_roots",
+    "status_item",
+    "pending_annotations",
+    "diagnostics",
+    "capabilities",
+    "recommended_next"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "const": "aos.experience-runtime-context.v0" },
+    "collected_at": { "$ref": "#/$defs/timestamp" },
+    "status": { "enum": ["ok", "degraded", "blocked"] },
+    "code": { "$ref": "#/$defs/non_empty_string" },
+    "command": { "$ref": "#/$defs/command_identity" },
+    "experience": { "$ref": "#/$defs/experience" },
+    "active_experience": { "$ref": "#/$defs/active_experience" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "state": { "$ref": "#/$defs/state" },
+    "content_roots": { "$ref": "#/$defs/content_roots" },
+    "status_item": { "$ref": "#/$defs/status_item" },
+    "pending_annotations": { "$ref": "#/$defs/pending_annotations" },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "capabilities": { "$ref": "#/$defs/capabilities" },
+    "recommended_next": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recommended_next" }
+    }
+  },
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": ["string", "null"]
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 1
+    },
+    "path_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_path": {
+      "type": ["string", "null"]
+    },
+    "local_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+    },
+    "runtime_mode": {
+      "enum": ["repo", "installed"]
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/non_empty_string" }
+    },
+    "status_word": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_:-]*$"
+    },
+    "path_status": {
+      "enum": [
+        "current",
+        "exists",
+        "missing",
+        "not_directory",
+        "not_initialized",
+        "ok",
+        "path_escape",
+        "present",
+        "stale",
+        "symlink",
+        "unreadable",
+        "unknown",
+        "corrupt"
+      ]
+    },
+    "command_identity": {
+      "type": "object",
+      "required": ["path", "argv", "read_only"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "experience" },
+            { "const": "status" }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "argv": {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/non_empty_string" },
+            { "const": "experience" },
+            { "const": "status" },
+            { "$ref": "#/$defs/local_id" }
+          ],
+          "contains": { "const": "--json" },
+          "minItems": 5,
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        },
+        "read_only": { "const": true }
+      }
+    },
+    "experience": {
+      "type": "object",
+      "required": ["requested_id", "id", "title", "version", "exclusive"],
+      "additionalProperties": true,
+      "properties": {
+        "requested_id": { "$ref": "#/$defs/local_id" },
+        "id": { "$ref": "#/$defs/local_id" },
+        "title": { "$ref": "#/$defs/non_empty_string" },
+        "version": { "$ref": "#/$defs/non_empty_string" },
+        "exclusive": { "type": "boolean" }
+      }
+    },
+    "active_experience": {
+      "type": "object",
+      "required": ["id", "status", "source_path"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "status": { "enum": ["current", "mismatch", "corrupt"] },
+        "source_path": { "$ref": "#/$defs/path_string" },
+        "source_status": { "$ref": "#/$defs/status_word" },
+        "error": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["status", "canonical_status", "running"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["ready", "degraded", "failed", "unknown"] },
+        "command_status": { "$ref": "#/$defs/status_word" },
+        "canonical_status": { "type": ["string", "null"] },
+        "reason": { "$ref": "#/$defs/nullable_string" },
+        "mode": { "type": ["string", "null"] },
+        "installed": { "type": ["boolean", "null"] },
+        "loaded": { "type": "boolean" },
+        "running": { "type": ["boolean", "null"] },
+        "pid": { "type": ["integer", "null"] },
+        "label": { "$ref": "#/$defs/nullable_string" },
+        "launchd_label": { "$ref": "#/$defs/nullable_string" },
+        "actual_binary_path": { "$ref": "#/$defs/nullable_path" },
+        "expected_binary_path": { "$ref": "#/$defs/nullable_path" },
+        "actual_log_path": { "$ref": "#/$defs/nullable_path" },
+        "expected_log_path": { "$ref": "#/$defs/nullable_path" },
+        "target_matches_expected": { "type": ["boolean", "null"] },
+        "log_path_matches_expected": { "type": ["boolean", "null"] },
+        "plist_path": { "$ref": "#/$defs/nullable_path" },
+        "state_dir": { "$ref": "#/$defs/nullable_path" },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["status", "ready_for_testing", "missing_permissions"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["ready", "degraded", "unknown"] },
+        "command_status": { "$ref": "#/$defs/status_word" },
+        "canonical_status": { "type": ["string", "null"] },
+        "ready_for_testing": { "type": ["boolean", "null"] },
+        "ready_source": { "$ref": "#/$defs/nullable_string" },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": { "type": ["boolean", "string", "number", "null"] }
+        },
+        "cli_view": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "daemon_view": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "requirements": {
+          "type": "array",
+          "items": { "type": ["object", "string"] }
+        },
+        "missing_permissions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        }
+      }
+    },
+    "readiness_blocker": {
+      "type": "object",
+      "required": ["id", "kind", "message"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/non_empty_string" },
+        "kind": { "enum": ["service", "permission"] },
+        "status": { "$ref": "#/$defs/status_word" },
+        "message": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "mode",
+        "state_root",
+        "state_dir",
+        "repo_mode",
+        "installed_mode",
+        "service",
+        "permissions",
+        "readiness"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "mode": { "$ref": "#/$defs/runtime_mode" },
+        "state_root": { "$ref": "#/$defs/path_string" },
+        "state_dir": { "$ref": "#/$defs/path_string" },
+        "repo_mode": { "type": "boolean" },
+        "installed_mode": { "type": "boolean" },
+        "service": { "$ref": "#/$defs/service" },
+        "permissions": { "$ref": "#/$defs/permissions" },
+        "readiness": {
+          "type": "object",
+          "required": ["status", "ready", "blockers"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "enum": ["ready", "degraded"] },
+            "ready": { "type": "boolean" },
+            "blockers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/readiness_blocker" }
+            }
+          }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": [
+        "root",
+        "mode_root",
+        "experience_state_path",
+        "config_path",
+        "config_status",
+        "pending_annotations_root"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "root": { "$ref": "#/$defs/path_string" },
+        "mode_root": { "$ref": "#/$defs/path_string" },
+        "experience_state_path": { "$ref": "#/$defs/path_string" },
+        "config_path": { "$ref": "#/$defs/path_string" },
+        "config_status": { "enum": ["ok", "missing", "corrupt"] },
+        "pending_annotations_root": { "$ref": "#/$defs/path_string" }
+      }
+    },
+    "content_root": {
+      "type": "object",
+      "required": [
+        "id",
+        "key",
+        "branch_scoped",
+        "declared_path",
+        "declared_path_status",
+        "declared_path_type",
+        "declared_path_mtime_ms",
+        "configured_path",
+        "configured_status",
+        "live_path",
+        "live_status",
+        "status"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/local_id" },
+        "key": { "$ref": "#/$defs/local_id" },
+        "branch_scoped": { "type": "boolean" },
+        "declared_path": { "$ref": "#/$defs/path_string" },
+        "declared_path_status": { "$ref": "#/$defs/path_status" },
+        "declared_path_type": { "type": ["string", "null"] },
+        "declared_path_mtime_ms": { "type": ["number", "null"] },
+        "declared_path_error_code": { "$ref": "#/$defs/non_empty_string" },
+        "configured_path": { "$ref": "#/$defs/nullable_path" },
+        "configured_status": { "enum": ["current", "missing", "stale"] },
+        "live_path": { "$ref": "#/$defs/nullable_path" },
+        "live_status": { "enum": ["current", "missing", "stale", "unknown"] },
+        "status": { "$ref": "#/$defs/path_status" }
+      }
+    },
+    "content_roots": {
+      "type": "object",
+      "required": ["status", "command_status", "roots"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "$ref": "#/$defs/path_status" },
+        "command_status": { "$ref": "#/$defs/status_word" },
+        "command_error": { "$ref": "#/$defs/non_empty_string" },
+        "roots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/content_root" }
+        }
+      }
+    },
+    "status_item": {
+      "type": "object",
+      "required": ["status", "configured", "expected", "target", "mounted_surface", "menu_projection"],
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "enum": [
+            "current",
+            "not_applicable",
+            "disabled",
+            "wrong_surface",
+            "missing",
+            "drift",
+            "stale",
+            "unknown",
+            "corrupt"
+          ]
+        },
+        "configured": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "expected": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        },
+        "target": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": {
+              "enum": ["current", "not_applicable", "disabled", "wrong_surface", "missing", "drift"]
+            },
+            "current_url": { "$ref": "#/$defs/nullable_string" },
+            "expected_url": { "$ref": "#/$defs/nullable_string" },
+            "drift": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/non_empty_string" }
+            }
+          }
+        },
+        "mounted_surface": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "enum": ["current", "not_applicable", "missing", "stale", "unknown"] },
+            "id": { "$ref": "#/$defs/nullable_string" },
+            "url": { "$ref": "#/$defs/nullable_string" },
+            "lifecycle_state": { "$ref": "#/$defs/nullable_string" },
+            "suspended": { "type": ["boolean", "null"] },
+            "show_list_status": { "$ref": "#/$defs/status_word" },
+            "show_list_error": { "$ref": "#/$defs/non_empty_string" }
+          }
+        },
+        "menu_projection": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "enum": ["current", "not_applicable", "missing", "stale", "unknown", "corrupt"] },
+            "expected_menu_count": { "type": "integer", "minimum": 0 },
+            "expected_menu_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/non_empty_string" }
+            }
+          }
+        }
+      }
+    },
+    "lock": {
+      "type": "object",
+      "required": ["status", "path"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["absent", "active", "stale", "corrupt", "unknown"] },
+        "path": { "$ref": "#/$defs/path_string" },
+        "path_status": { "$ref": "#/$defs/path_status" },
+        "owner_pid": { "type": ["integer", "null"] },
+        "age_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "pending_annotations": {
+      "type": "object",
+      "required": [
+        "status",
+        "root",
+        "records_dir",
+        "index_path",
+        "lock",
+        "root_status",
+        "records_status",
+        "index_status",
+        "record_count",
+        "supported"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["initialized", "not_initialized", "stale", "corrupt", "not_applicable"] },
+        "root": { "$ref": "#/$defs/path_string" },
+        "records_dir": { "$ref": "#/$defs/path_string" },
+        "index_path": { "$ref": "#/$defs/path_string" },
+        "lock": { "$ref": "#/$defs/lock" },
+        "root_status": { "$ref": "#/$defs/path_status" },
+        "records_status": { "$ref": "#/$defs/path_status" },
+        "index_status": { "$ref": "#/$defs/path_status" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "supported": { "type": "boolean" },
+        "root_error_status": { "$ref": "#/$defs/path_status" },
+        "root_error_path": { "$ref": "#/$defs/path_string" },
+        "records_error_status": { "$ref": "#/$defs/path_status" },
+        "records_error_path": { "$ref": "#/$defs/path_string" },
+        "index_error_status": { "$ref": "#/$defs/path_status" },
+        "index_error_path": { "$ref": "#/$defs/path_string" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["id", "severity", "message"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/non_empty_string" },
+        "severity": { "enum": ["info", "warning", "error"] },
+        "message": { "$ref": "#/$defs/non_empty_string" },
+        "path": { "$ref": "#/$defs/path_string" },
+        "status": { "$ref": "#/$defs/status_word" },
+        "recommended_next_id": { "$ref": "#/$defs/non_empty_string" }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "required": ["status", "blockers"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["ready", "degraded", "blocked", "unsupported"] },
+        "blockers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/non_empty_string" }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["perception", "annotation", "saved_ref_action", "evidence_handoff"],
+      "additionalProperties": true,
+      "properties": {
+        "perception": { "$ref": "#/$defs/capability" },
+        "annotation": { "$ref": "#/$defs/capability" },
+        "saved_ref_action": { "$ref": "#/$defs/capability" },
+        "evidence_handoff": { "$ref": "#/$defs/capability" }
+      }
+    },
+    "recommended_next": {
+      "type": "object",
+      "required": ["id", "kind", "reason", "argv", "display_only"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "$ref": "#/$defs/non_empty_string" },
+        "kind": { "enum": ["command", "hint"] },
+        "reason": { "$ref": "#/$defs/non_empty_string" },
+        "argv": { "$ref": "#/$defs/argv" },
+        "display_only": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -78,6 +78,7 @@ test('pending annotation store status validates record JSON before reporting ini
   assert.equal(status.records_status, 'corrupt');
   assert.equal(status.record_count, 0);
   assert.equal(status.records_error_status, 'corrupt');
+  assert.equal(status.records_error_storage_status, 'corrupt_json');
   assert.equal(status.records_error_path, recordPath);
   assert.notEqual(status.status, 'initialized');
 });
@@ -235,6 +236,8 @@ test('pending annotation store status rejects symlinked root before inspecting l
   assert.equal(status.root_status, 'symlink');
   assert.equal(status.records_status, 'unknown');
   assert.equal(status.index_status, 'unknown');
+  assert.equal(status.root_error_storage_status, 'symlink');
+  assert.equal(status.root_error_path_status, 'symlink');
   assert.equal(status.lock.status, 'unknown');
   assert.equal(Object.hasOwn(status.lock, 'owner_pid'), false);
 });
@@ -264,6 +267,8 @@ test('pending annotation store status classifies symlinked index without followi
   assert.equal(status.root_status, 'exists');
   assert.equal(status.records_status, 'exists');
   assert.equal(status.index_status, 'symlink');
+  assert.equal(status.index_error_storage_status, 'symlink');
+  assert.equal(status.index_error_path_status, 'symlink');
   assert.equal(status.record_count, 0);
 });
 

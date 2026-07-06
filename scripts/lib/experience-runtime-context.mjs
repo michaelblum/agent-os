@@ -54,7 +54,7 @@ function buildPendingAnnotationStatus({
   };
 }
 
-export function buildExperienceRuntimeContext(id, {
+export async function buildExperienceRuntimeContext(id, {
   env = process.env,
   repoRoot = process.cwd(),
   prefix = env.AOS_INVOCATION_DISPLAY_NAME || './aos',
@@ -63,6 +63,7 @@ export function buildExperienceRuntimeContext(id, {
   const manifest = discoverExperience(id, { experiencesRoot: initialRuntimeEnv.experiencesRoot });
   const roots = resolveContentRoots(manifest, { repoRoot: initialRuntimeEnv.repoRoot });
   const {
+    collected_at: collectedAt,
     runtimeEnv,
     active,
     config,
@@ -70,7 +71,7 @@ export function buildExperienceRuntimeContext(id, {
     permissionStatus,
     contentStatus,
     showList,
-  } = collectExperienceRuntimeFacts({ env, repoRoot });
+  } = await collectExperienceRuntimeFacts({ env, repoRoot });
   const rootsByID = rootMap(roots);
   const service = buildServiceStatus(serviceStatus);
   const permissions = buildPermissionStatus(permissionStatus);
@@ -126,6 +127,7 @@ export function buildExperienceRuntimeContext(id, {
     : (diagnostics.some((item) => item.severity === 'warning') ? 'degraded' : 'ok');
   return {
     schema_version: EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION,
+    collected_at: collectedAt,
     status,
     code: 'OK',
     command: commandIdentity(prefix, id),

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import {
   experienceRuntimeEnv,
@@ -14,27 +14,59 @@ function readJSONIfExists(file) {
 }
 
 function run(command, args, { cwd = process.cwd(), env = process.env, timeout = 15000 } = {}) {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    env,
-    maxBuffer: 100 * 1024 * 1024,
-    timeout,
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timedOut = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, timeout);
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', (error) => {
+      finish({
+        status: 1,
+        stdout,
+        stderr: stderr || error.message,
+      });
+    });
+    child.on('close', (status, signal) => {
+      finish({
+        status: timedOut ? 124 : (status ?? 1),
+        stdout,
+        stderr: stderr || (timedOut ? `Timed out after ${timeout}ms` : ''),
+        ...(signal ? { signal } : {}),
+      });
+    });
   });
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout || '',
-    stderr: result.stderr || (result.error ? result.error.message : ''),
-  };
 }
 
-function runAosJSON(aos, args, {
+async function runAosJSON(aos, args, {
   cwd = process.cwd(),
   env = process.env,
   mode = 'repo',
   timeout = 15000,
 } = {}) {
-  const result = run(aos, args, {
+  const result = await run(aos, args, {
     cwd,
     env: { ...env, AOS_RUNTIME_MODE: mode },
     timeout,
@@ -101,35 +133,48 @@ function readRuntimeConfig(configFile) {
   };
 }
 
-export function collectExperienceRuntimeFacts({
+export async function collectExperienceRuntimeFacts({
   env = process.env,
   repoRoot = process.cwd(),
 } = {}) {
   const runtimeEnv = experienceRuntimeEnv({ env, repoRoot });
   const normalizedEnv = runtimeEnv.env;
+  const collectedAt = new Date().toISOString();
+  const [
+    serviceStatus,
+    permissionStatus,
+    contentStatus,
+    showList,
+  ] = await Promise.all([
+    runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
+      cwd: runtimeEnv.repoRoot,
+      env: normalizedEnv,
+      mode: runtimeEnv.mode,
+    }),
+    runAosJSON(runtimeEnv.aos, ['permissions', 'check', '--json'], {
+      cwd: runtimeEnv.repoRoot,
+      env: normalizedEnv,
+      mode: runtimeEnv.mode,
+    }),
+    runAosJSON(runtimeEnv.aos, ['content', 'status', '--json'], {
+      cwd: runtimeEnv.repoRoot,
+      env: normalizedEnv,
+      mode: runtimeEnv.mode,
+    }),
+    runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
+      cwd: runtimeEnv.repoRoot,
+      env: normalizedEnv,
+      mode: runtimeEnv.mode,
+    }),
+  ]);
   return {
+    collected_at: collectedAt,
     runtimeEnv,
     active: readActiveExperience(runtimeEnv),
     config: readRuntimeConfig(runtimeEnv.configPath),
-    serviceStatus: runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
-      cwd: runtimeEnv.repoRoot,
-      env: normalizedEnv,
-      mode: runtimeEnv.mode,
-    }),
-    permissionStatus: runAosJSON(runtimeEnv.aos, ['permissions', 'check', '--json'], {
-      cwd: runtimeEnv.repoRoot,
-      env: normalizedEnv,
-      mode: runtimeEnv.mode,
-    }),
-    contentStatus: runAosJSON(runtimeEnv.aos, ['content', 'status', '--json'], {
-      cwd: runtimeEnv.repoRoot,
-      env: normalizedEnv,
-      mode: runtimeEnv.mode,
-    }),
-    showList: runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
-      cwd: runtimeEnv.repoRoot,
-      env: normalizedEnv,
-      mode: runtimeEnv.mode,
-    }),
+    serviceStatus,
+    permissionStatus,
+    contentStatus,
+    showList,
   };
 }

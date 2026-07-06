@@ -98,7 +98,12 @@ function lstatIfExists(file) {
     return fs.lstatSync(file);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
-    fail(`Pending annotation path cannot be inspected: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    fail(`Pending annotation path cannot be inspected: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      path_status: 'unreadable',
+      storage_status: 'unreadable',
+      cause_code: error?.code || 'UNKNOWN',
+    });
   }
 }
 
@@ -107,12 +112,21 @@ function realpathIfExists(file) {
     return fs.realpathSync(file);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
-    fail(`Pending annotation path cannot be resolved: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    fail(`Pending annotation path cannot be resolved: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      path_status: 'unreadable',
+      storage_status: 'unreadable',
+      cause_code: error?.code || 'UNKNOWN',
+    });
   }
 }
 
 function failSymlink(file, label) {
-  fail(`Pending annotation ${label} cannot be a symlink: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+  fail(`Pending annotation ${label} cannot be a symlink: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+    path: file,
+    path_status: 'symlink',
+    storage_status: 'symlink',
+  });
 }
 
 export function canonicalPendingRoot(env = process.env, { forWrite = false } = {}) {
@@ -126,7 +140,11 @@ export function canonicalPendingRoot(env = process.env, { forWrite = false } = {
   }
   if (existing.isSymbolicLink()) failSymlink(root, 'root');
   if (!existing.isDirectory()) {
-    fail(`Pending annotation root is not a directory: ${root}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: root });
+    fail(`Pending annotation root is not a directory: ${root}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: root,
+      path_status: 'not_directory',
+      storage_status: 'not_directory',
+    });
   }
   return { path: root, resolved, real: fs.realpathSync(root), exists: true };
 }
@@ -146,7 +164,11 @@ export function canonicalRecordsDir(env = process.env, { forWrite = false } = {}
   }
   const real = fs.realpathSync(dir);
   if (!pathInside(root.real, real)) {
-    fail(`Pending annotation records directory escapes root: ${dir}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: dir });
+    fail(`Pending annotation records directory escapes root: ${dir}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: dir,
+      path_status: 'path_escape',
+      storage_status: 'path_escape',
+    });
   }
   return { path: dir, real, root };
 }
@@ -159,7 +181,11 @@ export function canonicalIndexPath(env = process.env) {
   if (existing.isSymbolicLink()) failSymlink(file, 'index file');
   const real = realpathIfExists(file);
   if (real && !pathInside(root.real, real)) {
-    fail(`Pending annotation index escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    fail(`Pending annotation index escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      path_status: 'path_escape',
+      storage_status: 'path_escape',
+    });
   }
   return { path: file, real, root };
 }
@@ -170,12 +196,21 @@ export function canonicalRecordPath(id, env = process.env) {
   const existing = lstatIfExists(file);
   if (!existing) return { path: file, real: null, records: dir };
   if (!dir) {
-    fail(`Pending annotation record exists without records directory: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id });
+    fail(`Pending annotation record exists without records directory: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      id,
+      storage_status: 'invalid_record_shape',
+    });
   }
   if (existing.isSymbolicLink()) failSymlink(file, 'record file');
   const real = realpathIfExists(file);
   if (real && !pathInside(dir.root.real, real)) {
-    fail(`Pending annotation record escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id });
+    fail(`Pending annotation record escapes root: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      id,
+      path_status: 'path_escape',
+      storage_status: 'path_escape',
+    });
   }
   return { path: file, real, records: dir };
 }
@@ -187,7 +222,12 @@ export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
     if (error?.code === 'ENOENT') return null;
     if (!failOnCorrupt) return null;
     const status = error instanceof SyntaxError ? 'corrupt' : 'unreadable';
-    fail(`Pending annotation state is ${status}: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, status });
+    fail(`Pending annotation state is ${status}: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      status,
+      storage_status: status === 'corrupt' ? 'corrupt_json' : 'unreadable',
+      ...(status === 'unreadable' ? { cause_code: error?.code || 'UNKNOWN' } : {}),
+    });
   }
 }
 
@@ -200,7 +240,11 @@ export function validatePendingAnnotationRecord(value, file, env = process.env) 
   });
   const expected = recordPath(record.id, env);
   if (file !== expected || record.paths.record !== expected) {
-    fail(`Pending annotation record path does not match id: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id: record.id });
+    fail(`Pending annotation record path does not match id: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      id: record.id,
+      storage_status: 'invalid_record_shape',
+    });
   }
   canonicalRecordPath(record.id, env);
   return record;
@@ -267,7 +311,11 @@ function listRecordFiles(env = process.env) {
       .map((name) => path.join(dir.path, name));
   } catch (error) {
     if (error?.code === 'ENOENT') return [];
-    fail(`Pending annotation records cannot be listed: ${dir.path}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: dir.path });
+    fail(`Pending annotation records cannot be listed: ${dir.path}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: dir.path,
+      storage_status: 'unreadable',
+      cause_code: error?.code || 'UNKNOWN',
+    });
   }
 }
 
@@ -337,23 +385,33 @@ export function loadIndexReadOnly(env = process.env) {
 
 function storageErrorStatus(error, fallbackStatus = 'corrupt') {
   if (!isPendingAnnotationError(error)) throw error;
-  const structuredStatus = error.extra?.path_status || error.extra?.status;
-  if (['corrupt', 'symlink', 'not_directory', 'path_escape', 'unreadable', 'unknown'].includes(structuredStatus)) {
-    return structuredStatus;
+  const structuredStatus = error.extra?.path_status || error.extra?.storage_status;
+  switch (structuredStatus) {
+    case 'symlink':
+    case 'not_directory':
+    case 'path_escape':
+    case 'unreadable':
+    case 'unknown':
+    case 'corrupt':
+      return structuredStatus;
+    case 'corrupt_json':
+    case 'invalid_record_shape':
+    case 'invalid_index_shape':
+      return 'corrupt';
+    default:
+      return fallbackStatus;
   }
-  const message = error.message || '';
-  if (message.includes('symlink')) return 'symlink';
-  if (message.includes('not a directory')) return 'not_directory';
-  if (message.includes('escapes root')) return 'path_escape';
-  if (message.includes('unreadable') || message.includes('cannot be listed')) return 'unreadable';
-  return fallbackStatus;
 }
 
 function storageErrorDetails(error, prefix) {
   const status = storageErrorStatus(error);
   const pathValue = typeof error.extra?.path === 'string' ? error.extra.path : null;
+  const storageStatus = typeof error.extra?.storage_status === 'string' ? error.extra.storage_status : null;
+  const pathStatus = typeof error.extra?.path_status === 'string' ? error.extra.path_status : null;
   return {
     [`${prefix}_error_status`]: status,
+    ...(storageStatus ? { [`${prefix}_error_storage_status`]: storageStatus } : {}),
+    ...(pathStatus ? { [`${prefix}_error_path_status`]: pathStatus } : {}),
     ...(pathValue ? { [`${prefix}_error_path`]: pathValue } : {}),
   };
 }

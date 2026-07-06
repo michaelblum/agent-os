@@ -162,9 +162,9 @@ function vanillaFallback() {
   };
 }
 
-function status(id, asJSON) {
+async function status(id, asJSON) {
   if (id) {
-    const result = buildExperienceRuntimeContext(id, { env: process.env, repoRoot });
+    const result = await buildExperienceRuntimeContext(id, { env: process.env, repoRoot });
     if (asJSON) emitJSON(result);
     else {
       process.stdout.write(`experience=${id} status=${result.status} active=${result.active_experience.id || 'none'} readiness=${result.runtime.readiness.status}\n`);
@@ -387,11 +387,15 @@ function deactivate(asJSON, dryRun) {
   else process.stdout.write('active experience cleared; status item disabled until vanilla menu is implemented.\n');
 }
 
-try {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (args.subcommand === 'status') status(args.id, args.json);
+  if (args.subcommand === 'status') await status(args.id, args.json);
   else if (args.subcommand === 'activate') activate(args.id, args.json, args.dryRun, args.allowStart);
   else deactivate(args.json, args.dryRun);
+}
+
+try {
+  await main();
 } catch (err) {
   if (err instanceof ExperienceFailure) fail(err.message, err.code);
   fail(err?.message || String(err), 'INTERNAL');

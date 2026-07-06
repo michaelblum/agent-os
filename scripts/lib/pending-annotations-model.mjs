@@ -419,7 +419,10 @@ export function isPendingAnnotationRecord(value) {
 export function validatePendingAnnotationRecord(value, { file, runtime_mode, pending_root, record_path_for_id } = {}) {
   const ctx = recordContext({ runtime_mode, pending_root, record_path_for_id });
   if (!isPendingAnnotationRecord(value) || value.runtime_mode !== ctx.runtime_mode) {
-    fail(`Pending annotation record is schema-invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    fail(`Pending annotation record is schema-invalid: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      storage_status: 'invalid_record_shape',
+    });
   }
   const expectedRecord = ctx.record_path_for_id(value.id);
   const expectedName = `${value.id}.json`;
@@ -435,7 +438,11 @@ export function validatePendingAnnotationRecord(value, { file, runtime_mode, pen
     || resolvedRecord !== resolvedExpectedRecord
     || (resolvedRecord !== resolvedRoot && !resolvedRecord.startsWith(`${resolvedRoot}${path.sep}`))
   ) {
-    fail(`Pending annotation record has invalid path invariants: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, id: value.id });
+    fail(`Pending annotation record has invalid path invariants: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', {
+      path: file,
+      id: value.id,
+      storage_status: 'invalid_record_shape',
+    });
   }
   return value;
 }
