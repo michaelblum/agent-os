@@ -493,7 +493,8 @@ test('Sigil reticle candidates are projected through canonical DesktopWorld help
   assert.match(source, /canvasLocalRectToDesktopWorld\(/)
   assert.match(source, /coordinate_space: 'desktop_world'/)
   assert.match(source, /source_coordinate_space: frame\?\.source_coordinate_space/)
-  assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
+  assert.match(source, /const targetCanvasId = String\(target\.provenance\?\.canvas_id \|\| canvasId\)\.trim\(\)/)
+  assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(targetCanvasId, target\)/)
 })
 
 test('Sigil reticle preserves browser DOM element target adapter identity', () => {

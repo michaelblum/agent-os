@@ -107,6 +107,7 @@ import {
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
+import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
     transparentSigilRendererOptions,
@@ -140,6 +141,7 @@ const {
     writeClipboardText,
 } = await import(toolkitSpecifier('runtime/canvas.js'));
 const {
+    OPERATOR_ANNOTATION_START_EVENT,
     operatorAnnotationMenuFromLocation,
     operatorAnnotationStatusMenuItems,
     routeOperatorAnnotationMenuAction,
@@ -298,6 +300,16 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     openLineageCommentEditor: (config = {}) => openSelectionModeCommentEditor(config),
     closeLineageCommentEditor: () => closeSelectionModeCommentEditor(),
     executeCommand: executeSelectionModeRouteCommand,
+});
+const sigilOperatorAnnotationReceiver = createSigilOperatorAnnotationReceiver({
+    startEventType: OPERATOR_ANNOTATION_START_EVENT,
+    mountedSurfaceId: sigilMountedSurfaceId,
+    getPointer: () => liveJs.pointerPos,
+    enterSelectionMode,
+    resetAvatarDoubleClick,
+    setInteractionState,
+    post: (type, payload) => host.post(type, payload),
+    warn: (...args) => console.warn(...args),
 });
 
 const SIGIL_RENDERER_RUNTIME = {
@@ -4606,6 +4618,10 @@ function handleHostMessage(rawMsg) {
         void handleStatusMenuAction(msg).catch((error) => {
             console.warn('[sigil] status menu action failed:', error);
         });
+        return;
+    }
+
+    if (sigilOperatorAnnotationReceiver.handleOrWarn(msg)) {
         return;
     }
 

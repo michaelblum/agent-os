@@ -42,7 +42,10 @@ state and toolkit warm helpers are available.
 Sigil's status-item menu includes the first-party operator annotation entry
 point. Keep the manifest-owned `operator_annotation` item targeted at the
 mounted `avatar-main` surface, and keep renderer routing on the generic toolkit
-`operator-annotation-menu` helper before Sigil-private menu actions run.
+`operator-annotation-menu` helper before Sigil-private menu actions run. The
+routed `aos.operator_annotation.start` message must be received by Sigil's
+operator-annotation receiver and enter Selection Mode; projection alone is not
+enough to certify this path.
 
 ## Run
 
