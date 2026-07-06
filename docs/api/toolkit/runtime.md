@@ -345,19 +345,22 @@ Use `advanceMenuActivation(request, phase, extra?)` to move through the
 lifecycle. Unknown phases throw, so provider or app mismatches fail loudly
 instead of creating ad-hoc status names.
 
+`packages/toolkit/contracts/mounted-surface-menu-projection.js` owns the
+neutral mounted-surface menu projection query name, legacy query name, schema
+version, envelope, and surface filter. Experience manifests declare menu items
+with a target `surface`; activation validates mounted-surface menu targets
+generically and projects manifest-owned menu items for the mounted surface into
+the URL via `aos_mounted_surface_menu` only when that surface has matching menu
+entries. Non-menu status surfaces keep their templated URLs unchanged.
+
 `packages/toolkit/runtime/operator-annotation-menu.js` provides the reusable
 surface-side bridge for app-owned status item entries that start operator
-selection/annotation mode. Experience manifests declare menu items with
-`kind: "operator_annotation"` and a target `surface`. Activation validates
-mounted-surface menu targets generically and projects manifest-owned menu items
-for the mounted surface into the URL via `aos_mounted_surface_menu` only when
-that surface has matching menu entries. Non-annotation status surfaces keep
-their templated URLs unchanged. Runtime decode validates the generic mounted
-surface projection schema, experience id, mounted surface id, current surface
-match when available, and menu array before filtering to the
-`operator_annotation` entries it understands. Operator annotation entries whose
-declared target differs from the projected mounted surface fail closed and are
-not routed from URL data. The native status item still emits the generic
+selection/annotation mode. Runtime decode validates the generic mounted-surface
+projection schema, experience id, mounted surface id, current surface match
+when available, and menu array before filtering to the `operator_annotation`
+entries it understands. Operator annotation entries whose declared target
+differs from the projected mounted surface fail closed and are not routed from
+URL data. The native status item still emits the generic
 `status_item.menu_action` event; the toolkit helper maps that action id to a
 `canvas.send` message for the projected operator surface.
 

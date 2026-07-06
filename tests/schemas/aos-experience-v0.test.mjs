@@ -119,6 +119,39 @@ test('experience activation does not import operator annotation runtime contract
   assert(!source.includes('OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION'));
 });
 
+test('mounted-surface menu projection literals have one source owner', async () => {
+  const roots = ['experiences', 'packages', 'scripts'];
+  const sourceFiles = [];
+  async function collect(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await collect(fullPath);
+      } else if (/\.(mjs|js)$/.test(entry.name)) {
+        sourceFiles.push(fullPath);
+      }
+    }
+  }
+  for (const root of roots) await collect(path.join(repoRoot, root));
+
+  const literalOwners = [];
+  for (const file of sourceFiles) {
+    const source = await fs.readFile(file, 'utf8');
+    if (
+      source.includes("'aos_mounted_surface_menu'")
+      || source.includes("'aos_manifest_menu'")
+      || source.includes("'aos.mounted-surface-menu-projection.v0'")
+      || source.includes('function mountedSurfaceMenuProjectionEnvelope')
+    ) {
+      literalOwners.push(path.relative(repoRoot, file));
+    }
+  }
+  assert.deepEqual(literalOwners, [
+    'packages/toolkit/contracts/mounted-surface-menu-projection.js',
+  ]);
+});
+
 test('operator annotation projection ignores unrelated non-annotation menu changes', async () => {
   const base = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,

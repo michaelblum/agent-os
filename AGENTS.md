@@ -241,8 +241,8 @@ mechanics.
   material.
 - `manifests/AGENTS.md` governs command and capability manifests.
 - `packages/AGENTS.md` governs reusable JavaScript/package layers. Its current
-  child is `packages/toolkit/AGENTS.md`, which further indexes `controls/`,
-  `panel/`, and `runtime/`.
+  child is `packages/toolkit/AGENTS.md`, which further indexes `contracts/`,
+  `controls/`, `panel/`, and `runtime/`.
 - `recipes/AGENTS.md` governs operational recipes and repeatable procedures.
 - `scripts/AGENTS.md` governs executable repo tooling, including `aos` command
   adapters and `scripts/aos_agents/`.

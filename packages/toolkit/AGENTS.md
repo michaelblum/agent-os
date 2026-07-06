@@ -8,6 +8,8 @@ and apps. It is where the default opt-in AOS windowing system belongs.
 Layer intent:
 
 - `runtime/`: universal in-canvas bridge over daemon primitives.
+- `contracts/`: neutral toolkit contracts shared by activation scripts and
+  runtime helpers without making activation depend on runtime policy.
 - `controls/`: reusable semantic app-control behavior for WKWebView surfaces.
 - `panel/`: reusable panel/window policy: chrome, drag/drop-capable movement,
   resize, close, minimize, maximize, restore, placement, and surface-manager
@@ -60,6 +62,6 @@ public facade for testing convenience.
 - `panel/AGENTS.md` governs reusable panel/windowing policy.
 - `runtime/AGENTS.md` governs the generic in-canvas bridge to daemon
   primitives.
-- `components/`, `workbench/`, `adapters/`, `markdown/`, and `shell/` do not
-  have child `AGENTS.md` files yet; follow this toolkit contract plus scoped API
-  docs when editing them.
+- `contracts/`, `components/`, `workbench/`, `adapters/`, `markdown/`, and
+  `shell/` do not have child `AGENTS.md` files yet; follow this toolkit
+  contract plus scoped API docs when editing them.

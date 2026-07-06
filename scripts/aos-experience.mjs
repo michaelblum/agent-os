@@ -7,8 +7,9 @@ import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 import {
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
+  mountedSurfaceMenuItemsForSurface,
   mountedSurfaceMenuProjectionEnvelope,
-} from '../experiences/mounted-surface-menu-projection.mjs';
+} from '../packages/toolkit/contracts/mounted-surface-menu-projection.js';
 
 class ExperienceFailure extends Error {
   constructor(message, code) {
@@ -197,12 +198,8 @@ function equivalentContentURLs(left, right) {
     && leftIdentity.query === rightIdentity.query;
 }
 
-function mountedSurfaceMenuItemsForSurface(manifest, surfaceID) {
-  return (manifest.menu || []).filter((item) => item?.surface === surfaceID);
-}
-
 function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = mountedSurfaceMenuItemsForSurface(manifest, surfaceID);
+  const menu = mountedSurfaceMenuItemsForSurface(manifest.menu, surfaceID);
   return Buffer.from(JSON.stringify(mountedSurfaceMenuProjectionEnvelope({
     experienceId: manifest.id,
     surfaceId: surfaceID,
@@ -218,7 +215,7 @@ function appendQueryParam(rawURL, key, value) {
 
 function projectedToggleURL(manifest, surface, rootsByID) {
   const nextURL = template(surface.url, rootsByID);
-  if (mountedSurfaceMenuItemsForSurface(manifest, surface.id).length === 0) return nextURL;
+  if (mountedSurfaceMenuItemsForSurface(manifest.menu, surface.id).length === 0) return nextURL;
   return appendQueryParam(nextURL, MOUNTED_SURFACE_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
 }
 

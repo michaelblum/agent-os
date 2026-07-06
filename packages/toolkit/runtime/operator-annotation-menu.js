@@ -13,7 +13,7 @@ import {
   LEGACY_MOUNTED_SURFACE_MENU_QUERY_PARAM,
   MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
-} from './mounted-surface-menu-projection.js'
+} from '../contracts/mounted-surface-menu-projection.js'
 
 export {
   MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,

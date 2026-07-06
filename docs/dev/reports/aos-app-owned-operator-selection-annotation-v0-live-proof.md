@@ -27,9 +27,9 @@ remains required before claiming the full action loop complete.
 - Mounted operator surface:
   - `operator-fixture-surface`
   - URL: `aos://toolkit/runtime/_smoke/operator-annotation.html`
-  - Current activation appends `?aos_manifest_menu=...` so the smoke surface
-    receives menu/action data projected from the manifest rather than owning a
-    duplicate fixture menu.
+  - At proof time, activation appended `?aos_manifest_menu=...` so the smoke
+    surface received menu/action data projected from the manifest rather than
+    owning a duplicate fixture menu.
 - Posted menu action:
   - `./aos show post --id operator-fixture-surface --event ...`
   - Surface state changed from `idle` to `selecting`.

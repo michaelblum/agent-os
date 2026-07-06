@@ -33,7 +33,7 @@ and below app-specific product expression.
 ## Child DOX Index
 
 - `toolkit/AGENTS.md` governs reusable AOS surface policy and indexes
-  `controls/`, `panel/`, and `runtime/`.
+  `contracts/`, `controls/`, `panel/`, and `runtime/`.
 - `cli/`, `daemon/`, `design-tokens/`, `gateway/`, and `host/` do not have child
   `AGENTS.md` files yet; follow this package contract plus the nearest source,
   schema, or test doc that covers the changed surface.

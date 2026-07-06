@@ -20,10 +20,8 @@ composition metadata.
   aligned with the owning app.
 - Menu entries with a `surface` must target declared mounted surfaces.
   Activation projects matching manifest menu data into the mounted status
-  surface through the generic mounted-surface menu projection contract; smoke
-  surfaces must not duplicate fixture menu data as their source of truth.
-- `mounted-surface-menu-projection.mjs` owns the activation-side projection
-  envelope and query parameter for mounted status surfaces.
+  surface through the neutral toolkit mounted-surface menu projection contract;
+  smoke surfaces must not duplicate fixture menu data as their source of truth.
 - Do not encode app-private behavior here when it belongs in app source or
   toolkit policy.
 
