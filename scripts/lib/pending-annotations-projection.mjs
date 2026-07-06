@@ -137,6 +137,35 @@ function targetSummaryFromCapture(capture, refRecord, overrides = {}) {
   );
 }
 
+function projectFallbackCapture({
+  overrides,
+  state,
+  targetSummary,
+  targetKind = 'fallback',
+  capability,
+  reason,
+  artifactRefs,
+  recommendedNext,
+  sourceCapture,
+}) {
+  return {
+    ...overrides,
+    ...(state ? { state } : {}),
+    target_kind: overrides.target_kind || targetKind || 'fallback',
+    target_summary: targetSummary,
+    capability,
+    fallback_evidence: [{
+      kind: 'saved_capture',
+      reason,
+      summary: targetSummary,
+      artifact_refs: artifactRefs,
+    }],
+    artifact_refs: artifactRefs,
+    recommended_next: recommendedNext,
+    source_capture: sourceCapture,
+  };
+}
+
 export function projectCaptureInput(input) {
   const envelope = captureResultEnvelope(input);
   if (!envelope) return input;
@@ -156,98 +185,70 @@ export function projectCaptureInput(input) {
   const nextFromCapture = snapshot ? captureInspectNext(workspace, snapshot) : captureRefreshNext(workspace);
 
   if (captureStatus === 'stale') {
-    return {
-      ...overrides,
+    return projectFallbackCapture({
+      overrides,
       state: 'stale',
-      target_kind: overrides.target_kind || 'fallback',
-      target_summary: targetSummary,
       capability: { status: 'blocked', reasons: ['source_capture_stale'] },
-      fallback_evidence: [{
-        kind: 'saved_capture',
-        reason: 'source_capture_stale',
-        summary: targetSummary,
-        artifact_refs: captureArtifacts,
-      }],
-      artifact_refs: captureArtifacts,
-      recommended_next: captureRefreshNext(workspace),
-      source_capture: sourceCapture,
-    };
+      reason: 'source_capture_stale',
+      targetSummary,
+      artifactRefs: captureArtifacts,
+      recommendedNext: captureRefreshNext(workspace),
+      sourceCapture,
+    });
   }
 
   if (ambiguous) {
-    return {
-      ...overrides,
+    return projectFallbackCapture({
+      overrides,
       state: 'blocked',
-      target_kind: overrides.target_kind || 'fallback',
-      target_summary: targetSummary,
       capability: { status: 'ambiguous', reasons: ['multiple_capture_refs_without_selection'] },
-      fallback_evidence: [{
-        kind: 'saved_capture',
-        reason: 'multiple_capture_refs_without_selection',
-        summary: targetSummary,
-        artifact_refs: captureArtifacts,
-      }],
-      artifact_refs: captureArtifacts,
-      recommended_next: nextFromCapture,
-      source_capture: sourceCapture,
-    };
+      reason: 'multiple_capture_refs_without_selection',
+      targetSummary,
+      artifactRefs: captureArtifacts,
+      recommendedNext: nextFromCapture,
+      sourceCapture,
+    });
   }
 
   if (!refRecord) {
-    return {
-      ...overrides,
-      target_kind: overrides.target_kind || 'fallback',
-      target_summary: targetSummary,
+    return projectFallbackCapture({
+      overrides,
       capability: { status: 'fallback_only', reasons: ['saved_ref_unavailable'] },
-      fallback_evidence: [{
-        kind: 'saved_capture',
-        reason: 'saved_ref_unavailable',
-        summary: targetSummary,
-        artifact_refs: captureArtifacts,
-      }],
-      artifact_refs: captureArtifacts,
-      recommended_next: captureRefreshNext(workspace),
-      source_capture: sourceCapture,
-    };
+      reason: 'saved_ref_unavailable',
+      targetSummary,
+      artifactRefs: captureArtifacts,
+      recommendedNext: captureRefreshNext(workspace),
+      sourceCapture,
+    });
   }
 
   const refCapability = annotationCapabilityFromSavedRef(refRecord);
   const targetKind = refCapability.target_kind;
   if (refCapability.status === 'unsupported') {
-    return {
-      ...overrides,
+    return projectFallbackCapture({
+      overrides,
       state: 'unsupported',
-      target_kind: overrides.target_kind || targetKind || 'fallback',
-      target_summary: targetSummary,
       capability: { status: 'unsupported', reasons: refCapability.reasons },
-      fallback_evidence: [{
-        kind: 'saved_capture',
-        reason: 'saved_ref_unsupported',
-        summary: targetSummary,
-        artifact_refs: captureArtifacts,
-      }],
-      artifact_refs: captureArtifacts,
-      recommended_next: nextFromCapture,
-      source_capture: sourceCapture,
-    };
+      reason: 'saved_ref_unsupported',
+      targetKind,
+      targetSummary,
+      artifactRefs: captureArtifacts,
+      recommendedNext: nextFromCapture,
+      sourceCapture,
+    });
   }
 
   if (refCapability.status === 'fallback_only') {
-    return {
-      ...overrides,
-      target_kind: overrides.target_kind || targetKind,
-      target_summary: targetSummary,
+    return projectFallbackCapture({
+      overrides,
       capability: { status: 'fallback_only', reasons: refCapability.reasons },
-      fallback_evidence: [{
-        kind: 'saved_capture',
-        reason: 'saved_ref_not_actionable',
-        summary: targetSummary,
-        artifact_refs: captureArtifacts,
-      }],
-      artifact_refs: captureArtifacts,
-      recommended_next: captureRefreshNext(workspace),
-      source_capture: sourceCapture,
-    };
+      reason: 'saved_ref_not_actionable',
+      targetKind,
+      targetSummary,
+      artifactRefs: captureArtifacts,
+      recommendedNext: captureRefreshNext(workspace),
+      sourceCapture,
+    });
   }
 
   return {

@@ -8,8 +8,7 @@ import {
   text,
 } from './pending-annotations-constants.mjs';
 import {
-  annotationSummary,
-  loadIndex,
+  loadIndexReadOnly,
   loadRecord,
   recordPath,
   saveRecordAndRebuildIndex,
@@ -38,7 +37,7 @@ export function createPendingAnnotation(input, env = process.env) {
 export function listPendingAnnotations(options = {}, env = process.env) {
   const state = options.state || null;
   if (state && !LIFECYCLE_STATES.has(state)) fail(`Unsupported annotation state: ${state}`, 'INVALID_ARG');
-  const index = loadIndex(env);
+  const index = loadIndexReadOnly(env);
   const annotations = index.annotations.filter((item) => !state || item.state === state);
   return {
     status: 'success',

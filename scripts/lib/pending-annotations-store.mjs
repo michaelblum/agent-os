@@ -314,7 +314,7 @@ export function loadAllRecords(env = process.env) {
   return listRecordFiles(env).map((file) => validatePendingAnnotationRecord(readJSONExisting(file), file, env));
 }
 
-export function rebuildIndexFromRecords(env = process.env, previousIndex = null) {
+export function buildIndexFromRecords(env = process.env, previousIndex = null, { write = false } = {}) {
   const previousCreatedAt = previousIndex?.created_at || nowISO();
   const annotations = loadAllRecords(env)
     .map((record) => annotationSummary(record, env))
@@ -325,8 +325,12 @@ export function rebuildIndexFromRecords(env = process.env, previousIndex = null)
     updated_at: nowISO(),
     annotations,
   };
-  writeJSONAtomic(indexPath(env), index);
+  if (write) writeJSONAtomic(indexPath(env), index);
   return index;
+}
+
+export function rebuildIndexFromRecords(env = process.env, previousIndex = null) {
+  return buildIndexFromRecords(env, previousIndex, { write: true });
 }
 
 export function loadIndex(env = process.env) {
@@ -343,6 +347,25 @@ export function loadIndex(env = process.env) {
       return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
     });
   if (drift) return rebuildIndexFromRecords(env, asserted);
+  return asserted;
+}
+
+export function loadIndexReadOnly(env = process.env) {
+  const raw = readJSONExisting(indexPath(env), { failOnCorrupt: false });
+  const asserted = assertIndex(raw, indexPath(env), env);
+  if (!asserted) return buildIndexFromRecords(env, null, { write: false });
+  const records = loadAllRecords(env);
+  const summaries = records
+    .map((record) => annotationSummary(record, env))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+  const assertedByID = new Map(asserted.annotations.map((entry) => [entry.id, entry]));
+  const indexIDs = new Set(asserted.annotations.map((entry) => entry.id));
+  const drift = asserted.annotations.length !== summaries.length
+    || summaries.some((summary) => {
+      const entry = assertedByID.get(summary.id);
+      return !entry || !indexIDs.has(summary.id) || JSON.stringify(entry) !== JSON.stringify(summary);
+    });
+  if (drift) return buildIndexFromRecords(env, asserted, { write: false });
   return asserted;
 }
 

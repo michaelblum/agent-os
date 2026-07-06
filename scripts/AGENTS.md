@@ -39,6 +39,8 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Pending annotation records must be closed derived models at persistence and
   readback: saved-ref actionability is derived from `target.saved_ref`, and
   `source_capture` is either `null` or the public saved-capture shape.
+- Pending annotation read/list surfaces must not repair durable state; keep
+  index rebuilds behind mutation-locked create, consume, link, or delete paths.
 
 ## Work Guidance
 

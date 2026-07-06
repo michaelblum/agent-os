@@ -104,6 +104,15 @@ async function writeJSON(dir, name, value) {
   return file;
 }
 
+async function readTextIfExists(file) {
+  try {
+    return await fs.readFile(file, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 function savedCaptureFixture({ snapshot = 'snap1', refs = [], status = 'success' } = {}) {
   return {
     schema_version: 'aos.agent-workspace.v0',
@@ -421,6 +430,17 @@ test('pending annotation capture projection reports fallback and fail-closed sta
   assert.equal(fallbackRead.annotation.fallback_evidence[0].reason, 'saved_ref_unavailable');
   validateJSONFile(fallback.annotation.path);
 
+  const nonActionablePath = await writeJSON(fixtureRoot, 'non-actionable.json', savedCaptureFixture({
+    snapshot: 'snap-non-actionable',
+    refs: [savedRefFixture({ snapshot: 'snap-non-actionable', resolutionClass: 'volatile' })],
+  }));
+  const nonActionable = parseJSON(run(['create', '--id', 'ann-non-actionable', '--from-capture-json', nonActionablePath, '--json'], env));
+  assert.equal(nonActionable.annotation.state, 'pending');
+  assert.equal(nonActionable.annotation.capability_status, 'fallback_only');
+  const nonActionableRead = parseJSON(run(['read', 'ann-non-actionable', '--json'], env));
+  assert.equal(nonActionableRead.annotation.fallback_evidence[0].reason, 'saved_ref_not_actionable');
+  validateJSONFile(nonActionable.annotation.path);
+
   const stalePath = await writeJSON(fixtureRoot, 'stale.json', savedCaptureFixture({
     snapshot: 'snap-stale',
     status: 'stale',
@@ -429,6 +449,7 @@ test('pending annotation capture projection reports fallback and fail-closed sta
   const stale = parseJSON(run(['create', '--id', 'ann-stale', '--from-capture-json', stalePath, '--json'], env));
   assert.equal(stale.annotation.state, 'stale');
   assert.equal(stale.annotation.capability_status, 'blocked');
+  const staleRead = parseJSON(run(['read', 'ann-stale', '--json'], env));
   const staleConsume = run(['consume', 'ann-stale', '--json'], env);
   assert.notEqual(staleConsume.status, 0);
   assert.equal(JSON.parse(staleConsume.stderr).state, 'stale');
@@ -441,6 +462,7 @@ test('pending annotation capture projection reports fallback and fail-closed sta
   const unsupported = parseJSON(run(['create', '--id', 'ann-unsupported', '--from-capture-json', unsupportedPath, '--json'], env));
   assert.equal(unsupported.annotation.state, 'unsupported');
   assert.equal(unsupported.annotation.capability_status, 'unsupported');
+  const unsupportedRead = parseJSON(run(['read', 'ann-unsupported', '--json'], env));
   const unsupportedConsume = run(['consume', 'ann-unsupported', '--json'], env);
   assert.notEqual(unsupportedConsume.status, 0);
   assert.equal(JSON.parse(unsupportedConsume.stderr).capability_status, 'unsupported');
@@ -456,10 +478,25 @@ test('pending annotation capture projection reports fallback and fail-closed sta
   const ambiguous = parseJSON(run(['create', '--id', 'ann-ambiguous', '--from-capture-json', ambiguousPath, '--json'], env));
   assert.equal(ambiguous.annotation.state, 'blocked');
   assert.equal(ambiguous.annotation.capability_status, 'ambiguous');
+  const ambiguousRead = parseJSON(run(['read', 'ann-ambiguous', '--json'], env));
   const ambiguousConsume = run(['consume', 'ann-ambiguous', '--json'], env);
   assert.notEqual(ambiguousConsume.status, 0);
   assert.equal(JSON.parse(ambiguousConsume.stderr).capability_status, 'ambiguous');
   validateJSONFile(ambiguous.annotation.path);
+
+  for (const annotation of [
+    fallbackRead.annotation,
+    nonActionableRead.annotation,
+    staleRead.annotation,
+    unsupportedRead.annotation,
+    ambiguousRead.annotation,
+  ]) {
+    assert.equal(annotation.fallback_evidence.length, 1);
+    assert.deepEqual(annotation.fallback_evidence[0].artifact_refs, annotation.artifact_refs);
+    assert(annotation.recommended_next.length >= 1);
+    assert.equal(annotation.source_capture.kind, 'saved_capture');
+    assert.equal(typeof annotation.source_capture.snapshot_id, 'string');
+  }
 });
 
 test('pending annotation fallback record stays explicit when no saved ref exists', async () => {
@@ -838,7 +875,7 @@ test('pending annotation stale ownerless lock is reaped before mutation', async 
   await assert.rejects(fs.stat(lockDir), /ENOENT/);
 });
 
-test('pending annotation create link delete keep index serialized and recover stale index', async () => {
+test('pending annotation list stays read-only while mutations repair stale index', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-recovery-'));
   const env = {
     AOS_STATE_ROOT: stateRoot,
@@ -883,15 +920,67 @@ test('pending annotation create link delete keep index serialized and recover st
   staleIndex.annotations[0].state = 'pending';
   staleIndex.annotations[0].work_record_link_count = 0;
   await fs.writeFile(indexPath, `${JSON.stringify(staleIndex, null, 2)}\n`, 'utf8');
-  const repairedStale = parseJSON(run(['list', '--json'], env));
-  assert.equal(repairedStale.annotations.filter((item) => item.state === 'deleted').length, 4);
-  assert.equal(repairedStale.annotations.filter((item) => item.work_record_link_count === 1).length, 8);
+  const staleText = await fs.readFile(indexPath, 'utf8');
+  const staleStat = await fs.stat(indexPath);
+  const listedStale = parseJSON(run(['list', '--json'], env));
+  assert.equal(listedStale.annotations.filter((item) => item.state === 'deleted').length, 4);
+  assert.equal(listedStale.annotations.filter((item) => item.work_record_link_count === 1).length, 8);
+  assert.equal(await fs.readFile(indexPath, 'utf8'), staleText);
+  assert.equal((await fs.stat(indexPath)).mtimeMs, staleStat.mtimeMs);
+
+  const consumedRepair = parseJSON(run(['consume', 'ann-index-4', '--actor', 'test-agent', '--json'], env));
+  assert.equal(consumedRepair.annotation.state, 'consumed');
+  const repairedStaleIndex = JSON.parse(await fs.readFile(indexPath, 'utf8'));
+  assert.equal(repairedStaleIndex.annotations.find((item) => item.id === 'ann-index-0').state, 'deleted');
+  assert.equal(repairedStaleIndex.annotations.find((item) => item.id === 'ann-index-0').work_record_link_count, 1);
+  assert.equal(repairedStaleIndex.annotations.find((item) => item.id === 'ann-index-4').state, 'consumed');
 
   await fs.writeFile(indexPath, '{partial', 'utf8');
-  const recovered = parseJSON(run(['list', '--state', 'deleted', '--json'], env));
-  assert.equal(recovered.count, 4);
+  const corruptText = await fs.readFile(indexPath, 'utf8');
+  const corruptStat = await fs.stat(indexPath);
+  const listedCorrupt = parseJSON(run(['list', '--state', 'deleted', '--json'], env));
+  assert.equal(listedCorrupt.count, 4);
+  assert.equal(await fs.readFile(indexPath, 'utf8'), corruptText);
+  assert.equal((await fs.stat(indexPath)).mtimeMs, corruptStat.mtimeMs);
+
+  const linkedRepair = parseJSON(run([
+    'link-work-record',
+    'ann-index-5',
+    '--work-record',
+    'work-record:index-repair-after-corrupt',
+    '--json',
+  ], env));
+  assert.equal(linkedRepair.status, 'linked');
   const recoveredIndex = JSON.parse(await fs.readFile(indexPath, 'utf8'));
   assert.equal(recoveredIndex.annotations.length, 8);
+  assert.equal(recoveredIndex.annotations.find((item) => item.id === 'ann-index-5').work_record_link_count, 2);
+});
+
+test('pending annotation list computes records without creating a missing index', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-missing-index-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const created = parseJSON(run([
+    'create',
+    '--id',
+    'ann-missing-index',
+    '--target-kind',
+    'region',
+    '--target-summary',
+    'Missing index target',
+    '--json',
+  ], env));
+  const indexPath = path.join(stateRoot, 'repo', 'pending-annotations', 'index.json');
+  await fs.unlink(indexPath);
+  assert.equal(await readTextIfExists(indexPath), null);
+
+  const listed = parseJSON(run(['list', '--json'], env));
+  assert.equal(listed.count, 1);
+  assert.equal(listed.annotations[0].id, 'ann-missing-index');
+  assert.equal(await readTextIfExists(indexPath), null);
+  validateJSONFile(created.annotation.path);
 });
 
 test('pending annotation corrupt index rebuild fails closed on invalid records', async () => {
