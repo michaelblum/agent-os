@@ -13,9 +13,9 @@ function readJSONIfExists(file) {
   }
 }
 
-function run(command, args, { env = process.env, timeout = 15000 } = {}) {
+function run(command, args, { cwd = process.cwd(), env = process.env, timeout = 15000 } = {}) {
   const result = spawnSync(command, args, {
-    cwd: process.cwd(),
+    cwd,
     encoding: 'utf8',
     env,
     maxBuffer: 100 * 1024 * 1024,
@@ -29,11 +29,13 @@ function run(command, args, { env = process.env, timeout = 15000 } = {}) {
 }
 
 function runAosJSON(aos, args, {
+  cwd = process.cwd(),
   env = process.env,
   mode = 'repo',
   timeout = 15000,
 } = {}) {
   const result = run(aos, args, {
+    cwd,
     env: { ...env, AOS_RUNTIME_MODE: mode },
     timeout,
   });
@@ -110,18 +112,22 @@ export function collectExperienceRuntimeFacts({
     active: readActiveExperience(runtimeEnv),
     config: readRuntimeConfig(runtimeEnv.configPath),
     serviceStatus: runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
+      cwd: runtimeEnv.repoRoot,
       env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     permissionStatus: runAosJSON(runtimeEnv.aos, ['permissions', 'check', '--json'], {
+      cwd: runtimeEnv.repoRoot,
       env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     contentStatus: runAosJSON(runtimeEnv.aos, ['content', 'status', '--json'], {
+      cwd: runtimeEnv.repoRoot,
       env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),
     showList: runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
+      cwd: runtimeEnv.repoRoot,
       env: normalizedEnv,
       mode: runtimeEnv.mode,
     }),

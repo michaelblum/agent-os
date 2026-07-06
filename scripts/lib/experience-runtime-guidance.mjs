@@ -45,6 +45,7 @@ export function buildCapabilities({
     .map((id) => `${id}_missing`);
   const targetReady = statusItem.target.status === 'current';
   const mountedReady = ['current', 'not_applicable'].includes(statusItem.mounted_surface.status);
+  const annotationStoreCorrupt = pendingAnnotations.supported === true && pendingAnnotations.status === 'corrupt';
   return {
     perception: capability(
       serviceReady && permissionReady && permissions.screen_recording ? 'ready' : 'blocked',
@@ -57,13 +58,13 @@ export function buildCapabilities({
     annotation: capability(
       !pendingAnnotations.supported
         ? 'unsupported'
-        : (serviceReady && permissionReady && targetReady && mountedReady && pendingAnnotations.status !== 'corrupt' ? 'ready' : 'degraded'),
+        : (annotationStoreCorrupt ? 'blocked' : (serviceReady && permissionReady && targetReady && mountedReady ? 'ready' : 'degraded')),
       [
         ...(!serviceReady ? ['service_not_ready'] : []),
         ...permissionBlockers,
         ...(!targetReady ? ['status_item_target_not_current'] : []),
         ...(!mountedReady ? ['mounted_surface_not_current'] : []),
-        ...(pendingAnnotations.status === 'corrupt' ? ['pending_annotation_state_corrupt'] : []),
+        ...(annotationStoreCorrupt ? ['pending_annotation_state_corrupt'] : []),
       ],
     ),
     saved_ref_action: capability(

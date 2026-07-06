@@ -147,7 +147,9 @@ The JSON envelope uses
   pending annotation root;
 - status-item target URL, expected URL, mounted surface id/URL, and
   mounted-surface menu projection status;
-- content root declared/configured/live status;
+- content root declared/configured/live status; declared roots are valid only
+  when their paths resolve to directories, so missing paths, regular files,
+  symlinks, and unreadable paths do not report as current;
 - passive service and permission readiness from `aos service status`,
   `aos permissions check`, `aos content status`, and `aos show list`;
 - diagnostics for active-experience mismatch, status-item drift, mounted
@@ -157,6 +159,13 @@ The JSON envelope uses
   evidence handoff;
 - `recommended_next[]` entries with executable argv arrays. Entries that
   contain placeholders are marked `display_only: true`.
+
+For experiences that support pending annotations, corrupt pending annotation
+records fail closed through this same status surface: the
+`pending_annotations` object reports `status: "corrupt"`, the annotation and
+evidence handoff capabilities are blocked, and diagnostics include
+`pending-annotation-state-corrupt`. `index.json` remains a disposable cache;
+valid records, not the index, decide whether the store is initialized.
 
 `aos experience status --json` without an id remains the compact legacy
 active-experience readback.

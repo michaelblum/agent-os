@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildExperienceRuntimeContext } from '../scripts/lib/experience-runtime-context.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -56,6 +57,28 @@ if (denied.some((prefix) => key.startsWith(prefix))) {
 const responses = JSON.parse(process.env.FAKE_AOS_RESPONSES || '{}');
 if (!Object.hasOwn(responses, key)) {
   console.error(JSON.stringify({ code: 'UNEXPECTED_FAKE_AOS_CALL', argv: args }));
+  process.exit(2);
+}
+const response = responses[key];
+if (response.stderr) process.stderr.write(response.stderr);
+if (Object.hasOwn(response, 'value')) process.stdout.write(JSON.stringify(response.value));
+else if (response.stdout) process.stdout.write(response.stdout);
+process.exit(response.exit_code ?? 0);
+`, { mode: 0o755 });
+  return { fake, log };
+}
+
+async function writeCwdRecordingFakeAos(tmp, responses) {
+  const fake = path.join(tmp, 'fake-aos-cwd.mjs');
+  const log = path.join(tmp, 'aos-cwd-calls.jsonl');
+  await fs.writeFile(fake, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify({ args, cwd: process.cwd() }) + '\\n');
+const key = args.join(' ');
+const responses = JSON.parse(process.env.FAKE_AOS_RESPONSES || '{}');
+if (!Object.hasOwn(responses, key)) {
+  console.error(JSON.stringify({ code: 'UNEXPECTED_FAKE_AOS_CALL', argv: args, cwd: process.cwd() }));
   process.exit(2);
 }
 const response = responses[key];
@@ -602,6 +625,51 @@ test('experience status blocks corrupt pending state and reports passive readine
   assert(payload.recommended_next.some((item) => item.id === 'permissions-setup'));
 });
 
+test('experience status blocks annotation capability on corrupt pending record', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-corrupt-record-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  const corruptRecordPath = path.join(tmp, 'repo', 'pending-annotations', 'records', 'ann-bad-json.json');
+  await fs.mkdir(path.dirname(corruptRecordPath), { recursive: true });
+  await fs.writeFile(corruptRecordPath, '{bad json', 'utf8');
+
+  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  }));
+
+  assert.equal(payload.status, 'blocked');
+  assert.equal(payload.pending_annotations.status, 'corrupt');
+  assert.equal(payload.pending_annotations.records_status, 'corrupt');
+  assert.equal(payload.pending_annotations.record_count, 0);
+  assert.equal(payload.pending_annotations.records_error_path, corruptRecordPath);
+  assert.equal(payload.capabilities.annotation.status, 'blocked');
+  assert(payload.capabilities.annotation.blockers.includes('pending_annotation_state_corrupt'), payload.capabilities.annotation);
+  assert.equal(payload.capabilities.evidence_handoff.status, 'blocked');
+  assert(payload.diagnostics.some((item) => item.id === 'pending-annotation-state-corrupt'), payload.diagnostics);
+});
+
 test('experience status reports symlinked pending index through store-owned status without mutation', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-symlink-'));
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-outside-'));
@@ -659,4 +727,220 @@ test('experience status reports symlinked pending index through store-owned stat
     'service status --mode repo --json',
     'show list --json',
   ].sort());
+});
+
+test('experience runtime passive AOS readbacks run from normalized repo root', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-cwd-'));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = 'cwd-root-fixture';
+  const contentRoot = path.join(tempRepoRoot, 'content-root');
+  const expectedURL = 'aos://cwdroot/runtime/index.html';
+  assert.notEqual(tempRepoRoot, process.cwd());
+
+  await fs.mkdir(path.join(experiencesRoot, id), { recursive: true });
+  await fs.mkdir(contentRoot, { recursive: true });
+  const expectedCwd = await fs.realpath(tempRepoRoot);
+  await writeJSON(path.join(experiencesRoot, id, 'aos-experience.json'), {
+    schema_version: 0,
+    id,
+    title: 'Cwd Root Fixture',
+    version: '0.1.0',
+    exclusive: true,
+    default_activation: {
+      kind: 'status_item',
+      status_item_first: true,
+      primary_entry: 'cwd-root-surface',
+    },
+    vanilla_fallback: {
+      status_item: true,
+      tools: [],
+    },
+    content_roots: [{
+      id: 'cwdroot',
+      path: 'content-root',
+      branch_scoped: false,
+    }],
+    status_item: {
+      enabled: true,
+      label: 'Cwd Root Fixture',
+      icon: 'aos',
+      toggle_surface: {
+        id: 'cwd-root-surface',
+        url: expectedURL,
+        track: 'union',
+      },
+    },
+    branding: {
+      display_name: 'Cwd Root Fixture',
+      surface_title_prefix: 'Cwd Root',
+      theme_ref: 'packages/toolkit/runtime',
+      about: 'Fixture proving passive readback cwd.',
+    },
+    menu: [],
+    surfaces: {
+      'cwd-root-surface': {
+        summary: 'Fixture surface.',
+      },
+    },
+  });
+  await writeJSON(path.join(stateRoot, 'repo', 'experience-state.json'), {
+    active_experience: id,
+    exclusive: true,
+  });
+  await writeJSON(path.join(stateRoot, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        cwdroot: contentRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'cwd-root-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+
+  const responses = baseResponses(stateRoot, {
+    contentRoots: { cwdroot: contentRoot },
+    canvases: [{
+      id: 'cwd-root-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeCwdRecordingFakeAos(tmp, responses);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+  assert.equal(payload.active_experience.status, 'current');
+
+  const calls = (await fs.readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(calls.map((entry) => entry.args.join(' ')).sort(), [
+    'content status --json',
+    'permissions check --json',
+    'service status --mode repo --json',
+    'show list --json',
+  ].sort());
+  assert.deepEqual([...new Set(calls.map((entry) => entry.cwd))], [expectedCwd]);
+});
+
+test('experience status does not mark a regular file content root current', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-file-root-'));
+  const tempRepoRoot = path.join(tmp, 'repo-root');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const stateRoot = path.join(tmp, 'state');
+  const id = 'file-root-fixture';
+  const rootFile = path.join(tempRepoRoot, 'content-root-file');
+  const expectedURL = 'aos://badroot/runtime/file-root.html';
+  await fs.mkdir(path.join(experiencesRoot, id), { recursive: true });
+  await fs.mkdir(tempRepoRoot, { recursive: true });
+  await fs.writeFile(rootFile, 'not a directory\n', 'utf8');
+  await writeJSON(path.join(experiencesRoot, id, 'aos-experience.json'), {
+    schema_version: 0,
+    id,
+    title: 'File Root Fixture',
+    version: '0.1.0',
+    exclusive: true,
+    default_activation: {
+      kind: 'status_item',
+      status_item_first: true,
+      primary_entry: 'file-root-surface',
+    },
+    vanilla_fallback: {
+      status_item: true,
+      tools: [],
+    },
+    content_roots: [{
+      id: 'badroot',
+      path: 'content-root-file',
+      branch_scoped: false,
+    }],
+    status_item: {
+      enabled: true,
+      label: 'File Root Fixture',
+      icon: 'aos',
+      toggle_surface: {
+        id: 'file-root-surface',
+        url: expectedURL,
+        track: 'union',
+      },
+    },
+    branding: {
+      display_name: 'File Root Fixture',
+      surface_title_prefix: 'File Root',
+      theme_ref: 'packages/toolkit/runtime',
+      about: 'Fixture proving invalid content root status.',
+    },
+    menu: [],
+    surfaces: {
+      'file-root-surface': {
+        summary: 'Fixture surface.',
+      },
+    },
+  });
+  await writeJSON(path.join(stateRoot, 'repo', 'experience-state.json'), {
+    active_experience: id,
+    exclusive: true,
+  });
+  await writeJSON(path.join(stateRoot, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        badroot: rootFile,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'file-root-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  const responses = baseResponses(stateRoot, {
+    contentRoots: { badroot: rootFile },
+    canvases: [{
+      id: 'file-root-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  });
+  const { fake, log } = await writeFakeAos(tmp, responses);
+  const env = {
+    ...process.env,
+    AOS_STATE_ROOT: stateRoot,
+    AOS_EXPERIENCES_DIR: experiencesRoot,
+    AOS_PATH: fake,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: log,
+    FAKE_AOS_RESPONSES: JSON.stringify(responses),
+  };
+
+  const payload = buildExperienceRuntimeContext(id, { env, repoRoot: tempRepoRoot });
+  const root = payload.content_roots.roots[0];
+  assert.equal(payload.status, 'degraded');
+  assert.equal(root.declared_path, rootFile);
+  assert.equal(root.declared_path_status, 'not_directory');
+  assert.equal(root.declared_path_type, 'file');
+  assert.equal(root.configured_status, 'current');
+  assert.equal(root.live_status, 'current');
+  assert.equal(root.status, 'not_directory');
+  assert.notEqual(payload.content_roots.status, 'current');
 });

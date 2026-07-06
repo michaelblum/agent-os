@@ -13,13 +13,43 @@ function lstatStatus(file) {
       mtime_ms: stat.mtimeMs,
     };
   } catch (error) {
-    if (error?.code === 'ENOENT') return { exists: false };
-    return { exists: false, error: error.message };
+    if (error?.code === 'ENOENT') return { exists: false, error_code: 'ENOENT' };
+    return { exists: false, error_code: error?.code || 'UNKNOWN' };
   }
 }
 
-function pathExists(file) {
-  return lstatStatus(file).exists;
+function contentRootPathStatus(file) {
+  const stat = lstatStatus(file);
+  if (!stat.exists) {
+    const status = stat.error_code === 'ENOENT'
+      ? 'missing'
+      : (['EACCES', 'EPERM'].includes(stat.error_code) ? 'unreadable' : 'unknown');
+    return {
+      status,
+      type: null,
+      mtime_ms: null,
+      error_code: stat.error_code,
+    };
+  }
+  if (stat.is_symlink) {
+    return {
+      status: 'symlink',
+      type: 'symlink',
+      mtime_ms: stat.mtime_ms,
+    };
+  }
+  if (!stat.is_directory) {
+    return {
+      status: 'not_directory',
+      type: stat.is_file ? 'file' : 'other',
+      mtime_ms: stat.mtime_ms,
+    };
+  }
+  return {
+    status: 'current',
+    type: 'directory',
+    mtime_ms: stat.mtime_ms,
+  };
 }
 
 function normalizePathForCompare(repoRoot, value) {
@@ -43,7 +73,7 @@ export function buildContentRootStatus({
   const items = roots.map((root) => {
     const configuredPath = configuredRoots[root.key] ?? null;
     const livePath = liveRoots[root.key] ?? null;
-    const declaredExists = pathExists(root.path);
+    const declaredPath = contentRootPathStatus(root.path);
     const configuredStatus = !configuredPath
       ? 'missing'
       : (normalizePathForCompare(repoRoot, configuredPath) === normalizePathForCompare(repoRoot, root.path) ? 'current' : 'stale');
@@ -52,18 +82,20 @@ export function buildContentRootStatus({
       : (!livePath
         ? 'missing'
         : (normalizePathForCompare(repoRoot, livePath) === normalizePathForCompare(repoRoot, root.path) ? 'current' : 'stale'));
-    const declaredPathStatus = declaredExists ? 'exists' : 'missing';
     return {
       id: root.id,
       key: root.key,
       branch_scoped: root.branch_scoped,
       declared_path: root.path,
-      declared_path_status: declaredPathStatus,
+      declared_path_status: declaredPath.status,
+      declared_path_type: declaredPath.type,
+      declared_path_mtime_ms: declaredPath.mtime_ms,
+      ...(declaredPath.error_code ? { declared_path_error_code: declaredPath.error_code } : {}),
       configured_path: configuredPath,
       configured_status: configuredStatus,
       live_path: livePath,
       live_status: liveStatus,
-      status: worstStatus([declaredPathStatus === 'exists' ? 'current' : 'missing', configuredStatus, liveStatus]),
+      status: worstStatus([declaredPath.status, configuredStatus, liveStatus]),
     };
   });
 

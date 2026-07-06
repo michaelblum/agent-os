@@ -1,8 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  AgentWorkspaceError,
-  readJSONExisting as readSharedJSONExisting,
   runtimeMode,
   stateDir,
   stateRoot,
@@ -184,14 +182,12 @@ export function canonicalRecordPath(id, env = process.env) {
 
 export function readJSONExisting(file, { failOnCorrupt = true } = {}) {
   try {
-    return readSharedJSONExisting(file);
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     if (!failOnCorrupt) return null;
-    if (error instanceof AgentWorkspaceError || error?.code === 'AGENT_WORKSPACE_STATE_CORRUPT') {
-      fail(`Pending annotation state is corrupt or unreadable: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
-    }
-    fail(`Pending annotation state is corrupt or unreadable: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file });
+    const status = error instanceof SyntaxError ? 'corrupt' : 'unreadable';
+    fail(`Pending annotation state is ${status}: ${file}`, 'PENDING_ANNOTATION_STATE_CORRUPT', { path: file, status });
   }
 }
 
@@ -276,7 +272,11 @@ function listRecordFiles(env = process.env) {
 }
 
 export function loadAllRecords(env = process.env) {
-  return listRecordFiles(env).map((file) => validatePendingAnnotationRecord(readJSONExisting(file), file, env));
+  return listRecordFiles(env).map((file) => {
+    const id = path.basename(file, '.json');
+    const canonical = canonicalRecordPath(id, env);
+    return validatePendingAnnotationRecord(readJSONExisting(canonical.path), canonical.path, env);
+  });
 }
 
 function summariesFromRecords(records, env = process.env) {
@@ -337,12 +337,25 @@ export function loadIndexReadOnly(env = process.env) {
 
 function storageErrorStatus(error, fallbackStatus = 'corrupt') {
   if (!isPendingAnnotationError(error)) throw error;
+  const structuredStatus = error.extra?.path_status || error.extra?.status;
+  if (['corrupt', 'symlink', 'not_directory', 'path_escape', 'unreadable', 'unknown'].includes(structuredStatus)) {
+    return structuredStatus;
+  }
   const message = error.message || '';
   if (message.includes('symlink')) return 'symlink';
   if (message.includes('not a directory')) return 'not_directory';
   if (message.includes('escapes root')) return 'path_escape';
   if (message.includes('unreadable') || message.includes('cannot be listed')) return 'unreadable';
   return fallbackStatus;
+}
+
+function storageErrorDetails(error, prefix) {
+  const status = storageErrorStatus(error);
+  const pathValue = typeof error.extra?.path === 'string' ? error.extra.path : null;
+  return {
+    [`${prefix}_error_status`]: status,
+    ...(pathValue ? { [`${prefix}_error_path`]: pathValue } : {}),
+  };
 }
 
 export function pendingAnnotationStoreStatus(env = process.env) {
@@ -375,6 +388,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
       records_status: 'unknown',
       index_status: 'unknown',
       record_count: 0,
+      ...storageErrorDetails(error, 'root'),
     };
   }
 
@@ -398,16 +412,18 @@ export function pendingAnnotationStoreStatus(env = process.env) {
     const records = canonicalRecordsDir(env, { forWrite: false });
     if (records) {
       recordsStatus = 'exists';
-      recordCount = listRecordFiles(env).length;
+      recordCount = loadAllRecords(env).length;
     }
   } catch (error) {
+    const recordsErrorStatus = storageErrorStatus(error);
     return {
       status: 'corrupt',
       ...baseWithLock,
       root_status: 'exists',
-      records_status: storageErrorStatus(error),
+      records_status: recordsErrorStatus,
       index_status: 'unknown',
       record_count: 0,
+      ...storageErrorDetails(error, 'records'),
     };
   }
 
@@ -426,6 +442,7 @@ export function pendingAnnotationStoreStatus(env = process.env) {
       records_status: recordsStatus,
       index_status: storageErrorStatus(error),
       record_count: recordCount,
+      ...storageErrorDetails(error, 'index'),
     };
   }
 

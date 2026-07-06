@@ -63,6 +63,25 @@ test('pending annotation corrupt record read fails closed', async () => {
   assert.equal(err.code, 'PENDING_ANNOTATION_STATE_CORRUPT');
 });
 
+test('pending annotation store status validates record JSON before reporting initialized', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-status-corrupt-record-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const recordPath = path.join(stateRoot, 'repo', 'pending-annotations', 'records', 'ann-bad-json.json');
+  await fs.mkdir(path.dirname(recordPath), { recursive: true });
+  await fs.writeFile(recordPath, '{bad json', 'utf8');
+
+  const status = pendingAnnotationStoreStatus(env);
+  assert.equal(status.status, 'corrupt');
+  assert.equal(status.records_status, 'corrupt');
+  assert.equal(status.record_count, 0);
+  assert.equal(status.records_error_status, 'corrupt');
+  assert.equal(status.records_error_path, recordPath);
+  assert.notEqual(status.status, 'initialized');
+});
+
 test('pending annotation record id must match its filename', async () => {
   const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-wrong-id-'));
   const env = {
