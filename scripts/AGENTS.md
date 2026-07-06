@@ -14,8 +14,11 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
   content-root resolution, status-item URL equivalence, and mounted-surface
   menu projection helpers used by experience activation and status.
+- `lib/experience-runtime-facts.mjs` owns read-only fact collection for
+  `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
+  active-experience and runtime-config file reads.
 - `lib/experience-runtime-context.mjs` owns the read-only
-  `aos.experience-runtime-context.v0` status envelope behind
+  `aos.experience-runtime-context.v0` envelope/projection assembler behind
   `aos experience status <id> --json`.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
@@ -25,8 +28,10 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - `lib/pending-annotations-store.mjs` owns the pending annotation persistence
   boundary: canonical path containment, symlink rejection, locks, full-store
   preflight, single-record durable mutation writes, record listing, and
-  disposable index cache projection. It must call model helpers for record
-  validation and summary projection rather than reimplementing schema logic.
+  disposable index cache projection. It also owns the read-only pending
+  annotation store status projection consumed by experience runtime context.
+  It must call model helpers for record validation and summary projection
+  rather than reimplementing schema logic.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.

@@ -1,10 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   discoverExperience,
   equivalentContentURLs,
-  experienceEnvironment,
   mountedSurfaceMenuItemsForSurface,
   mountedSurfaceMenuProjectionFromURL,
   projectedToggleURL,
@@ -12,27 +10,13 @@ import {
   rootMap,
 } from './experience-manifest.mjs';
 import {
-  stateDir as workspaceStateDir,
-  stateRoot as workspaceStateRoot,
-} from './agent-workspace/core.mjs';
+  collectExperienceRuntimeFacts,
+} from './experience-runtime-facts.mjs';
 import {
-  pendingRoot,
-  recordsDir,
-  indexPath,
+  pendingAnnotationStoreStatus,
 } from './pending-annotations-store.mjs';
 
 export const EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION = 'aos.experience-runtime-context.v0';
-
-const LOCK_STALE_MS = 30000;
-
-function readJSONIfExists(file) {
-  try {
-    return { status: 'ok', value: JSON.parse(fs.readFileSync(file, 'utf8')) };
-  } catch (error) {
-    if (error?.code === 'ENOENT') return { status: 'missing', value: null };
-    return { status: 'corrupt', value: null, error: error.message };
-  }
-}
 
 function lstatStatus(file) {
   try {
@@ -56,54 +40,6 @@ function pathExists(file) {
 
 function normalizePathForCompare(repoRoot, value) {
   return path.resolve(repoRoot, value);
-}
-
-function run(command, args, { env = process.env, timeout = 15000 } = {}) {
-  const result = spawnSync(command, args, {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    env,
-    maxBuffer: 100 * 1024 * 1024,
-    timeout,
-  });
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout || '',
-    stderr: result.stderr || (result.error ? result.error.message : ''),
-  };
-}
-
-function runAosJSON(aos, args, {
-  env = process.env,
-  mode = 'repo',
-  timeout = 15000,
-} = {}) {
-  const result = run(aos, args, {
-    env: { ...env, AOS_RUNTIME_MODE: mode },
-    timeout,
-  });
-  if (result.status !== 0) {
-    return {
-      ok: false,
-      status: 'failed',
-      exit_code: result.status,
-      error: (result.stderr || result.stdout).trim() || `aos ${args.join(' ')} failed`,
-    };
-  }
-  try {
-    return {
-      ok: true,
-      status: 'ok',
-      value: JSON.parse(result.stdout),
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 'invalid_json',
-      exit_code: result.status,
-      error: error.message,
-    };
-  }
 }
 
 function commandArgv(prefix, ...args) {
@@ -152,46 +88,6 @@ function statusRank(status) {
 function worstStatus(statuses) {
   const ranked = statuses.filter(Boolean).sort((left, right) => statusRank(right) - statusRank(left));
   return ranked[0] ?? 'ok';
-}
-
-function readActiveExperience(stateDirPath, stateRootPath) {
-  const scoped = path.join(stateDirPath, 'experience-state.json');
-  const legacy = path.join(stateRootPath, 'experience-state.json');
-  for (const file of [scoped, legacy]) {
-    const read = readJSONIfExists(file);
-    if (read.status === 'ok') {
-      return {
-        id: read.value?.active_experience || null,
-        source_path: file,
-        source_status: 'ok',
-      };
-    }
-    if (read.status === 'corrupt') {
-      return {
-        id: null,
-        source_path: file,
-        source_status: 'corrupt',
-        error: read.error,
-      };
-    }
-  }
-  return {
-    id: null,
-    source_path: scoped,
-    source_status: 'missing',
-  };
-}
-
-function readRuntimeConfig(configFile) {
-  const read = readJSONIfExists(configFile);
-  return {
-    status: read.status,
-    path: configFile,
-    value: read.value && typeof read.value === 'object' && !Array.isArray(read.value)
-      ? read.value
-      : {},
-    error: read.error,
-  };
 }
 
 function buildContentRootStatus({
@@ -370,111 +266,22 @@ function buildStatusItemStatus({
   };
 }
 
-function processGone(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return null;
-  try {
-    process.kill(pid, 0);
-    return false;
-  } catch (error) {
-    return error?.code === 'ESRCH' ? true : null;
-  }
-}
-
-function lockStatus(root) {
-  const lockDir = path.join(root, '.mutation.lock');
-  const stat = lstatStatus(lockDir);
-  if (!stat.exists) return { status: 'absent', path: lockDir };
-  let owner = null;
-  try {
-    owner = JSON.parse(fs.readFileSync(path.join(lockDir, 'owner.json'), 'utf8'));
-  } catch {
-    owner = null;
-  }
-  const pid = Number(owner?.pid);
-  const gone = processGone(pid);
-  const ageMs = Math.max(0, Date.now() - (stat.mtime_ms ?? Date.now()));
-  const stale = gone === true || (!Number.isInteger(pid) && ageMs >= LOCK_STALE_MS);
-  return {
-    status: stale ? 'stale' : 'active',
-    path: lockDir,
-    owner_pid: Number.isInteger(pid) ? pid : null,
-    age_ms: Math.round(ageMs),
-  };
-}
-
 function buildPendingAnnotationStatus({
   env,
   manifest,
 }) {
   const supported = (manifest.menu || []).some((item) => item?.kind === 'operator_annotation' || item?.create_pending_annotation === true);
-  const root = pendingRoot(env);
-  const records = recordsDir(env);
-  const index = indexPath(env);
-  const rootStat = lstatStatus(root);
-  const recordsStat = lstatStatus(records);
-  const lock = lockStatus(root);
-  const base = {
-    supported,
-    root,
-    records_dir: records,
-    index_path: index,
-    lock,
-  };
-
+  const store = pendingAnnotationStoreStatus(env);
   if (!supported) {
-    return { status: 'not_applicable', ...base };
-  }
-  if (!rootStat.exists) {
     return {
-      status: 'not_initialized',
-      ...base,
-      root_status: 'missing',
-      record_count: 0,
+      ...store,
+      status: 'not_applicable',
+      supported,
     };
   }
-  if (rootStat.is_symlink || !rootStat.is_directory) {
-    return {
-      status: 'corrupt',
-      ...base,
-      root_status: rootStat.is_symlink ? 'symlink' : 'not_directory',
-      record_count: 0,
-    };
-  }
-  if (recordsStat.exists && (recordsStat.is_symlink || !recordsStat.is_directory)) {
-    return {
-      status: 'corrupt',
-      ...base,
-      root_status: 'exists',
-      records_status: recordsStat.is_symlink ? 'symlink' : 'not_directory',
-      record_count: 0,
-    };
-  }
-
-  let recordCount = 0;
-  if (recordsStat.exists) {
-    try {
-      recordCount = fs.readdirSync(records).filter((name) => name.endsWith('.json') && !name.includes('.tmp-')).length;
-    } catch {
-      return {
-        status: 'corrupt',
-        ...base,
-        root_status: 'exists',
-        records_status: 'unreadable',
-        record_count: 0,
-      };
-    }
-  }
-  const indexRead = readJSONIfExists(index);
-  const indexStatus = indexRead.status === 'missing'
-    ? 'missing'
-    : (indexRead.status === 'ok' ? 'present' : 'corrupt');
   return {
-    status: lock.status === 'stale' ? 'stale' : (recordsStat.exists ? 'initialized' : 'not_initialized'),
-    ...base,
-    root_status: 'exists',
-    records_status: recordsStat.exists ? 'exists' : 'missing',
-    index_status: indexStatus,
-    record_count: recordCount,
+    ...store,
+    supported,
   };
 }
 
@@ -770,30 +577,22 @@ export function buildExperienceRuntimeContext(id, {
   repoRoot = process.cwd(),
   prefix = env.AOS_INVOCATION_DISPLAY_NAME || './aos',
 } = {}) {
-  const runtimeEnv = experienceEnvironment({ env, repoRoot });
-  const stateRootPath = workspaceStateRoot(env);
-  const stateDirPath = workspaceStateDir(env);
+  const {
+    runtimeEnv,
+    stateRootPath,
+    stateDirPath,
+    active,
+    config,
+    serviceStatus,
+    permissionStatus,
+    contentStatus,
+    showList,
+  } = collectExperienceRuntimeFacts({ env, repoRoot });
   const manifest = discoverExperience(id, { experiencesRoot: runtimeEnv.experiencesRoot });
   const roots = resolveContentRoots(manifest, { repoRoot: runtimeEnv.repoRoot });
   const rootsByID = rootMap(roots);
-  const active = readActiveExperience(stateDirPath, stateRootPath);
-  const config = readRuntimeConfig(path.join(stateDirPath, 'config.json'));
-  const service = buildServiceStatus(runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
-    env,
-    mode: runtimeEnv.mode,
-  }));
-  const permissions = buildPermissionStatus(runAosJSON(runtimeEnv.aos, ['permissions', 'check', '--json'], {
-    env,
-    mode: runtimeEnv.mode,
-  }));
-  const contentStatus = runAosJSON(runtimeEnv.aos, ['content', 'status', '--json'], {
-    env,
-    mode: runtimeEnv.mode,
-  });
-  const showList = runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
-    env,
-    mode: runtimeEnv.mode,
-  });
+  const service = buildServiceStatus(serviceStatus);
+  const permissions = buildPermissionStatus(permissionStatus);
   const contentRoots = buildContentRootStatus({
     roots,
     config: config.value,

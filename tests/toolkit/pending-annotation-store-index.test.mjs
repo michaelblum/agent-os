@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   commitPendingAnnotationRecordMutation,
+  pendingAnnotationStoreStatus,
 } from '../../scripts/lib/pending-annotations-store.mjs';
 import {
   parseError,
@@ -193,6 +194,34 @@ test('pending annotation store rejects symlinked records directory before read o
   }), 'utf8');
   assert.equal(parseError(run(['read', 'ann-symlink-read', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
   assert.equal(parseError(run(['list', '--json'], env)).code, 'PENDING_ANNOTATION_STATE_CORRUPT');
+});
+
+test('pending annotation store status classifies symlinked index without following it', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-symlink-'));
+  const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-index-outside-'));
+  const env = {
+    AOS_STATE_ROOT: stateRoot,
+    AOS_RUNTIME_MODE: 'repo',
+  };
+  const pendingRoot = path.join(stateRoot, 'repo', 'pending-annotations');
+  await fs.mkdir(path.join(pendingRoot, 'records'), { recursive: true });
+  const outsideIndex = path.join(outsideRoot, 'index.json');
+  await fs.writeFile(outsideIndex, JSON.stringify({
+    schema_version: 'aos.pending-annotation.v0',
+    runtime_mode: 'repo',
+    state_root: stateRoot,
+    created_at: '2026-07-06T00:00:00Z',
+    updated_at: '2026-07-06T00:00:00Z',
+    annotations: [],
+  }), 'utf8');
+  await fs.symlink(outsideIndex, path.join(pendingRoot, 'index.json'));
+
+  const status = pendingAnnotationStoreStatus(env);
+  assert.equal(status.status, 'corrupt');
+  assert.equal(status.root_status, 'exists');
+  assert.equal(status.records_status, 'exists');
+  assert.equal(status.index_status, 'symlink');
+  assert.equal(status.record_count, 0);
 });
 
 test('pending annotation create preflights existing records before writing new durable state', async () => {

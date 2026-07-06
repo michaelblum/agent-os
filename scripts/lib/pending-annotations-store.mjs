@@ -21,6 +21,7 @@ import {
 } from './pending-annotations-model.mjs';
 import {
   fail,
+  isPendingAnnotationError,
   nowISO,
 } from './pending-annotations-constants.mjs';
 
@@ -47,6 +48,47 @@ export function recordPath(id, env = process.env) {
 
 function lockDir(env = process.env) {
   return path.join(pendingRoot(env), '.mutation.lock');
+}
+
+function processIsGone(pid) {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return error?.code === 'ESRCH' ? true : null;
+  }
+}
+
+function inspectLockStatus(env = process.env) {
+  const dir = lockDir(env);
+  let stat = null;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch (error) {
+    if (!['ENOENT', 'ENOTDIR'].includes(error?.code)) throw error;
+  }
+  if (!stat) return { status: 'absent', path: dir };
+  if (stat.isSymbolicLink()) return { status: 'corrupt', path: dir, path_status: 'symlink' };
+  if (!stat.isDirectory()) return { status: 'corrupt', path: dir, path_status: 'not_directory' };
+  let owner = null;
+  try {
+    owner = JSON.parse(fs.readFileSync(path.join(dir, 'owner.json'), 'utf8'));
+  } catch {
+    owner = null;
+  }
+  const pid = Number(owner?.pid);
+  const ownerPid = Number.isInteger(pid) && pid > 0 ? pid : null;
+  const ageMs = Math.max(0, Date.now() - stat.mtimeMs);
+  const gone = ownerPid ? processIsGone(ownerPid) : null;
+  const staleMs = Number(env.AOS_PENDING_ANNOTATION_STALE_LOCK_MS ?? DEFAULT_LOCK_STALE_MS);
+  const staleThreshold = Number.isFinite(staleMs) && staleMs >= 0 ? staleMs : DEFAULT_LOCK_STALE_MS;
+  const stale = gone === true || (!ownerPid && ageMs >= staleThreshold);
+  return {
+    status: stale ? 'stale' : 'active',
+    path: dir,
+    owner_pid: ownerPid,
+    age_ms: Math.round(ageMs),
+  };
 }
 
 function pathInside(root, candidate) {
@@ -291,6 +333,105 @@ export function loadIndexReadOnly(env = process.env) {
   const summaries = summariesFromRecords(records, env);
   if (indexDrifted(asserted, summaries)) return buildIndexFromRecords(env, asserted, { write: false });
   return asserted;
+}
+
+function storageErrorStatus(error, fallbackStatus = 'corrupt') {
+  if (!isPendingAnnotationError(error)) throw error;
+  const message = error.message || '';
+  if (message.includes('symlink')) return 'symlink';
+  if (message.includes('not a directory')) return 'not_directory';
+  if (message.includes('escapes root')) return 'path_escape';
+  if (message.includes('unreadable') || message.includes('cannot be listed')) return 'unreadable';
+  return fallbackStatus;
+}
+
+export function pendingAnnotationStoreStatus(env = process.env) {
+  const base = {
+    root: pendingRoot(env),
+    records_dir: recordsDir(env),
+    index_path: indexPath(env),
+    lock: inspectLockStatus(env),
+  };
+
+  try {
+    const root = canonicalPendingRoot(env, { forWrite: false });
+    if (!root.exists) {
+      return {
+        status: 'not_initialized',
+        ...base,
+        root_status: 'missing',
+        records_status: 'missing',
+        index_status: 'missing',
+        record_count: 0,
+      };
+    }
+  } catch (error) {
+    return {
+      status: 'corrupt',
+      ...base,
+      root_status: storageErrorStatus(error),
+      records_status: 'unknown',
+      index_status: 'unknown',
+      record_count: 0,
+    };
+  }
+
+  if (base.lock.status === 'corrupt') {
+    return {
+      status: 'corrupt',
+      ...base,
+      root_status: 'exists',
+      records_status: 'unknown',
+      index_status: 'unknown',
+      record_count: 0,
+    };
+  }
+
+  let recordCount = 0;
+  let recordsStatus = 'missing';
+  try {
+    const records = canonicalRecordsDir(env, { forWrite: false });
+    if (records) {
+      recordsStatus = 'exists';
+      recordCount = listRecordFiles(env).length;
+    }
+  } catch (error) {
+    return {
+      status: 'corrupt',
+      ...base,
+      root_status: 'exists',
+      records_status: storageErrorStatus(error),
+      index_status: 'unknown',
+      record_count: 0,
+    };
+  }
+
+  let indexStatus = 'missing';
+  try {
+    const index = canonicalIndexPath(env);
+    if (index.real) {
+      const raw = readJSONExisting(index.path, { failOnCorrupt: false });
+      indexStatus = assertIndex(raw, index.path, env) ? 'present' : 'corrupt';
+    }
+  } catch (error) {
+    return {
+      status: 'corrupt',
+      ...base,
+      root_status: 'exists',
+      records_status: recordsStatus,
+      index_status: storageErrorStatus(error),
+      record_count: recordCount,
+    };
+  }
+
+  return {
+    status: base.lock.status === 'stale' ? 'stale' : (recordsStatus === 'exists' ? 'initialized' : 'not_initialized'),
+    ...base,
+    root_status: 'exists',
+    records_status: recordsStatus,
+    index_status: indexStatus,
+    record_count: recordCount,
+  };
 }
 
 function bestEffortWriteIndexFromRecords(records, env = process.env) {

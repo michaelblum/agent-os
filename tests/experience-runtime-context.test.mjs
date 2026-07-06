@@ -348,3 +348,62 @@ test('experience status blocks corrupt pending state and reports passive readine
   assert(payload.recommended_next.some((item) => item.id === 'check-runtime-readiness'));
   assert(payload.recommended_next.some((item) => item.id === 'permissions-setup'));
 });
+
+test('experience status reports symlinked pending index through store-owned status without mutation', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-symlink-'));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-outside-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
+  await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
+    active_experience: 'operator-fixture',
+    exclusive: true,
+  });
+  await writeJSON(path.join(tmp, 'repo', 'config.json'), {
+    content: {
+      roots: {
+        toolkit: toolkitRoot,
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: expectedURL,
+      toggle_track: 'union',
+      icon: 'aos',
+    },
+  });
+  const pendingRoot = path.join(tmp, 'repo', 'pending-annotations');
+  await fs.mkdir(path.join(pendingRoot, 'records'), { recursive: true });
+  const outsideIndex = path.join(outside, 'index.json');
+  await writeJSON(outsideIndex, {
+    schema_version: 'aos.pending-annotation.v0',
+    runtime_mode: 'repo',
+    state_root: tmp,
+    created_at: '2026-07-06T00:00:00Z',
+    updated_at: '2026-07-06T00:00:00Z',
+    annotations: [],
+  });
+  await fs.symlink(outsideIndex, path.join(pendingRoot, 'index.json'));
+
+  const { payload, calls } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+    canvases: [{
+      id: 'operator-fixture-surface',
+      url: expectedURL,
+      lifecycleState: 'active',
+      suspended: false,
+    }],
+  }));
+
+  assert.equal(payload.status, 'blocked');
+  assert.equal(payload.pending_annotations.status, 'corrupt');
+  assert.equal(payload.pending_annotations.index_status, 'symlink');
+  assert.equal(payload.capabilities.evidence_handoff.status, 'blocked');
+  assert(payload.diagnostics.some((item) => item.id === 'pending-annotation-state-corrupt'), payload.diagnostics);
+
+  const callText = calls.map((args) => args.join(' '));
+  assert.deepEqual(callText.sort(), [
+    'content status --json',
+    'permissions check --json',
+    'service status --mode repo --json',
+    'show list --json',
+  ].sort());
+});
