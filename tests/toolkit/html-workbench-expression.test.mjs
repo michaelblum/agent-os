@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
+const sampleFixturePath = 'tests/fixtures/html-workbench-expression/sample-work-card.md';
 
 class ParsedHtmlNode {
   constructor(tagName, attrs = {}, text = '') {
@@ -84,30 +86,7 @@ function withParsedHtmlNodes(nodes, callback) {
   }
 }
 
-const sampleWorkCard = `# Sample Work Card
-
-## Decision Points
-
-- [ ] Approve the expression contract.
-- [x] Keep Markdown canonical.
-
-\`\`\`mermaid
-graph TD
-  A[<script>alert(1)</script>]-->B
-\`\`\`
-
-## Non-Goals
-
-- Do not mutate source Markdown automatically.
-
-## Verification
-
-\`\`\`bash
-node --test tests/toolkit/html-workbench-expression.test.mjs
-\`\`\`
-
-[bad](javascript:alert(1))
-`;
+const sampleWorkCard = readFileSync(path.join(repoRoot, sampleFixturePath), 'utf8');
 
 test('HTML expression body sanitizer removes nested executable surfaces and script URLs', () => {
   const html = withParsedHtmlNodes([
@@ -128,7 +107,7 @@ test('HTML expression body sanitizer removes nested executable surfaces and scri
 test('Markdown work-card adapter emits safe HTML, metadata, semantic targets, and source maps', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,
-    sourcePath: 'docs/design/work-cards/sample.md',
+    sourcePath: sampleFixturePath,
     generatedAt: '2026-05-10T00:00:00.000Z',
     expressionId: 'sample-expression',
     htmlPath: 'docs/design/fixtures/aos-html-workbench-expression-v0/sample.html',
@@ -180,7 +159,7 @@ echo ok
 
 - [ ] Run the proof.
 `,
-    sourcePath: 'docs/design/work-cards/fenced-heading.md',
+    sourcePath: 'tests/fixtures/html-workbench-expression/fenced-heading.md',
     generatedAt: '2026-05-10T00:00:00.000Z',
   });
   const sectionLabels = expression.metadata.semantic_targets
@@ -198,7 +177,7 @@ echo ok
 test('Markdown adapter embeds metadata as parseable script JSON', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: '# Parseable Metadata\n',
-    sourcePath: 'docs/design/work-cards/parseable-</script>-metadata.md',
+    sourcePath: 'tests/fixtures/html-workbench-expression/parseable-</script>-metadata.md',
     generatedAt: '2026-05-10T00:00:00.000Z',
   });
   const match = expression.html.match(/<script type="application\/json" id="aos-html-workbench-expression-metadata">([\s\S]*?)<\/script>/);
@@ -229,7 +208,7 @@ test('Markdown adapter narrowly supports human alignment pack expressions', () =
 test('checkpoint and resume payloads refer to expression targets without source mutation', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,
-    sourcePath: 'docs/design/work-cards/sample.md',
+    sourcePath: sampleFixturePath,
     generatedAt: '2026-05-10T00:00:00.000Z',
     expressionId: 'sample-expression',
   });
@@ -268,7 +247,7 @@ test('checkpoint and resume payloads refer to expression targets without source 
 test('HTML expression workbench surface accepts an expression payload and snapshots stable state', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,
-    sourcePath: 'docs/design/work-cards/sample.md',
+    sourcePath: sampleFixturePath,
     expressionId: 'sample-expression',
   });
   const state = createHtmlWorkbenchExpressionState();
@@ -283,7 +262,7 @@ test('HTML expression workbench surface accepts an expression payload and snapsh
   assert.deepEqual(htmlWorkbenchExpressionSnapshot(state), {
     surface: 'html-workbench-expression',
     expression_id: 'sample-expression',
-    source_path: 'docs/design/work-cards/sample.md',
+    source_path: sampleFixturePath,
     semantic_target_count: expression.metadata.semantic_targets.length,
     last_result: result,
   });
@@ -503,11 +482,11 @@ test('HTML expression surface replays current semantic targets when Surface Insp
   }
 });
 
-test('generated fixture is deterministic for the checked-in work-card', async () => {
-  const markdown = await fs.readFile(path.join(repoRoot, 'docs/design/work-cards/aos-html-workbench-expression-v0.md'), 'utf8');
+test('generated fixture is deterministic for the checked-in neutral source fixture', async () => {
+  const markdown = await fs.readFile(path.join(repoRoot, sampleFixturePath), 'utf8');
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown,
-    sourcePath: 'docs/design/work-cards/aos-html-workbench-expression-v0.md',
+    sourcePath: sampleFixturePath,
     generatedAt: '2026-05-10T00:00:00.000Z',
     htmlPath: 'docs/design/fixtures/aos-html-workbench-expression-v0/expression.html',
   });
@@ -519,7 +498,7 @@ test('generated fixture is deterministic for the checked-in work-card', async ()
 test('generated workbench semantic targets single-source identity and source data', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,
-    sourcePath: 'docs/design/work-cards/sample.md',
+    sourcePath: sampleFixturePath,
     generatedAt: '2026-05-10T00:00:00.000Z',
     expressionId: 'sample-expression',
   });
@@ -535,7 +514,7 @@ test('generated workbench semantic targets single-source identity and source dat
     for (const key of ['source_path', 'source_line_start', 'source_line_end']) {
       assert.equal(Object.hasOwn(target.provenance, key), false, `${target.ref} duplicated ${key} under provenance`);
     }
-    assert.equal(target.extension.source.path, 'docs/design/work-cards/sample.md');
+    assert.equal(target.extension.source.path, sampleFixturePath);
     assert.equal(Number.isInteger(target.extension.source.line_start), true);
     assert.equal(Number.isInteger(target.extension.source.line_end), true);
   }

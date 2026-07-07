@@ -1,27 +1,27 @@
 {
   "schema": "aos_html_workbench_expression_resume",
   "version": "0.1.0",
-  "expression_id": "html-workbench-expression-aos-html-workbench-expression-v0-63513f6c50a7",
+  "expression_id": "html-workbench-expression-sample-work-card-6084cd3d840c",
   "output_kind": "decision_sidecar",
-  "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-  "source_hash": "sha256:63513f6c50a760d9d30224944c7493307c977f0016e48ed0b7aad4534520d4b4",
+  "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+  "source_hash": "sha256:6084cd3d840c833f01dfb9e3e7ca64b85de2d2ea8ad33b4254f83fae4152e83b",
   "annotations": [
     {
-      "ref": "html-workbench-expression:goal",
+      "ref": "html-workbench-expression:decision-points",
       "kind": "selection_comment",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 13,
-      "source_line_end": 29,
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 3,
+      "source_line_end": 12,
       "note": "V0 accepts the source-vs-expression rule: Markdown remains durable, HTML is review projection."
     }
   ],
   "decisions": [
     {
-      "ref": "html-workbench-expression:goal",
+      "ref": "html-workbench-expression:decision-points",
       "decision": "approved",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 13,
-      "source_line_end": 29
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 3,
+      "source_line_end": 12
     }
   ],
   "proposed_markdown_patch": "",

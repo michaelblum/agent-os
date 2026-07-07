@@ -42,10 +42,10 @@ goal, not a new bug-hunt queue.
 
 - `src/perceive/daemon.swift` `PerceptionEngine` shared-state race remains the
   only review-doc item treated as a convergence blocker that is not an immediate
-  coding slice. The current owner artifact is
-  `docs/design/work-cards/perception-engine-shared-state-race-plan-v0.md`.
-  Implementation remains blocked on an approved plan with files, invariants,
-  proof strategy, rollback risk, and stop conditions.
+  coding slice. No active design work-card owner remains for this item; do not
+  infer dispatch from deleted `docs/design/work-cards/` history. Implementation
+  remains blocked on an explicitly approved plan with files, invariants, proof
+  strategy, rollback risk, and stop conditions.
 
 ## Non-Blocking Findings
 

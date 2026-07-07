@@ -1,11 +1,11 @@
 {
   "schema": "aos_html_workbench_expression",
   "version": "0.1.0",
-  "expression_id": "html-workbench-expression-aos-html-workbench-expression-v0-63513f6c50a7",
+  "expression_id": "html-workbench-expression-sample-work-card-6084cd3d840c",
   "source": {
     "kind": "markdown",
-    "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-    "content_hash": "sha256:63513f6c50a760d9d30224944c7493307c977f0016e48ed0b7aad4534520d4b4"
+    "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+    "content_hash": "sha256:6084cd3d840c833f01dfb9e3e7ca64b85de2d2ea8ad33b4254f83fae4152e83b"
   },
   "generated_at": "2026-05-10T00:00:00.000Z",
   "artifact_kind": "work_card",
@@ -18,7 +18,7 @@
       "ref": "html-workbench-expression:document",
       "surface": "html-workbench-expression",
       "role": "document_region",
-      "name": "AOS HTML Workbench Expression V0",
+      "name": "Sample Work Card",
       "kind": "document",
       "enabled": true,
       "state": {
@@ -34,9 +34,9 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
           "line_start": 1,
-          "line_end": 294
+          "line_end": 24
         }
       },
       "provenance": {
@@ -47,10 +47,10 @@
       }
     },
     {
-      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
+      "ref": "html-workbench-expression:sample-work-card",
       "surface": "html-workbench-expression",
       "role": "document_region",
-      "name": "AOS HTML Workbench Expression V0",
+      "name": "Sample Work Card",
       "kind": "section",
       "enabled": true,
       "state": {
@@ -66,24 +66,24 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
           "line_start": 1,
           "line_end": 2
         }
       },
       "provenance": {
-        "dom_id": "aos-html-workbench-expression-v0",
-        "selector": "#aos-html-workbench-expression-v0",
+        "dom_id": "sample-work-card",
+        "selector": "#sample-work-card",
         "metadata": {},
         "parent_canvas_id": ""
       }
     },
     {
-      "ref": "html-workbench-expression:tracker",
+      "ref": "html-workbench-expression:decision-points",
       "surface": "html-workbench-expression",
       "role": "document_region",
-      "name": "Tracker",
-      "kind": "section",
+      "name": "Decision Points",
+      "kind": "decision",
       "enabled": true,
       "state": {
         "value": null,
@@ -98,334 +98,14 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
           "line_start": 3,
           "line_end": 12
         }
       },
       "provenance": {
-        "dom_id": "tracker",
-        "selector": "#tracker",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:goal",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Goal",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 13,
-          "line_end": 29
-        }
-      },
-      "provenance": {
-        "dom_id": "goal",
-        "selector": "#goal",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:why",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Why",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 30,
-          "line_end": 45
-        }
-      },
-      "provenance": {
-        "dom_id": "why",
-        "selector": "#why",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:existing-code-to-inspect",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Existing Code To Inspect",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 46,
-          "line_end": 66
-        }
-      },
-      "provenance": {
-        "dom_id": "existing-code-to-inspect",
-        "selector": "#existing-code-to-inspect",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:scope",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Scope",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 67,
-          "line_end": 88
-        }
-      },
-      "provenance": {
-        "dom_id": "scope",
-        "selector": "#scope",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:contract",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Contract",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 89,
-          "line_end": 124
-        }
-      },
-      "provenance": {
-        "dom_id": "contract",
-        "selector": "#contract",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:markdown-work-card-adapter",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Markdown Work-Card Adapter",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 125,
-          "line_end": 147
-        }
-      },
-      "provenance": {
-        "dom_id": "markdown-work-card-adapter",
-        "selector": "#markdown-work-card-adapter",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:human-facing-surface",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Human-Facing Surface",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 148,
-          "line_end": 170
-        }
-      },
-      "provenance": {
-        "dom_id": "human-facing-surface",
-        "selector": "#human-facing-surface",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Annotation And Checkpoint Path",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 171,
-          "line_end": 189
-        }
-      },
-      "provenance": {
-        "dom_id": "annotation-and-checkpoint-path",
-        "selector": "#annotation-and-checkpoint-path",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:work-card-authoring-flow",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Work-Card Authoring Flow",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 190,
-          "line_end": 203
-        }
-      },
-      "provenance": {
-        "dom_id": "work-card-authoring-flow",
-        "selector": "#work-card-authoring-flow",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:security-and-safety",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Security And Safety",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 204,
-          "line_end": 217
-        }
-      },
-      "provenance": {
-        "dom_id": "security-and-safety",
-        "selector": "#security-and-safety",
+        "dom_id": "decision-points",
+        "selector": "#decision-points",
         "metadata": {},
         "parent_canvas_id": ""
       }
@@ -450,9 +130,9 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 218,
-          "line_end": 229
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 13,
+          "line_end": 16
         }
       },
       "provenance": {
@@ -463,42 +143,10 @@
       }
     },
     {
-      "ref": "html-workbench-expression:deliverables",
+      "ref": "html-workbench-expression:verification",
       "surface": "html-workbench-expression",
       "role": "document_region",
-      "name": "Deliverables",
-      "kind": "section",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 230,
-          "line_end": 243
-        }
-      },
-      "provenance": {
-        "dom_id": "deliverables",
-        "selector": "#deliverables",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:suggested-verification",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "Suggested Verification",
+      "name": "Verification",
       "kind": "verification",
       "enabled": true,
       "state": {
@@ -514,24 +162,24 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 244,
-          "line_end": 278
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 17,
+          "line_end": 24
         }
       },
       "provenance": {
-        "dom_id": "suggested-verification",
-        "selector": "#suggested-verification",
+        "dom_id": "verification",
+        "selector": "#verification",
         "metadata": {},
         "parent_canvas_id": ""
       }
     },
     {
-      "ref": "html-workbench-expression:completion-audit",
+      "ref": "html-workbench-expression:mermaid-block-1",
       "surface": "html-workbench-expression",
       "role": "document_region",
-      "name": "Completion Audit",
-      "kind": "section",
+      "name": "Mermaid block 1",
+      "kind": "mermaid_block",
       "enabled": true,
       "state": {
         "value": null,
@@ -546,46 +194,14 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 279,
-          "line_end": 294
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 8,
+          "line_end": 11
         }
       },
       "provenance": {
-        "dom_id": "completion-audit",
-        "selector": "#completion-audit",
-        "metadata": {},
-        "parent_canvas_id": ""
-      }
-    },
-    {
-      "ref": "html-workbench-expression:code-block-1",
-      "surface": "html-workbench-expression",
-      "role": "document_region",
-      "name": "bash block 1",
-      "kind": "code_block",
-      "enabled": true,
-      "state": {
-        "value": null,
-        "current": null,
-        "pressed": null,
-        "selected": null,
-        "checked": null,
-        "expanded": null
-      },
-      "actions": [],
-      "extension": {
-        "annotation_eligible": true,
-        "reveal_eligible": true,
-        "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 248,
-          "line_end": 250
-        }
-      },
-      "provenance": {
-        "dom_id": "code-block-1",
-        "selector": "[data-semantic-target-id=\"code-block-1\"]",
+        "dom_id": "mermaid-block-1",
+        "selector": "[data-semantic-target-id=\"mermaid-block-1\"]",
         "metadata": {},
         "parent_canvas_id": ""
       }
@@ -610,9 +226,9 @@
         "annotation_eligible": true,
         "reveal_eligible": true,
         "source": {
-          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-          "line_start": 254,
-          "line_end": 262
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 19,
+          "line_end": 21
         }
       },
       "provenance": {
@@ -621,144 +237,147 @@
         "metadata": {},
         "parent_canvas_id": ""
       }
+    },
+    {
+      "ref": "html-workbench-expression:checklist-approve-the-expression-contract",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Approve the expression contract.",
+      "kind": "checklist_item",
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 5,
+          "line_end": 5
+        }
+      },
+      "provenance": {
+        "dom_id": "checklist-approve-the-expression-contract",
+        "selector": "[data-semantic-target-id=\"checklist-approve-the-expression-contract\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
+    },
+    {
+      "ref": "html-workbench-expression:checklist-keep-markdown-canonical",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Keep Markdown canonical.",
+      "kind": "checklist_item",
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+          "line_start": 6,
+          "line_end": 6
+        }
+      },
+      "provenance": {
+        "dom_id": "checklist-keep-markdown-canonical",
+        "selector": "[data-semantic-target-id=\"checklist-keep-markdown-canonical\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     }
   ],
   "source_map": [
     {
       "ref": "html-workbench-expression:document",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
       "source_line_start": 1,
-      "source_line_end": 294,
+      "source_line_end": 24,
       "selector": "[data-aos-ref=\"html-workbench-expression:document\"]"
     },
     {
-      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+      "ref": "html-workbench-expression:sample-work-card",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
       "source_line_start": 1,
       "source_line_end": 2,
-      "selector": "#aos-html-workbench-expression-v0"
+      "selector": "#sample-work-card"
     },
     {
-      "ref": "html-workbench-expression:tracker",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+      "ref": "html-workbench-expression:decision-points",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
       "source_line_start": 3,
       "source_line_end": 12,
-      "selector": "#tracker"
-    },
-    {
-      "ref": "html-workbench-expression:goal",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 13,
-      "source_line_end": 29,
-      "selector": "#goal"
-    },
-    {
-      "ref": "html-workbench-expression:why",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 30,
-      "source_line_end": 45,
-      "selector": "#why"
-    },
-    {
-      "ref": "html-workbench-expression:existing-code-to-inspect",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 46,
-      "source_line_end": 66,
-      "selector": "#existing-code-to-inspect"
-    },
-    {
-      "ref": "html-workbench-expression:scope",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 67,
-      "source_line_end": 88,
-      "selector": "#scope"
-    },
-    {
-      "ref": "html-workbench-expression:contract",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 89,
-      "source_line_end": 124,
-      "selector": "#contract"
-    },
-    {
-      "ref": "html-workbench-expression:markdown-work-card-adapter",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 125,
-      "source_line_end": 147,
-      "selector": "#markdown-work-card-adapter"
-    },
-    {
-      "ref": "html-workbench-expression:human-facing-surface",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 148,
-      "source_line_end": 170,
-      "selector": "#human-facing-surface"
-    },
-    {
-      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 171,
-      "source_line_end": 189,
-      "selector": "#annotation-and-checkpoint-path"
-    },
-    {
-      "ref": "html-workbench-expression:work-card-authoring-flow",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 190,
-      "source_line_end": 203,
-      "selector": "#work-card-authoring-flow"
-    },
-    {
-      "ref": "html-workbench-expression:security-and-safety",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 204,
-      "source_line_end": 217,
-      "selector": "#security-and-safety"
+      "selector": "#decision-points"
     },
     {
       "ref": "html-workbench-expression:non-goals",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 218,
-      "source_line_end": 229,
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 13,
+      "source_line_end": 16,
       "selector": "#non-goals"
     },
     {
-      "ref": "html-workbench-expression:deliverables",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 230,
-      "source_line_end": 243,
-      "selector": "#deliverables"
+      "ref": "html-workbench-expression:verification",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 17,
+      "source_line_end": 24,
+      "selector": "#verification"
     },
     {
-      "ref": "html-workbench-expression:suggested-verification",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 244,
-      "source_line_end": 278,
-      "selector": "#suggested-verification"
-    },
-    {
-      "ref": "html-workbench-expression:completion-audit",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 279,
-      "source_line_end": 294,
-      "selector": "#completion-audit"
-    },
-    {
-      "ref": "html-workbench-expression:code-block-1",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 248,
-      "source_line_end": 250,
-      "selector": "[data-semantic-target-id=\"code-block-1\"]"
+      "ref": "html-workbench-expression:mermaid-block-1",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 8,
+      "source_line_end": 11,
+      "selector": "[data-semantic-target-id=\"mermaid-block-1\"]"
     },
     {
       "ref": "html-workbench-expression:code-block-2",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 254,
-      "source_line_end": 262,
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 19,
+      "source_line_end": 21,
       "selector": "[data-semantic-target-id=\"code-block-2\"]"
+    },
+    {
+      "ref": "html-workbench-expression:checklist-approve-the-expression-contract",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 5,
+      "source_line_end": 5,
+      "selector": "[data-semantic-target-id=\"checklist-approve-the-expression-contract\"]"
+    },
+    {
+      "ref": "html-workbench-expression:checklist-keep-markdown-canonical",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 6,
+      "source_line_end": 6,
+      "selector": "[data-semantic-target-id=\"checklist-keep-markdown-canonical\"]"
     }
   ],
-  "mermaid_blocks": [],
+  "mermaid_blocks": [
+    {
+      "ref": "html-workbench-expression:mermaid-block-1",
+      "source_path": "tests/fixtures/html-workbench-expression/sample-work-card.md",
+      "source_line_start": 8,
+      "source_line_end": 11,
+      "selector": "[data-semantic-target-id=\"mermaid-block-1\"]",
+      "source_hash": "sha256:9320bd6e1dff77ee2efd9762bc21b4f1e92a4daf0d313777a0ea4fed8bc019fb"
+    }
+  ],
   "capabilities": {
     "annotation": true,
     "checkpoint": true,
@@ -785,76 +404,16 @@
   },
   "outline": [
     {
-      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
-      "label": "AOS HTML Workbench Expression V0",
+      "ref": "html-workbench-expression:sample-work-card",
+      "label": "Sample Work Card",
       "level": 1,
-      "selector": "#aos-html-workbench-expression-v0"
+      "selector": "#sample-work-card"
     },
     {
-      "ref": "html-workbench-expression:tracker",
-      "label": "Tracker",
+      "ref": "html-workbench-expression:decision-points",
+      "label": "Decision Points",
       "level": 2,
-      "selector": "#tracker"
-    },
-    {
-      "ref": "html-workbench-expression:goal",
-      "label": "Goal",
-      "level": 2,
-      "selector": "#goal"
-    },
-    {
-      "ref": "html-workbench-expression:why",
-      "label": "Why",
-      "level": 2,
-      "selector": "#why"
-    },
-    {
-      "ref": "html-workbench-expression:existing-code-to-inspect",
-      "label": "Existing Code To Inspect",
-      "level": 2,
-      "selector": "#existing-code-to-inspect"
-    },
-    {
-      "ref": "html-workbench-expression:scope",
-      "label": "Scope",
-      "level": 2,
-      "selector": "#scope"
-    },
-    {
-      "ref": "html-workbench-expression:contract",
-      "label": "Contract",
-      "level": 2,
-      "selector": "#contract"
-    },
-    {
-      "ref": "html-workbench-expression:markdown-work-card-adapter",
-      "label": "Markdown Work-Card Adapter",
-      "level": 2,
-      "selector": "#markdown-work-card-adapter"
-    },
-    {
-      "ref": "html-workbench-expression:human-facing-surface",
-      "label": "Human-Facing Surface",
-      "level": 2,
-      "selector": "#human-facing-surface"
-    },
-    {
-      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
-      "label": "Annotation And Checkpoint Path",
-      "level": 2,
-      "selector": "#annotation-and-checkpoint-path"
-    },
-    {
-      "ref": "html-workbench-expression:work-card-authoring-flow",
-      "label": "Work-Card Authoring Flow",
-      "level": 2,
-      "selector": "#work-card-authoring-flow"
-    },
-    {
-      "ref": "html-workbench-expression:security-and-safety",
-      "label": "Security And Safety",
-      "level": 2,
-      "selector": "#security-and-safety"
+      "selector": "#decision-points"
     },
     {
       "ref": "html-workbench-expression:non-goals",
@@ -863,22 +422,10 @@
       "selector": "#non-goals"
     },
     {
-      "ref": "html-workbench-expression:deliverables",
-      "label": "Deliverables",
+      "ref": "html-workbench-expression:verification",
+      "label": "Verification",
       "level": 2,
-      "selector": "#deliverables"
-    },
-    {
-      "ref": "html-workbench-expression:suggested-verification",
-      "label": "Suggested Verification",
-      "level": 2,
-      "selector": "#suggested-verification"
-    },
-    {
-      "ref": "html-workbench-expression:completion-audit",
-      "label": "Completion Audit",
-      "level": 2,
-      "selector": "#completion-audit"
+      "selector": "#verification"
     }
   ]
 }

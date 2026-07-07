@@ -12,7 +12,8 @@ those elsewhere:
 
 - repo-wide hard invariants and authority routing live in root `AGENTS.md`;
 - installable workflow guidance lives under top-level `skills/`;
-- design and implementation work cards live under `docs/design/work-cards/`;
+- active design and implementation work cards, when explicitly dispatched, live
+  under `docs/design/work-cards/`;
 - design plans and specs live under `docs/design/`;
 - cross-tool contracts live under `docs/api/`, `shared/schemas/`, or
   `ARCHITECTURE.md`.

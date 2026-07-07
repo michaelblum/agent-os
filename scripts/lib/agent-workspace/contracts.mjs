@@ -165,7 +165,6 @@ export const NATIVE_AX_LIVE_PROOF_APPROVAL_GATES = Object.freeze([
 export const NATIVE_AX_LIVE_DISPATCH_EVIDENCE = Object.freeze([
   'tests/agent-workspace-native-refs.sh',
   'tests/manual/native-ax-saved-ref-live-proof.sh',
-  'docs/design/work-cards/operator-aos-agent-workspace-native-live-proof-v0.md',
 ]);
 
 export const NATIVE_AX_LIVE_DISPATCH_STATUS = 'live_dispatch_proven_no_foreground_not_claimed';

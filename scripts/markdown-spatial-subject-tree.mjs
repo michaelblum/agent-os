@@ -10,8 +10,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
-const DEFAULT_INPUT = 'docs/design/work-cards/aos-html-workbench-expression-v0.md'
-const DEFAULT_OUTPUT = 'docs/design/fixtures/spatial-subject-tree-v0/aos-html-workbench-expression-v0.json'
+const DEFAULT_OUTPUT = 'docs/design/fixtures/spatial-subject-tree-v0/markdown-spatial-subject-tree.json'
 const DEFAULT_CREATED_AT = '2026-05-09T12:00:00.000Z'
 
 function argValue(name, fallback = null) {
@@ -22,10 +21,14 @@ function argValue(name, fallback = null) {
   return index >= 0 ? process.argv[index + 1] : fallback
 }
 
-const input = argValue('input', DEFAULT_INPUT)
+const input = argValue('input', null)
 const output = argValue('output', DEFAULT_OUTPUT)
 const createdAt = argValue('created-at', DEFAULT_CREATED_AT)
 const stdout = process.argv.includes('--stdout')
+if (!input) {
+  console.error('error: --input is required; pass a repo-relative Markdown fixture or artifact source')
+  process.exit(2)
+}
 const inputPath = path.resolve(repoRoot, input)
 const outputPath = path.resolve(repoRoot, output)
 

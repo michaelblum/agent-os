@@ -21,7 +21,7 @@ export const HTML_WORKBENCH_EXPRESSION_SURFACE = 'html-workbench-expression';
 export const HTML_WORKBENCH_CHECKPOINT_ADAPTER = 'html-workbench-expression';
 
 const DEFAULT_GENERATED_AT = '1970-01-01T00:00:00.000Z';
-const DEFAULT_SOURCE_PATH = 'docs/design/work-cards/work-card.md';
+const DEFAULT_SOURCE_PATH = 'markdown-artifact.md';
 const ARTIFACT_KINDS = new Set(['work_card', 'human_alignment_pack']);
 const TARGET_KINDS = new Set([
   'document',

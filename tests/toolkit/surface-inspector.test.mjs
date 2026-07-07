@@ -1428,7 +1428,7 @@ test('Surface Inspector carries AOS semantic target identity and prior projectio
       dom_id: 'suggested-verification',
       reveal_eligible: true,
       source: {
-        path: 'docs/design/work-cards/sample.md',
+        path: 'tests/fixtures/html-workbench-expression/sample-work-card.md',
         line_start: 42,
         line_end: 45,
       },
@@ -1466,9 +1466,9 @@ test('Surface Inspector carries AOS semantic target identity and prior projectio
   assert.equal(revealPayload.aos_ref, undefined);
   assert.equal(revealPayload.selector, '[data-semantic-target-id="suggested-verification"]');
   assert.deepEqual(revealPayload.selector_candidates, []);
-  assert.equal(revealPayload.source_path, 'docs/design/work-cards/sample.md');
+  assert.equal(revealPayload.source_path, 'tests/fixtures/html-workbench-expression/sample-work-card.md');
   assert.equal(revealPayload.source_tree_node_metadata.source_path, undefined);
-  assert.equal(revealPayload.source_tree_node_metadata.extension.source.path, 'docs/design/work-cards/sample.md');
+  assert.equal(revealPayload.source_tree_node_metadata.extension.source.path, 'tests/fixtures/html-workbench-expression/sample-work-card.md');
   assert.equal(revealPayload.source_tree_node_metadata.provenance.selector, '[data-semantic-target-id="suggested-verification"]');
   assert.equal(revealPayload.prior_projection.current_render_status, 'offscreen_scrollable');
   assert.equal(revealPayload.prior_projection.can_project_display_overlay, false);

@@ -8,7 +8,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
 const burnDownPath = 'docs/dev/reports/aos-code-review-2026-07-03-burn-down.md';
-const perceptionPlanPath = 'docs/design/work-cards/perception-engine-shared-state-race-plan-v0.md';
 
 async function text(relativePath) {
   return readFile(path.join(repoRoot, relativePath), 'utf8');
@@ -203,12 +202,11 @@ test('July 3 material medium blocker clusters stay dispositioned with evidence',
 
 test('PerceptionEngine shared-state race remains plan-gated, not silently closed', async () => {
   const report = await text(burnDownPath);
-  const plan = await text(perceptionPlanPath);
 
   assert.match(report, /Deferred By Plan Gate/);
   assert.match(report, /PerceptionEngine.*shared-state race/);
-  assert.match(report, new RegExp(perceptionPlanPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-
-  assert.match(plan, /Status: plan only\. Do not implement this slice without explicit approval\./);
-  assert.match(plan, /files, invariants, proof strategy, rollback risk, and stop conditions|Invariants[\s\S]*Proof Strategy[\s\S]*Rollback Boundary[\s\S]*Stop Conditions/);
+  assert.doesNotMatch(report, /docs\/design\/work-cards\/perception-engine-shared-state-race-plan-v0\.md/);
+  assert.match(report, /No active design work-card owner remains/);
+  assert.match(report, /explicitly approved plan/);
+  assert.match(report, /files, invariants, proof\s+strategy, rollback risk, and stop conditions/);
 });

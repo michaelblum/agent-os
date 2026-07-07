@@ -16,7 +16,7 @@ cat >"$AOS_FAKE_CLIPBOARD_FILE"
 SH
 chmod +x "$fake_pbcopy"
 
-message='follow the instructions in docs/design/work-cards/example.md'
+message='follow the instructions in tests/fixtures/html-workbench-expression/sample-work-card.md'
 options='{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
 out="$(AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/agent-handoff --text "$message" --options-json "$options")"
 python3 - "$message" "$out" "$clipboard" <<'PY'

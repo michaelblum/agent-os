@@ -2,10 +2,11 @@
 
 `aos_html_workbench_expression` is the metadata sidecar for a safe HTML
 projection of a durable artifact source. V0 is intentionally narrow:
-Markdown work-cards and human alignment packs remain the canonical source,
-while the HTML expression is the human-facing review, annotation, and
-checkpoint surface. The only supported `artifact_kind` values are `work_card`
-and `human_alignment_pack`.
+Markdown work-card artifacts and human alignment packs remain the canonical
+source, while the HTML expression is the human-facing review, annotation, and
+checkpoint surface. `work_card` is a generic artifact kind and does not imply a
+live `docs/design/work-cards/` dispatch file. The only supported
+`artifact_kind` values are `work_card` and `human_alignment_pack`.
 
 Required metadata includes the source path and deterministic source hash, the
 generated HTML path, semantic targets with source line ranges and DOM selectors,

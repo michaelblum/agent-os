@@ -26,7 +26,7 @@ const repoRoot = path.resolve(__dirname, '../..')
 const fixturePath = path.join(repoRoot, 'docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json')
 const annotationSchemaPath = path.join(repoRoot, 'shared/schemas/annotation.schema.json')
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
-const markdownSourcePath = 'docs/design/work-cards/aos-html-workbench-expression-v0.md'
+const markdownSourcePath = 'tests/fixtures/html-workbench-expression/sample-work-card.md'
 
 function assertSchemaValidAnnotation(draft) {
   const result = spawnSync(
@@ -60,7 +60,7 @@ test('Markdown source URL resolution reuses AOS tree content roots for repo-rela
       treeUrl: 'aos://repo_codex_docks_session_roots/docs/design/fixtures/spatial-subject-tree-v0/example.json',
       importMetaUrl: import.meta.url,
     }),
-    'aos://repo_codex_docks_session_roots/docs/design/work-cards/aos-html-workbench-expression-v0.md',
+    'aos://repo_codex_docks_session_roots/tests/fixtures/html-workbench-expression/sample-work-card.md',
   )
 
   assert.equal(
@@ -68,7 +68,7 @@ test('Markdown source URL resolution reuses AOS tree content roots for repo-rela
       treeUrl: 'aos://branch_scoped_root/docs/design/fixtures/spatial-subject-tree-v0/example.json',
       importMetaUrl: import.meta.url,
     }),
-    'aos://branch_scoped_root/docs/design/work-cards/aos-html-workbench-expression-v0.md',
+    'aos://branch_scoped_root/tests/fixtures/html-workbench-expression/sample-work-card.md',
   )
 })
 
@@ -102,7 +102,7 @@ test('Markdown source URL resolution keeps non-AOS contexts import-relative', ()
       treeUrl: 'http://localhost:4173/docs/design/fixtures/spatial-subject-tree-v0/example.json',
       importMetaUrl: 'file:///repo/packages/toolkit/components/surface-zoom-inspector/source-resolution.js',
     }),
-    'file:///repo/docs/design/work-cards/aos-html-workbench-expression-v0.md',
+    'file:///repo/tests/fixtures/html-workbench-expression/sample-work-card.md',
   )
 })
 

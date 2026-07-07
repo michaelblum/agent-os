@@ -10,7 +10,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const DEFAULT_INPUT = 'docs/design/work-cards/aos-html-workbench-expression-v0.md';
+const DEFAULT_INPUT = 'tests/fixtures/html-workbench-expression/sample-work-card.md';
 const DEFAULT_OUTPUT_DIR = 'docs/design/fixtures/aos-html-workbench-expression-v0';
 const DEFAULT_CREATED_AT = '2026-05-10T00:00:00.000Z';
 const DEFAULT_OUTPUT_BASENAME = 'expression';

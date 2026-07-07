@@ -283,7 +283,7 @@ test('semantic target adapter projects visible structured bounds and revealable 
       dom_id: 'goal',
       reveal_eligible: true,
       source: {
-        path: 'docs/design/work-cards/sample.md',
+        path: 'tests/fixtures/html-workbench-expression/sample-work-card.md',
         line_start: 12,
         line_end: 18,
       },
