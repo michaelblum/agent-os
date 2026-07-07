@@ -34,5 +34,4 @@ task.
 
 - `docs/api/aos.md`
 - `manifests/commands/source/aos/35-work-record.json`
-- `shared/schemas/aos-work-record-v0.md`
 - `tests/design/aos-work-record-fixtures.test.mjs`
