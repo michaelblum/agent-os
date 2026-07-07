@@ -250,10 +250,10 @@ The review's separate directions become facets of one idea:
 
 **Sigil's own migration is a separate, larger track.** Sigil-as-content — the
 avatar renderer becoming entities in the World rather than a private full
-canvas — is *not* folded into this proposal. It already has a parked work card
-with observability/placement prerequisites
-(`docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`)
-and should be sequenced on its own, after the §10 probes.
+canvas — is *not* folded into this proposal. Sequence it on its own after the
+§10 probes, using the accepted visual-object descriptor/resource contracts and
+the current panel placement/observability contract rather than deleted work-card
+artifacts.
 
 ---
 

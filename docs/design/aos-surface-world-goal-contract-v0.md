@@ -96,8 +96,8 @@ Phase 0/1 can still reshape or kill the approach.
   confirm live `input_event` subscriber count (duplicate-surface check); confirm
   whether scale-drag frames mark `structural`.
   **Exit gate:** the separation tax is real and material. *If not → revisit the
-  Goal.* (Owns: `gdi-aos-surface-transport-stack-measurement-v0` work card —
-  already underway in this tree.)
+  Goal.* (Evidence owner:
+  `docs/dev/reports/aos-surface-transport-stack-measurement-v0.md`.)
 - **Phase 1 — Co-location probe (one pair).**
   Prototype the avatar owner ↔ compact panel as two layers in one document
   binding to a shared signal store.
@@ -121,7 +121,9 @@ Phase 0/1 can still reshape or kill the approach.
   collapse ARCHITECTURE's 3-layer surface ownership to 2.
   **Gate:** owner approval.
 - **Phase 5 — Sigil-as-content migration (separate, larger track).**
-  Avatar renderer becomes World entities. Its own prerequisites/card govern it.
+  Avatar renderer becomes World entities. Its prerequisites stay in the
+  One-World handoff/backlog and the accepted visual-object descriptor/resource
+  contracts.
 
 ## 6. Acceptance evidence
 
@@ -136,8 +138,8 @@ is correctness coverage and does **not** establish any of this.
 - Review / decision space: `docs/dev/reports/aos-surface-transport-architecture-review-v0.md`
 - Architecture proposal (the means): `docs/design/aos-one-world-architecture-proposal-v0.md`
 - Handoff / backlog / code anchors / guardrails: `docs/design/aos-surface-world-workstream-handoff-v0.md`
-- Phase 0 measurement: `docs/design/work-cards/gdi-aos-surface-transport-stack-measurement-v0.md` (parallel work in tree)
-- Phase 5 Sigil track: `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`
+- Phase 0 measurement evidence: `docs/dev/reports/aos-surface-transport-stack-measurement-v0.md`
+- Phase 5 Sigil/resource baseline: `docs/design/visual-object-descriptor-contract-v0.md`; status/evidence: `docs/dev/reports/aos-visual-object-architecture.md`
 
 ## 8. Change control
 

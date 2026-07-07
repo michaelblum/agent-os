@@ -8,17 +8,16 @@ for object-graph subject boundaries and follow-on adapter direction, but its
 avatar inventory predates the accepted descriptor loop and should not override
 the current descriptor, controller, form-binding, and lifecycle contracts.
 
-2026-06-02 routing update: the repo now has an avatar object-control adapter and
-the accepted `21dc331d` detached Sigil avatar controls panel. New live evidence
-showed duplicate Avatar/Sigil surfaces visible across displays, so the next
-route is not drag correction by itself. First add AOS-first visible-surface /
-orphan-window observability, then make toolkit panel placement/final-frame
-policy explicit, then add Sigil-owned avatar avoidance only if the evidence
-requires it. After those gates, return to live panel drag correction and migrate
-the detached panel from private `sigil.avatar_panel.*` messages to the existing
-`visual_object_descriptors` / `canvas_object.*` resource contract. Treat the
-older follow-on cards named at the end of this note as historical until
-refreshed. Owned Sigil/toolkit callers should be migrated in-slice and stale
+2026-06-02 status note: the repo now has an avatar object-control adapter and
+the accepted `21dc331d` detached Sigil avatar controls panel. Live evidence at
+that point showed duplicate Avatar/Sigil surfaces visible across displays. The
+durable follow-on requirements are AOS-first visible-surface / orphan-window
+observability, explicit toolkit panel placement/final-frame policy,
+evidence-gated Sigil avatar avoidance, and migration of the detached panel from
+private `sigil.avatar_panel.*` messages to the existing
+`visual_object_descriptors` / `canvas_object.*` resource contract. Treat any
+work-card routing from that note as historical unless refreshed against current
+contracts. Owned Sigil/toolkit callers should be migrated in-slice and stale
 private aliases should be deleted unless a named external boundary requires
 compatibility.
 
@@ -225,20 +224,22 @@ construction, validation, and persistence logic.
 
 ## Follow-On Slices
 
-Historical follow-on cards from the original design note:
+Original follow-on themes from the first design note are historical context, not
+current route targets: the Sigil avatar object-graph adapter, data-driven
+context menu controls, and shared 3D editor subjects.
 
-- `docs/design/work-cards/sigil-avatar-object-graph-adapter-v0.md`
-- `docs/design/work-cards/sigil-context-menu-data-driven-controls-v0.md`
-- `docs/design/work-cards/sigil-3d-thing-editor-subjects-v0.md`
+Do not route current work through deleted `docs/design/work-cards/` artifacts.
+Use the current owner surfaces instead:
 
-These cards are not current route targets without refresh. Current sequence:
+- Visible-surface/orphan-window evidence and toolkit panel placement policy:
+  `docs/dev/reports/aos-visual-object-architecture.md` and
+  `docs/design/aos-panel-window-placement-contract.md`.
+- Descriptor/resource migration:
+  `docs/design/visual-object-descriptor-contract-v0.md` and
+  `docs/dev/reports/aos-visual-object-architecture.md`.
+- Sigil renderer and app-specific behavior: `apps/sigil/`.
+- Reusable editor/control behavior: `packages/toolkit/workbench/` and
+  `packages/toolkit/panel/`.
 
-1. Accept `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
-2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
-   avatar avoidance only if the evidence requires it.
-3. Refresh and accept
-   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-4. Route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
-5. Refresh Wiki graph browser, 3D editor subject, and semantic target cleanup
-   work against the accepted resource migration head.
+Future Wiki graph browser, shared 3D editor subject, and semantic target cleanup
+work must be refreshed against those current contracts before routing.

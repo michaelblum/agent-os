@@ -135,8 +135,9 @@ cross-display / Browser-Host sync.
 - **Visual-object descriptors → in-heap scene primitives** (ADR-0014 reinterpreted
   under One-World).
 - **Sigil-as-content migration** (separate, larger track): avatar renderer becomes
-  entities in the World; has a parked work card with observability/placement
-  prerequisites — `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+  entities in the World. Sequence it against the accepted visual-object
+  descriptor/resource contracts and the current panel placement/observability
+  contract; do not route it through deleted work-card artifacts.
 - **Focus model implementation** (proposal §4): focus-group manager, two Tab loops
   (intra-panel trap + panel-switch gesture), per-panel focus memory,
   passthrough-drives-key-window seam, agent-non-stealing-by-default.

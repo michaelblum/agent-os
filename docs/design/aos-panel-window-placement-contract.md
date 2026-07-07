@@ -61,20 +61,17 @@ route. A panel that does not drag reliably may be suffering from coordinate
 drift, but it may also be losing input to a stale/orphan visible surface, a
 wrong content root, or an overlapping higher-level window.
 
-The required observability preconditions are now accepted:
+The required observability preconditions are now accepted as command/readback
+requirements, not live work-card routes:
 
-- `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md` covers
-  active daemon registry/native-window alignment and labels the runtime scope as
-  `runtime.native_window_scope = "current_daemon_process"`.
-- `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`
-  lists external visible AOS-owned native windows separately from current-daemon
-  registry rows and orphan windows, with bounded process provenance and explicit
-  unavailable reasons.
-- `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
-  exposes launchd/service ownership, input-tap ownership, stale input-tap
-  capable daemon counts, installed-mode socket reachability, and the explicit
-  fact that duplicate macOS TCC rows are human-observable rather than AOS
-  database-observable.
+- `./aos show audit --json` covers active daemon registry/native-window
+  alignment, external visible AOS-owned native windows, current-daemon registry
+  rows, orphan windows, bounded process provenance, explicit unavailable
+  reasons, and `runtime.native_window_scope = "current_daemon_process"`.
+- `./aos status --json` and `./aos ready --json` expose launchd/service
+  ownership, input-tap ownership, stale input-tap capable daemon counts,
+  installed-mode socket reachability, and the explicit fact that duplicate
+  macOS TCC rows are human-observable rather than AOS database-observable.
 
 The placement/final-frame slice is now accepted, so follow-on Sigil and drag
 work can build on `./aos show audit --json`, `./aos status --json`, and
