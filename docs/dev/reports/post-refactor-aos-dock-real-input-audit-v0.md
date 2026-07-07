@@ -105,25 +105,17 @@ low-latency native CGEvent helper for the final status-item click. That may be
 valid for timing splits, but the harness should not post native events unless
 it has an explicit real-input opt-in and a clean readiness posture.
 
-## Dock Stack
+## Retired Dock-Era Stack
 
-Dock discovery and deterministic hook checks are healthy:
+This historical audit described dock-era discovery and deterministic hook checks
+as healthy at the time. The retired command forms are intentionally omitted from
+this active-tree report; git history is the archive for the exact invocation
+list.
 
-```bash
-./aos dev docks explain foreman --json
-./aos dev docks explain gdi --json
-./aos dev docks explain operator --json
-./aos dev docks capabilities foreman --json
-./aos dev docks capabilities gdi --json
-./aos dev docks capabilities operator --entry-path aos_developer --json
-bash tests/dock-hook-isolation.sh
-```
-
-The role contracts still say to use AOS first for readiness, runtime status,
-canvases, Agent Terminal surfaces, dock communication, and input routing.
-Provider PTY/tmux helpers still exist under `.docks/harness/`, but current tests
-cover them as provider-control mechanics rather than as the first runtime
-control plane.
+At the time, the audit treated AOS as the preferred control plane for readiness,
+runtime status, canvases, Agent Terminal surfaces, communication, and input
+routing. It also classified provider PTY/tmux helpers under `.docks/harness/` as
+provider-control mechanics rather than as the first runtime control plane.
 
 The practical degradation is workflow-level: because repo-mode live readiness is
 blocked and the strongest real-input scenarios either fail early or are not in

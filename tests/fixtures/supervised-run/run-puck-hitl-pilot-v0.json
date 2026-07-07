@@ -339,5 +339,5 @@
     "run_puck_show_wait_advanced": "{{artifact_dir}}/run-puck-show-wait-advanced.json",
     "cleanup": "{{artifact_dir}}/cleanup-show-list.json"
   },
-  "manual_follow_up": "Live human click-through remains the next manual check when fixture_file_bridge is used for unattended HITL responses."
+  "manual_follow_up": "Live human click-through remains the next manual check when fixture_file_bridge is used for supervised file-backed HITL responses."
 }
