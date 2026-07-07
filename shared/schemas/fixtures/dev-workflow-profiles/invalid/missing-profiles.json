@@ -3,11 +3,11 @@
   "summary": "Example development workflow profiles.",
   "override_policy": "User instruction overrides the active profile unless unsafe.",
   "axes": {
-    "agent_definition": "Role identity.",
-    "dock": "Runtime shell.",
-    "dock_profile": "Operating doctrine.",
+    "session_identity": "Current session context.",
+    "execution_surface": "Where work happens.",
     "capability_route": "Path, tool, and test routing.",
-    "workflow_profile": "Git and review posture."
+    "workflow_profile": "Git and review posture.",
+    "handoff_boundary": "Integration or publication boundary."
   },
   "profiles": []
 }

@@ -5,7 +5,7 @@
 ## Purpose
 
 `scripts/` contains executable repo tooling behind `./aos`, developer workflow
-commands, runtime helpers, wiki tools, and AOS-owned agent execution.
+commands, runtime helpers, wiki tools, and command adapters.
 
 ## Ownership
 
@@ -50,7 +50,6 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Other `lib/pending-annotations*.mjs` files own the queue facade, lifecycle
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.
-- `aos_agents/` owns the AOS project-agent runner implementation.
 - `aos-skills.mjs` and `aos-skills-validate.mjs` are the CLI entrypoints for
   root skill registry listing, validation, installed-state checks, install
   planning/application, and Playwright CLI companion checks.
@@ -112,8 +111,6 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 ## Verification
 
 - Run the focused test matching the command surface changed.
-- For runner changes, use `bash tests/aos-agents-runner.sh` and
-  `python3 -m py_compile scripts/aos_agents/runner.py`.
 - For root skill registry validation changes, use
   `node scripts/aos-skills-validate.mjs --json` and
   `node --test tests/aos-skills-registry.test.mjs`.
@@ -130,7 +127,6 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 
 ## Child DOX Index
 
-- `aos_agents/` contains the AOS-owned project-agent runner.
 - `lib/aos-skills/AGENTS.md` owns root skill registry helper modules.
 - `lib/` contains shared script helper modules.
 - `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,

@@ -126,20 +126,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*'));
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-summary.schema.json'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/adr/0016-aos-owned-agent-execution.md'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/reports/aos-agent-runtime-m3-correction-v1.md'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-native-dispatch.schema.json'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('docs/dev/aos-agents-native-result.schema.json'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('scripts/aos_agents/**'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('tests/aos-agents-runner.sh'));
-  assert.ok(rules.get('aos-agent-runner')?.patterns?.includes('tests/aos-agents-runner-integration.sh'));
-  assert.ok(
-    rules.get('aos-agent-runner')?.commands?.some((step) => step.command === 'bash tests/aos-agents-runner.sh'),
-  );
-  assert.ok(
-    rules.get('aos-agent-runner')?.commands?.some((step) => step.command === 'bash tests/aos-agents-runner-integration.sh'),
-  );
+  assert.equal(rules.has('aos-agent-runner'), false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
   assert.deepEqual(
@@ -169,16 +156,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     'node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs',
   );
   assert.ok(rules.get('agent-capability-manifest')?.patterns?.includes('docs/dev/agent-capabilities.json'));
-  assert.equal(
-    rules.get('dock-profiles')?.commands?.[0]?.command,
-    'node --test tests/schemas/aos-dock-profile-v0.test.mjs',
-  );
-  assert.ok(rules.get('dock-profiles')?.patterns?.includes('.docks/*/dock.json'));
-  assert.ok(rules.get('dock-profiles')?.patterns?.includes('.docks/profiles/**'));
-  assert.ok(
-    rules
-      .get('dock-profiles')
-      ?.commands?.some((step) => step.command === 'node --test tests/schemas/dock-operating-profiles.test.mjs'),
-  );
+  assert.equal(rules.has('dock-profiles'), false);
+  assert.equal(rules.has('aos-agent-runner-team'), false);
   assert.ok(rules.get('app-subtree-local-contract')?.notes?.[0]?.includes('nearest subtree AGENTS.md'));
 });

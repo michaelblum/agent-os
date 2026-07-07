@@ -36,7 +36,7 @@ goal, not a new bug-hunt queue.
 | Host and gateway socket lifecycle hangs | fixed | `packages/host/src/sdk-client.ts`, `packages/gateway/sdk/aos-sdk.js`, and `packages/gateway/src/engine/node-subprocess.ts` reject pending calls on close/error or timeout; `packages/host/test/sdk-client.test.ts`, `tests/gateway-sdk-socket-lifecycle.test.mjs`, and `packages/gateway/test/engine.test.ts` cover the behavior. |
 | Gateway localhost broker origin and script containment | fixed | `packages/gateway/src/integrations/http-api.ts` restricts CORS to AOS and same-loopback same-port origins; `packages/gateway/src/scripts.ts` enforces flat safe script names. `packages/gateway/test/integration-broker.test.ts` and `packages/gateway/test/scripts.test.ts` cover the boundary. |
 | Host tool resource bounds | fixed | `packages/host/src/tools/read-file.ts` and `packages/host/src/tools/list-files.ts` enforce file/entry caps and abort signals; `packages/host/test/tools/read-file.test.ts` and `packages/host/test/tools/list-files.test.ts` cover the limits. |
-| UTF-8 open-message and wiki readbacks | fixed | `packages/toolkit/components/open-message-encoding.js` uses UTF-8-safe base64, wiki query/graph readers use replacement decoding, and active-profile loading turns filesystem errors into runner errors; tests include `tests/toolkit/open-message-encoding.test.mjs` and `tests/aos-agents-runner.sh`. |
+| UTF-8 open-message readback | fixed | `packages/toolkit/components/open-message-encoding.js` uses UTF-8-safe base64; tests include `tests/toolkit/open-message-encoding.test.mjs`. The retired AOS project-agent runner evidence is superseded by ADR 0019. |
 
 ## Deferred By Plan Gate
 

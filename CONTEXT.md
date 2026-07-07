@@ -139,17 +139,16 @@ a Workflow.
 _Avoid_: workflow, work record, successor handoff.
 
 **Dock**:
-A named runtime launch envelope rooted under `.docks/`, used to isolate a
-docked session's local instructions, hooks/config posture, stop behavior,
-launch posture, and active profile binding from the repo root. Foreman is the
-only current named dock; future docks may exist when they define their own
-runtime envelope and authority. Docks are not provider-agent identity stores or
-native Codex custom-agent registries.
-_Avoid_: workflow, workflow template, generated run, source workspace.
+A retired runtime launch-envelope term from the historical `.docks/` scaffold.
+It is not an active root-session instruction source, project-agent identity
+store, or AOS product surface. Current sessions use repo DOX, direct user
+intent, and installable AOS skills instead.
+_Avoid_: workflow, workflow template, generated run, source workspace, project
+agent.
 
 **Docked Session**:
-One Codex session launched from a Dock so it adopts that Dock's local
-instructions, hooks, and team entry config.
+A retired term for a Codex session launched from the historical dock scaffold.
+Do not use it as current product vocabulary.
 _Avoid_: workflow run, Workflow run, automation run.
 
 **Verifier Health**:
@@ -276,11 +275,9 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   origins use the current v0 `origin.kind` values (`ad_hoc | recipe |
   workflow`). Markdown Guides/SOPs that shaped a run without executing should
   be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
-- A **Dock** is adopted by launching Codex from that dock's directory, or with
-  `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but
-  the Dock is not the Workflow and does not create a parallel Workflow type.
-  AOS runner role material lives under `ai-agents/providers/codex/`; dock
-  launch config must not register duplicate native Codex custom agents.
+- Historical **Dock** and project-agent role material are archived outside the
+  active repo tree. They do not define current AOS session routing, Workflow
+  semantics, or native provider registration.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.
@@ -343,6 +340,10 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a *role flag* whose value is a regular Target-with-Ref, not a parallel target dialect. The plan now says this explicitly; longer-term a generic `--anchor <target>` flag may consolidate them, but that is a future cleanup, not a plan rewrite. See ADR-0004.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
 - "Dual-hosting" (used in `aos-grand-unification-plan.md` Phase 4) — resolved meaning: shipping a Facet with both Browser-Host and Canvas-Host implementations. The plan now says every editor Facet does not need to ship both Browser-Host and Canvas-Host implementations.
-- Dock vs Workflow — resolved: **Dock** and **Docked Session** are the canonical concepts for persona/session isolation. Keep **Workflow** reserved for AOS/domain orchestration Subjects, not persona/session isolation. Do not add compatibility files that couple role/persona docks into a separate orchestration layer.
+- Dock vs Workflow — resolved: **Dock** and **Docked Session** are retired
+  historical persona/session-isolation concepts. Keep **Workflow** reserved for
+  AOS/domain orchestration Subjects, not persona/session isolation. Do not add
+  compatibility files that couple role/persona docks into a separate
+  orchestration layer.
 - `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; projection `stale` means re-resolve or re-render the addressed view; State ID freshness is not a first-class enum today, and the active diagnostic remains `state_id_inconsistency`. Bare `stale` in logs, UI, or dashboards is under-namespaced.
 - `validation-result` in patch prose — resolved: validation detail is diagnostic information attached to a `rejected` Patch Result or returned by a separate preflight/validate operation. It is not a terminal Patch Result status, and revised input is a new patch attempt.

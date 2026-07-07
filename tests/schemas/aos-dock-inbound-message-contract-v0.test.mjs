@@ -42,7 +42,7 @@ const historicalFixture = {
         },
       ],
       loop_recovery_guidance: [
-        'Use the current Foreman dock and AOS-owned runner instead of clipboard goal handoff.',
+        'Historical guidance retained for fixture validation only.',
       ],
     },
   },

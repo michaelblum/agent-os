@@ -166,49 +166,26 @@ function setTrace(trace, key, ids) {
 }
 
 function buildAgentExecutionPolicy(repoRoot) {
-  const rolesDir = 'ai-agents/providers/codex';
-  const teamDoc = '.docks/foreman/AGENTS.md';
-  const rolesPath = path.join(repoRoot, rolesDir);
-  let registeredRoles = [];
-  let rolesDirStatus = 'present';
-  try {
-    registeredRoles = fs.readdirSync(rolesPath)
-      .filter((entry) => entry.endsWith('.toml'))
-      .map((entry) => entry.replace(/\.toml$/, ''))
-      .sort();
-  } catch {
-    rolesDirStatus = 'missing';
-  }
-  const teamDocStatus = fs.existsSync(path.join(repoRoot, teamDoc)) ? 'present' : 'missing';
+  void repoRoot;
   return {
-    status: rolesDirStatus === 'present' && teamDocStatus === 'present' && registeredRoles.length > 0
-      ? 'provider_runner_ready'
-      : 'unavailable',
-    authority: 'adr_0017_provider_runner',
-    execution_surface: './aos dev agents',
-    default_engine: 'provider-sdk',
+    status: 'retired',
+    authority: 'repo_dox_and_installable_skills',
+    execution_surface: null,
+    default_engine: null,
     native_custom_agents_enabled: false,
     codex_config_registration_allowed: false,
-    roles_dir: rolesDir,
-    team_doc: teamDoc,
-    registered_roles: registeredRoles,
-    routing_scope: [
-      'bounded_specialist_work',
-      'routine_git_github_hygiene',
-      'review',
-      'validation',
-      'reconnaissance',
-      'implementation',
-    ],
+    roles_dir: null,
+    team_doc: null,
+    registered_roles: [],
+    routing_scope: [],
     standing_authorization_intent: false,
     ask_user_if_runtime_requires_turn_authorization: false,
-    fail_closed_without_registered_role: true,
+    fail_closed_without_registered_role: false,
     fail_closed_without_session_authorization: false,
     direct_specialist_fallback_allowed: false,
     extra_mutation_authorized: false,
     source_status: {
-      roles_dir: rolesDirStatus,
-      team_doc: teamDocStatus,
+      retirement: 'project-agent orchestration is not an active AOS core surface',
     },
   };
 }
@@ -297,9 +274,9 @@ function buildSituation(options) {
   const agentExecution = buildAgentExecutionPolicy(repoRoot);
   sources.push({
     id: 'agent_execution_policy',
-    command: `read ${agentExecution.roles_dir} and ${agentExecution.team_doc}`,
-    status: agentExecution.status === 'provider_runner_ready' ? 'success' : 'failed',
-    exit_code: agentExecution.status === 'provider_runner_ready' ? 0 : 1,
+    command: 'read retired project-agent policy',
+    status: 'success',
+    exit_code: 0,
     note: agentExecution.status,
   });
   setTrace(trace, 'agent_execution.status', ['agent_execution_policy']);
@@ -380,7 +357,7 @@ function printText(payload) {
   process.stdout.write(`Open issues: ${limitedCountText(payload.summary.open_issue_count, payload.summary.open_issue_count_limit, payload.summary.open_issue_count_limit_reached)}\n`);
   process.stdout.write(`Stashes: ${payload.summary.stash_count ?? 'unknown'}\n`);
   process.stdout.write(`Runtime ready: ${payload.summary.runtime_ready ?? 'unknown'}\n`);
-  process.stdout.write(`Agent execution: ${payload.agent_execution?.status ?? 'unknown'} (${payload.agent_execution?.roles_dir ?? 'unknown'})\n`);
+  process.stdout.write(`Agent execution: ${payload.agent_execution?.status ?? 'unknown'}\n`);
   if (payload.successor_note?.status && payload.successor_note.status !== 'missing') {
     process.stdout.write(`Successor note: ${payload.successor_note.status} (${payload.successor_note.path})\n`);
   }

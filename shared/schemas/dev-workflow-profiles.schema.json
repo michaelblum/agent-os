@@ -19,14 +19,14 @@
     "override_policy": { "type": "string", "minLength": 1 },
     "axes": {
       "type": "object",
-      "required": ["agent_definition", "dock", "dock_profile", "capability_route", "workflow_profile"],
+      "required": ["session_identity", "execution_surface", "capability_route", "workflow_profile", "handoff_boundary"],
       "additionalProperties": false,
       "properties": {
-        "agent_definition": { "type": "string", "minLength": 1 },
-        "dock": { "type": "string", "minLength": 1 },
-        "dock_profile": { "type": "string", "minLength": 1 },
+        "session_identity": { "type": "string", "minLength": 1 },
+        "execution_surface": { "type": "string", "minLength": 1 },
         "capability_route": { "type": "string", "minLength": 1 },
-        "workflow_profile": { "type": "string", "minLength": 1 }
+        "workflow_profile": { "type": "string", "minLength": 1 },
+        "handoff_boundary": { "type": "string", "minLength": 1 }
       }
     },
     "profiles": {
@@ -66,7 +66,7 @@
         "branch_optional_for",
         "release_branching",
         "environment_branches",
-        "agent_guidance"
+        "session_guidance"
       ],
       "additionalProperties": false,
       "properties": {
@@ -85,10 +85,10 @@
         "branch_optional_for": { "$ref": "#/$defs/text_array" },
         "release_branching": { "type": "boolean" },
         "environment_branches": { "$ref": "#/$defs/text_array" },
-        "agent_guidance": { "$ref": "#/$defs/text_array" },
-        "relay_merge_authority": { "type": "string", "minLength": 1 },
+        "session_guidance": { "$ref": "#/$defs/text_array" },
+        "review_authority": { "type": "string", "minLength": 1 },
         "branch_naming_convention": { "type": "string", "minLength": 1 },
-        "gdi_push_authority": { "type": "boolean" }
+        "push_at_completion": { "type": "boolean" }
       }
     }
   }

@@ -9,7 +9,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-dock-profile-v0.schema.json');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-dock-profile-v0');
-const capabilityManifestPath = path.join(repoRoot, 'docs/dev/agent-capabilities.json');
 const canonicalDockPaths = [
   path.join(repoRoot, '.docks/foreman/dock.json'),
 ];
@@ -20,10 +19,6 @@ async function jsonFiles(dir) {
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => path.join(dir, entry.name))
     .sort();
-}
-
-async function loadJson(file) {
-  return JSON.parse(await fs.readFile(file, 'utf8'));
 }
 
 function validate(instancePath) {
@@ -66,13 +61,12 @@ test('valid dock profile fixtures match the schema', async () => {
   }
 });
 
-test('canonical dock profiles match the schema', () => {
+test('canonical dock profiles are retired from the active repo tree', async () => {
   for (const dockPath of canonicalDockPaths) {
-    const result = validate(dockPath);
-    assert.equal(
-      result.status,
-      0,
-      `${path.relative(repoRoot, dockPath)} should validate\n${result.stdout}${result.stderr}`,
+    await assert.rejects(
+      fs.stat(dockPath),
+      { code: 'ENOENT' },
+      `${path.relative(repoRoot, dockPath)} should stay retired`,
     );
   }
 });
@@ -84,86 +78,4 @@ test('invalid dock profile fixtures are rejected by the schema', async () => {
     const result = validate(fixture);
     assert.notEqual(result.status, 0, `${path.relative(repoRoot, fixture)} should fail validation`);
   }
-});
-
-test('canonical dock profiles resolve against the agent capability manifest', async () => {
-  const manifest = await loadJson(capabilityManifestPath);
-  const capabilities = new Map(manifest.capabilities.map((capability) => [capability.id, capability]));
-
-  for (const dockPath of canonicalDockPaths) {
-    const profile = await loadJson(dockPath);
-    const dockName = path.basename(path.dirname(dockPath));
-    assert.equal(profile.name, dockName, `${path.relative(repoRoot, dockPath)} name should match directory`);
-    assert.equal(profile.capability_manifest, 'docs/dev/agent-capabilities.json');
-    assert.ok(
-      profile.allowed_entry_paths.includes(profile.default_entry_path),
-      `${profile.name} default entry path must be allowed`,
-    );
-
-    for (const capabilityID of profile.allowed_capabilities) {
-      const capability = capabilities.get(capabilityID);
-      assert.ok(capability, `${profile.name} references unknown capability ${capabilityID}`);
-
-      const roles = capability.roles ?? [];
-      assert.ok(
-        roles.length === 0 || roles.includes(profile.role),
-        `${profile.name} allows ${capabilityID}, but capability roles are ${roles.join(',')}`,
-      );
-
-      const capabilityClass = capability.mutability.class;
-      assert.ok(
-        profile.allowed_capability_classes.includes(capabilityClass),
-        `${profile.name} allows ${capabilityID}, but not class ${capabilityClass}`,
-      );
-
-      assert.ok(
-        capability.entry_paths.some((entryPath) => profile.allowed_entry_paths.includes(entryPath)),
-        `${profile.name} allows ${capabilityID}, but entry paths do not intersect`,
-      );
-    }
-  }
-});
-
-test('role envelopes preserve the intended coordination boundaries', async () => {
-  const profiles = new Map(
-    await Promise.all(canonicalDockPaths.map(async (dockPath) => {
-      const profile = await loadJson(dockPath);
-      return [profile.name, profile];
-    })),
-  );
-
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_comment'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_create'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_close'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_edit'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_create'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.agents'));
-  assert.ok(!profiles.get('foreman').allowed_capabilities.includes('dev.subagent.dispatch_contract'));
-
-  for (const profileName of ['foreman']) {
-    const allowed = profiles.get(profileName).allowed_capabilities;
-    assert.ok(allowed.includes('dev.github.issue_list'), `${profileName} should allow issue inventory`);
-    assert.ok(allowed.includes('dev.github.issue_view'), `${profileName} should allow issue reads`);
-    assert.ok(allowed.includes('dev.github.label_list'), `${profileName} should allow label inventory`);
-    assert.ok(allowed.includes('dev.github.pr_list'), `${profileName} should allow PR inventory`);
-    assert.ok(allowed.includes('dev.github.pr_view'), `${profileName} should allow PR reads`);
-    assert.ok(allowed.includes('dev.github.pr_checks'), `${profileName} should allow PR check reads`);
-  }
-
-  assert.equal(profiles.get('foreman').metadata.execution_topology, 'aos_owned_runner_root');
-  assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
-  assert.equal(profiles.get('foreman').metadata.agent_runner_team.extensible, true);
-  assert.deepEqual(
-    profiles.get('foreman').metadata.agent_runner_team.registered_agents,
-    ['architect', 'implementer', 'reviewer', 'validator', 'operator', 'explorer', 'steward', 'historian'],
-  );
-  assert.equal(
-    profiles.get('foreman').metadata.agent_runner_team.model_policy,
-    'provider_role_material_declares_model_and_effort',
-  );
-  assert.equal(profiles.get('foreman').metadata.agent_runner_team.inherits_foreman_model, false);
-
-  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
 });

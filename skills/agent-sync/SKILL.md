@@ -4,11 +4,10 @@ description: >
   Historical tombstone for the retired Codex native custom-agent sync path.
   Do not use this skill to register, rename, retire, or sync agents.
 retired: true
-current_execution_surface: ./aos dev agents
+current_execution_surface: none
 authority:
   - docs/adr/0017-retire-codex-native-custom-agents.md
-  - .codex/AGENTS.md
-  - ai-agents/providers/codex/README.md
+  - scripts/agent-sync.sh
 ---
 
 # agent-sync Is Retired
@@ -23,12 +22,11 @@ because ADR 0017 retired Codex native custom-agent registration for this repo.
 
 ## Current Contract
 
-- Use `./aos dev agents` for bounded project-agent execution.
-- Treat `ai-agents/providers/codex/*.toml` as preserved role source material
-  for the AOS-owned runner, not as an active Codex native-agent registry.
+- Do not recreate project-agent role registration in AOS core.
+- Historical role material has been archived outside the active repo tree.
 - `scripts/agent-sync.sh` intentionally exits non-zero.
 - Reversal requires a new ADR or explicit human architecture decision naming
-  ADR 0017 and ADR 0016.
+  ADR 0017.
 
 ## Forbidden Actions
 
@@ -44,6 +42,4 @@ agent-os:
 ## Read Instead
 
 - `docs/adr/0017-retire-codex-native-custom-agents.md`
-- `.codex/AGENTS.md`
-- `ai-agents/providers/codex/README.md`
-- `ai-agents/providers/codex/SKILL.md`
+- `scripts/agent-sync.sh`

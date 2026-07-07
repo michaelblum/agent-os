@@ -4,8 +4,9 @@
 integration profiles for branch, commit, review, pull request, merge authority,
 and release posture.
 `docs/dev/active-profile.json` selects the active repo-local development
-integration profile. Docked session doctrine is selected separately in
-`.docks/profiles/active-profile.json`.
+integration profile. Session instructions come from repo DOX and direct user
+intent; workflow profiles do not define project-agent personas or docked
+session doctrine.
 
 The profile manifest is not an AOS primitive contract. It is a development
 policy surface that agents can read before deciding whether to stay on `main`,
@@ -14,11 +15,10 @@ create a branch, prepare a pull request, or use release branches.
 The canonical AOS example manifest currently ships exactly five built-in
 profiles:
 
-- `agentic_relay` for local GDI execution, whether native subagent or explicitly
-  assigned terminal relay, reviewed and merged by a designated
-  Foreman-compatible relay authority through GitHub-visible branch state.
-- `local_relay` for one-checkout Foreman-human-dock-team loops using local
-  branches and stashes, with no linked worktrees or automatic publication.
+- `remote_branch_relay` for local implementation reviewed and integrated by a
+  designated review authority through GitHub-visible branch state.
+- `local_checkpoint` for one-checkout local work using branches, scoped commits,
+  and stashes, with no linked worktrees or automatic publication.
 - `hybrid_trunk` for single-developer or tiny-team direct-to-main work.
 - `github_flow` for short-lived feature branches and lightweight pull request
   review.

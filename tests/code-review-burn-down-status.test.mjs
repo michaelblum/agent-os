@@ -184,11 +184,10 @@ test('July 3 material medium blocker clusters stay dispositioned with evidence',
       ],
     },
     {
-      cluster: 'UTF-8 open-message and wiki readbacks',
+      cluster: 'UTF-8 open-message readback',
       paths: [
         'packages/toolkit/components/open-message-encoding.js',
         'tests/toolkit/open-message-encoding.test.mjs',
-        'tests/aos-agents-runner.sh',
       ],
     },
   ];

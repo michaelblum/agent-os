@@ -1,22 +1,18 @@
 # AOS Dock Profile v0
 
-Dock profiles are the machine-readable seed for `.docks/<dock>/dock.json`.
-They describe the durable dock role, execution topology, default capability
-route, and capability envelope for a dock. They are not the active operating
-doctrine; dock sessions load doctrine from `.docks/profiles/`.
+Dock profiles were the machine-readable seed for historical
+`.docks/<dock>/dock.json` files. They are retained for old fixtures and
+migration context only. Do not add new canonical dock profiles under the active
+repo tree.
 
-The profile is intentionally descriptive. It does not grant permissions,
-execute commands, or replace the human/model operating contract in
-`AGENTS.md`. It gives AOS and agents a stable way to answer: "who is this dock,
-which capability route does it start from, can it be launched directly or is it
-normally spawned by another dock, and which capability classes are in-bounds
-when the task explicitly calls for them?"
+The profile shape is intentionally descriptive. It does not grant permissions,
+execute commands, select project-agent roles, or replace the human/model
+operating contract in `AGENTS.md`.
 
 ## Fields
 
-- `name` is the dock directory identity. `foreman` is the only current named
-  dock; old `gdi` and `operator` dock roots are historical references.
-- `role` is the durable authority boundary used by capability manifests.
+- `name` is the historical dock directory identity.
+- `role` is the historical authority boundary used by old capability manifests.
 - `default_entry_path` is the compatibility field for the default capability
   route assumed before the task asks for a deeper route.
 - `allowed_entry_paths` is the compatibility field for the bounded set of
@@ -28,20 +24,13 @@ when the task explicitly calls for them?"
   capabilities in the manifest.
 - `requires_explicit_assignment_for` records classes that should not be treated
   as ambient even when they are inside the dock envelope.
-- `metadata.execution_topology` may record how the dock normally runs. Current
-  Foreman uses `aos_owned_runner_root`.
-- `metadata.agent_runner_team` may record an extensible AOS-owned runner roster.
-  Foreman's registered roster is not a closed role set; new provider-backed
-  role adapters can be added when a bounded role needs its own model, reasoning
-  effort, and instructions.
+- `metadata.execution_topology` may record how the historical dock normally ran.
+- `metadata.agent_runner_team` may record an old AOS-owned runner roster.
 - `metadata.agent_runner_team.model_policy` records whether provider role
   material must declare its own model and reasoning effort. Child runs should
   not inherit Foreman's expensive coordination model/effort by default.
-- `metadata.normal_launch_root` records whether a human normally starts Codex
-  from that dock directory. GDI and Operator keep dock profiles for role and
-  capability resolution even though their old standalone launch roots are
-  retired.
+- `metadata.normal_launch_root` records whether a human historically started
+  Codex from that dock directory.
 
-Use `./aos dev docks explain <dock> --json` to inspect a profile and
-`./aos dev docks capabilities <dock> --json` to resolve the profile against the
-canonical capability manifest.
+There is no current `./aos dev docks` command. Historical profiles can be
+validated through this schema and fixture tests only.

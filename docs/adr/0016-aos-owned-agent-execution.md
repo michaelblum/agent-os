@@ -1,19 +1,24 @@
 # ADR 0016: AOS-Owned Agent Execution
 
-**Status:** Accepted; amended by ADR 0017
+**Status:** Superseded by ADR 0019
 **Date:** 2026-06-10
+
+## Supersession
+
+ADR 0019 retires the AOS-owned project-agent runner from active AOS core. This
+ADR is retained as historical context for the `./aos dev agents` experiment,
+not as current command, verification, or session-routing authority.
 
 ## Decision
 
-AOS owns project-agent child execution by default. The canonical execution
-surface is `./aos dev agents`, backed by the repo-owned Python runner at
-`scripts/aos_agents/runner.py`, durable schemas, focused tests, and runtime
-artifacts under `.runtime/dev/aos-agents/`.
+At the time of this ADR, AOS owned project-agent child execution by default.
+The former canonical execution surface was `./aos dev agents`, backed by the
+repo-owned Python runner at `scripts/aos_agents/runner.py`, durable schemas,
+focused tests, and runtime artifacts under `.runtime/dev/aos-agents/`.
 
-The default agent engine is `provider-sdk`, the AOS-owned local runner adapter.
-ADR 0017 retires active Codex native custom-agent registration and dispatch for
-agent-os. Foreman must not treat native Codex custom agents as a trusted
-replacement for the AOS runner.
+The default agent engine was `provider-sdk`, the AOS-owned local runner adapter.
+ADR 0017 retired active Codex native custom-agent registration and dispatch for
+agent-os. ADR 0019 later retired this AOS-owned runner path from active core.
 
 ## North Star
 
@@ -54,7 +59,7 @@ layer in-house through `scripts/aos_agents/runner.py` and `./aos dev agents`.
 
 ## Consequences
 
-- `provider-sdk` is the default engine for `./aos dev agents`.
+- `provider-sdk` was the default engine for `./aos dev agents` before ADR 0019.
 - Native Codex custom-agent registration and dispatch are retired by ADR 0017.
   Reversal requires a new ADR or explicit human architecture decision that names
   ADR 0016 and ADR 0017 and explains why the native substrate is now inspectable,
@@ -79,13 +84,14 @@ layer in-house through `scripts/aos_agents/runner.py` and `./aos dev agents`.
 
 ## Verification
 
-Changes to this runtime must run:
+When reading historical branches that still change this runtime, the former
+verification gate was the now-retired:
 
 ```bash
 bash tests/aos-agents-runner.sh
 ```
 
-Changes to dock/profile delegation language must also run:
+The former dock/profile delegation gate was the now-retired:
 
 ```bash
 node --test tests/schemas/dock-operating-profiles.test.mjs

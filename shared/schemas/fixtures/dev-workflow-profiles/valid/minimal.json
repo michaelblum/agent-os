@@ -3,18 +3,20 @@
   "summary": "Example development workflow profiles.",
   "override_policy": "User instruction overrides the active profile unless unsafe.",
   "axes": {
-    "agent_definition": "Role identity.",
-    "dock": "Runtime shell.",
-    "dock_profile": "Operating doctrine.",
+    "session_identity": "Current session context.",
+    "execution_surface": "Where work happens.",
     "capability_route": "Path, tool, and test routing.",
-    "workflow_profile": "Git and review posture."
+    "workflow_profile": "Git and review posture.",
+    "handoff_boundary": "Integration or publication boundary."
   },
   "profiles": [
     {
       "id": "hybrid_trunk",
       "name": "Hybrid Trunk",
       "shorthand": "hybrid_trunk",
-      "intended_for": ["single developer"],
+      "intended_for": [
+        "single developer"
+      ],
       "default_work_surface": "main",
       "main_role": "releasable default work surface",
       "direct_main_default": true,
@@ -22,11 +24,17 @@
       "review_default": "local review",
       "commit_strategy": "small scoped commits",
       "branch_strategy": "branches only for risk",
-      "branch_required_for": ["risky change"],
-      "branch_optional_for": ["docs-only change"],
+      "branch_required_for": [
+        "risky change"
+      ],
+      "branch_optional_for": [
+        "docs-only change"
+      ],
       "release_branching": false,
       "environment_branches": [],
-      "agent_guidance": ["stay on main for small changes"]
+      "session_guidance": [
+        "stay on main for small changes"
+      ]
     }
   ]
 }

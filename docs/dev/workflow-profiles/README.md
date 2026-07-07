@@ -2,12 +2,12 @@
 
 Development workflow profiles describe branch, commit, review, pull request, and
 release posture. They are low-level development integration references. They are
-not the primary session operating model. Docked sessions load operating doctrine
-from `.docks/profiles/active-profile.json`.
+not the primary session operating model. Repo DOX and direct user intent own
+session instructions.
 
-- An agent definition defines who the agent or subagent is.
-- A dock defines runtime shell, hooks, TTS, and launch posture.
-- A dock profile defines active operating doctrine and context.
+- Session identity is the current coding session plus explicit task/user context.
+- An execution surface is where work happens: current checkout, branch, or pull
+  request.
 - A capability route defines the path, tool, and test mechanics for a task.
 - A workflow profile defines how development work flows through git and review.
 
@@ -18,66 +18,62 @@ project needs a different development posture.
 ## Active Profile
 
 The active development integration profile for this repo is selected in
-`docs/dev/active-profile.json`. The active session doctrine is selected in
-`.docks/profiles/active-profile.json`.
+`docs/dev/active-profile.json`.
 
-Agents should treat an explicit user instruction as stronger than the active
-profile for the current session, unless the instruction would discard work,
-publish externally, or perform a destructive operation.
+Sessions should treat an explicit user instruction as stronger than the active
+profile, unless the instruction would discard work, publish externally, or
+perform a destructive operation.
 
 ## Built-In Profiles
 
-### Agentic Relay (`agentic_relay`)
+### Remote Branch Relay (`remote_branch_relay`)
 
-Use this when local GDI implementation, whether a native subagent or an
-explicitly assigned terminal relay, works in tandem with a designated relay
-authority that owns review and merge. The relay authority performs the Foreman
-merge/review function, but it may be running remotely with GitHub access and no
-local checkout, local hooks, `./aos`, or local dirty-state visibility.
+Use this when local implementation works in tandem with a designated review
+authority that owns review and merge. The review authority may be running
+remotely with GitHub access and no local checkout, local hooks, `./aos`, or
+local dirty-state visibility.
 
-- The assigned GDI executor creates a `gdi/<work-card-slug>` branch from `main`
-  before starting work.
-- The assigned GDI executor commits verified work to that branch and pushes it
-  to origin at completion when the profile and dispatch explicitly authorize
-  publication.
-- GDI reports the branch name, HEAD SHA, verification, and local-only state in
-  its completion report. GDI does not merge to main.
+- Create a `topic/<slug>` branch from `main` before starting work that needs
+  remote review.
+- Commit verified work to that branch and push it to origin at completion only
+  when the profile and dispatch explicitly authorize publication.
+- Report the branch name, HEAD SHA, verification, and local-only state in the
+  completion report. Do not merge to main.
 - The pushed branch is the remote-visible relay artifact. The relay authority
   reads it through GitHub, evaluates the work, and merges to main or requests
   changes.
 - A remote relay is not a fourth product role. It is a GitHub-only adapter for
-  Foreman responsibilities. A local Foreman session may also act as the relay
-  authority when the remote relay is absent, interrupted, or explicitly handed
-  off.
+  review responsibilities. A local session may also act as the review authority
+  when the remote relay is absent, interrupted, or explicitly handed off.
 - If the relay authority needs local-only facts, it requests a local probe
   instead of pretending it can see local state.
 - Rollback, fix-forward, and revert are clean because main is never touched
   until the relay authority explicitly merges.
 
-### Local Relay (`local_relay`)
+### Local Checkpoint (`local_checkpoint`)
 
-Use this when Foreman, the human, and the dock team are sharing one local
-checkout and the branch or stash is the local safety boundary.
+Use this when one local checkout is the work surface and the branch or stash is
+the local safety boundary.
 
 - Work only in `/Users/Michael/Code/agent-os`; do not create linked git
   worktrees for this workflow.
 - Use local branches, scoped commits, and named stashes to preserve unrelated
   work before switching context.
-- GDI may produce local commits when the work card asks for a checkpoint, but
-  GDI does not push, open pull requests, merge, or clean branches unless that
-  is explicitly assigned.
-- Foreman or the human reviews local branch state and verification before
+- Commit locally when work is finished or a checkpoint is useful, but do not
+  push, open pull requests, merge, or clean branches unless that is explicitly
+  assigned.
+- The human or local reviewer reads local branch state and verification before
   deciding whether to merge, publish to GitHub, or ask for a correction.
-- After accepting a slice, Foreman keeps the loop moving by taking the next
-  reversible local step: run missing evidence, commit a scoped checkpoint,
-  update the relevant ledger, or route the next bounded subagent task.
-- When the next step crosses a non-local gate, Foreman stops with an actionable
+- After accepting a slice, keep the loop moving by taking the next
+  reversible local step: run missing evidence, commit a scoped checkpoint, or
+  update the relevant ledger.
+- When the next step crosses a non-local gate, stop with an actionable
   decision packet instead of a vague prompt. The packet names the blocked action
   (`push`, `open PR`, `merge`, `delete branch`, credential change, permission
   change, destructive cleanup, or product judgment), the recommended default,
-  the exact approval phrase or human action, the command path Foreman will run
-  after approval, and the safe alternative.
-- At practical review points, Foreman may suggest publishing a small focused PR
+  the exact approval phrase or human action, the command path to run after
+  approval, and the safe alternative.
+- At practical review points, suggest publishing a small focused PR
   for a non-local reviewer when outsider review would reduce risk. This remains
   an explicit human-approved option, not automatic publication, and the PR
   should keep the review scope narrow.
@@ -118,18 +114,17 @@ Use this for projects with multiple environments or formal release cycles.
 
 ## Choosing A Profile
 
-Prefer `agentic_relay` when:
+Prefer `remote_branch_relay` when:
 
-- local GDI does bounded implementation work and a remote partner (human or
-  agent) owns the merge gate through GitHub-visible branch state;
+- local implementation work needs a remote partner to own the merge gate through
+  GitHub-visible branch state;
 - you want rollback/fix-forward safety without mandatory pull requests;
 - the remote partner can evaluate and merge via GitHub API without a local
   checkout, and can request local probes when local-only evidence matters.
 
-Prefer `local_relay` when:
+Prefer `local_checkpoint` when:
 
-- Foreman, the human, and the dock team need a nimble local loop in one
-  checkout;
+- one checkout is enough for the local loop;
 - branches and stashes are enough isolation and GitHub publication should be an
   explicit later decision;
 - outsider review may occasionally be useful, but should be offered as a

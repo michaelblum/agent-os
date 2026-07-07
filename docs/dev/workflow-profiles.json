@@ -1,69 +1,67 @@
 {
   "$schema": "../../shared/schemas/dev-workflow-profiles.schema.json",
   "schema_version": 1,
-  "summary": "Built-in example development integration profiles for agent-os. Docked session doctrine is selected separately in .docks/profiles/active-profile.json.",
+  "summary": "Built-in example development integration profiles for agent-os. These profiles describe git and review posture only; session instructions come from repo DOX and direct user intent.",
   "override_policy": "A direct user instruction for the current repo or session overrides the active profile unless it would discard work, publish externally, or perform a destructive operation.",
   "axes": {
-    "agent_definition": "Who the agent or subagent is, declared in native provider config such as .codex/agents/*.toml.",
-    "dock": "Runtime shell, hooks, TTS, launch posture, stop conditions, and provider config.",
-    "dock_profile": "Active operating doctrine and context for a docked session.",
+    "session_identity": "The current coding session and its explicit user/task context; AOS core does not define project-agent personas.",
+    "execution_surface": "The concrete place work happens, such as the current checkout, a short-lived branch, or a pull request.",
     "capability_route": "Path, tool, and test routing mechanics for the current task.",
-    "workflow_profile": "Low-level development integration policy: branch, commit, review, PR, merge authority, and release posture."
+    "workflow_profile": "Low-level development integration policy: branch, commit, review, PR, merge authority, and release posture.",
+    "handoff_boundary": "The boundary that must be satisfied before work is integrated, published, or delegated."
   },
   "profiles": [
     {
-      "id": "agentic_relay",
-      "name": "Agentic Relay",
-      "shorthand": "agentic_relay",
+      "id": "remote_branch_relay",
+      "name": "Remote Branch Relay",
+      "shorthand": "remote_branch_relay",
       "intended_for": [
-        "single developer with an occasional remote Foreman-compatible relay",
-        "local GDI implementation, whether native subagent or explicitly assigned terminal relay, coordinating with a GitHub-only review authority",
+        "single developer with an occasional remote reviewer",
+        "local implementation coordinated with a GitHub-visible review authority",
         "workflows where a pushed branch is the durable handoff artifact between local and remote sessions"
       ],
       "default_work_surface": "short-lived topic branch from main",
-      "main_role": "stable integration target; GDI never lands implementation work without a designated relay authority",
+      "main_role": "stable integration target; implementation work lands only after the designated review authority accepts it",
       "direct_main_default": false,
       "pull_request_required": false,
-      "review_default": "designated relay authority reads the remote branch and merges or flags; the authority can be a remote relay, human, or local Foreman acting as relay",
-      "commit_strategy": "scoped commits on a gdi/<slug> branch; push branch to origin at completion",
-      "branch_strategy": "one branch per work card; named gdi/<work-card-slug>; branch is the remote-visible relay artifact and is deleted after merge",
+      "review_default": "designated review authority reads the remote branch and merges or flags; the authority can be remote, human, or local",
+      "commit_strategy": "scoped commits on a topic/<slug> branch; push branch to origin at completion when explicitly authorized",
+      "branch_strategy": "one branch per work slice; named topic/<slug>; branch is the remote-visible relay artifact and is deleted after merge",
       "branch_required_for": [
-        "every GDI implementation slice"
+        "implementation slice that needs remote review"
       ],
       "branch_optional_for": [
         "docs-only or config-only changes that carry no implementation risk"
       ],
       "release_branching": false,
       "environment_branches": [],
-      "relay_merge_authority": "designated Foreman-compatible relay authority with GitHub repository access; often remote and without local checkout",
-      "branch_naming_convention": "gdi/<work-card-slug>",
-      "gdi_push_authority": true,
-      "agent_guidance": [
-        "The assigned GDI executor creates a branch named gdi/<work-card-slug> from main before starting any implementation work.",
-        "The assigned GDI executor commits verified work to that branch and pushes it to origin at completion when the profile and dispatch explicitly authorize publication.",
-        "GDI reports the branch name, HEAD SHA, verification, and local-only state in the completion report. GDI does not merge to main.",
-        "The relay authority reads the remote branch, evaluates the work, and merges to main or requests changes.",
-        "When the relay authority is remote, it performs the Foreman review/merge function through GitHub-visible evidence and may request local probes for facts it cannot observe.",
-        "A local Foreman session may act as the relay authority when the remote relay is absent, interrupted, or explicitly handed off.",
-        "Work card Git sections should instruct GDI to push the branch and report branch name + SHA, not to push main."
+      "review_authority": "designated review authority with GitHub repository access; often remote and without local checkout",
+      "branch_naming_convention": "topic/<slug>",
+      "push_at_completion": true,
+      "session_guidance": [
+        "Create a branch named topic/<slug> from main before starting implementation work that needs remote review.",
+        "Commit verified work to that branch and push it to origin at completion only when the profile and dispatch explicitly authorize publication.",
+        "Report the branch name, HEAD SHA, verification, and local-only state in the completion report. Do not merge to main.",
+        "The review authority reads the remote branch, evaluates the work, and merges to main or requests changes.",
+        "When the review authority is remote, it evaluates GitHub-visible evidence and may request a local probe for facts it cannot observe."
       ]
     },
     {
-      "id": "local_relay",
-      "name": "Local Relay",
-      "shorthand": "local_relay",
+      "id": "local_checkpoint",
+      "name": "Local Checkpoint",
+      "shorthand": "local_checkpoint",
       "intended_for": [
-        "single developer with tight Foreman-human-dock-team loops",
-        "local GDI implementation subagent reviewed by local Foreman or the human",
-        "workflows that need branches and stashes without linked git worktrees or automatic pushes"
+        "single developer working in one local checkout",
+        "workflows that need branches, scoped commits, and stashes without linked git worktrees or automatic pushes",
+        "local review loops where GitHub publication remains an explicit later decision"
       ],
       "default_work_surface": "single checkout at /Users/Michael/Code/agent-os on the current local branch",
-      "main_role": "stable integration target; Foreman decides when local branch work is merged or published",
+      "main_role": "stable integration target; the human decides when local branch work is merged or published",
       "direct_main_default": false,
       "pull_request_required": false,
-      "review_default": "local Foreman or human reviews local commits and verification before merge or push; Foreman may offer an explicitly approved short-lived PR when outsider review would be useful",
-      "commit_strategy": "small scoped local commits on the current branch or one local gdi/<slug> branch; no automatic push",
-      "branch_strategy": "use the single repo checkout; create or switch local branches only when Foreman or the work card names them; never create linked git worktrees",
+      "review_default": "human or local review reads local commits and verification before merge or push; a short-lived PR can be created when outsider review would be useful",
+      "commit_strategy": "small scoped local commits on the current branch or one local topic branch; no automatic push",
+      "branch_strategy": "use the single repo checkout; create or switch local branches only when the user or work card names them; never create linked git worktrees",
       "branch_required_for": [
         "multi-file implementation slice",
         "risky change",
@@ -74,22 +72,21 @@
         "docs-only change",
         "tiny mechanical correction",
         "validation-only round",
-        "Foreman-human direct loop on the current branch",
+        "direct local loop on the current branch",
         "outsider review checkpoint after local acceptance"
       ],
       "release_branching": false,
       "environment_branches": [],
-      "relay_merge_authority": "local Foreman or the human using local branch state; GitHub publication is explicit, not automatic",
-      "branch_naming_convention": "gdi/<work-card-slug> or foreman/<slug> when Foreman owns the slice",
-      "gdi_push_authority": false,
-      "agent_guidance": [
+      "review_authority": "human or local reviewer using local branch state; GitHub publication is explicit, not automatic",
+      "branch_naming_convention": "topic/<slug> when a branch is warranted",
+      "push_at_completion": false,
+      "session_guidance": [
         "Work only in /Users/Michael/Code/agent-os; do not create linked git worktrees or put repo-mode binaries outside the main checkout.",
         "Use branches, scoped commits, and named stashes to preserve unrelated work before switching context.",
-        "GDI may commit locally only when the work card says to produce a checkpoint; GDI does not push, open PRs, merge, or clean branches unless explicitly assigned.",
-        "Foreman reviews local branch state, verification, and stashes before deciding merge, push, PR, or cleanup.",
-        "After accepting a slice, Foreman should execute the next reversible local step instead of stopping at acceptance: run missing evidence, commit a scoped checkpoint, update the ledger, or route the next bounded subagent task.",
-        "When the next step is external publication, merge, branch cleanup, credentials, permissions, destructive cleanup, or product judgment, Foreman must stop with an actionable gate: blocked action, recommended default, exact human approval phrase, post-approval command path, and safe alternative.",
-        "At practical review points, Foreman may suggest publishing a small focused PR for a non-local reviewer, but only as an explicit human-approved review option; it is not automatic publication and should keep scope narrow.",
+        "Commit locally when the work is finished or the user asks for a checkpoint; do not push, open PRs, merge, or clean branches unless explicitly assigned.",
+        "Report local branch state, verification, and stashes before recommending merge, push, PR, or cleanup.",
+        "When the next step crosses a non-local gate, stop with an actionable gate naming the blocked action, recommended default, exact approval phrase, command path, and safe alternative.",
+        "At practical review points, suggest a small focused PR only as an explicit human-approved option.",
         "The repo-mode ./aos binary is stable infrastructure at /Users/Michael/Code/agent-os/aos and should not be rebuilt except for explicitly accepted native changes."
       ]
     },
@@ -100,13 +97,13 @@
       "intended_for": [
         "single developer",
         "very tiny team",
-        "agent relay review without mandatory pull requests"
+        "local or human review without mandatory pull requests"
       ],
       "default_work_surface": "main",
       "main_role": "releasable default work surface",
       "direct_main_default": true,
       "pull_request_required": false,
-      "review_default": "local tests, agent relay review, or human review when risk warrants it",
+      "review_default": "local tests, focused review, or human review when risk warrants it",
       "commit_strategy": "small frequent scoped commits directly on main",
       "branch_strategy": "use short-lived branches sparingly as a safety valve",
       "branch_required_for": [
@@ -118,17 +115,15 @@
         "external collaboration requiring a pull request"
       ],
       "branch_optional_for": [
-        "small low-risk incremental change",
+        "small local change",
         "docs-only change",
-        "test-only change",
-        "single-sitting bugfix"
+        "focused test update"
       ],
       "release_branching": false,
       "environment_branches": [],
-      "agent_guidance": [
-        "Prefer staying on main when the checkout is clean and the task is small.",
-        "Keep main releasable by running focused verification before checkpointing.",
-        "Use branches only when they reduce real risk or preserve unrelated work."
+      "session_guidance": [
+        "Default to main for small, reversible changes.",
+        "Create a branch when risk, duration, or collaboration calls for it."
       ]
     },
     {
@@ -138,31 +133,28 @@
       "intended_for": [
         "small team",
         "medium team",
-        "projects using lightweight pull request review"
+        "pull request review"
       ],
-      "default_work_surface": "short-lived branch from main",
-      "main_role": "deployable integration branch",
+      "default_work_surface": "short-lived feature branch",
+      "main_role": "deployable protected branch",
       "direct_main_default": false,
       "pull_request_required": true,
-      "review_default": "lightweight pull request review before merge",
-      "commit_strategy": "scoped commits on a short-lived branch",
-      "branch_strategy": "create one branch per feature, bugfix, refactor, or docs change",
+      "review_default": "pull request review before merge",
+      "commit_strategy": "commits on short-lived feature branches",
+      "branch_strategy": "one short-lived branch per feature, bugfix, refactor, or docs change",
       "branch_required_for": [
         "feature",
         "bugfix",
         "refactor",
-        "docs change",
-        "governance change"
+        "docs change"
       ],
       "branch_optional_for": [
-        "tiny emergency fix when explicitly approved"
+        "maintainer emergency patch when policy allows it"
       ],
       "release_branching": false,
       "environment_branches": [],
-      "agent_guidance": [
-        "Start from main, create a short-lived branch, and keep it close to main.",
-        "Use a pull request for review and merge back into main when ready.",
-        "Avoid long-running divergence."
+      "session_guidance": [
+        "Keep branches short-lived and merge through pull requests."
       ]
     },
     {
@@ -170,36 +162,31 @@
       "name": "GitFlow",
       "shorthand": "gitflow",
       "intended_for": [
-        "formal release cycles",
-        "multiple deployment environments",
-        "projects requiring separated development, release, and production branches"
+        "multiple environments",
+        "formal release cycle"
       ],
-      "default_work_surface": "feature branch from develop",
+      "default_work_surface": "develop",
       "main_role": "production release branch",
       "direct_main_default": false,
       "pull_request_required": true,
-      "review_default": "review before merging into develop, release, hotfix, or main branches",
-      "commit_strategy": "scoped commits on feature, release, or hotfix branches",
-      "branch_strategy": "use named develop, feature/*, release/*, and hotfix/* branches",
+      "review_default": "pull request review into the appropriate long-lived branch",
+      "commit_strategy": "feature, release, and hotfix branches",
+      "branch_strategy": "develop for integration, feature branches for work, release branches for release preparation, hotfix branches from main",
       "branch_required_for": [
         "feature",
-        "bugfix",
-        "refactor",
         "release preparation",
-        "production hotfix"
+        "hotfix"
       ],
-      "branch_optional_for": [],
+      "branch_optional_for": [
+        "small docs correction on a release branch when policy allows it"
+      ],
       "release_branching": true,
       "environment_branches": [
         "develop",
-        "release/*",
-        "hotfix/*",
         "main"
       ],
-      "agent_guidance": [
-        "Do not work directly on main for normal development.",
-        "Branch day-to-day work from develop unless the task is a production hotfix.",
-        "Use release branches to stabilize releases before merging to main."
+      "session_guidance": [
+        "Respect long-lived environment and release branches."
       ]
     }
   ]

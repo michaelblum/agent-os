@@ -134,26 +134,6 @@ else
     fail "dev recommend command source/generator routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files scripts/aos_agents/runner.py 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-summary = data["summary"]
-commands = {item["command"] for item in data["next_commands"]}
-assert "aos-agent-runner" in summary["rule_ids"], data
-assert "bash tests/aos-agents-runner.sh" in commands, data
-assert "bash tests/dev-workflow-router.sh" in commands, data
-assert "bash tests/dev-audit.sh" in commands, data
-assert summary["hot_swappable"] is True, data
-assert summary["tcc_identity_sensitive"] is False, data
-PY
-then
-    pass "dev recommend routes AOS agent runner changes to focused command-surface checks"
-else
-    fail "dev recommend AOS agent runner routing drifted"
-fi
-
 if OUT="$(./aos dev recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -250,7 +230,7 @@ assert data["status"] == "success", data
 assert data["files"], data
 for item in data["files"]:
     rules = set(item["rules"])
-    assert "command-surface-implementations" in rules or "aos-agent-runner" in rules, item
+    assert "command-surface-implementations" in rules, item
     assert "unclassified" not in rules, item
     assert item["hot_swappable"] is True, item
     assert item["tcc_identity_sensitive"] is False, item
@@ -325,234 +305,31 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-agents", "dev-subagent", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-gh"} <= set(forms), forms
+assert "dev-docks" not in forms, forms
+assert "dev-agents" not in forms, forms
+assert "dev-subagent" not in forms, forms
+assert "dev-afk-dry-run" not in forms, forms
+assert "dev-afk-launch-attempt" not in forms, forms
+assert "dev-afk-session-trigger" not in forms, forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= recommend_tokens, recommend_tokens
-afk_tokens = {arg.get("token") for arg in forms["dev-afk-dry-run"]["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"} <= afk_tokens, afk_tokens
-assert "--allow-provider-launch" not in afk_tokens, afk_tokens
-assert "experimental" in forms["dev-afk-dry-run"]["args"][0]["summary"].lower(), forms["dev-afk-dry-run"]
-launch_tokens = {arg.get("token") for arg in forms["dev-afk-launch-attempt"]["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json", "--duplicate-in-process", "--catalog-fixture", "--bridge-visibility-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home"} <= launch_tokens, launch_tokens
-assert "--allow-provider-launch" not in launch_tokens, launch_tokens
-assert "experimental" in forms["dev-afk-launch-attempt"]["args"][0]["summary"].lower(), forms["dev-afk-launch-attempt"]
-trigger_tokens = {arg.get("token") for arg in forms["dev-afk-session-trigger"]["args"]}
-assert {"--packet", "--afk-work-queue", "--queue-run-fixture", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= trigger_tokens, trigger_tokens
-assert "--live" not in trigger_tokens, trigger_tokens
-assert "--launch-provider" not in trigger_tokens, trigger_tokens
-assert "--start" not in trigger_tokens, trigger_tokens
-assert "experimental" in forms["dev-afk-session-trigger"]["args"][0]["summary"].lower(), forms["dev-afk-session-trigger"]
 audit_tokens = {arg.get("token") for arg in forms["dev-audit"]["args"]}
 assert {"--manifest", "--repo", "--json"} <= audit_tokens, audit_tokens
 capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args"]}
 assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capability_tokens, capability_tokens
-dock_tokens = {arg.get("token") for arg in forms["dev-docks"]["args"]}
-assert {"--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"} <= dock_tokens, dock_tokens
-agents_tokens = {arg.get("token") for arg in forms["dev-agents"]["args"]}
-assert {"--self-test", "--runtime-info", "--list-runs", "--read-run", "--native-dispatch", "--complete-native-run", "--result-file", "--check-patch", "--apply-patch", "--i-approve-checkout-mutation", "--engine", "--role", "--task", "--execute", "--patch-output", "--context-file", "--max-turns", "--repo", "--json"} <= agents_tokens, agents_tokens
-subagent_tokens = {arg.get("token") for arg in forms["dev-subagent"]["args"]}
-assert {"--agents-root", "--role", "--prompt", "--prompt-file", "--transcript", "--transcript-file", "--repo", "--json"} <= subagent_tokens, subagent_tokens
 gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/agents/subagent/gh"
+    pass "dev help exposes classify/recommend/build/audit/capabilities/gh without retired orchestration commands"
 else
     fail "dev help missing workflow router forms"
 fi
 
-if OUT="$(./aos dev agents --self-test --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["self_test"] == "pass", data
-assert data["default_engine"] == "provider-sdk", data
-assert set(data["engines"]) == {"provider-sdk"}, data
-assert data["retired_engines"]["native-codex"]["retired"] is True, data
-assert set(data["roles"]) == {"explorer", "reviewer", "validator", "historian"}, data
-assert all(item["sandbox_mode"] == "read-only" for item in data["roles"].values()), data
-PY
-then
-    pass "dev agents self-test runs through external command manifest"
-else
-    fail "dev agents self-test route drifted"
-fi
-
-if ERR="$(./aos dev subagent list --json 2>&1 >/dev/null)"; then
-    fail "dev subagent should be retired"
-elif echo "$ERR" | grep -q "RETIRED_SUBAGENT_COMMAND"; then
-    pass "dev subagent fails closed with retired-command error"
-else
-    fail "dev subagent retired-command error mismatch: $ERR"
-fi
-
-if OUT="$(./aos help dev afk-dry-run --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-forms = {form["id"]: form for form in data["forms"]}
-form = forms["dev-afk-dry-run"]
-tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"} <= tokens, tokens
-assert "--allow-provider-launch" not in tokens, tokens
-assert "session" not in form["usage"].lower(), form
-assert "experimental" in json.dumps(form).lower(), form
-assert "prototype" in json.dumps(form).lower(), form
-PY
-then
-    pass "dev afk-dry-run help stays experimental and hides provider launch"
-else
-    fail "dev afk-dry-run help drifted"
-fi
-
-if OUT="$(./aos help dev afk-launch-attempt --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-forms = {form["id"]: form for form in data["forms"]}
-form = forms["dev-afk-launch-attempt"]
-tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json", "--duplicate-in-process", "--catalog-fixture", "--bridge-visibility-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home"} <= tokens, tokens
-assert "--allow-provider-launch" not in tokens, tokens
-assert "session" not in form["usage"].lower(), form
-assert "experimental" in json.dumps(form).lower(), form
-assert "prototype" in json.dumps(form).lower(), form
-PY
-then
-    pass "dev afk-launch-attempt help stays experimental and hides provider launch"
-else
-    fail "dev afk-launch-attempt help drifted"
-fi
-
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-dry-run.XXXXXX")"
-cat > "$PACKET" <<JSON
-{
-  "packet_id": "dev-wrapper-afk-dry-run",
-  "source_artifact": "docs/design/work-cards/afk-dev-dry-run-command-v0.md",
-  "requested_recipient": "gdi",
-  "cwd": "$PWD",
-  "worktree": "$PWD",
-  "required_start_ref": "HEAD",
-  "provider_hint": "codex",
-  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
-  "external_publication_policy": "local-only",
-  "goal": "verify external dev afk-dry-run wrapper"
-}
-JSON
-if OUT="$(./aos dev afk-dry-run --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["final_status"] == "failed", data
-assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-dry-run", data
-assert data["dispatch"]["selected_provider"] == "codex", data
-assert data["dispatch"]["selected_dock_profile"]["status"] == "missing_with_reason", data
-assert "dock profile not found" in data["dispatch"]["selected_dock_profile"]["reason"], data
-PY
-then
-    pass "dev afk-dry-run runs through external command manifest and fails closed on retired dock profiles"
-else
-    fail "dev afk-dry-run external wrapper drifted: ${OUT:-}"
-fi
-rm -f "$PACKET"
-
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-launch-attempt.XXXXXX")"
-cat > "$PACKET" <<JSON
-{
-  "packet_id": "dev-wrapper-afk-launch-attempt",
-  "source_artifact": "docs/design/work-cards/afk-dev-launch-attempt-command-v0.md",
-  "requested_recipient": "gdi",
-  "cwd": "$PWD",
-  "worktree": "$PWD",
-  "required_start_ref": "HEAD",
-  "provider_hint": "codex",
-  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
-  "external_publication_policy": "local-only",
-  "goal": "verify external dev afk-launch-attempt wrapper"
-}
-JSON
-if OUT="$(./aos dev afk-launch-attempt --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>&1 >/dev/null)"; then
-    fail "dev afk-launch-attempt should fail closed when the retired gdi dock contract is missing"
-elif OUT="$OUT" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["record_type"] == "aos.afk_launch_attempt", data
-assert data["lifecycle_state"] == "failed", data
-assert ".docks/gdi/inbound-contract.json" in data["error"], data
-PY
-then
-    pass "dev afk-launch-attempt routes through external command manifest and fails closed on retired dock contract"
-else
-    fail "dev afk-launch-attempt external wrapper drifted: ${OUT:-}"
-fi
-rm -f "$PACKET"
-
-if OUT="$(./aos help dev afk-session-trigger --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-forms = {form["id"]: form for form in data["forms"]}
-form = forms["dev-afk-session-trigger"]
-tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--afk-work-queue", "--queue-run-fixture", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
-assert "--live" not in tokens, tokens
-assert "--launch-provider" not in tokens, tokens
-assert "--start" not in tokens, tokens
-assert "--afk-live-launch" in form["usage"], form
-assert "--afk-authorization" in form["usage"], form
-assert "experimental" in json.dumps(form).lower(), form
-assert "prototype" in json.dumps(form).lower(), form
-PY
-then
-    pass "dev afk-session-trigger help stays experimental and exposes guarded live launch"
-else
-    fail "dev afk-session-trigger help drifted"
-fi
-
-PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-session-trigger.XXXXXX")"
-cat > "$PACKET" <<JSON
-{
-  "packet_id": "dev-wrapper-afk-session-trigger",
-  "source_artifact": "docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md",
-  "requested_recipient": "gdi",
-  "cwd": "$PWD",
-  "worktree": "$PWD",
-  "required_start_ref": "HEAD",
-  "provider_hint": "codex",
-  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
-  "external_publication_policy": "local-only",
-  "goal": "verify external dev afk-session-trigger wrapper"
-}
-JSON
-if OUT="$(./aos dev afk-session-trigger --packet "$PACKET" --provider codex --dock gdi --dry-run --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["record_type"] == "aos.afk_session_trigger_dry_run", data
-assert data["status"] == "rejected", data
-assert data["packet"]["packet_id"] == "dev-wrapper-afk-session-trigger", data
-assert data["packet"]["validation_status"] == "invalid", data
-assert data["dispatch"]["selected_provider"] == "codex", data
-assert any(item["class"] == "unknown_dock" for item in data["mismatches"]), data
-PY
-then
-    pass "dev afk-session-trigger runs through external command manifest and rejects retired dock profiles"
-else
-    fail "dev afk-session-trigger external wrapper drifted: ${OUT:-}"
-fi
-rm -f "$PACKET"
-
-if OUT="$(./aos dev capabilities list --role foreman --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev capabilities list --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -571,7 +348,6 @@ assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_create" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
 assert "dev.github.pr_checks" in ids, ids
-assert "dev.agents" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 assert all("adapter_kind" in item for item in data["capabilities"]), data
@@ -660,236 +436,6 @@ then
     pass "dev capabilities explain returns issue create metadata"
 else
     fail "dev capabilities explain did not return expected issue create metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.agents --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.agents", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["adapter"]["command"] == ["./aos", "dev", "agents"], data
-assert capability["mutability"]["class"] == "read_only", data
-assert capability["execution"]["network"] == "forbidden", data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns AOS agent runner metadata"
-else
-    fail "dev capabilities explain did not return expected AOS agent runner metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.issue_close --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.issue_close", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is False, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns issue close metadata"
-else
-    fail "dev capabilities explain did not return expected issue close metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.issue_edit --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.issue_edit", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_explicit_assignment"] is True, data
-assert capability["mutability"]["requires_human_approval"] is False, data
-assert capability["mutability"]["requires_body_file"] is False, data
-assert capability["execution"]["audit"] == "required", data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns issue edit metadata"
-else
-    fail "dev capabilities explain did not return expected issue edit metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.label_list --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.label_list", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "read_only", data
-assert capability["mutability"]["requires_body_file"] is False, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns label list metadata"
-else
-    fail "dev capabilities explain did not return expected label list metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.pr_merge --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.pr_merge", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is False, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns PR merge metadata"
-else
-    fail "dev capabilities explain did not return expected PR merge metadata"
-fi
-
-if ERR="$(./aos dev capabilities explain no.such.capability --json 2>&1 >/dev/null)"; then
-    fail "dev capabilities explain should reject unknown capability ids"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_CAPABILITY"'; then
-    pass "dev capabilities explain rejects unknown capability ids"
-else
-    fail "dev capabilities explain unknown id error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev capabilities explain dev.github.issue_comment extra --json 2>&1 >/dev/null)"; then
-    fail "dev capabilities explain should reject extra positional args"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
-    && echo "$ERR" | grep -q 'Unknown dev capabilities argument: extra'; then
-    pass "dev capabilities explain rejects extra positional args"
-else
-    fail "dev capabilities explain extra positional error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev docks list --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-names = {item["name"] for item in data["docks"]}
-assert data["status"] == "success", data
-assert data["dock_root"] == ".docks", data
-assert names == {"foreman"}, names
-assert any(item["default_entry_path"] == "aos_developer" for item in data["docks"] if item["name"] == "foreman"), data
-PY
-then
-    pass "dev docks list discovers canonical dock profiles"
-else
-    fail "dev docks list did not expose expected profiles"
-fi
-
-if OUT="$(./aos dev docks capabilities foreman --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-ids = {item["id"] for item in data["capabilities"]}
-assert data["dock"] == "foreman", data
-assert data["active_entry_path"] == "aos_developer", data
-assert "dev.github.issue_list" in ids, ids
-assert "dev.github.pr_list" in ids, ids
-assert "dev.github.issue_comment" in ids, ids
-assert "dev.github.issue_create" in ids, ids
-assert "dev.github.issue_close" in ids, ids
-assert "dev.github.issue_edit" in ids, ids
-assert "dev.github.label_list" in ids, ids
-assert "dev.github.pr_comment" in ids, ids
-assert "dev.github.pr_create" in ids, ids
-assert "dev.github.pr_merge" in ids, ids
-assert "dev.github.pr_checks" in ids, ids
-assert "dev.agents" in ids, ids
-assert "dev.build.aos" in ids, ids
-PY
-then
-    pass "dev docks capabilities resolves foreman envelope"
-else
-    fail "dev docks capabilities did not resolve foreman envelope"
-fi
-
-if ERR="$(./aos dev docks explain foreman extra --json 2>&1 >/dev/null)"; then
-    fail "dev docks explain should reject extra positional args"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
-    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
-    pass "dev docks explain rejects extra positional args"
-else
-    fail "dev docks explain extra positional error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev docks capabilities foreman extra --json 2>&1 >/dev/null)"; then
-    fail "dev docks capabilities should reject extra positional args"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
-    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
-    pass "dev docks capabilities rejects extra positional args"
-else
-    fail "dev docks capabilities extra positional error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev docks capabilities gdi --json 2>&1 >/dev/null)"; then
-    fail "dev docks capabilities should reject retired gdi dock profile"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "UNKNOWN_DOCK", data
-assert data["error"] == "Unknown dock profile: gdi", data
-PY
-then
-    pass "dev docks capabilities rejects retired gdi profile"
-else
-    fail "dev docks capabilities gdi error mismatch: ${ERR:-}"
-fi
-
-if ERR="$(./aos dev docks capabilities operator --json 2>&1 >/dev/null)"; then
-    fail "dev docks capabilities should reject retired operator dock profile"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "UNKNOWN_DOCK", data
-assert data["error"] == "Unknown dock profile: operator", data
-PY
-then
-    pass "dev docks capabilities rejects retired operator profile"
-else
-    fail "dev docks capabilities operator error mismatch: ${ERR:-}"
-fi
-
-if ERR="$(./aos dev docks capabilities operator --entry-path aos_developer --json 2>&1 >/dev/null)"; then
-    fail "dev docks capabilities should reject retired operator assigned path"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "UNKNOWN_DOCK", data
-assert data["error"] == "Unknown dock profile: operator", data
-PY
-then
-    pass "dev docks capabilities rejects retired operator assigned path"
-else
-    fail "dev docks capabilities operator assigned path error mismatch: ${ERR:-}"
-fi
-
-if ERR="$(./aos dev docks capabilities operator --entry-path --json 2>&1 >/dev/null)"; then
-    fail "dev docks capabilities should reject missing --entry-path values before a flag"
-elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
-    pass "dev docks capabilities treats flag-after---entry-path as missing value"
-else
-    fail "dev docks capabilities missing --entry-path error mismatch: $ERR"
 fi
 
 TMPDIR="$(mktemp -d)"

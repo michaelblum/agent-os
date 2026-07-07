@@ -59,22 +59,10 @@ if before_match != after_match:
     raise SystemExit(f"FAIL: final-response relay should not mutate session presence: before={before_match} after={after_match}")
 PY
 
-python3 - "$PWD" "$PWD/.claude/settings.json" <<'PY'
+python3 - "$PWD/.claude/settings.json" <<'PY'
 import json, sys
-from pathlib import Path
 
-root, claude_path = sys.argv[1:]
-
-for role in ["foreman", "gdi", "operator"]:
-    codex_path = Path(root) / ".docks" / role / ".codex" / "hooks.json"
-    codex_hooks = json.load(open(codex_path)).get("hooks", {})
-    codex_stop_commands = [
-        hook.get("command", "")
-        for matcher in codex_hooks.get("Stop", [])
-        for hook in matcher.get("hooks", [])
-    ]
-    if any("final-response.sh" in command for command in codex_stop_commands):
-        raise SystemExit(f"FAIL: {codex_path} should not install repo-root Stop final-response relay: {codex_stop_commands}")
+claude_path = sys.argv[1]
 
 for path in [claude_path]:
     hooks = json.load(open(path)).get("hooks", {})

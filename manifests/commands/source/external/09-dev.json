@@ -23,45 +23,6 @@
     {
       "path": [
         "dev",
-        "afk-dry-run"
-      ],
-      "summary": "Run the AFK dry-run command from the external Node prototype.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/afk-dry-run-prototype.mjs"
-      ],
-      "cwd": "repo"
-    },
-    {
-      "path": [
-        "dev",
-        "afk-launch-attempt"
-      ],
-      "summary": "Run the AFK launch-attempt command from the external Node prototype.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/afk-launch-attempt-prototype.mjs"
-      ],
-      "cwd": "repo"
-    },
-    {
-      "path": [
-        "dev",
-        "afk-session-trigger"
-      ],
-      "summary": "Run the AFK session-trigger command from the external Node prototype.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/afk-session-trigger-prototype.mjs"
-      ],
-      "cwd": "repo"
-    },
-    {
-      "path": [
-        "dev",
         "gh"
       ],
       "summary": "Run GitHub workflow helpers through the external dev gh command.",
@@ -188,56 +149,6 @@
         "node",
         "scripts/aos-dev-workflow.mjs",
         "capabilities"
-      ],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": [
-        "dev",
-        "docks"
-      ],
-      "summary": "Inspect dock profiles through the external dev workflow router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-dev-workflow.mjs",
-        "docks"
-      ],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": [
-        "dev",
-        "agents"
-      ],
-      "summary": "Run the AOS-owned agent runtime contract surface, provider execution, explicit native diagnostics, and patch artifact gate.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "python3",
-        "scripts/aos_agents/runner.py"
-      ],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": [
-        "dev",
-        "subagent"
-      ],
-      "summary": "Plan and validate fail-closed native Codex subagent dispatch contracts.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-dev-workflow.mjs",
-        "subagent"
       ],
       "cwd": "repo",
       "env": {

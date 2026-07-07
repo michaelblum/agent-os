@@ -355,13 +355,12 @@
       "ownership": "AOS-owned historical tombstone for ADR 0017.",
       "references": [
         "docs/adr/0017-retire-codex-native-custom-agents.md",
-        ".codex/AGENTS.md",
-        "ai-agents/providers/codex/README.md"
+        "scripts/agent-sync.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/adr/0017-retire-codex-native-custom-agents.md",
-        ".codex/AGENTS.md"
+        "scripts/agent-sync.sh"
       ]
     },
     {

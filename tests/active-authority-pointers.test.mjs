@@ -116,17 +116,12 @@ test('root AGENTS stays a DOX rail instead of an orchestration contract', async 
   assert.doesNotMatch(rootAgents, /^## Repo Model$/m);
   assert.doesNotMatch(rootAgents, /^## Architecture Compass$/m);
   assert.doesNotMatch(rootAgents, /^## AOS And Development$/m);
-  assert.match(rootAgents, /explicit dock launch contexts only/);
+  assert.match(rootAgents, /project-agent orchestration is retired from AOS core/);
   assert.match(rootAgents, /^## DOX Framework$/m);
   assert.match(rootAgents, /^## Child DOX Index$/m);
 });
 
-test('codex subtree contract does not route repo-root sessions into orchestration doctrine', async () => {
-  const codexAgents = await text('.codex/AGENTS.md');
-  assert.doesNotMatch(codexAgents, /\.docks/);
-  assert.doesNotMatch(codexAgents, /\bdock/i);
-  assert.doesNotMatch(codexAgents, /\bForeman\b/);
-  assert.doesNotMatch(codexAgents, /Orchestrator Defaults/);
-  assert.doesNotMatch(codexAgents, /active-profile/);
-  assert.match(codexAgents, /Keep this file scoped to `\.codex\/` configuration/);
+test('root Child DOX Index has no stale removed child docs', async () => {
+  const rootAgents = await text('AGENTS.md');
+  assert.doesNotMatch(rootAgents, /ai-agents\/AGENTS\.md/);
 });

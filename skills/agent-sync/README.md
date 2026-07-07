@@ -8,13 +8,11 @@ Do not run `$agent-sync`, `./aos agent-sync`, or any reconstructed script that
 writes `multi_agent_v2`, `[agents]`, `[agents.<role>]`, `.codex/agents/*.toml`,
 or `~/.codex/agents/*.toml` for agent-os.
 
-Use `./aos dev agents` for project-agent execution. Codex-shaped role material
-is preserved under `ai-agents/providers/codex/*.toml` for the AOS-owned runner,
-not for user-global Codex native custom-agent registration.
+Do not recreate project-agent role registration in AOS core. Historical
+Codex-shaped role material has been archived outside the active repo tree, not
+preserved as a user-global Codex native custom-agent registration source.
 
 Current authority:
 
 - `docs/adr/0017-retire-codex-native-custom-agents.md`
-- `.codex/AGENTS.md`
-- `ai-agents/providers/codex/README.md`
 - `scripts/agent-sync.sh`

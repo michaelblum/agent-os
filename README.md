@@ -68,9 +68,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 ## Agent Sessions
 
 Repo-root sessions start with [AGENTS.md](AGENTS.md) and the nearest child
-`AGENTS.md` for the path being edited. Explicit dock-launched sessions use
-[.docks/README.md](.docks/README.md), [.docks/AGENTS.md](.docks/AGENTS.md),
-and the dock-local contract.
+`AGENTS.md` for the path being edited. Historical dock and project-agent
+orchestration scaffolding is not part of the active AOS product surface.
 
 ## Consumer Docs
 

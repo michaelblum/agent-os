@@ -824,31 +824,6 @@ else
     fail "dev build-checkpoint command was re-registered"
 fi
 
-# --- 22. dev afk-session-trigger help exposes guarded trigger flags ---
-OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
-if OUT="$OUT" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-form = next(item for item in data["forms"] if item["id"] == "dev-afk-session-trigger")
-tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--afk-work-queue", "--queue-run-fixture", "--afk-authorization", "--sleep-lease", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
-assert "--live" not in tokens, tokens
-assert "--launch-provider" not in tokens, tokens
-assert "--start" not in tokens, tokens
-assert "experimental" in json.dumps(form).lower(), form
-assert "prototype" in json.dumps(form).lower(), form
-assert "afk authorization" in json.dumps(form).lower(), form
-assert "afk live launch" in json.dumps(form).lower(), form
-assert "no provider" in json.dumps(form).lower(), form
-PY
-then
-    pass "dev afk-session-trigger help exposes guarded trigger flags"
-else
-    fail "dev afk-session-trigger help is missing guarded trigger flags: $OUT"
-fi
-
 # --- 22. command registry metadata is externally hot-swappable ---
 TMP_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aos-command-registry.XXXXXX.json")"
 python3 - "$TMP_REGISTRY" <<'PY'

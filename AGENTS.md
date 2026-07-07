@@ -121,18 +121,10 @@ Default section order:
 
 - `.codex/AGENTS.md` governs local Codex configuration and native custom-agent
   disablement.
-- `.docks/AGENTS.md` governs explicit dock launch contexts only. Repo-root
-  sessions do not inherit dock launch doctrine unless they are started under
-  that subtree or the user explicitly routes work there.
 - `.agents/` contains cross-provider hook scripts and stays root-owned until a
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live
-  project-agent policy stays in AOS-owned docs and runner material.
-- `_dev/` and `memory/` are root-owned scratch or historical surfaces. They are
-  not canonical contracts unless a current doc links to them as active
-  authority.
-- `ai-agents/AGENTS.md` governs provider-neutral and provider-shaped agent role
-  source material.
+  project-agent orchestration is retired from AOS core.
 - `apps/AGENTS.md` governs application consumers. Its current child is
   `apps/sigil/AGENTS.md`.
 - `docs/AGENTS.md` governs durable docs, ADRs, guides, API docs, reports, and
@@ -144,8 +136,8 @@ Default section order:
   child is `packages/toolkit/AGENTS.md`, which further indexes `contracts/`,
   `controls/`, `panel/`, and `runtime/`.
 - `recipes/AGENTS.md` governs operational recipes and repeatable procedures.
-- `scripts/AGENTS.md` governs executable repo tooling, including `aos` command
-  adapters and `scripts/aos_agents/`.
+- `scripts/AGENTS.md` governs executable repo tooling and `aos` command
+  adapters.
 - `shared/AGENTS.md` governs shared schemas, shared JS contracts, and shared
   Swift IPC helpers.
 - `skills/AGENTS.md` governs local skill packages.

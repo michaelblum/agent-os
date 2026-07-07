@@ -2,10 +2,9 @@
 
 Dock inbound message contracts historically lived at
 `.docks/<dock>/inbound-contract.json`. There are no current canonical runtime
-files for this schema; `.docks/foreman/` is the only current named dock, and the
-old GDI/Operator clipboard and goal-command transfer path is retired. The schema
-is retained to validate historical records and prevent stale references from
-being mistaken for live dock files.
+files for this schema. The old Foreman/GDI/Operator clipboard and goal-command
+transfer path is retired. The schema is retained to validate historical records
+and prevent stale references from being mistaken for live dock files.
 
 The retained contract is descriptive and deterministic. It does not launch
 providers, read transcripts, mutate provider stores, or write to the clipboard
@@ -55,17 +54,10 @@ Retired Operator/Codex received plain supervised instructions or durable
 pointers. It did not receive GDI `/goal` prompts and did not route
 implementation work or branch strategy.
 
-Foreman/Codex receives plain successor handoff or coordination payloads.
+Historical Foreman/Codex received plain successor handoff or coordination
+payloads.
 
 GDI one-shot proof prompts such as `Reply exactly...` or `Reply with exactly...`
 are loop-prone V0 prompt shapes because they can repeatedly satisfy a stale goal
-without advancing a durable work contract. The contract surfaces those shapes as
-warnings unless they also violate a true dock or provider boundary. They may be
-valid when Foreman is deliberately testing the contract or live mechanics and
-the prompt carries clear success and stop criteria.
-
-Foreman routing policy, not the dock contract, decides whether GDI is the right
-tool for a slice. GDI is the right target when `/goal` adds value through
-autonomous iteration, verification, or durable work-card execution. Ordinary
-one-shot coordination should stay with Foreman or Operator unless the one-shot
-prompt is itself the object of a deliberate contract or liveness test.
+without advancing a durable work contract. The contract surfaced those shapes as
+warnings unless they also violated a true dock or provider boundary.

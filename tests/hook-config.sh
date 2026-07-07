@@ -35,24 +35,9 @@ def assert_dock_codex_hooks(root):
         if path.exists():
             raise SystemExit(f"FAIL: retired standalone {role} Codex hooks still exist: {path}")
 
-    for role in ["foreman"]:
-        path = Path(root) / ".docks" / role / ".codex" / "hooks.json"
-        payload = json.load(open(path))
-        _, session_start = flatten_commands(payload, "SessionStart")
-        _, stop_hooks = flatten_commands(payload, "Stop")
-        _, post_tool = flatten_commands(payload, "PostToolUse")
-        _, pre_tool = flatten_commands(payload, "PreToolUse")
-
-        if session_start:
-            raise SystemExit(f"FAIL: {role} Codex hooks should not declare SessionStart: {session_start}")
-        if any("final-response.sh" in command for command in stop_hooks):
-            raise SystemExit(f"FAIL: {role} Codex hooks should not use repo-root Stop final-response hook: {stop_hooks}")
-        if not any(f".docks/{role}/hooks/stop.sh" in command for command in stop_hooks):
-            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local Stop hook: {stop_hooks}")
-        if post_tool:
-            raise SystemExit(f"FAIL: {role} Codex hooks should not declare PostToolUse: {post_tool}")
-        if not any(f".docks/{role}/hooks/pre-tool-use.sh" in command for command in pre_tool):
-            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local PreToolUse guard: {pre_tool}")
+    foreman_path = Path(root) / ".docks" / "foreman" / ".codex" / "hooks.json"
+    if foreman_path.exists():
+        raise SystemExit(f"FAIL: retired Foreman Codex hooks still exist: {foreman_path}")
 
 assert_dock_codex_hooks(sys.argv[1])
 assert_claude_hooks(sys.argv[2])

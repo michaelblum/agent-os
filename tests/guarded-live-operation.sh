@@ -6,7 +6,11 @@ cd "$ROOT"
 source "$ROOT/tests/lib/isolated-daemon.sh"
 
 TMPDIR_GUARD="$(mktemp -d "${TMPDIR:-/tmp}/aos-guarded-live.XXXXXX")"
+export AOS_STATE_ROOT="$TMPDIR_GUARD/state"
+export AOS_RUNTIME_MODE=repo
+mkdir -p "$AOS_STATE_ROOT"
 cleanup() {
+  aos_test_kill_root "$AOS_STATE_ROOT"
   rm -rf "$TMPDIR_GUARD"
 }
 trap cleanup EXIT
@@ -73,24 +77,5 @@ if [[ -n "$(aos_test_pids_for_root "$SURFACE_STATE_ROOT")" ]]; then
   aos_test_pids_for_root "$SURFACE_STATE_ROOT"
   exit 1
 fi
-
-.docks/gdi/scripts/human-needed-runtime-blocker daemon_unmanaged >"$TMPDIR_GUARD/human-daemon.out"
-grep -q '^human_needed: daemon_unmanaged$' "$TMPDIR_GUARD/human-daemon.out" || {
-  cat "$TMPDIR_GUARD/human-daemon.out"
-  echo "FAIL: daemon_unmanaged helper output missing distinct blocker"
-  exit 1
-}
-if grep -q 'TCC reset needed' "$TMPDIR_GUARD/human-daemon.out"; then
-  cat "$TMPDIR_GUARD/human-daemon.out"
-  echo "FAIL: daemon_unmanaged helper collapsed to TCC reset wording"
-  exit 1
-fi
-
-.docks/gdi/scripts/human-needed-tcc-reset >"$TMPDIR_GUARD/human-tcc.out"
-grep -q '^human_needed: accessibility$' "$TMPDIR_GUARD/human-tcc.out" || {
-  cat "$TMPDIR_GUARD/human-tcc.out"
-  echo "FAIL: compatibility TCC helper did not use permission-specific blocker"
-  exit 1
-}
 
 echo "PASS"

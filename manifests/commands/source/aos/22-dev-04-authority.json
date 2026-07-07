@@ -94,7 +94,7 @@
               "id": "role",
               "kind": "flag",
               "required": false,
-              "summary": "Filter list output by dock role",
+              "summary": "Filter list output by capability role",
               "token": "--role",
               "value_type": "string"
             },
@@ -117,7 +117,7 @@
           ],
           "examples": [
             "aos dev capabilities list --json",
-            "aos dev capabilities list --role foreman --entry-path aos_developer --json",
+            "aos dev capabilities list --role implementer --entry-path aos_developer --json",
             "aos dev capabilities explain dev.github.issue_comment --json",
             "aos dev capabilities explain dev.github.pr_checks --json"
           ],
@@ -138,89 +138,6 @@
             "supports_json_flag": true
           },
           "usage": "aos dev capabilities <list|explain> [capability-id] [--manifest <path>] [--repo <path>] [--role <role>] [--entry-path <path>] [--json]"
-        },
-        {
-          "args": [
-            {
-              "id": "action",
-              "kind": "positional",
-              "required": true,
-              "summary": "Dock profile discovery action: list, explain, or capabilities",
-              "value_type": "string"
-            },
-            {
-              "id": "dock",
-              "kind": "positional",
-              "required": false,
-              "summary": "Dock name for explain or capabilities",
-              "value_type": "string"
-            },
-            {
-              "default_value": ".docks",
-              "id": "dock-root",
-              "kind": "flag",
-              "required": false,
-              "summary": "Dock root path",
-              "token": "--dock-root",
-              "value_type": "string"
-            },
-            {
-              "default_value": "docs/dev/agent-capabilities.json",
-              "id": "capabilities-manifest",
-              "kind": "flag",
-              "required": false,
-              "summary": "Agent capability manifest path",
-              "token": "--capabilities-manifest",
-              "value_type": "string"
-            },
-            {
-              "id": "entry-path",
-              "kind": "flag",
-              "required": false,
-              "summary": "Resolve dock capabilities for a non-default entry path",
-              "token": "--entry-path",
-              "value_type": "string"
-            },
-            {
-              "id": "repo",
-              "kind": "flag",
-              "required": false,
-              "summary": "Repository root path",
-              "token": "--repo",
-              "value_type": "string"
-            },
-            {
-              "id": "json",
-              "kind": "flag",
-              "required": false,
-              "summary": "Emit machine-readable dock profile metadata",
-              "token": "--json",
-              "value_type": "bool"
-            }
-          ],
-          "examples": [
-            "aos dev docks list --json",
-            "aos dev docks explain foreman --json",
-            "aos dev docks capabilities gdi --json",
-            "aos dev docks capabilities operator --entry-path aos_developer --json"
-          ],
-          "execution": {
-            "auto_starts_daemon": false,
-            "interactive": false,
-            "mutates_state": false,
-            "read_only": true,
-            "requires_permissions": false,
-            "streaming": false,
-            "supports_dry_run": false
-          },
-          "id": "dev-docks",
-          "output": {
-            "default_mode": "text",
-            "error_mode": "json_stderr",
-            "streaming": false,
-            "supports_json_flag": true
-          },
-          "usage": "aos dev docks <list|explain|capabilities> [dock] [--dock-root <path>] [--capabilities-manifest <path>] [--entry-path <path>] [--repo <path>] [--json]"
         }
       ],
       "path": [

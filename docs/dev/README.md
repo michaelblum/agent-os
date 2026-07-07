@@ -7,15 +7,13 @@ encode app-specific playbooks here.
 
 `workflow-profiles.json` is a low-level integration posture manifest: branch,
 commit, review, PR, merge-authority, and release postures for repo work. It is
-not the primary session operating model. Docked sessions load operating doctrine
-from `.docks/profiles/active-profile.json`; the workflow profile is only one
-development-policy input to that dock profile.
+not the primary session operating model and does not define project-agent
+personas. Repo DOX and direct user intent own session instructions.
 
-`local_relay` is the single-checkout local branch/stash procedure for tight
-Foreman-human-dock-team loops with no linked git worktrees or automatic pushes.
-`agentic_relay` is the GitHub-branch relay procedure for native subagent or
-explicit terminal-relay implementation reviewed by a designated
-Foreman-compatible relay authority; it does not create a separate product role.
+`local_checkpoint` is the single-checkout local branch/stash procedure with no
+linked git worktrees or automatic pushes. `remote_branch_relay` is the
+GitHub-branch relay procedure for implementation reviewed by a designated
+review authority; it does not create a separate product role.
 `active-profile.json` remains the repo-local selector for this low-level
 development integration profile only.
 For the current cleanup narrative that led from real-input/live-drag testing to
@@ -31,10 +29,8 @@ under `shared/schemas/`, `docs/api/`, applicable `AGENTS.md` files, tests, and
 live Git/AOS state when the task allows runtime reads.
 
 `agent-capabilities.json` is the source of truth for typed developer
-capabilities exposed through `./aos dev capabilities`. `.docks/*/dock.json`
-profiles resolve against that manifest through `./aos dev docks`, so dock
-identity and capability envelopes stay declarative instead of being repeated in
-role instructions.
+capabilities exposed through `./aos dev capabilities`. It describes capability
+envelopes without selecting project-agent roles or dock profiles.
 
 `command-surface.md` describes the external command manifest contract: what
 remains in Swift, what lives in hot-swappable manifests/scripts, and which tests

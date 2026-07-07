@@ -17,13 +17,8 @@ mkdir -p "$REPO"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email "dev-situation@example.invalid"
 git -C "$REPO" config user.name "Dev Situation Test"
-mkdir -p "$REPO/ai-agents/providers/codex" "$REPO/.docks/foreman"
-for role in architect implementer reviewer explorer validator operator steward; do
-    printf 'name = "%s"\n' "$role" > "$REPO/ai-agents/providers/codex/$role.toml"
-done
-printf '%s\n' '# Foreman' > "$REPO/.docks/foreman/AGENTS.md"
 printf 'one\n' > "$REPO/file.txt"
-git -C "$REPO" add file.txt ai-agents .docks
+git -C "$REPO" add file.txt
 git -C "$REPO" commit -q -m "initial"
 git -C "$REPO" branch -M main
 git -C "$REPO" update-ref refs/remotes/origin/main HEAD
@@ -98,29 +93,23 @@ assert "notes" not in data["summary"], data["summary"]
 assert data["successor_note"]["status"] == "missing", data["successor_note"]
 assert data["successor_note"]["note"] is None, data["successor_note"]
 execution = data["agent_execution"]
-assert execution["status"] == "provider_runner_ready", execution
-assert execution["authority"] == "adr_0017_provider_runner", execution
-assert execution["execution_surface"] == "./aos dev agents", execution
-assert execution["default_engine"] == "provider-sdk", execution
+assert execution["status"] == "retired", execution
+assert execution["authority"] == "repo_dox_and_installable_skills", execution
+assert execution["execution_surface"] is None, execution
+assert execution["default_engine"] is None, execution
 assert execution["native_custom_agents_enabled"] is False, execution
 assert execution["codex_config_registration_allowed"] is False, execution
-assert execution["roles_dir"] == "ai-agents/providers/codex", execution
-assert execution["team_doc"] == ".docks/foreman/AGENTS.md", execution
-assert execution["registered_roles"] == ["architect", "explorer", "implementer", "operator", "reviewer", "steward", "validator"], execution
-assert execution["routing_scope"] == [
-    "bounded_specialist_work",
-    "routine_git_github_hygiene",
-    "review",
-    "validation",
-    "reconnaissance",
-    "implementation",
-], execution
+assert execution["roles_dir"] is None, execution
+assert execution["team_doc"] is None, execution
+assert execution["registered_roles"] == [], execution
+assert execution["routing_scope"] == [], execution
 assert execution["standing_authorization_intent"] is False, execution
 assert execution["ask_user_if_runtime_requires_turn_authorization"] is False, execution
-assert execution["fail_closed_without_registered_role"] is True, execution
+assert execution["fail_closed_without_registered_role"] is False, execution
 assert execution["fail_closed_without_session_authorization"] is False, execution
 assert execution["direct_specialist_fallback_allowed"] is False, execution
 assert execution["extra_mutation_authorized"] is False, execution
+assert execution["source_status"]["retirement"], execution
 for removed_key in ["standing_user_intent", "runtime_gate", "fail_closed", "authorization_scope"]:
     assert removed_key not in execution, execution
 assert "runtime" in data and "ready" in data["runtime"] and "status" in data["runtime"], data
@@ -173,7 +162,7 @@ else
 fi
 
 if TEXT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 2>/dev/null)" \
-    && grep -q '^Agent execution: provider_runner_ready (ai-agents/providers/codex)$' <<< "$TEXT"; then
+    && grep -q '^Agent execution: retired$' <<< "$TEXT"; then
     pass "dev situation text output names agent execution state"
 else
     fail "dev situation text output omitted agent execution state"

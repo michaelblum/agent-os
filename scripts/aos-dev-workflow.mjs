@@ -6,7 +6,6 @@ import path from 'node:path';
 
 const workflowDefaultManifest = 'docs/dev/workflow-rules.json';
 const capabilitiesDefaultManifest = 'docs/dev/agent-capabilities.json';
-const docksDefaultRoot = '.docks';
 const workflowRuleID = 'dev-workflow-manifest';
 
 function printJSON(value) {
@@ -407,161 +406,10 @@ function capabilitiesCommand(action, args) {
   error(`Unknown dev capabilities subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
 }
 
-function parseDocksOptions(args) {
-  return parseCommon(args, {
-    '--repo': 'repo path',
-    '--dock-root': 'dock_root path',
-    '--capabilities-manifest': 'capabilities_manifest path',
-    '--entry-path': 'entry_path entry path',
-  });
-}
-
-function parseSubagentOptions(args) {
-  return parseCommon(args, {
-    '--repo': 'repo path',
-    '--role': 'role name',
-    '--agents-root': 'agents-root path',
-    '--prompt': 'prompt text',
-    '--prompt-file': 'prompt-file path',
-    '--transcript': 'transcript text',
-    '--transcript-file': 'transcript-file path',
-  }, 'reject');
-}
-
-function readTextFile(file, missingCode, label) {
-  try {
-    return fs.readFileSync(file, 'utf8');
-  } catch {
-    error(`Missing ${label}: ${file}`, missingCode);
-  }
-}
-
-function tomlStringValue(text, key) {
-  const match = text.match(new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, 'm'));
-  return match ? match[1] : null;
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function developerInstructionPhrases(text) {
-  const match = text.match(/developer_instructions\s*=\s*"""([\s\S]*?)"""/m);
-  if (!match) return [];
-  return match[1]
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^[-*]\s+/, '').trim())
-    .filter((line) => line.length >= 20 && line.length <= 180)
-    .filter((line) => !line.includes('```') && !line.includes('"""'));
-}
-
 function subagentCommand(action, args) {
   void action;
   void args;
-  error("dev subagent is retired for agent-os; use ./aos dev agents --runtime-info --json and provider-sdk execution", "RETIRED_SUBAGENT_COMMAND");
-}
-
-function loadDockProfiles(options) {
-  const repoRoot = resolveRepoRoot(options.repo);
-  const dockRoot = resolveUnderRepo(options.dock_root, repoRoot, docksDefaultRoot);
-  if (!fs.existsSync(dockRoot) || !fs.statSync(dockRoot).isDirectory()) error(`Missing dock root: ${dockRoot}`, 'MISSING_DOCK_ROOT');
-  const profiles = fs.readdirSync(dockRoot)
-    .sort()
-    .map((entry) => path.join(dockRoot, entry))
-    .filter((entryPath) => fs.existsSync(entryPath) && fs.statSync(entryPath).isDirectory())
-    .map((entryPath) => path.join(entryPath, 'dock.json'))
-    .filter((profilePath) => fs.existsSync(profilePath))
-    .map((profilePath) => readJSON(profilePath, 'MISSING_DOCK_PROFILE', 'INVALID_DOCK_PROFILE'))
-    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-  return { repoRoot, dockRoot, profiles };
-}
-
-function compactDockProfile(profile) {
-  return {
-    name: profile.name ?? null,
-    role: profile.role ?? null,
-    harness: profile.harness ?? null,
-    summary: profile.summary ?? null,
-    default_entry_path: profile.default_entry_path ?? null,
-    allowed_entry_paths: profile.allowed_entry_paths || [],
-    allowed_capability_classes: profile.allowed_capability_classes || [],
-    allowed_capabilities: profile.allowed_capabilities || [],
-    requires_explicit_assignment_for: profile.requires_explicit_assignment_for || [],
-    requires_goal_prefix: profile.handoff?.requires_goal_prefix ?? null,
-  };
-}
-
-function resolveDockCapabilities(profile, capabilities, entryPath) {
-  const role = profile.role;
-  const allowedClasses = new Set(profile.allowed_capability_classes || []);
-  const allowedIDs = new Set(profile.allowed_capabilities || []);
-  return capabilities.filter((capability) => {
-    if (capability.status === 'deprecated') return false;
-    if (!capability.id) return false;
-    if (allowedIDs.size && !allowedIDs.has(capability.id)) return false;
-    if (role && (capability.roles || []).length && !(capability.roles || []).includes(role)) return false;
-    if (!(capability.entry_paths || []).includes(entryPath)) return false;
-    return allowedClasses.has(capability.mutability?.class);
-  });
-}
-
-function docksCommand(action, args) {
-  const options = parseDocksOptions(args);
-  if (action === 'list') {
-    if (options.positionals.length) error('dev docks list does not accept positional arguments', 'UNKNOWN_ARG');
-    const loaded = loadDockProfiles(options);
-    const docks = loaded.profiles.map(compactDockProfile);
-    const payload = {
-      status: 'success',
-      dock_root: normalizeRepoRelative(loaded.dockRoot, loaded.repoRoot),
-      count: docks.length,
-      docks,
-    };
-    options.json ? printJSON(payload) : printDocksList(payload);
-    return;
-  }
-  if (action === 'explain') {
-    if (options.positionals.length === 0) error('dev docks explain requires exactly one dock name', 'MISSING_ARG');
-    if (options.positionals.length > 1) error(`Unknown dev docks argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    const loaded = loadDockProfiles(options);
-    const profile = loaded.profiles.find((item) => item.name === options.positionals[0]);
-    if (!profile) error(`Unknown dock profile: ${options.positionals[0]}`, 'UNKNOWN_DOCK');
-    const payload = { status: 'success', dock_root: normalizeRepoRelative(loaded.dockRoot, loaded.repoRoot), profile };
-    options.json ? printJSON(payload) : printDockExplain(payload);
-    return;
-  }
-  if (action === 'capabilities') {
-    if (options.positionals.length === 0) error('dev docks capabilities requires exactly one dock name', 'MISSING_ARG');
-    if (options.positionals.length > 1) error(`Unknown dev docks argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    const loaded = loadDockProfiles(options);
-    const profile = loaded.profiles.find((item) => item.name === options.positionals[0]);
-    if (!profile) error(`Unknown dock profile: ${options.positionals[0]}`, 'UNKNOWN_DOCK');
-    const defaultEntryPath = profile.default_entry_path || 'agent_harness';
-    const activeEntryPath = options.entry_path || defaultEntryPath;
-    const allowedEntryPaths = profile.allowed_entry_paths || [];
-    if (!allowedEntryPaths.includes(activeEntryPath)) {
-      error(`Dock ${profile.name} does not allow entry path: ${activeEntryPath}`, 'ENTRY_PATH_NOT_ALLOWED');
-    }
-    const capabilityOptions = { repo: options.repo, manifest: options.capabilities_manifest || profile.capability_manifest };
-    const capabilityManifest = loadCapabilityManifest(capabilityOptions);
-    const capabilities = resolveDockCapabilities(profile, capabilityManifest.capabilities, activeEntryPath);
-    const payload = {
-      status: 'success',
-      dock: profile.name,
-      role: profile.role ?? null,
-      dock_root: normalizeRepoRelative(loaded.dockRoot, loaded.repoRoot),
-      default_entry_path: defaultEntryPath,
-      active_entry_path: activeEntryPath,
-      allowed_entry_paths: allowedEntryPaths,
-      allowed_capability_classes: profile.allowed_capability_classes || [],
-      capability_manifest: normalizeRepoRelative(capabilityManifest.path, capabilityManifest.repoRoot),
-      count: capabilities.length,
-      capabilities: capabilities.map(compactCapability),
-    };
-    options.json ? printJSON(payload) : printDockCapabilities(payload);
-    return;
-  }
-  error(`Unknown dev docks subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
+  error("dev subagent is retired for agent-os; use repo-root sessions, DOX, and installable AOS skills instead", "RETIRED_SUBAGENT_COMMAND");
 }
 
 function claim(id, claimText, passed, expected, observed, evidence, next) {
@@ -599,7 +447,7 @@ function auditRegistryClaims(repoRoot) {
     return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-agents', 'dev-subagent', 'dev-gh'];
+  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-audit', 'dev-capabilities', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
     claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
@@ -607,14 +455,8 @@ function auditRegistryClaims(repoRoot) {
     auditFormFlagClaim('dev-recommend-help-flags', forms.get('dev-recommend'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
     auditFormFlagClaim('dev-situation-help-flags', forms.get('dev-situation'), ['--repo', '--issue-limit', '--recent-issue-limit', '--pr-limit', '--json'], false),
     auditFormFlagClaim('dev-drift-lint-help-flags', forms.get('dev-drift-lint'), ['--paths', '--files', '--all-markdown', '--repo', '--json'], false),
-    auditFormFlagClaim('dev-afk-dry-run-help-flags', forms.get('dev-afk-dry-run'), ['--packet', '--provider', '--dock', '--repo', '--timestamp', '--out', '--json'], false),
-    auditFormFlagClaim('dev-afk-launch-attempt-help-flags', forms.get('dev-afk-launch-attempt'), ['--packet', '--provider', '--dock', '--repo', '--timestamp', '--out', '--json', '--duplicate-in-process', '--catalog-fixture', '--bridge-visibility-fixture', '--provider-session-id', '--launch-observed-at', '--codex-home-fixture', '--codex-home'], false),
-    auditFormFlagClaim('dev-afk-session-trigger-help-flags', forms.get('dev-afk-session-trigger'), ['--packet', '--afk-work-queue', '--queue-run-fixture', '--afk-authorization', '--sleep-lease', '--provider', '--dock', '--repo', '--timestamp', '--out', '--result-route', '--idempotence-salt', '--existing-receipt', '--replacement-for', '--dry-run', '--supervised-live-launch', '--afk-live-launch', '--sleep-lease-live-launch', '--i-am-present', '--provider-launch-dry-run', '--bridge-visibility-fixture', '--cleanup-proof-fixture', '--provider-session-id', '--launch-observed-at', '--codex-home-fixture', '--codex-home', '--json'], false),
     auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
     auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
-    auditFormFlagClaim('dev-docks-help-flags', forms.get('dev-docks'), ['--dock-root', '--capabilities-manifest', '--entry-path', '--repo', '--json'], false),
-    auditFormFlagClaim('dev-agents-help-flags', forms.get('dev-agents'), ['--self-test', '--runtime-info', '--list-runs', '--read-run', '--native-dispatch', '--complete-native-run', '--result-file', '--check-patch', '--apply-patch', '--i-approve-checkout-mutation', '--engine', '--role', '--task', '--execute', '--patch-output', '--context-file', '--max-turns', '--repo', '--json'], false),
-    auditFormFlagClaim('dev-subagent-help-flags', forms.get('dev-subagent'), ['--repo', '--agents-root', '--role', '--prompt', '--prompt-file', '--transcript', '--transcript-file', '--json'], false),
     auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
   ];
 }
@@ -727,29 +569,6 @@ function printCapabilityExplain(payload) {
   process.stdout.write(`Audit: ${capability.execution?.audit || 'unknown'}\n`);
 }
 
-function printDocksList(payload) {
-  process.stdout.write(`dev docks: ${payload.count}\nDock root: ${payload.dock_root}\n`);
-  for (const dock of payload.docks) {
-    process.stdout.write(`- ${dock.name || 'unknown'}: role=${dock.role || 'unknown'} default_entry_path=${dock.default_entry_path || 'unknown'} classes=${(dock.allowed_capability_classes || []).join(',')}\n`);
-  }
-}
-
-function printDockExplain(payload) {
-  const profile = payload.profile;
-  process.stdout.write(`${profile.name || 'unknown'} - ${profile.role || 'unknown'}\n`);
-  if (profile.summary) process.stdout.write(`${profile.summary}\n`);
-  process.stdout.write(`Default entry path: ${profile.default_entry_path || 'unknown'}\n`);
-  process.stdout.write(`Allowed entry paths: ${(profile.allowed_entry_paths || []).join(', ')}\n`);
-  process.stdout.write(`Allowed classes: ${(profile.allowed_capability_classes || []).join(', ')}\n`);
-}
-
-function printDockCapabilities(payload) {
-  process.stdout.write(`dev dock capabilities: ${payload.dock || 'unknown'} entry_path=${payload.active_entry_path || 'unknown'} count=${payload.count}\n`);
-  for (const capability of payload.capabilities) {
-    process.stdout.write(`- ${capability.id || 'unknown'}: adapter=${capability.adapter_kind || 'unknown'} mutability=${capability.mutability_class || 'unknown'} raw_process=${capability.raw_process || false}\n`);
-  }
-}
-
 const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'classify') {
   const options = parseWorkflowOptions(rest);
@@ -765,10 +584,6 @@ if (subcommand === 'classify') {
   const [action, ...args] = rest;
   if (!action) error('dev capabilities requires a subcommand', 'MISSING_SUBCOMMAND');
   capabilitiesCommand(action, args);
-} else if (subcommand === 'docks') {
-  const [action, ...args] = rest;
-  if (!action) error('dev docks requires a subcommand', 'MISSING_SUBCOMMAND');
-  docksCommand(action, args);
 } else if (subcommand === 'subagent') {
   const [action, ...args] = rest;
   if (!action) error('dev subagent requires a subcommand', 'MISSING_SUBCOMMAND');

@@ -1,7 +1,14 @@
 # ADR 0017: Retire Codex Native Custom-Agent Registration
 
-**Status:** Accepted
+**Status:** Superseded by ADR 0019
 **Date:** 2026-06-10
+
+## Supersession
+
+ADR 0019 retires the repo-local project-agent runner as well as native Codex
+custom-agent registration. This ADR is retained as historical context for why
+native custom-agent registration was removed, not as current authority for an
+active `./aos dev agents` provider-runner path.
 
 ## Decision
 
@@ -10,7 +17,7 @@ Remove active `multi_agent_v2`, `[agents.*]`, repo `.codex/agents`, and
 user-global `~/.codex/agents` registration surfaces from the agent-os Codex
 configuration stack.
 
-The active project-agent execution path is:
+The project-agent execution path at the time was the now-retired:
 
 ```text
 Foreman
@@ -20,9 +27,11 @@ Foreman
               -> configured OpenAI-compatible proxy or standard OpenAI endpoint
 ```
 
-Codex-shaped role material is preserved under `ai-agents/providers/codex/*.toml`
-as source material for the AOS-owned runner and future provider translation, not
-as an active Codex custom-agent discovery surface.
+Codex-shaped role material was preserved under
+`ai-agents/providers/codex/*.toml` as source material for the AOS-owned runner
+and future provider translation, not as an active Codex custom-agent discovery
+surface. ADR 0019 subsequently retired that source material from the active repo
+tree.
 
 ## Rationale
 
@@ -39,14 +48,16 @@ and execution status.
 
 ## Consequences
 
-- `provider-sdk` remains the default and only active child execution engine.
+- `provider-sdk` was the default and only active child execution engine before
+  ADR 0019 retired the AOS-owned project-agent runner.
 - `scripts/agent-sync.sh` is retired and must fail closed.
 - Active Codex config files must not contain `multi_agent_v2`, `[agents]`, or
   `[agents.<role>]` registration blocks for agent-os.
 - `.codex/agents/*.toml` and `~/.codex/agents/*.toml` are not active agent-os
   discovery surfaces.
-- Foreman instructions must route bounded child work through `./aos dev agents`
-  or direct Foreman execution, not native Codex custom-agent tools.
+- Historical Foreman instructions routed bounded child work through
+  `./aos dev agents` or direct Foreman execution, not native Codex custom-agent
+  tools.
 - Reversal requires a new ADR or explicit human architecture decision naming
   this ADR and ADR 0016, plus local evidence that the native path is
   inspectable, role-bound, model/effort-bound, debuggable, and compatible with
@@ -69,7 +80,8 @@ configured and `AOS_AGENT_PROVIDER_API` is unset, the runner defaults to
 
 ## Verification
 
-Changes to this boundary must run:
+When reading historical branches that still change this boundary, the former
+verification gate was the now-retired:
 
 ```bash
 bash tests/aos-agents-runner.sh
@@ -77,7 +89,7 @@ node --test tests/schemas/dock-operating-profiles.test.mjs
 bash tests/dock-hook-isolation.sh
 ```
 
-Use this readback to confirm provider/proxy posture:
+The former provider/proxy posture readback was the now-retired:
 
 ```bash
 ./aos dev agents --runtime-info --json

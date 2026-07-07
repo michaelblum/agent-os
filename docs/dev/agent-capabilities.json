@@ -4,7 +4,7 @@
   "schema_version": "2026-05-agent-capability-manifest-v0",
   "id": "agent-os.dev-capabilities",
   "label": "agent-os Developer Capabilities",
-  "summary": "Canonical capability manifest for typed repo-development operations exposed to docked sessions and AOS developer capability routes.",
+  "summary": "Canonical capability manifest for typed repo-development operations exposed through AOS developer capability routes.",
   "applies_to": {
     "roles": ["foreman", "implementer", "operator"],
     "entry_paths": ["aos_developer", "testing"]
@@ -907,66 +907,6 @@
         {
           "name": "review_threads_json",
           "summary": "Thread-level review comments and resolution state.",
-          "required": true,
-          "schema": {
-            "type": "object"
-          }
-        }
-      ],
-      "failure_policy": {
-        "bubble_up": true,
-        "retry": "none"
-      }
-    },
-    {
-      "id": "dev.agents",
-      "label": "AOS Agent Runner",
-      "summary": "Inspect and execute AOS-owned provider-backed agent runs through ./aos dev agents.",
-      "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
-      "adapter": {
-        "kind": "aos_cli",
-        "command": ["./aos", "dev", "agents"]
-      },
-      "mutability": {
-        "class": "read_only",
-        "side_effects": [],
-        "requires_explicit_assignment": true,
-        "requires_human_approval": false,
-        "requires_body_file": false
-      },
-      "execution": {
-        "cwd_policy": "repo_root",
-        "timeout_seconds": 30,
-        "network": "forbidden",
-        "raw_process": false,
-        "audit": "required"
-      },
-      "inputs": [
-        {
-          "name": "role",
-          "summary": "AOS agent role such as explorer, implementer, reviewer, validator, or historian.",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        {
-          "name": "task",
-          "summary": "Task text for planning or provider-backed execution.",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "aos_agent_runtime_json",
-          "summary": "Runtime info, run summary, or artifact readback from the AOS-owned runner.",
           "required": true,
           "schema": {
             "type": "object"

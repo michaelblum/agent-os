@@ -638,8 +638,6 @@ for full-screen capture.
 ./aos dev capabilities list --json
 ./aos dev capabilities explain dev.github.issue_comment --json
 ./aos dev capabilities explain dev.github.pr_checks --json
-./aos dev docks list --json
-./aos dev docks capabilities foreman --json
 ./aos dev build
 ./aos dev gh context --json
 ./aos dev gh issue list --state open --limit 50 --milestone v0 --json
@@ -663,23 +661,17 @@ are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
 or only re-signed in JSON mode. Rebuild detection is content-based for Swift
 runtime inputs, not mtime-based, and build-tooling edits alone do not replace
-the TCC-owning binary. Dock hooks do not automate post-build TCC handling: they
+the TCC-owning binary. Historical dock hooks do not automate post-build TCC handling: they
 do not reset permissions, open System Settings, show a human-needed surface,
 write completed-build markers, or inject provider input. Repo-mode binary
-rebuilds are Foreman-owned and intentionally rare; successful rebuilds play a
-system alert sound so Michael can notice the TCC-sensitive event.
+rebuilds are TCC-sensitive and intentionally rare; successful rebuilds play a
+system alert sound so Michael can notice the event.
 
 `capabilities` is read-only discovery over
-`docs/dev/agent-capabilities.json`. It lists or explains typed agent
+`docs/dev/agent-capabilities.json`. It lists or explains typed development
 capabilities, including whether a capability uses a typed AOS surface or an
-explicit raw-process adapter. It does not execute capabilities or grant
-permissions.
-
-`docks` is read-only discovery over `.docks/*/dock.json`. It lists or explains
-dock profiles and can resolve a dock's profile against
-`docs/dev/agent-capabilities.json` for the active capability route. This keeps
-dock identity, route defaults, and allowed capability classes explicit without
-turning the profile into a rigid executor.
+explicit raw-process adapter. It does not execute capabilities, grant
+permissions, or select an agent role.
 
 `dev gh` is the repo GitHub control surface. It deliberately uses the real
 `gh` executable from `PATH`, the user's existing `gh` authentication, and the
@@ -687,8 +679,8 @@ local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
 Direct operations such as `issue list`, `issue view`, `issue comment`,
 `issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
 `pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
-behavior. List operations expose the repo-safe inventory filters Foreman and
-GDI need most often: issue and PR lists support `--state`, `--limit`,
+behavior. List operations expose the repo-safe inventory filters used most
+often: issue and PR lists support `--state`, `--limit`,
 `--label`, `--author`, `--assignee`, and `--search`, plus issue-specific
 `--milestone` and PR-specific `--base`, `--head`, and `--draft`; label lists
 support `--limit`, `--search`, `--sort`, and `--order`. Write operations are
