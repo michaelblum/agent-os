@@ -73,9 +73,26 @@ test('active authority map points to existing runtime primitive contract owners'
   await Promise.all(requiredPointers.map(([source, target]) => assertMentions(source, target)));
 });
 
-test('root AGENTS keeps dock doctrine invisible to repo-root sessions', async () => {
+test('root AGENTS keeps orchestration doctrine invisible to repo-root sessions', async () => {
   const rootAgents = await text('AGENTS.md');
   assert.doesNotMatch(rootAgents, /\.docks/);
   assert.doesNotMatch(rootAgents, /\bdock/i);
   assert.doesNotMatch(rootAgents, /\bForeman\b/);
+  assert.doesNotMatch(rootAgents, /docs\/guides\//);
+  assert.doesNotMatch(rootAgents, /docs\/dev\//);
+  assert.doesNotMatch(rootAgents, /^## Repo Model$/m);
+  assert.doesNotMatch(rootAgents, /^## Architecture Compass$/m);
+  assert.doesNotMatch(rootAgents, /^## AOS And Development$/m);
+  assert.match(rootAgents, /^## DOX Framework$/m);
+  assert.match(rootAgents, /^## Child DOX Index$/m);
+});
+
+test('codex subtree contract does not route repo-root sessions into orchestration doctrine', async () => {
+  const codexAgents = await text('.codex/AGENTS.md');
+  assert.doesNotMatch(codexAgents, /\.docks/);
+  assert.doesNotMatch(codexAgents, /\bdock/i);
+  assert.doesNotMatch(codexAgents, /\bForeman\b/);
+  assert.doesNotMatch(codexAgents, /Orchestrator Defaults/);
+  assert.doesNotMatch(codexAgents, /active-profile/);
+  assert.match(codexAgents, /Keep this file scoped to `\.codex\/` configuration/);
 });

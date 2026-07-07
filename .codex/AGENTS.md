@@ -1,37 +1,43 @@
-# Codex Session Contract — agent-os Root
+@../AGENTS.md
 
-This file governs undocked Codex sessions launched from the repo root.
-Docked sessions under `.docks/<dock>` have their own `AGENTS.md` that
-supersedes this one for role-specific authority.
+# Codex Configuration
 
-## Agent Execution North Star
+## Purpose
 
-`docs/adr/0016-aos-owned-agent-execution.md` is the durable authority for
-project-agent execution. AOS owns child execution by default through
-`./aos dev agents` and `scripts/aos_agents/runner.py`. Native Codex
-custom-agent registration is disabled in active config.
+`.codex/` contains local Codex configuration for this checkout.
 
-## Native Custom Agents Disabled
+## Ownership
 
-Do not add `multi_agent_v2`, `[agents.*]`, or `.codex/agents/*.toml` as active
-Codex discovery surfaces. The current Codex encrypted-tool regression can reject
-turns before the model runs when native custom-agent tools are registered.
+- `.codex/config.toml` owns local Codex model, approval, sandbox, and feature
+  settings for this repo.
+- Native Codex custom-agent registration stays disabled in active config.
+- Provider role material lives outside `.codex/` and is source material for the
+  AOS-owned runner, not active Codex custom-agent registration.
 
-Preserved Codex-native role material lives under
-`ai-agents/providers/codex/*.toml`. Treat those files as source/reference
-material for the AOS-owned runner and future provider work, not as active Codex
-custom-agent registration.
+## Local Contracts
 
-Do not run `$agent-sync` or recreate global `~/.codex/agents` registrations.
-Use `./aos dev agents` for bounded project-agent execution.
+- Do not add `multi_agent_v2`, `[agents.*]`, or `.codex/agents/*.toml` as active
+  Codex discovery surfaces.
+- Preserved Codex-native role material belongs under
+  `ai-agents/providers/codex/*.toml`.
+- Do not run `$agent-sync` or recreate global `~/.codex/agents` registrations.
+- Keep this file scoped to `.codex/` configuration. Repo-root session behavior
+  is governed by root DOX plus the nearest `AGENTS.md` for the path being edited.
 
-## Orchestrator Defaults
+## Work Guidance
 
-- Adopt Foreman for coordination, routing, git hygiene, and review tasks.
-- Read `.docks/AGENTS.md` and `.docks/foreman/AGENTS.md` for Foreman's full
-  authority contract before taking action.
-- Read `.docks/profiles/active-profile.json` for active session doctrine.
-- For routine project-agent execution, use `./aos dev agents` and the AOS-owned
-  runner contract. Provider proxy settings are environment-driven by
-  `AOS_AGENT_PROVIDER_BASE_URL`, `AOS_AGENT_PROVIDER_API_KEY`, and
-  `AOS_AGENT_PROVIDER_API`.
+- Keep `.codex/` changes configuration-only unless the user explicitly asks to
+  change Codex session policy.
+- Route durable project-agent execution policy to
+  `docs/adr/0016-aos-owned-agent-execution.md`, `ai-agents/`, or
+  `scripts/aos_agents/` as appropriate.
+
+## Verification
+
+- For config-only edits, run `git diff --check`.
+- For changes that affect the AOS-owned agent runner, use the nearest owning
+  `AGENTS.md` and run its focused checks.
+
+## Child DOX Index
+
+- `.codex/agents/` is intentionally empty in active config.
