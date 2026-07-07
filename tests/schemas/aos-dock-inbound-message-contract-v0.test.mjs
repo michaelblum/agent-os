@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateDockInboundMessage } from '../../scripts/lib/dock-inbound-message-contract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -47,6 +49,51 @@ const historicalFixture = {
     },
   },
 };
+
+function legacyRuntimeContract(dock) {
+  return {
+    type: 'aos.dock_inbound_message_contract',
+    schema_version: '2026-05-dock-inbound-message-contract-v0',
+    dock,
+    role: dock,
+    providers: {
+      codex: {
+        provider: 'codex',
+        context_reset_command: '/clear',
+        stale_goal_recovery_command: null,
+        clipboard_payload_policy: 'plain_handoff',
+        provider_entry_prefix: '/goal ',
+        allowed_payloads: [],
+        forbidden_prompt_shapes: [],
+      },
+    },
+  };
+}
+
+async function pathExists(targetPath) {
+  try {
+    await fs.stat(targetPath);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function removeIfCreated(targetPath, existedBefore) {
+  if (existedBefore) {
+    return;
+  }
+  try {
+    await fs.rmdir(targetPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT' && error.code !== 'ENOTEMPTY') {
+      throw error;
+    }
+  }
+}
 
 function validateObject(instance) {
   return spawnSync(
@@ -100,6 +147,62 @@ test('retired dock inbound contracts are not canonical runtime files', async () 
       { code: 'ENOENT' },
       `${path.relative(repoRoot, contractPath)} should stay retired`,
     );
+  }
+});
+
+test('active inbound-message library fails closed even when a legacy contract reappears', async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-dock-contract-'));
+  try {
+    const contractPath = path.join(tempRoot, '.docks/gdi/inbound-contract.json');
+    await fs.mkdir(path.dirname(contractPath), { recursive: true });
+    await fs.writeFile(contractPath, JSON.stringify(legacyRuntimeContract('gdi'), null, 2));
+
+    assert.throws(
+      () => validateDockInboundMessage({
+        repoRoot: tempRoot,
+        targetDock: 'gdi',
+        provider: 'codex',
+        payload: '/goal continue',
+      }),
+      (error) => {
+        assert.equal(error.code, 'DOCK_INBOUND_CONTRACTS_RETIRED');
+        assert.equal(error.contractPath, '.docks/gdi/inbound-contract.json');
+        assert.match(error.message, /not an active runtime contract/);
+        return true;
+      },
+    );
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('active inbound-message CLI fails closed even when a legacy contract reappears', async () => {
+  const docksDir = path.join(repoRoot, '.docks');
+  const dockDir = path.join(docksDir, 'gdi');
+  const contractPath = path.join(dockDir, 'inbound-contract.json');
+  const docksDirExisted = await pathExists(docksDir);
+  const dockDirExisted = await pathExists(dockDir);
+
+  await assert.rejects(
+    fs.stat(contractPath),
+    { code: 'ENOENT' },
+    `${path.relative(repoRoot, contractPath)} should be absent before the reappearance regression test`,
+  );
+
+  try {
+    await fs.mkdir(dockDir, { recursive: true });
+    await fs.writeFile(contractPath, JSON.stringify(legacyRuntimeContract('gdi'), null, 2));
+
+    const result = formatPayload('gdi', '/goal continue');
+    assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /DOCK_INBOUND_CONTRACTS_RETIRED/);
+    assert.match(result.stderr, /not an active runtime contract/);
+    assert.match(result.stderr, /\.docks\/gdi\/inbound-contract\.json/);
+  } finally {
+    await fs.rm(contractPath, { force: true });
+    await removeIfCreated(dockDir, dockDirExisted);
+    await removeIfCreated(docksDir, docksDirExisted);
   }
 });
 

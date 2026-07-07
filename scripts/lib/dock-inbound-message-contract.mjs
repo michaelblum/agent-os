@@ -1,25 +1,25 @@
-import fs from 'node:fs';
 import path from 'node:path';
 
 export function repoRootFromScript(importMetaUrl) {
   return path.resolve(path.dirname(new URL(importMetaUrl).pathname), '..');
 }
 
-export function loadDockInboundMessageContract(repoRoot, dock) {
+export function dockInboundContractsRetiredError(repoRoot, dock) {
   const contractPath = path.join(repoRoot, '.docks', dock, 'inbound-contract.json');
-  if (!fs.existsSync(contractPath)) {
-    const relativePath = path.relative(repoRoot, contractPath);
-    const error = new Error(
-      `Dock inbound contract runtime files are retired after .docks removal; ${relativePath} must remain absent. Historical schema fixtures remain valid, but active dock handoff routing is disabled.`,
-    );
-    error.code = 'DOCK_INBOUND_CONTRACTS_RETIRED';
-    error.contractPath = relativePath;
-    throw error;
-  }
-  const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-  return { contractPath, contract };
+  const relativePath = path.relative(repoRoot, contractPath);
+  const error = new Error(
+    `Dock inbound contract runtime files are retired after .docks removal; ${relativePath} is not an active runtime contract. Historical schema fixtures remain valid, but active dock handoff routing is disabled.`,
+  );
+  error.code = 'DOCK_INBOUND_CONTRACTS_RETIRED';
+  error.contractPath = relativePath;
+  return error;
 }
 
+export function loadDockInboundMessageContract(repoRoot, dock) {
+  throw dockInboundContractsRetiredError(repoRoot, dock);
+}
+
+// Retained for historical fixture utilities; active validation never calls these helpers.
 export function cleanLegacyPrefix(payload, providerContract) {
   const prefix = providerContract.provider_entry_prefix ?? '';
   if (prefix && payload.startsWith(prefix)) {
@@ -52,37 +52,6 @@ export function evaluateForbiddenShapes(payload, providerContract) {
 export function validateDockInboundMessage({
   repoRoot,
   targetDock,
-  provider = 'codex',
-  payload,
 }) {
-  const { contractPath, contract } = loadDockInboundMessageContract(repoRoot, targetDock);
-  const providerContract = contract.providers?.[provider];
-  if (!providerContract) {
-    throw new Error(`provider ${provider} is not declared by ${path.relative(repoRoot, contractPath)}`);
-  }
-
-  const cleaned = cleanLegacyPrefix(payload, providerContract);
-  const diagnostics = evaluateForbiddenShapes(cleaned.payload, providerContract);
-  if (cleaned.cleanup) {
-    diagnostics.push({
-      severity: 'warning',
-      ...cleaned.cleanup,
-    });
-  }
-
-  const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
-  const prefix = providerContract.provider_entry_prefix ?? '';
-  return {
-    ok: errors.length === 0,
-    target_dock: targetDock,
-    provider,
-    contract_path: path.relative(repoRoot, contractPath),
-    clipboard_payload: cleaned.payload,
-    provider_entry_prefix: prefix,
-    provider_entry_preview: `${prefix}${cleaned.payload}`,
-    context_reset_command: providerContract.context_reset_command,
-    stale_goal_recovery_command: providerContract.stale_goal_recovery_command,
-    clipboard_payload_policy: providerContract.clipboard_payload_policy,
-    diagnostics,
-  };
+  throw dockInboundContractsRetiredError(repoRoot, targetDock);
 }

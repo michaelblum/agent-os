@@ -8,8 +8,8 @@ function usage() {
   scripts/dock-inbound-message-contract --target-dock <dock> [--provider codex] [--payload <text>] [--json]
   printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock foreman --json
 
-Formats and validates a legacy inbound dock message without writing to the clipboard.
-This script is retained for historical contract checks only; do not use it as an active AOS workflow surface.`);
+Refuses retired inbound dock message routing without reading .docks contracts.
+Historical schema fixtures remain valid through schema tests, but this script is not an active AOS workflow surface.`);
 }
 
 function parseArgs(argv) {
