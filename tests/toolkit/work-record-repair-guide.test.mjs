@@ -518,7 +518,7 @@ test('finalization dry-run blocker returns exact recovery command without writes
 test('advertised guide stages match implementation-supported stages', () => {
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
-  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-work-records/SKILL.md'), 'utf8');
 
   assert.deepEqual(
     advertisedGuideStages(apiDoc, 'Guide stages are'),
@@ -528,11 +528,9 @@ test('advertised guide stages match implementation-supported stages', () => {
     advertisedGuideStages(schemaDoc, 'Guide stages are'),
     WORK_RECORD_REPAIR_GUIDE_STAGES,
   );
-  assert.deepEqual(
-    advertisedGuideStages(skill, 'Guide stages are'),
-    WORK_RECORD_REPAIR_GUIDE_STAGES,
-  );
-  for (const text of [apiDoc, schemaDoc, skill]) {
+  assert.match(skill, /aos work-record repair guide/);
+  assert.match(skill, /non-executing recovery\s+guidance/);
+  for (const text of [apiDoc, schemaDoc]) {
     assert.match(text, /recovery_summary/);
     assert.match(text, /next\.argv/);
     assert.match(text, /scan-first|scan\/continuation/);

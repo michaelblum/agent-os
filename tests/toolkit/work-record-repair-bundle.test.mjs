@@ -526,9 +526,12 @@ test('public CLI dry-run and write return structured JSON; invalid source exits 
 test('docs, schema, and skill describe bundle as a handoff artifact, not executor', () => {
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
-  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-work-records/SKILL.md'), 'utf8');
   const bundleSource = fs.readFileSync(path.join(repoRoot, 'packages/toolkit/workbench/work-record-repair-bundle.js'), 'utf8');
-  for (const text of [apiDoc, schemaDoc, skill]) {
+  assert.match(skill, /aos work-record repair bundle/);
+  assert.match(skill, /handoff bundle/);
+  assert.match(skill, /not a repair executor/);
+  for (const text of [apiDoc, schemaDoc]) {
     assert.match(text, /repair bundle/);
     assert.match(text, /--output-root/);
     assert.match(text, /handoff/);

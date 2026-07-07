@@ -236,7 +236,24 @@ const schemaDoc = fs.readFileSync('shared/schemas/aos-agent-workspace-v0.md', 'u
 const workRecordSchemaDoc = fs.readFileSync('shared/schemas/aos-work-record-v0.md', 'utf8');
 const apiDoc = fs.readFileSync('docs/api/aos.md', 'utf8');
 const readme = fs.readFileSync('README.md', 'utf8');
-const skill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
+const retiredWorkspaceSkill = fs.readFileSync('skills/aos-agent-workspace/SKILL.md', 'utf8');
+const savedWorkspaceSkill = fs.readFileSync('skills/aos-saved-workspace/SKILL.md', 'utf8');
+const desktopSkill = fs.readFileSync('skills/aos-desktop/SKILL.md', 'utf8');
+const canvasVisionSkill = fs.readFileSync('skills/aos-canvas-vision/SKILL.md', 'utf8');
+const focusSessionsSkill = fs.readFileSync('skills/aos-focus-sessions/SKILL.md', 'utf8');
+const verificationSkill = fs.readFileSync('skills/aos-verification/SKILL.md', 'utf8');
+const browserSkill = fs.readFileSync('skills/aos-browser/SKILL.md', 'utf8');
+const skill = [
+  savedWorkspaceSkill,
+  desktopSkill,
+  canvasVisionSkill,
+  focusSessionsSkill,
+  verificationSkill,
+  browserSkill,
+  apiDoc,
+  schemaDoc,
+  workRecordSchemaDoc,
+].join('\n');
 const toolkitPanelWindowDoc = fs.readFileSync('docs/api/toolkit/panel-window.md', 'utf8');
 const manifest = fs.readFileSync('manifests/commands/aos-commands.json', 'utf8');
 const externalManifestJSON = JSON.parse(fs.readFileSync('manifests/commands/aos-external-commands.json', 'utf8'));
@@ -360,75 +377,78 @@ function skillFrontmatter(text) {
   return entries;
 }
 
-const aosSkillFrontmatter = skillFrontmatter(skill);
-assert.equal(aosSkillFrontmatter.name, 'aos-agent-workspace', 'AOS workspace skill must keep its installable name');
+const aosSkillFrontmatter = skillFrontmatter(savedWorkspaceSkill);
+assert.equal(aosSkillFrontmatter.name, 'aos-saved-workspace', 'saved workspace skill must keep its installable name');
 assert.ok(
-  /saved AOS perception workspaces/.test(aosSkillFrontmatter.description)
+  /saved perception workspaces/.test(aosSkillFrontmatter.description)
   && /aos see capture --save/.test(aosSkillFrontmatter.description)
   && /aos see snapshots/.test(aosSkillFrontmatter.description)
   && /aos see refs/.test(aosSkillFrontmatter.description)
-  && /aos do \.\.\. ref:<snapshot-id>:<ref>/.test(aosSkillFrontmatter.description),
-  'AOS workspace skill description must trigger on saved capture/ref loops',
+  && /observe-act-recapture/.test(aosSkillFrontmatter.description),
+  'saved workspace skill description must trigger on saved capture/ref loops',
 );
-assert.ok(skill.split(/\r?\n/).length < 500, 'AOS workspace skill should stay within single-file skill body budget');
-const skillReferencePaths = [...skill.matchAll(/^- [^:]+: `([^`]+)`$/gm)].map((match) => match[1]);
+assert.ok(savedWorkspaceSkill.split(/\r?\n/).length < 180, 'saved workspace skill should stay within installable skill body budget');
+assert.match(retiredWorkspaceSkill, /retired/i, 'old broad workspace skill must remain a retirement tombstone');
+const skillReferencePaths = [...savedWorkspaceSkill.matchAll(/^- `([^`]+)`$/gm)].map((match) => match[1]);
 assert.deepEqual(
   skillReferencePaths,
-  ['docs/api/aos.md', 'shared/schemas/aos-agent-workspace-v0.md', 'tests/agent-workspace-saved-ref.sh'],
-  'AOS workspace skill references must stay explicit and minimal',
+  [
+    'docs/api/aos.md',
+    'docs/api/aos-capabilities.md',
+    'shared/schemas/aos-agent-workspace-v0.md',
+    'tests/agent-workspace-contract-drift.sh',
+    'tests/agent-workspace-saved-ref.sh',
+  ],
+  'saved workspace skill references must stay explicit and minimal',
 );
 for (const referencePath of skillReferencePaths) {
-  assert.ok(fs.existsSync(referencePath), `AOS workspace skill reference does not exist: ${referencePath}`);
+  assert.ok(fs.existsSync(referencePath), `saved workspace skill reference does not exist: ${referencePath}`);
 }
 
-const skillQuickStartCommands = [
-  'aos see capture browser:work --save --mode som --workspace default',
-  'aos see snapshots --workspace default --json',
-  'aos see refs --workspace default --query Save --json',
-  'aos do click ref:<snapshot-id>:r2 --workspace default --dry-run',
-  'aos do click ref:<snapshot-id>:r2 --workspace default',
-  'aos see capture <capture_source> --save --mode <capture_mode> --workspace default',
+const savedWorkspaceLoopTerms = [
+  './aos help see --json',
+  './aos help do --json',
+  'aos see capture ... --save',
+  'Inspect snapshots and refs',
+  'ref:<snapshot-id>:<ref>',
+  'Dry-run',
+  'recapture',
 ];
-assertOrderedIncludes(
-  skill,
-  skillQuickStartCommands,
-  'AOS workspace skill quick-start must teach saved capture, compact readback, dry-run, dispatch, and fresh capture refresh in order',
-);
-const freshAgentQuickstart = skill.split('## Fresh-Agent Quickstart', 2)[1].split('## Contract', 1)[0];
-const freshAgentQuickstartProse = freshAgentQuickstart.replace(/\s+/g, ' ');
+for (const term of savedWorkspaceLoopTerms) {
+  assert.ok(savedWorkspaceSkill.includes(term), `saved workspace skill loop missing ${term}`);
+}
+const savedWorkspaceProse = savedWorkspaceSkill.replace(/\s+/g, ' ');
 assert.ok(
-  freshAgentQuickstart
-  && freshAgentQuickstart.indexOf('aos help see --json') < freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default')
-  && freshAgentQuickstart.indexOf('aos help do --json') < freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default')
-  && freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default --dry-run') < freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default\n')
-  && freshAgentQuickstart.indexOf('aos see capture browser:work --save --mode som --workspace default --name after-action') > freshAgentQuickstart.indexOf('aos do click ref:<snapshot-id>:<ref-id> --workspace default\n'),
-  'AOS workspace skill fresh-agent quickstart must lead with help, then saved capture, dry-run, dispatch, and verification capture',
+  savedWorkspaceSkill.indexOf('./aos help see --json') < savedWorkspaceSkill.indexOf('aos see capture ... --save')
+  && savedWorkspaceSkill.indexOf('./aos help do --json') < savedWorkspaceSkill.indexOf('aos see capture ... --save')
+  && savedWorkspaceSkill.indexOf('Dry-run') < savedWorkspaceSkill.indexOf('act once, then recapture'),
+  'saved workspace skill must lead with help, then saved capture, dry-run, and recapture',
 );
 for (const term of [
-  'compact model-facing payload',
-  'Do not load screenshots, base64, full AX trees, browser element dumps',
-  'recommended_next_command',
-  'do not guess a coordinate workaround',
+  'compact targets',
+  'Do not inline screenshots, browser payloads, AX dumps, or full capture JSON',
+  'post-action',
+  'Coordinate fallback is diagnostic',
 ]) {
-  assert.ok(freshAgentQuickstartProse.includes(term), `AOS workspace skill fresh-agent quickstart missing ${term}`);
+  assert.ok(savedWorkspaceProse.includes(term), `saved workspace skill loop missing ${term}`);
 }
 assert.ok(
-  skill.includes('aos see capture --canvas surface-inspector --save --mode som --workspace default'),
-  'AOS workspace skill quick-start must include a source-flag saved canvas capture',
+  canvasVisionSkill.includes('--canvas') && canvasVisionSkill.includes('--region') && canvasVisionSkill.includes('--xray --label'),
+  'canvas/vision skill must teach source-flag captures and xray labels',
 );
 assert.ok(
-  skill.includes('aos do set-value ref:<snapshot-id>:r3 --workspace default --value "42" --dry-run')
-  && skill.includes('aos do fill ref:<snapshot-id>:r4 "updated text" --workspace default --dry-run')
-  && skill.includes('aos do hover ref:<snapshot-id>:r5 --workspace default --dry-run')
-  && skill.includes('aos do scroll ref:<snapshot-id>:r5 0,-200 --workspace default --dry-run')
-  && skill.includes('aos do drag ref:<snapshot-id>:r5 ref:<snapshot-id>:r6 --workspace default --dry-run'),
-  'AOS workspace skill must show the supported saved-ref action families',
+  schemaDoc.includes('aos do set-value ref:<snapshot-id>:<ref> --workspace <id> --value <value>')
+  && schemaDoc.includes('aos do fill ref:<snapshot-id>:<ref> <text> --workspace <id>')
+  && schemaDoc.includes('aos do hover ref:<snapshot-id>:<ref> --workspace <id>')
+  && schemaDoc.includes('aos do scroll ref:<snapshot-id>:<ref> <dx,dy> --workspace <id>')
+  && schemaDoc.includes('aos do drag ref:<snapshot-id>:<from-ref> ref:<snapshot-id>:<to-ref> --workspace <id>'),
+  'workspace schema must show the supported saved-ref action families',
 );
 assert.ok(
-  skill.includes('Saved AOS canvas `drag` is not supported in the saved-ref action matrix')
-  && skill.includes('Direct current-host canvas drag uses `canvas:<canvas-id>/<ref>` with `--by`')
-  && skill.includes('do not turn a saved canvas ref into a saved drag target'),
-  'AOS workspace skill must keep saved canvas drag distinct from direct canvas drag',
+  apiDoc.includes('aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>')
+  && canvasVisionSkill.includes('canvas:<canvas-id>/<ref>')
+  && schemaDoc.includes('drag'),
+  'canonical docs and canvas/vision skill must keep saved-ref drag distinct from direct canvas drag',
 );
 for (const staleCommand of [
   'aos see workspace use',
@@ -437,15 +457,15 @@ for (const staleCommand of [
   'aos see assert',
 ]) {
   assert.ok(
-    skill.includes(staleCommand),
-    `AOS workspace skill must name unsupported boundary command ${staleCommand}`,
+    schemaDoc.includes(staleCommand) || apiDoc.includes(staleCommand),
+    `canonical workspace docs must name unsupported boundary command ${staleCommand}`,
   );
 }
 assert.ok(
-  skill.includes('aos see refs --workspace <id> --diff <from>..<to> --json')
-  && skill.includes('--expect change|no-change')
-  && skill.includes('Repeat')
-  && skill.includes('--expect-ref <ref>=changed')
+  (schemaDoc.includes('aos see refs --workspace <id> --diff <from>..<to> --json')
+    || apiDoc.includes('aos see refs --workspace <id> --diff <from>..<to> --json')
+    || apiDoc.includes('aos see refs --diff <from>..<to>'))
+  && verificationSkill.includes('./aos see refs --diff <before>..<after> --expect change|no-change --json')
   && apiDoc.includes('--expect change|no-change')
   && apiDoc.includes('--expect-ref <ref>=added|removed|changed|unchanged|present|missing')
   && apiDoc.includes('diff.ref_expectations[]')
@@ -454,14 +474,14 @@ assert.ok(
   && schemaDoc.includes('diff.ref_expectations[]')
   && schemaDoc.includes('REF_DIFF_EXPECTATION_FAILED')
   && apiDoc.includes('aos see refs --diff <from>..<to>'),
-  'AOS workspace docs and skill must teach compact refs diff and whole/ref expectation gates now that they are supported',
+  'AOS workspace docs and verification skill must teach compact refs diff and whole/ref expectation gates now that they are supported',
 );
 assert.ok(
   skill.replace(/\s+/g, ' ').includes('No daemon-held current workspace exists'),
   'AOS workspace skill must warn agents away from hidden daemon-held workspace state',
 );
 assert.ok(
-  skill.replace(/\s+/g, ' ').includes('Workspace artifacts are local control state, not Work Recording evidence'),
+  savedWorkspaceSkill.replace(/\s+/g, ' ').includes('Workspace artifacts are local control state, not durable Work Record evidence'),
   'AOS workspace skill must distinguish local workspace state from durable Work Record evidence',
 );
 assert.ok(
@@ -471,10 +491,9 @@ assert.ok(
   && workRecordSchemaDoc.includes('without rewriting historical evidence')
   && apiDoc.replace(/\s+/g, ' ').includes('does not turn `aos do` into a macro recorder')
   && apiDoc.replace(/\s+/g, ' ').includes('Stale or ambiguous saved-ref validation is classified as `repairable` or')
-  && skill.includes('do not describe')
-  && skill.includes('aos do')
-  && skill.includes('macro recorder'),
-  'Work Record docs and workspace skill must keep saved-ref evidence, verifier health, and macro-recorder boundaries aligned',
+  && verificationSkill.includes('Work Records')
+  && savedWorkspaceSkill.includes('saved refs'),
+  'Work Record docs and current narrow skills must keep saved-ref evidence, verifier health, and macro-recorder boundaries aligned',
 );
 
 const fixtureShim = fs.readFileSync('tests/lib/agent-workspace-fixtures.sh', 'utf8');
@@ -733,20 +752,19 @@ assert.ok(
 const captureSourceCoverage = AGENT_WORKSPACE_V0_CONTRACT_COVERAGE.capture_source;
 assertIncludesAll(apiDoc, captureSourceCoverage.api_terms, 'API capture source coverage');
 assertIncludesAll(schemaDoc, captureSourceCoverage.schema_terms, 'schema capture source coverage');
-assertIncludesAll(skill, captureSourceCoverage.skill_terms, 'skill capture source coverage');
+assertIncludesAll(savedWorkspaceSkill.replace(/\s+/g, ' '), captureSourceCoverage.skill_terms, 'saved workspace skill capture source coverage');
 for (const usage of captureSourceCoverage.source_flag_usage) {
   assert.ok(apiDoc.includes(usage), `API doc missing capture source usage ${usage}`);
-  assert.ok(skill.includes(usage), `skill missing capture source usage ${usage}`);
+  assert.ok(`${apiDoc}\n${schemaDoc}`.includes(usage), `canonical docs missing capture source usage ${usage}`);
 }
 assert.ok(
-  skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run') >= 0
-  && skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default --dry-run')
-  && skill.indexOf('aos see capture <capture_source> --save --mode <capture_mode> --workspace default') > skill.indexOf('aos do click ref:<snapshot-id>:r2 --workspace default\n'),
-  'AOS workspace skill quick-start must show dry-run, real action, and post-action saved capture refresh',
+  savedWorkspaceSkill.includes('Dry-run when the action supports it, act once, then recapture'),
+  'saved workspace skill must show dry-run, real action, and post-action saved capture refresh',
 );
 assert.ok(
-  skill.indexOf('aos see capture --canvas surface-inspector --save --mode som --workspace default') > skill.indexOf('aos see capture <capture_source> --save --mode <capture_mode> --workspace default'),
-  'AOS workspace skill quick-start must include a saved source-flag capture example',
+  canvasVisionSkill.includes('`--region`, `--canvas`, or `--channel`')
+  && savedWorkspaceSkill.includes('aos see capture ... --save'),
+  'current narrow skills must include saved source-flag capture guidance',
 );
 
 for (const text of [schemaDoc, apiDoc]) {

@@ -44,8 +44,13 @@ backend validation, and local cleanup.
 ## Work Guidance
 
 - Keep public behavior synchronized with `manifests/commands/aos-commands.json`,
-  `shared/schemas/aos-agent-workspace-v0.*`, `docs/api/aos.md`, and
-  `skills/aos-agent-workspace/SKILL.md`.
+  `shared/schemas/aos-agent-workspace-v0.*`, `docs/api/aos.md`,
+  `docs/api/aos-capabilities.md`, and the current narrow installable skills:
+  `skills/aos-saved-workspace/SKILL.md`,
+  `skills/aos-canvas-vision/SKILL.md`,
+  `skills/aos-desktop/SKILL.md`,
+  `skills/aos-focus-sessions/SKILL.md`, and
+  `skills/aos-verification/SKILL.md`.
 - Prefer extending the existing backend action matrix and shared test fixtures
   over adding one-off parser or dispatch branches.
 - Do not move public command policy into Swift unless a native-boundary

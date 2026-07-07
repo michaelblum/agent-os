@@ -30,6 +30,21 @@ Stop when a Work Record is corrupt, superseded, missing authorization, missing
 artifacts, or requires live UI/browser/native actions not authorized by the
 task.
 
+## Repair Recovery
+
+- `aos work-record repair guide ... --json` returns non-executing recovery
+  guidance with stage, blockers, `recovery_summary`, and exact next command
+  descriptors.
+- `aos work-record repair bundle ... --output-root <dir> --json` writes a
+  bounded handoff bundle only under the explicit output root; dry-run writes
+  nothing and the bundle is not a repair executor, replay engine, finalizer, or
+  source-record mutator.
+- `aos work-record repair bundle status ... --json` is read-only lifecycle
+  scanning for explicit bundle roots or immediate bundle-parent children.
+- `aos work-record repair bundle inspect <bundle-root> --json` is read-only
+  validation of one explicit bundle root and does not execute repair, submit
+  gates, finalize, replace, supersede, or touch live UI/TCC surfaces.
+
 ## References
 
 - `docs/api/aos.md`

@@ -102,7 +102,7 @@
     {
       "name": "aos-saved-workspace",
       "path": "skills/aos-saved-workspace",
-      "description": "Use AOS saved perception workspaces and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.",
+      "description": "Use AOS saved perception workspaces with `aos see capture --save`, `aos see snapshots`, `aos see refs`, and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",

@@ -573,13 +573,16 @@ test('parser does not treat inspect as source ref for bundle writer', () => {
 test('docs, schema, and skill describe inspect as read-only validation, not repair', () => {
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
-  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-work-records/SKILL.md'), 'utf8');
 
   const apiInspect = sectionBetween(apiDoc, /\n`repair bundle inspect`/, /\n`repair execute`/);
   const schemaInspect = sectionBetween(schemaDoc, /^## Repair Recovery Bundle Inspection V0$/m, /^## Controlled Repair Executor Result V0$/m);
   const skillInspect = skillCommandBullet(skill, 'aos work-record repair bundle inspect');
 
-  for (const text of [apiInspect, schemaInspect, skillInspect]) {
+  assert.match(skillInspect, /read-only/);
+  assert.match(skillInspect, /explicit bundle root/);
+  assert.match(skillInspect, /does not execute repair/);
+  for (const text of [apiInspect, schemaInspect]) {
     assert.match(text, /repair bundle inspect/);
     assert.match(text, /read-only|without writing/);
     assert.match(text, /explicit bundle root/);

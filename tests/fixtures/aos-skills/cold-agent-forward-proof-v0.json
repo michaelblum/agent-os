@@ -97,11 +97,11 @@
       "selected_commands": [
         "./aos help see --json",
         "./aos help do --json",
-        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\"",
         "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
-        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run --json",
-        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --json",
-        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\" --json"
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run",
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\"",
+        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\""
       ],
       "captured_output": {
         "decision": "Prefer the saved ref over prose targets or coordinates. Act only after the dry-run validates the current producer verdict, then recapture into the same workspace for readback.",
@@ -123,8 +123,8 @@
       "selected_commands": [
         "./aos help see --json",
         "./aos help do --json",
-        "./aos see capture --region <x,y,w,h> --xray --label --save --workspace \"$AOS_WORKSPACE\" --json",
-        "./aos see capture --canvas <canvas-id> --perception --save --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see capture --region <x,y,w,h> --xray --label --save --workspace \"$AOS_WORKSPACE\"",
+        "./aos see capture --canvas <canvas-id> --perception --save --workspace \"$AOS_WORKSPACE\"",
         "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
         "./aos do click <x,y> --state-id <state-id> --dry-run"
       ],
@@ -148,7 +148,7 @@
         "./aos help focus --json",
         "./aos focus list",
         "./aos focus create --id desktop-proof --window <window-id>",
-        "./aos see capture --channel desktop-proof --save --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see capture --channel desktop-proof --save --workspace \"$AOS_WORKSPACE\"",
         "./aos focus remove --id desktop-proof"
       ],
       "captured_output": {
@@ -171,11 +171,11 @@
         "./aos help focus --json",
         "./aos help see --json",
         "./aos help do --json",
-        "./aos focus create --id browser-proof --target browser://chromium --json",
-        "./aos see capture browser:browser-proof --save --mode som --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos focus create --id browser-proof --target browser://new",
+        "./aos see capture browser:browser-proof --save --mode som --workspace \"$AOS_WORKSPACE\"",
         "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
-        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run --json",
-        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --json"
+        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run",
+        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\""
       ],
       "playwright_cli_escape_hatch_commands": [
         "playwright-cli --help",
@@ -228,7 +228,7 @@
         "./aos see annotation list --state pending --json",
         "./aos see annotation read <annotation-id> --json",
         "./aos see refs --workspace <workspace-id> --snapshot <snapshot-id> --json",
-        "./aos do press ref:<snapshot-id>:<ref-id> --workspace <workspace-id> --dry-run --json",
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace <workspace-id> --dry-run",
         "./aos see annotation consume <annotation-id> --actor <agent-name> --json"
       ],
       "captured_output": {

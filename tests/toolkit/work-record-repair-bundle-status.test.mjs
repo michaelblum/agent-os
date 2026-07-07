@@ -489,13 +489,16 @@ test('public CLI help resolves work-record repair bundle status', () => {
 test('docs, schema, and skill describe repair bundle status lifecycle contract', () => {
   const apiDoc = fs.readFileSync(path.join(repoRoot, 'docs/api/aos.md'), 'utf8');
   const schemaDoc = fs.readFileSync(path.join(repoRoot, 'shared/schemas/aos-work-record-v0.md'), 'utf8');
-  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-agent-workspace/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(repoRoot, 'skills/aos-work-records/SKILL.md'), 'utf8');
 
   const apiStatus = sectionBetween(apiDoc, /`repair bundle status`/, /\n`repair bundle inspect`/);
   const schemaStatus = sectionBetween(schemaDoc, /^## Repair Recovery Bundle Lifecycle Status V0$/m, /^## Repair Recovery Bundle Inspection V0$/m);
   const skillStatus = skillCommandBullet(skill, 'aos work-record repair bundle status');
 
-  for (const text of [apiStatus, schemaStatus, skillStatus]) {
+  assert.match(skillStatus, /read-only/);
+  assert.match(skillStatus, /explicit bundle roots/);
+  assert.match(skillStatus, /immediate bundle-parent children/);
+  for (const text of [apiStatus, schemaStatus]) {
     assert.match(text, /repair bundle status/);
     assert.match(text, /--bundle-root/);
     assert.match(text, /--bundle-parent/);

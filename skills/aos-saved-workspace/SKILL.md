@@ -1,6 +1,6 @@
 ---
 name: aos-saved-workspace
-description: Use AOS saved perception workspaces and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.
+description: Use AOS saved perception workspaces with `aos see capture --save`, `aos see snapshots`, `aos see refs`, and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.
 ---
 
 # AOS Saved Workspace
@@ -19,10 +19,16 @@ locator-like model across AOS surfaces.
    prose targets when the producer says the ref is actionable.
 5. Dry-run when the action supports it, act once, then recapture.
 
+A saved capture source can be a positional target or one source flag such as
+`--region <rect>`, `--canvas <id>`, or `--channel <id>`. The source forms are
+mutually exclusive, and capture defaults to `main` when no source is supplied.
+
 ## Boundaries
 
 - Saved refs are snapshot scoped; stale desktop, native AX, canvas, or browser
   identity must be recaptured instead of forced.
+- Workspace artifacts are local control state, not durable Work Record
+  evidence; use Work Records when the task needs a receipt or recovery input.
 - Do not inline screenshots, browser payloads, AX dumps, or full capture JSON
   when refs and summaries are enough.
 - Coordinate fallback is diagnostic unless the command and task explicitly
