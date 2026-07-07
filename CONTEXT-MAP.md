@@ -35,9 +35,9 @@ source root. This file is a routing map, not a replacement for those sources.
   `skills/aos-canvas-vision/SKILL.md` for canvas and coordinate fallback,
   `skills/aos-focus-sessions/SKILL.md` for session/channel lifecycle,
   `skills/aos-browser/SKILL.md` for browser ref/proof workflows, and
-  `skills/aos-verification/SKILL.md` for act/recapture/assert loops. The
-  broader `skills/aos-agent-workspace/SKILL.md` remains local background and
-  compatibility material.
+  `skills/aos-verification/SKILL.md` for act/recapture/assert loops. Retired
+  tombstones such as `skills/aos-agent-workspace/SKILL.md` and
+  `skills/browser-adapter/SKILL.md` exist only to point at current guidance.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.

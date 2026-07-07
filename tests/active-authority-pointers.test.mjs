@@ -50,6 +50,7 @@ test('active authority map points to existing runtime primitive contract owners'
     ['CONTEXT-MAP.md', 'skills/aos-browser/SKILL.md'],
     ['CONTEXT-MAP.md', 'skills/aos-verification/SKILL.md'],
     ['CONTEXT-MAP.md', 'skills/aos-agent-workspace/SKILL.md'],
+    ['CONTEXT-MAP.md', 'skills/browser-adapter/SKILL.md'],
     ['CONTEXT-MAP.md', 'docs/design/'],
     ['README.md', 'docs/api/aos.md'],
     ['README.md', 'ARCHITECTURE.md'],

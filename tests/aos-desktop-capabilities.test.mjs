@@ -79,6 +79,7 @@ test('AOS capability map is backed by current command manifest forms', async () 
 test('AOS capability map preserves unsupported desktop verbs and browser boundary', async () => {
   const doc = await read('docs/api/aos-capabilities.md');
   const design = await read('docs/design/aos-desktop-playwright-cli-map.md');
+  const decision = await read('docs/design/aos-desktop-command-vocabulary-decision.md');
 
   for (const phrase of [
     'Window close',
@@ -107,4 +108,7 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
 
   assert.match(design, /Follow-Up Card Seeds/);
   assert.match(design, /Do not add a new `aos desktop` noun yet/);
+  assert.match(decision, /Do not add a new `aos desktop` command noun/);
+  assert.match(decision, /Do not add a new .*desktop:<target>.* target/s);
+  assert.match(decision, /prefer\s+source-manifest-backed semantic verbs under `aos do`/);
 });

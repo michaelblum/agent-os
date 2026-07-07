@@ -114,8 +114,8 @@ The registry source of truth is `skills/registry.json`.
 | `aos-recipes` | installable | Teaches source-backed recipe list/explain/dry-run/run and keeps `aos ops` as compatibility wording. |
 | `aos-command-surface-maintenance` | installable | Teaches source manifest/help/docs/test synchronization for command-surface edits. |
 | `agent-sync` | retired | Keep tombstone. Do not install or recreate native Codex custom-agent sync. |
-| `aos-agent-workspace` | needs_split | Keep covered by validator as broad local background; superseded for installable guidance by `aos-desktop`, `aos-saved-workspace`, `aos-canvas-vision`, `aos-focus-sessions`, and `aos-verification`. |
-| `browser-adapter` | needs_split | Keep covered by validator as broad local background; superseded for installable guidance by `aos-browser`. |
+| `aos-agent-workspace` | retired | Tombstone for the broad saved workspace skill; superseded by `aos-desktop`, `aos-saved-workspace`, `aos-canvas-vision`, `aos-focus-sessions`, and `aos-verification`. |
+| `browser-adapter` | retired | Tombstone for the broad browser adapter skill; superseded by `aos-browser`. |
 | `caveman` | retained_local | Local communication compression skill, outside the AOS installable skill product. |
 | `issue-hygiene-sweep` | retained_local | Repo/GitHub audit helper, outside the AOS installable skill product. |
 | `plan-retirement-audit` | retained_local | Repo docs audit helper, outside the AOS installable skill product. |
@@ -128,8 +128,8 @@ The registry source of truth is `skills/registry.json`.
 | `aos ops` wording | Retain only as compatibility alias for `aos recipe` until the ADR 0013 removal gate is satisfied. |
 | Markdown guides that say `Use this recipe` | Clean up in a terminology pass when they are not executable `aos recipe` packages. |
 | Wiki `workflow` page-kind/plugin labels | Clarify as wiki registry/page-kind behavior, not AOS Execution Model Workflow execution, unless a migration becomes feasible. |
-| `skills/aos-agent-workspace` | Keep as current local skill but classify as `needs_split` for installable packaging. |
-| `skills/browser-adapter` | Keep as current local skill but classify as `needs_split` and supersede with `aos-browser`. |
+| `skills/aos-agent-workspace` | Retire as a tombstone; use the narrower installable desktop, saved workspace, canvas/vision, focus-session, and verification skills. |
+| `skills/browser-adapter` | Retire as a tombstone; use `aos-browser` plus upstream Playwright CLI skills for browser-only primitives. |
 | Downstream repo-local AOS wrapper facades | Demote in downstream docs during M6. Direct `./aos` plus installed skills is the target onboarding path. |
 | Playwright CLI skill content | External companion only. Do not vendor into AOS source. |
 
@@ -151,7 +151,7 @@ rg -n "aos-agent-workspace|browser-adapter|aos ops|# Recipe:|playbook|workflow" 
   supports both bounded writes and `--dry-run` planning.
 - Installable AOS skill work must update registry status, backing references,
   validator coverage, and the relevant durable docs together.
-- Broad root skills may exist temporarily as `needs_split`, but final
+- Retired broad root skills stay as short tombstones with replacement pointers;
   installable skills must stay concise or explicitly split detailed references
   out of `SKILL.md`.
 - `aos skills` command forms must synchronize source manifests, generated

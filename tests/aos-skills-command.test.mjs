@@ -44,6 +44,8 @@ test('aos skills list reports installable root skills with digests', () => {
   assert.equal(payload.schema_version, 'aos.skills.list.v0');
   assert.equal(payload.summary.total, 19);
   assert.equal(payload.summary.installable, 12);
+  assert.equal(payload.summary.needs_split, 0);
+  assert.equal(payload.summary.retired, 3);
   const orientation = payload.skills.find((skill) => skill.name === 'aos-core-orientation');
   assert.ok(orientation);
   assert.equal(orientation.installable, true);

@@ -78,3 +78,6 @@ primitive model. Do not add a new `aos desktop` noun yet. The capability map and
 skills should teach the desktop Playwright mental model first; any alias or
 semantic verb should come after the inventory proves it can be represented in
 manifests, help, parser gates, and fail-closed runtime behavior.
+
+See `docs/design/aos-desktop-command-vocabulary-decision.md` for the M4
+decision note.

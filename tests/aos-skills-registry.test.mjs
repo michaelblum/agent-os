@@ -41,9 +41,9 @@ test('root skill registry covers current direct skill packages', async () => {
     assert.deepEqual(byName.get(name)?.target_support, ['agents', 'claude', 'codex', 'path'], name);
   }
   assert.equal(byName.get('agent-sync')?.status, 'retired');
-  assert.equal(byName.get('aos-agent-workspace')?.status, 'needs_split');
+  assert.equal(byName.get('aos-agent-workspace')?.status, 'retired');
   assert.equal(byName.get('aos-agent-workspace')?.claims_durable_behavior, true);
-  assert.equal(byName.get('browser-adapter')?.status, 'needs_split');
+  assert.equal(byName.get('browser-adapter')?.status, 'retired');
   assert.equal(byName.get('browser-adapter')?.claims_durable_behavior, true);
   assert.equal(byName.get('symphony-talent-design')?.status, 'private_ignored');
   assert.deepEqual(result.supported_targets, ['agents', 'claude', 'codex', 'path']);
@@ -69,6 +69,14 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');
   assert.match(verification, /act-recapture-assert/);
   assert.match(verification, /see refs --diff/);
+
+  const retiredWorkspace = await readFile(path.join(repoRoot, 'skills', 'aos-agent-workspace', 'SKILL.md'), 'utf8');
+  assert.match(retiredWorkspace, /retired as installable guidance/);
+  assert.match(retiredWorkspace, /skills\/aos-desktop\/SKILL\.md/);
+
+  const retiredBrowser = await readFile(path.join(repoRoot, 'skills', 'browser-adapter', 'SKILL.md'), 'utf8');
+  assert.match(retiredBrowser, /retired as installable guidance/);
+  assert.match(retiredBrowser, /skills\/aos-browser\/SKILL\.md/);
 });
 
 test('frontmatter parser handles folded descriptions, booleans, and arrays', () => {

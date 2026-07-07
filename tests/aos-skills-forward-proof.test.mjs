@@ -115,3 +115,14 @@ test('cold-agent forward proof exercises the desktop Playwright skill pack', asy
     assert.ok(selected.has(skill), `proof missing skill: ${skill}`);
   }
 });
+
+test('cold-agent forward proof avoids retired broad skill surfaces', async () => {
+  const proof = await fixture();
+  const selected = [
+    ...proof.preflight.selected_skills,
+    ...proof.scenarios.flatMap((scenario) => scenario.selected_skills),
+  ];
+
+  assert.equal(selected.includes('aos-agent-workspace'), false);
+  assert.equal(selected.includes('browser-adapter'), false);
+});

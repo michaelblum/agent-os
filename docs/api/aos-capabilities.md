@@ -7,6 +7,10 @@ manifests under `manifests/commands/source/aos/`.
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
 
+The current vocabulary decision is documented in
+`docs/design/aos-desktop-command-vocabulary-decision.md`: do not add a new
+`aos desktop` noun or `desktop:<target>` namespace in this slice.
+
 ## Capability Groups
 
 | Group | Use for | Command surface |

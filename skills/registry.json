@@ -367,63 +367,56 @@
     {
       "name": "aos-agent-workspace",
       "path": "skills/aos-agent-workspace",
-      "description": "Use saved AOS perception workspaces and compact refs for agent UI work. Trigger when a task needs repeated observe-act loops, saved `aos see capture --save` snapshots, `aos see snapshots`, `aos see refs`, or `aos do ... ref:<snapshot-id>:<ref>` actions without carrying full screenshots or AX/browser payloads in context.",
-      "status": "needs_split",
+      "description": "Retired broad saved-workspace skill. Use aos-desktop, aos-saved-workspace, aos-canvas-vision, aos-focus-sessions, and aos-verification for installable AOS desktop guidance.",
+      "status": "retired",
       "installable": false,
-      "invocation": "enabled",
+      "invocation": "retired",
       "target_support": [],
-      "ownership": "AOS-owned local root skill that will be split into smaller installable AOS workflow skills.",
+      "ownership": "AOS-owned historical tombstone for the broad saved-workspace skill split.",
       "references": [
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "shared/schemas/aos-agent-workspace-v0.md",
-        "tests/agent-workspace-contract-drift.sh",
-        "tests/agent-workspace-saved-ref.sh"
+        "skills/aos-desktop/SKILL.md",
+        "skills/aos-saved-workspace/SKILL.md",
+        "skills/aos-canvas-vision/SKILL.md",
+        "skills/aos-focus-sessions/SKILL.md",
+        "skills/aos-verification/SKILL.md"
       ],
       "claims_durable_behavior": true,
       "backing": [
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
-        "shared/schemas/aos-agent-workspace-v0.md",
-        "tests/agent-workspace-contract-drift.sh"
-      ],
-      "split_to": [
-        "aos-desktop",
-        "aos-saved-workspace",
-        "aos-canvas-vision",
-        "aos-focus-sessions",
-        "aos-runtime-readiness",
-        "aos-verification",
-        "aos-operator-annotations",
-        "aos-work-records"
-      ],
-      "body_budget": {
-        "max_lines": 180,
-        "exception": "needs_split"
-      }
+        "shared/schemas/aos-agent-workspace-v0.md"
+      ]
     },
     {
       "name": "browser-adapter",
       "path": "skills/browser-adapter",
-      "description": "Drive browsers (tabs, forms, clicks, navigation) through aos verbs. Trigger when a task requires reading or acting on web content — filling forms, extracting data, observing page state — and you want saved or direct ref-based interaction.",
-      "status": "needs_split",
+      "description": "Retired broad browser adapter skill. Use aos-browser for AOS browser refs and upstream Playwright CLI skills for browser-only primitives.",
+      "status": "retired",
       "installable": false,
-      "invocation": "enabled",
+      "invocation": "retired",
       "target_support": [],
-      "ownership": "AOS-owned local root skill that will be superseded by aos-browser with an explicit external Playwright CLI companion boundary.",
+      "ownership": "AOS-owned historical tombstone for the broad browser adapter skill.",
       "references": [
         "ARCHITECTURE.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
-        "docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md",
+        "skills/aos-browser/SKILL.md",
         "tests/browser/runtime-resolver.test.mjs",
         "tests/browser/version-check.test.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "ARCHITECTURE.md",
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "tests/browser/runtime-resolver.test.mjs"
-      ],
-      "split_to": [
-        "aos-browser"
       ]
     },
     {

@@ -52,14 +52,12 @@ repo, plus the root skill registry for AOS installable skill productization.
 - `agent-sync/` is a retired historical tombstone for ADR 0017. It must not
   sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
   user-global agent registrations.
-- `aos-agent-workspace/` contains the saved perception workspace and compact
-  ref loop skill for normal `aos see` / `aos do` workflows; it is classified
-  as `needs_split` and superseded for installable guidance by
-  `aos-desktop/`, `aos-saved-workspace/`, `aos-canvas-vision/`,
-  `aos-focus-sessions/`, and `aos-verification/`.
-- `browser-adapter/` contains the current AOS browser adapter skill; it is
-  classified as `needs_split` and superseded for installable guidance by
-  `aos-browser/`.
+- `aos-agent-workspace/` is a retired tombstone for the broad saved workspace
+  skill; installable guidance now lives in `aos-desktop/`,
+  `aos-saved-workspace/`, `aos-canvas-vision/`, `aos-focus-sessions/`, and
+  `aos-verification/`.
+- `browser-adapter/` is a retired tombstone for the broad browser adapter
+  skill; installable browser guidance now lives in `aos-browser/`.
 - `caveman/`, `issue-hygiene-sweep/`, and `plan-retirement-audit/` are
   retained local helper skills outside the AOS installable skill product.
 - `symphony-talent-design/` is private brand/design skill material and is not
