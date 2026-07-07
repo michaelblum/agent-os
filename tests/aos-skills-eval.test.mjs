@@ -58,6 +58,85 @@ test('AOS skills efficacy scorer catches unsupported flags and retired skill use
   assert.ok(boundaryCheck.forbidden_hits.some((pattern) => pattern.includes('graph windows --json')));
 });
 
+test('AOS skills efficacy scorer catches malformed manifest-backed command shapes', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+  const run = {
+    id: 'fixture-bad-command-shape',
+    provider: 'fixture',
+    model: 'shape-regression',
+    mode: 'offline_fixture',
+    case_responses: [
+      {
+        case_id: 'desktop-window-control-inventory',
+        selected_skills: ['aos-desktop'],
+        selected_commands: [
+          './aos do raise',
+          './aos focus create --id browser-proof',
+          './aos focus create --id browser-proof --window 123 --target browser://new',
+        ],
+        decision: 'Use raise and stop on unsupported close minimize maximize or Space verbs.',
+        stop_condition: 'Stop on unsupported close, minimize, maximize, or Space switching.',
+      },
+    ],
+  };
+  const report = await evaluateSkillEfficacy({
+    ...fixture,
+    runs: [],
+  }, {
+    repoRoot,
+    extraRuns: [run],
+    runIds: [run.id],
+    caseIds: ['desktop-window-control-inventory'],
+  });
+
+  const result = report.runs[0].cases[0];
+  assert.equal(result.passed, false);
+  const commandCheck = result.checks.find((item) => item.id === 'command_manifest');
+  assert.equal(commandCheck.ok, false);
+  assert.ok(commandCheck.findings.some((finding) => (
+    finding.code === 'MISSING_REQUIRED_FLAG'
+    && finding.form_id === 'do-raise'
+    && finding.flag === '--pid'
+  )));
+  assert.ok(commandCheck.findings.some((finding) => (
+    finding.code === 'MISSING_ONE_OF'
+    && finding.form_id === 'focus-create'
+  )));
+  assert.ok(commandCheck.findings.some((finding) => (
+    finding.code === 'CONFLICTING_ARGS'
+    && finding.form_id === 'focus-create'
+  )));
+});
+
+test('AOS skills efficacy selectors fail closed on unknown ids', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+
+  await assert.rejects(
+    evaluateSkillEfficacy(fixture, { repoRoot, caseIds: ['missing-case'] }),
+    (error) => {
+      assert.equal(error.code, 'UNKNOWN_EVAL_CASE');
+      assert.deepEqual(error.details.unknown, ['missing-case']);
+      return true;
+    },
+  );
+  await assert.rejects(
+    evaluateSkillEfficacy(fixture, { repoRoot, runIds: ['missing-run'] }),
+    (error) => {
+      assert.equal(error.code, 'UNKNOWN_EVAL_RUN');
+      assert.deepEqual(error.details.unknown, ['missing-run']);
+      return true;
+    },
+  );
+  assert.throws(
+    () => buildPromptPackets(fixture, { matrixIds: ['missing-matrix'] }),
+    (error) => {
+      assert.equal(error.code, 'UNKNOWN_EVAL_MATRIX');
+      assert.deepEqual(error.details.unknown, ['missing-matrix']);
+      return true;
+    },
+  );
+});
+
 test('AOS skills efficacy prompt packets cover model reasoning matrix without leaking answers', async () => {
   const fixture = await loadEvalFixture(fixturePath);
   const packets = buildPromptPackets(fixture, {
@@ -244,6 +323,29 @@ test('AOS skills OpenAI live runner rejects matrix rows without OpenAI adapter',
     }),
     /requires matrix rows with adapter openai-responses/,
   );
+});
+
+test('AOS skills OpenAI live runner fails closed on empty packet selection', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-eval-empty-'));
+  try {
+    await assert.rejects(
+      runOpenAIResponsesEval({
+        ...fixture,
+        cases: [],
+      }, tempRoot, {
+        apiKey: 'test-key',
+        matrixIds: ['codex-gpt-5.4-mini-low'],
+        fetch: async () => assert.fail('fetch should not run for an empty packet set'),
+      }),
+      (error) => {
+        assert.equal(error.code, 'EMPTY_EVAL_PACKET_SET');
+        return true;
+      },
+    );
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('AOS skills OpenAI live runner fails closed without API key', async () => {

@@ -26,6 +26,8 @@
 - `companions.mjs` owns Playwright CLI companion checks. Playwright-looking text
   is only a candidate signal; installed companion state requires a
   Playwright-owned package identity.
+- `command-shape.mjs` owns manifest-backed validation for direct `./aos`
+  command examples in skills efficacy evidence and forward-proof fixtures.
 - `eval.mjs` owns deterministic captured-response scoring and prompt-packet
   emission for AOS skill efficacy across provider/model/reasoning matrices.
 - `captured-runs.mjs` owns captured response run filenames and atomic,
@@ -41,9 +43,10 @@
   change in the same patch.
 - Keep AOS first-party skill installs separate from Playwright-owned companion
   packages. AOS must not vendor or claim Playwright companion skill content.
-- Skill efficacy scoring must validate direct `./aos` commands against the
-  generated command manifest and must treat retired skills, unsupported flags,
-  raw daemon probes, and project-local wrappers as measurable failures.
+- Skill efficacy scoring must validate direct `./aos` command shapes against
+  the generated command manifest, including required args, required groups, and
+  conflicts. Treat retired skills, unsupported flags, raw daemon probes, and
+  project-local wrappers as measurable failures.
 - Treat unmanaged install target content as blocking. Only exact AOS package
   files without a manifest are recoverable as interrupted AOS writes.
 - Staging paths are AOS-owned scratch state under the target root. Stale staging

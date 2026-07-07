@@ -2,6 +2,7 @@ import path from 'node:path';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 
 import { loadSkillCatalog } from './catalog.mjs';
+import { commandManifestChecks, manifestForms } from './command-shape.mjs';
 import { AosSkillsError, isObject, sha256Text } from './shared.mjs';
 
 export const EVAL_SCHEMA_VERSION = 'aos.skills.agentic-efficacy-eval.v0';
@@ -18,63 +19,21 @@ const DEFAULT_WEIGHTS = {
   boundary_avoidance: 10,
 };
 
-const directAosCommand = /^\.\/aos(?:\s|$)/;
-const projectWrapperPattern = /\b(?:pnpm|npm|yarn|bun)\b|\bnode\s+scripts\/|\.\/scripts\/|raw daemon HTTP|curl\s+http:\/\/127\.0\.0\.1/;
-
-export function commandTokens(command) {
-  return [...String(command ?? '').matchAll(/"[^"]*"|'[^']*'|\S+/g)].map((match) => match[0]);
-}
-
-function usagePrefix(form) {
-  const tokens = commandTokens(form.usage ?? '');
-  if (tokens[0] !== 'aos') return [];
-  const prefix = [];
-  for (const token of tokens.slice(1)) {
-    if (
-      token.startsWith('<')
-      || token.startsWith('[')
-      || token.startsWith('(')
-      || token.startsWith('--')
-      || token.includes('|')
-    ) break;
-    prefix.push(token);
-  }
-  return prefix;
-}
-
-function formFlagTokens(form) {
-  return new Set((form.args ?? [])
-    .filter((arg) => arg.kind === 'flag' && arg.token)
-    .map((arg) => arg.token));
-}
-
-export function manifestForms(manifest) {
-  const forms = [];
-  for (const command of manifest.commands ?? []) {
-    for (const form of command.forms ?? []) {
-      forms.push({
-        command,
-        form,
-        prefix: usagePrefix(form),
-        flags: formFlagTokens(form),
-      });
-    }
-  }
-  return forms;
-}
-
-function matchingManifestForm(command, forms) {
-  const tokens = commandTokens(command);
-  if (tokens[0] !== './aos') return null;
-  const body = tokens.slice(1);
-  const matches = forms
-    .filter(({ prefix }) => prefix.length > 0 && prefix.every((token, index) => body[index] === token))
-    .sort((a, b) => b.prefix.length - a.prefix.length);
-  return matches[0] ?? null;
-}
-
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function assertKnownSelectors(kind, selectedIds, availableIds, code) {
+  const selected = asArray(selectedIds);
+  if (!selected.length) return;
+  const available = new Set(availableIds);
+  const unknown = selected.filter((id) => !available.has(id));
+  if (!unknown.length) return;
+  throw new AosSkillsError(`Unknown AOS skills eval ${kind} selector`, code, {
+    requested: selected,
+    unknown,
+    available: [...available].sort(),
+  });
 }
 
 function regexpFromSpec(spec) {
@@ -102,54 +61,6 @@ function textCorpus(response) {
     response?.stop_condition,
     response?.notes,
   ].filter(Boolean).join('\n');
-}
-
-function commandManifestChecks(commands, forms) {
-  const findings = [];
-  for (const command of commands) {
-    if (!directAosCommand.test(command)) {
-      findings.push({
-        command,
-        code: projectWrapperPattern.test(command) ? 'PROJECT_WRAPPER_COMMAND' : 'NON_DIRECT_AOS_COMMAND',
-        message: 'command is not a direct ./aos command',
-      });
-      continue;
-    }
-    const match = matchingManifestForm(command, forms);
-    if (!match) {
-      findings.push({
-        command,
-        code: 'UNKNOWN_AOS_COMMAND',
-        message: 'command does not match any current AOS command manifest form',
-      });
-      continue;
-    }
-    const flags = commandTokens(command).filter((token) => token.startsWith('--'));
-    for (const flag of flags) {
-      if (!match.flags.has(flag)) {
-        findings.push({
-          command,
-          flag,
-          form_id: match.form.id,
-          code: 'UNSUPPORTED_FLAG',
-          message: `flag ${flag} is not supported by ${match.form.id}`,
-        });
-      }
-    }
-    if (match.form.id === 'focus-create') {
-      const tokens = commandTokens(command);
-      const targetIndex = tokens.indexOf('--target');
-      if (targetIndex !== -1 && !['browser://attach', 'browser://new'].includes(tokens[targetIndex + 1])) {
-        findings.push({
-          command,
-          target: tokens[targetIndex + 1],
-          code: 'UNSUPPORTED_FOCUS_TARGET',
-          message: 'focus create target is not a documented browser target',
-        });
-      }
-    }
-  }
-  return findings;
 }
 
 function evaluateCase(testCase, response, context) {
@@ -300,11 +211,13 @@ export async function evaluateSkillEfficacy(fixture, options = {}) {
   const cases = asArray(fixture.cases);
   const selectedCaseIds = new Set(asArray(options.caseIds));
   const selectedRunIds = new Set(asArray(options.runIds));
+  assertKnownSelectors('case', options.caseIds, cases.map((item) => item.id), 'UNKNOWN_EVAL_CASE');
   const activeCases = selectedCaseIds.size ? cases.filter((item) => selectedCaseIds.has(item.id)) : cases;
   const responseRuns = [
     ...asArray(fixture.runs),
     ...asArray(options.extraRuns),
   ];
+  assertKnownSelectors('run', options.runIds, responseRuns.map((run) => run.id), 'UNKNOWN_EVAL_RUN');
   const activeRuns = selectedRunIds.size ? responseRuns.filter((run) => selectedRunIds.has(run.id)) : responseRuns;
   const context = {
     forms: manifestForms(manifest),
@@ -365,6 +278,8 @@ export function buildPromptPackets(fixture, options = {}) {
   const matrix = asArray(fixture.matrix);
   const selectedCaseIds = new Set(asArray(options.caseIds));
   const selectedMatrixIds = new Set(asArray(options.matrixIds));
+  assertKnownSelectors('case', options.caseIds, cases.map((item) => item.id), 'UNKNOWN_EVAL_CASE');
+  assertKnownSelectors('matrix', options.matrixIds, matrix.map((item) => item.id), 'UNKNOWN_EVAL_MATRIX');
   const activeCases = selectedCaseIds.size ? cases.filter((item) => selectedCaseIds.has(item.id)) : cases;
   const activeMatrix = selectedMatrixIds.size ? matrix.filter((item) => selectedMatrixIds.has(item.id)) : matrix;
 

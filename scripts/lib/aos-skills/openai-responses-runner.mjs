@@ -226,6 +226,16 @@ export async function runOpenAIResponsesEval(fixture, outputDir, options = {}) {
     caseIds: options.caseIds,
     matrixIds: options.matrixIds,
   });
+  if (!packets.length) {
+    throw new AosSkillsError(
+      'OpenAI live eval selected zero prompt packets',
+      'EMPTY_EVAL_PACKET_SET',
+      {
+        case_ids: asArray(options.caseIds),
+        matrix_ids: asArray(options.matrixIds),
+      },
+    );
+  }
   assertOpenAIAdapterPackets(packets);
   const runnerOptions = normalizeOpenAIResponsesOptions(options);
   await mkdir(outputDir, { recursive: true });

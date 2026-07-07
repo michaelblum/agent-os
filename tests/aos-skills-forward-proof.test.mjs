@@ -4,6 +4,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
+import {
+  commandManifestChecks,
+  directAosCommand,
+  manifestForms,
+  projectWrapperPattern,
+} from '../scripts/lib/aos-skills/command-shape.mjs';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const fixturePath = path.join(repoRoot, 'tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json');
@@ -29,62 +36,6 @@ const requiredScenarioIds = [
   'work-record-report-only-recovery',
   'recipe-explain-dry-run',
 ];
-
-const directAosCommand = /^\.\/aos(?:\s|$)/;
-const projectWrapperPattern = /\b(?:pnpm|npm|yarn|bun)\b|\bnode\s+scripts\/|\.\/scripts\/|raw daemon HTTP|curl\s+http:\/\/127\.0\.0\.1/;
-
-function commandTokens(command) {
-  return [...command.matchAll(/"[^"]*"|'[^']*'|\S+/g)].map((match) => match[0]);
-}
-
-function usagePrefix(form) {
-  const tokens = commandTokens(form.usage ?? '');
-  if (tokens[0] !== 'aos') return [];
-  const prefix = [];
-  for (const token of tokens.slice(1)) {
-    if (
-      token.startsWith('<')
-      || token.startsWith('[')
-      || token.startsWith('(')
-      || token.startsWith('--')
-      || token.includes('|')
-    ) break;
-    prefix.push(token);
-  }
-  return prefix;
-}
-
-function formFlagTokens(form) {
-  return new Set((form.args ?? [])
-    .filter((arg) => arg.kind === 'flag' && arg.token)
-    .map((arg) => arg.token));
-}
-
-function manifestForms(manifest) {
-  const forms = [];
-  for (const command of manifest.commands ?? []) {
-    for (const form of command.forms ?? []) {
-      forms.push({
-        command,
-        form,
-        prefix: usagePrefix(form),
-        flags: formFlagTokens(form),
-      });
-    }
-  }
-  return forms;
-}
-
-function matchingForm(command, forms) {
-  const tokens = commandTokens(command);
-  assert.equal(tokens[0], './aos', `not a direct local AOS command: ${command}`);
-  const body = tokens.slice(1);
-  const matches = forms
-    .filter(({ prefix }) => prefix.length > 0 && prefix.every((token, index) => body[index] === token))
-    .sort((a, b) => b.prefix.length - a.prefix.length);
-  assert.ok(matches.length > 0, `no AOS command manifest form matches fixture command: ${command}`);
-  return matches[0];
-}
 
 function selectedCommandGroups(proof) {
   return [
@@ -122,27 +73,8 @@ test('cold-agent forward proof commands are backed by current AOS command manife
   const forms = manifestForms(await commandManifest());
 
   for (const [group, commands] of selectedCommandGroups(proof)) {
-    for (const command of commands) {
-      const match = matchingForm(command, forms);
-      const tokens = commandTokens(command);
-      const flags = tokens.filter((token) => token.startsWith('--'));
-      for (const flag of flags) {
-        assert.ok(
-          match.flags.has(flag),
-          `${group}: fixture command uses unsupported flag ${flag} for ${match.form.id}: ${command}`,
-        );
-      }
-      if (match.form.id === 'focus-create') {
-        const targetIndex = tokens.indexOf('--target');
-        if (targetIndex !== -1) {
-          const target = tokens[targetIndex + 1];
-          assert.ok(
-            ['browser://attach', 'browser://new'].includes(target),
-            `${group}: focus create target must be a documented browser target, got ${target}`,
-          );
-        }
-      }
-    }
+    const findings = commandManifestChecks(commands, forms);
+    assert.deepEqual(findings, [], `${group}: fixture commands must match current manifests`);
   }
 });
 
