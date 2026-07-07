@@ -32,9 +32,10 @@ policy, subject/work-record contracts, or other durable trade-offs.
 ## Conflicts
 
 When docs disagree, surface the contradiction instead of silently choosing a
-source that might be stale. Prefer the current work card, the relevant dock or
-local `AGENTS.md`, live code, schemas, tests, CLI/API behavior, then
-`docs/api/`, `shared/schemas/`, `ARCHITECTURE.md`, and `CONTEXT.md`. Root
-`AGENTS.md` resolves only repo-wide invariants and authority routing. Treat
-design notes and external templates as context unless the active work card
-makes them authoritative.
+source that might be stale. Prefer live source, `shared/schemas/`, tests,
+command source manifests and generated help, live CLI/API/runtime readback,
+`docs/api/`, and `docs/adr/` before narrative docs. Local `AGENTS.md` files
+resolve policy and ownership routing for their subtree; root `AGENTS.md`
+resolves only repo-wide invariants and authority routing. Treat work cards,
+design notes, archived reports, and external templates as planning context
+unless the current instruction explicitly scopes the task to them.

@@ -128,12 +128,14 @@ declaring the slice complete:
 
 When two live sources disagree, do not silently choose the convenient one. Name
 the conflict, identify the sources, and keep the fix scoped to the active task.
-Prefer the current work card, the relevant local `AGENTS.md`, installable
-skills for agent-facing workflows, live code, schemas, tests, CLI/API behavior,
-then `docs/api/`, `shared/schemas/`, `ARCHITECTURE.md`, and `CONTEXT.md`. Root
+Prefer live source, `shared/schemas/`, tests, command source manifests and
+generated help, live CLI/API/runtime readback, `docs/api/`, and `docs/adr/`
+before narrative docs. Installable skills can guide agent-facing workflows, but
+they do not override source, schemas, tests, help, or runtime readback. Local
+`AGENTS.md` files resolve policy and ownership routing for their subtree; root
 `AGENTS.md` resolves only repo-wide invariants and authority routing. Treat
-design notes, old work cards, and external templates as context unless the
-active work card makes them authoritative.
+design notes, work cards, and external templates as planning context unless the
+current instruction explicitly scopes the task to them.
 
 If the correct owner is unclear, stop at the narrowest reversible pointer or
 report the conflict for human or designated review-authority judgment. Do not

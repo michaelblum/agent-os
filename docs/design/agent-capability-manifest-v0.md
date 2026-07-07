@@ -4,9 +4,10 @@
 
 Agent sessions need a portable way to describe what operations are available
 without making raw Bash, Node, npm, Python, or provider-specific tools the
-default agent shell. Docks define durable role/profile boundaries. Entry paths
-define active capability layers. Neither should hardcode every command an agent
-might run.
+default agent shell. Entry paths, source command manifests, generated help, ADRs,
+schemas, tests, and live CLI/runtime readback define the active contract
+authority. None of those owners should hardcode every command an agent might
+run.
 
 The missing layer is a small capability manifest: a runtime-neutral description
 of operations, adapters, mutability, scope, and audit expectations.
@@ -36,7 +37,7 @@ inspect it through the read-only discovery surface:
 An agent instance is a runtime composition:
 
 ```text
-dock role/profile
+source/ADR/schema authority
 + active entry path
 + assigned task
 + capability manifest
@@ -44,8 +45,8 @@ dock role/profile
 + evidence contract
 ```
 
-The dock answers "who is this agent and what may it decide?" The entry path
-answers "what capability layer is active?" The capability manifest answers
+Source, ADR, and schema authority answer "what contract is live?" The entry
+path answers "what capability layer is active?" The capability manifest answers
 "what operations exist and how risky are they?" The adapter answers "how does
 this runtime perform that operation?"
 
@@ -108,15 +109,26 @@ The first implementation is read-only:
 ```bash
 ./aos dev capabilities list --json
 ./aos dev capabilities explain dev.github.issue_comment --json
-./aos dev docks capabilities foreman --json
 ```
 
 Execution can come later, once the schema and real capability inventory have
 settled.
 
-Dock profiles live in `.docks/<dock>/dock.json` and validate against
-[`shared/schemas/aos-dock-profile-v0.schema.json`](../../shared/schemas/aos-dock-profile-v0.schema.json).
-They resolve role, default entry path, allowed entry paths, and allowed
-capability classes against the capability manifest. This keeps the dock layer
-declarative and portable while avoiding duplicated role-specific command lists
-in every `AGENTS.md`.
+Current owners for this design are the schema, canonical manifest, command
+source manifest, generated help/API docs, tests, and live readback:
+
+- [`shared/schemas/aos-agent-capability-manifest-v0.schema.json`](../../shared/schemas/aos-agent-capability-manifest-v0.schema.json)
+- [`docs/dev/agent-capabilities.json`](../dev/agent-capabilities.json)
+- [`manifests/commands/source/aos/22-dev-04-authority.json`](../../manifests/commands/source/aos/22-dev-04-authority.json)
+- [`docs/api/aos.md`](../api/aos.md)
+- [`tests/schemas/aos-agent-capability-manifest-v0.test.mjs`](../../tests/schemas/aos-agent-capability-manifest-v0.test.mjs)
+- [`tests/dev-workflow-router.sh`](../../tests/dev-workflow-router.sh)
+- `./aos help dev --json`
+- `./aos dev capabilities list --json`
+- `./aos dev capabilities explain <capability-id> --json`
+
+The retired dock/persona routing layer is not an active owner for this manifest.
+Do not restore dock directories, dock profile schemas, work-card routing, or the
+old `./aos dev docks` command family for capability discovery. Any future
+routing layer must integrate through the canonical manifest, source command
+manifests, generated help, API docs, tests, and live CLI/runtime readback.

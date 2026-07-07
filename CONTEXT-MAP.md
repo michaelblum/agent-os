@@ -113,11 +113,13 @@ source root. This file is a routing map, not a replacement for those sources.
 
 ## Conflict And Scope Notes
 
-- Prefer current work cards, the relevant local `AGENTS.md`, live code, schemas,
-  tests, CLI/API behavior, then API docs, schemas, architecture, and vocabulary
-  docs. Root `AGENTS.md` resolves only repo-wide invariants and authority
-  routing. Treat external templates and design notes as context unless the
-  active work card makes them authoritative.
+- Prefer live source, `shared/schemas/`, tests, command source manifests and
+  generated help, live CLI/API/runtime readback, `docs/api/`, and `docs/adr/`
+  before narrative docs. Local `AGENTS.md` files resolve policy and ownership
+  routing for their subtree; root `AGENTS.md` resolves only repo-wide invariants
+  and authority routing. Treat work cards, external templates, and design notes
+  as planning context unless the current instruction explicitly scopes the task
+  to them.
 - Do not map generated, cache, or temporary trees such as `.runtime/` or
   `.aos-test-tmp/` as durable context domains.
 - When docs conflict, surface the conflict and keep the fix scoped to the
