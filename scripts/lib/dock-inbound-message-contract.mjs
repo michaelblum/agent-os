@@ -7,6 +7,15 @@ export function repoRootFromScript(importMetaUrl) {
 
 export function loadDockInboundMessageContract(repoRoot, dock) {
   const contractPath = path.join(repoRoot, '.docks', dock, 'inbound-contract.json');
+  if (!fs.existsSync(contractPath)) {
+    const relativePath = path.relative(repoRoot, contractPath);
+    const error = new Error(
+      `Dock inbound contract runtime files are retired after .docks removal; ${relativePath} must remain absent. Historical schema fixtures remain valid, but active dock handoff routing is disabled.`,
+    );
+    error.code = 'DOCK_INBOUND_CONTRACTS_RETIRED';
+    error.contractPath = relativePath;
+    throw error;
+  }
   const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
   return { contractPath, contract };
 }

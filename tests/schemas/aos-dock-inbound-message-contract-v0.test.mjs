@@ -107,6 +107,9 @@ test('retired GDI and Operator inbound message targets fail closed', () => {
   for (const dock of ['gdi', 'operator']) {
     const result = formatPayload(dock, 'follow the instructions in docs/design/work-cards/example-v0.md');
     assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /DOCK_INBOUND_CONTRACTS_RETIRED/);
+    assert.match(result.stderr, /active dock handoff routing is disabled/);
     assert.match(result.stderr, new RegExp(`\\.docks/${dock}/inbound-contract\\.json`));
   }
 });
@@ -114,5 +117,8 @@ test('retired GDI and Operator inbound message targets fail closed', () => {
 test('Foreman no longer exposes clipboard inbound-contract formatting', () => {
   const result = formatPayload('foreman', 'continue from the successor note');
   assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /DOCK_INBOUND_CONTRACTS_RETIRED/);
+  assert.match(result.stderr, /active dock handoff routing is disabled/);
   assert.match(result.stderr, /\.docks\/foreman\/inbound-contract\.json/);
 });

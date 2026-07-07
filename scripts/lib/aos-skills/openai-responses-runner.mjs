@@ -43,7 +43,7 @@ function asArray(value) {
 
 function resolveOpenAIApiKey(options) {
   if (Object.hasOwn(options, 'apiKey')) return options.apiKey;
-  return process.env.AOS_AGENT_PROVIDER_API_KEY || process.env.OPENAI_API_KEY;
+  return process.env.OPENAI_API_KEY;
 }
 
 function openAIResponsesUrl(baseUrl) {
@@ -89,7 +89,7 @@ function normalizeOpenAIResponsesOptions(options) {
   const apiKey = resolveOpenAIApiKey(options);
   if (!apiKey) {
     throw new AosSkillsError(
-      'OPENAI_API_KEY or AOS_AGENT_PROVIDER_API_KEY is required for OpenAI live eval runs',
+      'OPENAI_API_KEY is required for OpenAI live eval runs',
       'MISSING_OPENAI_API_KEY',
     );
   }

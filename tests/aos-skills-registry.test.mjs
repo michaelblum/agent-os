@@ -67,7 +67,8 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(desktop, /close\/minimize\/maximize\/restore/);
 
   const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');
-  assert.match(verification, /act-recapture-assert/);
+  assert.match(verification, /act-recapture-verify/);
+  assert.doesNotMatch(verification, /act-recapture-assert/);
   assert.match(verification, /see refs --diff/);
 
   const retiredWorkspace = await readFile(path.join(repoRoot, 'skills', 'aos-agent-workspace', 'SKILL.md'), 'utf8');

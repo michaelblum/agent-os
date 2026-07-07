@@ -116,15 +116,21 @@ function findCommand(commands, pathArgs) {
   }
   if (!parent) return null;
   const suffix = pathArgs.slice(parentPath.length).join('-');
-  const formPrefix = suffix ? `${parentPath[parentPath.length - 1]}-${suffix}` : parentPath.join('-');
-  const forms = (parent.forms || []).filter((form) => {
-    const formID = String(form.id);
-    return formID === formPrefix || formID.startsWith(`${formPrefix}-`);
-  });
-  if (forms.length === 0) return null;
-  const exactForm = forms.find((form) => String(form.id) === formPrefix);
-  const summary = exactForm?.summary || (forms.length === 1 && forms[0]?.summary) || parent.summary;
-  return { ...parent, path: pathArgs, summary, forms };
+  const parentFormPrefix = parentPath.join('-');
+  const fullPathPrefix = suffix ? `${parentFormPrefix}-${suffix}` : parentFormPrefix;
+  const legacyPrefix = suffix ? `${parentPath[parentPath.length - 1]}-${suffix}` : parentFormPrefix;
+  const formPrefixes = fullPathPrefix === legacyPrefix ? [fullPathPrefix] : [fullPathPrefix, legacyPrefix];
+  for (const formPrefix of formPrefixes) {
+    const forms = (parent.forms || []).filter((form) => {
+      const formID = String(form.id);
+      return formID === formPrefix || formID.startsWith(`${formPrefix}-`);
+    });
+    if (forms.length === 0) continue;
+    const exactForm = forms.find((form) => String(form.id) === formPrefix);
+    const summary = exactForm?.summary || (forms.length === 1 && forms[0]?.summary) || parent.summary;
+    return { ...parent, path: pathArgs, summary, forms };
+  }
+  return null;
 }
 
 function arrayEqual(left, right) {

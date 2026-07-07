@@ -401,7 +401,7 @@ test('AOS skills OpenAI live runner fails closed without API key', async () => {
         matrixIds: ['codex-gpt-5.4-mini-low'],
         fetch: async () => assert.fail('fetch should not run without an API key'),
       }),
-      /OPENAI_API_KEY or AOS_AGENT_PROVIDER_API_KEY/,
+      /OPENAI_API_KEY is required for OpenAI live eval runs/,
     );
   } finally {
     await rm(tempRoot, { recursive: true, force: true });

@@ -183,6 +183,27 @@ else
     fail "skills companion help contract drifted"
 fi
 
+if SKILLS_COMPANION_CHECK_HELP="$(./aos help skills companion check --json 2>/dev/null)" SKILLS_COMPANION_INSTALL_HELP="$(./aos help skills companion install --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+check = json.loads(os.environ["SKILLS_COMPANION_CHECK_HELP"])
+assert check["path"] == ["skills", "companion", "check"], check
+assert {form["id"] for form in check["forms"]} == {"skills-companion-check"}, check
+assert check["forms"][0]["execution"]["mutates_state"] is False, check
+
+install = json.loads(os.environ["SKILLS_COMPANION_INSTALL_HELP"])
+assert install["path"] == ["skills", "companion", "install"], install
+assert {form["id"] for form in install["forms"]} == {"skills-companion-install"}, install
+assert install["forms"][0]["execution"]["supports_dry_run"] is True, install
+assert any(arg["token"] == "--dry-run" and arg["required"] is True for arg in install["forms"][0]["args"]), install
+PY
+then
+    pass "exact skills companion nested help resolves check/install forms"
+else
+    fail "exact skills companion nested help drifted"
+fi
+
 # --- 3. aos help <bogus> → UNKNOWN_COMMAND on stderr, exit 1 ---
 if ERR=$(./aos help definitely-not-a-command --json 2>&1 >/dev/null); then
     fail "aos help bogus should exit non-zero"

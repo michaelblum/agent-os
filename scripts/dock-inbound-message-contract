@@ -82,7 +82,8 @@ try {
   }
   process.exit(result.ok ? 0 : 1);
 } catch (error) {
-  console.error(`FAIL: ${error.message}`);
+  const code = error.code ? `${error.code}: ` : '';
+  console.error(`FAIL: ${code}${error.message}`);
   usage();
   process.exit(2);
 }
