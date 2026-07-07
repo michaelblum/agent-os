@@ -2385,7 +2385,7 @@ mock daemon reporting `tap=retrying`):
   "recovery": [
     "./aos service restart",
     "./aos permissions setup --once",
-    "./aos serve --idle-timeout none"
+    "./aos serve --idle-timeout 30m"
   ],
   "notes": [
     "Input tap is not active (status=retrying, attempts=3). Try: ..."

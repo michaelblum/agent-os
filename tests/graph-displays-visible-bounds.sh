@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
+./aos serve --idle-timeout 30m >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
 aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
 
 python3 - <<'PY'

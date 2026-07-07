@@ -18,7 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos serve --idle-timeout none >"$STATE_ROOT/daemon.stdout" 2>"$STATE_ROOT/daemon.stderr" &
+./aos serve --idle-timeout 30m >"$STATE_ROOT/daemon.stdout" 2>"$STATE_ROOT/daemon.stderr" &
 aos_test_wait_for_socket "$STATE_ROOT" || { echo "FAIL: isolated daemon did not start"; exit 1; }
 
 SOCK="$(aos_test_socket_path "$STATE_ROOT")"

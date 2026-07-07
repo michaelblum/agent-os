@@ -35,7 +35,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Launch isolated daemon for the current build.
-./aos serve --idle-timeout none \
+./aos serve --idle-timeout 30m \
     >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
 aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket not reachable"; exit 1; }
 DAEMON_PID="$(aos_test_wait_for_lock_pid "$ROOT")" \

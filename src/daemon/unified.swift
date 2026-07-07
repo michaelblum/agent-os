@@ -3818,7 +3818,10 @@ class UnifiedDaemon {
     }
 
     private func startIdleTimer() {
-        guard idleTimeout.isFinite else { return }
+        guard idleTimeout.isFinite else {
+            fputs("aos daemon invalid idle timeout (must be finite)\n", stderr)
+            exit(1)
+        }
         idleTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + idleTimeout)

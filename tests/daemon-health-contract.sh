@@ -20,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 
 ./aos permissions setup --once >/dev/null
-./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
+./aos serve --idle-timeout 30m >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
 aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon did not start"; exit 1; }
 PID="$(aos_test_wait_for_lock_pid "$ROOT")" || { echo "FAIL: daemon lock pid did not appear"; exit 1; }
 

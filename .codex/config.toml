@@ -7,7 +7,6 @@ sandbox_mode = "danger-full-access"
 [features]
 hooks = true
 guardian_approval = true
-prevent_idle_sleep = true
 
 [notice]
 hide_full_access_warning = true

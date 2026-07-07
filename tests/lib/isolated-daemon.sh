@@ -203,7 +203,7 @@ aos_test_start_daemon() {
 
   aos_test_record_permissions_setup_if_granted
 
-  ./aos serve --idle-timeout none >"$root/daemon.stdout" 2>"$root/daemon.stderr" &
+  ./aos serve --idle-timeout 30m >"$root/daemon.stdout" 2>"$root/daemon.stderr" &
   aos_test_wait_for_socket "$root" || return 1
 
   if (( ${#content_wait_args[@]} > 0 )); then

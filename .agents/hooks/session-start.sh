@@ -7,6 +7,7 @@
 set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
+AOS_FOREGROUND_IDLE_TIMEOUT="${AOS_FOREGROUND_IDLE_TIMEOUT:-30m}"
 cd "$ROOT"
 
 # shellcheck source=/dev/null
@@ -62,9 +63,9 @@ ensure_aos_runtime() {
   if aos_session_uses_explicit_state_root_override; then
     AOS_STARTUP_STATE="started-via-serve"
     if command -v nohup >/dev/null 2>&1; then
-      nohup "$AOS" serve --idle-timeout none >/dev/null 2>&1 &
+      nohup "$AOS" serve --idle-timeout "$AOS_FOREGROUND_IDLE_TIMEOUT" >/dev/null 2>&1 &
     else
-      "$AOS" serve --idle-timeout none >/dev/null 2>&1 &
+      "$AOS" serve --idle-timeout "$AOS_FOREGROUND_IDLE_TIMEOUT" >/dev/null 2>&1 &
     fi
   elif "$AOS" service start --json >/dev/null 2>&1; then
     AOS_STARTUP_STATE="started-via-service"

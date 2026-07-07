@@ -75,13 +75,18 @@ func exitError(_ message: String, code: String) -> Never {
 // MARK: - Duration Parser
 
 func parseDuration(_ str: String) -> TimeInterval {
-    if str == "none" { return .infinity }
+    func finiteSeconds(_ value: Double, multiplier: Double = 1) -> TimeInterval? {
+        guard value.isFinite else { return nil }
+        let seconds = value * multiplier
+        return seconds.isFinite ? seconds : nil
+    }
+
     let s = str.lowercased()
-    if s.hasSuffix("s"), let n = Double(s.dropLast()) { return n }
-    if s.hasSuffix("m"), let n = Double(s.dropLast()) { return n * 60 }
-    if s.hasSuffix("h"), let n = Double(s.dropLast()) { return n * 3600 }
-    if let n = Double(s) { return n }
-    exitError("Invalid duration: \(str). Use format like 5s, 10m, 1h, or 'none'.", code: "INVALID_DURATION")
+    if s.hasSuffix("s"), let n = Double(s.dropLast()), let seconds = finiteSeconds(n) { return seconds }
+    if s.hasSuffix("m"), let n = Double(s.dropLast()), let seconds = finiteSeconds(n, multiplier: 60) { return seconds }
+    if s.hasSuffix("h"), let n = Double(s.dropLast()), let seconds = finiteSeconds(n, multiplier: 3600) { return seconds }
+    if let n = Double(s), let seconds = finiteSeconds(n) { return seconds }
+    exitError("Invalid duration: \(str). Use format like 5s, 10m, or 1h.", code: "INVALID_DURATION")
 }
 
 // MARK: - ISO 8601

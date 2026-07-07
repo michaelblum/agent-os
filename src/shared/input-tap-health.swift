@@ -200,7 +200,7 @@ func inputTapRecoveryGuidance(
         lines.append("  ./aos service restart              # restart the managed daemon and re-check readiness")
     }
     lines.append("  ./aos permissions setup --once     # refresh macOS permission onboarding")
-    lines.append("  ./aos serve --idle-timeout none    # temporary foreground fallback for this session")
+    lines.append("  ./aos serve --idle-timeout 30m     # bounded foreground fallback for this session")
     return lines.joined(separator: "\n")
 }
 
@@ -212,7 +212,7 @@ func inputTapRecoveryCommands(context: RecoveryGuidanceContext) -> [String] {
         cmds.append("./aos service restart")
     }
     cmds.append("./aos permissions setup --once")
-    cmds.append("./aos serve --idle-timeout none")
+    cmds.append("./aos serve --idle-timeout 30m")
     return cmds
 }
 

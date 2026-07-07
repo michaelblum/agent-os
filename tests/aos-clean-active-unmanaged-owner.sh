@@ -27,7 +27,7 @@ SH
 chmod +x "$FAKE_ROOT/aos"
 
 mkdir -p "$STATE_ROOT/repo"
-"$FAKE_ROOT/aos" serve --idle-timeout none \
+"$FAKE_ROOT/aos" serve --idle-timeout 30m \
   >"$FAKE_ROOT/stdout.log" 2>"$FAKE_ROOT/stderr.log" &
 FAKE_PID=$!
 printf '{"pid":%s,"mode":"repo","socket_path":"%s"}\n' "$FAKE_PID" "$STATE_ROOT/repo/sock" \

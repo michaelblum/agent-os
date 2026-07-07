@@ -85,7 +85,7 @@ export function inputTapRecoveryGuidance(status, attempts) {
     'Try:',
     '  ./aos service restart              # restart the managed daemon and re-check readiness',
     '  ./aos permissions setup --once     # refresh macOS permission onboarding',
-    '  ./aos serve --idle-timeout none    # temporary foreground fallback for this session',
+    '  ./aos serve --idle-timeout 30m     # bounded foreground fallback for this session',
   ].join('\n');
 }
 
@@ -96,14 +96,14 @@ export function serviceInputTapRecovery(status, attempts, restartContext = false
         `Input tap is still not active after service restart (status=${status}, attempts=${attempts}).`,
         'Try:',
         '  ./aos permissions setup --once     # refresh macOS permission onboarding',
-        '  ./aos serve --idle-timeout none    # temporary foreground fallback for this session',
+        '  ./aos serve --idle-timeout 30m     # bounded foreground fallback for this session',
       ].join('\n'),
-      recovery: ['./aos permissions setup --once', './aos serve --idle-timeout none'],
+      recovery: ['./aos permissions setup --once', './aos serve --idle-timeout 30m'],
     };
   }
   return {
     note: inputTapRecoveryGuidance(status, attempts),
-    recovery: ['./aos service restart', './aos permissions setup --once', './aos serve --idle-timeout none'],
+    recovery: ['./aos service restart', './aos permissions setup --once', './aos serve --idle-timeout 30m'],
   };
 }
 

@@ -221,6 +221,7 @@ function escapeXML(value) {
 function plistXML(paths) {
   const values = {
     Label: paths.label,
+    IdleTimeout: '30m',
     RunAtLoad: true,
     KeepAlive: false,
     WorkingDirectory: path.dirname(paths.binaryPath),
@@ -238,7 +239,7 @@ function plistXML(paths) {
     <string>${escapeXML(paths.binaryPath)}</string>
     <string>serve</string>
     <string>--idle-timeout</string>
-    <string>none</string>
+    <string>${escapeXML(values.IdleTimeout)}</string>
   </array>
   <key>RunAtLoad</key>
   <${values.RunAtLoad ? 'true' : 'false'}/>
