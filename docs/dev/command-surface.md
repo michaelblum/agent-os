@@ -97,6 +97,9 @@ compatibility policy.
 
 Current migration matrix, verified against `./aos help dev --json`:
 
+The schema test parses this table against the generated `dev` command forms, so
+form additions, removals, or renames require an explicit row update here.
+
 | Form | Current disposition | Move-out criterion | Public promotion criterion |
 | --- | --- | --- | --- |
 | `dev classify` | Stays hidden maintainer plumbing for changed-path classification. | Move outside public `aos` only if the workflow becomes repo-local CI glue with no command-surface value. | Promote only if non-maintainer consumers need stable change classification and the output contract gets public docs/tests. |
