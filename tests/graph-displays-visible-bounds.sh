@@ -22,8 +22,8 @@ python3 - <<'PY'
 import json
 import subprocess
 
-payload = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
-displays = payload.get("displays") or []
+payload = json.loads(subprocess.check_output(["./aos", "graph", "displays"], text=True))
+displays = payload.get("data", {}).get("displays") or []
 if not displays:
     raise SystemExit("FAIL: no displays returned")
 
