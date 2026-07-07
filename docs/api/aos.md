@@ -11,7 +11,10 @@ Use this doc when you are:
 For architecture and philosophy, see [ARCHITECTURE.md](../../ARCHITECTURE.md).
 For capability-group discovery, see
 [`aos-capabilities.md`](./aos-capabilities.md), which frames AOS as
-"Playwright CLI, but for the desktop."
+"Playwright CLI, but for the desktop." That file also owns the
+[user-facing state model](./aos-capabilities.md#user-facing-state-model) for
+sessions, workspaces, focus channels, runtime state, Work Records, content
+roots, and evidence state.
 
 ## Repo Development Entry Points
 
@@ -142,6 +145,8 @@ Use `aos experience status <id> --json` before an agent trusts app-owned
 desktop state for perception, annotation, saved-ref action, or evidence
 handoff loops. The command is read-only: it does not activate, repair, restart,
 remove canvases, initialize pending annotation state, or reset permissions.
+In the user-facing state model, this is runtime state and content-root
+readback, not a saved workspace selector or Work Record store.
 
 The JSON envelope uses
 `schema_version: "aos.experience-runtime-context.v0"` and includes:
@@ -187,6 +192,11 @@ Use the narrowest handle that preserves semantic identity:
    chosen from a prior perception state.
 4. Native AX direct actions use selector flags such as `--pid`, `--role`, and
    filters; there is no current public `ax:` CLI target grammar.
+
+The [state model](./aos-capabilities.md#user-facing-state-model) distinguishes
+browser sessions, saved workspaces, focus channels, and evidence state; target
+handles can reference those surfaces, but they do not collapse them into one
+shared state slot.
 
 Pending operator annotations are durable human intent records that sit between
 perception and action. They are not target handles themselves; they carry target
@@ -267,7 +277,9 @@ otherwise AOS uses `default`. No daemon-held current workspace exists, and
 lists all local workspaces without consulting `AOS_AGENT_WORKSPACE`; cleanup
 commands require explicit workspace or snapshot ids. This keeps parallel agents
 from mutating hidden shared workspace state. Any future session-bound default
-must first define a multi-agent-safe contract.
+must first define a multi-agent-safe contract. This is the saved-workspace part
+of the [state model](./aos-capabilities.md#user-facing-state-model), not
+daemon runtime state.
 
 Pending operator annotations live under
 `~/.config/aos/{repo|installed}/pending-annotations/`, or
@@ -292,6 +304,8 @@ its owner PID, refuses to reap live owners, and only reaps dead-owner or
 ownerless stale locks. Records are the authoritative state; `index.json` is a
 rebuildable cache, and read/list derives from records without repairing state
 so an index write failure cannot make a successful record mutation look failed.
+Pending annotations are evidence state in the user-facing vocabulary, not
+agent sessions, focus channels, or saved workspaces.
 
 Experience manifests can declare app-owned operator selection affordances in
 their status-item `menu[]` with `kind: "operator_annotation"` and a target
@@ -546,6 +560,8 @@ aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_wit
 The request contract is `aos.gate.request.v1`. A successful answer returns the typed response object. A human dismissal returns `{ "result": null, "status": "dismissed" }`; a deadline returns `{ "result": null, "status": "timeout" }`. Operational failures exit non-zero with a machine-readable gate error code on stderr.
 
 Every terminal outcome appends one `aos.gate.record.v1` metadata record under the active runtime state root: `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when that override is set. Records include gate id, prompt title, source metadata, receptor, field kinds, timeout, lifecycle timestamps, elapsed time, resolution/status, and operational error details when present. Prompt bodies and answer payloads are redacted by default; callers must opt in with `--store-response` or `metadata.record_response: true` to persist the answer payload.
+Gate records are runtime-root evidence state; they do not create a saved
+workspace, hold current UI state, or authorize implicit replay.
 
 Read records without presenting a gate:
 
@@ -632,6 +648,9 @@ for full-screen capture.
 
 `aos dev` is the developer workflow router for this repo. `classify` and
 `recommend` are read-only and do not start the daemon.
+It is self-hosting plumbing, not a consumer state model: use it to route repo
+checks, not to infer runtime state, workspace selection, or public command
+availability.
 
 ```bash
 ./aos dev classify --json
@@ -1133,6 +1152,9 @@ write`, which writes only an external relationship entry under an explicit
 `--index-root`; and `repair finalize`, which composes a successful Repair
 Attempt Artifact into one replacement Work Record plus one Source Supersession
 Index entry under explicit roots.
+In the state model, Work Records are durable evidence and bounded recovery
+material above primitive command output; they are not macro recordings,
+autonomous replay plans, saved workspaces, or live runtime readiness.
 
 ```bash
 aos work-record list --json
@@ -2216,6 +2238,11 @@ Consumers should assume:
 - `aos ready` is the front-door managed-daemon readiness gate
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
+
+This is runtime state in the
+[user-facing state model](./aos-capabilities.md#user-facing-state-model). It is
+separate from saved workspace contents, focus-channel bindings, and durable
+evidence artifacts, even when commands report them together for diagnosis.
 
 ## Daemon-aware readiness
 

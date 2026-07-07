@@ -18,6 +18,60 @@ The current vocabulary decision is documented in
 `docs/design/aos-desktop-command-vocabulary-decision.md`: do not add a new
 `aos desktop` noun or `desktop:<target>` namespace in this slice.
 
+## User-Facing State Model
+
+AOS exposes several kinds of state. Use these nouns consistently and keep their
+boundaries separate when reading help, command output, Work Records, or saved
+evidence:
+
+- Session: a live communication or tool identity used by `tell`, `listen`,
+  gates, voice assignment, browser targets, and session metadata. A session is
+  not a saved workspace, not a daemon-held current workspace, and not durable
+  evidence by itself. Browser target ids such as `browser:<session>` name
+  browser sessions, not every AOS session.
+- Workspace: the local saved perception/ref store selected per command by
+  `--workspace`, then `AOS_AGENT_WORKSPACE`, then `default`. It contains
+  committed saved captures, compact refs, indexes, and file-backed artifacts
+  under the active AOS state root. There is no public
+  `aos see workspace use <id>` command and no daemon-held current workspace.
+- Focus channel: a named mutable target binding managed by `aos focus` and
+  consumed by capture/action flows. It helps address a window, browser, canvas,
+  channel, or focused surface; it is not an agent session and not the saved
+  workspace.
+- Runtime state: mode-scoped local AOS state and service readiness, including
+  runtime mode, state root, config, daemon/service status, permissions, content
+  status, logs, gate records, voice/session presence, and diagnostics.
+- Work Record: durable, inspectable evidence and verification material above
+  primitive command output. It can verify, explain conservative recovery, plan
+  gated repair, bundle recovery evidence, and write explicit replacement or
+  supersession artifacts through bounded commands. It is not a macro recorder,
+  autonomous replay surface, or automatic repair authority.
+- Content root: the configured or declarative filesystem root for wiki/content
+  and mounted app surfaces. A live content root must resolve to a readable
+  directory; missing paths, files, symlinks, or unreadable paths stay visibly
+  stale or blocked. It is not a saved workspace or Work Record store.
+- Evidence state: the compact and file-backed proof trail created by saved
+  captures, refs, diffs, pending annotations, gate records, Work Records, logs,
+  and command JSON. Evidence state should be path-backed and replay-readable
+  where possible, but it is not live runtime readiness or current UI state.
+
+Command-to-state map:
+
+| State concept | Primary command surfaces | Boundary |
+| --- | --- | --- |
+| Session | `tell`, `listen`, `voice`, `gate defer`, `status`, browser `browser:<session>` targets | Live coordination identity; not a saved workspace or evidence store |
+| Workspace | `see capture --save`, `see workspaces`, `see workspace`, `see snapshots`, `see refs`, saved-ref `do ... --workspace` | Command-scoped saved capture/ref store; no hidden current workspace |
+| Focus channel | `focus create/update/list/remove`, `see capture --channel`, `show ...`, `graph windows` | Mutable target binding; not session identity or saved evidence by itself |
+| Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `runtime`, `daemon-snapshot`, `log`, `experience status` | Mode-scoped readiness, config, daemon/service, and diagnostics |
+| Work Record | `work-record list/read/verify/status/plan-repair`, `work-record repair ...`, `work-record export` | Durable evidence and bounded recovery workflows; no autonomous replay |
+| Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
+| Evidence state | `see refs --diff --expect`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
+
+Saved-workspace verification is `see refs --diff --expect`, recipe JSON
+assertions, gates, and Work Record postconditions. Do not describe a generic
+wait/assert engine or saved-workspace daemon default unless live manifests add
+that public surface.
+
 ## Canonical Action Loop
 
 AOS's Playwright-like observe-act loop is:
