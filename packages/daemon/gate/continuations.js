@@ -69,7 +69,7 @@ function gitValue(args, { cwd }) {
   }
 }
 
-function defaultSessionMetadata({ sessionId, harness, dock = null, cwd = process.cwd(), env = process.env }) {
+function defaultSessionMetadata({ sessionId, harness, role = null, cwd = process.cwd(), env = process.env }) {
   const branch = gitValue(['branch', '--show-current'], { cwd });
   const headSha = gitValue(['rev-parse', 'HEAD'], { cwd });
   const dirtyText = gitValue(['status', '--short'], { cwd });
@@ -77,7 +77,7 @@ function defaultSessionMetadata({ sessionId, harness, dock = null, cwd = process
     session_id: sessionId,
     harness,
     provider: harness,
-    dock: dock || env.AOS_DOCK || env.CODEX_DOCK || null,
+    role: role || env.AOS_ROLE || env.CODEX_ROLE || null,
     cwd,
     branch,
     head_sha: headSha,
@@ -140,7 +140,7 @@ export class GateContinuationStore {
     request,
     sessionId,
     harness,
-    dock = null,
+    role = null,
     cwd = process.cwd(),
     resumePolicy = 'manual',
     adapterHint = 'codex_exec',
@@ -162,7 +162,7 @@ export class GateContinuationStore {
       request_schema_version: normalized.schema_version,
       prompt_title: normalized.prompt?.title ?? null,
       source: publicUserSignalSource(normalized.source),
-      session: defaultSessionMetadata({ sessionId, harness, dock, cwd, env: this.env }),
+      session: defaultSessionMetadata({ sessionId, harness, role, cwd, env: this.env }),
       lifecycle: {
         state: 'pending',
         created_at: now,

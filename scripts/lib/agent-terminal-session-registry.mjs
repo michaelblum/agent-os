@@ -1,23 +1,14 @@
 import { createHash } from 'node:crypto';
-import { resolve, join } from 'node:path';
+import { resolve } from 'node:path';
 
-const RECORD_TYPE = 'aos.dock_terminal_session';
+const AGENT_TERMINAL_SESSION_TYPE = 'aos.agent_terminal_session';
 const AGENT_TERMINAL_OBSERVATION_TYPE = 'aos.agent_terminal_observation';
-const KNOWN_DOCKS = new Set(['foreman', 'gdi', 'operator']);
 const DEFAULT_GEOMETRY = Object.freeze({ cols: 80, rows: 24 });
 const DEFAULT_PROVIDER = 'codex';
 const DEFAULT_PROVIDER_COMMAND = Object.freeze(['codex', '--no-alt-screen']);
 
 function stableHash(value, length = 16) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, length);
-}
-
-function assertDock(dock) {
-  const normalized = String(dock || '').trim().toLowerCase();
-  if (!KNOWN_DOCKS.has(normalized)) {
-    throw new Error(`Unsupported dock terminal session dock: ${dock}`);
-  }
-  return normalized;
 }
 
 function normalizeArgv(value) {
@@ -74,31 +65,29 @@ function normalizeLifecycle(value = {}) {
 
 function normalizeLease(value = {}) {
   return {
-    holder: value.holder ?? 'idle',
-    purpose: value.purpose ?? 'warm_dock_tui_reuse',
+    holder: value.holder ?? 'agent_terminal',
+    purpose: value.purpose ?? 'observation',
     disposition: value.disposition ?? value.cleanup_disposition ?? value.cleanupDisposition ?? 'returned_to_idle',
   };
 }
 
-function dockCwd(repoRoot, dock, cwd) {
-  return resolve(cwd ?? join(repoRoot, '.docks', dock));
-}
-
-function createDockTerminalSessionReceipt(options = {}) {
-  const dock = assertDock(options.dock);
+function createAgentTerminalSessionReceipt(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? process.cwd());
   const provider = options.provider ?? DEFAULT_PROVIDER;
   const providerCommand = normalizeArgv(options.providerCommand ?? options.provider_command ?? options.command);
   const geometry = normalizeGeometry(options.geometry ?? options.pty);
-  const cwd = dockCwd(repoRoot, dock, options.cwd);
+  const cwd = resolve(options.cwd ?? repoRoot);
   const lifecycle = normalizeLifecycle(options.lifecycle);
   const lease = normalizeLease(options.lease);
-  const ptyHandle = options.ptyHandle ?? options.pty_handle ?? options.sessionHandle ?? options.session_handle ?? `${dock}:fixture-pty`;
-  const dockTerminalSessionId = options.dockTerminalSessionId
-    ?? options.dock_terminal_session_id
-    ?? `dock-terminal:${dock}:${stableHash({
+  const ptyHandle = options.ptyHandle
+    ?? options.pty_handle
+    ?? options.sessionHandle
+    ?? options.session_handle
+    ?? 'agent-terminal:fixture-pty';
+  const agentTerminalSessionId = options.agentTerminalSessionId
+    ?? options.agent_terminal_session_id
+    ?? `agent-terminal:${stableHash({
       repoRoot,
-      dock,
       cwd,
       provider,
       providerCommand,
@@ -106,10 +95,9 @@ function createDockTerminalSessionReceipt(options = {}) {
     })}`;
 
   return {
-    record_type: RECORD_TYPE,
-    dock,
-    dock_terminal_session_id: dockTerminalSessionId,
-    session_id: dockTerminalSessionId,
+    record_type: AGENT_TERMINAL_SESSION_TYPE,
+    agent_terminal_session_id: agentTerminalSessionId,
+    session_id: agentTerminalSessionId,
     cwd,
     provider,
     provider_command: providerCommand,
@@ -124,26 +112,13 @@ function createDockTerminalSessionReceipt(options = {}) {
   };
 }
 
-function createFixtureDockTerminalSessions(options = {}) {
-  const docks = options.docks ?? [...KNOWN_DOCKS];
-  return Object.fromEntries(docks.map((dock) => [
-    dock,
-    createDockTerminalSessionReceipt({
-      ...options,
-      dock,
-      ptyHandle: options.ptyHandle ?? options.pty_handle ?? `${dock}:fixture-pty`,
-    }),
-  ]));
-}
-
 function createAgentTerminalObservation(receipt, options = {}) {
-  if (!receipt || receipt.record_type !== RECORD_TYPE) {
-    throw new Error('Agent Terminal observation requires an aos.dock_terminal_session receipt');
+  if (!receipt || receipt.record_type !== AGENT_TERMINAL_SESSION_TYPE) {
+    throw new Error('Agent Terminal observation requires an aos.agent_terminal_session receipt');
   }
   return {
     record_type: AGENT_TERMINAL_OBSERVATION_TYPE,
-    dock_terminal_session_id: receipt.dock_terminal_session_id,
-    dock: receipt.dock,
+    agent_terminal_session_id: receipt.agent_terminal_session_id,
     rendered_by: 'agent_terminal',
     attach_state: options.attachState ?? options.attach_state ?? 'attached',
     cwd: receipt.cwd,
@@ -168,8 +143,7 @@ function createAgentTerminalObservation(receipt, options = {}) {
 
 export {
   AGENT_TERMINAL_OBSERVATION_TYPE,
-  RECORD_TYPE,
+  AGENT_TERMINAL_SESSION_TYPE,
   createAgentTerminalObservation,
-  createDockTerminalSessionReceipt,
-  createFixtureDockTerminalSessions,
+  createAgentTerminalSessionReceipt,
 };

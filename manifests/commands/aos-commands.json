@@ -5405,11 +5405,11 @@
               "value_type" : "string"
             },
             {
-              "id" : "dock",
+              "id" : "role",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Dock or role name when known",
-              "token" : "--dock",
+              "summary" : "Role name when known",
+              "token" : "--role",
               "value_type" : "string"
             },
             {

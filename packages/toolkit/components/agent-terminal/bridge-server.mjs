@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  dockTerminalSessionResponseForUrl,
+  agentTerminalSessionResponseForUrl,
   healthResponse,
 } from './bridge-observation-routes.mjs';
 import {
@@ -134,8 +134,8 @@ async function handle(req, res) {
       return;
     }
 
-    if (req.method === 'GET' && url.pathname === '/dock-terminal-session') {
-      json(res, 200, dockTerminalSessionResponseForUrl(url, {
+    if (req.method === 'GET' && url.pathname === '/agent-terminal-session') {
+      json(res, 200, agentTerminalSessionResponseForUrl(url, {
         defaultRepoRoot,
         defaultSession,
         terminalManager,

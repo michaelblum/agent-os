@@ -172,17 +172,17 @@ describe('Sigil Agent Terminal bridge', () => {
     );
   });
 
-  it('exposes dock terminal session observation without provider acceptance authority', async () => {
+  it('exposes Agent Terminal session observation without provider acceptance authority', async () => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/dock-terminal-session?dock=gdi&session=sigil-agent-terminal-test&provider_session_id=codex-session`,
+      `http://127.0.0.1:${port}/agent-terminal-session?session=sigil-agent-terminal-test&provider_session_id=codex-session`,
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
-    assert.equal(payload.dock_terminal_session.record_type, 'aos.dock_terminal_session');
-    assert.equal(payload.dock_terminal_session.dock, 'gdi');
-    assert.match(payload.dock_terminal_session.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
-    assert.equal(payload.dock_terminal_session.cwd, repoCwd);
-    assert.deepEqual(payload.dock_terminal_session.provider_command, ['node', '-e', 'setTimeout(() => {}, 100)']);
+    assert.equal(payload.agent_terminal_session.record_type, 'aos.agent_terminal_session');
+    assert.match(payload.agent_terminal_session.agent_terminal_session_id, /^agent-terminal:[a-f0-9]{16}$/);
+    assert.equal(payload.agent_terminal_session.cwd, repoCwd);
+    assert.deepEqual(payload.agent_terminal_session.provider_command, ['node', '-e', 'setTimeout(() => {}, 100)']);
+    assert.equal(payload.agent_terminal_observation.agent_terminal_session_id, payload.agent_terminal_session.agent_terminal_session_id);
     assert.deepEqual(payload.agent_terminal_observation.geometry, { cols: 80, rows: 24 });
     assert.equal(payload.agent_terminal_observation.lease.disposition, 'returned_to_idle');
     assert.equal(payload.agent_terminal_observation.acceptance_role, 'human_observability_only');
@@ -190,15 +190,15 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(payload.agent_terminal_observation.rail.selected_provider_session_id, 'codex-session');
   });
 
-  it('supports explicit dock cwd override for dock terminal session observations', async () => {
-    const dockCwd = path.join(root, 'intentional-dock-cwd');
+  it('supports explicit cwd override for Agent Terminal session observations', async () => {
+    const sessionCwd = path.join(root, 'intentional-session-cwd');
     const response = await fetch(
-      `http://127.0.0.1:${port}/dock-terminal-session?dock=gdi&session=sigil-agent-terminal-test&cwd=${encodeURIComponent(dockCwd)}`,
+      `http://127.0.0.1:${port}/agent-terminal-session?session=sigil-agent-terminal-test&cwd=${encodeURIComponent(sessionCwd)}`,
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
-    assert.equal(payload.dock_terminal_session.cwd, dockCwd);
-    assert.equal(payload.agent_terminal_observation.cwd, dockCwd);
+    assert.equal(payload.agent_terminal_session.cwd, sessionCwd);
+    assert.equal(payload.agent_terminal_observation.cwd, sessionCwd);
   });
 
   it('passes stable repo root to bridge server startup paths', () => {

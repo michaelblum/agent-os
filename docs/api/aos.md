@@ -37,7 +37,7 @@ a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
 first move.
 
 For live repo work, `./aos` is also the first control plane for canvases, Agent
-Terminal surfaces, dock communication, input routing, and runtime inspection.
+Terminal surfaces, session communication, input routing, and runtime inspection.
 Avoid raw daemon HTTP calls, direct PTY/tmux control, launchd probes, or
 state-file inspection unless the AOS surface is missing or broken, the task is
 testing that lower-level adapter, or the AOS control surface itself is under
@@ -594,7 +594,7 @@ active runtime state root and returns immediately with
 `~/.config/aos/{repo|installed}/gate/continuations/<continuation_id>.json`, or
 `$AOS_STATE_ROOT/{repo|installed}/gate/continuations/<continuation_id>.json`
 when a state-root override is set. The record captures the gate id, prompt
-title, redacted source metadata, session id, harness/provider hint, dock, cwd,
+title, redacted source metadata, session id, harness/provider hint, role, cwd,
 branch, HEAD SHA, dirty summary, lifecycle state, resume policy, resume
 entrypoint metadata, and `auto_resume=false`. The entrypoint is an adapter
 identifier such as `codex_exec_adapter`, not an executable path; the V0 daemon
@@ -2047,10 +2047,10 @@ Voice deliveries and final-response ingress failures append local JSONL records 
 `~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
 voice, purpose, and failure code were involved without storing full message bodies.
 
-Docked sessions should use registered role session ids for true final-response
-TTS instead of provider-transient hook ids. Dock Stop-hook notices are fixed
-role-local status messages, not the assistant's final answer; route those
-through `aos say --voice-slot <n> "<notice>"` rather than
+Registered role sessions should use stable session ids for true final-response
+TTS instead of provider-transient hook ids. Role-local status notices are fixed
+status messages, not the assistant's final answer; route those through
+`aos say --voice-slot <n> "<notice>"` rather than
 `aos voice final-response`.
 
 ## `aos config`
@@ -2154,11 +2154,11 @@ Discover peers with `aos tell --who`, then keep using direct `--session-id`
 routing once a peer id is known; direct session messaging does not require
 `--who` to be non-empty at send time.
 
-Docked role sessions are ordinary registered sessions. Supervisors should
-register each role before launch with stable ids such as `<run-id>:gdi`,
-include role and harness metadata, and unregister the session after that role
-completes. This keeps `aos tell --who`, `aos voice assignments`, and docked
-session status aligned around the same role session identity.
+Role sessions are ordinary registered sessions. Supervisors should register
+each role before launch with stable ids such as `<run-id>:worker`, include role
+and harness metadata, and unregister the session after that role completes.
+This keeps `aos tell --who`, `aos voice assignments`, and role-session status
+aligned around the same role session identity.
 
 ## `aos listen`
 

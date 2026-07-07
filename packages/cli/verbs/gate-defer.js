@@ -5,8 +5,8 @@ import { GateContinuationStore, createDeferResponse } from '../../daemon/gate/co
 
 function usage() {
   return `Usage:
-  aos gate defer --request gate-request.json --session-id <id> --harness codex [--entrypoint codex_exec_adapter] [--show] --json
-  aos gate defer --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"approve_deny"}}' --session-id <id> --harness codex [--show]
+  aos gate defer --request gate-request.json --session-id <id> --harness codex [--role worker] [--entrypoint codex_exec_adapter] [--show] --json
+  aos gate defer --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"approve_deny"}}' --session-id <id> --harness codex [--role worker] [--show]
 
 	Creates a durable pending user-signal continuation and returns immediately.`;
 }
@@ -18,7 +18,7 @@ function parseArgs(argv) {
     requestJson: null,
     sessionId: null,
     harness: null,
-    dock: null,
+    role: null,
     cwd: process.cwd(),
     resumePolicy: 'manual',
     adapterHint: 'codex_exec',
@@ -42,7 +42,7 @@ function parseArgs(argv) {
     } else if (arg === '--request') [parsed.requestFile, index] = nextValue(index, arg);
     else if (arg === '--session-id') [parsed.sessionId, index] = nextValue(index, arg);
     else if (arg === '--harness') [parsed.harness, index] = nextValue(index, arg);
-    else if (arg === '--dock') [parsed.dock, index] = nextValue(index, arg);
+    else if (arg === '--role') [parsed.role, index] = nextValue(index, arg);
     else if (arg === '--cwd') [parsed.cwd, index] = nextValue(index, arg);
     else if (arg === '--resume-policy') [parsed.resumePolicy, index] = nextValue(index, arg);
     else if (arg === '--adapter-hint') [parsed.adapterHint, index] = nextValue(index, arg);
@@ -98,7 +98,7 @@ export async function runGateDefer(argv = process.argv.slice(2), {
       request,
       sessionId: args.sessionId,
       harness: args.harness,
-      dock: args.dock,
+      role: args.role,
       cwd: args.cwd,
       resumePolicy: args.resumePolicy,
       adapterHint: args.adapterHint,

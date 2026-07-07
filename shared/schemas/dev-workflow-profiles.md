@@ -5,8 +5,8 @@ integration profiles for branch, commit, review, pull request, merge authority,
 and release posture.
 `docs/dev/active-profile.json` selects the active repo-local development
 integration profile. Session instructions come from repo DOX and direct user
-intent; workflow profiles do not define project-agent personas or docked
-session doctrine.
+intent; workflow profiles do not define project-agent personas or role-session
+doctrine.
 
 The profile manifest is not an AOS primitive contract. It is a development
 policy surface that agents can read before deciding whether to stay on `main`,

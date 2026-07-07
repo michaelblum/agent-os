@@ -5,7 +5,7 @@
   "label": "Node Test Capabilities",
   "summary": "Scoped Node test execution as an explicit developer/testing capability.",
   "applies_to": {
-    "roles": ["gdi", "foreman"],
+    "roles": ["worker", "coordinator"],
     "entry_paths": ["aos_developer", "testing"]
   },
   "capabilities": [
@@ -14,7 +14,7 @@
       "label": "Node Schema Test",
       "summary": "Run a bounded Node schema test file from the repo root.",
       "status": "draft",
-      "roles": ["gdi", "foreman"],
+      "roles": ["worker", "coordinator"],
       "entry_paths": ["aos_developer", "testing"],
       "adapter": {
         "kind": "node",

@@ -14,8 +14,8 @@ explicit, reviewable capabilities.
 The manifest separates four concepts that should not be conflated:
 
 - **Agent definition**: who the agent or subagent is.
-- **Dock**: runtime shell, hooks, TTS, and launch posture.
-- **Dock profile**: active operating doctrine and context.
+- **Role/session posture**: registered session role, harness, and launch
+  posture.
 - **Capability route**: which path/tool/test layer is active for the current
   task.
 - **Capability**: what operation can be performed.

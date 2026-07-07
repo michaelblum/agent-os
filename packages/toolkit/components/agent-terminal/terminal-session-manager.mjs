@@ -37,10 +37,10 @@ function boundedInt(value, fallback, min, max) {
 }
 
 function ptyInputTelemetryPath(env = process.env) {
-  if (env.AOS_DOCK_PTY_INPUT_LOG) return env.AOS_DOCK_PTY_INPUT_LOG;
+  if (env.AOS_AGENT_TERMINAL_PTY_INPUT_LOG) return env.AOS_AGENT_TERMINAL_PTY_INPUT_LOG;
   const stateRoot = env.AOS_STATE_ROOT || path.join(env.HOME || process.cwd(), '.config', 'aos');
   const mode = env.AOS_RUNTIME_MODE || 'repo';
-  return path.join(stateRoot, mode, 'docks', 'pty-input.jsonl');
+  return path.join(stateRoot, mode, 'agent-terminal', 'pty-input.jsonl');
 }
 
 function appendPtyInputTelemetry(record, env = process.env) {
@@ -48,7 +48,7 @@ function appendPtyInputTelemetry(record, env = process.env) {
     const logPath = ptyInputTelemetryPath(env);
     mkdirSync(path.dirname(logPath), { recursive: true, mode: 0o700 });
     appendFileSync(logPath, `${JSON.stringify({
-      schema: 'aos.dock.pty_input.v1',
+      schema: 'aos.agent_terminal.pty_input.v1',
       timestamp: new Date().toISOString(),
       ...record,
     })}\n`, { encoding: 'utf8', mode: 0o600 });

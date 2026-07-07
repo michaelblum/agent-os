@@ -213,7 +213,7 @@ test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
   assert.match(toolkitLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)
   assert.doesNotMatch(toolkitLauncher, /apps\/sigil\/codex-terminal/)
   assert.match(toolkitBridgeServer, /function startServer\(\)/)
-  assert.match(toolkitBridgeServer, /export \{ appendProcessStderr, startServer \}/)
+  assert.match(toolkitBridgeServer, /export \{ appendProcessStderr, childStdinOpen, startServer, writeChildStdin \}/)
   assert.match(toolkitBridgeServer, /\.\/provider-session-routes\.mjs/)
   assert.match(toolkitBridgeServer, /\.\/bridge-observation-routes\.mjs/)
   assert.match(toolkitBridgeServer, /\.\/terminal-session-manager\.mjs/)
@@ -248,15 +248,15 @@ test('bridge server delegates provider session route data selection', () => {
   assert.doesNotMatch(toolkitBridgeServer, /buildSessionInspector\(record\)/)
 })
 
-test('bridge server delegates health and dock observation response shapes', () => {
+test('bridge server delegates health and Agent Terminal observation response shapes', () => {
   assert.match(toolkitObservationRoutes, /export function healthResponse/)
-  assert.match(toolkitObservationRoutes, /export function dockTerminalSessionResponseForUrl/)
-  assert.match(toolkitObservationRoutes, /AGENT_TERMINAL_DOCK/)
-  assert.match(toolkitObservationRoutes, /AGENT_TERMINAL_DOCK_CWD/)
-  assert.match(toolkitObservationRoutes, /createDockTerminalSessionReceipt\(/)
+  assert.match(toolkitObservationRoutes, /export function agentTerminalSessionResponseForUrl/)
+  assert.match(toolkitObservationRoutes, /AGENT_TERMINAL_SESSION_CWD/)
+  assert.match(toolkitObservationRoutes, /createAgentTerminalSessionReceipt\(/)
   assert.match(toolkitObservationRoutes, /createAgentTerminalObservation\(receipt/)
-  assert.doesNotMatch(toolkitBridgeServer, /function dockTerminalSessionForUrl/)
-  assert.doesNotMatch(toolkitBridgeServer, /createDockTerminalSessionReceipt\(/)
+  assert.doesNotMatch(toolkitObservationRoutes, /AGENT_TERMINAL_DOCK/)
+  assert.doesNotMatch(toolkitBridgeServer, /function agentTerminalSessionForUrl/)
+  assert.doesNotMatch(toolkitBridgeServer, /createAgentTerminalSessionReceipt\(/)
   assert.doesNotMatch(toolkitBridgeServer, /createAgentTerminalObservation\(/)
 })
 

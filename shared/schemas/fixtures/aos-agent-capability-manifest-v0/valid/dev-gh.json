@@ -1,11 +1,11 @@
 {
   "type": "aos.agent_capability_manifest",
   "schema_version": "2026-05-agent-capability-manifest-v0",
-  "id": "agent-os.docked-github",
-  "label": "Docked GitHub Capabilities",
-  "summary": "Typed GitHub capabilities for docked repo-development sessions.",
+  "id": "agent-os.github",
+  "label": "GitHub Capabilities",
+  "summary": "Typed GitHub capabilities for repo-development sessions.",
   "applies_to": {
-    "roles": ["foreman", "gdi", "operator"],
+    "roles": ["coordinator", "worker", "observer"],
     "entry_paths": ["aos_developer", "testing"]
   },
   "capabilities": [
@@ -14,7 +14,7 @@
       "label": "GitHub Context",
       "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
       "status": "active",
-      "roles": ["foreman", "gdi", "operator"],
+      "roles": ["coordinator", "worker", "observer"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",
@@ -55,7 +55,7 @@
       "label": "GitHub Issue Comment",
       "summary": "Write a GitHub issue comment through a body file using the local gh CLI via ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
+      "roles": ["coordinator"],
       "entry_paths": ["aos_developer"],
       "adapter": {
         "kind": "aos_cli",

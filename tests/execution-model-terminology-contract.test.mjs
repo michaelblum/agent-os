@@ -456,7 +456,7 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.match(aosApi, /Session presence is daemon state\s+mirrored into `~\/\.config\/aos\/\{mode\}\/coordination\/sessions\.json`/);
   assert.match(aosApi, /channel\s+messages remain daemon-owned bounded queues instead of model-context history/);
   assert.match(aosApi, /Direct routing should prefer canonical session ids/);
-  assert.match(aosApi, /This keeps `aos tell --who`, `aos voice assignments`, and docked\s+session status aligned around the same role session identity/);
+  assert.match(aosApi, /This keeps `aos tell --who`, `aos voice assignments`, and role-session\s+status\s+aligned around the same role session identity/);
   assert.match(aosApi, /`--channels` lists the daemon-known channel\s+names/);
   assert.match(aosApi, /not a workspace\s+or transcript index/);
   assert.match(aosApi, /STT\/dictation is planned as a future `aos listen` source/);

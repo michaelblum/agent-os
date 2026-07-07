@@ -174,7 +174,7 @@ possible step or replace ordinary software engineering judgment.
 Use a mix of sources deliberately:
 
 - root `AGENTS.md` for compact signage and hard invariants
-- dock and subtree `AGENTS.md` files for compact operating contracts
+- subtree `AGENTS.md` files for compact operating contracts
 - `ARCHITECTURE.md`, `docs/api/`, and schemas for platform contracts
 - the AOS wiki for runtime knowledge and product memory
 - AOS control surfaces and `help` output for discoverable operation

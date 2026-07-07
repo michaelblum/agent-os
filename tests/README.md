@@ -255,7 +255,7 @@ reported instead of silently contaminating the click.
 Do not use direct DOM or `show eval` activation as the acceptance proof for
 radial menu user behavior. Eval remains useful for observation after native or
 realistic input has opened the relevant surface. If `./aos ready` reports a
-repo-mode TCC/input-tap blocker, follow the dock stall contract instead of
+repo-mode TCC/input-tap blocker, follow the input-tap stall contract instead of
 retrying live real-input scenarios.
 
 ## Harness Composability Contracts

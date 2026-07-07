@@ -36,12 +36,12 @@
     "session": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "harness", "provider", "dock", "cwd", "branch", "head_sha", "dirty_summary"],
+      "required": ["session_id", "harness", "provider", "role", "cwd", "branch", "head_sha", "dirty_summary"],
       "properties": {
         "session_id": { "type": "string", "minLength": 1 },
         "harness": { "type": "string", "minLength": 1 },
         "provider": { "type": "string", "minLength": 1 },
-        "dock": { "type": ["string", "null"] },
+        "role": { "type": ["string", "null"] },
         "cwd": { "type": "string", "minLength": 1 },
         "branch": { "type": ["string", "null"] },
         "head_sha": { "type": ["string", "null"] },

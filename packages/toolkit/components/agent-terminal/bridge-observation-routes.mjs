@@ -1,7 +1,7 @@
 import {
   createAgentTerminalObservation,
-  createDockTerminalSessionReceipt,
-} from '../../../../scripts/lib/dock-terminal-session-registry.mjs';
+  createAgentTerminalSessionReceipt,
+} from '../../../../scripts/lib/agent-terminal-session-registry.mjs';
 
 function envValue(env, name, fallback) {
   const value = env[name];
@@ -29,21 +29,19 @@ export function healthResponse(options = {}) {
   };
 }
 
-export function dockTerminalSessionResponseForUrl(url, options = {}) {
+export function agentTerminalSessionResponseForUrl(url, options = {}) {
   const {
     defaultRepoRoot,
     defaultSession,
     env = process.env,
     terminalManager,
   } = options;
-  const dock = url.searchParams.get('dock') || envValue(env, 'AGENT_TERMINAL_DOCK', 'gdi');
   const session = terminalManager.cleanSession(url.searchParams.get('session') || defaultSession);
   const command = terminalManager.terminalCommandForSession(session);
-  const explicitDockCwd = url.searchParams.get('cwd') || envValue(env, 'AGENT_TERMINAL_DOCK_CWD', undefined);
-  const receipt = createDockTerminalSessionReceipt({
+  const explicitSessionCwd = url.searchParams.get('cwd') || envValue(env, 'AGENT_TERMINAL_SESSION_CWD', undefined);
+  const receipt = createAgentTerminalSessionReceipt({
     repoRoot: defaultRepoRoot,
-    dock,
-    cwd: explicitDockCwd || terminalManager.terminalCwdForSession(session),
+    cwd: explicitSessionCwd || terminalManager.terminalCwdForSession(session),
     provider: url.searchParams.get('provider') || 'codex',
     providerCommand: command,
     ptyHandle: session,
@@ -58,7 +56,7 @@ export function dockTerminalSessionResponseForUrl(url, options = {}) {
     },
   });
   return {
-    dock_terminal_session: receipt,
+    agent_terminal_session: receipt,
     agent_terminal_observation: createAgentTerminalObservation(receipt, {
       selectedProviderSessionId: url.searchParams.get('provider_session_id') || null,
     }),
