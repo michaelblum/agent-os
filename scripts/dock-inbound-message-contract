@@ -1,37 +1,31 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import process from 'node:process';
-import { repoRootFromScript, validateDockInboundMessage } from './lib/dock-inbound-message-contract.mjs';
+import { dockInboundContractsRetiredError, repoRootFromScript } from './lib/dock-inbound-message-contract.mjs';
 
-function usage() {
-  console.error(`Usage:
-  scripts/dock-inbound-message-contract --target-dock <dock> [--provider codex] [--payload <text>] [--json]
-  printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock foreman --json
+function usageText() {
+  return `Usage:
+  scripts/dock-inbound-message-contract --target-dock <dock> [--provider <name>] [--payload <text>] [--json]
 
 Refuses retired inbound dock message routing without reading .docks contracts.
-Historical schema fixtures remain valid through schema tests, but this script is not an active AOS workflow surface.`);
+Historical schema fixtures remain valid through schema tests, but this script is not an active AOS workflow surface.`;
 }
 
 function parseArgs(argv) {
   const args = {
-    provider: 'codex',
-    json: false,
-    payloadSet: false,
-    payload: '',
+    targetDock: '',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--target-dock') {
       args.targetDock = argv[++index] ?? '';
     } else if (arg === '--provider') {
-      args.provider = argv[++index] ?? '';
+      index += 1;
     } else if (arg === '--payload') {
-      args.payload = argv[++index] ?? '';
-      args.payloadSet = true;
+      index += 1;
     } else if (arg === '--json') {
-      args.json = true;
+      continue;
     } else if (arg === '--help' || arg === '-h') {
-      usage();
+      process.stdout.write(`${usageText()}\n`);
       process.exit(0);
     } else {
       throw new Error(`unknown argument: ${arg}`);
@@ -43,47 +37,13 @@ function parseArgs(argv) {
   return args;
 }
 
-function readStdin() {
-  return fs.readFileSync(0, 'utf8');
-}
-
-function validate({ repoRoot, targetDock, provider, payload }) {
-  return validateDockInboundMessage({ repoRoot, targetDock, provider, payload });
-}
-
-function printText(result) {
-  console.log(`ok=${result.ok}`);
-  console.log(`target_dock=${result.target_dock}`);
-  console.log(`provider=${result.provider}`);
-  console.log(`clipboard_payload=${result.clipboard_payload}`);
-  console.log(`provider_entry_prefix=${result.provider_entry_prefix}`);
-  console.log(`provider_entry_preview=${result.provider_entry_preview}`);
-  console.log(`context_reset_command=${result.context_reset_command}`);
-  console.log(`stale_goal_recovery_command=${result.stale_goal_recovery_command ?? ''}`);
-  for (const diagnostic of result.diagnostics) {
-    console.log(`${diagnostic.severity}:${diagnostic.code}:${diagnostic.message}`);
-  }
-}
-
 try {
   const args = parseArgs(process.argv.slice(2));
   const repoRoot = repoRootFromScript(import.meta.url);
-  const payload = args.payloadSet ? args.payload : readStdin();
-  const result = validate({
-    repoRoot,
-    targetDock: args.targetDock,
-    provider: args.provider,
-    payload,
-  });
-  if (args.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    printText(result);
-  }
-  process.exit(result.ok ? 0 : 1);
+  throw dockInboundContractsRetiredError(repoRoot, args.targetDock);
 } catch (error) {
   const code = error.code ? `${error.code}: ` : '';
-  console.error(`FAIL: ${code}${error.message}`);
-  usage();
-  process.exit(2);
+  process.stderr.write(`FAIL: ${code}${error.message}\n`);
+  process.stderr.write(`${usageText()}\n`);
+  process.exit(error.code === 'DOCK_INBOUND_CONTRACTS_RETIRED' ? 1 : 2);
 }
