@@ -337,6 +337,10 @@ function validateInventoryRows(forms, commands) {
   if (missingRoutes.length) {
     fail(`command inventory rows missing external routes: ${missingRoutes.map((row) => row.form || row.command).join(', ')}`);
   }
+  const unspecified = forms.filter((row) => row.mutability === 'unspecified');
+  if (unspecified.length) {
+    fail(`command inventory forms missing mutability metadata: ${unspecified.map((row) => row.form).join(', ')}`);
+  }
 }
 
 function renderInventory(registry, externalManifest, sourceIndex) {

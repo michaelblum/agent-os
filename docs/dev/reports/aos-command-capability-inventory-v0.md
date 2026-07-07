@@ -22,8 +22,8 @@ current command tree before public CLI and self-hosting boundary changes.
 - Concrete forms: 199
 - Consumer-discoverable forms: 182
 - Internal/transitional command paths: 2
-- Mutating or conditionally mutating forms: 97
-- Forms with unspecified mutability metadata: 4
+- Mutating or conditionally mutating forms: 101
+- Forms with unspecified mutability metadata: 0
 - Forms with JSON output path: 194
 - Forms with dry-run support: 24
 
@@ -68,10 +68,10 @@ current command tree before public CLI and self-hosting boundary changes.
 | `show` | 15 | Overlay/display | yes | mutates, read-only | --json, default, no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-family-router.mjs show UNKNOWN_SUBCOMMAND show subcommand [not render/create/update/remove...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `ops` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/05-ops.json` | `node scripts/aos-ops.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `recipe` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/06-recipe.json` | `node scripts/aos-ops.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do` | 23 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only, unspecified | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do` | 23 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `say` | 2 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `voice` | 7 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-family-router.mjs voice UNKNOWN_COMMAND voice command [child 0]` | `docs/api/aos.md` |
-| `gate` | 5 | Verification/evidence | yes | mutates, read-only, unspecified | default | `manifests/commands/source/aos/10-gate.json` | `node scripts/aos-family-router.mjs gate UNKNOWN_SUBCOMMAND gate subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `gate` | 5 | Verification/evidence | yes | mutates, read-only | default | `manifests/commands/source/aos/10-gate.json` | `node scripts/aos-family-router.mjs gate UNKNOWN_SUBCOMMAND gate subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `tell` | 4 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/11-tell.json` | `node scripts/aos-tell-listen.mjs tell` | `docs/api/aos.md` |
 | `listen` | 3 | Operator messaging | yes | read-only | default | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `config` | 3 | Storage/config | yes | mutates, read-only | --json, default | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs dump` | `docs/api/aos.md` |
@@ -90,8 +90,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `reset` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/26-reset.json` | `node scripts/aos-reset.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `clean` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/27-clean.json` | `node scripts/aos-clean.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `introspect` | 1 | Diagnostics/debug | yes | read-only | --json | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-family-router.mjs introspect UNKNOWN_SUBCOMMAND introspect subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
-| `permissions` | 4 | Core readiness, Runtime/service | yes | mutates, read-only, unspecified | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `inspect` | 1 | Diagnostics/debug | yes | unspecified | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `permissions` | 4 | Core readiness, Runtime/service | yes | mutates, read-only | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `inspect` | 1 | Diagnostics/debug | yes | mutates | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log` | 3 | Diagnostics/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki` | 15 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
 | `browser` | 9 | Browser companion | no | mutates, read-only | --json, default | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
@@ -175,7 +175,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `do move` | `do-move` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs move` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do resize` | `do-resize` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs resize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do tell` | `do-tell` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs tell` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do session` | `do-session` | Desktop/native control | yes | unspecified | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs session` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do session` | `do-session` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs session` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do profiles` | `do-profiles` | Desktop/native control | yes | read-only | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-profiles.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `say` | `say-text` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `say` | `say-list-voices` | Voice and speech | yes | read-only | default | no | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
@@ -186,7 +186,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `voice bind` | `voice-bind` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-voice.mjs bind` | `docs/api/aos.md` |
 | `voice next` | `voice-next` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-voice.mjs next` | `docs/api/aos.md` |
 | `voice final-response` | `voice-final-response` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-voice.mjs final-response` | `docs/api/aos.md` |
-| `gate ask` | `gate-ask` | Verification/evidence | yes | unspecified | default | no | `manifests/commands/source/aos/10-gate.json` | `node packages/cli/verbs/gate-ask.js` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `gate ask` | `gate-ask` | Verification/evidence | yes | mutates | default | no | `manifests/commands/source/aos/10-gate.json` | `node packages/cli/verbs/gate-ask.js` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `gate defer` | `gate-defer` | Verification/evidence | yes | mutates | default | no | `manifests/commands/source/aos/10-gate.json` | `node packages/cli/verbs/gate-defer.js` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `gate submit` | `gate-submit` | Verification/evidence | yes | mutates | default | no | `manifests/commands/source/aos/10-gate.json` | `node packages/cli/verbs/gate-submit.js` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `gate continuations` | `gate-continuations` | Verification/evidence | yes | read-only | default | no | `manifests/commands/source/aos/10-gate.json` | `node packages/cli/verbs/gate-continuations.js` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -243,9 +243,9 @@ current command tree before public CLI and self-hosting boundary changes.
 | `introspect review` | `introspect-review` | Diagnostics/debug | yes | read-only | --json | no | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-introspect-review.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `permissions check` | `permissions-check` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions preflight` | `permissions-preflight` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs preflight` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `permissions setup` | `permissions-setup` | Core readiness | yes | unspecified | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs setup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `permissions setup` | `permissions-setup` | Core readiness | yes | mutates | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs setup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions reset-runtime` | `permissions-reset-runtime` | Runtime/service | yes | mutates | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs reset-runtime` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `inspect` | `inspect` | Diagnostics/debug | yes | unspecified | default | no | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `inspect` | `inspect` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log` | `log-stream` | Diagnostics/debug | yes | read-only | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log push` | `log-push` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs push` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log clear` | `log-clear` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs clear` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |

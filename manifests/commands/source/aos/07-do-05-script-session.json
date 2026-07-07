@@ -65,7 +65,7 @@
           "execution": {
             "auto_starts_daemon": true,
             "interactive": true,
-            "mutates_state": false,
+            "mutates_state": true,
             "read_only": false,
             "requires_permissions": true,
             "streaming": true,
