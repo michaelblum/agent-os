@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -74,6 +74,7 @@ async function writeFakePlaywrightSkill(target) {
   await writeFile(path.join(skillRoot, 'SKILL.md'), [
     '---',
     'name: playwright',
+    'owner: playwright-cli',
     'description: Playwright CLI browser automation companion skill.',
     '---',
     '',
@@ -159,6 +160,82 @@ test('playwright companion check detects a Playwright-owned skill in a temp targ
     assert.equal(payload.runtime.status, 'ok');
     assert.equal(payload.installation.state, 'installed');
     assert.equal(payload.installation.detected_skills[0].name, 'playwright');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
+test('playwright companion check treats AOS adapter Playwright text as candidate only', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-companion-candidate-'));
+  const target = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-companion-aos-text-'));
+  try {
+    const cli = await fakePlaywrightCli(root, '0.1.15');
+    const skillRoot = path.join(target, 'browser-adapter');
+    await mkdir(skillRoot, { recursive: true });
+    await writeFile(
+      path.join(skillRoot, 'SKILL.md'),
+      await readFile(path.join(repoRoot, 'skills', 'browser-adapter', 'SKILL.md')),
+    );
+    const payload = parseStdout(runAos([
+      'skills',
+      'companion',
+      'check',
+      '--name',
+      'playwright-cli',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--json',
+    ], {
+      env: { AOS_PLAYWRIGHT_CLI: cli },
+    }));
+    assert.equal(payload.status, 'success');
+    assert.equal(payload.installation.state, 'candidate_detected');
+    assert.deepEqual(payload.installation.detected_skills, []);
+    assert.equal(payload.installation.candidates[0].name, 'browser-adapter');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
+test('playwright companion check does not install unknown text-only matches', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-companion-text-'));
+  const target = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-companion-text-target-'));
+  try {
+    const cli = await fakePlaywrightCli(root, '0.1.15');
+    const skillRoot = path.join(target, 'playwright-notes');
+    await mkdir(skillRoot, { recursive: true });
+    await writeFile(path.join(skillRoot, 'SKILL.md'), [
+      '---',
+      'name: playwright-notes',
+      'description: Notes about playwright-cli browser automation.',
+      '---',
+      '',
+      '# Notes',
+      '',
+      'This mentions playwright-cli and browser automation, but is not owned by Playwright.',
+      '',
+    ].join('\n'));
+    const payload = parseStdout(runAos([
+      'skills',
+      'companion',
+      'check',
+      '--name',
+      'playwright-cli',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--json',
+    ], {
+      env: { AOS_PLAYWRIGHT_CLI: cli },
+    }));
+    assert.equal(payload.installation.state, 'candidate_detected');
+    assert.deepEqual(payload.installation.detected_skills, []);
+    assert.equal(payload.installation.candidates[0].name, 'playwright-notes');
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(target, { recursive: true, force: true });

@@ -10,7 +10,7 @@ import {
   normalizeDescription,
   parseSkillPackage,
   validateSkillRegistry,
-} from '../scripts/lib/aos-skills-registry.mjs';
+} from '../scripts/lib/aos-skills/registry.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

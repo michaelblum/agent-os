@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { formatJSON, validateSkillRegistry } from './lib/aos-skills-registry.mjs';
+import { formatJSON, validateSkillRegistry } from './lib/aos-skills/registry.mjs';
 
 function usage() {
   return `Usage: node scripts/aos-skills-validate.mjs [--json] [--repo <path>] [--registry <path>]\n`;

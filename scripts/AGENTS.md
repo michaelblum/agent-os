@@ -51,11 +51,16 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.
 - `aos_agents/` owns the AOS project-agent runner implementation.
-- `aos-skills.mjs`, `aos-skills-validate.mjs`, and
-  `lib/aos-skills-registry.mjs` own root skill registry listing, validation,
-  installed-state checks, bounded install writing, dry-run install planning, and
-  Playwright CLI companion skill checks for `skills/registry.json` and direct
-  child `SKILL.md` packages.
+- `aos-skills.mjs` and `aos-skills-validate.mjs` are the CLI entrypoints for
+  root skill registry listing, validation, installed-state checks, install
+  planning/application, and Playwright CLI companion checks.
+- `lib/aos-skills/AGENTS.md` owns the focused module split behind those
+  entrypoints. Keep validation, catalog reads, install target resolution,
+  installed-state drift checks, transactional install application, and
+  Playwright companion detection in separate modules instead of rebuilding a
+  large mixed-responsibility skills registry file.
+- `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
+  new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
 
@@ -107,8 +112,8 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - For root skill registry validation changes, use
   `node scripts/aos-skills-validate.mjs --json` and
   `node --test tests/aos-skills-registry.test.mjs`.
-- For root skill install target, installed-state, or dry-run planning changes,
-  add `node --test tests/aos-skills-command.test.mjs`.
+- For root skill install target, installed-state, staging/finalization, or
+  dry-run planning changes, add `node --test tests/aos-skills-command.test.mjs`.
 - For Playwright CLI companion skill checks, add
   `node --test tests/aos-skills-companion.test.mjs`.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
@@ -118,6 +123,7 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 ## Child DOX Index
 
 - `aos_agents/` contains the AOS-owned project-agent runner.
+- `lib/aos-skills/AGENTS.md` owns root skill registry helper modules.
 - `lib/` contains shared script helper modules.
 - `lib/agent-workspace/AGENTS.md` owns saved perception workspace helpers,
   compact readback, saved-ref validation, and backend action dispatch.

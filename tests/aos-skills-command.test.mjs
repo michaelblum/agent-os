@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -94,6 +94,7 @@ test('aos skills install dry-run reports planned writes and does not mutate targ
       && write.destination === path.join(target, 'aos-core-orientation', '.aos-skill-manifest.json')
     )));
     assert.equal(existsSync(path.join(target, 'aos-core-orientation')), false);
+    assert.equal(existsSync(path.join(target, '.aos-skills-staging')), false);
   } finally {
     await rm(target, { recursive: true, force: true });
   }
@@ -141,6 +142,14 @@ test('aos skills install writes managed package and re-run is idempotent', async
     assert.equal(installed.summary.states_after.ok, 1);
     assert.equal(existsSync(path.join(target, 'aos-core-orientation', 'SKILL.md')), true);
     assert.equal(existsSync(path.join(target, 'aos-core-orientation', '.aos-skill-manifest.json')), true);
+    const manifest = JSON.parse(await readFile(
+      path.join(target, 'aos-core-orientation', '.aos-skill-manifest.json'),
+      'utf8',
+    ));
+    assert.equal(manifest.schema_version, 'aos.installed-skill-manifest.v0');
+    assert.equal(manifest.managed_by, 'aos');
+    assert.equal(manifest.name, 'aos-core-orientation');
+    assert.match(manifest.source_digest, /^[0-9a-f]{64}$/);
 
     const checked = parseStdout(runAos([
       'skills',
@@ -170,6 +179,96 @@ test('aos skills install writes managed package and re-run is idempotent', async
     assert.equal(rerun.summary.written, 0);
     assert.equal(rerun.summary.states_before.ok, 1);
     assert.equal(rerun.summary.states_after.ok, 1);
+  } finally {
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
+test('aos skills install repairs an interrupted AOS package write before manifest', async () => {
+  const target = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-partial-'));
+  try {
+    const skillDir = path.join(target, 'aos-core-orientation');
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      path.join(skillDir, 'SKILL.md'),
+      await readFile(path.join(repoRoot, 'skills', 'aos-core-orientation', 'SKILL.md')),
+    );
+
+    const before = parseStdout(runAos([
+      'skills',
+      'check',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--skill',
+      'aos-core-orientation',
+      '--json',
+    ]));
+    assert.equal(before.skills[0].state, 'stale');
+    assert.match(before.skills[0].reason, /missing the AOS manifest/);
+
+    const repaired = parseStdout(runAos([
+      'skills',
+      'install',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--skill',
+      'aos-core-orientation',
+      '--json',
+    ]));
+    assert.equal(repaired.status, 'installed');
+    assert.equal(repaired.summary.states_after.ok, 1);
+    assert.equal(repaired.summary.written, 2);
+    assert.equal(existsSync(path.join(target, '.aos-skills-staging')), false);
+  } finally {
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
+test('aos skills install still blocks unmanaged pre-existing directories without manifest', async () => {
+  const target = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-unmanaged-dir-'));
+  try {
+    const skillDir = path.join(target, 'aos-core-orientation');
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, 'SKILL.md'), [
+      '---',
+      'name: aos-core-orientation',
+      'description: Local user copy.',
+      '---',
+      '',
+      '# Local user copy',
+      '',
+    ].join('\n'));
+
+    const checked = parseStdout(runAos([
+      'skills',
+      'check',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--skill',
+      'aos-core-orientation',
+      '--json',
+    ]));
+    assert.equal(checked.skills[0].state, 'unmanaged');
+
+    const blocked = parseBlockedStdout(runAos([
+      'skills',
+      'install',
+      '--target',
+      'path',
+      '--path',
+      target,
+      '--skill',
+      'aos-core-orientation',
+      '--json',
+    ]));
+    assert.equal(blocked.status, 'blocked');
+    assert.equal(blocked.blocked[0].code, 'UNMANAGED_INSTALLED_SKILL');
   } finally {
     await rm(target, { recursive: true, force: true });
   }

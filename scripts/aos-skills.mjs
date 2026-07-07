@@ -9,7 +9,7 @@ import {
   listSkills,
   planSkillCompanionInstall,
   planSkillInstall,
-} from './lib/aos-skills-registry.mjs';
+} from './lib/aos-skills/registry.mjs';
 
 function usage() {
   return [
