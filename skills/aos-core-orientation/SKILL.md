@@ -35,8 +35,8 @@ direct ./aos commands first, help/manifests for command truth, docs for durable 
 - Recipes are executable procedures discovered through `./aos recipe`.
 - Work Records are durable receipts inspected through `./aos work-record`.
 - Wiki plugins are runtime wiki/plugin content, not installed root skills.
-- Provider role material belongs to the AOS-owned runner, not the root skill
-  registry.
+- Project-agent orchestration and provider role material stay out of active AOS
+  core unless a future ADR supersedes ADR 0019.
 
 ## Stop
 

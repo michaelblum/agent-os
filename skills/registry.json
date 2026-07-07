@@ -352,14 +352,14 @@
       "installable": false,
       "invocation": "retired",
       "target_support": [],
-      "ownership": "AOS-owned historical tombstone for ADR 0017.",
+      "ownership": "AOS-owned fail-closed tombstone for ADR 0019.",
       "references": [
-        "docs/adr/0017-retire-codex-native-custom-agents.md",
+        "docs/adr/0019-retire-project-agent-orchestration.md",
         "scripts/agent-sync.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [
-        "docs/adr/0017-retire-codex-native-custom-agents.md",
+        "docs/adr/0019-retire-project-agent-orchestration.md",
         "scripts/agent-sync.sh"
       ]
     },

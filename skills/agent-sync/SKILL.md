@@ -6,7 +6,7 @@ description: >
 retired: true
 current_execution_surface: none
 authority:
-  - docs/adr/0017-retire-codex-native-custom-agents.md
+  - docs/adr/0019-retire-project-agent-orchestration.md
   - scripts/agent-sync.sh
 ---
 
@@ -18,7 +18,7 @@ its old behavior.
 
 The retired path copied Codex-shaped role files into user-global Codex config
 and registered native custom agents. That path is unsupported for agent-os
-because ADR 0017 retired Codex native custom-agent registration for this repo.
+because ADR 0019 keeps project-agent orchestration out of active AOS core.
 
 ## Current Contract
 
@@ -26,7 +26,7 @@ because ADR 0017 retired Codex native custom-agent registration for this repo.
 - Historical role material has been archived outside the active repo tree.
 - `scripts/agent-sync.sh` intentionally exits non-zero.
 - Reversal requires a new ADR or explicit human architecture decision naming
-  ADR 0017.
+  ADR 0019.
 
 ## Forbidden Actions
 
@@ -41,5 +41,5 @@ agent-os:
 
 ## Read Instead
 
-- `docs/adr/0017-retire-codex-native-custom-agents.md`
+- `docs/adr/0019-retire-project-agent-orchestration.md`
 - `scripts/agent-sync.sh`

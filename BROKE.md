@@ -25,7 +25,6 @@ Final deterministic top-level refresh after `gdi/sigil-agent-terminal-repo-root-
 ### Local Dirty-State Artifacts
 
 - `node --test tests/*.test.mjs` reported 141/148 pass, 7 fail when run from Foreman's dirty local checkout with `.codex/config.toml` modified.
-- `node --test tests/afk-session-trigger-prototype.test.mjs` reported 55/61 pass, 6 fail in that dirty checkout. A clean temporary worktree at `70d7e940` reran the AFK file as 61/61 pass, so those six AFK live-launch failures are classified as local dirty-state artifacts, not current code breakage.
 
 ### Resolved Renderer Inventory
 

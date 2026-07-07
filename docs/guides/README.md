@@ -6,13 +6,13 @@ operating guidance for agent-os. Under the AOS Execution Model V0
 **Guides/SOPs**: they shape human and agent judgment, but they are not
 executable Recipes.
 
-Guides/SOPs are not one-off handoffs, successor-session memory, persona
-instructions, executable recipe manifests, or provider skill registries. Put
+Guides/SOPs are not one-off handoffs, successor-session memory, role prompt
+scaffolding, executable recipe manifests, or provider skill registries. Put
 those elsewhere:
 
 - repo-wide hard invariants and authority routing live in root `AGENTS.md`;
 - installable workflow guidance lives under top-level `skills/`;
-- active design and implementation work cards, when explicitly dispatched, live
+- assigned design and implementation work cards, when explicitly dispatched, live
   under `docs/design/work-cards/`;
 - design plans and specs live under `docs/design/`;
 - cross-tool contracts live under `docs/api/`, `shared/schemas/`, or
@@ -37,7 +37,7 @@ guidance that makes `aos ops` canonical.
 A Markdown Guide/SOP belongs here when it is:
 
 - reusable across more than one repo-root session or implementation lane;
-- about a bounded procedure rather than a whole persona;
+- about a bounded procedure rather than a whole agent role;
 - durable enough to cite from docs, tests, work cards, or API contracts;
 - specific enough to stop stale-doc drift or repeated bad choices.
 
@@ -61,8 +61,8 @@ Do not add or keep a Markdown Guide/SOP here when it is:
 - a provider-managed global skill or local provider registry entry.
 
 When moving misplaced guidance, update links and tests in the same change. If a
-guide is pinned by a test or current work card, migrate it in a dedicated slice
-instead of deleting it opportunistically.
+guide is pinned by a test or dispatched work contract, migrate it in a dedicated
+slice instead of deleting it opportunistically.
 
 ## Structured Steps
 
@@ -80,7 +80,7 @@ This structure should clarify judgment. It should not turn every guide into a
 schema before the shape has proved useful.
 
 If the reusable result is only a judgment of the form "given these inputs and
-this evidence, classify/choose/route this way," cite the Decision Contract /
-Inference Block vocabulary in
-`docs/design/durable-agent-cognition-and-afk-primitives.md` instead of treating
-it as a new executable Recipe type.
+this evidence, classify/choose/route this way," cite the Decision Contract
+vocabulary in
+`docs/design/notes/decision-contract-shape-sketch-2026-05-21.md` instead of
+treating it as a new executable Recipe type.

@@ -70,8 +70,6 @@ contained artifact is itself executable:
 - **Work Card** - a coordination contract for a work slice. It can route work
   that creates or runs execution-model artifacts, but it is not itself a
   Workflow.
-- **Dock / Docked Session** - persona/session isolation and routing context,
-  not Workflow taxonomy.
 - GitHub `area:`, `kind:`, and `lane:` labels are governance/search metadata,
   not execution-model concepts.
 

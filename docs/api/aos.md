@@ -687,11 +687,11 @@ are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
 or only re-signed in JSON mode. Rebuild detection is content-based for Swift
 runtime inputs, not mtime-based, and build-tooling edits alone do not replace
-the TCC-owning binary. Historical dock hooks do not automate post-build TCC handling: they
-do not reset permissions, open System Settings, show a human-needed surface,
-write completed-build markers, or inject provider input. Repo-mode binary
-rebuilds are TCC-sensitive and intentionally rare; successful rebuilds play a
-system alert sound so Michael can notice the event.
+the TCC-owning binary. No post-build hook automates TCC handling: build does not
+reset permissions, open System Settings, show a human-needed surface, write
+completed-build markers, or inject provider input. Repo-mode binary rebuilds
+are TCC-sensitive and intentionally rare; successful rebuilds play a system
+alert sound so Michael can notice the event.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
@@ -1018,7 +1018,7 @@ instead of inventing private surface addresses.
 
 `aos skills` is the direct command surface for AOS-owned installable root
 skills. Root skills are agent guidance packages from `skills/`; they are not
-Recipes, Workflows, Work Records, wiki plugins, or provider role material.
+Recipes, Workflows, Work Records, or wiki plugins.
 `skills/registry.json` is the source-owned registry and
 `scripts/aos-skills-validate.mjs` is the focused validator.
 

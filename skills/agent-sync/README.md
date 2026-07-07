@@ -14,5 +14,5 @@ preserved as a user-global Codex native custom-agent registration source.
 
 Current authority:
 
-- `docs/adr/0017-retire-codex-native-custom-agents.md`
+- `docs/adr/0019-retire-project-agent-orchestration.md`
 - `scripts/agent-sync.sh`

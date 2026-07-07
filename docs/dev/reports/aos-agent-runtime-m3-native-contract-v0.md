@@ -1,9 +1,9 @@
 # AOS Agent Runtime M3 Native Contract
 
 Superseded: `docs/dev/reports/aos-agent-runtime-m3-correction-v1.md` and
-`docs/adr/0016-aos-owned-agent-execution.md` supersede this report wherever it
-claims `native-codex` is the default engine or destination. This file is
-historical evidence for the M3 drift that was corrected on 2026-06-10.
+`docs/adr/0019-retire-project-agent-orchestration.md` supersede this report
+wherever it claims `native-codex` is the default engine or destination. This
+file is historical evidence for the M3 drift that was corrected on 2026-06-10.
 
 ## Decision
 

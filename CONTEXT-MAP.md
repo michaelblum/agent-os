@@ -45,7 +45,7 @@ source root. This file is a routing map, not a replacement for those sources.
 - Runtime wiki source layers: `docs/wiki/README.md`, `wiki-seed/`, and
   `docs/wiki/repo-docs-projection-v0.json`.
 - Packaging and activation vocabulary for Capability Packages, Skills,
-  Plugins, Work Cards, Docks, and GitHub labels is defined in ADR-0013 and
+  Plugins, Work Cards, and GitHub labels is defined in ADR-0013 and
   `CONTEXT.md`; these concepts are not execution ladder rungs.
 - Use this context for `aos` verbs, daemon lifecycle, perception/action/display,
   communication, spatial topology, runtime mode isolation, sockets, native

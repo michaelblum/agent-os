@@ -49,7 +49,7 @@ repo, plus the root skill registry for AOS installable skill productization.
   `aos-browser/`, `aos-verification/`, `aos-operator-annotations/`,
   `aos-work-records/`, `aos-recipes/`, and
   `aos-command-surface-maintenance/` are the installable AOS root skill pack.
-- `agent-sync/` is a retired historical tombstone for ADR 0017. It must not
+- `agent-sync/` is a fail-closed tombstone for ADR 0019. It must not
   sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
   user-global agent registrations.
 - `aos-agent-workspace/` is a retired tombstone for the broad saved workspace

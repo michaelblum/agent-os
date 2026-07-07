@@ -13,8 +13,8 @@ Effective immediately:
 
 - `provider-sdk` is the default `./aos dev agents` engine.
 - `native-codex` is an explicit diagnostic/import lane only.
-- `docs/adr/0016-aos-owned-agent-execution.md` is the durable north-star
-  authority for this runtime.
+- `docs/adr/0019-retire-project-agent-orchestration.md` is the durable
+  authority that keeps the runner path out of active AOS core.
 - `docs/dev/reports/aos-agent-runtime-m3-native-contract-v0.md` is historical
   and superseded where it claims `native-codex` is the default.
 

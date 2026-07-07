@@ -13,8 +13,8 @@ small direct ./aos commands + manifest/help authority + installable skills that 
 ```
 
 Skills are agent guidance packages. They are not a new execution substrate and
-do not replace Recipes, Workflows, Work Records, provider roles, or wiki
-plugins. Skills teach agents which direct `./aos` workflow to use, how to
+do not replace Recipes, Workflows, Work Records, or wiki plugins. Skills teach
+agents which direct `./aos` workflow to use, how to
 validate it, when to dry-run, when to recapture, and when to stop.
 
 The public command family will be `aos skills` with at least:
@@ -33,7 +33,6 @@ send agents back to `./aos help <command> --json` for current argument shape.
 | --- | --- | --- |
 | Root Skill | `skills/<name>/SKILL.md` plus `skills/registry.json` | Installable agent guidance package. It may guide or wrap command use, but it is not a Recipe, Workflow, Run, or Work Record. |
 | Wiki plugin | `wiki-seed/`, runtime wiki state, and `aos wiki` | Runtime wiki/plugin content. A plugin may contain `SKILL.md`, but it is not an installed root skill unless explicitly packaged through the root skill registry. |
-| Provider role material | Retired by ADR 0019 | Historical agent-runner/provider execution configuration. It is not a root skill and must not be recreated as AOS core or native Codex custom-agent registration. |
 | Recipe | `recipes/`, recipe manifests, and `aos recipe` | Source-backed executable procedure with dry-run/run semantics. Skills may teach recipe use but do not become recipes. |
 | Workflow | orchestration docs/schemas when implemented | Cross-recipe, agent, gate, retry, and evidence orchestration. A skill may describe how to choose a workflow but is not the workflow engine. |
 | Guide or Playbook | `docs/guides/` and durable docs | Method guidance. It may be referenced by a skill without becoming executable. |

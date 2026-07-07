@@ -8,7 +8,7 @@ vocabulary, not permission for agents to invent new label names.
 | --- | --- | --- |
 | `needs-triage` | Inspect existing labels before use | Maintainer needs to evaluate the issue |
 | `needs-info` | Inspect existing labels before use | Waiting on the reporter for more information |
-| `ready-for-agent` | Inspect existing labels before use | Fully specified and ready for an AFK agent |
+| `ready-for-agent` | Inspect existing labels before use | Fully specified and ready for agent implementation |
 | `ready-for-human` | Inspect existing labels before use | Needs human implementation |
 | `wontfix` | Inspect existing labels before use | Will not be actioned |
 

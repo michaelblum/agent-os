@@ -117,8 +117,8 @@ Rejected reasons include:
   remains in Swift versus hot-swappable external layers.
 - `ARCHITECTURE.md` should describe `./aos` as the unified broker and native
   primitive substrate, not as owner of public command behavior.
-- `src/AGENTS.md`, dock role contracts, and work cards should require a native
-  boundary justification before routing Swift work.
+- `src/AGENTS.md`, docs owners, and command/workflow owners should require a
+  native boundary justification before routing Swift work.
 - Follow-on refactors should inventory remaining Swift public/runtime policy,
   expose smaller private broker primitives where needed, and move public
   behavior to external composition without repo-internal shims.

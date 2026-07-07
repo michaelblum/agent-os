@@ -89,7 +89,7 @@ test('frontmatter parser handles folded descriptions, booleans, and arrays', () 
     '  second line',
     'retired: true',
     'authority:',
-    '  - docs/adr/0017-retire-codex-native-custom-agents.md',
+    '  - docs/adr/0019-retire-project-agent-orchestration.md',
     '  - .codex/AGENTS.md',
     '---',
     '',
@@ -102,7 +102,7 @@ test('frontmatter parser handles folded descriptions, booleans, and arrays', () 
   assert.equal(parsed.frontmatter.description, 'first line second line');
   assert.equal(parsed.frontmatter.retired, true);
   assert.deepEqual(parsed.frontmatter.authority, [
-    'docs/adr/0017-retire-codex-native-custom-agents.md',
+    'docs/adr/0019-retire-project-agent-orchestration.md',
     '.codex/AGENTS.md',
   ]);
   assert.equal(parsed.body_line_count, 2);

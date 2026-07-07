@@ -14,8 +14,8 @@ with elevated developer powers.
 Capability routes are progressive-disclosure branches. Choose the narrowest path that
 matches the task, then backtrack and add layers when the task pivots, the user
 asks for a different mode, or evidence shows the current path cannot answer the
-question. Do not make non-dev agents read developer/testing procedures unless
-their task crosses into that layer.
+question. Do not make agents outside development lanes read developer/testing
+procedures unless their task crosses into that layer.
 
 Be transparent about the active path. When the choice affects what the agent
 will read, skip, test, or modify, say the current path briefly. If the session

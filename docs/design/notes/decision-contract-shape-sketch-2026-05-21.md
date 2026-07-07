@@ -79,9 +79,9 @@ These fields or semantics should not be forced into the current router manifest:
   `docs/dev/workflow-profiles.json` decide branch, commit, review, PR, merge,
   and release posture. That policy should stay adjacent and should not be
   collapsed into changed-file workflow routing.
-- Recipe, playbook, work-card, dock, session-trigger, or async result-routing
-  concepts. Those are related durable-agent-cognition artifacts, but they should
-  not be packed into the dev workflow router manifest.
+- Recipe, playbook, work-card, provider runtime, or async result-routing
+  concepts. Those may consume or cite reusable judgments, but they should not
+  be packed into the dev workflow router manifest.
 
 ## Open Questions
 
@@ -109,9 +109,10 @@ next slice.
 The next best step is a docs vocabulary pass that defines Decision Contract
 beside recipe, playbook, workflow, work card, work record, and evidence record
 without changing executable artifacts. After that, map one second candidate
-outside `docs/dev/workflow-rules.json`; transfer routing or entry-path
-verification routing are the strongest options because they already combine
-inputs, evidence, stop conditions, and owner/action outputs.
+outside `docs/dev/workflow-rules.json`; entry-path verification routing, context
+doc maintenance, or surface interaction routing are the strongest options
+because they already combine inputs, evidence, stop conditions, and owner/action
+outputs.
 
 Only after that second mapping should Foreman consider a schema slice. If a
 schema becomes warranted, start with a thin descriptor or adapter sketch around
