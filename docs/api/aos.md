@@ -339,7 +339,8 @@ assertion engine. Use
 `aos show wait` only for canvas readiness, Recipe assertions only for command
 JSON checks, and Work Record postconditions for durable evidence checks. Future
 saved wait/assert commands need manifest help, parser, schema/doc, and drift
-tests before public use.
+tests before public use. For a consumer-facing decision table, see
+[Lightweight Verification](./aos-capabilities.md#lightweight-verification).
 
 Capture modes are explicit:
 

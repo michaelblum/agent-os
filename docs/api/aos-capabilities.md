@@ -67,10 +67,10 @@ Command-to-state map:
 | Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
 | Evidence state | `see refs --diff --expect`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
 
-Saved-workspace verification is `see refs --diff --expect`, recipe JSON
-assertions, gates, and Work Record postconditions. Do not describe a generic
-wait/assert engine or saved-workspace daemon default unless live manifests add
-that public surface.
+Saved-workspace verification is evidence-state plumbing, not a generic
+assertion engine. Keep lightweight checks tied to saved refs, recipe command
+JSON, human gate records, or Work Record postconditions unless live manifests
+add a broader public surface.
 
 ## Canonical Action Loop
 
@@ -96,6 +96,25 @@ or a Work Record verifier.
 Saved-ref action responses expose `post_action.recommended_next_command` when
 the next safe step is a fresh `aos see capture --save`. Treat that command as
 the action loop handoff before reusing refs from the same surface.
+
+## Lightweight Verification
+
+Use the smallest check that matches the evidence you already have after an
+action:
+
+| Need | Use | Boundary |
+| --- | --- | --- |
+| Changed at all | `aos see refs --diff <before>..<after> --expect change|no-change --json` | Compares two existing saved snapshots; it does not capture, poll, or wait. |
+| Specific ref status | `aos see refs --diff <before>..<after> --expect-ref <ref>=added|removed|changed|unchanged|present|missing --json` | Gates compact saved refs inside one diff; repeat `--expect-ref` for multiple refs. |
+| Command JSON condition | A source-backed recipe that inspects known command JSON or runs saved-ref diff gates as explicit postcondition steps | `recipe dry-run` is static and does not observe live state; live checks must be explicit recipe steps. |
+| Human approval or decision | `aos gate ask`, `aos gate defer`, `aos gate submit`, and `aos gate records` | Produces structured human decision records; it is not a UI-state assertion surface. |
+| Durable evidence or postconditions | `aos work-record verify`, `aos work-record status`, and Work Record postcondition evidence | Preserves verifier health and evidence; it is not macro replay, autonomous repair, or a replacement for fresh perception. |
+| Unsupported wait or assertion | No current `aos see capture --wait-for-change`, `aos see capture --until-stable`, `aos see assert`, `aos assert`, or `aos verify` command | Future wait/assert commands need manifests, parser/schema/docs/tests, and drift gates before public use. |
+
+Fresh perception still comes from the canonical action loop: save a capture,
+inspect refs, dry-run/act, save a fresh capture, then compare saved refs or
+record evidence. Do not imply saved workspaces recapture automatically or hold a
+daemon-scoped current workspace.
 
 ## Capability Groups
 
