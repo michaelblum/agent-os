@@ -1,14 +1,8 @@
-# agent-os Agent Entry Signage
+# agent-os Root Agent Contract
 
-This root file is intentionally small. Normal agent sessions in this repo should
-launch through a dock under `.docks/<dock>` so role instructions, hooks, inbound
-message contracts, and stop behavior are applied by the dock harness.
-
-Remote or undocked agents are the exception. If you reached only this file, use
-it as signage: read `.docks/README.md`, `.docks/AGENTS.md`, and then the
-role-local `.docks/<dock>/AGENTS.md` that matches the request. If no current
-role is named and the task is coordination, review, routing, or git/GitHub
-hygiene, adopt Foreman.
+This root file is intentionally small. Sessions started from the repository root
+use this file as the active repo contract. Follow the DOX hierarchy below and
+the nearest `AGENTS.md` for any path you edit.
 
 ## Change Control
 
@@ -19,8 +13,6 @@ or role-specific policy here.
 Change root `AGENTS.md` only when a repo-wide invariant or routing pointer has
 changed. Prefer the narrower owner:
 
-- `.docks/` for dock roles, launch model, active dock profiles, hooks, inbound
-  contracts, transfer vocabulary, and stop behavior.
 - Nearest subtree `AGENTS.md` for package, app, daemon, toolkit, or test-local
   operating contracts.
 - `docs/guides/` for repeatable procedures and checklists.
@@ -143,11 +135,6 @@ relevant child `AGENTS.md`.
 - `CONTEXT.md` defines shared vocabulary and resolved terminology.
 - `CONTEXT-MAP.md` routes work to the right source roots, contracts, schemas,
   recipes, and domain docs.
-- `.docks/README.md` explains dock launch, active profile loading, hook/config
-  ownership, and canonical dock roles.
-- `.docks/AGENTS.md` is the shared docked-session contract.
-- `.docks/foreman/AGENTS.md` defines current Foreman authority and stop
-  conditions.
 
 Historical `CLAUDE.md` files are compatibility pointers for tools that still
 discover that filename. Keep live detail in the owned source above.
@@ -190,18 +177,17 @@ typed primitive set: `see`, `do`, `show`, `tell`, and `listen`. `./aos dev ...`
 is the developer control surface for repo work.
 
 For live repo operation, use `./aos` as the first control plane for readiness,
-runtime status, canvases, Agent Terminal surfaces, dock sessions, and input or
-communication routing. Do not reach directly for daemon HTTP endpoints, raw
-PTY/tmux control, launchd state, or ad-hoc runtime files unless an `./aos`
-surface is missing, broken, or the task is explicitly testing that lower-level
-adapter. When you must bypass `./aos`, state why and keep the bypass scoped as a
-last-resort diagnostic.
+runtime status, canvases, Agent Terminal surfaces, and input or communication
+routing. Do not reach directly for daemon HTTP endpoints, raw PTY/tmux control,
+launchd state, or ad-hoc runtime files unless an `./aos` surface is missing,
+broken, or the task is explicitly testing that lower-level adapter. When you
+must bypass `./aos`, state why and keep the bypass scoped as a last-resort
+diagnostic.
 
 Use `docs/guides/agent-entry-paths-and-verification.md` for entry-path,
 verification, host-shell, and readiness guidance. Use `docs/dev/README.md` and
 `docs/dev/workflow-profiles/README.md` for development workflow routing and
-branch/review posture. Use `.docks/` contracts for role authority and harness
-mechanics.
+branch/review posture.
 
 ## Hard Invariants
 
@@ -219,11 +205,8 @@ mechanics.
 
 ## Child DOX Index
 
-- `.codex/AGENTS.md` governs undocked Codex root sessions, native custom-agent
+- `.codex/AGENTS.md` governs repo-root Codex sessions, native custom-agent
   disablement, and AOS-owned runner posture.
-- `.docks/AGENTS.md` governs docked session launch contracts. Its active child
-  is `.docks/foreman/AGENTS.md`; `.docks/profiles/` owns profile packs without
-  a separate child doc yet.
 - `.agents/` contains cross-provider hook scripts and stays root-owned until a
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live

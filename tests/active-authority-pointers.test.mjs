@@ -72,3 +72,10 @@ test('active authority map points to existing runtime primitive contract owners'
   await Promise.all(targetPaths.map(assertPathExists));
   await Promise.all(requiredPointers.map(([source, target]) => assertMentions(source, target)));
 });
+
+test('root AGENTS keeps dock doctrine invisible to repo-root sessions', async () => {
+  const rootAgents = await text('AGENTS.md');
+  assert.doesNotMatch(rootAgents, /\.docks/);
+  assert.doesNotMatch(rootAgents, /\bdock/i);
+  assert.doesNotMatch(rootAgents, /\bForeman\b/);
+});
