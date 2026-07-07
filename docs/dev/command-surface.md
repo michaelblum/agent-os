@@ -72,7 +72,7 @@ those primitives into public command behavior. See
 
 When agents spend many tool calls on routine or procedural work and the work is
 not converging, treat that friction as product evidence about the developer
-surface. Do not first add more role-specific dock instructions, copied
+surface. Do not first add more role-specific instruction stacks, copied
 checklists, or persona-local exceptions. Persistent agent thrash usually means
 something deserves examination: a command shape, help text, error message,
 workflow route, state model, recovery path, test fixture, documentation
@@ -83,10 +83,10 @@ stronger error handling, clearer help, a narrower command, a more complete AOS
 wrapper, a workflow-rule adjustment, a test that captures a common edge case, a
 docs relocation, or deletion of stale guidance. The key rule is to improve the
 surface or capture the friction for analysis instead of spreading more
-interpretive burden across dock personas.
+interpretive burden across persona instructions.
 
 This applies especially when an agent reaches for raw shell glue, provider
-connectors, direct APIs, repeated retries, duplicated dock instructions, or
+connectors, direct APIs, repeated retries, duplicated instructions, or
 manual state spelunking during work that should be ordinary and repeatable.
 
 If the appropriate fix is clear, local, and low risk, make that fix at the
@@ -105,8 +105,8 @@ Candidate follow-up: <surface, workflow, docs, tests, or analysis improvement to
 
 Friction notes can live in the current work report, a follow-up issue, or a
 small dev report under `docs/dev/reports/` when the pattern needs durable
-analysis. They should not be copied into each dock persona unless the issue is
-actually role authority or a stop condition.
+analysis. They should not be copied into persona instructions unless the issue
+is actually authority or a stop condition.
 
 ## Dispatcher Contract
 

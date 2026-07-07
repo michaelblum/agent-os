@@ -265,26 +265,11 @@ function checkConstraints(command, match, findings, present) {
   }
 }
 
-function checkSpecialCases(command, match, findings, flagValues) {
-  if (match.form.id !== 'focus-create') return;
-  const targets = flagValues.get('target') ?? [];
-  for (const target of targets) {
-    if (!['browser://attach', 'browser://new'].includes(target)) {
-      addFinding(findings, command, match, {
-        target,
-        code: 'UNSUPPORTED_FOCUS_TARGET',
-        message: 'focus create target is not a documented browser target',
-      });
-    }
-  }
-}
-
 function validateMatchedCommandShape(command, match) {
   const findings = [];
   const parsed = parseCommandArgs(command, match, findings);
   checkRequiredArgs(command, match, findings, parsed.present);
   checkConstraints(command, match, findings, parsed.present);
-  checkSpecialCases(command, match, findings, parsed.flagValues);
   return findings;
 }
 

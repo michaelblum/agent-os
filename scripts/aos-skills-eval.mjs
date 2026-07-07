@@ -17,7 +17,7 @@ function usage() {
     'Usage:',
     '  node scripts/aos-skills-eval.mjs --fixture <path> [--responses-dir <dir>] [--case <id> ...] [--run <id> ...] [--pass-score <n>] [--json] [--fail-on-threshold]',
     '  node scripts/aos-skills-eval.mjs --fixture <path> --emit-prompts <dir> [--case <id> ...] [--matrix <id> ...] [--json]',
-    '  node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> [--case <id> ...] [--matrix <id> ...] [--session-id <id>] [--replace] [--max-output-tokens <n>] [--json]',
+    '  node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> [--case <id> ...] [--matrix <id> ...] [--session-id <id>] [--replace] [--allow-partial] [--max-output-tokens <n>] [--json]',
     '',
     'Scores captured model responses for AOS installable-skill efficacy.',
     'The default path is deterministic/offline; --run-openai captures live Responses API output for later scoring through --responses-dir.',
@@ -75,6 +75,9 @@ function parseArgs(argv) {
       i += 2;
     } else if (arg === '--replace') {
       options.replace = true;
+      i += 1;
+    } else if (arg === '--allow-partial') {
+      options.allowPartial = true;
       i += 1;
     } else if (arg === '--case') {
       options.caseIds.push(requireValue(argv, i, '--case'));
@@ -150,6 +153,7 @@ async function main() {
       baseUrl: options.baseUrl,
       maxOutputTokens: options.maxOutputTokens,
       replace: options.replace,
+      allowPartial: options.allowPartial,
       sessionId: options.sessionId,
     });
     if (options.json) process.stdout.write(formatJSON(result));

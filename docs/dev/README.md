@@ -30,13 +30,16 @@ live Git/AOS state when the task allows runtime reads.
 
 `agent-capabilities.json` is the source of truth for typed developer
 capabilities exposed through `./aos dev capabilities`. It describes capability
-envelopes without selecting project-agent roles or dock profiles.
+envelopes without selecting personas or launch profiles. Use `entry_paths` for
+current routing. The `./aos dev capabilities --role` flag is accepted only as a
+legacy compatibility filter for old callers and must not be used to define new
+personas.
 
 `command-surface.md` describes the external command manifest contract: what
 remains in Swift, what lives in hot-swappable manifests/scripts, and which tests
 guard route and help behavior. It also defines the agent-ergonomics rule:
 persistent routine-work friction should trigger dev-surface examination instead
-of growing dock persona instructions.
+of growing persona instructions.
 
 For test harness selection, start with the foundational ladder in
 `tests/README.md`. For runtime, canvas, input, status-item, lifecycle, visual,

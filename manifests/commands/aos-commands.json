@@ -6401,7 +6401,18 @@
               "required" : false,
               "summary" : "Target URI: browser://attach or browser://new (mutually exclusive with --window)",
               "token" : "--target",
-              "value_type" : "string"
+              "value_type" : {
+                "enum" : [
+                  {
+                    "summary" : "Attach to an existing browser through an extension or CDP endpoint",
+                    "value" : "browser://attach"
+                  },
+                  {
+                    "summary" : "Launch and track a new browser target",
+                    "value" : "browser://new"
+                  }
+                ]
+              }
             },
             {
               "id" : "pid",

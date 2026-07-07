@@ -70,12 +70,11 @@ the canonical namespace for ADRs and durable architecture decisions.
 
 Update root `AGENTS.md` only for repo-wide signage, hard invariants, and
 authority-routing pointers. Do not put hook mechanics, role policy, operational
-SOPs, work-card templates, or provider syntax there. Update `.docks/` when the
-rule is about dock roles, launch behavior, hooks, inbound contracts, or
-cross-session transfers. Update the nearest subtree `AGENTS.md` when the rule
-is local to a package, app, daemon area, or test harness. Keep historical
-`CLAUDE.md` files as compatibility pointers unless the active task explicitly
-assigns their content.
+SOPs, work-card templates, or provider syntax there. Update installable skills
+when the rule is reusable agent-facing workflow guidance, and update the
+nearest subtree `AGENTS.md` when the rule is local to a package, app, daemon
+area, or test harness. Keep historical `CLAUDE.md` files as compatibility
+pointers unless the active task explicitly assigns their content.
 
 Add or update a file under `docs/guides/` when the knowledge is a reusable,
 bounded procedure that agents or humans may repeat. Recipes should carry
@@ -93,9 +92,10 @@ or cross-tool contract, check the matching `docs/api/`, `shared/schemas/`, and
 `ARCHITECTURE.md` surfaces.
 
 When a domain or source-root boundary changes, check `CONTEXT-MAP.md`,
-`docs/agents/domain.md`, the relevant dock or subtree `AGENTS.md`, and any
-relevant `docs/api/` or schema index. Check root `AGENTS.md` only when the
-boundary change affects repo-wide signage or authority routing.
+`docs/agents/domain.md`, relevant installable skills, the relevant subtree
+`AGENTS.md`, and any relevant `docs/api/` or schema index. Check root
+`AGENTS.md` only when the boundary change affects repo-wide signage or
+authority routing.
 
 When architecture ownership changes between daemon, toolkit, and apps, check
 `ARCHITECTURE.md`, `CONTEXT.md`, `CONTEXT-MAP.md`, relevant subtree
@@ -128,13 +128,14 @@ declaring the slice complete:
 
 When two live sources disagree, do not silently choose the convenient one. Name
 the conflict, identify the sources, and keep the fix scoped to the active task.
-Prefer the current work card, the relevant dock or local `AGENTS.md`, live
-code, schemas, tests, CLI/API behavior, then `docs/api/`, `shared/schemas/`,
-`ARCHITECTURE.md`, and `CONTEXT.md`. Root `AGENTS.md` resolves only repo-wide
-invariants and authority routing. Treat design notes, old work cards, and
-external templates as context unless the active work card makes them
-authoritative.
+Prefer the current work card, the relevant local `AGENTS.md`, installable
+skills for agent-facing workflows, live code, schemas, tests, CLI/API behavior,
+then `docs/api/`, `shared/schemas/`, `ARCHITECTURE.md`, and `CONTEXT.md`. Root
+`AGENTS.md` resolves only repo-wide invariants and authority routing. Treat
+design notes, old work cards, and external templates as context unless the
+active work card makes them authoritative.
 
 If the correct owner is unclear, stop at the narrowest reversible pointer or
-report the conflict for Foreman/human judgment. Do not spread one assumption
-across several authority surfaces just to make the docs appear consistent.
+report the conflict for human or designated review-authority judgment. Do not
+spread one assumption across several authority surfaces just to make the docs
+appear consistent.

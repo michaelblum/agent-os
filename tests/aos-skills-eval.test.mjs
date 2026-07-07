@@ -325,6 +325,48 @@ test('AOS skills OpenAI live runner rejects matrix rows without OpenAI adapter',
   );
 });
 
+test('AOS skills OpenAI live runner requires explicit allow-partial before writing packet failures', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-eval-partial-'));
+  const runOptions = {
+    apiKey: 'test-key',
+    caseIds: ['readiness-route'],
+    matrixIds: ['codex-gpt-5.4-mini-low'],
+    sessionId: 'partial-session',
+    fetch: async () => ({
+      ok: false,
+      status: 429,
+      text: async () => 'rate limited',
+    }),
+  };
+  try {
+    await assert.rejects(
+      runOpenAIResponsesEval(fixture, tempRoot, runOptions),
+      (error) => {
+        assert.equal(error.code, 'OPENAI_EVAL_PARTIAL_CAPTURE');
+        assert.equal(error.details.packets_requested, 1);
+        assert.equal(error.details.errors.length, 1);
+        return true;
+      },
+    );
+    assert.equal((await loadResponseRuns(tempRoot)).length, 0);
+
+    const allowed = await runOpenAIResponsesEval(fixture, tempRoot, {
+      ...runOptions,
+      allowPartial: true,
+    });
+    assert.equal(allowed.status, 'completed_with_errors');
+    assert.equal(allowed.runs_written, 1);
+    assert.equal(allowed.errors.length, 1);
+    const runs = await loadResponseRuns(tempRoot);
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].case_responses.length, 0);
+    assert.equal(runs[0].metadata.errors.length, 1);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('AOS skills OpenAI live runner fails closed on empty packet selection', async () => {
   const fixture = await loadEvalFixture(fixturePath);
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-eval-empty-'));

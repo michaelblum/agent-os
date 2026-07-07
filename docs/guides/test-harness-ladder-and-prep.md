@@ -96,18 +96,19 @@ generic file.
 ## Reporting Hooks
 
 For runtime, canvas, input, status, lifecycle, visual, supervised, or
-cross-layer slices, include the relevant fields in the GDI completion report or
-work-card-specific report:
+cross-layer slices, include the relevant fields in the local completion report
+or work-card-specific report:
 
 - `harness_selection`: harness used, level chosen, and why it preserved the
   defect variable.
 - `fixture_blind_spots`: fixture shortcuts that would erase the variable under
   test or evidence the selected fixture still preserves it.
 - `new_test_artifact_candidates`: new primitives, helpers, fixtures, scenarios,
-  or reports that Foreman should later promote, keep local, or delete.
+  or reports that the review authority should later promote, keep local, or
+  delete.
 - `why_no_harness_prep_needed`: short explanation for tiny docs/parser/schema
   changes or cases where the existing manifest-backed recommendation is enough.
 
-Do not force every tiny GDI task to carry these fields. They are required when
-the slice crosses runtime/canvas/input/status/lifecycle boundaries and optional
-otherwise.
+Do not force every tiny local task to carry these fields. They are required
+when the slice crosses runtime/canvas/input/status/lifecycle boundaries and
+optional otherwise.

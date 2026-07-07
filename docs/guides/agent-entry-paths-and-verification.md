@@ -1,9 +1,9 @@
 # Guide: Capability Routes and Verification
 
-This guide predates the dock profile model. Treat "entry path" language in this
-file as compatibility wording for capability routes only. It does not define
-agent identity, dock runtime posture, session ethos, or active operating
-doctrine. Docked sessions load those from `.docks/profiles/active-profile.json`.
+This guide uses "entry path" as compatibility wording for capability routes
+only. It does not define agent identity, runtime posture, session ethos, or
+active operating doctrine. Repo-root DOX, direct user intent, live `./aos help`
+output, and installable AOS skills own current session orientation.
 
 Use this recipe when an agent is developing or diagnosing AOS through AOS itself.
 The goal is to dogfood the platform without confusing ordinary harness behavior
@@ -144,8 +144,7 @@ over-scoping it:
 
 - Repo-wide signage, hard invariants, and authority routing belong in root
   `AGENTS.md`.
-- Dock roles, hook-owned behavior, inbound contracts, and cross-session
-  transfer policy belong under `.docks/`.
+- Installable agent-facing workflow guidance belongs under top-level `skills/`.
 - App-local contracts belong in the nearest subtree `AGENTS.md`.
 - Verification mechanics belong in `tests/README.md`.
 - Reusable SOPs and practices belong in `docs/guides/`.

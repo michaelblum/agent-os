@@ -96,6 +96,7 @@ function normalizeOpenAIResponsesOptions(options) {
   return {
     ...options,
     apiKey,
+    allowPartial: Boolean(options.allowPartial),
     maxOutputTokens: normalizeMaxOutputTokens(options.maxOutputTokens),
     replace: Boolean(options.replace),
     sessionId: normalizeSessionId(options.sessionId),
@@ -286,6 +287,19 @@ export async function runOpenAIResponsesEval(fixture, outputDir, options = {}) {
       run.metadata.errors.push(payload);
       errors.push(payload);
     }
+  }
+
+  if (errors.length && !runnerOptions.allowPartial) {
+    throw new AosSkillsError(
+      'OpenAI live eval captured partial results; rerun with --allow-partial to write incomplete runs',
+      'OPENAI_EVAL_PARTIAL_CAPTURE',
+      {
+        output_dir: outputDir,
+        session_id: runnerOptions.sessionId,
+        packets_requested: packets.length,
+        errors,
+      },
+    );
   }
 
   const runs = [...runsByMatrix.values()];

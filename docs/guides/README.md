@@ -6,13 +6,13 @@ operating guidance for agent-os. Under the AOS Execution Model V0
 **Guides/SOPs**: they shape human and agent judgment, but they are not
 executable Recipes.
 
-Guides/SOPs are not one-off handoffs, successor-session memory, role
+Guides/SOPs are not one-off handoffs, successor-session memory, persona
 instructions, executable recipe manifests, or provider skill registries. Put
 those elsewhere:
 
-- dock roles and persona contracts live under `.docks/`;
-- dock-local skills live under `.docks/<dock>/skills/<name>/SKILL.md`;
-- GDI work cards live under `docs/design/work-cards/`;
+- repo-wide hard invariants and authority routing live in root `AGENTS.md`;
+- installable workflow guidance lives under top-level `skills/`;
+- design and implementation work cards live under `docs/design/work-cards/`;
 - design plans and specs live under `docs/design/`;
 - cross-tool contracts live under `docs/api/`, `shared/schemas/`, or
   `ARCHITECTURE.md`.
@@ -35,7 +35,7 @@ guidance that makes `aos ops` canonical.
 
 A Markdown Guide/SOP belongs here when it is:
 
-- reusable across more than one dock role;
+- reusable across more than one repo-root session or implementation lane;
 - about a bounded procedure rather than a whole persona;
 - durable enough to cite from docs, tests, work cards, or API contracts;
 - specific enough to stop stale-doc drift or repeated bad choices.
@@ -52,10 +52,11 @@ status-item, lifecycle, visual, supervised, or cross-layer work, use
 
 Do not add or keep a Markdown Guide/SOP here when it is:
 
-- a successor Foreman handoff or session continuation memory;
-- GDI-specific prompt scaffolding better owned by Foreman transfer references;
-- GDI exit-interview or retrospective behavior better owned by GDI skills;
-- obsolete startup guidance superseded by dock-first cold-start docs;
+- a successor handoff or session continuation memory;
+- role-specific prompt scaffolding better owned by a work card or local report;
+- exit-interview or retrospective behavior better owned by a focused
+  historical report;
+- obsolete startup guidance superseded by repo-root DOX and installable skills;
 - a provider-managed global skill or local provider registry entry.
 
 When moving misplaced guidance, update links and tests in the same change. If a

@@ -16,7 +16,7 @@ Surface Inspector without opening live websites.
    - `offscreen_revealed: true`
    - `tooling_dom_not_published: true`
 
-3. For an Operator-held AOS check, launch the controlled fixture publisher and
+3. For a supervised AOS check, launch the controlled fixture publisher and
    Surface Inspector in that order. The only supported page is:
 
    ```text

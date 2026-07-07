@@ -348,7 +348,7 @@ function parseCapabilitiesOptions(args) {
   return parseCommon(args, {
     '--repo': 'repo path',
     '--manifest': 'manifest path',
-    '--role': 'role dock role',
+    '--role': 'role legacy compatibility filter',
     '--entry-path': 'entry-path entry path',
   });
 }

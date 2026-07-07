@@ -37,11 +37,11 @@ Inspect enough local state to make the choice:
 3. If acceptance state, synthesis docs, or work-card status is stale, update it
    in the same branch with a small docs checkpoint.
 4. If the accepted work exposes one concrete deterministic correction, route a
-   correction card to GDI.
+   correction card to the next local implementation session.
 5. If the accepted work exposes one concrete implementation or docs follow-up
-   that does not need human-only state, route that next local GDI card.
-6. If the next meaningful proof is a supervised live run, route an Operator
-   packet when readiness is available. If permissions, credentials, or a
+   that does not need human-only state, route that next local slice.
+6. If the next meaningful proof is a supervised live run, route it explicitly
+   when readiness is available. If permissions, credentials, or a
    human-operated external surface are missing, emit a human-needed packet with
    the exact recovery path.
 7. If no local correction, implementation, docs, or supervised proof step
@@ -50,7 +50,7 @@ Inspect enough local state to make the choice:
 
 ## Completion Report Review
 
-When a GDI or Operator completion report arrives, Foreman should use this
+When a local completion report arrives, the review authority should use this
 procedural pass before accepting or routing follow-up work:
 
 1. Recompute local state with `git status --short --branch`, the relevant
@@ -65,9 +65,9 @@ procedural pass before accepting or routing follow-up work:
      missing proof blocks acceptance;
    - block when the next step requires human permission, credentials,
      external publication, runtime permissions, or product judgment.
-4. After acceptance, run the no-neutral-acceptance ladder in the Foreman dock
-   contract. Acceptance must end in a local checkpoint, routed next slice,
-   Operator or human-needed packet, or named external gate.
+4. After acceptance, run the no-neutral-acceptance ladder in this guide.
+   Acceptance must end in a local checkpoint, routed next slice, supervised
+   proof or human-needed packet, or named external gate.
 
 ## Local Integration Gate
 
@@ -127,7 +127,8 @@ remaining external hygiene decision.
 End the coordinator turn with one of these states:
 
 - accepted checkpoint plus next work card or dispatch copied;
-- accepted checkpoint plus Operator packet or human-needed recovery path;
+- accepted checkpoint plus supervised proof packet or human-needed recovery
+  path;
 - correction routed with the exact finding;
 - publication-ready checkpoint with the exact external gate named.
 

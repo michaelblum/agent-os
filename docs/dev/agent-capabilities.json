@@ -6,8 +6,10 @@
   "label": "agent-os Developer Capabilities",
   "summary": "Canonical capability manifest for typed repo-development operations exposed through AOS developer capability routes.",
   "applies_to": {
-    "roles": ["foreman", "implementer", "operator"],
-    "entry_paths": ["aos_developer", "testing"]
+    "entry_paths": [
+      "aos_developer",
+      "testing"
+    ]
   },
   "capabilities": [
     {
@@ -15,11 +17,18 @@
       "label": "GitHub Context",
       "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "context", "--json"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "context",
+          "--json"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -55,11 +64,18 @@
       "label": "GitHub Issue List",
       "summary": "List GitHub issues through ./aos dev gh with bounded read-only inventory filters.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "list"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "list"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -105,11 +121,18 @@
       "label": "GitHub Issue View",
       "summary": "Read one GitHub issue through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "view"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "view"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -156,15 +179,24 @@
       "label": "GitHub Issue Comment",
       "summary": "Write a GitHub issue comment through a body file using ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "comment"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "comment"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_issue_comment"],
+        "side_effects": [
+          "github_issue_comment"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": true
@@ -216,15 +248,24 @@
       "label": "GitHub Issue Create",
       "summary": "Create a GitHub issue through a title and body file using ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "create"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "create"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_issue_create"],
+        "side_effects": [
+          "github_issue_create"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": true
@@ -284,15 +325,24 @@
       "label": "GitHub Issue Close",
       "summary": "Close a GitHub issue through ./aos dev gh with an optional close reason.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "close"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "close"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_issue_close"],
+        "side_effects": [
+          "github_issue_close"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
@@ -344,15 +394,24 @@
       "label": "GitHub Issue Edit",
       "summary": "Edit GitHub issue lifecycle metadata through ./aos dev gh with explicit non-interactive flags.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "edit"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "issue",
+          "edit"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_issue_edit"],
+        "side_effects": [
+          "github_issue_edit"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
@@ -403,11 +462,18 @@
       "label": "GitHub Label List",
       "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "label", "list"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "label",
+          "list"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -453,11 +519,18 @@
       "label": "GitHub PR List",
       "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "list"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "list"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -503,11 +576,18 @@
       "label": "GitHub PR View",
       "summary": "Read one GitHub pull request through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "view"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "view"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -554,11 +634,18 @@
       "label": "GitHub PR Checks",
       "summary": "Read GitHub pull request check status through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "checks"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "checks"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -605,15 +692,24 @@
       "label": "GitHub PR Create",
       "summary": "Create a GitHub pull request through explicit base/head branches, title, and body file using ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "create"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "create"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_pr_create"],
+        "side_effects": [
+          "github_pr_create"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": true
@@ -683,15 +779,24 @@
       "label": "GitHub PR Comment",
       "summary": "Write a GitHub pull request comment through a body file using ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "comment"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "comment"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_pr_comment"],
+        "side_effects": [
+          "github_pr_comment"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": true
@@ -743,15 +848,24 @@
       "label": "GitHub PR Merge",
       "summary": "Merge a GitHub pull request through an explicit strategy using ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "pr", "merge"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "pr",
+          "merge"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_pr_merge"],
+        "side_effects": [
+          "github_pr_merge"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
@@ -779,7 +893,11 @@
           "required": true,
           "schema": {
             "type": "string",
-            "enum": ["squash", "merge", "rebase"]
+            "enum": [
+              "squash",
+              "merge",
+              "rebase"
+            ]
           }
         },
         {
@@ -821,11 +939,19 @@
       "label": "GitHub CI Inspect",
       "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through ./aos dev gh.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer", "testing"],
+      "entry_paths": [
+        "aos_developer",
+        "testing"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "ci", "inspect"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "ci",
+          "inspect"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -872,11 +998,17 @@
       "label": "GitHub Review Comments",
       "summary": "Read thread-level PR review comment state through ./aos dev gh and gh GraphQL.",
       "status": "active",
-      "roles": ["foreman", "implementer", "operator"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "review-comments"]
+        "command": [
+          "./aos",
+          "dev",
+          "gh",
+          "review-comments"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -923,15 +1055,23 @@
       "label": "AOS Developer Build",
       "summary": "Build the repo-mode ./aos binary through the signing-aware developer control surface.",
       "status": "active",
-      "roles": ["foreman", "implementer"],
-      "entry_paths": ["aos_developer"],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
         "kind": "aos_cli",
-        "command": ["./aos", "dev", "build"]
+        "command": [
+          "./aos",
+          "dev",
+          "build"
+        ]
       },
       "mutability": {
         "class": "host_write",
-        "side_effects": ["repo_binary_rebuild", "possible_daemon_restart"],
+        "side_effects": [
+          "repo_binary_rebuild",
+          "possible_daemon_restart"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
@@ -963,11 +1103,17 @@
       "label": "Node Schema Test",
       "summary": "Run the schema Node test suite as an explicit developer/testing raw-process capability.",
       "status": "active",
-      "roles": ["foreman", "implementer"],
-      "entry_paths": ["aos_developer", "testing"],
+      "entry_paths": [
+        "aos_developer",
+        "testing"
+      ],
       "adapter": {
         "kind": "node",
-        "command": ["node", "--test", "tests/schemas/*.test.mjs"]
+        "command": [
+          "node",
+          "--test",
+          "tests/schemas/*.test.mjs"
+        ]
       },
       "mutability": {
         "class": "read_only",
@@ -998,5 +1144,8 @@
         "retry": "none"
       }
     }
-  ]
+  ],
+  "metadata": {
+    "role_filter_compatibility": "--role is accepted by ./aos dev capabilities for legacy callers only; current capability routing uses entry_paths and explicit task context, not project-agent personas."
+  }
 }
