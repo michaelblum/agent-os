@@ -117,15 +117,23 @@ function submittedBy(value = null) {
   return { role: 'human', user: username || 'local-user' };
 }
 
-export function normalizeGateContinuationRecord(record) {
-  if (!isObject(record) || !isObject(record.session)) return record;
-  if (!Object.hasOwn(record.session, 'dock')) return record;
-
-  const { dock, ...session } = record.session;
-  return {
-    ...record,
-    session: Object.hasOwn(session, 'role') ? session : { ...session, role: dock ?? null },
-  };
+function assertCurrentGateContinuationRecord(record) {
+  const id = isObject(record) && typeof record.continuation_id === 'string'
+    ? record.continuation_id
+    : 'unknown';
+  if (!isObject(record)) {
+    throw new Error(`corrupt gate continuation ${id}: record must be an object`);
+  }
+  if (!isObject(record.session)) {
+    throw new Error(`corrupt gate continuation ${id}: session must be an object`);
+  }
+  if (Object.hasOwn(record.session, 'dock')) {
+    throw new Error(`corrupt gate continuation ${id}: session.dock is retired; current continuations must use session.role`);
+  }
+  if (!Object.hasOwn(record.session, 'role')) {
+    throw new Error(`corrupt gate continuation ${id}: session.role is required`);
+  }
+  return record;
 }
 
 export class GateContinuationStore {
@@ -200,7 +208,7 @@ export class GateContinuationStore {
 
   async read(id) {
     assertContinuationId(id);
-    return normalizeGateContinuationRecord(JSON.parse(await readFile(this.continuationPath(id), 'utf8')));
+    return assertCurrentGateContinuationRecord(JSON.parse(await readFile(this.continuationPath(id), 'utf8')));
   }
 
   async list({ id = null, status = null, limit = 50 } = {}) {
@@ -223,7 +231,7 @@ export class GateContinuationStore {
     }
     const records = [];
     for (const name of names.filter((entry) => entry.endsWith('.json')).sort()) {
-      const record = normalizeGateContinuationRecord(JSON.parse(await readFile(join(this.continuationDir, name), 'utf8')));
+      const record = assertCurrentGateContinuationRecord(JSON.parse(await readFile(join(this.continuationDir, name), 'utf8')));
       if (!status || record.lifecycle?.state === status) records.push(record);
     }
     if (!Number.isFinite(limit) || limit <= 0) return records;

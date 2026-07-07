@@ -74,26 +74,26 @@ test('deferred gate continuation and resume event records match public schemas',
   assert.equal(eventResult.status, 0, `${eventResult.stdout}${eventResult.stderr}`);
 });
 
-test('legacy v1 continuation records with session.dock validate for compatibility', async () => {
-  const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-legacy-schema-'));
+test('dock-only continuation records are rejected by the public schema', async () => {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-dock-only-schema-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
   const continuation = await store.create({
     request: request(),
-    sessionId: 'codex-legacy-schema-session',
+    sessionId: 'codex-dock-only-schema-session',
     harness: 'codex',
     role: 'worker',
   });
-  const legacySession = { ...continuation.session, dock: 'gdi' };
-  delete legacySession.role;
-  const legacy = { ...continuation, session: legacySession };
-  const legacyPath = path.join(stateRoot, 'legacy-continuation.json');
-  await writeFile(legacyPath, JSON.stringify(legacy), 'utf8');
+  const dockOnlySession = { ...continuation.session, dock: 'gdi' };
+  delete dockOnlySession.role;
+  const dockOnly = { ...continuation, session: dockOnlySession };
+  const dockOnlyPath = path.join(stateRoot, 'dock-only-continuation.json');
+  await writeFile(dockOnlyPath, JSON.stringify(dockOnly), 'utf8');
 
-  const legacyResult = validate(continuationSchema, legacyPath);
-  assert.equal(legacyResult.status, 0, `${legacyResult.stdout}${legacyResult.stderr}`);
+  const dockOnlyResult = validate(continuationSchema, dockOnlyPath);
+  assert.notEqual(dockOnlyResult.status, 0, 'session.dock must not validate as session.role compatibility');
 });
 
-test('mixed v1 continuation records with session.role and session.dock are not canonical schema', async () => {
+test('mixed role and dock continuation records are rejected by the public schema', async () => {
   const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-mixed-schema-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
   const continuation = await store.create({
@@ -107,5 +107,5 @@ test('mixed v1 continuation records with session.role and session.dock are not c
   await writeFile(mixedPath, JSON.stringify(mixed), 'utf8');
 
   const mixedResult = validate(continuationSchema, mixedPath);
-  assert.notEqual(mixedResult.status, 0, 'mixed role+dock records must stay read-boundary tolerance only');
+  assert.notEqual(mixedResult.status, 0, 'session.dock must be rejected even when session.role is present');
 });

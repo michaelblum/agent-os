@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { GateRecordStore } from '../../packages/daemon/gate/records.js';
-import { GateContinuationStore, normalizeGateContinuationRecord } from '../../packages/daemon/gate/continuations.js';
+import { GateContinuationStore } from '../../packages/daemon/gate/continuations.js';
 import { runGateContinuations } from '../../packages/cli/verbs/gate-continuations.js';
 import { runGateDefer } from '../../packages/cli/verbs/gate-defer.js';
 import { runGateSubmit } from '../../packages/cli/verbs/gate-submit.js';
@@ -67,63 +67,69 @@ test('defer returns immediately and writes one pending continuation with redacte
   assert.equal(stored.resume.auto_resume, false);
 });
 
-test('legacy continuation records normalize session.dock to public session.role', async () => {
-  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-legacy-dock-'));
+test('stale continuation records with session.dock fail closed instead of normalizing', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-stale-dock-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
   const continuation = await store.create({
-    request: request('gate-legacy-dock'),
-    sessionId: 'legacy-dock-session',
+    request: request('gate-stale-dock'),
+    sessionId: 'stale-dock-session',
     harness: 'codex',
     role: 'worker',
   });
   const path = store.continuationPath(continuation.continuation_id);
-  const legacy = JSON.parse(await readFile(path, 'utf8'));
-  legacy.session.dock = 'gdi';
-  delete legacy.session.role;
-  await writeFile(path, JSON.stringify(legacy), 'utf8');
+  const stale = JSON.parse(await readFile(path, 'utf8'));
+  stale.session.dock = 'gdi';
+  delete stale.session.role;
+  await writeFile(path, JSON.stringify(stale), 'utf8');
 
-  const readback = await store.read(continuation.continuation_id);
-  assert.equal(readback.session.role, 'gdi');
-  assert.equal(Object.hasOwn(readback.session, 'dock'), false);
-
-  const listed = await store.list({ id: continuation.continuation_id });
-  assert.equal(listed.length, 1);
-  assert.equal(listed[0].session.role, 'gdi');
-  assert.equal(Object.hasOwn(listed[0].session, 'dock'), false);
+  await assert.rejects(
+    () => store.read(continuation.continuation_id),
+    /session\.dock is retired/,
+  );
+  await assert.rejects(
+    () => store.list({ id: continuation.continuation_id }),
+    /session\.dock is retired/,
+  );
+  await assert.rejects(
+    () => store.list(),
+    /session\.dock is retired/,
+  );
 
   const stdout = writable();
   const stderr = writable();
   const code = await runGateContinuations(['--id', continuation.continuation_id, '--json'], { stdout, stderr, store });
-  assert.equal(code, 0, stderr.text());
-  const payload = JSON.parse(stdout.text());
-  assert.equal(payload.continuations[0].session.role, 'gdi');
-  assert.equal(Object.hasOwn(payload.continuations[0].session, 'dock'), false);
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /session\.dock is retired/);
 
-  const submitted = await store.submit({
-    continuationId: continuation.continuation_id,
-    response: { decision: 'approve' },
-  });
-  assert.equal(submitted.record.session.role, 'gdi');
-  assert.equal(Object.hasOwn(submitted.record.session, 'dock'), false);
-  const storedAfterSubmit = JSON.parse(await readFile(path, 'utf8'));
-  assert.equal(storedAfterSubmit.session.role, 'gdi');
-  assert.equal(Object.hasOwn(storedAfterSubmit.session, 'dock'), false);
+  await assert.rejects(
+    () => store.submit({ continuationId: continuation.continuation_id, response: { decision: 'approve' } }),
+    /session\.dock is retired/,
+  );
 });
 
-test('continuation normalization defensively strips legacy dock from mixed records', () => {
-  const normalized = normalizeGateContinuationRecord({
-    schema_version: 'aos.gate.continuation.v1',
-    session: {
-      session_id: 'session-both',
-      harness: 'codex',
-      provider: 'codex',
-      role: 'worker',
-      dock: 'gdi',
-    },
+test('mixed role and dock continuation records fail closed', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-mixed-dock-'));
+  const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
+  const continuation = await store.create({
+    request: request('gate-mixed-dock'),
+    sessionId: 'mixed-dock-session',
+    harness: 'codex',
+    role: 'worker',
   });
+  const path = store.continuationPath(continuation.continuation_id);
+  const mixed = JSON.parse(await readFile(path, 'utf8'));
+  mixed.session.dock = 'gdi';
+  await writeFile(path, JSON.stringify(mixed), 'utf8');
 
-  assert.equal(normalized.session.role, 'worker');
-  assert.equal(Object.hasOwn(normalized.session, 'dock'), false);
+  await assert.rejects(
+    () => store.read(continuation.continuation_id),
+    /session\.dock is retired/,
+  );
+  await assert.rejects(
+    () => store.submit({ continuationId: continuation.continuation_id, response: { decision: 'approve' } }),
+    /session\.dock is retired/,
+  );
 });
 
 test('continuation storage is runtime-mode scoped', async () => {
