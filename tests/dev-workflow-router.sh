@@ -305,13 +305,16 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-gh"} <= set(forms), forms
-assert "dev-docks" not in forms, forms
-assert "dev-agents" not in forms, forms
-assert "dev-subagent" not in forms, forms
-assert "dev-afk-dry-run" not in forms, forms
-assert "dev-afk-launch-attempt" not in forms, forms
-assert "dev-afk-session-trigger" not in forms, forms
+assert set(forms) == {
+    "dev-audit",
+    "dev-build",
+    "dev-capabilities",
+    "dev-classify",
+    "dev-drift-lint",
+    "dev-gh",
+    "dev-recommend",
+    "dev-situation",
+}, forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
@@ -324,9 +327,9 @@ gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/audit/capabilities/gh without retired orchestration commands"
+    pass "dev help exposes exact current workflow router forms"
 else
-    fail "dev help missing workflow router forms"
+    fail "dev help workflow router forms drifted"
 fi
 
 if OUT="$(./aos dev capabilities list --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'

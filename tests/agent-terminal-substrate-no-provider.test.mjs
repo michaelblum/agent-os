@@ -8,7 +8,7 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
-describe('AFK terminal substrate validation without provider launch', () => {
+describe('Agent Terminal substrate validation without provider launch', () => {
   let root;
   let homeDir;
   let codexRoot;
@@ -19,7 +19,7 @@ describe('AFK terminal substrate validation without provider launch', () => {
   let output;
 
   beforeEach(async () => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'afk-terminal-substrate-'));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-terminal-substrate-'));
     homeDir = path.join(root, 'home');
     codexRoot = path.join(root, 'codex-empty');
     claudeRoot = path.join(root, 'claude-empty');
@@ -37,9 +37,9 @@ describe('AFK terminal substrate validation without provider launch', () => {
         ...process.env,
         AGENT_TERMINAL_PORT: String(port),
         AGENT_TERMINAL_DRIVER: 'process',
-        AGENT_TERMINAL_TMUX_SESSION: 'afk-terminal-substrate',
+        AGENT_TERMINAL_TMUX_SESSION: 'agent-terminal-substrate',
         AGENT_TERMINAL_CWD: worktree,
-        AGENT_TERMINAL_COMMAND: harmlessCommand('default-afk-session', worktree),
+        AGENT_TERMINAL_COMMAND: harmlessCommand('default-agent-terminal-session', worktree),
         AGENT_TERMINAL_CATALOG_HOME: homeDir,
         AGENT_TERMINAL_CODEX_ROOT: codexRoot,
         AGENT_TERMINAL_CLAUDE_ROOT: claudeRoot,
@@ -61,7 +61,7 @@ describe('AFK terminal substrate validation without provider launch', () => {
   });
 
   it('observes process-driver session facts without provider catalog or telemetry claims', async () => {
-    const session = 'afk-no-provider-session';
+    const session = 'agent-terminal-no-provider-session';
     const command = harmlessCommand(session, worktree);
 
     const healthResponse = await fetch(`http://127.0.0.1:${port}/health`);
@@ -69,7 +69,7 @@ describe('AFK terminal substrate validation without provider launch', () => {
     const health = await healthResponse.json();
     assert.equal(health.ok, true);
     assert.equal(health.driver, 'process');
-    assert.equal(health.defaultSession, 'afk-terminal-substrate');
+    assert.equal(health.defaultSession, 'agent-terminal-substrate');
     assert.equal(health.defaultCwd, worktree);
     assert.equal(typeof health.pythonAvailable, 'boolean');
 
@@ -91,11 +91,11 @@ describe('AFK terminal substrate validation without provider launch', () => {
     assert.equal(ensured.driver, 'process');
     assert.equal(typeof ensured.child_pid, 'number');
 
-    const snapshot = await waitForSnapshot(port, session, 'afk-substrate-marker');
+    const snapshot = await waitForSnapshot(port, session, 'agent-terminal-substrate-marker');
     assert.equal(snapshot.session, session);
     assert.equal(snapshot.driver, 'process');
     assert.match(snapshot.text, /^\$ node -e /);
-    assert.match(snapshot.text, /afk-substrate-marker/);
+    assert.match(snapshot.text, /agent-terminal-substrate-marker/);
     assert.match(snapshot.text, new RegExp(escapeRegExp(`"session":"${session}"`)));
     assert.match(snapshot.text, new RegExp(escapeRegExp(`"cwd":"${worktree}"`)));
     assert.doesNotMatch(snapshot.text, /\b(codex|claude|gemini)\b/i);
@@ -116,7 +116,7 @@ describe('AFK terminal substrate validation without provider launch', () => {
 });
 
 function harmlessCommand(session, cwd) {
-  const payload = JSON.stringify({ marker: 'afk-substrate-marker', session, cwd });
+  const payload = JSON.stringify({ marker: 'agent-terminal-substrate-marker', session, cwd });
   const encoded = Buffer.from(payload, 'utf8').toString('base64');
   return `node -e ${JSON.stringify(`console.log(Buffer.from(${JSON.stringify(encoded)}, 'base64').toString('utf8'));`)}`;
 }
@@ -144,15 +144,17 @@ async function waitForHealth(activePort, readOutput) {
 
 async function waitForSnapshot(activePort, session, marker) {
   const url = `http://127.0.0.1:${activePort}/snapshot?session=${encodeURIComponent(session)}&lines=80`;
+  let lastText = '';
   for (let attempt = 0; attempt < 50; attempt += 1) {
     const response = await fetch(url);
     if (response.ok) {
       const snapshot = await response.json();
+      lastText = snapshot.text;
       if (snapshot.text.includes(marker)) return snapshot;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error(`snapshot did not include ${marker}`);
+  throw new Error(`snapshot did not include ${marker}:\n${lastText}`);
 }
 
 function escapeRegExp(value) {

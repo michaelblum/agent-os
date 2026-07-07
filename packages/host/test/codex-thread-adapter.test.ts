@@ -197,7 +197,7 @@ describe('Codex thread adapter', () => {
       intendedCwd: repoCwd,
       bridgeVisibility: {
         command_argv: ['codex', '--no-alt-screen'],
-        terminal_substrate: { driver: 'process', session_handle: 'afk-bridge-fixture' },
+        terminal_substrate: { driver: 'process', session_handle: 'agent-terminal-fixture' },
       },
       timeWindow: {
         after: '2026-05-22T14:00:00.000Z',
@@ -207,7 +207,7 @@ describe('Codex thread adapter', () => {
 
     assert.equal(result.status, 'not_observed');
     assert.equal(result.mismatches[0].code, 'provider_session_id_not_observed');
-    assert.ok(result.evidence_refs.some((ref) => ref.ref === 'bridge-session:afk-bridge-fixture'));
+    assert.ok(result.evidence_refs.some((ref) => ref.ref === 'bridge-session:agent-terminal-fixture'));
   });
 
   it('correlates one cwd/time candidate and reports multiple candidates when the window is ambiguous', () => {
@@ -277,7 +277,7 @@ describe('Codex thread adapter', () => {
       intendedCwd: repoCwd,
       bridgeVisibility: {
         command_argv: ['codex', '--no-alt-screen'],
-        terminal_substrate: { driver: 'process', session_handle: 'afk-bridge-fixture' },
+        terminal_substrate: { driver: 'process', session_handle: 'agent-terminal-fixture' },
       },
     });
 
