@@ -1,8 +1,10 @@
 # AOS Capabilities
 
-Consumer-facing capability map for AOS as "Playwright CLI, but for the
-desktop." This map is grounded in `./aos help --json` and source command
-manifests under `manifests/commands/source/aos/`.
+Consumer-facing capability map for AOS as a Playwright-like desktop
+automation CLI: direct commands, stable help/JSON output, progressive
+discovery, and capability-oriented workflows. This map is grounded in
+`./aos help --json` and source command manifests under
+`manifests/commands/source/aos/`.
 
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
@@ -29,10 +31,31 @@ The current vocabulary decision is documented in
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
 | Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
+| Diagnostics/debug | Debug readbacks for active AOS/runtime work | `daemon-snapshot`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, gates, Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
 | Operator input | Pending operator annotations and saved-ref handoff | `see annotation create/list/read/consume/link-work-record/delete` |
 | Skills and recipes | Installable guidance versus executable source-backed procedures | `skills list/check/install`, `skills companion ...`, `recipe list/explain/dry-run/run` |
-| Runtime/service | Daemon ownership, mode, permissions, cleanup | `service`, `runtime`, `content`, `clean`, `reset`, `daemon-snapshot` |
+| Runtime/service | Daemon ownership, mode, permissions, cleanup | `service`, `runtime`, `content`, `clean`, `reset` |
+
+## Ergonomics And Dev
+
+Playwright-like means ergonomic, not command-for-command compatible. For AOS,
+that means short direct verbs, stable machine output, dry-run support where
+mutation risk is high, useful errors, discoverable help, and workflows that
+compose from the same command facts agents see in `./aos help --json`.
+
+Capability groups explain why a command exists. They do not force public
+command spelling. Keep public diagnostics on deliberate command families such
+as `log`, `inspect`, `introspect`, `daemon-snapshot`, and the
+overlay/display-oriented `show` surface.
+
+`aos dev` is a hidden maintainer workflow router for this repo. It remains
+directly addressable through `./aos help dev --json`, but it is marked
+`consumer_discovery: false`, omitted from root consumer help, and owned by
+`docs/dev/command-surface.md` plus the generated command inventory. Useful
+maintainer helpers should stay there until a deliberate migration moves them
+out of the public `aos` tree or promotes a specific workflow into a real public
+surface with manifest, route, docs, tests, and compatibility policy.
 
 ## Desktop Control Inventory
 

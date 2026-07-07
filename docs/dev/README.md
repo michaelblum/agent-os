@@ -39,7 +39,10 @@ personas.
 remains in Swift, what lives in hot-swappable manifests/scripts, and which tests
 guard route and help behavior. It also defines the agent-ergonomics rule:
 persistent routine-work friction should trigger dev-surface examination instead
-of growing persona instructions.
+of growing persona instructions. It also owns the current self-hosting boundary:
+`aos dev` is a hidden maintainer router, while public AOS ergonomics should be
+shaped through direct commands, stable help/JSON contracts, and explicit
+capability groups rather than command-name parity with another CLI.
 
 For test harness selection, start with the foundational ladder in
 `tests/README.md`. For runtime, canvas, input, status-item, lifecycle, visual,

@@ -59,13 +59,34 @@ node scripts/generate-command-inventory.mjs
 That report is a development audit artifact, not a consumer API contract. It
 records command paths, concrete forms, source manifests, external
 implementations, consumer discovery, mutability, JSON output, dry-run support,
-and proposed capability groups for `dev` / `devtools` reshaping decisions.
+and proposed capability groups for public CLI and self-hosting boundary
+decisions.
 
 Registry metadata must distinguish direct maintainability from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by
 direct help paths such as `./aos help dev --json`, but root help and the full
 consumer JSON registry filter it out. This keeps maintainer routes reachable
 without advertising them as the normal agent API.
+
+## Public CLI And Self-Hosting
+
+`aos dev` is a maintainer-only workflow router for this repository. It owns
+repo-local classification, recommendation, situation, drift lint, build, audit,
+developer capability, and GitHub workflow helpers. It is intentionally hidden
+from root consumer help through `consumer_discovery: false`, but direct help
+must keep resolving so local maintainers can inspect the exact command forms.
+
+AOS should feel Playwright-like through ergonomics: short direct commands,
+stable JSON/help contracts, clear capability groupings, strong examples,
+bounded side-effect metadata, useful errors, and composable workflows. Do not
+mirror another CLI's command names just because its capability model is the
+reference point.
+
+Longer term, `aos dev` should be treated as self-hosting plumbing, not durable
+product API. If a workflow moves out of `aos dev`, make the destination
+explicit: either repo-local maintainer tooling outside the public `aos` tree or
+a real public command with source manifests, external routes, docs, tests, and
+compatibility policy.
 
 When a form's output changes under a flag, record that in
 `output.conditional_modes` instead of relying on prose or sibling-form

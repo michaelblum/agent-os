@@ -14,7 +14,7 @@ node scripts/generate-command-inventory.mjs
 This is a development inventory, not a consumer API contract. Use
 `docs/api/aos-capabilities.md` for the public desktop-agent capability map.
 The "group" column is a proposed capability classification used to audit the
-current command tree before any `dev` / `devtools` reshaping.
+current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
@@ -41,7 +41,7 @@ current command tree before any `dev` / `devtools` reshaping.
 | Desktop discovery | 4 |
 | Desktop/native control | 9 |
 | Developer workflow | 8 |
-| DevTools/debug | 6 |
+| Diagnostics/debug | 6 |
 | Operator input | 6 |
 | Operator messaging | 7 |
 | Overlay/display | 15 |
@@ -78,7 +78,7 @@ current command tree before any `dev` / `devtools` reshaping.
 | `set` | 2 | Storage/config | yes | mutates, read-only | default | `manifests/commands/source/aos/14-set.json` | `node scripts/aos-config-command.mjs set-shorthand` | `docs/api/aos.md` |
 | `focus` | 4 | Core desktop | yes | mutates, read-only | default | `manifests/commands/source/aos/15-focus.json` | `node scripts/aos-focus-graph.mjs focus` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `graph` | 4 | Desktop discovery | yes | mutates, read-only | default | `manifests/commands/source/aos/16-graph.json` | `node scripts/aos-focus-graph.mjs graph` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `daemon-snapshot` | 1 | DevTools/debug | yes | read-only | default | `manifests/commands/source/aos/17-daemon-snapshot.json` | `node scripts/aos-focus-graph.mjs daemon-snapshot` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `daemon-snapshot` | 1 | Diagnostics/debug | yes | read-only | default | `manifests/commands/source/aos/17-daemon-snapshot.json` | `node scripts/aos-focus-graph.mjs daemon-snapshot` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `serve` | 1 | Runtime/service | yes | mutates | no | `manifests/commands/source/aos/18-serve.json` | `__serve` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `content` | 2 | Content/wiki | yes | read-only | --json | `manifests/commands/source/aos/19-content.json` | `node scripts/aos-family-router.mjs content UNKNOWN_COMMAND content command [child 0]` | `docs/api/aos.md` |
 | `service` | 6 | Runtime/service | yes | mutates, read-only | --json, no | `manifests/commands/source/aos/20-service.json` | `node scripts/aos-subcommand-router.mjs service MISSING_SUBCOMMAND service requires a subcommand. Usage: aos service <install\|start\|stop\|restart\|status\|logs> ... UNKNOWN_SUBCOMMAND service subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -89,10 +89,10 @@ current command tree before any `dev` / `devtools` reshaping.
 | `doctor` | 2 | Core readiness | yes | read-only | --json | `manifests/commands/source/aos/25-doctor.json` | `node scripts/aos-doctor.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `reset` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/26-reset.json` | `node scripts/aos-reset.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `clean` | 1 | Runtime/service | yes | mutates | --json | `manifests/commands/source/aos/27-clean.json` | `node scripts/aos-clean.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `introspect` | 1 | DevTools/debug | yes | read-only | --json | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-family-router.mjs introspect UNKNOWN_SUBCOMMAND introspect subcommand [child 0]` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `introspect` | 1 | Diagnostics/debug | yes | read-only | --json | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-family-router.mjs introspect UNKNOWN_SUBCOMMAND introspect subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `permissions` | 4 | Core readiness, Runtime/service | yes | mutates, read-only, unspecified | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `inspect` | 1 | DevTools/debug | yes | unspecified | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/dev/command-surface.md` |
-| `log` | 3 | DevTools/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `inspect` | 1 | Diagnostics/debug | yes | unspecified | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `log` | 3 | Diagnostics/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki` | 15 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
 | `browser` | 9 | Browser companion | no | mutates, read-only | --json, default | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `help` | 2 | CLI metadata | yes | read-only | --json | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
@@ -211,7 +211,7 @@ current command tree before any `dev` / `devtools` reshaping.
 | `graph windows` | `graph-windows` | Desktop discovery | yes | read-only | default | no | `manifests/commands/source/aos/16-graph.json` | `node scripts/aos-focus-graph.mjs graph windows` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `graph deepen` | `graph-deepen` | Desktop discovery | yes | mutates | default | no | `manifests/commands/source/aos/16-graph.json` | `node scripts/aos-focus-graph.mjs graph deepen` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `graph collapse` | `graph-collapse` | Desktop discovery | yes | mutates | default | no | `manifests/commands/source/aos/16-graph.json` | `node scripts/aos-focus-graph.mjs graph collapse` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `daemon-snapshot` | `daemon-snapshot` | DevTools/debug | yes | read-only | default | no | `manifests/commands/source/aos/17-daemon-snapshot.json` | `node scripts/aos-focus-graph.mjs daemon-snapshot` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `daemon-snapshot` | `daemon-snapshot` | Diagnostics/debug | yes | read-only | default | no | `manifests/commands/source/aos/17-daemon-snapshot.json` | `node scripts/aos-focus-graph.mjs daemon-snapshot` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `serve` | `serve` | Runtime/service | yes | mutates | no | no | `manifests/commands/source/aos/18-serve.json` | `__serve` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `content status` | `content-status` | Content/wiki | yes | read-only | --json | no | `manifests/commands/source/aos/19-content.json` | `node scripts/aos-content.mjs status` | `docs/api/aos.md` |
 | `content wait` | `content-wait` | Content/wiki | yes | read-only | --json | no | `manifests/commands/source/aos/19-content.json` | `node scripts/aos-content.mjs wait` | `docs/api/aos.md` |
@@ -240,15 +240,15 @@ current command tree before any `dev` / `devtools` reshaping.
 | `doctor gateway` | `doctor-gateway` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/25-doctor.json` | `node packages/gateway/dist/doctor-cli.js --mode $AOS_RUNTIME_MODE --state-root $AOS_STATE_ROOT` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `reset` | `reset` | Runtime/service | yes | mutates | --json | no | `manifests/commands/source/aos/26-reset.json` | `node scripts/aos-reset.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `clean` | `clean` | Runtime/service | yes | mutates | --json | yes | `manifests/commands/source/aos/27-clean.json` | `node scripts/aos-clean.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `introspect review` | `introspect-review` | DevTools/debug | yes | read-only | --json | no | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-introspect-review.mjs` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `introspect review` | `introspect-review` | Diagnostics/debug | yes | read-only | --json | no | `manifests/commands/source/aos/28-introspect.json` | `node scripts/aos-introspect-review.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `permissions check` | `permissions-check` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions preflight` | `permissions-preflight` | Core readiness | yes | read-only | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs preflight` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions setup` | `permissions-setup` | Core readiness | yes | unspecified | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs setup` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `permissions reset-runtime` | `permissions-reset-runtime` | Runtime/service | yes | mutates | --json | no | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs reset-runtime` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `inspect` | `inspect` | DevTools/debug | yes | unspecified | default | no | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/dev/command-surface.md` |
-| `log` | `log-stream` | DevTools/debug | yes | read-only | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/dev/command-surface.md` |
-| `log push` | `log-push` | DevTools/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs push` | `docs/api/aos.md, docs/dev/command-surface.md` |
-| `log clear` | `log-clear` | DevTools/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs clear` | `docs/api/aos.md, docs/dev/command-surface.md` |
+| `inspect` | `inspect` | Diagnostics/debug | yes | unspecified | default | no | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `log` | `log-stream` | Diagnostics/debug | yes | read-only | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `log push` | `log-push` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs push` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
+| `log clear` | `log-clear` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs clear` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki create-plugin` | `wiki-create-plugin` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs create-plugin` | `docs/api/aos.md` |
 | `wiki add` | `wiki-add` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs add` | `docs/api/aos.md` |
 | `wiki rm` | `wiki-rm` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs rm` | `docs/api/aos.md` |

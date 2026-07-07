@@ -23,6 +23,7 @@ const CAPABILITY_DOC_GROUPS = new Set([
   'Canvas and vision',
   'Browser companion',
   'Overlay/display',
+  'Diagnostics/debug',
   'Verification/evidence',
   'Operator input',
   'Skills and recipes',
@@ -226,7 +227,7 @@ function capabilityGroup(command, form) {
   if (top === 'wiki' || top === 'content') return 'Content/wiki';
   if (top === 'config' || top === 'set') return 'Storage/config';
   if (top === 'service' || top === 'runtime' || top === 'serve' || top === 'reset' || top === 'clean') return 'Runtime/service';
-  if (top === 'daemon-snapshot' || top === 'inspect' || top === 'introspect' || top === 'log') return 'DevTools/debug';
+  if (top === 'daemon-snapshot' || top === 'inspect' || top === 'introspect' || top === 'log') return 'Diagnostics/debug';
   if (top === 'dev') return 'Developer workflow';
   if (top === 'help') return 'CLI metadata';
   return 'Unclassified';
@@ -238,7 +239,7 @@ function docRefs(command, group) {
   if (isPublic(command)) refs.add('docs/api/aos.md');
   if (groups.some((item) => CAPABILITY_DOC_GROUPS.has(item))) refs.add('docs/api/aos-capabilities.md');
   if (!isPublic(command) || group === 'Developer workflow') refs.add('docs/dev/command-surface.md');
-  if (groups.includes('DevTools/debug')) refs.add('docs/dev/command-surface.md');
+  if (groups.includes('Diagnostics/debug')) refs.add('docs/dev/command-surface.md');
   return [...refs].join(', ') || 'source manifest only';
 }
 
@@ -360,7 +361,7 @@ node scripts/generate-command-inventory.mjs
 This is a development inventory, not a consumer API contract. Use
 \`docs/api/aos-capabilities.md\` for the public desktop-agent capability map.
 The "group" column is a proposed capability classification used to audit the
-current command tree before any \`dev\` / \`devtools\` reshaping.
+current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
