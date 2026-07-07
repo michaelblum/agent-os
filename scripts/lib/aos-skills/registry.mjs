@@ -44,12 +44,16 @@ export {
 } from './companions.mjs';
 
 export {
+  EVAL_OPENAI_RUN_SCHEMA_VERSION,
   EVAL_PROMPT_PACKET_SCHEMA_VERSION,
   EVAL_REPORT_SCHEMA_VERSION,
   EVAL_SCHEMA_VERSION,
+  buildOpenAIResponsesRequest,
   buildPromptPackets,
   evaluateSkillEfficacy,
+  extractOpenAIOutputText,
   loadEvalFixture,
   loadResponseRuns,
+  runOpenAIResponsesEval,
   writePromptPackets,
 } from './eval.mjs';

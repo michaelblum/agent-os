@@ -56,8 +56,8 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   planning/application, and Playwright CLI companion checks.
 - `aos-skills-eval.mjs` is the deterministic captured-response evaluator for
   installable AOS skill efficacy across model/reasoning matrices. It may emit
-  prompt packets for live runners, but scoring must remain offline and
-  manifest-backed by default.
+  prompt packets and run capture-only provider adapters, but scoring must remain
+  offline and manifest-backed by default.
 - `lib/aos-skills/AGENTS.md` owns the focused module split behind those
   entrypoints. Keep validation, catalog reads, install target resolution,
   installed-state drift checks, transactional install application, Playwright

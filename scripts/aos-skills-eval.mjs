@@ -8,6 +8,7 @@ import {
   formatJSON,
   loadEvalFixture,
   loadResponseRuns,
+  runOpenAIResponsesEval,
   writePromptPackets,
 } from './lib/aos-skills/registry.mjs';
 
@@ -16,9 +17,10 @@ function usage() {
     'Usage:',
     '  node scripts/aos-skills-eval.mjs --fixture <path> [--responses-dir <dir>] [--case <id> ...] [--run <id> ...] [--pass-score <n>] [--json] [--fail-on-threshold]',
     '  node scripts/aos-skills-eval.mjs --fixture <path> --emit-prompts <dir> [--case <id> ...] [--matrix <id> ...] [--json]',
+    '  node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> [--case <id> ...] [--matrix <id> ...] [--max-output-tokens <n>] [--json]',
     '',
     'Scores captured model responses for AOS installable-skill efficacy.',
-    'The default path is deterministic/offline; live provider runners should write response JSON into --responses-dir.',
+    'The default path is deterministic/offline; --run-openai captures live Responses API output for later scoring through --responses-dir.',
     '',
   ].join('\n');
 }
@@ -37,6 +39,7 @@ function parseArgs(argv) {
     runIds: [],
     matrixIds: [],
     failOnThreshold: false,
+    runOpenAI: false,
   };
   for (let i = 0; i < argv.length;) {
     const arg = argv[i];
@@ -54,6 +57,24 @@ function parseArgs(argv) {
       i += 2;
     } else if (arg === '--emit-prompts') {
       options.emitPrompts = requireValue(argv, i, '--emit-prompts');
+      i += 2;
+    } else if (arg === '--run-openai') {
+      options.runOpenAI = true;
+      i += 1;
+    } else if (arg === '--output-dir') {
+      options.outputDir = requireValue(argv, i, '--output-dir');
+      i += 2;
+    } else if (arg === '--base-url') {
+      options.baseUrl = requireValue(argv, i, '--base-url');
+      i += 2;
+    } else if (arg === '--max-output-tokens') {
+      const value = Number(requireValue(argv, i, '--max-output-tokens'));
+      if (!Number.isInteger(value) || value <= 0) {
+        throw new AosSkillsError('--max-output-tokens must be a positive integer', 'INVALID_ARG', {
+          flag: '--max-output-tokens',
+        });
+      }
+      options.maxOutputTokens = value;
       i += 2;
     } else if (arg === '--case') {
       options.caseIds.push(requireValue(argv, i, '--case'));
@@ -120,6 +141,19 @@ async function main() {
     });
     if (options.json) process.stdout.write(formatJSON(result));
     else process.stdout.write(`Wrote ${result.packets_written} prompt packets to ${result.output_dir}\n`);
+    return;
+  }
+  if (options.runOpenAI) {
+    const result = await runOpenAIResponsesEval(fixture, options.outputDir && path.resolve(options.outputDir), {
+      caseIds: options.caseIds,
+      matrixIds: options.matrixIds,
+      baseUrl: options.baseUrl,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+    if (options.json) process.stdout.write(formatJSON(result));
+    else {
+      process.stdout.write(`Captured ${result.packets_requested - result.errors.length}/${result.packets_requested} OpenAI eval responses into ${result.output_dir}\n`);
+    }
     return;
   }
 

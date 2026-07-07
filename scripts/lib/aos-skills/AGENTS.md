@@ -26,10 +26,11 @@
 - `companions.mjs` owns Playwright CLI companion checks. Playwright-looking text
   is only a candidate signal; installed companion state requires a
   Playwright-owned package identity.
-- `eval.mjs` owns deterministic captured-response scoring and prompt-packet
-  emission for AOS skill efficacy across provider/model/reasoning matrices.
-  Keep it manifest-backed and offline by default; live provider runners should
-  write response JSON that this module scores.
+- `eval.mjs` owns deterministic captured-response scoring, prompt-packet
+  emission, and capture-only provider runners for AOS skill efficacy across
+  provider/model/reasoning matrices. Keep scoring manifest-backed and offline by
+  default; live provider runners must write response JSON that the same scorer
+  evaluates.
 
 ## Local Contracts
 

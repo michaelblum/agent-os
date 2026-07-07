@@ -8,9 +8,9 @@ This report records the V0 test pattern for measuring whether installable AOS
 skills actually help agents choose the right direct `./aos` workflows across a
 model and reasoning-effort matrix.
 
-The harness is intentionally separate from live provider execution. It scores
-captured responses first, and can emit prompt packets for external runners that
-test different models or reasoning levels.
+The harness keeps scoring separate from live provider execution. It scores
+captured responses first, can emit prompt packets for external runners, and now
+includes a capture-only OpenAI Responses runner for the fixture matrix.
 
 ## External Patterns Used
 
@@ -36,6 +36,10 @@ test different models or reasoning levels.
   Sources: https://os-world.github.io/,
   https://google-research.github.io/android_world/, and
   https://arxiv.org/html/2604.27776v1
+- The live OpenAI runner uses the Responses API with model/reasoning inputs and
+  Structured Outputs JSON schema capture; the scorer remains provider-neutral.
+  Sources: https://platform.openai.com/docs/api-reference/responses/create and
+  https://developers.openai.com/api/docs/guides/structured-outputs
 
 ## V0 Repo Shape
 
@@ -43,6 +47,8 @@ test different models or reasoning levels.
   `scripts/lib/aos-skills/eval.mjs`
 - CLI:
   `node scripts/aos-skills-eval.mjs --fixture <path> --json`
+- Live capture runner:
+  `node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> --json`
 - Fixture:
   `tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json`
 - Tests:
@@ -82,8 +88,18 @@ node scripts/aos-skills-eval.mjs \
   --json
 ```
 
-Live model runners should feed captured JSON responses back through
-`--responses-dir` instead of changing the scorer:
+Capture live OpenAI Responses API output for a subset of the matrix:
+
+```bash
+OPENAI_API_KEY=... node scripts/aos-skills-eval.mjs \
+  --fixture tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json \
+  --run-openai \
+  --output-dir /tmp/aos-skills-eval-responses \
+  --matrix codex-gpt-5.4-mini-high \
+  --json
+```
+
+Feed captured JSON responses back through `--responses-dir` for scoring:
 
 ```bash
 node scripts/aos-skills-eval.mjs \
@@ -94,16 +110,8 @@ node scripts/aos-skills-eval.mjs \
 
 ## Next Iteration
 
-V1 should add a provider-runner adapter that writes the same response JSON shape
-for each prompt packet. It should preserve the evaluator contract and only vary:
-
-- provider;
-- model;
-- reasoning effort;
-- prompt packet;
-- captured response;
-- cost/latency metadata.
-
-Do not move to live-desktop task execution until captured-response scoring is
-stable. Live execution should add state-derived rewards and process checkpoints,
-not replace command-manifest and boundary scoring.
+V1 should add repeated-trial aggregation, cost/latency summaries, and additional
+provider adapters that write the same response JSON shape. Do not move to
+live-desktop task execution until captured-response scoring is stable. Live
+execution should add state-derived rewards and process checkpoints, not replace
+command-manifest and boundary scoring.
