@@ -18,6 +18,31 @@ The current vocabulary decision is documented in
 `docs/design/aos-desktop-command-vocabulary-decision.md`: do not add a new
 `aos desktop` noun or `desktop:<target>` namespace in this slice.
 
+## Canonical Action Loop
+
+AOS's Playwright-like observe-act loop is:
+
+```bash
+./aos ready --json
+./aos see capture main --save --mode som --workspace default --name before
+./aos see refs --workspace default --snapshot before --json
+./aos do click ref:before:r1 --workspace default --dry-run
+./aos do click ref:before:r1 --workspace default
+./aos see capture main --save --mode som --workspace default --name after
+./aos see refs --workspace default --diff before..after --expect change --json
+```
+
+Use the same shape for native apps, browser windows, canvas surfaces, regions,
+and focus channels. The capture source can be a positional target such as
+`main` or `browser:work`, or exactly one source flag such as `--region`,
+`--canvas`, or `--channel`. Prefer saved refs over coordinates, dry-run when a
+form supports it, act once, recapture, and verify with refs diff/expect gates
+or a Work Record verifier.
+
+Saved-ref action responses expose `post_action.recommended_next_command` when
+the next safe step is a fresh `aos see capture --save`. Treat that command as
+the action loop handoff before reusing refs from the same surface.
+
 ## Capability Groups
 
 | Group | Use for | Command surface |
@@ -120,7 +145,8 @@ Do not vendor Playwright CLI skill content into AOS.
 
 ## Verification Loop
 
-Use the same loop across desktop, native AX, canvas, and browser targets:
+Use the canonical action loop across desktop, native AX, canvas, and browser
+targets:
 
 1. Gate runtime with `./aos ready --json` or passive `./aos status --json`.
 2. Capture with `./aos see capture ... --save --workspace <id> --mode som`.

@@ -616,7 +616,8 @@
             }
           },
           "examples" : [
-            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -755,7 +756,8 @@
             ]
           },
           "examples" : [
-            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default --query Save"
@@ -776,7 +778,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Persist perception into a local agent workspace and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
+          "summary" : "Persist perception into a local agent workspace for the canonical ready/capture/ref/action/recapture/verify loop and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
           "usage" : "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
@@ -1267,7 +1269,7 @@
       "path" : [
         "see"
       ],
-      "summary" : "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
+      "summary" : "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state for the canonical capture/ref/action/recapture loop"
     },
     {
       "forms" : [
@@ -3161,7 +3163,7 @@
             "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
             "aos do click browser:todo/e21"
           ],
-          "summary" : "Saved-ref click validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref click validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3228,7 +3230,7 @@
             "aos do hover browser:todo/e21",
             "aos do hover 500,300"
           ],
-          "summary" : "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3301,7 +3303,7 @@
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
             "aos do drag browser:todo/e1 browser:todo/e2"
           ],
-          "summary" : "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3565,7 +3567,7 @@
             "aos do scroll browser:todo/e21 0,-200",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary" : "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -3741,7 +3743,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser type validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved browser type validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "usage" : "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -3885,7 +3887,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "summary" : "Saved browser key validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved browser key validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "usage" : "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -3942,7 +3944,7 @@
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
             "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
           ],
-          "summary" : "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4143,7 +4145,7 @@
             "aos do press --pid 1234 --role AXButton --title Save --dry-run",
             "aos do press --pid 1234 --role AXButton --title Save"
           ],
-          "summary" : "Press stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for fresh aos see capture --save; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Press stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4332,7 +4334,7 @@
             "aos do set-value canvas:settings/brightness-slider --value \"42\"",
             "aos do set-value --pid 1234 --role AXTextField --value \"hello\""
           ],
-          "summary" : "Set saved refs, direct canvas semantic refs, or direct AX targets; saved-ref set-value validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary" : "Set saved refs, direct canvas semantic refs, or direct AX targets; saved-ref set-value validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,
@@ -4495,7 +4497,7 @@
             "aos do focus --pid 1234 --role AXTextField --dry-run",
             "aos do focus --pid 1234 --role AXTextField"
           ],
-          "summary" : "Focus stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for fresh aos see capture --save; direct AX uses current matching with no_foreground proof still not claimed",
+          "summary" : "Focus stable native AX saved refs or direct AX targets; saved refs validate durable identity before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification; direct AX uses current matching with no_foreground proof still not claimed",
           "execution" : {
             "auto_starts_daemon" : false,
             "interactive" : false,

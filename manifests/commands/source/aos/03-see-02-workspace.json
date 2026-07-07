@@ -389,7 +389,7 @@
       "path": [
         "see"
       ],
-      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
+      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state for the canonical capture/ref/action/recapture loop"
     }
   ]
 }

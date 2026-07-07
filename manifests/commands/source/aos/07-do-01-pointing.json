@@ -80,7 +80,7 @@
             "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
             "aos do click browser:todo/e21"
           ],
-          "summary": "Saved-ref click validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved-ref click validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -147,7 +147,7 @@
             "aos do hover browser:todo/e21",
             "aos do hover 500,300"
           ],
-          "summary": "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved-ref hover validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -220,7 +220,7 @@
             "aos do drag ref:<snapshot-id>:r2 ref:<snapshot-id>:r3 --workspace default",
             "aos do drag browser:todo/e1 browser:todo/e2"
           ],
-          "summary": "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved-ref and browser drag validate both endpoints before mutation and return post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,
@@ -484,7 +484,7 @@
             "aos do scroll browser:todo/e21 0,-200",
             "aos do scroll 500,300 --dy -3"
           ],
-          "summary": "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved-ref scroll validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

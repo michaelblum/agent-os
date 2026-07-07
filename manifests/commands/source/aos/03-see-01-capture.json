@@ -384,7 +384,8 @@
             }
           },
           "examples": [
-            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -523,7 +524,8 @@
             ]
           },
           "examples": [
-            "aos see capture browser:work --save --mode som --workspace default",
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see capture browser:work --save --mode som --workspace default --name after",
             "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default --query Save"
@@ -544,7 +546,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Persist perception into a local agent workspace and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
+          "summary": "Persist perception into a local agent workspace for the canonical ready/capture/ref/action/recapture/verify loop and return compact saved refs with conformance/proof for canvas, browser, and stable native AX actions with actionable producer verdicts",
           "usage": "aos see capture [<target>|--region <rect>|--canvas <id>|--channel <id>] --save [--mode <mode>] [--workspace <id>] [--name <id>] [--query <text>]"
         },
         {
@@ -653,7 +655,7 @@
       "path": [
         "see"
       ],
-      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state"
+      "summary": "Perception — query what's on screen; `aos see capture --save` writes local agent workspace state for the canonical capture/ref/action/recapture loop"
     }
   ]
 }

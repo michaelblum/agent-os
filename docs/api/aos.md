@@ -205,11 +205,13 @@ dialects.
 ### 1. Perceive, Then Act
 
 ```bash
-aos see capture browser:work --save --mode som --workspace default
-aos see snapshots --workspace default --json
-aos see refs --workspace default --query Save --json
-aos do click ref:<snapshot-id>:r2 --workspace default --dry-run
-aos do click ref:<snapshot-id>:r2 --workspace default
+aos ready --json
+aos see capture browser:work --save --mode som --workspace default --name before
+aos see refs --workspace default --snapshot before --json
+aos do click ref:before:r2 --workspace default --dry-run
+aos do click ref:before:r2 --workspace default
+aos see capture browser:work --save --mode som --workspace default --name after
+aos see refs --workspace default --diff before..after --expect change --json
 ```
 
 Typical consumer loop:

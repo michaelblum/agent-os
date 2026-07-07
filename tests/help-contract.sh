@@ -673,9 +673,12 @@ assert capture_form["examples"][0].startswith("aos see capture") and "--save" in
 assert any("--canvas" in item and "--save" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 assert any("aos see refs" in item for item in capture_save_form["examples"]), capture_save_form["examples"]
 saved_loop_examples = capture_save_form["examples"]
+assert "aos see capture browser:work --save --mode som --workspace default --name before" in saved_loop_examples, saved_loop_examples
+assert "aos see capture browser:work --save --mode som --workspace default --name after" in saved_loop_examples, saved_loop_examples
 assert "aos see snapshots --workspace default" in saved_loop_examples, saved_loop_examples
 assert "aos see refs --workspace default --query Save" in saved_loop_examples, saved_loop_examples
 assert "Persist perception" in capture_save_form["summary"], capture_save_form
+assert "canonical ready/capture/ref/action/recapture/verify loop" in capture_save_form["summary"], capture_save_form
 assert "stable native AX actions" in capture_save_form["summary"], capture_save_form
 assert "--region <rect>" in capture_save_form["usage"], capture_save_form["usage"]
 assert "--canvas <id>" in capture_save_form["usage"], capture_save_form["usage"]

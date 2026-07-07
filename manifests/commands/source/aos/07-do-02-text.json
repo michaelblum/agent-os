@@ -164,7 +164,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser type validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved browser type validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "usage": "aos do type <ref:<snapshot-id>:<ref>> <text> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -308,7 +308,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "summary": "Saved browser key validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved browser key validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "usage": "aos do key <ref:<snapshot-id>:<ref>> <combo> [--workspace <id>] [--snapshot <id>] [--dry-run]"
         },
         {
@@ -365,7 +365,7 @@
             "aos do fill ref:<snapshot-id>:r2 \"buy groceries\" --workspace default",
             "aos do fill browser:todo/e21 \"buy groceries\" --state-id see_abc123def456"
           ],
-          "summary": "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for fresh aos see capture --save",
+          "summary": "Saved-ref fill validates before mutation and returns post_action.recommended_next_command for recapture with aos see capture --save before verification",
           "execution": {
             "auto_starts_daemon": false,
             "interactive": false,

@@ -82,6 +82,13 @@ bounded side-effect metadata, useful errors, and composable workflows. Do not
 mirror another CLI's command names just because its capability model is the
 reference point.
 
+The public observe-act workflow should make the next step visible without
+agents reading historical design notes: `ready/status -> see capture --save ->
+see refs -> do --dry-run/action -> see capture --save -> see refs --diff
+--expect` is the canonical loop. Saved-ref actions should keep returning
+`post_action.recommended_next_command` for the fresh recapture when they cannot
+safely return post-action state themselves.
+
 Longer term, `aos dev` should be treated as self-hosting plumbing, not durable
 product API. If a workflow moves out of `aos dev`, make the destination
 explicit: either repo-local maintainer tooling outside the public `aos` tree or
