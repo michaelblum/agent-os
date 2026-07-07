@@ -121,6 +121,9 @@ Default section order:
 
 - `.codex/AGENTS.md` governs local Codex configuration and native custom-agent
   disablement.
+- `.docks/AGENTS.md` governs explicit dock launch contexts only. Repo-root
+  sessions do not inherit dock launch doctrine unless they are started under
+  that subtree or the user explicitly routes work there.
 - `.agents/` contains cross-provider hook scripts and stays root-owned until a
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live

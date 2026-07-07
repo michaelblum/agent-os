@@ -67,9 +67,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 
 ## Agent Sessions
 
-Agent sessions normally launch through docks under [.docks/](.docks/). Start
-with [AGENTS.md](AGENTS.md) only as repo-wide signage, then use
-[.docks/README.md](.docks/README.md) and the role-local dock contract.
+Repo-root sessions start with [AGENTS.md](AGENTS.md) and the nearest child
+`AGENTS.md` for the path being edited. Explicit dock-launched sessions use
+[.docks/README.md](.docks/README.md), [.docks/AGENTS.md](.docks/AGENTS.md),
+and the dock-local contract.
 
 ## Consumer Docs
 

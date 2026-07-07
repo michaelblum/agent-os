@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { stat, readFile } from 'node:fs/promises';
+import { readdir, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -25,6 +25,32 @@ async function assertMentions(sourcePath, targetPath) {
     new RegExp(targetPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
     `${sourcePath} must route to ${targetPath}`,
   );
+}
+
+async function directChildAgentsPaths() {
+  const ignored = new Set([
+    '.aos-browser-tmp',
+    '.aos-test-tmp',
+    '.build',
+    '.fallow',
+    '.git',
+    '.playwright-cli',
+    '.runtime',
+    'node_modules',
+  ]);
+  const entries = await readdir(repoRoot, { withFileTypes: true });
+  const paths = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || ignored.has(entry.name)) continue;
+    const relativePath = `${entry.name}/AGENTS.md`;
+    try {
+      await stat(path.join(repoRoot, relativePath));
+      paths.push(relativePath);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+  return paths.sort();
 }
 
 test('active authority map points to existing runtime primitive contract owners', async () => {
@@ -73,16 +99,24 @@ test('active authority map points to existing runtime primitive contract owners'
   await Promise.all(requiredPointers.map(([source, target]) => assertMentions(source, target)));
 });
 
-test('root AGENTS keeps orchestration doctrine invisible to repo-root sessions', async () => {
+test('root Child DOX Index covers every live top-level child AGENTS file', async () => {
   const rootAgents = await text('AGENTS.md');
-  assert.doesNotMatch(rootAgents, /\.docks/);
-  assert.doesNotMatch(rootAgents, /\bdock/i);
+  const childAgentsPaths = await directChildAgentsPaths();
+  const missing = childAgentsPaths.filter((childPath) => !rootAgents.includes(childPath));
+  assert.deepEqual(missing, [], 'root Child DOX Index must mention every live top-level child AGENTS.md');
+});
+
+test('root AGENTS stays a DOX rail instead of an orchestration contract', async () => {
+  const rootAgents = await text('AGENTS.md');
   assert.doesNotMatch(rootAgents, /\bForeman\b/);
+  assert.doesNotMatch(rootAgents, /active-profile/);
+  assert.doesNotMatch(rootAgents, /\.docks\/foreman/);
   assert.doesNotMatch(rootAgents, /docs\/guides\//);
   assert.doesNotMatch(rootAgents, /docs\/dev\//);
   assert.doesNotMatch(rootAgents, /^## Repo Model$/m);
   assert.doesNotMatch(rootAgents, /^## Architecture Compass$/m);
   assert.doesNotMatch(rootAgents, /^## AOS And Development$/m);
+  assert.match(rootAgents, /explicit dock launch contexts only/);
   assert.match(rootAgents, /^## DOX Framework$/m);
   assert.match(rootAgents, /^## Child DOX Index$/m);
 });
