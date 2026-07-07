@@ -191,7 +191,6 @@ exist on the remote tracking ref yet.
 - `docs/archive/superpowers/specs/2026-04-15-command-registry-design.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/work-cards/gdi-input-tap-permission-reset-safety-v0.md`
-- `docs/design/notes/aos-interaction-surfaces-map-2026-05-25.md`
 - `docs/dev/command-surface.md`
 - `docs/dev/workflow-rules.json`
 

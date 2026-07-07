@@ -47,7 +47,7 @@ environment names.
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `docs/design/work-cards/toolkit-agent-terminal-bridge-server-substrate-v0.md`
+- `packages/toolkit/components/agent-terminal/bridge-server.mjs`
 - `docs/design/work-cards/sigil-agent-terminal-launcher-compatibility-inversion-v0.md`
 - `packages/toolkit/components/agent-terminal/bridge-server.mjs`
 - `packages/toolkit/components/agent-terminal/pty-proxy.py`

@@ -36,12 +36,20 @@
     "session": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "harness", "provider", "role", "cwd", "branch", "head_sha", "dirty_summary"],
+      "required": ["session_id", "harness", "provider", "cwd", "branch", "head_sha", "dirty_summary"],
+      "anyOf": [
+        { "required": ["role"] },
+        { "required": ["dock"] }
+      ],
       "properties": {
         "session_id": { "type": "string", "minLength": 1 },
         "harness": { "type": "string", "minLength": 1 },
         "provider": { "type": "string", "minLength": 1 },
         "role": { "type": ["string", "null"] },
+        "dock": {
+          "type": ["string", "null"],
+          "description": "Legacy v1 field accepted for durable pre-ADR-0019 records only. New writers emit session.role."
+        },
         "cwd": { "type": "string", "minLength": 1 },
         "branch": { "type": ["string", "null"] },
         "head_sha": { "type": ["string", "null"] },

@@ -117,6 +117,17 @@ function submittedBy(value = null) {
   return { role: 'human', user: username || 'local-user' };
 }
 
+export function normalizeGateContinuationRecord(record) {
+  if (!isObject(record) || !isObject(record.session)) return record;
+  if (!Object.hasOwn(record.session, 'dock')) return record;
+
+  const { dock, ...session } = record.session;
+  return {
+    ...record,
+    session: Object.hasOwn(session, 'role') ? session : { ...session, role: dock ?? null },
+  };
+}
+
 export class GateContinuationStore {
   constructor({ env = process.env, root = null, recordStore = null } = {}) {
     this.env = env;
@@ -189,7 +200,7 @@ export class GateContinuationStore {
 
   async read(id) {
     assertContinuationId(id);
-    return JSON.parse(await readFile(this.continuationPath(id), 'utf8'));
+    return normalizeGateContinuationRecord(JSON.parse(await readFile(this.continuationPath(id), 'utf8')));
   }
 
   async list({ id = null, status = null, limit = 50 } = {}) {
@@ -212,7 +223,7 @@ export class GateContinuationStore {
     }
     const records = [];
     for (const name of names.filter((entry) => entry.endsWith('.json')).sort()) {
-      const record = JSON.parse(await readFile(join(this.continuationDir, name), 'utf8'));
+      const record = normalizeGateContinuationRecord(JSON.parse(await readFile(join(this.continuationDir, name), 'utf8')));
       if (!status || record.lifecycle?.state === status) records.push(record);
     }
     if (!Number.isFinite(limit) || limit <= 0) return records;

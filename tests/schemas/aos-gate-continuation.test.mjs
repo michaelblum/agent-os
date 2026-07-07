@@ -53,7 +53,15 @@ function request() {
 test('deferred gate continuation and resume event records match public schemas', async () => {
   const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-schema-'));
   const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
-  const continuation = await store.create({ request: request(), sessionId: 'codex-schema-session', harness: 'codex' });
+  const continuation = await store.create({
+    request: request(),
+    sessionId: 'codex-schema-session',
+    harness: 'codex',
+    role: 'worker',
+  });
+  assert.equal(continuation.session.role, 'worker');
+  assert.equal('dock' in continuation.session, false);
+
   const submitted = await store.submit({ continuationId: continuation.continuation_id, response: { decision: true } });
   const continuationPath = path.join(stateRoot, 'continuation.json');
   const eventPath = path.join(stateRoot, 'event.json');
@@ -64,4 +72,23 @@ test('deferred gate continuation and resume event records match public schemas',
   assert.equal(continuationResult.status, 0, `${continuationResult.stdout}${continuationResult.stderr}`);
   const eventResult = validate(resumeEventSchema, eventPath);
   assert.equal(eventResult.status, 0, `${eventResult.stdout}${eventResult.stderr}`);
+});
+
+test('legacy v1 continuation records with session.dock validate for compatibility', async () => {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-legacy-schema-'));
+  const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
+  const continuation = await store.create({
+    request: request(),
+    sessionId: 'codex-legacy-schema-session',
+    harness: 'codex',
+    role: 'worker',
+  });
+  const legacySession = { ...continuation.session, dock: 'gdi' };
+  delete legacySession.role;
+  const legacy = { ...continuation, session: legacySession };
+  const legacyPath = path.join(stateRoot, 'legacy-continuation.json');
+  await writeFile(legacyPath, JSON.stringify(legacy), 'utf8');
+
+  const legacyResult = validate(continuationSchema, legacyPath);
+  assert.equal(legacyResult.status, 0, `${legacyResult.stdout}${legacyResult.stderr}`);
 });

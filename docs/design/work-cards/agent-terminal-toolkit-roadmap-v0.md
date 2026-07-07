@@ -40,17 +40,17 @@ or UI behavior.
 - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
 - `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
 - `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
-- `docs/design/work-cards/toolkit-agent-terminal-foundation-v0.md`
-- `docs/design/work-cards/toolkit-agent-terminal-bridge-client-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-session-rail-model-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-session-rail-view-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-session-inspector-model-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-session-inspector-view-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-terminal-controller-v0.md`
-- `docs/design/work-cards/toolkit-agent-terminal-bridge-server-substrate-v0.md`
 - `docs/design/work-cards/sigil-agent-terminal-launcher-compatibility-inversion-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-neutral-bridge-env-hard-cutover-correction-v0.md`
 - `docs/design/work-cards/agent-terminal-legacy-doc-cleanup-audit-v0.md`
+- `packages/toolkit/components/agent-terminal/bridge-client.js`
+- `packages/toolkit/components/agent-terminal/bridge-server.mjs`
+- `scripts/lib/agent-terminal-session-registry.mjs`
 
 Use search after reading these files to find adjacent accepted notes or work
 cards if the roadmap needs a precise fact. Do not bulk-rewrite old historical

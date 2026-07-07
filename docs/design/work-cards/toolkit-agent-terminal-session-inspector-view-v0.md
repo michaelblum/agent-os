@@ -41,7 +41,7 @@ externally published yet. Do not reset to `origin/main`.
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
 - `docs/api/toolkit/components.md`
-- `docs/design/work-cards/toolkit-agent-terminal-foundation-v0.md`
+- `docs/design/notes/agent-terminal-toolkit-roadmap-2026-05-23.md`
 - `docs/design/work-cards/toolkit-agent-terminal-session-inspector-model-v0.md`
 - `docs/design/work-cards/toolkit-agent-terminal-terminal-controller-v0.md`
 - `packages/toolkit/components/agent-terminal/index.html`

@@ -37,7 +37,7 @@ through the historical `codex-terminal` path.
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
 - `docs/api/toolkit/components.md`
-- `docs/design/work-cards/toolkit-agent-terminal-bridge-server-substrate-v0.md`
+- `packages/toolkit/components/agent-terminal/bridge-server.mjs`
 - `packages/toolkit/components/agent-terminal/launch.sh`
 - `packages/toolkit/components/agent-terminal/bridge-server.mjs`
 - `apps/sigil/agent-terminal/launch.sh`
