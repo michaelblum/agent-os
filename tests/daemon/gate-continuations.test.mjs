@@ -110,7 +110,7 @@ test('legacy continuation records normalize session.dock to public session.role'
   assert.equal(Object.hasOwn(storedAfterSubmit.session, 'dock'), false);
 });
 
-test('continuation normalization prefers session.role over legacy session.dock', () => {
+test('continuation normalization defensively strips legacy dock from mixed records', () => {
   const normalized = normalizeGateContinuationRecord({
     schema_version: 'aos.gate.continuation.v1',
     session: {

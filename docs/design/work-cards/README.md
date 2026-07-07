@@ -1,19 +1,15 @@
 # Work Cards
 
-This directory stores durable transfer contracts for GDI, Operator, correction,
-validation, and related Foreman-routed rounds.
+This directory stores current actionable transfer contracts.
 
-A file existing here is not active work by itself. Treat a work card as active
-only when it is named by a current Foreman dispatch or by live branch, PR, or
-issue state queried from Git/GitHub. Historical cards remain useful as
-provenance for why a slice was routed, what boundaries were given, and what
-verification was expected.
+A file existing here is active only when current Git, issue, PR, or runtime state
+names it as an open queue item. Completed, accepted, superseded, or retired
+cards should be removed from the live tree. Git history is the archive.
 
-When reconstructing state, query live Git, GitHub, and AOS state first. Read
-Foreman narratives, issue comments, and old work cards as rationale and history,
-not as current status sources.
+Before deleting a card, promote any still-current requirement into the owning
+source, test, schema, API doc, ADR, or current owner doc. Do not keep stale cards
+for evidence, searchability, or context.
 
 For current contracts, prefer the owning source surface: ADRs, schemas,
 `docs/api/`, command source manifests, generated help output, applicable
-`AGENTS.md` files, tests, and live source code. Use work cards only as evidence
-pointers after checking that source truth.
+`AGENTS.md` files, tests, and live source code.

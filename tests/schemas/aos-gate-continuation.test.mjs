@@ -92,3 +92,20 @@ test('legacy v1 continuation records with session.dock validate for compatibilit
   const legacyResult = validate(continuationSchema, legacyPath);
   assert.equal(legacyResult.status, 0, `${legacyResult.stdout}${legacyResult.stderr}`);
 });
+
+test('mixed v1 continuation records with session.role and session.dock are not canonical schema', async () => {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-gate-mixed-schema-'));
+  const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
+  const continuation = await store.create({
+    request: request(),
+    sessionId: 'codex-mixed-schema-session',
+    harness: 'codex',
+    role: 'worker',
+  });
+  const mixed = { ...continuation, session: { ...continuation.session, dock: 'gdi' } };
+  const mixedPath = path.join(stateRoot, 'mixed-continuation.json');
+  await writeFile(mixedPath, JSON.stringify(mixed), 'utf8');
+
+  const mixedResult = validate(continuationSchema, mixedPath);
+  assert.notEqual(mixedResult.status, 0, 'mixed role+dock records must stay read-boundary tolerance only');
+});

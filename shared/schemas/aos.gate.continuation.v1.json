@@ -37,9 +37,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["session_id", "harness", "provider", "cwd", "branch", "head_sha", "dirty_summary"],
-      "anyOf": [
-        { "required": ["role"] },
-        { "required": ["dock"] }
+      "oneOf": [
+        {
+          "required": ["role"],
+          "not": { "required": ["dock"] }
+        },
+        {
+          "required": ["dock"],
+          "not": { "required": ["role"] }
+        }
       ],
       "properties": {
         "session_id": { "type": "string", "minLength": 1 },
