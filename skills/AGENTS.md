@@ -44,9 +44,10 @@ repo, plus the root skill registry for AOS installable skill productization.
 
 - `registry.json` indexes root skill packages, installability status, target
   support, references, and durable backing.
-- `aos-core-orientation/`, `aos-runtime-readiness/`,
-  `aos-saved-workspace/`, `aos-browser/`,
-  `aos-operator-annotations/`, `aos-work-records/`, `aos-recipes/`, and
+- `aos-core-orientation/`, `aos-runtime-readiness/`, `aos-desktop/`,
+  `aos-saved-workspace/`, `aos-canvas-vision/`, `aos-focus-sessions/`,
+  `aos-browser/`, `aos-verification/`, `aos-operator-annotations/`,
+  `aos-work-records/`, `aos-recipes/`, and
   `aos-command-surface-maintenance/` are the installable AOS root skill pack.
 - `agent-sync/` is a retired historical tombstone for ADR 0017. It must not
   sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
@@ -54,7 +55,8 @@ repo, plus the root skill registry for AOS installable skill productization.
 - `aos-agent-workspace/` contains the saved perception workspace and compact
   ref loop skill for normal `aos see` / `aos do` workflows; it is classified
   as `needs_split` and superseded for installable guidance by
-  `aos-saved-workspace/`.
+  `aos-desktop/`, `aos-saved-workspace/`, `aos-canvas-vision/`,
+  `aos-focus-sessions/`, and `aos-verification/`.
 - `browser-adapter/` contains the current AOS browser adapter skill; it is
   classified as `needs_split` and superseded for installable guidance by
   `aos-browser/`.

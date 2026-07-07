@@ -23,7 +23,7 @@
     {
       "name": "aos-core-orientation",
       "path": "skills/aos-core-orientation",
-      "description": "Use direct ./aos commands as the agent-facing control surface for agent-os. Trigger when an agent is new to AOS, needs to choose the right command family, or must avoid stale local wrappers and competing workflow language.",
+      "description": "Use AOS as Playwright CLI for desktop agents through direct ./aos commands. Trigger when an agent is new to AOS, needs the capability map, or must avoid stale wrappers and competing workflow language.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -36,6 +36,7 @@
       "ownership": "AOS-owned installable orientation skill for direct AOS command onboarding.",
       "references": [
         "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "CONTEXT.md",
         "CONTEXT-MAP.md"
@@ -43,6 +44,7 @@
       "claims_durable_behavior": true,
       "backing": [
         "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "CONTEXT.md",
         "CONTEXT-MAP.md"
@@ -73,6 +75,31 @@
       ]
     },
     {
+      "name": "aos-desktop",
+      "path": "skills/aos-desktop",
+      "description": "Use AOS as Playwright CLI for desktop app, window, and native AX work. Trigger when a task needs desktop discovery, app/window control, native AX press/focus/set-value, or a decision about unsupported desktop verbs.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable desktop, app, window, and native AX workflow skill.",
+      "references": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md",
+        "docs/design/aos-desktop-playwright-cli-map.md"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md"
+      ]
+    },
+    {
       "name": "aos-saved-workspace",
       "path": "skills/aos-saved-workspace",
       "description": "Use AOS saved perception workspaces and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.",
@@ -88,6 +115,7 @@
       "ownership": "AOS-owned installable saved workspace and ref workflow skill.",
       "references": [
         "docs/api/aos.md",
+        "docs/api/aos-capabilities.md",
         "shared/schemas/aos-agent-workspace-v0.md",
         "tests/agent-workspace-contract-drift.sh",
         "tests/agent-workspace-saved-ref.sh"
@@ -95,8 +123,59 @@
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/aos.md",
+        "docs/api/aos-capabilities.md",
         "shared/schemas/aos-agent-workspace-v0.md",
         "tests/agent-workspace-contract-drift.sh"
+      ]
+    },
+    {
+      "name": "aos-canvas-vision",
+      "path": "skills/aos-canvas-vision",
+      "description": "Use AOS canvas and vision fallback safely. Trigger when a task needs regions, coordinates, xray, labels, canvas refs, visual evidence, or a decision about coordinate fallback.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable canvas, vision, and coordinate fallback skill.",
+      "references": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md",
+        "tests/agent-workspace-canvas-refs.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md"
+      ]
+    },
+    {
+      "name": "aos-focus-sessions",
+      "path": "skills/aos-focus-sessions",
+      "description": "Use AOS focus channels as the desktop session model. Trigger when a task needs named window or browser sessions, parallel-agent isolation, channel cleanup, or browser/app target lifecycle decisions.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable focus channel and session lifecycle skill.",
+      "references": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md",
+        "manifests/commands/source/aos/15-focus.json"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md"
       ]
     },
     {
@@ -115,6 +194,7 @@
       "ownership": "AOS-owned installable browser workflow skill with explicit Playwright CLI companion boundary.",
       "references": [
         "ARCHITECTURE.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md",
         "tests/browser/runtime-resolver.test.mjs",
@@ -123,8 +203,35 @@
       "claims_durable_behavior": true,
       "backing": [
         "ARCHITECTURE.md",
+        "docs/api/aos-capabilities.md",
         "docs/api/aos.md",
         "tests/browser/runtime-resolver.test.mjs"
+      ]
+    },
+    {
+      "name": "aos-verification",
+      "path": "skills/aos-verification",
+      "description": "Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-assert loop, refs diff/expect, durable evidence, or a stop decision on stale targets.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable verification, assertion, and evidence-loop skill.",
+      "references": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md",
+        "tests/aos-skills-forward-proof.test.mjs",
+        "tests/toolkit/work-record-verifier.test.mjs"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos-capabilities.md",
+        "docs/api/aos.md"
       ]
     },
     {
@@ -279,8 +386,12 @@
         "tests/agent-workspace-contract-drift.sh"
       ],
       "split_to": [
+        "aos-desktop",
         "aos-saved-workspace",
+        "aos-canvas-vision",
+        "aos-focus-sessions",
         "aos-runtime-readiness",
+        "aos-verification",
         "aos-operator-annotations",
         "aos-work-records"
       ],

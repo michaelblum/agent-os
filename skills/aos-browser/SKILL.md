@@ -22,9 +22,16 @@ AOS does not wrap.
 ## Playwright CLI Boundary
 
 Use raw Playwright CLI plus upstream Playwright skills for escape hatches AOS
-does not own: tracing, video, tab management, reload/back/forward, upload,
-select/check/uncheck, codegen, arbitrary page eval, or other unwrapped
+does not own: network mocking, storage/auth state, console/eval, tracing,
+video, PDF, locator generation, test generation, test debugging, upload,
+select/check/uncheck, back/forward/reload, tab management, or other unwrapped
 Playwright primitives.
+
+Check the companion boundary with:
+
+```bash
+./aos skills companion check --name playwright-cli --target path --path /tmp/aos-skills --json
+```
 
 AOS must not vendor, copy, or silently rewrite Playwright skill content. Do not
 run a Playwright skill install unless the user explicitly asks for companion
@@ -39,6 +46,7 @@ through upstream Playwright CLI.
 ## References
 
 - `ARCHITECTURE.md`
+- `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
 - `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
 - `tests/browser/runtime-resolver.test.mjs`

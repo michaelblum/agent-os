@@ -18,17 +18,21 @@ const repoRoot = path.resolve(__dirname, '..');
 test('root skill registry covers current direct skill packages', async () => {
   const result = await validateSkillRegistry({ repoRoot });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.summary.skills, 15);
+  assert.equal(result.summary.skills, 19);
 
   const byName = new Map(result.skills.map((skill) => [skill.name, skill]));
   const installablePack = [
     'aos-browser',
+    'aos-canvas-vision',
     'aos-command-surface-maintenance',
     'aos-core-orientation',
+    'aos-desktop',
+    'aos-focus-sessions',
     'aos-operator-annotations',
     'aos-recipes',
     'aos-runtime-readiness',
     'aos-saved-workspace',
+    'aos-verification',
     'aos-work-records',
   ];
   for (const name of installablePack) {
@@ -50,12 +54,21 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(browser, /AOS for browser work that benefits from saved refs/);
   assert.match(browser, /upstream Playwright CLI skills/);
   assert.match(browser, /must not vendor/);
-  assert.match(browser, /tracing, video, tab management/);
+  assert.match(browser, /tracing,\s+video[\s\S]*tab management/);
+  assert.match(browser, /network mocking, storage\/auth state, console\/eval/);
 
   const workspace = await readFile(path.join(repoRoot, 'skills', 'aos-saved-workspace', 'SKILL.md'), 'utf8');
   assert.match(workspace, /observe-act-recapture/);
   assert.match(workspace, /ref:<snapshot-id>:<ref>/);
   assert.match(workspace, /Coordinate fallback is diagnostic/);
+
+  const desktop = await readFile(path.join(repoRoot, 'skills', 'aos-desktop', 'SKILL.md'), 'utf8');
+  assert.match(desktop, /Playwright CLI for desktop/);
+  assert.match(desktop, /close\/minimize\/maximize\/restore/);
+
+  const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');
+  assert.match(verification, /act-recapture-assert/);
+  assert.match(verification, /see refs --diff/);
 });
 
 test('frontmatter parser handles folded descriptions, booleans, and arrays', () => {
@@ -103,7 +116,7 @@ test('CLI emits structured validation JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schema_version, 'aos.skills.validation.v0');
   assert.equal(payload.ok, true);
-  assert.equal(payload.summary.skills, 15);
+  assert.equal(payload.summary.skills, 19);
 });
 
 test('validator rejects unsafe targets, missing durable backing, and untracked body bloat', async () => {

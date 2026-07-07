@@ -19,8 +19,8 @@ source root. This file is a routing map, not a replacement for those sources.
 
 - Source roots: `src/` and `shared/`.
 - Local contracts: `src/AGENTS.md` and `src/daemon/AGENTS.md`.
-- Public API docs: `docs/api/README.md`, `docs/api/aos.md`, and relevant files
-  under `docs/api/`.
+- Public API docs: `docs/api/README.md`, `docs/api/aos.md`,
+  `docs/api/aos-capabilities.md`, and relevant files under `docs/api/`.
 - Schemas and cross-tool contracts: `shared/schemas/`, especially
   `shared/schemas/CONTRACT-GOVERNANCE.md`.
 - Command manifest authorship and help metadata:
@@ -30,9 +30,13 @@ source root. This file is a routing map, not a replacement for those sources.
   `scripts/generate-command-manifests.mjs`, and the drift gate
   `tests/command-manifest-generation.sh`.
 - Installable root skill registry: `skills/registry.json`, especially
-  `skills/aos-saved-workspace/SKILL.md` for saved perception/ref workflows and
-  `skills/aos-browser/SKILL.md` for browser ref/proof workflows. The broader
-  `skills/aos-agent-workspace/SKILL.md` remains local background and
+  `skills/aos-desktop/SKILL.md` for desktop/app/window/native AX workflows,
+  `skills/aos-saved-workspace/SKILL.md` for saved perception/ref workflows,
+  `skills/aos-canvas-vision/SKILL.md` for canvas and coordinate fallback,
+  `skills/aos-focus-sessions/SKILL.md` for session/channel lifecycle,
+  `skills/aos-browser/SKILL.md` for browser ref/proof workflows, and
+  `skills/aos-verification/SKILL.md` for act/recapture/assert loops. The
+  broader `skills/aos-agent-workspace/SKILL.md` remains local background and
   compatibility material.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - AOS TCC capability broker boundary:

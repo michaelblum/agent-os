@@ -5,9 +5,11 @@ description: Use saved AOS perception workspaces and compact refs for agent UI w
 
 # AOS Agent Workspace
 
-Installable saved-workspace guidance now lives in `skills/aos-saved-workspace/`.
-Keep this broad local skill only as detailed background until the split is
-complete.
+Installable guidance now lives in narrower skills:
+`skills/aos-desktop/`, `skills/aos-saved-workspace/`,
+`skills/aos-canvas-vision/`, `skills/aos-focus-sessions/`, and
+`skills/aos-verification/`. Keep this broad local skill only as detailed
+background until the split is complete.
 
 Use this skill when an agent needs durable local perception state for normal
 AOS verbs. The goal is a compact, inspectable loop:

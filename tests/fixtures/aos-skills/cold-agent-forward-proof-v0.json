@@ -63,6 +63,31 @@
       }
     },
     {
+      "id": "desktop-window-control-inventory",
+      "requirement": "use desktop skill and capability map to inventory app, window, and native AX controls before acting",
+      "prompt": "Fresh agent: decide how to inspect visible windows, identify first-class window controls, and stop on unsupported app/window lifecycle verbs.",
+      "selected_skills": [
+        "aos-desktop"
+      ],
+      "selected_commands": [
+        "./aos help graph --json",
+        "./aos help do --json",
+        "./aos graph windows",
+        "./aos do raise --pid <pid> --window <window-id>",
+        "./aos do move --pid <pid> --window <window-id> --to <x,y>",
+        "./aos do resize --pid <pid> --window <window-id> --to <w,h>",
+        "./aos do press --pid <pid> --role <role> --title <title> --dry-run"
+      ],
+      "captured_output": {
+        "decision": "Treat raise, move, resize, and native AX press/focus/set-value as current AOS desktop controls. Treat app activate/quit/hide/unhide, window close/minimize/maximize/restore/fullscreen, Space switching, and menu invocation as follow-up or unsupported until a fail-closed semantic command exists.",
+        "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the task explicitly authorizes that escape hatch.",
+        "rejected_competing_surfaces": [
+          "claiming close-window is supported because AppleScript could do it",
+          "raw macOS automation without AOS command readback"
+        ]
+      }
+    },
+    {
       "id": "saved-workspace-observe-act-recapture",
       "requirement": "use saved workspace skill to capture, inspect refs, dry-run, act, and recapture",
       "prompt": "Fresh agent: on an authorized local target, capture current state, choose an actionable saved ref, dry-run the action, perform it once if the dry-run validates, then recapture evidence.",
@@ -84,6 +109,54 @@
         "rejected_competing_surfaces": [
           "coordinate click without explicit authorization",
           "full screenshot dump in place of saved refs"
+        ]
+      }
+    },
+    {
+      "id": "canvas-vision-fallback",
+      "requirement": "use canvas/vision skill for regions, labels, xray, canvas refs, and coordinate fallback decisions",
+      "prompt": "Fresh agent: collect visual evidence for a desktop target where saved refs are weak, then decide whether a coordinate action is allowed.",
+      "selected_skills": [
+        "aos-canvas-vision",
+        "aos-saved-workspace"
+      ],
+      "selected_commands": [
+        "./aos help see --json",
+        "./aos help do --json",
+        "./aos see capture --region <x,y,w,h> --xray --label --save --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see capture --canvas <canvas-id> --perception --save --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos do click <x,y> --state-id <state-id> --dry-run"
+      ],
+      "captured_output": {
+        "decision": "Use xray, labels, regions, and canvas refs to reduce coordinate guessing. Coordinate fallback is diagnostic unless the target is current, the state id is preserved, and the task authorizes fallback action.",
+        "stop_condition": "Stop when labels do not identify the target, the canvas ref is not current, or the coordinate would be reused after the screen changed.",
+        "rejected_competing_surfaces": [
+          "unscoped screenshot dump as proof",
+          "coordinate click without state provenance"
+        ]
+      }
+    },
+    {
+      "id": "focus-session-lifecycle",
+      "requirement": "use focus sessions as the AOS session model and clean up stale channels",
+      "prompt": "Fresh agent: create a named session for a window or browser target, use it for capture, and decide when to remove it.",
+      "selected_skills": [
+        "aos-focus-sessions"
+      ],
+      "selected_commands": [
+        "./aos help focus --json",
+        "./aos focus list",
+        "./aos focus create --id desktop-proof --window <window-id>",
+        "./aos see capture --channel desktop-proof --save --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos focus remove --id desktop-proof"
+      ],
+      "captured_output": {
+        "decision": "Use explicit channel ids as the AOS session model. Pair focus channels with explicit workspaces so parallel agents do not share hidden current state.",
+        "stop_condition": "Stop when the channel points at a missing window, unresolved browser target, ambiguous app identity, or another agent's owned channel.",
+        "rejected_competing_surfaces": [
+          "implicit current session",
+          "reusing another agent's channel without coordination"
         ]
       }
     },
@@ -114,6 +187,31 @@
         "rejected_competing_surfaces": [
           "raw Playwright-only path for saved-ref proof",
           "vendored Playwright skill content under AOS"
+        ]
+      }
+    },
+    {
+      "id": "verification-assertion-loop",
+      "requirement": "use verification skill for recapture, refs diff/expect, gates, and Work Record evidence",
+      "prompt": "Fresh agent: prove a desktop action with before/after saved refs and decide when Work Record evidence is required.",
+      "selected_skills": [
+        "aos-verification",
+        "aos-saved-workspace",
+        "aos-work-records"
+      ],
+      "selected_commands": [
+        "./aos help see --json",
+        "./aos help work-record --json",
+        "./aos see refs --workspace \"$AOS_WORKSPACE\" --diff <before>..<after> --expect change --json",
+        "./aos work-record verify <id-or-path> --json",
+        "./aos work-record status <id-or-path> --json"
+      ],
+      "captured_output": {
+        "decision": "Use recapture and ref diff/expect for compact assertions. Escalate to Work Record verify/status when durable evidence, recovery guidance, or report-only repair planning is required.",
+        "stop_condition": "Stop when the post-action state cannot be recaptured, the diff expectation fails, or the proof requires live UI/TCC/native mutation outside the task.",
+        "rejected_competing_surfaces": [
+          "assertion from memory of the action",
+          "reading the full Work Record schema before trying command help"
         ]
       }
     },

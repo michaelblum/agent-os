@@ -1,12 +1,18 @@
 ---
 name: aos-core-orientation
-description: Use direct ./aos commands as the agent-facing control surface for agent-os. Trigger when an agent is new to AOS, needs to choose the right command family, or must avoid stale local wrappers and competing workflow language.
+description: Use AOS as Playwright CLI for desktop agents through direct ./aos commands. Trigger when an agent is new to AOS, needs the capability map, or must avoid stale wrappers and competing workflow language.
 ---
 
 # AOS Core Orientation
 
 Use this skill when you need the shortest safe route into AOS from a coding
-agent shell. The rule is:
+agent shell. The product model is:
+
+```text
+Playwright CLI, but for the desktop.
+```
+
+The rule is:
 
 ```text
 direct ./aos commands first, help/manifests for command truth, docs for durable concepts
@@ -14,12 +20,13 @@ direct ./aos commands first, help/manifests for command truth, docs for durable 
 
 ## Start
 
-1. Run `./aos help --json` to inspect the current command registry.
-2. Run `./aos help <command> --json` before relying on argument shape.
-3. Use `./aos ready` for the front-door runtime gate before live runtime work.
-4. Use `./aos status`, `./aos doctor`, and command-specific readbacks for
+1. Read `docs/api/aos-capabilities.md` when choosing a capability group.
+2. Run `./aos help --json` to inspect the current command registry.
+3. Run `./aos help <command> --json` before relying on argument shape.
+4. Use `./aos ready` for the front-door runtime gate before live runtime work.
+5. Use `./aos status`, `./aos doctor`, and command-specific readbacks for
    passive diagnostics.
-5. Prefer direct AOS command families over downstream repo-local wrapper
+6. Prefer direct AOS command families over downstream repo-local wrapper
    facades when direct `./aos` is available.
 
 ## Boundaries
@@ -48,6 +55,7 @@ CLI skills instead of copying Playwright skill content into AOS.
 ## References
 
 - `docs/adr/0018-installable-aos-skills.md`
+- `docs/api/aos-capabilities.md`
 - `docs/api/aos.md`
 - `CONTEXT.md`
 - `CONTEXT-MAP.md`

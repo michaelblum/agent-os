@@ -9,6 +9,9 @@ Use this doc when you are:
 - reviewing changes that affect the public CLI contract
 
 For architecture and philosophy, see [ARCHITECTURE.md](../../ARCHITECTURE.md).
+For capability-group discovery, see
+[`aos-capabilities.md`](./aos-capabilities.md), which frames AOS as
+"Playwright CLI, but for the desktop."
 
 ## Repo Development Entry Points
 
@@ -1001,8 +1004,9 @@ Recipes, Workflows, Work Records, wiki plugins, or provider role material.
 `skills/registry.json` is the source-owned registry and
 `scripts/aos-skills-validate.mjs` is the focused validator.
 
-The initial installable AOS skill pack covers core orientation, runtime
-readiness, saved workspaces, browser workflows, operator annotations, Work
+The installable AOS skill pack covers core orientation, runtime readiness,
+desktop/app/window workflows, saved workspaces, canvas/vision fallback, focus
+sessions, browser workflows, verification loops, operator annotations, Work
 Records, recipes, and command-surface maintenance. Broad local background skills
 such as `aos-agent-workspace` and `browser-adapter` remain registered as
 `needs_split` until their detail is fully retired or moved behind narrower

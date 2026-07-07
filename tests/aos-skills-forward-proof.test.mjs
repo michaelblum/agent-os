@@ -14,8 +14,12 @@ async function fixture() {
 
 const requiredScenarioIds = [
   'readiness-route',
+  'desktop-window-control-inventory',
   'saved-workspace-observe-act-recapture',
+  'canvas-vision-fallback',
+  'focus-session-lifecycle',
   'browser-aos-vs-playwright-escape',
+  'verification-assertion-loop',
   'pending-annotation-safe-action',
   'work-record-report-only-recovery',
   'recipe-explain-dry-run',
@@ -84,5 +88,30 @@ test('cold-agent forward proof records prompts, decisions, and stop conditions',
   for (const scenario of proof.scenarios) {
     assert.equal(typeof scenario.captured_output.stop_condition, 'string');
     assert.ok(scenario.captured_output.stop_condition.length > 20);
+  }
+});
+
+test('cold-agent forward proof exercises the desktop Playwright skill pack', async () => {
+  const proof = await fixture();
+  const selected = new Set([
+    ...proof.preflight.selected_skills,
+    ...proof.scenarios.flatMap((scenario) => scenario.selected_skills),
+  ]);
+
+  for (const skill of [
+    'aos-core-orientation',
+    'aos-runtime-readiness',
+    'aos-desktop',
+    'aos-saved-workspace',
+    'aos-canvas-vision',
+    'aos-focus-sessions',
+    'aos-browser',
+    'aos-verification',
+    'aos-operator-annotations',
+    'aos-work-records',
+    'aos-recipes',
+    'aos-command-surface-maintenance',
+  ]) {
+    assert.ok(selected.has(skill), `proof missing skill: ${skill}`);
   }
 });

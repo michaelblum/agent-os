@@ -103,14 +103,18 @@ The registry source of truth is `skills/registry.json`.
 | --- | --- | --- |
 | `aos-core-orientation` | installable | First compact installable root skill. Teaches direct `./aos` entry posture and points to help/manifests/docs instead of duplicating command syntax. |
 | `aos-runtime-readiness` | installable | Teaches readiness/status/doctor gates before live runtime work. |
+| `aos-desktop` | installable | Teaches desktop/app/window/native AX workflows and unsupported desktop verb stop rules. |
 | `aos-saved-workspace` | installable | Supersedes broad `aos-agent-workspace` for compact saved snapshot/ref observe-act-recapture loops. |
+| `aos-canvas-vision` | installable | Teaches regions, xray, labels, canvas refs, coordinates, and visual fallback proof. |
+| `aos-focus-sessions` | installable | Teaches focus channels as the AOS session model for windows, browsers, and parallel agents. |
 | `aos-browser` | installable | Supersedes broad `browser-adapter` for durable AOS browser refs/proof and explicit upstream Playwright CLI escape hatches. |
+| `aos-verification` | installable | Teaches recapture, ref diff/expect, gates, and Work Record evidence loops. |
 | `aos-operator-annotations` | installable | Teaches pending annotation list/read/consume/link behavior and safe consume-once boundaries. |
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |
 | `aos-recipes` | installable | Teaches source-backed recipe list/explain/dry-run/run and keeps `aos ops` as compatibility wording. |
 | `aos-command-surface-maintenance` | installable | Teaches source manifest/help/docs/test synchronization for command-surface edits. |
 | `agent-sync` | retired | Keep tombstone. Do not install or recreate native Codex custom-agent sync. |
-| `aos-agent-workspace` | needs_split | Keep covered by validator as broad local background; superseded for installable guidance by `aos-saved-workspace`. |
+| `aos-agent-workspace` | needs_split | Keep covered by validator as broad local background; superseded for installable guidance by `aos-desktop`, `aos-saved-workspace`, `aos-canvas-vision`, `aos-focus-sessions`, and `aos-verification`. |
 | `browser-adapter` | needs_split | Keep covered by validator as broad local background; superseded for installable guidance by `aos-browser`. |
 | `caveman` | retained_local | Local communication compression skill, outside the AOS installable skill product. |
 | `issue-hygiene-sweep` | retained_local | Repo/GitHub audit helper, outside the AOS installable skill product. |
@@ -140,6 +144,8 @@ rg -n "aos-agent-workspace|browser-adapter|aos ops|# Recipe:|playbook|workflow" 
 ## Consequences
 
 - `skills/registry.json` is the root skill registry.
+- `docs/api/aos-capabilities.md` is the public capability map for
+  desktop-agent discovery.
 - `scripts/aos-skills-validate.mjs` is the focused M1 validator.
 - `aos skills list/check/install` is the public skill package surface; install
   supports both bounded writes and `--dry-run` planning.

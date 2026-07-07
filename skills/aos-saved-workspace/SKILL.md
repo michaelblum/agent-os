@@ -5,8 +5,9 @@ description: Use AOS saved perception workspaces and compact refs for observe-ac
 
 # AOS Saved Workspace
 
-Use saved workspaces when a UI task needs repeatable perception and compact
-targets.
+Use saved workspaces when a desktop, native AX, canvas, or browser task needs
+repeatable perception and compact targets. Saved refs are the shared
+locator-like model across AOS surfaces.
 
 ## Loop
 
@@ -20,8 +21,8 @@ targets.
 
 ## Boundaries
 
-- Saved refs are snapshot scoped; stale page, canvas, or native identity must
-  be recaptured instead of forced.
+- Saved refs are snapshot scoped; stale desktop, native AX, canvas, or browser
+  identity must be recaptured instead of forced.
 - Do not inline screenshots, browser payloads, AX dumps, or full capture JSON
   when refs and summaries are enough.
 - Coordinate fallback is diagnostic unless the command and task explicitly
@@ -36,6 +37,7 @@ recapture recommendation.
 ## References
 
 - `docs/api/aos.md`
+- `docs/api/aos-capabilities.md`
 - `shared/schemas/aos-agent-workspace-v0.md`
 - `tests/agent-workspace-contract-drift.sh`
 - `tests/agent-workspace-saved-ref.sh`
