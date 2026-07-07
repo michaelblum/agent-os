@@ -471,7 +471,8 @@ creates a normal `aos.workbench_human_checkpoint` record whose subject type is
 `html_workbench_expression`. `buildHtmlWorkbenchExpressionResumePayload` can
 return `annotation_sidecar`, `decision_sidecar`, `proposed_markdown_patch`, or
 `noop_approval` payloads. V0 never mutates the Markdown source automatically;
-later Foreman/GDI steps decide whether to apply a proposed patch.
+only a later explicit review/apply step decides whether to apply a proposed
+patch.
 
 Security defaults are conservative: source-authored HTML is escaped by the
 shared Markdown renderer, unsafe links are stripped, Mermaid source is preserved
@@ -487,7 +488,7 @@ for handing an editable workbench surface to a human and resuming later without
 depending on terminal state. The first concrete adapter is
 `packages/toolkit/components/markdown-workbench/checkpoint.js`.
 
-The Operator pattern is:
+The human-checkpoint pattern is:
 
 ```text
 readiness -> launch/attach surface -> human edits -> human replies -> resume -> diff/save/continue

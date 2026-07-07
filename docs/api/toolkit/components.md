@@ -208,7 +208,7 @@ input regions render as `region` rows with semantic label and consume policy,
 and coupled passive visual/hit-area groups render as `affordance` rows. Rows
 carry stable resource data attributes such as `data-resource-type`,
 `data-stage-layer-id`, `data-input-region-id`, and `data-affordance-id` for
-deterministic tests and future Operator smoke.
+deterministic tests and future supervised smoke.
 
 `window.__canvasInspectorState.surfaceResources` contains normalized
 `stageLayers`, `inputRegions`, `affordances`, and `counts`. The counts include
@@ -261,7 +261,7 @@ This component is fixture-only. It does not replace Surface Inspector, harvest
 live AX trees, probe browser DOM, run capture/locator/report/export workflows,
 or mutate Employer Brand artifacts.
 
-Operator can add annotations without editing the underlying Markdown by using
+A reviewer can add annotations without editing the underlying Markdown by using
 the sidecar CLI before resume:
 
 ```bash
