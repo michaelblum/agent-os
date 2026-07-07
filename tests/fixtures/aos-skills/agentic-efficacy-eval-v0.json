@@ -13,18 +13,21 @@
     {
       "id": "codex-gpt-5.4-mini-low",
       "provider": "codex",
+      "adapter": "openai-responses",
       "model": "gpt-5.4-mini",
       "reasoning_effort": "low"
     },
     {
       "id": "codex-gpt-5.4-mini-medium",
       "provider": "codex",
+      "adapter": "openai-responses",
       "model": "gpt-5.4-mini",
       "reasoning_effort": "medium"
     },
     {
       "id": "codex-gpt-5.4-mini-high",
       "provider": "codex",
+      "adapter": "openai-responses",
       "model": "gpt-5.4-mini",
       "reasoning_effort": "high"
     }

@@ -26,11 +26,13 @@
 - `companions.mjs` owns Playwright CLI companion checks. Playwright-looking text
   is only a candidate signal; installed companion state requires a
   Playwright-owned package identity.
-- `eval.mjs` owns deterministic captured-response scoring, prompt-packet
-  emission, and capture-only provider runners for AOS skill efficacy across
-  provider/model/reasoning matrices. Keep scoring manifest-backed and offline by
-  default; live provider runners must write response JSON that the same scorer
-  evaluates.
+- `eval.mjs` owns deterministic captured-response scoring and prompt-packet
+  emission for AOS skill efficacy across provider/model/reasoning matrices.
+- `captured-runs.mjs` owns captured response run filenames and atomic,
+  no-clobber-by-default run-file writes.
+- `openai-responses-runner.mjs` owns the capture-only OpenAI Responses adapter.
+  It must require explicit `adapter: "openai-responses"` matrix rows, centralize
+  OpenAI option validation, and write response JSON that `eval.mjs` scores.
 
 ## Local Contracts
 
@@ -56,6 +58,8 @@
   beyond a focused owner.
 - Preserve deterministic JSON payload ordering for list, check, install, and
   companion outputs.
+- Preserve evidence-safe capture writes: live provider adapters must not
+  overwrite existing captured-run files unless an explicit replace option is set.
 
 ## Verification
 

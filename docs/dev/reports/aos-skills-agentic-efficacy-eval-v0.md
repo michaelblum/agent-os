@@ -10,7 +10,8 @@ model and reasoning-effort matrix.
 
 The harness keeps scoring separate from live provider execution. It scores
 captured responses first, can emit prompt packets for external runners, and now
-includes a capture-only OpenAI Responses runner for the fixture matrix.
+includes a capture-only OpenAI Responses adapter for fixture matrix rows that
+explicitly declare `adapter: "openai-responses"`.
 
 ## External Patterns Used
 
@@ -43,8 +44,12 @@ includes a capture-only OpenAI Responses runner for the fixture matrix.
 
 ## V0 Repo Shape
 
-- Scorer module:
+- Scorer and prompt-packet module:
   `scripts/lib/aos-skills/eval.mjs`
+- Captured-run file writer:
+  `scripts/lib/aos-skills/captured-runs.mjs`
+- OpenAI Responses adapter:
+  `scripts/lib/aos-skills/openai-responses-runner.mjs`
 - CLI:
   `node scripts/aos-skills-eval.mjs --fixture <path> --json`
 - Live capture runner:
@@ -96,8 +101,13 @@ OPENAI_API_KEY=... node scripts/aos-skills-eval.mjs \
   --run-openai \
   --output-dir /tmp/aos-skills-eval-responses \
   --matrix codex-gpt-5.4-mini-high \
+  --session-id first-live-pass \
   --json
 ```
+
+The OpenAI adapter writes captured response files atomically and does not
+overwrite an existing run file by default. Use a distinct `--session-id` for each
+trial, or pass `--replace` only when intentionally replacing the same trial.
 
 Feed captured JSON responses back through `--responses-dir` for scoring:
 
@@ -111,7 +121,7 @@ node scripts/aos-skills-eval.mjs \
 ## Next Iteration
 
 V1 should add repeated-trial aggregation, cost/latency summaries, and additional
-provider adapters that write the same response JSON shape. Do not move to
+provider adapters with explicit matrix `adapter` ownership. Do not move to
 live-desktop task execution until captured-response scoring is stable. Live
 execution should add state-derived rewards and process checkpoints, not replace
 command-manifest and boundary scoring.

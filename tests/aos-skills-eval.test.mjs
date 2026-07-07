@@ -7,14 +7,16 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import {
-  buildOpenAIResponsesRequest,
   buildPromptPackets,
   evaluateSkillEfficacy,
   loadEvalFixture,
   loadResponseRuns,
-  runOpenAIResponsesEval,
   writePromptPackets,
 } from '../scripts/lib/aos-skills/eval.mjs';
+import {
+  buildOpenAIResponsesRequest,
+  runOpenAIResponsesEval,
+} from '../scripts/lib/aos-skills/openai-responses-runner.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -93,6 +95,7 @@ test('AOS skills efficacy prompt writer creates stable packet files', async () =
     const packetPath = path.join(tempRoot, 'codex-gpt-5.4-mini-medium__readiness-route.json');
     const packet = JSON.parse(await readFile(packetPath, 'utf8'));
     assert.equal(packet.provider, 'codex');
+    assert.equal(packet.adapter, 'openai-responses');
     assert.equal(packet.reasoning_effort, 'medium');
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
@@ -117,57 +120,74 @@ test('AOS skills OpenAI request uses reasoning effort and structured output sche
   assert.match(request.input, /Response contract/);
 });
 
+test('AOS skills OpenAI request rejects output token limits below provider minimum', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+  const packet = buildPromptPackets(fixture, {
+    caseIds: ['readiness-route'],
+    matrixIds: ['codex-gpt-5.4-mini-high'],
+  })[0];
+
+  assert.throws(
+    () => buildOpenAIResponsesRequest(packet, { maxOutputTokens: 15 }),
+    /--max-output-tokens must be an integer >= 16/,
+  );
+});
+
 test('AOS skills OpenAI live runner captures response JSON for later scoring', async () => {
   const fixture = await loadEvalFixture(fixturePath);
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-skills-eval-openai-'));
   const calls = [];
+  const runOptions = {
+    apiKey: 'test-key',
+    caseIds: ['readiness-route'],
+    matrixIds: ['codex-gpt-5.4-mini-low'],
+    sessionId: 'unit-session',
+    fetch: async (url, init) => {
+      calls.push({ url, init, body: JSON.parse(init.body) });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'resp_test',
+          status: 'completed',
+          usage: { total_tokens: 123 },
+          output: [
+            {
+              type: 'message',
+              content: [
+                {
+                  type: 'output_text',
+                  text: JSON.stringify({
+                    case_id: 'readiness-route',
+                    selected_skills: [
+                      'aos-core-orientation',
+                      'aos-runtime-readiness',
+                    ],
+                    selected_commands: [
+                      './aos help ready --json',
+                      './aos ready --json',
+                      './aos status --json',
+                    ],
+                    decision: 'Use ready and status before desktop work.',
+                    stop_condition: 'Stop before raw daemon internals or state-file inspection.',
+                    notes: '',
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+      };
+    },
+  };
   try {
-    const result = await runOpenAIResponsesEval(fixture, tempRoot, {
-      apiKey: 'test-key',
-      caseIds: ['readiness-route'],
-      matrixIds: ['codex-gpt-5.4-mini-low'],
-      fetch: async (url, init) => {
-        calls.push({ url, init, body: JSON.parse(init.body) });
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            id: 'resp_test',
-            status: 'completed',
-            usage: { total_tokens: 123 },
-            output: [
-              {
-                type: 'message',
-                content: [
-                  {
-                    type: 'output_text',
-                    text: JSON.stringify({
-                      case_id: 'readiness-route',
-                      selected_skills: [
-                        'aos-core-orientation',
-                        'aos-runtime-readiness',
-                      ],
-                      selected_commands: [
-                        './aos help ready --json',
-                        './aos ready --json',
-                        './aos status --json',
-                      ],
-                      decision: 'Use ready and status before desktop work.',
-                      stop_condition: 'Stop before raw daemon internals or state-file inspection.',
-                      notes: '',
-                    }),
-                  },
-                ],
-              },
-            ],
-          }),
-        };
-      },
-    });
+    const result = await runOpenAIResponsesEval(fixture, tempRoot, runOptions);
 
     assert.equal(result.status, 'success');
+    assert.equal(result.session_id, 'unit-session');
     assert.equal(result.packets_requested, 1);
     assert.equal(result.runs_written, 1);
+    assert.equal(result.files.length, 1);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, 'https://api.openai.com/v1/responses');
     assert.equal(calls[0].init.headers.Authorization, 'Bearer test-key');
@@ -176,7 +196,21 @@ test('AOS skills OpenAI live runner captures response JSON for later scoring', a
     const runs = await loadResponseRuns(tempRoot);
     assert.equal(runs.length, 1);
     assert.equal(runs[0].provider, 'openai-responses');
+    assert.match(runs[0].id, /unit-session$/);
     assert.equal(runs[0].case_responses[0].provider_metadata.response_id, 'resp_test');
+
+    const callsBeforeDuplicate = calls.length;
+    await assert.rejects(
+      runOpenAIResponsesEval(fixture, tempRoot, runOptions),
+      /Captured eval run file already exists/,
+    );
+    assert.equal(calls.length, callsBeforeDuplicate);
+
+    const replaced = await runOpenAIResponsesEval(fixture, tempRoot, {
+      ...runOptions,
+      replace: true,
+    });
+    assert.equal(replaced.status, 'success');
 
     const report = await evaluateSkillEfficacy(fixture, {
       repoRoot,
@@ -188,6 +222,28 @@ test('AOS skills OpenAI live runner captures response JSON for later scoring', a
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('AOS skills OpenAI live runner rejects matrix rows without OpenAI adapter', async () => {
+  const fixture = await loadEvalFixture(fixturePath);
+  const invalidFixture = {
+    ...fixture,
+    matrix: [
+      {
+        ...fixture.matrix[0],
+        adapter: 'other-provider',
+      },
+    ],
+  };
+
+  await assert.rejects(
+    runOpenAIResponsesEval(invalidFixture, '/tmp/aos-skills-eval-unused', {
+      apiKey: 'test-key',
+      caseIds: ['readiness-route'],
+      fetch: async () => assert.fail('fetch should not run for an unsupported adapter'),
+    }),
+    /requires matrix rows with adapter openai-responses/,
+  );
 });
 
 test('AOS skills OpenAI live runner fails closed without API key', async () => {

@@ -17,7 +17,7 @@ function usage() {
     'Usage:',
     '  node scripts/aos-skills-eval.mjs --fixture <path> [--responses-dir <dir>] [--case <id> ...] [--run <id> ...] [--pass-score <n>] [--json] [--fail-on-threshold]',
     '  node scripts/aos-skills-eval.mjs --fixture <path> --emit-prompts <dir> [--case <id> ...] [--matrix <id> ...] [--json]',
-    '  node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> [--case <id> ...] [--matrix <id> ...] [--max-output-tokens <n>] [--json]',
+    '  node scripts/aos-skills-eval.mjs --fixture <path> --run-openai --output-dir <dir> [--case <id> ...] [--matrix <id> ...] [--session-id <id>] [--replace] [--max-output-tokens <n>] [--json]',
     '',
     'Scores captured model responses for AOS installable-skill efficacy.',
     'The default path is deterministic/offline; --run-openai captures live Responses API output for later scoring through --responses-dir.',
@@ -68,14 +68,14 @@ function parseArgs(argv) {
       options.baseUrl = requireValue(argv, i, '--base-url');
       i += 2;
     } else if (arg === '--max-output-tokens') {
-      const value = Number(requireValue(argv, i, '--max-output-tokens'));
-      if (!Number.isInteger(value) || value <= 0) {
-        throw new AosSkillsError('--max-output-tokens must be a positive integer', 'INVALID_ARG', {
-          flag: '--max-output-tokens',
-        });
-      }
-      options.maxOutputTokens = value;
+      options.maxOutputTokens = requireValue(argv, i, '--max-output-tokens');
       i += 2;
+    } else if (arg === '--session-id') {
+      options.sessionId = requireValue(argv, i, '--session-id');
+      i += 2;
+    } else if (arg === '--replace') {
+      options.replace = true;
+      i += 1;
     } else if (arg === '--case') {
       options.caseIds.push(requireValue(argv, i, '--case'));
       i += 2;
@@ -149,6 +149,8 @@ async function main() {
       matrixIds: options.matrixIds,
       baseUrl: options.baseUrl,
       maxOutputTokens: options.maxOutputTokens,
+      replace: options.replace,
+      sessionId: options.sessionId,
     });
     if (options.json) process.stdout.write(formatJSON(result));
     else {

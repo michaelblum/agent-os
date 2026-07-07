@@ -7,7 +7,6 @@ import { AosSkillsError, isObject, sha256Text } from './shared.mjs';
 export const EVAL_SCHEMA_VERSION = 'aos.skills.agentic-efficacy-eval.v0';
 export const EVAL_REPORT_SCHEMA_VERSION = 'aos.skills.agentic-efficacy-report.v0';
 export const EVAL_PROMPT_PACKET_SCHEMA_VERSION = 'aos.skills.agentic-efficacy-prompt.v0';
-export const EVAL_OPENAI_RUN_SCHEMA_VERSION = 'aos.skills.agentic-efficacy.openai-run.v0';
 
 const DEFAULT_PASS_SCORE = 80;
 const DEFAULT_WEIGHTS = {
@@ -21,34 +20,6 @@ const DEFAULT_WEIGHTS = {
 
 const directAosCommand = /^\.\/aos(?:\s|$)/;
 const projectWrapperPattern = /\b(?:pnpm|npm|yarn|bun)\b|\bnode\s+scripts\/|\.\/scripts\/|raw daemon HTTP|curl\s+http:\/\/127\.0\.0\.1/;
-const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-
-const OPENAI_RESPONSE_JSON_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'case_id',
-    'selected_skills',
-    'selected_commands',
-    'decision',
-    'stop_condition',
-    'notes',
-  ],
-  properties: {
-    case_id: { type: 'string' },
-    selected_skills: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    selected_commands: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    decision: { type: 'string' },
-    stop_condition: { type: 'string' },
-    notes: { type: 'string' },
-  },
-};
 
 export function commandTokens(command) {
   return [...String(command ?? '').matchAll(/"[^"]*"|'[^']*'|\S+/g)].map((match) => match[0]);
@@ -104,25 +75,6 @@ function matchingManifestForm(command, forms) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function asPositiveInteger(value) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function resolveOpenAIApiKey(options) {
-  if (Object.hasOwn(options, 'apiKey')) return options.apiKey;
-  return process.env.AOS_AGENT_PROVIDER_API_KEY || process.env.OPENAI_API_KEY;
-}
-
-function openAIResponsesUrl(baseUrl) {
-  if (!baseUrl) return OPENAI_RESPONSES_URL;
-  return `${String(baseUrl).replace(/\/+$/, '')}/responses`;
-}
-
-function responseFileName(runId) {
-  return `${String(runId).replace(/[^A-Za-z0-9_.-]/g, '_')}.json`;
 }
 
 function regexpFromSpec(spec) {
@@ -422,6 +374,7 @@ export function buildPromptPackets(fixture, options = {}) {
     matrix_id: entry.id,
     case_id: testCase.id,
     provider: entry.provider,
+    adapter: entry.adapter ?? null,
     model: entry.model,
     reasoning_effort: entry.reasoning_effort ?? null,
     skill_target: fixture.skill_target,
@@ -441,178 +394,6 @@ export function buildPromptPackets(fixture, options = {}) {
       notes: 'optional extra detail, or an empty string',
     },
   })));
-}
-
-export function buildOpenAIResponsesRequest(packet, options = {}) {
-  const request = {
-    model: packet.model,
-    instructions: packet.system_prompt,
-    input: [
-      packet.user_prompt,
-      '',
-      `Response contract: ${JSON.stringify(packet.response_contract)}`,
-    ].join('\n'),
-    store: false,
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'aos_skill_eval_response',
-        strict: true,
-        schema: OPENAI_RESPONSE_JSON_SCHEMA,
-      },
-    },
-  };
-  if (packet.reasoning_effort) {
-    request.reasoning = { effort: packet.reasoning_effort };
-  }
-  const maxOutputTokens = asPositiveInteger(options.maxOutputTokens);
-  if (maxOutputTokens) request.max_output_tokens = maxOutputTokens;
-  return request;
-}
-
-export function extractOpenAIOutputText(responsePayload) {
-  if (typeof responsePayload?.output_text === 'string') return responsePayload.output_text;
-  for (const output of asArray(responsePayload?.output)) {
-    for (const content of asArray(output?.content)) {
-      if (typeof content?.text === 'string') return content.text;
-      if (typeof content?.output_text === 'string') return content.output_text;
-    }
-  }
-  throw new AosSkillsError('OpenAI response did not contain output text', 'OPENAI_RESPONSE_MISSING_TEXT', {
-    response_id: responsePayload?.id ?? null,
-  });
-}
-
-async function callOpenAIResponses(packet, options) {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  if (typeof fetchImpl !== 'function') {
-    throw new AosSkillsError('fetch is required for OpenAI live eval runs', 'FETCH_UNAVAILABLE');
-  }
-  const request = buildOpenAIResponsesRequest(packet, options);
-  const startedAt = Date.now();
-  const response = await fetchImpl(openAIResponsesUrl(options.baseUrl), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${options.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
-  const latencyMs = Date.now() - startedAt;
-  if (!response.ok) {
-    const body = typeof response.text === 'function' ? await response.text() : '';
-    throw new AosSkillsError('OpenAI Responses API request failed', 'OPENAI_RESPONSE_FAILED', {
-      case_id: packet.case_id,
-      matrix_id: packet.matrix_id,
-      status: response.status,
-      body,
-    });
-  }
-  const payload = await response.json();
-  const text = extractOpenAIOutputText(payload);
-  const captured = JSON.parse(text);
-  if (!isObject(captured)) {
-    throw new AosSkillsError('OpenAI output JSON was not an object', 'OPENAI_OUTPUT_NOT_OBJECT', {
-      case_id: packet.case_id,
-      matrix_id: packet.matrix_id,
-    });
-  }
-  return {
-    response: captured,
-    metadata: {
-      response_id: payload.id ?? null,
-      status: payload.status ?? null,
-      usage: payload.usage ?? null,
-      latency_ms: latencyMs,
-    },
-  };
-}
-
-export async function runOpenAIResponsesEval(fixture, outputDir, options = {}) {
-  if (!outputDir) {
-    throw new AosSkillsError('--output-dir is required for OpenAI live eval runs', 'MISSING_ARG', {
-      flag: '--output-dir',
-    });
-  }
-  const apiKey = resolveOpenAIApiKey(options);
-  if (!apiKey) {
-    throw new AosSkillsError(
-      'OPENAI_API_KEY or AOS_AGENT_PROVIDER_API_KEY is required for OpenAI live eval runs',
-      'MISSING_OPENAI_API_KEY',
-    );
-  }
-  const packets = buildPromptPackets(fixture, {
-    caseIds: options.caseIds,
-    matrixIds: options.matrixIds,
-  });
-  await mkdir(outputDir, { recursive: true });
-  const runsByMatrix = new Map();
-  const errors = [];
-
-  for (const packet of packets) {
-    const runId = `${packet.matrix_id}__openai-responses`;
-    if (!runsByMatrix.has(packet.matrix_id)) {
-      runsByMatrix.set(packet.matrix_id, {
-        id: runId,
-        provider: 'openai-responses',
-        model: packet.model,
-        reasoning_effort: packet.reasoning_effort,
-        mode: 'live_openai_responses_capture',
-        case_responses: [],
-        metadata: {
-          matrix_id: packet.matrix_id,
-          prompt_schema_version: packet.schema_version,
-          response_schema_version: EVAL_OPENAI_RUN_SCHEMA_VERSION,
-          cases_requested: [],
-          errors: [],
-        },
-      });
-    }
-    const run = runsByMatrix.get(packet.matrix_id);
-    run.metadata.cases_requested.push(packet.case_id);
-    try {
-      const result = await callOpenAIResponses(packet, {
-        ...options,
-        apiKey,
-      });
-      run.case_responses.push({
-        ...result.response,
-        provider_metadata: result.metadata,
-      });
-    } catch (error) {
-      const payload = error instanceof AosSkillsError
-        ? error.toJSON()
-        : { code: 'OPENAI_RESPONSE_ERROR', error: error.message };
-      run.metadata.errors.push(payload);
-      errors.push(payload);
-    }
-  }
-
-  const runs = [...runsByMatrix.values()];
-  for (const run of runs) {
-    await writeFile(
-      path.join(outputDir, responseFileName(run.id)),
-      `${JSON.stringify({ run }, null, 2)}\n`,
-    );
-  }
-
-  return {
-    schema_version: EVAL_OPENAI_RUN_SCHEMA_VERSION,
-    status: errors.length ? 'completed_with_errors' : 'success',
-    output_dir: outputDir,
-    packets_requested: packets.length,
-    runs_written: runs.length,
-    errors,
-    runs: runs.map((run) => ({
-      id: run.id,
-      provider: run.provider,
-      model: run.model,
-      reasoning_effort: run.reasoning_effort,
-      cases_requested: run.metadata.cases_requested.length,
-      cases_captured: run.case_responses.length,
-      errors: run.metadata.errors.length,
-    })),
-  };
 }
 
 export async function writePromptPackets(fixture, outputDir, options = {}) {
