@@ -25,8 +25,10 @@ Record schema first.
 
 - Use ref diffs for compact UI state checks.
 - Use visible artifacts when the proof is visual and refs are insufficient.
-- Use `./aos daemon-snapshot`, `./aos log`, and command JSON for diagnostics;
-  those are not durable UI-state assertions by themselves.
+- Use `./aos daemon-snapshot`, `./aos service logs --tail N`, command JSON,
+  and structured errors for diagnostic readback; those are not durable UI-state
+  assertions by themselves.
+- Use `./aos log` only when you want the display log console/overlay surface.
 - Use gates when human authorization is required.
 - Use Work Records for durable evidence, verifier status, postconditions,
   exports, and handoff bundles.

@@ -62,7 +62,7 @@ Command-to-state map:
 | Session | `tell`, `listen`, `voice`, `gate defer`, `status`, browser `browser:<session>` targets | Live coordination identity; not a saved workspace or evidence store |
 | Workspace | `see capture --save`, `see workspaces`, `see workspace`, `see snapshots`, `see refs`, saved-ref `do ... --workspace` | Command-scoped saved capture/ref store; no hidden current workspace |
 | Focus channel | `focus create/update/list/remove`, `see capture --channel`, `show ...`, `graph windows` | Mutable target binding; not session identity or saved evidence by itself |
-| Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `runtime`, `daemon-snapshot`, `log`, `experience status` | Mode-scoped readiness, config, daemon/service, and diagnostics |
+| Runtime state | `ready`, `status`, `doctor`, `permissions`, `service`, `service logs`, `runtime`, `daemon-snapshot`, `experience status` | Mode-scoped readiness, config, daemon/service, log readback, and diagnostics |
 | Work Record | `work-record list/read/verify/status/plan-repair`, `work-record repair ...`, `work-record export` | Durable evidence and bounded recovery workflows; no autonomous replay |
 | Content root | `content status`, `content wait`, `experience status`, wiki/content-backed surfaces | Readable declared content root; not a workspace or Work Record root |
 | Evidence state | `see refs --diff --expect`, `see annotation ...`, `gate records`, `work-record ...`, logs, command JSON | Proof trail for later inspection; not current UI state |
@@ -132,6 +132,7 @@ trail is a composed sequence of command JSON and file-backed evidence:
 ./aos see capture main --save --workspace <id> --name after --mode som
 ./aos see refs --workspace <id> --diff before..after --expect change --json
 ./aos daemon-snapshot
+./aos service logs --tail 50
 ./aos gate records --json
 ./aos work-record verify <id-or-path> --json
 ./aos work-record export <id-or-path> --json
@@ -145,7 +146,8 @@ Each step contributes a different kind of evidence:
 | Before/after perception | `see capture --save`, `see snapshots`, `see refs` | Compact refs plus file-backed capture artifacts under the selected workspace. |
 | Action provenance | `do ... --dry-run`, `do ...` action envelopes | Target resolution, validation status, action path, and recommended recapture command when available. |
 | Lightweight verification | `see refs --diff --expect`, repeatable `--expect-ref` | Machine-checkable compact saved-ref change gates between two saved snapshots. |
-| Diagnostics | `daemon-snapshot`, `log`, command JSON, structured errors | Runtime and spatial diagnostics for debugging; not durable UI-state assertions by themselves. |
+| Diagnostic readback | `daemon-snapshot`, `service logs --tail N`, command JSON, structured errors | Runtime, daemon log, and spatial diagnostics for debugging; not durable UI-state assertions by themselves. |
+| Diagnostic display | `log`, `log push`, `log clear` | Built-in log console/overlay display; useful for operators, not passive daemon log readback. |
 | Human decisions | `gate ask/defer/submit`, `gate records` | Structured human/operator decisions and terminal gate records. |
 | Durable evidence | `work-record read/verify/status/export`, `work-record repair bundle ...` | Verifier health, postconditions, evidence manifests, and handoff artifacts. Bundles and exports are handoff/readback artifacts, not replay engines. |
 
@@ -168,6 +170,7 @@ dashboard command. For a static operational snapshot, combine:
 ./aos show list
 ./aos gate records --json
 ./aos daemon-snapshot
+./aos service logs --tail 50
 ./aos work-record list --json
 ```
 
@@ -191,7 +194,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
 | Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
-| Diagnostics/debug | Debug readbacks for active AOS/runtime work | `daemon-snapshot`, `inspect`, `introspect review`, `log` |
+| Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, gates, Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
 | Operator input | Pending operator annotations and saved-ref handoff | `see annotation create/list/read/consume/link-work-record/delete` |
 | Skills and recipes | Installable guidance versus executable source-backed procedures | `skills list/check/install`, `skills companion ...`, `recipe list/explain/dry-run/run` |
