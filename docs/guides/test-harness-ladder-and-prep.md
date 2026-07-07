@@ -1,4 +1,4 @@
-# Recipe: Test Harness Ladder And Prep
+# Guide: Test Harness Ladder And Prep
 
 Use this recipe when a change touches runtime, canvas, input, status-item,
 lifecycle, visual, supervised, or cross-layer behavior and the right test

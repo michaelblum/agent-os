@@ -1266,9 +1266,9 @@ perception, target dialect, selected action target, State IDs where available,
 and immutable artifact refs. For saved-ref evidence it may also record the
 full `see --save -> do ref --dry-run -> do ref -> see --save ->
 diff/readback -> cleanup` bridge. Direct browser/canvas evidence may store a
-Target-with-Ref, saved-ref evidence preserves the Saved Ref plus resolved
-underlying target and current-validation metadata, and native AX evidence
-preserves its selector bridge descriptor. The builder stores the selected
+Target-with-Ref, saved-ref evidence should preserve the Saved Ref plus resolved
+underlying target and current-validation metadata, and native AX evidence should preserve its selector
+bridge descriptor. The builder stores the selected
 action target in `execution_map.steps[].action`, stores before/dry-run/action/
 after/cleanup receipts in `evidence[]` when present, and ties the post-action
 Postcondition to the after-perception evidence.

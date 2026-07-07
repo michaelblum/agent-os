@@ -12645,6 +12645,301 @@
         "work-record"
       ],
       "summary" : "Work Records — discover, read, verify, explain recovery, plan gated repair attempts, and export read-only evidence manifests"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable skill registry JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos skills list --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "skills-list",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos skills list [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Install target: codex, claude, agents, or path",
+              "token" : "--target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "path",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Absolute skill directory for --target path",
+              "token" : "--path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "skill",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Limit check to one skill; repeatable",
+              "token" : "--skill",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable installed-state JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos skills check --target codex --json",
+            "aos skills check --target path --path /tmp/aos-skills --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "skills-check",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos skills check --target <target> [--path absolute-dir] [--skill name ...] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "target",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Install target: codex, claude, agents, or path",
+              "token" : "--target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "path",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Absolute skill directory for --target path",
+              "token" : "--path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "skill",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Limit install plan to one skill; repeatable",
+              "token" : "--skill",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Plan writes without mutating the target skill tree",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable install plan JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos skills install --target codex --json",
+            "aos skills install --target codex --dry-run --json",
+            "aos skills install --target path --path /tmp/aos-skills --json",
+            "aos skills install --target path --path /tmp/aos-skills --dry-run --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "skills-install",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos skills install --target <target> [--path absolute-dir] [--skill name ...] [--dry-run] [--json]"
+        }
+      ],
+      "path" : [
+        "skills"
+      ],
+      "summary" : "Installable AOS root skills for direct agent workflows"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "name",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Companion name; currently playwright-cli",
+              "token" : "--name",
+              "value_type" : "string"
+            },
+            {
+              "id" : "target",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Skill target to inspect for Playwright-owned companion skills",
+              "token" : "--target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "path",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Absolute skill directory for --target path",
+              "token" : "--path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable companion check JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos skills companion check --name playwright-cli --target codex --json",
+            "aos skills companion check --name playwright-cli --target path --path /tmp/aos-skills --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "skills-companion-check",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos skills companion check --name <companion> --target <target> [--path absolute-dir] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "name",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Companion name; currently playwright-cli",
+              "token" : "--name",
+              "value_type" : "string"
+            },
+            {
+              "id" : "target",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Skill target to inspect before planning companion install",
+              "token" : "--target",
+              "value_type" : "string"
+            },
+            {
+              "id" : "path",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Absolute skill directory for --target path",
+              "token" : "--path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Report the external Playwright CLI install invocation without running it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable companion install plan JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos skills companion install --name playwright-cli --target codex --dry-run --json",
+            "aos skills companion install --name playwright-cli --target path --path /tmp/aos-skills --dry-run --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "skills-companion-install",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos skills companion install --name <companion> --target <target> [--path absolute-dir] --dry-run [--json]"
+        }
+      ],
+      "path" : [
+        "skills",
+        "companion"
+      ],
+      "summary" : "External skill companion checks and dry-run install plans"
     }
   ],
   "name" : "aos",

@@ -1,4 +1,4 @@
-# Recipe: Workstream Checkpoint Continuation
+# Guide: Workstream Checkpoint Continuation
 
 Use this recipe after a local slice has been reviewed, accepted, and
 checkpointed. The goal is to keep an active workstream moving without making

@@ -1,0 +1,379 @@
+{
+  "schema_version": "aos.root-skills.registry.v0",
+  "body_line_budget": 180,
+  "supported_targets": {
+    "codex": {
+      "skill_dir": "${CODEX_HOME:-~/.codex}/skills",
+      "status": "supported"
+    },
+    "claude": {
+      "skill_dir": "${CLAUDE_HOME:-~/.claude}/skills",
+      "status": "supported"
+    },
+    "agents": {
+      "skill_dir": "${AOS_AGENTS_SKILLS_DIR:-~/.agents/skills}",
+      "status": "supported"
+    },
+    "path": {
+      "skill_dir": "--path <dir>",
+      "status": "explicit"
+    }
+  },
+  "skills": [
+    {
+      "name": "aos-core-orientation",
+      "path": "skills/aos-core-orientation",
+      "description": "Use direct ./aos commands as the agent-facing control surface for agent-os. Trigger when an agent is new to AOS, needs to choose the right command family, or must avoid stale local wrappers and competing workflow language.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable orientation skill for direct AOS command onboarding.",
+      "references": [
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos.md",
+        "CONTEXT.md",
+        "CONTEXT-MAP.md"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/adr/0018-installable-aos-skills.md",
+        "docs/api/aos.md",
+        "CONTEXT.md",
+        "CONTEXT-MAP.md"
+      ]
+    },
+    {
+      "name": "aos-runtime-readiness",
+      "path": "skills/aos-runtime-readiness",
+      "description": "Use direct ./aos runtime gates before live AOS work. Trigger when an agent needs to check readiness, status, permissions, daemon health, or safe passive diagnostics before using canvases, browser targets, input, voice, or runtime state.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable runtime readiness skill.",
+      "references": [
+        "docs/api/aos.md",
+        "docs/guides/agent-entry-paths-and-verification.md",
+        "docs/dev/workflow-profiles/README.md"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md"
+      ]
+    },
+    {
+      "name": "aos-saved-workspace",
+      "path": "skills/aos-saved-workspace",
+      "description": "Use AOS saved perception workspaces and compact refs for observe-act-recapture loops. Trigger when a task needs saved snapshots, refs, ref-scoped dry-runs or actions, snapshot diffs, or compact UI/browser/native evidence without carrying full screenshots or AX payloads in context.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable saved workspace and ref workflow skill.",
+      "references": [
+        "docs/api/aos.md",
+        "shared/schemas/aos-agent-workspace-v0.md",
+        "tests/agent-workspace-contract-drift.sh",
+        "tests/agent-workspace-saved-ref.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "shared/schemas/aos-agent-workspace-v0.md",
+        "tests/agent-workspace-contract-drift.sh"
+      ]
+    },
+    {
+      "name": "aos-browser",
+      "path": "skills/aos-browser",
+      "description": "Use AOS browser saved refs and action envelopes for durable browser work. Trigger when a task involves browser capture, DOM/SOM refs, browser-backed do actions, browser evidence, or deciding between AOS browser wrappers and upstream Playwright CLI escape hatches.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable browser workflow skill with explicit Playwright CLI companion boundary.",
+      "references": [
+        "ARCHITECTURE.md",
+        "docs/api/aos.md",
+        "docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md",
+        "tests/browser/runtime-resolver.test.mjs",
+        "tests/browser/version-check.test.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "ARCHITECTURE.md",
+        "docs/api/aos.md",
+        "tests/browser/runtime-resolver.test.mjs"
+      ]
+    },
+    {
+      "name": "aos-operator-annotations",
+      "path": "skills/aos-operator-annotations",
+      "description": "Use AOS pending operator annotations safely. Trigger when an agent needs to list, read, consume, delete, or link compact operator annotations, especially annotations that point at saved refs, fallback targets, or Work Record evidence.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable operator annotation workflow skill.",
+      "references": [
+        "docs/api/aos.md",
+        "docs/api/toolkit/runtime.md",
+        "manifests/commands/source/aos/03-see-04-annotation.json",
+        "tests/external-command-dispatch.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "manifests/commands/source/aos/03-see-04-annotation.json",
+        "tests/external-command-dispatch.sh"
+      ]
+    },
+    {
+      "name": "aos-work-records",
+      "path": "skills/aos-work-records",
+      "description": "Use AOS Work Record commands for evidence, verification, recovery guidance, repair planning, and report-only status. Trigger when an agent needs to inspect a Work Record, verify it, plan repair, link evidence, or avoid changing repair/finalization semantics.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable Work Record inspection and recovery skill.",
+      "references": [
+        "docs/api/aos.md",
+        "manifests/commands/source/aos/35-work-record.json",
+        "shared/schemas/aos-work-record-v0.md",
+        "tests/design/aos-work-record-fixtures.test.mjs"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "shared/schemas/aos-work-record-v0.md",
+        "tests/design/aos-work-record-fixtures.test.mjs"
+      ]
+    },
+    {
+      "name": "aos-recipes",
+      "path": "skills/aos-recipes",
+      "description": "Use AOS source-backed executable recipes without confusing them with skills or workflows. Trigger when an agent needs to list, explain, dry-run, or run an AOS recipe, or when old docs mention aos ops and need the direct aos recipe surface.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable recipe workflow skill.",
+      "references": [
+        "docs/api/aos.md",
+        "manifests/commands/source/aos/06-recipe.json",
+        "manifests/commands/source/aos/05-ops.json",
+        "recipes/AGENTS.md",
+        "tests/ops-contract.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "recipes/AGENTS.md",
+        "tests/ops-contract.sh"
+      ]
+    },
+    {
+      "name": "aos-command-surface-maintenance",
+      "path": "skills/aos-command-surface-maintenance",
+      "description": "Maintain AOS command surfaces, help, manifests, docs, and tests. Trigger when an agent changes ./aos commands, external wrappers, source command manifests, generated command registries, parser flags, or public command documentation.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable command-surface maintenance skill.",
+      "references": [
+        "docs/api/aos.md",
+        "manifests/AGENTS.md",
+        "scripts/AGENTS.md",
+        "tests/help-contract.sh",
+        "tests/external-command-dispatch.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "manifests/AGENTS.md",
+        "scripts/AGENTS.md",
+        "tests/help-contract.sh"
+      ]
+    },
+    {
+      "name": "agent-sync",
+      "path": "skills/agent-sync",
+      "description": "Historical tombstone for the retired Codex native custom-agent sync path. Do not use this skill to register, rename, retire, or sync agents.",
+      "status": "retired",
+      "installable": false,
+      "invocation": "retired",
+      "target_support": [],
+      "ownership": "AOS-owned historical tombstone for ADR 0017.",
+      "references": [
+        "docs/adr/0017-retire-codex-native-custom-agents.md",
+        ".codex/AGENTS.md",
+        "ai-agents/providers/codex/README.md"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/adr/0017-retire-codex-native-custom-agents.md",
+        ".codex/AGENTS.md"
+      ]
+    },
+    {
+      "name": "aos-agent-workspace",
+      "path": "skills/aos-agent-workspace",
+      "description": "Use saved AOS perception workspaces and compact refs for agent UI work. Trigger when a task needs repeated observe-act loops, saved `aos see capture --save` snapshots, `aos see snapshots`, `aos see refs`, or `aos do ... ref:<snapshot-id>:<ref>` actions without carrying full screenshots or AX/browser payloads in context.",
+      "status": "needs_split",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "AOS-owned local root skill that will be split into smaller installable AOS workflow skills.",
+      "references": [
+        "docs/api/aos.md",
+        "shared/schemas/aos-agent-workspace-v0.md",
+        "tests/agent-workspace-contract-drift.sh",
+        "tests/agent-workspace-saved-ref.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/aos.md",
+        "shared/schemas/aos-agent-workspace-v0.md",
+        "tests/agent-workspace-contract-drift.sh"
+      ],
+      "split_to": [
+        "aos-saved-workspace",
+        "aos-runtime-readiness",
+        "aos-operator-annotations",
+        "aos-work-records"
+      ],
+      "body_budget": {
+        "max_lines": 180,
+        "exception": "needs_split"
+      }
+    },
+    {
+      "name": "browser-adapter",
+      "path": "skills/browser-adapter",
+      "description": "Drive browsers (tabs, forms, clicks, navigation) through aos verbs. Trigger when a task requires reading or acting on web content — filling forms, extracting data, observing page state — and you want saved or direct ref-based interaction.",
+      "status": "needs_split",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "AOS-owned local root skill that will be superseded by aos-browser with an explicit external Playwright CLI companion boundary.",
+      "references": [
+        "ARCHITECTURE.md",
+        "docs/api/aos.md",
+        "docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md",
+        "tests/browser/runtime-resolver.test.mjs",
+        "tests/browser/version-check.test.sh"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "ARCHITECTURE.md",
+        "docs/api/aos.md",
+        "tests/browser/runtime-resolver.test.mjs"
+      ],
+      "split_to": [
+        "aos-browser"
+      ]
+    },
+    {
+      "name": "caveman",
+      "path": "skills/caveman",
+      "description": "Ultra-compressed communication mode. Cuts token usage ~75% by speaking like caveman while keeping full technical accuracy. Supports intensity levels: lite, full (default), ultra, wenyan-lite, wenyan-full, wenyan-ultra. Use when user says \"caveman mode\", \"talk like caveman\", \"use caveman\", \"less tokens\", \"be brief\", or invokes /caveman. Also auto-triggers when token efficiency is requested.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "Local communication compression skill, outside the AOS installable skill product.",
+      "references": [],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "issue-hygiene-sweep",
+      "path": "skills/issue-hygiene-sweep",
+      "description": "Audit open GitHub issues against the AGENTS.md \"open is not automatically current\" rule. Classify each issue as landed, superseded, active, or unclear, and propose next steps. Read-only: never closes, comments, labels, or edits issues. User decides what to act on.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "disabled",
+      "target_support": [],
+      "ownership": "Repo/GitHub hygiene audit helper, outside the AOS installable skill product.",
+      "references": [
+        "AGENTS.md"
+      ],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "plan-retirement-audit",
+      "path": "skills/plan-retirement-audit",
+      "description": "Audit docs/superpowers/plans/*.md against the AGENTS.md retirement-or-supersession policy. Classify each plan as landed, superseded, active, or unclear, and propose next steps. Read-only: never moves, archives, edits, or deletes files. User decides what to act on.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "disabled",
+      "target_support": [],
+      "ownership": "Repo docs audit helper, outside the AOS installable skill product.",
+      "references": [
+        "AGENTS.md"
+      ],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "symphony-talent-design",
+      "path": "skills/symphony-talent-design",
+      "description": "Use this skill to generate well-branded interfaces and assets for Symphony Talent, either for production or throwaway prototypes/mocks/slides/etc. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping on the Symphony Talent \"Full-Funnel\" recruitment marketing platform brand.",
+      "status": "private_ignored",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "Private brand/design skill, not part of the AOS installable skill pack.",
+      "references": [
+        "skills/symphony-talent-design/README.md",
+        "skills/symphony-talent-design/colors_and_type.css"
+      ],
+      "claims_durable_behavior": false,
+      "backing": []
+    }
+  ]
+}

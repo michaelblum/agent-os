@@ -51,6 +51,11 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   transitions, capture projection, and next-command recommendations behind
   `aos see annotation`.
 - `aos_agents/` owns the AOS project-agent runner implementation.
+- `aos-skills.mjs`, `aos-skills-validate.mjs`, and
+  `lib/aos-skills-registry.mjs` own root skill registry listing, validation,
+  installed-state checks, bounded install writing, dry-run install planning, and
+  Playwright CLI companion skill checks for `skills/registry.json` and direct
+  child `SKILL.md` packages.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
 
@@ -99,6 +104,13 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - Run the focused test matching the command surface changed.
 - For runner changes, use `bash tests/aos-agents-runner.sh` and
   `python3 -m py_compile scripts/aos_agents/runner.py`.
+- For root skill registry validation changes, use
+  `node scripts/aos-skills-validate.mjs --json` and
+  `node --test tests/aos-skills-registry.test.mjs`.
+- For root skill install target, installed-state, or dry-run planning changes,
+  add `node --test tests/aos-skills-command.test.mjs`.
+- For Playwright CLI companion skill checks, add
+  `node --test tests/aos-skills-companion.test.mjs`.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
   `bash tests/dev-workflow-router.sh`, `bash tests/command-manifest-generation.sh`,
   and `git diff --check` when relevant.

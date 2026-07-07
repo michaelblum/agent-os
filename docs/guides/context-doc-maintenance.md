@@ -1,4 +1,4 @@
-# Recipe: Context Doc Maintenance
+# Guide: Context Doc Maintenance
 
 Use this recipe when a change may affect shared language, context routing,
 agent operating contracts, API contracts, schemas, architecture docs, ADRs,

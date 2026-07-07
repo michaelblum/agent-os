@@ -231,6 +231,28 @@ test('doctor public route is externally composed', async () => {
   assert.equal(doctor.env.AOS_PATH, '$AOS_PATH');
 });
 
+test('skills public routes are externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  for (const subcommand of ['list', 'check', 'install']) {
+    const command = manifest.commands.find((item) => item.path.join(' ') === `skills ${subcommand}`);
+    assert.ok(command, `skills ${subcommand} route missing`);
+    assert.equal(command.executable, '/usr/bin/env');
+    assert.deepEqual(command.argv_prefix, ['node', 'scripts/aos-skills.mjs', subcommand]);
+  }
+
+  const root = manifest.commands.find((item) => item.path.join(' ') === 'skills');
+  assert.ok(root, 'skills root route missing');
+  assert.equal(root.executable, '/usr/bin/env');
+  assert.deepEqual(root.argv_prefix, ['node', 'scripts/aos-skills.mjs']);
+
+  for (const pathSuffix of ['companion', 'companion check', 'companion install']) {
+    const route = manifest.commands.find((item) => item.path.join(' ') === `skills ${pathSuffix}`);
+    assert.ok(route, `skills ${pathSuffix} route missing`);
+    assert.equal(route.executable, '/usr/bin/env');
+    assert.deepEqual(route.argv_prefix, ['node', 'scripts/aos-skills.mjs', ...pathSuffix.split(' ')]);
+  }
+});
+
 test('permissions public workflow routes are externally composed', async () => {
   const manifest = await loadJson(manifestPath);
   for (const subcommand of ['check', 'preflight', 'setup', 'reset-runtime']) {

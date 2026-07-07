@@ -29,7 +29,11 @@ source root. This file is a routing map, not a replacement for those sources.
   `manifests/commands/aos-external-commands.json`, the generator
   `scripts/generate-command-manifests.mjs`, and the drift gate
   `tests/command-manifest-generation.sh`.
-- Agent workflow skill: `skills/aos-agent-workspace/SKILL.md`.
+- Installable root skill registry: `skills/registry.json`, especially
+  `skills/aos-saved-workspace/SKILL.md` for saved perception/ref workflows and
+  `skills/aos-browser/SKILL.md` for browser ref/proof workflows. The broader
+  `skills/aos-agent-workspace/SKILL.md` remains local background and
+  compatibility material.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.

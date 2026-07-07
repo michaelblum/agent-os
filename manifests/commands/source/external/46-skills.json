@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "id": "skills",
+  "commands": [
+    {
+      "path": [
+        "skills"
+      ],
+      "summary": "List, check, and dry-run install AOS root skills through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "list"
+      ],
+      "summary": "List AOS root skills through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "list"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "check"
+      ],
+      "summary": "Check installed AOS root skill state through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "check"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "install"
+      ],
+      "summary": "Install or dry-run AOS root skill installation through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "install"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "companion"
+      ],
+      "summary": "Check or dry-run install external skill companions through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "companion"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "companion",
+        "check"
+      ],
+      "summary": "Check an external skill companion through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "companion",
+        "check"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": [
+        "skills",
+        "companion",
+        "install"
+      ],
+      "summary": "Dry-run external skill companion installation through the external skills command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-skills.mjs",
+        "companion",
+        "install"
+      ],
+      "cwd": "repo"
+    }
+  ]
+}

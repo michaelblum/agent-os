@@ -4,12 +4,15 @@
 
 ## Purpose
 
-`skills/` contains local skill packages used by agents working in this repo.
+`skills/` contains local root skill packages used by agents working in this
+repo, plus the root skill registry for AOS installable skill productization.
 
 ## Ownership
 
 - Each child folder owns its own `SKILL.md`, scripts, assets, examples, and
   templates.
+- `registry.json` owns root skill inventory, installability status, target
+  support, references, and durable backing for direct child skill packages.
 - Repo behavior belongs in AGENTS/DOX, docs, scripts, or source code, not in a
   skill unless the behavior is specifically agent-tooling workflow.
 
@@ -19,6 +22,11 @@
   used.
 - Do not encode project-wide invariants only inside a skill; mirror durable
   repo rules in the owning `AGENTS.md` or docs surface.
+- Installable AOS skills must be registered, concise or explicitly split into
+  references, and backed by docs/API/schema/test authority when they claim
+  durable repo behavior.
+- Unknown install targets fail closed; writes to skill trees must go through the
+  bounded `aos skills install --target ...` command surface.
 
 ## Work Guidance
 
@@ -26,12 +34,32 @@
 
 - Run any skill-local script or example check when modifying executable skill
   behavior.
+- Run `node scripts/aos-skills-validate.mjs --json` and
+  `node --test tests/aos-skills-registry.test.mjs` when modifying root skill
+  registry metadata or root skill package contracts.
+- Add `node --test tests/aos-skills-command.test.mjs` when modifying
+  installability, target support, or planned install behavior.
 
 ## Child DOX Index
 
+- `registry.json` indexes root skill packages, installability status, target
+  support, references, and durable backing.
+- `aos-core-orientation/`, `aos-runtime-readiness/`,
+  `aos-saved-workspace/`, `aos-browser/`,
+  `aos-operator-annotations/`, `aos-work-records/`, `aos-recipes/`, and
+  `aos-command-surface-maintenance/` are the installable AOS root skill pack.
 - `agent-sync/` is a retired historical tombstone for ADR 0017. It must not
   sync Codex native custom agents, mutate `~/.codex/config.toml`, or recreate
   user-global agent registrations.
 - `aos-agent-workspace/` contains the saved perception workspace and compact
-  ref loop skill for normal `aos see` / `aos do` workflows.
+  ref loop skill for normal `aos see` / `aos do` workflows; it is classified
+  as `needs_split` and superseded for installable guidance by
+  `aos-saved-workspace/`.
+- `browser-adapter/` contains the current AOS browser adapter skill; it is
+  classified as `needs_split` and superseded for installable guidance by
+  `aos-browser/`.
+- `caveman/`, `issue-hygiene-sweep/`, and `plan-retirement-audit/` are
+  retained local helper skills outside the AOS installable skill product.
+- `symphony-talent-design/` is private brand/design skill material and is not
+  part of the AOS skill pack.
 - Each direct child folder is a standalone skill package.

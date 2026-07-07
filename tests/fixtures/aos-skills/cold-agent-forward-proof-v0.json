@@ -1,0 +1,192 @@
+{
+  "schema_version": "aos.skills.cold-agent-forward-proof.v0",
+  "created_on": "2026-07-07",
+  "method": "deterministic cold-agent fixture; prompts and captured expected outputs only",
+  "user_skill_tree_mutation": false,
+  "live_ui_or_browser_mutation": false,
+  "temp_install_target": {
+    "target": "path",
+    "path": "$TMPDIR/aos-skills-forward-proof/skills",
+    "required": true
+  },
+  "preflight": {
+    "prompt": "Fresh agent: install the AOS root skill pack into a temporary skill tree and inspect whether installed copies are current.",
+    "selected_skills": [
+      "aos-core-orientation",
+      "aos-command-surface-maintenance"
+    ],
+    "selected_commands": [
+      "./aos skills list --json",
+      "./aos skills install --target path --path \"$AOS_SKILLS_TARGET\" --json",
+      "./aos skills check --target path --path \"$AOS_SKILLS_TARGET\" --json"
+    ],
+    "captured_output": {
+      "decision": "Use the direct aos skills surface with a temp path target. Treat missing, stale, unmanaged, unsupported_target, or blocked states as structured install/check results instead of writing to the user's real skill tree.",
+      "expected_states": [
+        "ok",
+        "missing",
+        "stale",
+        "unmanaged",
+        "unsupported_target",
+        "blocked"
+      ],
+      "rejected_competing_surfaces": [
+        "manual copy into ~/.codex/skills",
+        "project-local wrapper install command"
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "readiness-route",
+      "requirement": "install AOS skills, inspect readiness, and choose ready/status/doctor",
+      "prompt": "Fresh agent: after installing AOS skills into the temp tree, determine whether the local AOS runtime is ready and which diagnostic command to use if it is not.",
+      "selected_skills": [
+        "aos-core-orientation",
+        "aos-runtime-readiness"
+      ],
+      "selected_commands": [
+        "./aos help ready --json",
+        "./aos help status --json",
+        "./aos help doctor --json",
+        "./aos ready --json",
+        "./aos status --json",
+        "./aos doctor --json"
+      ],
+      "captured_output": {
+        "decision": "Start with ./aos ready --json as the readiness gate, use ./aos status --json for runtime state detail, and use ./aos doctor --json only when the readiness/status payload calls for diagnostics.",
+        "stop_condition": "Stop before raw daemon, launchd, tmux, or state-file inspection unless a direct ./aos surface is missing or explicitly under test.",
+        "rejected_competing_surfaces": [
+          "raw daemon HTTP status probe",
+          "project-local runtime wrapper"
+        ]
+      }
+    },
+    {
+      "id": "saved-workspace-observe-act-recapture",
+      "requirement": "use saved workspace skill to capture, inspect refs, dry-run, act, and recapture",
+      "prompt": "Fresh agent: on an authorized local target, capture current state, choose an actionable saved ref, dry-run the action, perform it once if the dry-run validates, then recapture evidence.",
+      "selected_skills": [
+        "aos-saved-workspace"
+      ],
+      "selected_commands": [
+        "./aos help see --json",
+        "./aos help do --json",
+        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run --json",
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\" --json"
+      ],
+      "captured_output": {
+        "decision": "Prefer the saved ref over prose targets or coordinates. Act only after the dry-run validates the current producer verdict, then recapture into the same workspace for readback.",
+        "stop_condition": "Stop if the ref is fallback-only, stale, missing identity, or the command returns a recapture/revalidation recommendation.",
+        "rejected_competing_surfaces": [
+          "coordinate click without explicit authorization",
+          "full screenshot dump in place of saved refs"
+        ]
+      }
+    },
+    {
+      "id": "browser-aos-vs-playwright-escape",
+      "requirement": "use browser skill to decide between AOS browser saved refs and raw Playwright CLI escape hatch",
+      "prompt": "Fresh agent: for browser work, choose the AOS path for a durable saved-ref click, but choose upstream Playwright CLI skills for a trace/video task AOS does not wrap.",
+      "selected_skills": [
+        "aos-browser"
+      ],
+      "selected_commands": [
+        "./aos help focus --json",
+        "./aos help see --json",
+        "./aos help do --json",
+        "./aos focus create --id browser-proof --target browser://chromium --json",
+        "./aos see capture browser:browser-proof --save --mode som --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
+        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run --json",
+        "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --json"
+      ],
+      "playwright_cli_escape_hatch_commands": [
+        "playwright-cli --help",
+        "playwright-cli install --skills --dry-run"
+      ],
+      "captured_output": {
+        "decision": "Use AOS for durable browser refs, validation, action envelopes, and Work Record evidence. Stop and consult upstream Playwright CLI skills for trace/video/codegen/tab primitives that AOS does not wrap.",
+        "stop_condition": "Do not vendor Playwright skill files or run companion installation outside an explicit request and temp-target proof.",
+        "rejected_competing_surfaces": [
+          "raw Playwright-only path for saved-ref proof",
+          "vendored Playwright skill content under AOS"
+        ]
+      }
+    },
+    {
+      "id": "pending-annotation-safe-action",
+      "requirement": "read a pending annotation and explain the safe next action",
+      "prompt": "Fresh agent: inspect a pending operator annotation and decide whether it is safe to consume or act on it.",
+      "selected_skills": [
+        "aos-operator-annotations",
+        "aos-saved-workspace"
+      ],
+      "selected_commands": [
+        "./aos help see annotation --json",
+        "./aos see annotation list --state pending --json",
+        "./aos see annotation read <annotation-id> --json",
+        "./aos see refs --workspace <workspace-id> --snapshot <snapshot-id> --json",
+        "./aos do press ref:<snapshot-id>:<ref-id> --workspace <workspace-id> --dry-run --json",
+        "./aos see annotation consume <annotation-id> --actor <agent-name> --json"
+      ],
+      "captured_output": {
+        "decision": "Read before consuming. Validate any linked saved ref, dry-run the intended action, and consume exactly once only when ready to handle the annotation.",
+        "stop_condition": "Stop if the annotation is fallback-only, names a missing workspace/snapshot/ref, or suggests a mutating next command without authorization.",
+        "rejected_competing_surfaces": [
+          "consume-before-read",
+          "treat annotation text as durable task plan"
+        ]
+      }
+    },
+    {
+      "id": "work-record-report-only-recovery",
+      "requirement": "inspect a Work Record and choose report-only recovery path",
+      "prompt": "Fresh agent: inspect a questionable Work Record and decide whether to repair it or produce report-only recovery guidance.",
+      "selected_skills": [
+        "aos-work-records"
+      ],
+      "selected_commands": [
+        "./aos help work-record --json",
+        "./aos work-record read <id-or-path> --json",
+        "./aos work-record verify <id-or-path> --json",
+        "./aos work-record status <id-or-path> --json",
+        "./aos work-record plan-repair <id-or-path> --json",
+        "./aos work-record repair bundle <id-or-path> --output-root \"$AOS_PROOF_ROOT\" --dry-run --json"
+      ],
+      "captured_output": {
+        "decision": "Choose read, verify, status, and plan-repair first. Keep recovery report-only unless the task explicitly authorizes repair execution or replacement writes.",
+        "stop_condition": "Stop before repair execute, replacement write, supersession write, or live UI/browser/native actions without an explicit gate.",
+        "rejected_competing_surfaces": [
+          "rewrite Work Record evidence in place",
+          "execute repair from a skill instruction"
+        ]
+      }
+    },
+    {
+      "id": "recipe-explain-dry-run",
+      "requirement": "dry-run or explain a recipe without confusing it with a skill",
+      "prompt": "Fresh agent: inspect a runtime status recipe and explain whether it should be run now.",
+      "selected_skills": [
+        "aos-recipes"
+      ],
+      "selected_commands": [
+        "./aos help recipe --json",
+        "./aos recipe list --json",
+        "./aos recipe explain runtime/status-snapshot --json",
+        "./aos recipe dry-run runtime/status-snapshot --json"
+      ],
+      "captured_output": {
+        "decision": "Use recipe list/explain/dry-run for source-backed executable recipes. Do not call a skill, guide, playbook, or generic workflow a recipe.",
+        "stop_condition": "Stop before recipe run when explain or dry-run is sufficient, or when dry-run reports unsafe expansion.",
+        "rejected_competing_surfaces": [
+          "skill install as recipe execution",
+          "markdown guide as executable recipe"
+        ]
+      }
+    }
+  ]
+}

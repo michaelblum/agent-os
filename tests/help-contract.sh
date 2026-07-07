@@ -115,7 +115,7 @@ root_top_level = {command["path"][0] for command in root["commands"]}
 readme = Path("README.md").read_text(encoding="utf-8")
 required = {
     "see", "do", "show", "tell", "listen",
-    "say", "recipe",
+    "say", "skills", "recipe",
     "ready", "serve", "service", "status", "doctor", "permissions", "clean", "reset",
 }
 assert required <= root_top_level, sorted(required - root_top_level)
@@ -124,6 +124,7 @@ for command in required:
 for command in ["see", "do", "show", "tell", "listen"]:
     assert re.search(rf"\| `aos {command}` \| Primitive \|", readme), command
 assert re.search(r"\| `aos say` \| Convenience \|.*tell human", readme), readme
+assert re.search(r"\| `aos skills` \| Packaging \|.*Installable AOS root skills", readme), readme
 assert re.search(r"\| `aos recipe` \| Higher-order \|.*`aos ops`", readme), readme
 assert re.search(r"\| `aos ready` \| Runtime/ops \|", readme), readme
 assert re.search(r"\| `aos serve` / `aos service` \| Runtime/ops \|", readme), readme
@@ -143,6 +144,43 @@ if echo "$OUT" | grep -q '"path"'; then
     pass "aos help show --json emits JSON per-command"
 else
     fail "aos help show --json did not emit JSON per-command"
+fi
+
+if SKILLS_HELP="$(./aos help skills --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["SKILLS_HELP"])
+assert data["path"] == ["skills"], data
+form_ids = {form["id"] for form in data["forms"]}
+assert {"skills-list", "skills-check", "skills-install"} <= form_ids, data
+install = next(form for form in data["forms"] if form["id"] == "skills-install")
+assert any(arg["token"] == "--dry-run" and arg["required"] is False for arg in install["args"]), install
+assert install["execution"]["supports_dry_run"] is True, install
+assert install["execution"]["mutates_state"] is True, install
+PY
+then
+    pass "skills help exposes list/check/install forms"
+else
+    fail "skills help contract drifted"
+fi
+
+if SKILLS_COMPANION_HELP="$(./aos help skills companion --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["SKILLS_COMPANION_HELP"])
+assert data["path"] == ["skills", "companion"], data
+form_ids = {form["id"] for form in data["forms"]}
+assert {"skills-companion-check", "skills-companion-install"} <= form_ids, data
+companion_install = next(form for form in data["forms"] if form["id"] == "skills-companion-install")
+assert any(arg["token"] == "--dry-run" and arg["required"] is True for arg in companion_install["args"]), companion_install
+assert companion_install["execution"]["supports_dry_run"] is True, companion_install
+PY
+then
+    pass "skills companion help exposes check/install forms"
+else
+    fail "skills companion help contract drifted"
 fi
 
 # --- 3. aos help <bogus> → UNKNOWN_COMMAND on stderr, exit 1 ---

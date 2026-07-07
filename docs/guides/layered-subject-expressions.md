@@ -1,4 +1,4 @@
-# Recipe: Layered Subject Expressions
+# Guide: Layered Subject Expressions
 
 Use this recipe before adding or refactoring an AOS browser, workbench, editor,
 inspector, artifact panel, replay surface, or verifier view. The goal is to

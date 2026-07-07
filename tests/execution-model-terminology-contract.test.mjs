@@ -47,6 +47,19 @@ test('Markdown guidance lives under docs/guides, not docs/recipes', async () => 
   assert.match(tombstone, /removal gate/i);
 });
 
+test('current guide headings do not advertise Markdown guides as recipes', async () => {
+  const guideFiles = (await existingFiles(['docs/guides']))
+    .filter((file) => file.endsWith('.md'));
+  const badHeadings = [];
+
+  for (const file of guideFiles) {
+    const firstLine = (await text(file)).split(/\r?\n/, 1)[0];
+    if (/^# Recipe:/.test(firstLine)) badHeadings.push(file);
+  }
+
+  assert.deepEqual(badHeadings, []);
+});
+
 test('current execution model surfaces keep Recipe executable-only', async () => {
   const guides = await text('docs/guides/README.md');
   const context = await text('CONTEXT.md');

@@ -101,6 +101,7 @@ The current top-level commands are:
 | `aos launch` | manifest-backed source-owned app launcher |
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
+| `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
 | `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
@@ -991,6 +992,66 @@ model. Bundles such as `annotation-snapshot.json` can record Surface Inspector
 context and semantic target projections, but they should point back to
 `semantic_targets`, `provenance.do_target`, saved refs, and capture artifacts
 instead of inventing private surface addresses.
+
+## `aos skills`
+
+`aos skills` is the direct command surface for AOS-owned installable root
+skills. Root skills are agent guidance packages from `skills/`; they are not
+Recipes, Workflows, Work Records, wiki plugins, or provider role material.
+`skills/registry.json` is the source-owned registry and
+`scripts/aos-skills-validate.mjs` is the focused validator.
+
+The initial installable AOS skill pack covers core orientation, runtime
+readiness, saved workspaces, browser workflows, operator annotations, Work
+Records, recipes, and command-surface maintenance. Broad local background skills
+such as `aos-agent-workspace` and `browser-adapter` remain registered as
+`needs_split` until their detail is fully retired or moved behind narrower
+references.
+
+The command surface supports read-only inventory, dry-run planning, and bounded
+installation:
+
+| Subcommand | Purpose |
+| --- | --- |
+| `list` | list AOS root skills, installability status, supported targets, and source digests |
+| `check --target <target>` | inspect installed state for a supported target |
+| `install --target <target> [--dry-run]` | write AOS-managed package and manifest files, or report the same planned writes without mutation when `--dry-run` is present |
+| `companion check --name playwright-cli --target <target>` | report Playwright CLI runtime status and whether Playwright-owned skill material appears in the selected target |
+| `companion install --name playwright-cli --target <target> --dry-run` | report the external `playwright-cli install --skills` invocation without running it |
+
+Supported targets are `codex`, `claude`, `agents`, and explicit
+`--target path --path <absolute-dir>`. Unknown targets, ambiguous `--path`
+usage, non-absolute explicit paths, symlink roots, unmanaged installed skill
+directories, unsupported skill selections, and install writes that would escape
+the resolved target root fail closed with JSON errors. Existing AOS-managed
+stale copies may be overwritten by `install`; unmanaged user material blocks the
+operation.
+
+Examples:
+
+```bash
+aos skills list --json
+aos skills check --target codex --json
+aos skills check --target path --path /tmp/aos-skills --json
+aos skills install --target path --path /tmp/aos-skills --dry-run --json
+aos skills install --target path --path /tmp/aos-skills --json
+aos skills companion check --name playwright-cli --target path --path /tmp/aos-skills --json
+aos skills companion install --name playwright-cli --target path --path /tmp/aos-skills --dry-run --json
+```
+
+`check` reports each skill as `ok`, `missing`, `stale`, `unmanaged`,
+`unsupported_target`, or `blocked`. `install --dry-run` reports
+`planned_writes[]` entries for package files and the AOS-managed installed
+manifest, including source digests and file hashes. Non-dry-run `install`
+writes those files under the resolved target root, writes an AOS manifest, and
+returns `written[]` plus post-install check state.
+
+Playwright CLI companion integration is external and explicit. AOS reports the
+resolved Playwright CLI runtime through `scripts/lib/playwright-cli-runtime.mjs`,
+detects Playwright-owned skill packages in the selected target by inspection,
+and dry-runs the external `playwright-cli install --skills` command. AOS does
+not vendor Playwright skill files and does not run the companion installer
+unless a future command explicitly implements a non-dry-run path.
 
 ## `aos recipe`
 

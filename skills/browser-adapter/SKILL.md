@@ -5,6 +5,9 @@ description: Drive browsers (tabs, forms, clicks, navigation) through aos verbs.
 
 # Browser Adapter
 
+Installable AOS browser guidance now lives in `skills/aos-browser/`. Keep this
+local skill only as detailed adapter background until the split is complete.
+
 aos wraps `@playwright/cli` so browsers become targets for `aos see`, `aos do`, and `aos show`. The agent keeps using its familiar verbs; the adapter routes to `playwright-cli` under the hood.
 
 ## Setup

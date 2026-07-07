@@ -1,4 +1,4 @@
-# Recipe: AOS App Accessibility Surfaces
+# Guide: AOS App Accessibility Surfaces
 
 Use this recipe when building or reviewing controls for AOS apps, toolkit
 components, canvases, WebGL scenes, or Three.js surfaces.

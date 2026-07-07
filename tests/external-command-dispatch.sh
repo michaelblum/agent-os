@@ -207,6 +207,54 @@ rm -rf "$ANNOTATION_ROOT" \
     /tmp/aos-see-annotation-link.out /tmp/aos-see-annotation-link.err \
     /tmp/aos-see-annotation-reconsume.out /tmp/aos-see-annotation-reconsume.err
 
+SKILLS_ROOT="$(mktemp -d)"
+PLAYWRIGHT_COMPANION_ROOT="$(mktemp -d)"
+mkdir -p "$PLAYWRIGHT_COMPANION_ROOT/bin"
+cat >"$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli" <<'SH'
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "0.1.15"
+  exit 0
+fi
+echo "unexpected playwright-cli invocation: $*" >&2
+exit 7
+SH
+chmod +x "$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli"
+if ./aos skills list --json >/tmp/aos-skills-list.out 2>/tmp/aos-skills-list.err \
+    && ./aos skills check --target path --path "$SKILLS_ROOT" --json >/tmp/aos-skills-check.out 2>/tmp/aos-skills-check.err \
+    && ./aos skills install --target path --path "$SKILLS_ROOT" --dry-run --json >/tmp/aos-skills-install.out 2>/tmp/aos-skills-install.err \
+    && AOS_PLAYWRIGHT_CLI_DISABLE_REPO=1 AOS_PLAYWRIGHT_CLI="$PLAYWRIGHT_COMPANION_ROOT/bin/playwright-cli" ./aos skills companion install --name playwright-cli --target path --path "$SKILLS_ROOT" --dry-run --json >/tmp/aos-skills-companion-install.out 2>/tmp/aos-skills-companion-install.err \
+    && SKILLS_ROOT="$SKILLS_ROOT" python3 - <<'PY'
+import json
+import os
+
+listed = json.load(open('/tmp/aos-skills-list.out', encoding='utf-8'))
+checked = json.load(open('/tmp/aos-skills-check.out', encoding='utf-8'))
+planned = json.load(open('/tmp/aos-skills-install.out', encoding='utf-8'))
+companion = json.load(open('/tmp/aos-skills-companion-install.out', encoding='utf-8'))
+assert listed['schema_version'] == 'aos.skills.list.v0', listed
+assert any(skill['name'] == 'aos-core-orientation' and skill['installable'] for skill in listed['skills']), listed
+assert checked['schema_version'] == 'aos.skills.check.v0', checked
+assert checked['summary']['missing'] >= 1, checked
+assert planned['schema_version'] == 'aos.skills.install.plan.v0', planned
+assert planned['status'] == 'dry_run', planned
+assert any(item['skill'] == 'aos-core-orientation' and item['kind'] == 'manifest' for item in planned['planned_writes']), planned
+assert companion['schema_version'] == 'aos.skills.companion.install.plan.v0', companion
+assert companion['status'] == 'dry_run', companion
+assert companion['planned_invocation']['argv'] == ['install', '--skills'], companion
+assert not os.path.exists(os.path.join(os.environ['SKILLS_ROOT'], 'aos-core-orientation'))
+PY
+then
+    pass "skills list/check/install and companion dry-run route through external command manifest"
+else
+    fail "skills external command drifted: $(cat /tmp/aos-skills-list.err /tmp/aos-skills-check.err /tmp/aos-skills-install.err /tmp/aos-skills-companion-install.err 2>/dev/null)"
+fi
+rm -rf "$SKILLS_ROOT" "$PLAYWRIGHT_COMPANION_ROOT" \
+    /tmp/aos-skills-list.out /tmp/aos-skills-list.err \
+    /tmp/aos-skills-check.out /tmp/aos-skills-check.err \
+    /tmp/aos-skills-install.out /tmp/aos-skills-install.err \
+    /tmp/aos-skills-companion-install.out /tmp/aos-skills-companion-install.err
+
 if python3 - <<'PY'
 import json
 import re

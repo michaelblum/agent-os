@@ -211,6 +211,7 @@ function printFullRegistryText(registry) {
 
   const preferredVerbOrder = [
     'status',
+    'skills',
     'recipe',
     'ops',
     'see',

@@ -1,4 +1,4 @@
-# Recipe: Capability Routes and Verification
+# Guide: Capability Routes and Verification
 
 This guide predates the dock profile model. Treat "entry path" language in this
 file as compatibility wording for capability routes only. It does not define
