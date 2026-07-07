@@ -26,6 +26,10 @@
 - `companions.mjs` owns Playwright CLI companion checks. Playwright-looking text
   is only a candidate signal; installed companion state requires a
   Playwright-owned package identity.
+- `eval.mjs` owns deterministic captured-response scoring and prompt-packet
+  emission for AOS skill efficacy across provider/model/reasoning matrices.
+  Keep it manifest-backed and offline by default; live provider runners should
+  write response JSON that this module scores.
 
 ## Local Contracts
 
@@ -34,6 +38,9 @@
   change in the same patch.
 - Keep AOS first-party skill installs separate from Playwright-owned companion
   packages. AOS must not vendor or claim Playwright companion skill content.
+- Skill efficacy scoring must validate direct `./aos` commands against the
+  generated command manifest and must treat retired skills, unsupported flags,
+  raw daemon probes, and project-local wrappers as measurable failures.
 - Treat unmanaged install target content as blocking. Only exact AOS package
   files without a manifest are recoverable as interrupted AOS writes.
 - Staging paths are AOS-owned scratch state under the target root. Stale staging
@@ -57,6 +64,8 @@
   run `node --test tests/aos-skills-command.test.mjs`.
 - For companion detection changes, run
   `node --test tests/aos-skills-companion.test.mjs`.
+- For efficacy scoring or prompt-packet changes, run
+  `node --test tests/aos-skills-eval.test.mjs`.
 - For command-surface changes, run
   `node scripts/generate-command-manifests.mjs --check`,
   `bash tests/help-contract.sh`, and

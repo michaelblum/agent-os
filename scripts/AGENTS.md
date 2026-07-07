@@ -54,11 +54,15 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
 - `aos-skills.mjs` and `aos-skills-validate.mjs` are the CLI entrypoints for
   root skill registry listing, validation, installed-state checks, install
   planning/application, and Playwright CLI companion checks.
+- `aos-skills-eval.mjs` is the deterministic captured-response evaluator for
+  installable AOS skill efficacy across model/reasoning matrices. It may emit
+  prompt packets for live runners, but scoring must remain offline and
+  manifest-backed by default.
 - `lib/aos-skills/AGENTS.md` owns the focused module split behind those
   entrypoints. Keep validation, catalog reads, install target resolution,
-  installed-state drift checks, transactional install application, and
-  Playwright companion detection in separate modules instead of rebuilding a
-  large mixed-responsibility skills registry file.
+  installed-state drift checks, transactional install application, Playwright
+  companion detection, and efficacy scoring in separate modules instead of
+  rebuilding a large mixed-responsibility skills registry file.
 - `lib/aos-skills-registry.mjs` is a compatibility re-export only; do not add
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
@@ -116,6 +120,9 @@ commands, runtime helpers, wiki tools, and AOS-owned agent execution.
   dry-run planning changes, add `node --test tests/aos-skills-command.test.mjs`.
 - For Playwright CLI companion skill checks, add
   `node --test tests/aos-skills-companion.test.mjs`.
+- For installable skill efficacy scoring, add
+  `node --test tests/aos-skills-eval.test.mjs` and
+  `node scripts/aos-skills-eval.mjs --fixture tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json --json`.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
   `bash tests/dev-workflow-router.sh`, `bash tests/command-manifest-generation.sh`,
   and `git diff --check` when relevant.

@@ -42,3 +42,14 @@ export {
   checkSkillCompanion,
   planSkillCompanionInstall,
 } from './companions.mjs';
+
+export {
+  EVAL_PROMPT_PACKET_SCHEMA_VERSION,
+  EVAL_REPORT_SCHEMA_VERSION,
+  EVAL_SCHEMA_VERSION,
+  buildPromptPackets,
+  evaluateSkillEfficacy,
+  loadEvalFixture,
+  loadResponseRuns,
+  writePromptPackets,
+} from './eval.mjs';

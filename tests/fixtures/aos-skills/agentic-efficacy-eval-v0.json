@@ -1,0 +1,311 @@
+{
+  "schema_version": "aos.skills.agentic-efficacy-eval.v0",
+  "id": "aos-desktop-skills-agentic-efficacy-v0",
+  "created_on": "2026-07-07",
+  "method": "offline captured-response scoring with command-manifest validation and model/reasoning matrix prompt packets",
+  "skill_target": {
+    "target": "path",
+    "path": "$TMPDIR/aos-skills-eval/skills",
+    "install_command": "./aos skills install --target path --path \"$AOS_SKILLS_TARGET\" --json"
+  },
+  "pass_score": 80,
+  "matrix": [
+    {
+      "id": "codex-gpt-5.4-mini-low",
+      "provider": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning_effort": "low"
+    },
+    {
+      "id": "codex-gpt-5.4-mini-medium",
+      "provider": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning_effort": "medium"
+    },
+    {
+      "id": "codex-gpt-5.4-mini-high",
+      "provider": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning_effort": "high"
+    }
+  ],
+  "cases": [
+    {
+      "id": "readiness-route",
+      "prompt": "Fresh agent with the AOS skills installed into a temp tree: decide how to check whether AOS is ready for desktop work, and when to stop instead of inspecting daemon internals.",
+      "expected_skills": [
+        "aos-core-orientation",
+        "aos-runtime-readiness"
+      ],
+      "required_commands": [
+        "^\\./aos help ready --json$",
+        "^\\./aos ready --json$",
+        "^\\./aos status --json$"
+      ],
+      "expected_decision_terms": [
+        "ready",
+        "status"
+      ],
+      "expected_stop_terms": [
+        "raw daemon|daemon internals|state-file|launchd"
+      ],
+      "forbidden_patterns": [
+        "curl\\s+http://127\\.0\\.0\\.1",
+        "raw daemon HTTP",
+        "pnpm|npm|yarn|bun"
+      ]
+    },
+    {
+      "id": "desktop-window-control-inventory",
+      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS window controls, and name the unsupported desktop lifecycle verbs that should not be simulated through shortcuts.",
+      "expected_skills": [
+        "aos-desktop"
+      ],
+      "required_commands": [
+        "^\\./aos help graph --json$",
+        "^\\./aos graph windows$",
+        "^\\./aos do raise --pid <pid> --window <window-id>$"
+      ],
+      "expected_decision_terms": [
+        "raise",
+        "move|resize|native AX"
+      ],
+      "expected_stop_terms": [
+        "unsupported|stop",
+        "close|minimize|maximize|Space"
+      ],
+      "forbidden_patterns": [
+        "AppleScript",
+        "coordinate click",
+        "\\./aos graph windows --json"
+      ]
+    },
+    {
+      "id": "saved-workspace-observe-act-recapture",
+      "prompt": "Fresh agent: capture an authorized target into a workspace, inspect compact refs, dry-run an action on one actionable ref, perform it once, then recapture proof.",
+      "expected_skills": [
+        "aos-saved-workspace"
+      ],
+      "required_commands": [
+        "^\\./aos see capture <target> --save --mode som --workspace \"\\$AOS_WORKSPACE\"$",
+        "^\\./aos see refs --workspace \"\\$AOS_WORKSPACE\" --json$",
+        "^\\./aos do press ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\" --dry-run$"
+      ],
+      "expected_decision_terms": [
+        "saved ref",
+        "dry-run",
+        "recapture"
+      ],
+      "expected_stop_terms": [
+        "stale|fallback-only|missing"
+      ],
+      "forbidden_patterns": [
+        "full screenshot dump",
+        "coordinate click without",
+        "\\./aos do press .* --json"
+      ]
+    },
+    {
+      "id": "browser-boundary",
+      "prompt": "Fresh agent: for browser work, choose AOS for durable saved-ref clicking, but explain when upstream Playwright CLI skills should be used instead.",
+      "expected_skills": [
+        "aos-browser"
+      ],
+      "required_commands": [
+        "^\\./aos focus create --id browser-proof --target browser://new$",
+        "^\\./aos see capture browser:browser-proof --save --mode som --workspace \"\\$AOS_WORKSPACE\"$",
+        "^\\./aos do click ref:<snapshot-id>:<ref-id> --workspace \"\\$AOS_WORKSPACE\" --dry-run$"
+      ],
+      "expected_decision_terms": [
+        "AOS",
+        "Playwright CLI",
+        "trace|video|codegen"
+      ],
+      "expected_stop_terms": [
+        "do not vendor|explicit request|escape hatch"
+      ],
+      "forbidden_patterns": [
+        "browser://chromium",
+        "\\./aos focus create .* --json",
+        "raw Playwright-only path for saved-ref"
+      ]
+    },
+    {
+      "id": "verification-work-record",
+      "prompt": "Fresh agent: prove a desktop action with before/after refs, and decide when to use Work Record read/status/verify instead of inventing evidence.",
+      "expected_skills": [
+        "aos-verification",
+        "aos-work-records"
+      ],
+      "required_commands": [
+        "^\\./aos see refs --workspace \"\\$AOS_WORKSPACE\" --diff <before>..<after> --expect change --json$",
+        "^\\./aos work-record verify <id-or-path> --json$",
+        "^\\./aos work-record status <id-or-path> --json$"
+      ],
+      "expected_decision_terms": [
+        "diff",
+        "Work Record",
+        "durable evidence"
+      ],
+      "expected_stop_terms": [
+        "recaptured|expectation fails|outside the task"
+      ],
+      "forbidden_patterns": [
+        "assertion from memory",
+        "read the full Work Record schema before",
+        "macro recorder"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "fixture-strong-high",
+      "provider": "fixture",
+      "model": "strong-synthetic-agent",
+      "reasoning_effort": "high",
+      "mode": "offline_fixture",
+      "case_responses": [
+        {
+          "case_id": "readiness-route",
+          "selected_skills": [
+            "aos-core-orientation",
+            "aos-runtime-readiness"
+          ],
+          "selected_commands": [
+            "./aos help ready --json",
+            "./aos ready --json",
+            "./aos status --json"
+          ],
+          "decision": "Use ready as the gate and status for detail before any desktop action.",
+          "stop_condition": "Stop before raw daemon internals, state-file inspection, launchd probing, or lower-level diagnostics unless a direct AOS surface is missing."
+        },
+        {
+          "case_id": "desktop-window-control-inventory",
+          "selected_skills": [
+            "aos-desktop"
+          ],
+          "selected_commands": [
+            "./aos help graph --json",
+            "./aos graph windows",
+            "./aos do raise --pid <pid> --window <window-id>",
+            "./aos do move --pid <pid> --window <window-id> --to <x,y>",
+            "./aos do resize --pid <pid> --window <window-id> --to <w,h>"
+          ],
+          "decision": "Use graph windows for inventory and first-class raise, move, resize, and native AX controls for action.",
+          "stop_condition": "Stop on unsupported lifecycle verbs such as close, minimize, maximize, restore, fullscreen, menu invocation, or Space switching instead of simulating them."
+        },
+        {
+          "case_id": "saved-workspace-observe-act-recapture",
+          "selected_skills": [
+            "aos-saved-workspace"
+          ],
+          "selected_commands": [
+            "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\"",
+            "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
+            "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run",
+            "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\"",
+            "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\""
+          ],
+          "decision": "Use the saved ref, dry-run it, act once, and recapture fresh proof.",
+          "stop_condition": "Stop if the ref is stale, fallback-only, missing, or no longer has an actionable producer verdict."
+        },
+        {
+          "case_id": "browser-boundary",
+          "selected_skills": [
+            "aos-browser"
+          ],
+          "selected_commands": [
+            "./aos focus create --id browser-proof --target browser://new",
+            "./aos see capture browser:browser-proof --save --mode som --workspace \"$AOS_WORKSPACE\"",
+            "./aos see refs --workspace \"$AOS_WORKSPACE\" --json",
+            "./aos do click ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --dry-run"
+          ],
+          "decision": "Use AOS for durable browser refs and validated action envelopes; use upstream Playwright CLI skills for trace, video, codegen, or raw Playwright primitives.",
+          "stop_condition": "Stop before vendoring Playwright skills or using the escape hatch without an explicit request and boundary."
+        },
+        {
+          "case_id": "verification-work-record",
+          "selected_skills": [
+            "aos-verification",
+            "aos-work-records"
+          ],
+          "selected_commands": [
+            "./aos see refs --workspace \"$AOS_WORKSPACE\" --diff <before>..<after> --expect change --json",
+            "./aos work-record verify <id-or-path> --json",
+            "./aos work-record status <id-or-path> --json"
+          ],
+          "decision": "Use ref diff expectations for compact proof and Work Record verify/status when durable evidence or recovery status matters.",
+          "stop_condition": "Stop if the post-action state cannot be recaptured, the expectation fails, or the required proof is outside the task authorization."
+        }
+      ]
+    },
+    {
+      "id": "fixture-weak-low",
+      "provider": "fixture",
+      "model": "weak-synthetic-agent",
+      "reasoning_effort": "low",
+      "mode": "offline_fixture",
+      "case_responses": [
+        {
+          "case_id": "readiness-route",
+          "selected_skills": [
+            "aos-agent-workspace"
+          ],
+          "selected_commands": [
+            "curl http://127.0.0.1:17373/status",
+            "./aos ready --json"
+          ],
+          "decision": "Use the daemon endpoint first, then maybe ready.",
+          "stop_condition": "Stop if curl fails."
+        },
+        {
+          "case_id": "desktop-window-control-inventory",
+          "selected_skills": [
+            "aos-desktop"
+          ],
+          "selected_commands": [
+            "./aos graph windows --json",
+            "./aos do click <x,y> --state-id <state-id>"
+          ],
+          "decision": "Use AppleScript or coordinate click to close and minimize windows.",
+          "stop_condition": "Stop after the click."
+        },
+        {
+          "case_id": "saved-workspace-observe-act-recapture",
+          "selected_skills": [
+            "aos-saved-workspace"
+          ],
+          "selected_commands": [
+            "./aos see capture <target> --save --mode som --workspace \"$AOS_WORKSPACE\" --json",
+            "./aos do press ref:<snapshot-id>:<ref-id> --workspace \"$AOS_WORKSPACE\" --json"
+          ],
+          "decision": "Click the remembered target from the screenshot.",
+          "stop_condition": "Stop after acting."
+        },
+        {
+          "case_id": "browser-boundary",
+          "selected_skills": [
+            "browser-adapter"
+          ],
+          "selected_commands": [
+            "./aos focus create --id browser-proof --target browser://chromium --json",
+            "playwright-cli click \"button\""
+          ],
+          "decision": "Use raw Playwright-only path for saved-ref proof.",
+          "stop_condition": "Stop if the browser is not Chromium."
+        },
+        {
+          "case_id": "verification-work-record",
+          "selected_skills": [
+            "aos-verification"
+          ],
+          "selected_commands": [
+            "./aos see refs --workspace \"$AOS_WORKSPACE\" --diff <before>..<after> --json"
+          ],
+          "decision": "Use assertion from memory and skip Work Record because it is too much.",
+          "stop_condition": "Stop after the action seems done."
+        }
+      ]
+    }
+  ]
+}
