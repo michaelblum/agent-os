@@ -1,6 +1,6 @@
 ---
 name: aos-verification
-description: Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-assert loop, refs diff/expect, durable evidence, or a stop decision on stale targets.
+description: Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-verify loop, refs diff/expect, diagnostics evidence, durable evidence, or a stop decision on stale targets.
 ---
 
 # AOS Verification
@@ -25,8 +25,20 @@ Record schema first.
 
 - Use ref diffs for compact UI state checks.
 - Use visible artifacts when the proof is visual and refs are insufficient.
+- Use `./aos daemon-snapshot`, `./aos log`, and command JSON for diagnostics;
+  those are not durable UI-state assertions by themselves.
 - Use gates when human authorization is required.
-- Use Work Records for durable evidence, verifier status, and repair planning.
+- Use Work Records for durable evidence, verifier status, postconditions,
+  exports, and handoff bundles.
+- Treat evidence exports and Work Record repair bundles as handoff/readback
+  artifacts, not replay engines.
+
+## Diagnostics Trace
+
+There is no current public `aos trace`, `aos verify`, `aos assert`, or
+Playwright-style video command. Build the proof trail from current commands:
+readiness/status, saved before/action/after captures, action envelopes,
+refs diff/expect gates, diagnostic readbacks, gate records, and Work Records.
 
 ## Stop
 

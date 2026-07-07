@@ -211,7 +211,7 @@
     {
       "name": "aos-verification",
       "path": "skills/aos-verification",
-      "description": "Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-assert loop, refs diff/expect, durable evidence, or a stop decision on stale targets.",
+      "description": "Use AOS recapture, ref diff, gates, and Work Records for desktop proof. Trigger when a task needs an act-recapture-verify loop, refs diff/expect, diagnostics evidence, durable evidence, or a stop decision on stale targets.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -221,7 +221,7 @@
         "codex",
         "path"
       ],
-      "ownership": "AOS-owned installable verification, assertion, and evidence-loop skill.",
+      "ownership": "AOS-owned installable verification and evidence-loop skill.",
       "references": [
         "docs/api/aos-capabilities.md",
         "docs/api/aos.md",

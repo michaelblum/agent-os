@@ -341,6 +341,10 @@ JSON checks, and Work Record postconditions for durable evidence checks. Future
 saved wait/assert commands need manifest help, parser, schema/doc, and drift
 tests before public use. For a consumer-facing decision table, see
 [Lightweight Verification](./aos-capabilities.md#lightweight-verification).
+For the composed before/action/after proof trail and diagnostic readback
+boundary, see
+[Diagnostics And Evidence Trace](./aos-capabilities.md#diagnostics-and-evidence-trace)
+and [Dashboard And Readback Boundary](./aos-capabilities.md#dashboard-and-readback-boundary).
 
 Capture modes are explicit:
 

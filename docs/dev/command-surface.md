@@ -95,6 +95,22 @@ explicit: either repo-local maintainer tooling outside the public `aos` tree or
 a real public command with source manifests, external routes, docs, tests, and
 compatibility policy.
 
+Current migration matrix, verified against `./aos help dev --json`:
+
+| Form | Current disposition | Move-out criterion | Public promotion criterion |
+| --- | --- | --- | --- |
+| `dev classify` | Stays hidden maintainer plumbing for changed-path classification. | Move outside public `aos` only if the workflow becomes repo-local CI glue with no command-surface value. | Promote only if non-maintainer consumers need stable change classification and the output contract gets public docs/tests. |
+| `dev recommend` | Stays hidden maintainer plumbing and remains the local verification router. | Move out only if verification routing is fully owned by repo-local scripts and no longer depends on AOS command metadata. | Promote only with a public policy for changed-path recommendation, manifest examples, route/parser tests, and compatibility commitments. |
+| `dev situation` | Stays hidden maintainer readback for repo/GitHub situation summaries. | Move out if it becomes project-specific issue triage outside AOS command maintenance. | Promote only if AOS owns a general status/readback command with stable non-repo semantics. |
+| `dev drift-lint` | Stays hidden maintainer audit for docs/workflow drift. | Move out if it becomes a one-off repo hygiene script unrelated to command contracts. | Promote only if drift findings become a supported public lint contract with schemas and tests. |
+| `dev build` | Stays hidden maintainer build surface for repo-mode AOS and TCC-sensitive binary work. | Move out only after repo-mode build orchestration no longer needs `./aos` command metadata or runtime identity. | Promote only if AOS supports a general public build/lifecycle command, with explicit TCC and restart policy. |
+| `dev audit` | Stays hidden maintainer authority audit. | Move out if the audit is only repo-local documentation hygiene. | Promote only if the audit becomes a supported public command-surface verification contract. |
+| `dev capabilities` | Stays hidden maintainer capability inspection for developer roles and workflow metadata. | Move out if it is only role-doc tooling outside AOS product behavior. | Promote only if capability metadata becomes a public discovery API with stable schemas and consumer docs. |
+| `dev gh` | Stays hidden maintainer GitHub integration; it is not consumer AOS API. | Move out if GitHub workflows become repo-local tooling unrelated to AOS command maintenance. | Promote only if AOS deliberately owns provider integrations as product API, with auth policy, route tests, docs, and compatibility guarantees. |
+
+Until one of those criteria is met, `aos dev` remains direct-help-addressable
+for maintainers and excluded from root consumer discovery.
+
 When a form's output changes under a flag, record that in
 `output.conditional_modes` instead of relying on prose or sibling-form
 inference. Each entry must name declared `when_flags`, the conditional

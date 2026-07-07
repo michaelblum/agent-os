@@ -116,6 +116,68 @@ inspect refs, dry-run/act, save a fresh capture, then compare saved refs or
 record evidence. Do not imply saved workspaces recapture automatically or hold a
 daemon-scoped current workspace.
 
+## Diagnostics And Evidence Trace
+
+AOS does not currently expose a Playwright-style `trace`, `video`, or
+screen-recording primitive in the public command surface. The AOS-native proof
+trail is a composed sequence of command JSON and file-backed evidence:
+
+```bash
+./aos ready --json
+./aos status --json
+./aos see capture main --save --workspace <id> --name before --mode som
+./aos see refs --workspace <id> --snapshot before --json
+./aos do click ref:before:r1 --workspace <id> --dry-run
+./aos do click ref:before:r1 --workspace <id>
+./aos see capture main --save --workspace <id> --name after --mode som
+./aos see refs --workspace <id> --diff before..after --expect change --json
+./aos daemon-snapshot
+./aos gate records --json
+./aos work-record verify <id-or-path> --json
+./aos work-record export <id-or-path> --json
+```
+
+Each step contributes a different kind of evidence:
+
+| Evidence need | Current surface | What it proves |
+| --- | --- | --- |
+| Runtime readiness | `ready --json`, `status --json`, `doctor --json`, `permissions ... --json` | Mode, daemon/service, permission, and blocker state before live work. |
+| Before/after perception | `see capture --save`, `see snapshots`, `see refs` | Compact refs plus file-backed capture artifacts under the selected workspace. |
+| Action provenance | `do ... --dry-run`, `do ...` action envelopes | Target resolution, validation status, action path, and recommended recapture command when available. |
+| Lightweight verification | `see refs --diff --expect`, repeatable `--expect-ref` | Machine-checkable compact saved-ref change gates between two saved snapshots. |
+| Diagnostics | `daemon-snapshot`, `log`, command JSON, structured errors | Runtime and spatial diagnostics for debugging; not durable UI-state assertions by themselves. |
+| Human decisions | `gate ask/defer/submit`, `gate records` | Structured human/operator decisions and terminal gate records. |
+| Durable evidence | `work-record read/verify/status/export`, `work-record repair bundle ...` | Verifier health, postconditions, evidence manifests, and handoff artifacts. Bundles and exports are handoff/readback artifacts, not replay engines. |
+
+This command sequence is the current diagnostics/evidence trace story. It is
+deliberately a recipe-sized composition over existing surfaces, not a new
+`aos trace` command. Add a dedicated trace, video, or dashboard command only
+with source manifests, routes, docs, tests, generated artifacts, and a clear
+compatibility policy.
+
+## Dashboard And Readback Boundary
+
+The current AOS dashboard answer is a composed readback flow, not a visual
+dashboard command. For a static operational snapshot, combine:
+
+```bash
+./aos ready --json
+./aos status --json
+./aos focus list
+./aos see workspaces --json
+./aos show list
+./aos gate records --json
+./aos daemon-snapshot
+./aos work-record list --json
+```
+
+Use `show` for overlay/display infrastructure, canvas readiness, rendering, and
+display readback. Do not treat `show` as the owner of an agent dashboard unless
+a future dashboard workflow is deliberately promoted with manifests, docs,
+tests, and compatibility policy. A dedicated dashboard is justified only when
+the composed readback flow needs stable aggregation semantics that agents or
+apps cannot safely reconstruct from the current JSON surfaces.
+
 ## Capability Groups
 
 | Group | Use for | Command surface |
