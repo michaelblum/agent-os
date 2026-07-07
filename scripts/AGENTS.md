@@ -10,6 +10,10 @@ commands, runtime helpers, wiki tools, and command adapters.
 ## Ownership
 
 - `aos-*` scripts implement command-surface adapters and developer tooling.
+- `generate-command-inventory.mjs` owns the manifest-derived development
+  inventory at `docs/dev/reports/aos-command-capability-inventory-v0.md`.
+  Keep it generated from command manifests and external routes; do not turn it
+  into a hand-maintained source of truth.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,

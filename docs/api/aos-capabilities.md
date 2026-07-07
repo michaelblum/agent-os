@@ -7,6 +7,11 @@ manifests under `manifests/commands/source/aos/`.
 Use this file to choose the right direct `./aos` lane before opening large
 schema docs or historical design notes.
 
+For the complete manifest-derived command inventory, including internal or
+transitional forms such as `dev` and `browser _check-version`, see
+`docs/dev/reports/aos-command-capability-inventory-v0.md`. That report is a
+development audit artifact, not a consumer API contract.
+
 The current vocabulary decision is documented in
 `docs/design/aos-desktop-command-vocabulary-decision.md`: do not add a new
 `aos desktop` noun or `desktop:<target>` namespace in this slice.

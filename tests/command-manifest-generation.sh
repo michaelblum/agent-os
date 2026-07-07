@@ -6,6 +6,8 @@ cd "$ROOT"
 
 node --check scripts/generate-command-manifests.mjs
 node scripts/generate-command-manifests.mjs --check
+node --check scripts/generate-command-inventory.mjs
+node scripts/generate-command-inventory.mjs --check
 
 python3 - <<'PY'
 import json
