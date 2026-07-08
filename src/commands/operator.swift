@@ -903,6 +903,7 @@ private func currentOwnershipClassification(
     }
 
     let ownerPID = servingPID ?? lockOwnerPID
+    let foregroundServeOwner = ownerPID.map(isForegroundAOSServeOwner) ?? false
     if let ownerPID, let servicePID, ownerPID != servicePID {
         if parentProcessID(of: ownerPID) == servicePID {
             return RuntimeOwnershipClassification(
@@ -910,6 +911,14 @@ private func currentOwnershipClassification(
                 kind: "launchd_managed",
                 ownerPID: ownerPID,
                 launchdManaged: true
+            )
+        }
+        if foregroundServeOwner {
+            return RuntimeOwnershipClassification(
+                state: "consistent",
+                kind: "foreground_dev",
+                ownerPID: ownerPID,
+                launchdManaged: false
             )
         }
         return RuntimeOwnershipClassification(
@@ -921,7 +930,7 @@ private func currentOwnershipClassification(
     }
 
     if let ownerPID, servicePID == nil {
-        if explicitStateRootOverride {
+        if explicitStateRootOverride || foregroundServeOwner {
             return RuntimeOwnershipClassification(
                 state: "consistent",
                 kind: "foreground_dev",
@@ -960,6 +969,38 @@ private func currentOwnershipClassification(
         ownerPID: ownerPID,
         launchdManaged: false
     )
+}
+
+private func isForegroundAOSServeOwner(_ pid: Int) -> Bool {
+    guard let commandLine = processCommandLine(of: pid),
+          isAOSServeChildCommand(commandLine),
+          let parentPID = parentProcessID(of: pid),
+          let parentCommandLine = processCommandLine(of: parentPID) else {
+        return false
+    }
+    return isAOSServeWrapperCommand(parentCommandLine)
+}
+
+private func processCommandLine(of pid: Int) -> String? {
+    let output = runProcess("/bin/ps", arguments: ["-p", String(pid), "-o", "command="])
+    guard output.exitCode == 0 else { return nil }
+    let commandLine = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    return commandLine.isEmpty ? nil : commandLine
+}
+
+private func isAOSServeChildCommand(_ commandLine: String) -> Bool {
+    commandLineContainsAOSCommand(commandLine, command: "__serve")
+}
+
+private func isAOSServeWrapperCommand(_ commandLine: String) -> Bool {
+    commandLineContainsAOSCommand(commandLine, command: "serve")
+}
+
+private func commandLineContainsAOSCommand(_ commandLine: String, command: String) -> Bool {
+    let expected = aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode())
+    return commandLine.hasPrefix("\(expected) \(command)")
+        || commandLine.hasPrefix("./aos \(command)")
+        || commandLine.hasPrefix("aos \(command)")
 }
 
 private func parentProcessID(of pid: Int) -> Int? {

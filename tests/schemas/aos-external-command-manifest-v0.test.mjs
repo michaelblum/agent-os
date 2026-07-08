@@ -378,6 +378,10 @@ test('ready ownership classifier accepts managed parent child daemon shape', asy
     classifier[0].includes('parentProcessID(of: ownerPID) == servicePID'),
     'ready must treat launchd-managed aos serve parent plus aos __serve socket owner as consistent',
   );
+  assert.ok(
+    classifier[0].includes('isForegroundAOSServeOwner'),
+    'ready must accept a direct aos serve foreground wrapper plus aos __serve socket owner as foreground_dev',
+  );
 });
 
 test('private Swift primitives are reachable only through expected external wrappers', async () => {

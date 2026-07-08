@@ -159,6 +159,37 @@ function servicePID(label) {
   return null;
 }
 
+function processCommandLine(pid) {
+  if (!Number.isInteger(pid)) return null;
+  const output = run('/bin/ps', ['-p', String(pid), '-o', 'command=']);
+  if (output.status !== 0) return null;
+  const commandLine = output.stdout.trim();
+  return commandLine || null;
+}
+
+function parentProcessID(pid) {
+  if (!Number.isInteger(pid)) return null;
+  const output = run('/bin/ps', ['-o', 'ppid=', '-p', String(pid)]);
+  if (output.status !== 0) return null;
+  const parent = Number(output.stdout.trim());
+  return Number.isInteger(parent) ? parent : null;
+}
+
+function commandLineHasAOSCommand(commandLine, mode, command) {
+  const expected = expectedBinaryPath(mode);
+  return commandLine.startsWith(`${expected} ${command}`)
+    || commandLine.startsWith(`./aos ${command}`)
+    || commandLine.startsWith(`aos ${command}`);
+}
+
+function isForegroundAOSServeOwner(pid, mode) {
+  const commandLine = processCommandLine(pid);
+  if (!commandLine || !commandLineHasAOSCommand(commandLine, mode, '__serve')) return false;
+  const parentPID = parentProcessID(pid);
+  const parentCommandLine = processCommandLine(parentPID);
+  return Boolean(parentCommandLine && commandLineHasAOSCommand(parentCommandLine, mode, 'serve'));
+}
+
 function launchctlBootstrap(plistPath, { tolerateAlreadyBootstrapped = false } = {}) {
   runChecked(
     '/bin/launchctl',
@@ -433,11 +464,15 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
 
   const servicePid = Number.isInteger(base.pid) ? base.pid : null;
   const daemonPid = Number.isInteger(outcome.view?.pid) ? outcome.view.pid : null;
+  const foregroundServeOwner = requireLaunchdOwner
+    && daemonPid != null
+    && isForegroundAOSServeOwner(daemonPid, mode);
   const ownershipMismatch = requireLaunchdOwner
+    && !foregroundServeOwner
     && servicePid != null
     && daemonPid != null
     && daemonPid !== servicePid;
-  const serviceNotRunning = requireLaunchdOwner && servicePid == null;
+  const serviceNotRunning = requireLaunchdOwner && !foregroundServeOwner && servicePid == null;
 
   if (outcome.view && serviceNotRunning) {
     const recovery = serviceRuntimeRecovery('service_not_running', mode);
