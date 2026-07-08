@@ -100,7 +100,9 @@
         "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the task explicitly authorizes that escape hatch.",
         "rejected_competing_surfaces": [
           "claiming fullscreen, Space switching, or Mission Control is supported because AppleScript could do it",
-          "raw macOS automation without AOS command readback"
+          "raw macOS automation without AOS command readback",
+          "keyboard shortcut fallback for fullscreen, Space switching, or Mission Control",
+          "invented graph-spaces, switch-space, show-mission-control, or fullscreen-window command shapes"
         ]
       }
     },

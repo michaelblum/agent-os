@@ -42,6 +42,9 @@ capability map.
 
 - Window fullscreen, Space switching, and Mission Control are not first-class
   semantic commands in this slice.
+- Do not simulate fullscreen, Space switching, or Mission Control with
+  `./aos do key`, AppleScript, or coordinates unless the task explicitly
+  authorizes that lower-level fallback.
 - `./aos do tell <app> <script>` is a lower-level scripting escape hatch, not a
   substitute for claiming a semantic desktop verb exists.
 - Coordinates and keyboard fallback act on current focus; use them only when

@@ -128,3 +128,17 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
   assert.match(decision, /Do not add a new .*desktop:<target>.* target/s);
   assert.match(decision, /prefer\s+source-manifest-backed semantic verbs under `aos do`/);
 });
+
+test('AOS keeps Space and Mission Control semantic verbs out of manifests until identity proof exists', async () => {
+  const ids = await commandIds();
+
+  for (const id of [
+    'graph-spaces',
+    'do-switch-space',
+    'do-show-mission-control',
+    'do-show-app-windows',
+    'do-fullscreen-window',
+  ]) {
+    assert.equal(ids.has(id), false, `unexpected unsupported desktop command id: ${id}`);
+  }
+});

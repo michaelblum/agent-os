@@ -47,4 +47,5 @@ Add a semantic desktop verb only when all of these are true:
 Candidate future verbs remain:
 
 - `aos do fullscreen-window`;
+- `aos do show-mission-control` and `aos do show-app-windows`;
 - a read-only Space state command before any Space-switching command.
