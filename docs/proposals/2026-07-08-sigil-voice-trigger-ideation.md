@@ -269,6 +269,87 @@ the existing pattern of a JSON recipe step invoking an `aos_command`). No
 change to the command surface itself — the menu is just another caller of
 commands that already exist.
 
+## TCC permissions this introduces
+
+agent-os today requests four permission classes through the broker's
+`__permissions prompt` primitive (`src/commands/operator.swift`, enum
+`PermissionPromptKind`): **Accessibility** (`AXIsProcessTrustedWithOptions`),
+**Screen Recording** / "Screen & System Audio Recording"
+(`CGRequestScreenCaptureAccess`), and **Input Monitoring**, which is actually
+two native triggers under one System Settings pane —
+`CGRequestListenEventAccess` (listen) and `CGRequestPostEventAccess` (post,
+used for synthetic CGEvents). None of this touches the microphone.
+
+Everything proposed in this document needs **two additional, currently
+unused TCC classes**:
+
+1. **Microphone** (`kTCCServiceMicrophone` / `NSMicrophoneUsageDescription`).
+   Required for *any* live audio capture — the always-listening wake helper in
+   Concept A, the dictation capture in Concept B, and the live VAD signal
+   driving the menu fade in Concept D all need this, even before any
+   transcription happens. This is worth stating explicitly because **"Screen
+   & System Audio Recording" does not cover this** — that permission
+   (`CGRequestScreenCaptureAccess`) governs screen video and *system audio
+   output* (what plays through speakers/apps), not the physical microphone
+   *input*. The two are commonly conflated because both are audio-adjacent,
+   but they are separate TCC services with separate prompts and separate
+   entries in System Settings → Privacy & Security.
+2. **Speech Recognition** (`kTCCServiceSpeechRecognition` /
+   `NSSpeechRecognitionUsageDescription`). A distinct *second* prompt beyond
+   Microphone, required only if Concept B's free-form dictation transcription
+   leans on Apple's Speech framework (`SFSpeechRecognizer` or the newer
+   `SpeechAnalyzer`) rather than a fully custom ASR stack — which is the
+   realistic default choice here. It is not needed for the wake-word spotter
+   alone if that stays a lightweight local keyword model operating on raw
+   audio buffers (per Concept A), since that doesn't call the Speech
+   framework at all — only the dictation-transcription step in Concept B
+   triggers this prompt. Two more things worth deciding deliberately rather
+   than by default: (a) request `requiresOnDeviceRecognition = true` to keep
+   transcription local — consistent with the local-first, low-latency
+   posture already established in the Kokoro TTS doc — since server-based
+   recognition adds a further, separate "send speech data to Apple" consent
+   nuance inside the same Speech Recognition flow; (b) on-device recognition
+   is not guaranteed available for every language/locale, so this should be
+   probed rather than assumed.
+
+Neither addition is a scope surprise: `ARCHITECTURE.md` already names
+**Microphone** as one of the four TCC classes the `./aos` broker is described
+as managing ("Screen Recording, Accessibility, Input Monitoring, and
+Microphone"), alongside voice/communication rows explicitly marked
+"STT planned." It's simply unrequested and unused today — no capture code
+exists yet (per the audit above), so there's been nothing to trigger the
+prompt.
+
+**Placement implication for the Track 2 boundary above:** `docs/adr/0015-aos-tcc-capability-broker-boundary.md`'s
+Swift Change Gate lists "a new TCC permission class" as one of the few
+*accepted* reasons to touch the broker directly — the same bucket Accessibility,
+Screen Recording, and Input Monitoring already live in. That means, unlike the
+rest of this feature set, **acquiring and probing Microphone and Speech
+Recognition authorization state is legitimately broker-owned**, not Sigil
+product behavior: the natural move is two new `PermissionPromptKind` cases
+(`microphone`, `speech-recognition`) backed by
+`AVCaptureDevice.requestAccess(for: .audio)` and
+`SFSpeechRecognizer.requestAuthorization`, following the exact shape of the
+four that exist today. Everything downstream of "permission granted" — the
+wake-word model, the dictation state machine, the sound hooks, the menu — stays
+Track 2 in Sigil, per the ownership split already established above. This is a
+clean example of the boundary doing its job: the *privileged fact/action* (is
+mic access granted; ask for it) is broker-owned; the *policy* (what to do with
+the audio once access is granted) is app-owned.
+
+**Loose ends for whoever picks this up:** no `Info.plist` or `.entitlements`
+file currently exists in the repo (confirmed by search) — before either
+permission can be requested, usage-description strings need to be added
+wherever the shipped binary's plist is generated, and — if the binary is
+sandboxed/notarized outside the Mac App Store, consistent with its existing
+global `CGEventTap` usage — the corresponding `com.apple.security.device.audio-input`
+entitlement needs auditing too. Also worth flagging operationally: Screen
+Recording permission is known to reset periodically on modern macOS (monthly,
+and after every restart on recent releases) — Microphone and Speech
+Recognition don't share that particular quirk and behave more like
+Accessibility (persistent until explicitly revoked), but this is worth
+verifying against whatever macOS version ships when this is actually built.
+
 ## Full-duplex (explicit stretch goal, likely "later or never")
 
 Flagging this honestly rather than over-scoping it: true full-duplex (agent
@@ -315,7 +396,11 @@ Checked both `skills/` and `recipes/` as candidate homes before writing this:
 
 1. Wake-word model choice and where the always-listening helper process lives
    (launched by Sigil? by `aos serve`? standalone LaunchAgent?) — this affects
-   permission prompts (mic access) and battery/CPU posture.
+   battery/CPU posture and, per the TCC section above, which process identity
+   actually needs to hold the Microphone/Speech Recognition grants (the
+   unified `./aos` broker identity, to stay consistent with the "one
+   permissioned broker binary" principle in ADR 0015, rather than a separate
+   helper binary fragmenting TCC identity).
 2. Does the daemon need a new inbound path for *injecting* `voice.*` events
    (from an external Sigil helper) or does `broadcastEvent()` already have an
    external-facing entry point? (`src/daemon/unified.swift:562` is called
