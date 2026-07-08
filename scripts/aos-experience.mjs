@@ -455,9 +455,67 @@ function statusMenuActionEvent(manifest, item, actionID) {
   };
 }
 
+function requireCurrentStatusMenuRuntime(context, surface, item) {
+  const blockers = [];
+  if (context.status !== 'ok') blockers.push(`runtime_context=${context.status}`);
+  if (context.active_experience?.status !== 'current') {
+    blockers.push(`active_experience=${context.active_experience?.status || 'unknown'}`);
+  }
+  if (context.status_item?.status !== 'current') {
+    blockers.push(`status_item=${context.status_item?.status || 'unknown'}`);
+  }
+  if (context.status_item?.target?.status !== 'current') {
+    blockers.push(`status_item_target=${context.status_item?.target?.status || 'unknown'}`);
+  }
+  if (context.status_item?.mounted_surface?.status !== 'current') {
+    blockers.push(`mounted_surface=${context.status_item?.mounted_surface?.status || 'unknown'}`);
+  }
+  if (context.status_item?.menu_projection?.status !== 'current') {
+    blockers.push(`menu_projection=${context.status_item?.menu_projection?.status || 'unknown'}`);
+  }
+  const menuIDs = context.status_item?.menu_projection?.expected_menu_ids;
+  if (Array.isArray(menuIDs) && !menuIDs.includes(item.id)) {
+    blockers.push(`menu_item=${item.id}:not_mounted`);
+  }
+  if (context.status_item?.mounted_surface?.id !== surface.id) {
+    blockers.push(`surface=${context.status_item?.mounted_surface?.id || 'unknown'}`);
+  }
+  if (blockers.length > 0) {
+    throw new ExperienceFailure(
+      `Status menu item ${item.id} is not current for mounted experience surface ${surface.id}; run 'aos experience status ${context.experience.id} --json' and repair: ${blockers.join(', ')}`,
+      'STATUS_MENU_RUNTIME_NOT_CURRENT',
+    );
+  }
+}
+
+function statusMenuRuntimeSummary(context) {
+  return {
+    status: context.status,
+    active_experience: context.active_experience,
+    status_item: {
+      status: context.status_item?.status,
+      target: {
+        status: context.status_item?.target?.status,
+      },
+      mounted_surface: {
+        status: context.status_item?.mounted_surface?.status,
+        id: context.status_item?.mounted_surface?.id,
+        lifecycle_state: context.status_item?.mounted_surface?.lifecycle_state,
+        suspended: context.status_item?.mounted_surface?.suspended,
+      },
+      menu_projection: {
+        status: context.status_item?.menu_projection?.status,
+        expected_menu_ids: context.status_item?.menu_projection?.expected_menu_ids || [],
+      },
+    },
+  };
+}
+
 async function menuInvoke(id, itemID, asJSON, dryRun, allowStart) {
   const manifest = discoverExperience(id, { experiencesRoot });
   const { surface, item, actionID } = resolveStatusMenuItem(manifest, itemID);
+  const runtimeContext = await buildExperienceRuntimeContext(id, { env: process.env, repoRoot });
+  requireCurrentStatusMenuRuntime(runtimeContext, surface, item);
   const event = statusMenuActionEvent(manifest, item, actionID);
   const planned = {
     status: dryRun ? 'dry_run' : 'success',
@@ -476,6 +534,7 @@ async function menuInvoke(id, itemID, asJSON, dryRun, allowStart) {
       kind: item.kind,
       label: item.label,
     },
+    runtime_context: statusMenuRuntimeSummary(runtimeContext),
     event,
   };
 

@@ -194,6 +194,9 @@ Then preview the menu item action:
 aos experience menu invoke <id> --item <item-id> --dry-run --json
 ```
 
+The dry-run is runtime-gated: it fails closed unless the requested experience,
+status item target, mounted surface, and menu projection are current.
+
 If the dry-run reports the expected mounted status surface and menu item, invoke
 the live action:
 
