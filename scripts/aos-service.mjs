@@ -24,8 +24,9 @@ function unknownArg(arg) {
   error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
 }
 
-function run(executable, args) {
-  const result = spawnSync(executable, args, { encoding: 'utf8' });
+function run(executable, args, options = {}) {
+  const { env = process.env, ...spawnOptions } = options;
+  const result = spawnSync(executable, args, { encoding: 'utf8', env, ...spawnOptions });
   return {
     status: result.status ?? 127,
     stdout: result.stdout ?? '',
@@ -157,37 +158,6 @@ function servicePID(label) {
     }
   }
   return null;
-}
-
-function processCommandLine(pid) {
-  if (!Number.isInteger(pid)) return null;
-  const output = run('/bin/ps', ['-p', String(pid), '-o', 'command=']);
-  if (output.status !== 0) return null;
-  const commandLine = output.stdout.trim();
-  return commandLine || null;
-}
-
-function parentProcessID(pid) {
-  if (!Number.isInteger(pid)) return null;
-  const output = run('/bin/ps', ['-o', 'ppid=', '-p', String(pid)]);
-  if (output.status !== 0) return null;
-  const parent = Number(output.stdout.trim());
-  return Number.isInteger(parent) ? parent : null;
-}
-
-function commandLineHasAOSCommand(commandLine, mode, command) {
-  const expected = expectedBinaryPath(mode);
-  return commandLine.startsWith(`${expected} ${command}`)
-    || commandLine.startsWith(`./aos ${command}`)
-    || commandLine.startsWith(`aos ${command}`);
-}
-
-function isForegroundAOSServeOwner(pid, mode) {
-  const commandLine = processCommandLine(pid);
-  if (!commandLine || !commandLineHasAOSCommand(commandLine, mode, '__serve')) return false;
-  const parentPID = parentProcessID(pid);
-  const parentCommandLine = processCommandLine(parentPID);
-  return Boolean(parentCommandLine && commandLineHasAOSCommand(parentCommandLine, mode, 'serve'));
 }
 
 function launchctlBootstrap(plistPath, { tolerateAlreadyBootstrapped = false } = {}) {
@@ -446,9 +416,46 @@ async function verifyOutcome(mode, budgetMs) {
   return { kind: 'socket_unreachable', view: null };
 }
 
+function runtimeStatusFacts(mode) {
+  const result = run(aosPath(), ['__runtime', 'status-facts', '--json'], {
+    env: { ...process.env, AOS_RUNTIME_MODE: mode },
+  });
+  if (result.status !== 0) {
+    return {
+      status: 'unavailable',
+      reason: (result.stderr || result.stdout).trim() || `__runtime status-facts exited ${result.status}`,
+    };
+  }
+  try {
+    return { status: 'ok', facts: JSON.parse(result.stdout) };
+  } catch (err) {
+    return {
+      status: 'unavailable',
+      reason: `__runtime status-facts did not return JSON: ${err.message}`,
+    };
+  }
+}
+
+function runtimeOwnershipSummary(runtimeProbe) {
+  const facts = runtimeProbe.facts;
+  if (!facts) return { status: runtimeProbe.status, reason: runtimeProbe.reason };
+  return {
+    status: 'ok',
+    state: facts.ownership_state,
+    kind: facts.ownership_kind,
+    owner_pid: facts.owner_pid,
+    serving_pid: facts.serving_pid,
+    lock_owner_pid: facts.lock_owner_pid,
+    service_pid: facts.service_pid,
+    launchd_managed: facts.owner_launchd_managed,
+  };
+}
+
 async function readinessResponse(mode, budgetMs, restartContext = false) {
   const base = serviceStatus(mode);
   const outcome = await verifyOutcome(mode, budgetMs);
+  const runtimeProbe = runtimeStatusFacts(mode);
+  const runtimeFacts = runtimeProbe.facts;
   const response = { ...base };
   let exitCode = 0;
   const requireLaunchdOwner = !explicitStateRootOverride();
@@ -461,20 +468,34 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
       }
     : null;
   if (daemonView) response.daemon_view = daemonView;
+  response.runtime_ownership = runtimeOwnershipSummary(runtimeProbe);
 
   const servicePid = Number.isInteger(base.pid) ? base.pid : null;
   const daemonPid = Number.isInteger(outcome.view?.pid) ? outcome.view.pid : null;
-  const foregroundServeOwner = requireLaunchdOwner
-    && daemonPid != null
-    && isForegroundAOSServeOwner(daemonPid, mode);
   const ownershipMismatch = requireLaunchdOwner
-    && !foregroundServeOwner
-    && servicePid != null
-    && daemonPid != null
-    && daemonPid !== servicePid;
-  const serviceNotRunning = requireLaunchdOwner && !foregroundServeOwner && servicePid == null;
+    && outcome.view
+    && runtimeFacts?.ownership_state === 'mismatch';
+  const serviceNotRunning = requireLaunchdOwner
+    && outcome.view
+    && servicePid == null
+    && runtimeFacts?.ownership_state === 'unmanaged';
+  const ownershipUnavailable = requireLaunchdOwner
+    && outcome.view
+    && runtimeProbe.status !== 'ok';
 
-  if (outcome.view && serviceNotRunning) {
+  if (outcome.view && ownershipUnavailable) {
+    const recovery = serviceRuntimeRecovery('daemon_ownership_mismatch', mode);
+    response.status = 'degraded';
+    response.reason = 'daemon_ownership_unavailable';
+    response.input_tap = outcome.view.input_tap;
+    response.recovery = recovery.recovery;
+    response.notes = [
+      ...(response.notes || []),
+      recovery.note,
+      `Daemon socket answered with pid=${daemonPid ?? 'unknown'}, but native runtime ownership facts were unavailable: ${runtimeProbe.reason}`,
+    ].filter(Boolean);
+    exitCode = 1;
+  } else if (outcome.view && serviceNotRunning) {
     const recovery = serviceRuntimeRecovery('service_not_running', mode);
     response.status = 'degraded';
     response.reason = 'service_not_running';

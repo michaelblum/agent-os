@@ -822,6 +822,11 @@ private func fallbackDaemonProcessID() -> Int? {
 }
 
 private func launchdProcessID(label: String) -> Int? {
+    if let override = ProcessInfo.processInfo.environment["AOS_TEST_SERVICE_PID"],
+       let pid = Int(override),
+       pid > 0 {
+        return pid
+    }
     let domain = "gui/\(getuid())/\(label)"
     let output = runProcess("/bin/launchctl", arguments: ["print", domain])
     guard output.exitCode == 0 else { return nil }

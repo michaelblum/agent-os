@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "id": "do-02-text",
+  "commands": [
+    {
+      "path": [
+        "do",
+        "type"
+      ],
+      "summary": "Resolve saved browser type ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "type"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "type"
+      ],
+      "summary": "Type into browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "type"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "type"
+      ],
+      "summary": "Type into a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "type"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "key"
+      ],
+      "summary": "Resolve saved browser key ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "key"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "key"
+      ],
+      "summary": "Press keys in browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "key"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "key"
+      ],
+      "summary": "Press native keys through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "key"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "fill"
+      ],
+      "summary": "Resolve saved fill ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "fill"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "fill"
+      ],
+      "summary": "Fill browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "fill"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "navigate"
+      ],
+      "summary": "Navigate browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "navigate"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

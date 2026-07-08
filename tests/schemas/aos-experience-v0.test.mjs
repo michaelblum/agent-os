@@ -418,22 +418,100 @@ process.exit(0);
     .map((line) => JSON.parse(line));
   const callText = calls.map((args) => args.join('\0'));
   const removeIndex = callText.indexOf(['show', 'remove', '--id', 'operator-fixture-surface'].join('\0'));
-  const disableIndex = callText.indexOf(['config', 'set', 'status_item.enabled', 'false'].join('\0'));
-  const urlIndex = callText.findIndex((line) => line.startsWith(['config', 'set', 'status_item.toggle_url'].join('\0')));
-  const idIndex = callText.indexOf(['config', 'set', 'status_item.toggle_id', 'operator-fixture-surface'].join('\0'));
-  const enableIndex = callText.indexOf(['config', 'set', 'status_item.enabled', 'true'].join('\0'));
   const createIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
   const waitIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
   assert.notEqual(removeIndex, -1, calls);
-  assert.notEqual(disableIndex, -1, calls);
-  assert.notEqual(urlIndex, -1, calls);
-  assert.notEqual(idIndex, -1, calls);
-  assert.notEqual(enableIndex, -1, calls);
   assert.notEqual(createIndex, -1, calls);
   assert.notEqual(waitIndex, -1, calls);
-  assert(removeIndex < idIndex, calls);
-  assert(disableIndex < urlIndex && urlIndex < idIndex && idIndex < enableIndex, calls);
-  assert(enableIndex < createIndex && createIndex < waitIndex, calls);
+  assert(removeIndex < createIndex && createIndex < waitIndex, calls);
+
+  const prepareIndex = payload.steps.findIndex((step) => step.id === 'status-item:prepare');
+  const createStepIndex = payload.steps.findIndex((step) => step.id === 'status-item:mounted-surface:operator-fixture-surface');
+  const readyStepIndex = payload.steps.findIndex((step) => step.id === 'status-item:mounted-surface-ready:operator-fixture-surface');
+  const commitIndex = payload.steps.findIndex((step) => step.id === 'status-item');
+  const activeIndex = payload.steps.findIndex((step) => step.id === 'experience:active');
+  assert(prepareIndex >= 0, payload.steps);
+  assert(createStepIndex >= 0, payload.steps);
+  assert(readyStepIndex >= 0, payload.steps);
+  assert(commitIndex >= 0, payload.steps);
+  assert(activeIndex >= 0, payload.steps);
+  assert(prepareIndex < createStepIndex && createStepIndex < readyStepIndex && readyStepIndex < commitIndex && commitIndex < activeIndex, payload.steps);
+
+  const finalConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
+  assert.equal(finalConfig.status_item.enabled, true);
+  assert.equal(finalConfig.status_item.toggle_id, 'operator-fixture-surface');
+  assert.match(finalConfig.status_item.toggle_url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_mounted_surface_menu=/);
+});
+
+test('experience activation rolls back status item config and active state when mounted surface readiness fails', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-activation-rollback-'));
+  const fakeAos = path.join(tmp, 'fake-aos.mjs');
+  const logPath = path.join(tmp, 'aos-calls.jsonl');
+  const previousConfig = {
+    content: {
+      roots: {
+        toolkit: path.join(repoRoot, 'packages/toolkit'),
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'previous-surface',
+      toggle_url: 'aos://previous/renderer/index.html',
+      toggle_at: [10, 20, 30, 40],
+      toggle_track: 'union',
+      icon: 'previous',
+    },
+  };
+  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
+  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify(previousConfig, null, 2));
+  await fs.writeFile(path.join(tmp, 'repo', 'experience-state.json'), JSON.stringify({ active_experience: 'previous-experience', exclusive: true }));
+  await fs.writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
+if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
+  console.log(JSON.stringify({ roots: { toolkit: '${path.join(repoRoot, 'packages/toolkit')}' } }));
+  process.exit(0);
+}
+if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
+  console.log(JSON.stringify({ canvases: [] }));
+  process.exit(0);
+}
+if (args.join('\\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\\0')) {
+  console.error('surface never became ready');
+  process.exit(17);
+}
+process.exit(0);
+`, { mode: 0o755 });
+
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_PATH: fakeAos,
+      AOS_STATE_ROOT: tmp,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+      FAKE_AOS_LOG: logPath,
+    },
+    encoding: 'utf8',
+  });
+  assert.notEqual(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const failure = JSON.parse(activate.stderr);
+  assert.equal(failure.code, 'COMMAND_FAILED');
+  assert.match(failure.error, /wait for mounted status surface operator-fixture-surface/);
+
+  const rolledBackConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
+  assert.deepEqual(rolledBackConfig, previousConfig);
+  const activeState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
+  assert.equal(activeState.active_experience, 'previous-experience');
+
+  const calls = (await fs.readFile(logPath, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert(calls.some((args) => args.join('\0').startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0'))), calls);
+  assert(calls.some((args) => args.join('\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0')), calls);
 });
 
 test('Sigil experience is exclusive and status-item-first', async () => {

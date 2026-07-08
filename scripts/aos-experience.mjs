@@ -22,6 +22,7 @@ import { experienceRuntimeEnv } from './lib/experience-runtime-env.mjs';
 const repoRoot = process.cwd();
 const runtimeEnv = experienceRuntimeEnv({ env: process.env, repoRoot });
 const { aos, experiencesRoot, mode } = runtimeEnv;
+const DEFAULT_STATUS_ITEM_FRAME = [200, 200, 300, 300];
 
 function prettyJSON(value) {
   return `${JSON.stringify(value, null, 2).replace(/"([A-Za-z0-9_]+)":/g, '"$1" :')}\n`;
@@ -108,6 +109,40 @@ function readRuntimeConfig() {
 function writeRuntimeConfig(config) {
   fs.mkdirSync(runtimeEnv.stateDir, { recursive: true });
   fs.writeFileSync(runtimeEnv.configPath, prettyJSON(config), 'utf8');
+}
+
+function cloneJSON(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function statusItemConfigObject(config) {
+  return config?.status_item && typeof config.status_item === 'object' && !Array.isArray(config.status_item)
+    ? config.status_item
+    : {};
+}
+
+function normalizeStatusItemTrack(track) {
+  return track == null || track === 'none' ? null : track;
+}
+
+function buildStatusItemConfig(previousConfig, manifest, surface, nextToggleURL, enabled) {
+  const previous = statusItemConfigObject(previousConfig);
+  return {
+    ...previous,
+    enabled,
+    toggle_id: surface.id,
+    toggle_url: nextToggleURL,
+    toggle_at: Array.isArray(previous.toggle_at) ? previous.toggle_at : DEFAULT_STATUS_ITEM_FRAME,
+    toggle_track: normalizeStatusItemTrack(surface.track),
+    icon: manifest.status_item.icon || 'aos',
+  };
+}
+
+function writeStatusItemConfigSnapshot(baseConfig, statusItem) {
+  const nextConfig = cloneJSON(baseConfig || {});
+  nextConfig.status_item = statusItem;
+  writeRuntimeConfig(nextConfig);
+  return nextConfig;
 }
 
 function readActiveExperience() {
@@ -356,10 +391,9 @@ function reconcileExperienceContentRoots(roots) {
   return removed.sort();
 }
 
-function configureStatusItem(manifest, roots, steps, allowStart) {
+function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig) {
   const rootsByID = rootMap(roots);
   const surface = manifest.status_item.toggle_surface;
-  const previousConfig = readRuntimeConfig();
   const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
   const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
   const nextToggleURL = projectedToggleURL(manifest, surface, rootsByID, { mode, repoRoot });
@@ -390,16 +424,16 @@ function configureStatusItem(manifest, roots, steps, allowStart) {
       action: remove.status === 0 ? 'removed-canvas' : 'canvas-not-present-or-daemon-unavailable',
     });
   }
-  const values = [
-    ['status_item.enabled', 'false'],
-    ['status_item.toggle_url', nextToggleURL],
-    ['status_item.toggle_track', surface.track],
-    ['status_item.toggle_id', surface.id],
-    ['status_item.icon', manifest.status_item.icon || 'aos'],
-    ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
-  ];
-  for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
-  steps.push({ id: 'status-item', status: 'success', mode: 'experience', label: manifest.status_item.label });
+  const preparedStatusItem = buildStatusItemConfig(previousConfig, manifest, surface, nextToggleURL, false);
+  const preparedConfig = writeStatusItemConfigSnapshot(previousConfig, preparedStatusItem);
+  steps.push({
+    id: 'status-item:prepare',
+    status: 'success',
+    mode: 'disabled',
+    label: manifest.status_item.label,
+    toggle_id: surface.id,
+    toggle_url: nextToggleURL,
+  });
   if (manifest.status_item.enabled !== false) {
     const shouldCreate = !existingCanvasURL || staleExistingCanvas || stalePreviousTarget;
     const autoStartEnv = allowStart ? { AOS_ALLOW_DAEMON_AUTOSTART: '1' } : {};
@@ -416,6 +450,50 @@ function configureStatusItem(manifest, roots, steps, allowStart) {
       `wait for mounted status surface ${surface.id}`,
     );
     steps.push({ id: `status-item:mounted-surface-ready:${surface.id}`, status: 'success' });
+  }
+  const finalStatusItem = buildStatusItemConfig(preparedConfig, manifest, surface, nextToggleURL, manifest.status_item.enabled !== false);
+  return {
+    commit() {
+      writeStatusItemConfigSnapshot(preparedConfig, finalStatusItem);
+      steps.push({
+        id: 'status-item',
+        status: 'success',
+        mode: finalStatusItem.enabled ? 'experience' : 'disabled',
+        label: manifest.status_item.label,
+      });
+    },
+  };
+}
+
+function rollbackStatusSurfaceActivation(previousConfig, previousActive, steps) {
+  try {
+    writeRuntimeConfig(previousConfig);
+    writeActiveExperience(previousActive);
+    steps.push({
+      id: 'status-surface:rollback',
+      status: 'success',
+      active_experience: previousActive,
+    });
+  } catch (rollbackError) {
+    steps.push({
+      id: 'status-surface:rollback',
+      status: 'failed',
+      error: rollbackError?.message || String(rollbackError),
+    });
+  }
+}
+
+function activateStatusSurfaceTransaction(manifest, roots, steps, allowStart) {
+  const previousConfig = readRuntimeConfig();
+  const previousActive = readActiveExperience();
+  try {
+    const statusSurface = prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig);
+    statusSurface.commit();
+    writeActiveExperience(manifest.id);
+    steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
+  } catch (err) {
+    rollbackStatusSurfaceActivation(previousConfig, previousActive, steps);
+    throw err;
   }
 }
 
@@ -584,9 +662,7 @@ function activate(id, asJSON, dryRun, allowStart) {
   requireLivePermission('experience.activate', allowStart);
   ensureContentRoots(roots, steps, allowStart);
   runHooks(manifest, 'before_activate', roots, steps);
-  configureStatusItem(manifest, roots, steps, allowStart);
-  writeActiveExperience(manifest.id);
-  steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
+  activateStatusSurfaceTransaction(manifest, roots, steps, allowStart);
   runHooks(manifest, 'after_activate', roots, steps);
   if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: manifest.id, steps });
   else process.stdout.write(`${manifest.title} experience active.\n`);

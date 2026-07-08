@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "do-07-script-session",
+  "commands": [
+    {
+      "path": [
+        "do",
+        "tell"
+      ],
+      "summary": "Tell a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "tell"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "session"
+      ],
+      "summary": "Run a native action session through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "session"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

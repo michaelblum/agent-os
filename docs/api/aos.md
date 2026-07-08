@@ -2394,6 +2394,9 @@ Consumers:
 - `aos service install`, `start`, and `restart` block-and-poll for up to 5s
   after launchctl kickstart and exit non-zero with `reason: "input_tap_not_active"`
   or `"socket_unreachable"` when the daemon is not fully ready.
+- Service readiness JSON includes `runtime_ownership`, sourced from native
+  `__runtime status-facts --json`; foreground `aos serve` development owners
+  are accepted only when that broker reports `ownership_kind: "foreground_dev"`.
 - `aos do click/type/...` preflight exits with `INPUT_TAP_NOT_ACTIVE` when
   the daemon is reachable but its tap is inactive.
 

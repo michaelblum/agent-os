@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "do-06-menu",
+  "commands": [
+    {
+      "path": [
+        "do",
+        "menu"
+      ],
+      "summary": "Invoke an app menu path through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "menu"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

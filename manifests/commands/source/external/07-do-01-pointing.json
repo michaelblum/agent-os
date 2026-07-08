@@ -1,0 +1,347 @@
+{
+  "schema_version": 1,
+  "id": "do-01-pointing",
+  "commands": [
+    {
+      "path": [
+        "do",
+        "click"
+      ],
+      "summary": "Resolve saved click ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "click"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "click"
+      ],
+      "summary": "Click browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "click"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "click"
+      ],
+      "summary": "Click a current canvas semantic target through the external do canvas command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-canvas.mjs",
+        "click"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "click"
+      ],
+      "summary": "Click a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "click"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:",
+          "canvas:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "hover"
+      ],
+      "summary": "Resolve saved hover ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "hover"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "hover"
+      ],
+      "summary": "Hover browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "hover"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "hover"
+      ],
+      "summary": "Hover a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "hover"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "drag"
+      ],
+      "summary": "Resolve saved drag ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "drag"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "drag"
+      ],
+      "summary": "Drag browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "drag"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "drag"
+      ],
+      "summary": "Drag a current canvas semantic target through the external do canvas command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-canvas.mjs",
+        "drag"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "drag"
+      ],
+      "summary": "Drag a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "drag"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:",
+          "canvas:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "scroll"
+      ],
+      "summary": "Resolve saved scroll ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "scroll"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "scroll"
+      ],
+      "summary": "Scroll browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-browser.mjs",
+        "scroll"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "scroll"
+      ],
+      "summary": "Scroll a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "scroll"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "browser:",
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

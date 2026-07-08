@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "id": "do-03-controls",
+  "commands": [
+    {
+      "path": [
+        "do",
+        "profiles"
+      ],
+      "summary": "Inspect action behavior profiles through the external do profiles command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-profiles.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "press"
+      ],
+      "summary": "Resolve saved press ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "press"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "press"
+      ],
+      "summary": "Press a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "press"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "set-value"
+      ],
+      "summary": "Resolve saved set-value ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "set-value"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "set-value"
+      ],
+      "summary": "Set a current canvas semantic value through the external do canvas command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-canvas.mjs",
+        "set-value"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "canvas:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "set-value"
+      ],
+      "summary": "Set a native field value through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "set-value"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "ref:",
+          "canvas:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "focus"
+      ],
+      "summary": "Resolve saved focus ref targets through the agent workspace action dispatcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-ref.mjs",
+        "focus"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "ref:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "focus"
+      ],
+      "summary": "Focus a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "focus"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": [
+          "ref:"
+        ]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

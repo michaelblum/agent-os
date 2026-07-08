@@ -384,6 +384,24 @@ test('ready ownership classifier accepts managed parent child daemon shape', asy
   );
 });
 
+test('service readiness consumes native runtime ownership facts instead of duplicating foreground serve policy', async () => {
+  const source = await fs.readFile(path.join(repoRoot, 'scripts/aos-service.mjs'), 'utf8');
+  assert.ok(
+    source.includes("'__runtime', 'status-facts', '--json'"),
+    'service readiness must read structured native runtime ownership facts',
+  );
+  assert.equal(
+    source.includes('isForegroundAOSServeOwner'),
+    false,
+    'service readiness must not keep a second foreground aos serve classifier in JS',
+  );
+  assert.equal(
+    source.includes('commandLineHasAOSCommand'),
+    false,
+    'service readiness must not duplicate process command-line prefix policy in JS',
+  );
+});
+
 test('private Swift primitives are reachable only through expected external wrappers', async () => {
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([
@@ -391,7 +409,7 @@ test('private Swift primitives are reachable only through expected external wrap
   ]);
   const expectedWrapperFiles = new Map([
     ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
-    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-service.mjs']],
     ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],

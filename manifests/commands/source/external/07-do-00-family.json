@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "do-00-family",
+  "commands": [
+    {
+      "path": [
+        "do"
+      ],
+      "summary": "Print do command help when no subcommand is provided.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-help-proxy.mjs",
+        "do"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do"
+      ],
+      "summary": "Validate unknown do subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-family-router.mjs",
+        "do",
+        "UNKNOWN_SUBCOMMAND",
+        "do subcommand"
+      ],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": [
+          "click",
+          "hover",
+          "drag",
+          "fill",
+          "scroll",
+          "type",
+          "key",
+          "navigate",
+          "press",
+          "set-value",
+          "focus",
+          "raise",
+          "move",
+          "resize",
+          "close",
+          "minimize",
+          "maximize",
+          "restore",
+          "activate",
+          "quit",
+          "hide",
+          "unhide",
+          "menu",
+          "tell",
+          "session",
+          "profiles"
+        ]
+      }
+    }
+  ]
+}
