@@ -25,7 +25,7 @@ const valueFlags = new Set([
   '--index', '--near', '--match', '--depth', '--timeout',
   '--profile', '--value', '--to', '--dy', '--dx', '--window',
   '--delay', '--variance', '--dwell', '--steps', '--speed',
-  '--state-id',
+  '--state-id', '--path',
 ]);
 const booleanFlags = new Set(['--dry-run', '--right', '--double']);
 
@@ -138,6 +138,7 @@ function normalizeSetValueArgs(args) {
 function validate(verb, args) {
   const pos = positionalArgs(args);
   validateFlagTypes(args);
+  if (verb !== 'menu' && args.includes('--path')) unknownArg('--path');
   switch (verb) {
     case 'click':
       if (pos[0]?.startsWith('browser:')) error('native do click does not accept browser targets', 'INVALID_TARGET');
@@ -214,6 +215,17 @@ function validate(verb, args) {
       if (pos.length > 0) unknownArg(pos[0]);
       requireFlag(args, '--pid', `${verb} requires --pid`, isInt);
       break;
+    case 'menu': {
+      if (pos.length > 0) unknownArg(pos[0]);
+      requireFlag(args, '--pid', 'menu requires --pid', isInt);
+      const menuPath = flagValue(args, '--path');
+      if (!menuPath) error('menu requires --path File,Item', 'MISSING_ARG');
+      const segments = menuPath.split(',').map((segment) => segment.trim());
+      if (segments.length < 2 || segments.some((segment) => segment.length === 0)) {
+        error('menu --path requires at least two comma-separated segments', 'INVALID_ARG');
+      }
+      break;
+    }
     case 'tell':
       if (pos.length < 2) error('tell requires an app name and a script body', 'MISSING_ARG');
       break;

@@ -5132,6 +5132,54 @@
             "supports_json_flag" : false
           },
           "usage" : "aos do unhide --pid <pid> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "path",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Comma-separated menu path, for example File,Save",
+              "token" : "--path",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate the menu path and enabled leaf without pressing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do menu --pid 1234 --path File,Save --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-menu",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do menu --pid <pid> --path <menu,item> [--dry-run]"
         }
       ],
       "path" : [

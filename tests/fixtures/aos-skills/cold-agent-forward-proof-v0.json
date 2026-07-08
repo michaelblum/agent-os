@@ -92,13 +92,14 @@
         "./aos do maximize --pid <pid> --window <window-id>",
         "./aos do restore --pid <pid> --window <window-id> --dry-run",
         "./aos do restore --pid <pid> --window <window-id>",
+        "./aos do menu --pid <pid> --path File,Save --dry-run",
         "./aos do press --pid <pid> --role <role> --title <title> --dry-run"
       ],
       "captured_output": {
-        "decision": "Treat app activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, and native AX press/focus/set-value as current AOS desktop controls, and dry-run supported mutating controls before action. Treat window fullscreen, Space switching, and menu invocation as follow-up or unsupported until a fail-closed semantic command exists.",
+        "decision": "Treat app activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, menu invocation, and native AX press/focus/set-value as current AOS desktop controls, and dry-run supported mutating controls before action. Treat window fullscreen, Space switching, and Mission Control as follow-up or unsupported until a fail-closed semantic command exists.",
         "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the task explicitly authorizes that escape hatch.",
         "rejected_competing_surfaces": [
-          "claiming fullscreen, Space switching, or menu invocation is supported because AppleScript could do it",
+          "claiming fullscreen, Space switching, or Mission Control is supported because AppleScript could do it",
           "raw macOS automation without AOS command readback"
         ]
       }

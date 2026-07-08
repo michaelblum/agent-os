@@ -161,6 +161,7 @@ check_unknown_flag do-native-click-to-value-flag ./aos do click 10,10 --to-value
 check_unknown_flag do-native-click-to-value-invalid-flag ./aos do click 10,10 --to-value nope --dry-run
 check_unknown_flag do-native-click-playback-flag ./aos do click 10,10 --playback human --dry-run
 check_unknown_flag do-native-click-playback-invalid-flag ./aos do click 10,10 --playback robot --dry-run
+check_unknown_flag do-native-click-menu-path-flag ./aos do click 10,10 --path File,Save --dry-run
 check_unknown_arg do-native-click-extra ./aos do click 10,10 unexpected --dry-run
 err="$STATE_ROOT/do-native-scroll-dx-missing.err"
 if ./aos do scroll 10,10 --dx --dy 1 --dry-run 2>"$err"; then
@@ -333,6 +334,12 @@ check_unknown_arg do-native-hide-extra-positional ./aos do hide stray --pid 123 
 check_missing_arg do-native-unhide-pid-missing ./aos do unhide --dry-run
 check_missing_arg do-native-unhide-pid-invalid ./aos do unhide --pid nope --dry-run
 check_unknown_arg do-native-unhide-extra-positional ./aos do unhide stray --pid 123 --dry-run
+check_missing_arg do-native-menu-pid-missing ./aos do menu --path File,Save --dry-run
+check_missing_arg do-native-menu-pid-invalid ./aos do menu --pid nope --path File,Save --dry-run
+check_missing_arg do-native-menu-path-missing ./aos do menu --pid 123 --dry-run
+check_invalid_arg do-native-menu-path-empty ./aos do menu --pid 123 --path File, --dry-run
+check_invalid_arg do-native-menu-path-one-segment ./aos do menu --pid 123 --path File --dry-run
+check_unknown_arg do-native-menu-extra-positional ./aos do menu stray --pid 123 --path File,Save --dry-run
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected

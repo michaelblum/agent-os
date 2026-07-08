@@ -57,6 +57,7 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'do-minimize',
     'do-maximize',
     'do-restore',
+    'do-menu',
     'do-tell',
     'show-create',
     'show-list',
@@ -86,6 +87,7 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'aos do minimize',
     'aos do maximize',
     'aos do restore',
+    'aos do menu',
     'aos skills companion check --name playwright-cli',
   ]) {
     assert.match(doc, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -101,7 +103,7 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
     'Window fullscreen',
     'Space detection',
     'Space switching',
-    'Menu-item invocation',
+    'Mission Control / app expose',
     'deferred follow-up',
     'unsupported',
   ]) {

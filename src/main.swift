@@ -166,6 +166,9 @@ private func handleDoPrimitive(args: [String]) {
     case "unhide":
         ensureInteractivePreflight(command: "aos do unhide")
         cliAppLifecycle(action: "unhide", args: subArgs)
+    case "menu":
+        ensureInteractivePreflight(command: "aos do menu")
+        cliMenu(args: subArgs)
     case "tell":
         ensureInteractivePreflight(command: "aos do tell", requiresInputTap: true)
         cliTell(args: subArgs)

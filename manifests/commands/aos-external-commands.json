@@ -158,7 +158,7 @@
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
-        "excluded_values": ["click", "hover", "drag", "fill", "scroll", "type", "key", "navigate", "press", "set-value", "focus", "raise", "move", "resize", "close", "minimize", "maximize", "restore", "activate", "quit", "hide", "unhide", "tell", "session", "profiles"]
+        "excluded_values": ["click", "hover", "drag", "fill", "scroll", "type", "key", "navigate", "press", "set-value", "focus", "raise", "move", "resize", "close", "minimize", "maximize", "restore", "activate", "quit", "hide", "unhide", "menu", "tell", "session", "profiles"]
       }
     },
     {
@@ -784,6 +784,18 @@
       "summary": "Unhide an app through the external do native command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-do-native.mjs", "unhide"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "menu"],
+      "summary": "Invoke an app menu path through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "menu"],
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",

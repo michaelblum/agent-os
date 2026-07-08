@@ -1759,6 +1759,7 @@ Primary public verbs:
 | `minimize` | minimize an exact window by pid and window id |
 | `maximize` | maximize an exact window by pid and window id |
 | `restore` | restore an exact minimized/maximized window by pid and window id |
+| `menu` | invoke an exact app menu path by pid |
 | `tell` | AppleScript verb |
 | `session` | interactive action session |
 | `profiles` | inspect behavior profiles |

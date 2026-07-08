@@ -64,6 +64,7 @@
           "quit",
           "hide",
           "unhide",
+          "menu",
           "tell",
           "session",
           "profiles"
@@ -1014,6 +1015,25 @@
         "node",
         "scripts/aos-do-native.mjs",
         "unhide"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "menu"
+      ],
+      "summary": "Invoke an app menu path through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "menu"
       ],
       "cwd": "repo",
       "env": {

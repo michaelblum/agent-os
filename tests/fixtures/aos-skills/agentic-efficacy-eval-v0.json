@@ -72,17 +72,18 @@
         "^\\./aos do close --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do minimize --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do maximize --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$"
+        "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$",
+        "^\\./aos do menu --pid <pid> --path File,Save --dry-run$"
       ],
       "expected_decision_terms": [
         "activate|quit|hide|unhide",
         "raise",
-        "move|resize|close|minimize|maximize|restore|native AX",
+        "move|resize|close|minimize|maximize|restore|menu|native AX",
         "dry-run"
       ],
       "expected_stop_terms": [
         "unsupported|stop",
-        "fullscreen|menu invocation|Space"
+        "fullscreen|Mission Control|Space"
       ],
       "forbidden_patterns": [
         "AppleScript",
@@ -215,10 +216,11 @@
             "./aos do maximize --pid <pid> --window <window-id> --dry-run",
             "./aos do maximize --pid <pid> --window <window-id>",
             "./aos do restore --pid <pid> --window <window-id> --dry-run",
-            "./aos do restore --pid <pid> --window <window-id>"
+            "./aos do restore --pid <pid> --window <window-id>",
+            "./aos do menu --pid <pid> --path File,Save --dry-run"
           ],
-          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, and native AX controls before action.",
-          "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, menu invocation, or Space switching instead of simulating them."
+          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, menu, and native AX controls before action.",
+          "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, Mission Control, or Space switching instead of simulating them."
         },
         {
           "case_id": "saved-workspace-observe-act-recapture",

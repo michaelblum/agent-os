@@ -74,8 +74,8 @@ test('AOS skills efficacy scorer catches malformed manifest-backed command shape
           './aos focus create --id browser-proof',
           './aos focus create --id browser-proof --window 123 --target browser://new',
         ],
-        decision: 'Use raise and stop on unsupported fullscreen, menu, or Space verbs.',
-        stop_condition: 'Stop on unsupported fullscreen, menu invocation, or Space switching.',
+        decision: 'Use raise and stop on unsupported fullscreen, Mission Control, or Space verbs.',
+        stop_condition: 'Stop on unsupported fullscreen, Mission Control, or Space switching.',
       },
     ],
   };

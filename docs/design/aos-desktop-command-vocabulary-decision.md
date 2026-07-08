@@ -29,8 +29,8 @@ fail-closed design.
   help/manifests/tests harder to keep synchronized.
 - A `desktop:<target>` namespace would introduce a competing target grammar
   before app/window/Space identity is stable enough to defend.
-- Remaining verbs such as fullscreen, menu invocation, and Space state need TCC,
-  focus, minimized window, and Space behavior designed first.
+- Remaining verbs such as fullscreen and Space state need TCC, focus,
+  minimized window, and Space behavior designed first.
 
 ## Follow-Up Criteria
 
@@ -47,5 +47,4 @@ Add a semantic desktop verb only when all of these are true:
 Candidate future verbs remain:
 
 - `aos do fullscreen-window`;
-- `aos do menu`;
 - a read-only Space state command before any Space-switching command.
