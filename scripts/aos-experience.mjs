@@ -61,16 +61,21 @@ function requireSuccess(result, summary) {
   throw new ExperienceFailure(`${summary}: ${result.stderr || result.stdout}`.trim(), 'COMMAND_FAILED');
 }
 
-function liveCanvasURL(id) {
+function liveCanvasRecord(id) {
   const result = runAos(['show', 'list', '--json'], { timeout: 10000 });
   if (result.status !== 0) return null;
   try {
     const parsed = JSON.parse(result.stdout);
     const canvas = (parsed.canvases || []).find((item) => item?.id === id);
-    return typeof canvas?.url === 'string' ? canvas.url : null;
+    return canvas && typeof canvas === 'object' ? cloneJSON(canvas) : null;
   } catch {
     return null;
   }
+}
+
+function liveCanvasURL(id) {
+  const canvas = liveCanvasRecord(id);
+  return typeof canvas?.url === 'string' ? canvas.url : null;
 }
 
 function runContentStatus() {
@@ -167,6 +172,22 @@ function writeActiveExperience(id) {
       // Best-effort cleanup; the mode-scoped state file is authoritative.
     }
   }
+}
+
+function captureActivationRollbackSnapshot() {
+  const config = readRuntimeConfig();
+  const statusItem = statusItemConfigObject(config);
+  const toggleID = typeof statusItem.toggle_id === 'string' && statusItem.toggle_id.trim()
+    ? statusItem.toggle_id.trim()
+    : null;
+  const mountedSurface = statusItem.enabled === true && toggleID
+    ? liveCanvasRecord(toggleID)
+    : null;
+  return {
+    config,
+    active: readActiveExperience(),
+    mounted_surface: mountedSurface,
+  };
 }
 
 function parseArgs(argv) {
@@ -465,15 +486,46 @@ function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousCo
   };
 }
 
-function rollbackStatusSurfaceActivation(previousConfig, previousActive, steps) {
+function restoreRollbackMountedSurface(snapshot, steps, allowStart) {
+  const statusItem = statusItemConfigObject(snapshot.config);
+  if (statusItem.enabled !== true) return;
+
+  const mountedSurface = snapshot.mounted_surface;
+  if (!mountedSurface) return;
+
+  const id = typeof mountedSurface.id === 'string' && mountedSurface.id.trim()
+    ? mountedSurface.id.trim()
+    : null;
+  const url = typeof mountedSurface.url === 'string' && mountedSurface.url.trim()
+    ? mountedSurface.url.trim()
+    : null;
+  if (!id || !url) return;
+
+  const createArgs = ['show', 'create', '--id', id, '--url', url, '--window-level', 'status_bar'];
+  const track = normalizeStatusItemTrack(statusItem.toggle_track);
+  if (track) createArgs.push('--track', track);
+  const autoStartEnv = allowStart ? { AOS_ALLOW_DAEMON_AUTOSTART: '1' } : {};
+  const create = runAos(createArgs, { timeout: 10000, env: autoStartEnv });
+  steps.push({
+    id: `status-surface:rollback-mounted-surface:${id}`,
+    status: create.status === 0 ? 'success' : 'failed',
+    action: create.status === 0 ? 'restored-canvas' : 'restore-canvas-failed',
+    toggle_id: id,
+    toggle_url: url,
+    error: create.status === 0 ? undefined : (create.stderr || create.stdout || null),
+  });
+}
+
+function rollbackStatusSurfaceActivation(snapshot, steps, allowStart) {
   try {
-    writeRuntimeConfig(previousConfig);
-    writeActiveExperience(previousActive);
+    writeRuntimeConfig(snapshot.config);
+    writeActiveExperience(snapshot.active);
     steps.push({
       id: 'status-surface:rollback',
       status: 'success',
-      active_experience: previousActive,
+      active_experience: snapshot.active,
     });
+    restoreRollbackMountedSurface(snapshot, steps, allowStart);
   } catch (rollbackError) {
     steps.push({
       id: 'status-surface:rollback',
@@ -485,16 +537,10 @@ function rollbackStatusSurfaceActivation(previousConfig, previousActive, steps) 
 
 function activateStatusSurfaceTransaction(manifest, roots, steps, allowStart) {
   const previousConfig = readRuntimeConfig();
-  const previousActive = readActiveExperience();
-  try {
-    const statusSurface = prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig);
-    statusSurface.commit();
-    writeActiveExperience(manifest.id);
-    steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
-  } catch (err) {
-    rollbackStatusSurfaceActivation(previousConfig, previousActive, steps);
-    throw err;
-  }
+  const statusSurface = prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig);
+  statusSurface.commit();
+  writeActiveExperience(manifest.id);
+  steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
 }
 
 function resolveStatusMenuItem(manifest, itemID) {
@@ -660,9 +706,15 @@ function activate(id, asJSON, dryRun, allowStart) {
   }
   const steps = [];
   requireLivePermission('experience.activate', allowStart);
-  ensureContentRoots(roots, steps, allowStart);
-  runHooks(manifest, 'before_activate', roots, steps);
-  activateStatusSurfaceTransaction(manifest, roots, steps, allowStart);
+  const rollbackSnapshot = captureActivationRollbackSnapshot();
+  try {
+    ensureContentRoots(roots, steps, allowStart);
+    runHooks(manifest, 'before_activate', roots, steps);
+    activateStatusSurfaceTransaction(manifest, roots, steps, allowStart);
+  } catch (err) {
+    rollbackStatusSurfaceActivation(rollbackSnapshot, steps, allowStart);
+    throw err;
+  }
   runHooks(manifest, 'after_activate', roots, steps);
   if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: manifest.id, steps });
   else process.stdout.write(`${manifest.title} experience active.\n`);

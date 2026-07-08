@@ -451,6 +451,7 @@ test('experience activation rolls back status item config and active state when 
     content: {
       roots: {
         toolkit: path.join(repoRoot, 'packages/toolkit'),
+        toolkit_previous: path.join(repoRoot, 'packages/toolkit'),
       },
     },
     status_item: {
@@ -474,7 +475,13 @@ if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
   process.exit(0);
 }
 if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
-  console.log(JSON.stringify({ canvases: [] }));
+  console.log(JSON.stringify({
+    canvases: [{
+      id: 'previous-surface',
+      url: 'aos://previous/renderer/index.html',
+      lifecycleState: 'active',
+    }],
+  }));
   process.exit(0);
 }
 if (args.join('\\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\\0')) {
@@ -510,6 +517,16 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
+  const callText = calls.map((args) => args.join('\0'));
+  const removePreviousIndex = callText.indexOf(['show', 'remove', '--id', 'previous-surface'].join('\0'));
+  const createNextIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
+  const waitNextIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
+  const restorePreviousIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'previous-surface'].join('\0')));
+  assert.notEqual(removePreviousIndex, -1, calls);
+  assert.notEqual(createNextIndex, -1, calls);
+  assert.notEqual(waitNextIndex, -1, calls);
+  assert.notEqual(restorePreviousIndex, -1, calls);
+  assert(removePreviousIndex < createNextIndex && createNextIndex < waitNextIndex && waitNextIndex < restorePreviousIndex, calls);
   assert(calls.some((args) => args.join('\0').startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0'))), calls);
   assert(calls.some((args) => args.join('\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0')), calls);
 });
