@@ -14,8 +14,9 @@ export function experienceRuntimeEnv({
   repoRoot = process.cwd(),
 } = {}) {
   const resolvedRepoRoot = path.resolve(repoRoot);
-  const stateRoot = envValue(env, 'AOS_STATE_ROOT')
-    ? path.resolve(envValue(env, 'AOS_STATE_ROOT'))
+  const explicitStateRoot = envValue(env, 'AOS_STATE_ROOT');
+  const stateRoot = explicitStateRoot
+    ? path.resolve(explicitStateRoot)
     : path.join(os.homedir(), '.config', 'aos');
   const mode = runtimeMode(env);
   const aos = envValue(env, 'AOS_PATH')
@@ -30,8 +31,9 @@ export function experienceRuntimeEnv({
     AOS_EXPERIENCES_DIR: experiencesRoot,
     AOS_PATH: aos,
     AOS_RUNTIME_MODE: mode,
-    AOS_STATE_ROOT: stateRoot,
   };
+  if (explicitStateRoot) normalizedEnv.AOS_STATE_ROOT = stateRoot;
+  else delete normalizedEnv.AOS_STATE_ROOT;
   return {
     aos,
     configPath: path.join(stateDir, 'config.json'),

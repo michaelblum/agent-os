@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { experienceRuntimeEnv } from '../scripts/lib/experience-runtime-env.mjs';
 import { buildExperienceRuntimeContext } from '../scripts/lib/experience-runtime-context.mjs';
 import {
   baseResponses,
   dryRunToggleURL,
   readFakeAosCalls,
+  repoRoot,
   runContext,
   runNode,
   toolkitRoot,
@@ -19,6 +21,32 @@ import {
   writeRuntimeStateFixture,
   writeSigtermIgnoringFakeAos,
 } from './lib/experience-runtime-fixtures.mjs';
+
+test('experience runtime child env preserves only explicit state root overrides', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-runtime-env-'));
+  const home = path.join(tmp, 'home');
+  const defaultRuntime = experienceRuntimeEnv({
+    env: { HOME: home },
+    repoRoot,
+  });
+  assert.equal(defaultRuntime.stateRoot, path.join(os.homedir(), '.config', 'aos'));
+  assert.equal(Object.hasOwn(defaultRuntime.env, 'AOS_STATE_ROOT'), false);
+
+  const placeholderRuntime = experienceRuntimeEnv({
+    env: { HOME: home, AOS_STATE_ROOT: '$AOS_STATE_ROOT' },
+    repoRoot,
+  });
+  assert.equal(placeholderRuntime.stateRoot, path.join(os.homedir(), '.config', 'aos'));
+  assert.equal(Object.hasOwn(placeholderRuntime.env, 'AOS_STATE_ROOT'), false);
+
+  const explicitStateRoot = path.join(tmp, 'state');
+  const explicitRuntime = experienceRuntimeEnv({
+    env: { HOME: home, AOS_STATE_ROOT: explicitStateRoot },
+    repoRoot,
+  });
+  assert.equal(explicitRuntime.stateRoot, explicitStateRoot);
+  assert.equal(explicitRuntime.env.AOS_STATE_ROOT, explicitStateRoot);
+});
 
 test('experience status rejects invalid id before passive fake AOS probes', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-invalid-id-'));
