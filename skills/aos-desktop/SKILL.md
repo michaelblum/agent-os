@@ -20,9 +20,9 @@ capability map.
 
 ## Desktop Actions
 
-- Use `./aos do raise --pid <pid> [--window id]` for window raise.
-- Use `./aos do move --pid <pid> --to <x,y> [--window id]` for window move.
-- Use `./aos do resize --pid <pid> --to <w,h> [--window id]` for window resize.
+- Use `./aos do raise --pid <pid> [--window id] --dry-run` before window raise.
+- Use `./aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before window move.
+- Use `./aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before window resize.
 - Use `./aos do press|focus|set-value <ref> --workspace <id> --dry-run` for
   stable native AX saved refs.
 - Use `./aos do press|focus|set-value --pid <pid> --role <role> ... --dry-run`

@@ -24,6 +24,14 @@
               "summary": "Window ID",
               "token": "--window",
               "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the window action without executing it",
+              "token": "--dry-run",
+              "value_type": "bool"
             }
           ],
           "examples": [
@@ -36,7 +44,7 @@
             "read_only": false,
             "requires_permissions": true,
             "streaming": false,
-            "supports_dry_run": false
+            "supports_dry_run": true
           },
           "id": "do-raise",
           "output": {
@@ -45,7 +53,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do raise --pid <pid> [--window id]"
+          "usage": "aos do raise --pid <pid> [--window id] [--dry-run]"
         },
         {
           "args": [
@@ -72,6 +80,14 @@
               "summary": "Window ID",
               "token": "--window",
               "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the window action without executing it",
+              "token": "--dry-run",
+              "value_type": "bool"
             }
           ],
           "examples": [
@@ -84,7 +100,7 @@
             "read_only": false,
             "requires_permissions": true,
             "streaming": false,
-            "supports_dry_run": false
+            "supports_dry_run": true
           },
           "id": "do-move",
           "output": {
@@ -93,7 +109,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do move --pid <pid> --to <x,y> [--window id]"
+          "usage": "aos do move --pid <pid> --to <x,y> [--window id] [--dry-run]"
         },
         {
           "args": [
@@ -120,6 +136,14 @@
               "summary": "Window ID",
               "token": "--window",
               "value_type": "int"
+            },
+            {
+              "id": "dry-run",
+              "kind": "flag",
+              "required": false,
+              "summary": "Validate and describe the window action without executing it",
+              "token": "--dry-run",
+              "value_type": "bool"
             }
           ],
           "examples": [
@@ -132,7 +156,7 @@
             "read_only": false,
             "requires_permissions": true,
             "streaming": false,
-            "supports_dry_run": false
+            "supports_dry_run": true
           },
           "id": "do-resize",
           "output": {
@@ -141,7 +165,7 @@
             "streaming": false,
             "supports_json_flag": false
           },
-          "usage": "aos do resize --pid <pid> --to <w,h> [--window id]"
+          "usage": "aos do resize --pid <pid> --to <w,h> [--window id] [--dry-run]"
         }
       ],
       "path": [

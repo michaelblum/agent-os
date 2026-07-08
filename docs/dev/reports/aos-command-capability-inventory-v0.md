@@ -25,7 +25,7 @@ current command tree before public CLI and self-hosting boundary changes.
 - Mutating or conditionally mutating forms: 101
 - Forms with unspecified mutability metadata: 0
 - Forms with JSON output path: 194
-- Forms with dry-run support: 24
+- Forms with dry-run support: 27
 
 ## Capability Group Counts
 
@@ -171,9 +171,9 @@ current command tree before public CLI and self-hosting boundary changes.
 | `do press` | `do-press` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-03-controls.json` | `node scripts/aos-do-ref.mjs press [prefix ref:]; node scripts/aos-do-native.mjs press [not ref:]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do set-value` | `do-set-value` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-03-controls.json` | `node scripts/aos-do-ref.mjs set-value [prefix ref:]; node scripts/aos-do-canvas.mjs set-value [prefix canvas:]; node scripts/aos-do-native.mjs set-value [not ref:/canvas:]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do focus` | `do-focus` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-03-controls.json` | `node scripts/aos-do-ref.mjs focus [prefix ref:]; node scripts/aos-do-native.mjs focus [not ref:]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do raise` | `do-raise` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs raise` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do move` | `do-move` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs move` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do resize` | `do-resize` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs resize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do raise` | `do-raise` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs raise` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do move` | `do-move` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs move` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do resize` | `do-resize` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs resize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do tell` | `do-tell` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs tell` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do session` | `do-session` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs session` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do profiles` | `do-profiles` | Desktop/native control | yes | read-only | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-profiles.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

@@ -60,18 +60,19 @@
     },
     {
       "id": "desktop-window-control-inventory",
-      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS window controls, and name the unsupported desktop lifecycle verbs that should not be simulated through shortcuts.",
+      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS window controls, dry-run window control before mutating, and name the unsupported desktop lifecycle verbs that should not be simulated through shortcuts.",
       "expected_skills": [
         "aos-desktop"
       ],
       "required_commands": [
         "^\\./aos help graph --json$",
         "^\\./aos graph windows$",
-        "^\\./aos do raise --pid <pid> --window <window-id>$"
+        "^\\./aos do raise --pid <pid> --window <window-id> --dry-run$"
       ],
       "expected_decision_terms": [
         "raise",
-        "move|resize|native AX"
+        "move|resize|native AX",
+        "dry-run"
       ],
       "expected_stop_terms": [
         "unsupported|stop",
@@ -190,11 +191,14 @@
           "selected_commands": [
             "./aos help graph --json",
             "./aos graph windows",
+            "./aos do raise --pid <pid> --window <window-id> --dry-run",
             "./aos do raise --pid <pid> --window <window-id>",
-            "./aos do move --pid <pid> --window <window-id> --to <x,y>",
-            "./aos do resize --pid <pid> --window <window-id> --to <w,h>"
+            "./aos do move --pid <pid> --to <x,y> --window <window-id> --dry-run",
+            "./aos do move --pid <pid> --to <x,y> --window <window-id>",
+            "./aos do resize --pid <pid> --to <w,h> --window <window-id> --dry-run",
+            "./aos do resize --pid <pid> --to <w,h> --window <window-id>"
           ],
-          "decision": "Use graph windows for inventory and first-class raise, move, resize, and native AX controls for action.",
+          "decision": "Use graph windows for inventory and dry-run first-class raise, move, resize, and native AX controls before action.",
           "stop_condition": "Stop on unsupported lifecycle verbs such as close, minimize, maximize, restore, fullscreen, menu invocation, or Space switching instead of simulating them."
         },
         {

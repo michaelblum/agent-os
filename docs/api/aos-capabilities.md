@@ -238,9 +238,9 @@ Status values:
 | App hide/unhide | deferred follow-up | none | likely key/script/native | No | Accessibility/Automation likely | Space/frontmost ambiguity | Add semantic verb |
 | Window list | first-class command | `aos graph windows [--display N]` | AOS display/window graph | Read-only | No special TCC in manifest | Lists visible graph state only | Keep |
 | Window focus | first-class command | `aos focus create --id <name> --window <wid>` | AOS focus channel | No | No special TCC in manifest | Tracks a window channel; not a raise command | Keep |
-| Window raise | first-class command | `aos do raise --pid <pid> [--window id]` | native window control | No | Accessibility | May fail under Space/minimized constraints | Consider dry-run in follow-up |
-| Window move | first-class command | `aos do move --pid <pid> --to <x,y> [--window id]` | native window control | No | Accessibility | Requires current resolvable window | Consider dry-run in follow-up |
-| Window resize | first-class command | `aos do resize --pid <pid> --to <w,h> [--window id]` | native window control | No | Accessibility | Requires current resolvable window | Consider dry-run in follow-up |
+| Window raise | first-class command | `aos do raise --pid <pid> [--window id] --dry-run` before `aos do raise --pid <pid> [--window id]` | native window control | Yes | Accessibility | May fail under Space/minimized constraints | Keep |
+| Window move | first-class command | `aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before `aos do move --pid <pid> --to <x,y> [--window id]` | native window control | Yes | Accessibility | Requires current resolvable window | Keep |
+| Window resize | first-class command | `aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before `aos do resize --pid <pid> --to <w,h> [--window id]` | native window control | Yes | Accessibility | Requires current resolvable window | Keep |
 | Window close | deferred follow-up | none | likely native/AX | No | Accessibility | Must validate target and enabled close affordance | Add semantic verb |
 | Window minimize | deferred follow-up | none | likely native/AX | No | Accessibility | Minimized windows change visibility/readback | Add semantic verb |
 | Window maximize/restore | deferred follow-up | none | likely native/AX/toolkit for AOS panels only | No | Accessibility | App-specific zoom/fullscreen behavior | Add semantic verb |
@@ -290,7 +290,7 @@ targets:
 2. Capture with `./aos see capture ... --save --workspace <id> --mode som`.
 3. Inspect `./aos see refs --workspace <id> --json`.
 4. Prefer `ref:<snapshot-id>:<ref>` over prose or coordinates.
-5. Dry-run when the command supports it.
+5. Dry-run before any supported mutating action, including window raise/move/resize.
 6. Act once only when the dry-run validates the current target.
 7. Recapture.
 8. Gate compact evidence with `./aos see refs --diff <before>..<after> --expect ...` or a Work Record verifier.
