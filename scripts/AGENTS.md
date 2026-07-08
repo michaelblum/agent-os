@@ -90,7 +90,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   adding ad hoc PATH checks.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from sign-only repair or no-op checks. Only actual rebuilds
-  should drive TCC-sensitive human-attention behavior.
+  should drive TCC-sensitive human-attention behavior. After a rebuild that
+  emits `Rebuilt: ./aos`, stop before TCC-backed daemon, capture, input, or
+  native proof and tell the user to manually reset/regrant the needed macOS TCC
+  permissions for the rebuilt binary. Treat TCC-backed failures after a rebuild
+  as inconclusive until the user confirms that reset.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.

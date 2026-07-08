@@ -50,7 +50,9 @@ instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
 itself under repair. The build path avoids rebuilding the TCC-owning repo-mode
 binary unless Swift runtime input content changed, the output is missing or in
 the wrong mode, or the caller passes `--force`. When it does rebuild, it emits a
-`Rebuilt: ./aos` marker and plays the configured system rebuild alert. Use
+`Rebuilt: ./aos` marker and plays the configured system rebuild alert; stop
+before TCC-backed proof until the user manually resets/regrants the needed
+macOS permissions and `./aos ready --post-permission` is green. Use
 `./aos dev gh` for GitHub operations from repo
 sessions; it shells out to the authenticated local `gh` CLI and does not fall
 back to connector-backed GitHub tools.
@@ -724,7 +726,8 @@ the TCC-owning binary. No post-build hook automates TCC handling: build does not
 reset permissions, open System Settings, show a human-needed surface, write
 completed-build markers, or inject provider input. Repo-mode binary rebuilds
 are TCC-sensitive and intentionally rare; successful rebuilds play a system
-alert sound so Michael can notice the event.
+alert sound and require a user reset/regrant checkpoint before TCC-backed proof.
+After the user confirms the reset, verify with `./aos ready --post-permission`.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development

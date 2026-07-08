@@ -83,6 +83,24 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     './aos dev build',
   );
   assert.equal(
+    rules.get('swift-core')?.verification?.[0]?.command,
+    './aos ready --post-permission',
+  );
+  assert.deepEqual(
+    rules.get('repo-build-tooling')?.commands?.map((step) => step.command),
+    ['bash tests/build-signing.sh'],
+  );
+  assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('build.sh'));
+  assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-signing.sh'));
+  assert.deepEqual(
+    rules.get('root-skill-packages')?.commands?.map((step) => step.command),
+    [
+      'node scripts/aos-skills-validate.mjs --json',
+      'node --test tests/aos-skills-registry.test.mjs',
+    ],
+  );
+  assert.ok(rules.get('root-skill-packages')?.patterns?.includes('skills/**'));
+  assert.equal(
     rules.get('command-contract-docs')?.commands?.[0]?.command,
     'bash tests/help-contract.sh',
   );

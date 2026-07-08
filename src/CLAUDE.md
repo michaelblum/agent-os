@@ -20,7 +20,9 @@ when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
 `Rebuilt: ./aos` marker and plays the configured rebuild alert sound. Treat that
-as a human-attention event for TCC-sensitive sessions.
+as a human-attention event for TCC-sensitive sessions: stop before TCC-backed
+proof, ask the human to manually reset/regrant the needed macOS permissions, and
+run `./aos ready --post-permission` after they confirm.
 
 When you are unsure which loop applies, ask the router first:
 

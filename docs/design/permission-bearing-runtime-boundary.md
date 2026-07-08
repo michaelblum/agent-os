@@ -63,6 +63,12 @@ Before rebuilding `aos`, classify the task:
   daemon behavior. Rebuild only when the verification path actually executes the
   changed binary.
 
+After a real repo-mode binary rebuild, the user must manually reset/regrant the
+needed macOS TCC permissions before TCC-backed daemon, capture, input, or native
+proof is valid. Automation must stop at that handoff instead of treating the
+post-rebuild permission failures as source regressions, then verify with
+`./aos ready --post-permission` after the user confirms the reset.
+
 If a content-only task appears to require a daemon rebuild, pause and identify
 which missing primitive is forcing the boundary crossing.
 

@@ -112,6 +112,12 @@ proof ladder from static evidence before asking for live runtime proof.
 Batch native rebuilds, TCC recovery, service reset, and other disruptive runtime
 steps into a single checkpoint when they are unavoidable.
 
+If the repo-mode `./aos` binary was actually rebuilt, pause before Level 3/4
+proof that depends on TCC and ask the user to manually reset/regrant the needed
+macOS permissions for the rebuilt binary. Treat later TCC-backed failures as
+inconclusive until that reset is confirmed, then verify with
+`./aos ready --post-permission`.
+
 ### Visual Diagnostics
 
 For display, canvas placement, or coordinate routing work, add visual diagnostic

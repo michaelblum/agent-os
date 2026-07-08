@@ -97,6 +97,11 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     cat "$FIRST_OUT" >&2
     exit 1
 fi
+if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$FIRST_OUT"; then
+    echo "FAIL: first build did not report the manual TCC reset handoff" >&2
+    cat "$FIRST_OUT" >&2
+    exit 1
+fi
 if ! grep -q -- '--identifier com.agentos.repo-aos' "$LOG"; then
     echo "FAIL: build signing must use the repo-launchable identifier" >&2
     cat "$LOG" >&2
@@ -156,6 +161,11 @@ if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG" || ! grep -qx 'al
 fi
 if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     echo "FAIL: changed runtime input content did not report explicit rebuild marker" >&2
+    cat "$CHANGED_OUT" >&2
+    exit 1
+fi
+if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$CHANGED_OUT"; then
+    echo "FAIL: changed runtime input content did not report the manual TCC reset handoff" >&2
     cat "$CHANGED_OUT" >&2
     exit 1
 fi

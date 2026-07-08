@@ -50,10 +50,66 @@
       "verification": [
         {
           "id": "ready",
-          "command": "./aos ready",
-          "reason": "Verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
+          "command": "./aos ready --post-permission",
+          "reason": "After a real rebuild and user TCC reset/regrant, verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
         }
       ]
+    },
+    {
+      "id": "repo-build-tooling",
+      "summary": "Repo-mode build wrapper, signing, or rebuild alert behavior changed.",
+      "patterns": [
+        "build.sh",
+        "scripts/aos-dev-build.mjs",
+        "tests/build-signing.sh"
+      ],
+      "classes": [
+        "build_tooling",
+        "aos_binary"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "build-signing-test",
+          "command": "bash tests/build-signing.sh",
+          "reason": "Verify content-based rebuilds, sign-only repair, and rebuild alert/TCC handoff behavior."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "root-skill-packages",
+      "summary": "Root skill package instructions or registry-backed skill contracts changed.",
+      "patterns": [
+        "skills/**",
+        "scripts/aos-skills*.mjs",
+        "tests/aos-skills-*.test.mjs"
+      ],
+      "classes": [
+        "skills"
+      ],
+      "actions": [
+        "skill_validation"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "skills-validate",
+          "command": "node scripts/aos-skills-validate.mjs --json",
+          "reason": "Validate root skill package metadata, body budgets, durable backing, and install target support."
+        },
+        {
+          "id": "skills-registry-test",
+          "command": "node --test tests/aos-skills-registry.test.mjs",
+          "reason": "Verify root skill registry coverage and split-skill contracts."
+        }
+      ],
+      "verification": []
     },
     {
       "id": "toolkit-components",
