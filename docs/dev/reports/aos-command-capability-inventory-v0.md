@@ -19,13 +19,13 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 42
-- Concrete forms: 203
-- Consumer-discoverable forms: 186
+- Concrete forms: 207
+- Consumer-discoverable forms: 190
 - Internal/transitional command paths: 2
-- Mutating or conditionally mutating forms: 105
+- Mutating or conditionally mutating forms: 109
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 198
-- Forms with dry-run support: 31
+- Forms with JSON output path: 202
+- Forms with dry-run support: 35
 
 ## Capability Group Counts
 
@@ -39,7 +39,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Core desktop | 8 |
 | Core readiness | 7 |
 | Desktop discovery | 4 |
-| Desktop/native control | 13 |
+| Desktop/native control | 17 |
 | Developer workflow | 8 |
 | Diagnostics/debug | 6 |
 | Operator input | 6 |
@@ -68,7 +68,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `show` | 15 | Overlay/display | yes | mutates, read-only | --json, default, no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-family-router.mjs show UNKNOWN_SUBCOMMAND show subcommand [not render/create/update/remove...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `ops` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/05-ops.json` | `node scripts/aos-ops.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `recipe` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/06-recipe.json` | `node scripts/aos-ops.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `do` | 27 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json, manifests/commands/source/aos/07-do-06-app-lifecycle.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do` | 31 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json, manifests/commands/source/aos/07-do-06-app-lifecycle.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `say` | 2 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `voice` | 7 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-family-router.mjs voice UNKNOWN_COMMAND voice command [child 0]` | `docs/api/aos.md` |
 | `gate` | 5 | Verification/evidence | yes | mutates, read-only | default | `manifests/commands/source/aos/10-gate.json` | `node scripts/aos-family-router.mjs gate UNKNOWN_SUBCOMMAND gate subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -174,6 +174,10 @@ current command tree before public CLI and self-hosting boundary changes.
 | `do raise` | `do-raise` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs raise` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do move` | `do-move` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs move` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do resize` | `do-resize` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs resize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do close` | `do-close` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs close` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do minimize` | `do-minimize` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs minimize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do maximize` | `do-maximize` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs maximize` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `do restore` | `do-restore` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-04-window.json` | `node scripts/aos-do-native.mjs restore` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do tell` | `do-tell` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs tell` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do session` | `do-session` | Desktop/native control | yes | mutates | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-native.mjs session` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do profiles` | `do-profiles` | Desktop/native control | yes | read-only | default | no | `manifests/commands/source/aos/07-do-05-script-session.json` | `node scripts/aos-do-profiles.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

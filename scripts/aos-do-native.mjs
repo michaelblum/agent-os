@@ -199,6 +199,14 @@ function validate(verb, args) {
       requireFlag(args, '--pid', 'resize requires --pid', isInt);
       requireFlag(args, '--to', 'resize requires --to w,h', isCoord);
       break;
+    case 'close':
+    case 'minimize':
+    case 'maximize':
+    case 'restore':
+      if (pos.length > 0) unknownArg(pos[0]);
+      requireFlag(args, '--pid', `${verb} requires --pid`, isInt);
+      requireFlag(args, '--window', `${verb} requires --window`, isInt);
+      break;
     case 'activate':
     case 'quit':
     case 'hide':

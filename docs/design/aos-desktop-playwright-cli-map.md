@@ -54,20 +54,20 @@ Authoritative sources for this map:
 | No focused focus/session lifecycle skill | Skill wording gap | `skills/aos-focus-sessions/` | Medium | Add installable skill. |
 | No focused verification/assertion skill | Skill wording gap | `skills/aos-verification/` | High | Add installable skill. |
 | App activate/quit/hide/unhide need command-truth coverage | Shipped as pid-scoped semantic `aos do` forms | `manifests/commands/source/aos/` and runtime adapter | Low | Keep dry-run/readback coverage current; use `aos do tell` only as explicit escape hatch for app-specific scripts. |
-| Window close/minimize/maximize/restore/fullscreen are not semantic AOS commands | Missing semantic command alias | `manifests/commands/source/aos/` and runtime adapter | High | Follow-up card seed; do not hand-wave as supported. |
+| Window close/minimize/maximize/restore need command-truth coverage; fullscreen remains deferred | Shipped exact-window `aos do` forms for close/minimize/maximize/restore | `manifests/commands/source/aos/` and runtime adapter | Medium | Keep fullscreen as a follow-up card seed until Space behavior is proven. |
 | Space detection/switching is not first-class | Missing underlying primitive | native runtime + command manifest | High | Follow-up card seed; fail closed until TCC/Space behavior is proven. |
 | Menu-item invocation is not first-class | Missing semantic command alias | native AX/runtime adapter | Medium | Follow-up card seed; use direct AX or script only when explicitly scoped. |
 | Browser-only primitives can look like AOS scope | Boundary wording gap | `aos-browser` skill and capability map | High | Explicitly delegate network mocking, storage/auth state, console/eval, tracing, video, PDF, locator/test generation, test debugging, uploads, select/check/uncheck, navigation history, reload, and tab management to upstream Playwright CLI. |
 
 ## Follow-Up Card Seeds
 
-These are explicit issue/card seeds under epic #587. They are not implemented in
-this slice.
+These are explicit issue/card seeds under epic #587 plus maintenance notes for
+the verbs that have graduated into first-class command truth.
 
 | Card | Desired command shape | Fail-closed requirement |
 | --- | --- | --- |
-| Add semantic app lifecycle verbs | `aos do activate-app`, `quit-app`, `hide-app`, `unhide-app` | Dry-run must identify app, required permissions, and whether the action would affect the frontmost app. |
-| Add semantic window lifecycle verbs | `aos do close-window`, `minimize-window`, `maximize-window`, `restore-window`, `fullscreen-window` | Must require a resolved pid/window id and report minimized/off-Space ambiguity before mutation. |
+| Maintain semantic app lifecycle verbs | `aos do activate`, `quit`, `hide`, `unhide` | Dry-run must identify app, required permissions, and whether the action would affect the frontmost app. |
+| Maintain semantic window lifecycle verbs | `aos do close`, `minimize`, `maximize`, `restore`; future `fullscreen-window` remains deferred | Must require a resolved pid/window id and report minimized/off-Space ambiguity before mutation. |
 | Add Space readback before switching | `aos graph spaces` or `aos do switch-space --dry-run` | Must fail closed when macOS does not expose reliable current-Space identity. |
 | Add menu item invocation | `aos do menu --pid <pid> --path File,Save` | Must validate the menu path and enabled state before dispatch. |
 

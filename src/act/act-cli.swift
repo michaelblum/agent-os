@@ -461,6 +461,254 @@ func cliResize(args: [String]) {
     cliPrintLegacy(action: "resize", backend: "ax", target: target, dryRun: false)
 }
 
+private struct SavedWindowFrame: Codable {
+    let pid: Int
+    let window_id: Int
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+private func windowLifecycleFramePath(pid: Int, windowID: Int) -> String {
+    let dir = (aosStateDir() as NSString).appendingPathComponent("window-frames")
+    try? FileManager.default.createDirectory(
+        atPath: dir,
+        withIntermediateDirectories: true,
+        attributes: nil
+    )
+    return (dir as NSString).appendingPathComponent("\(pid)-\(windowID).json")
+}
+
+private func saveWindowFrame(pid: Int, windowID: Int, frame: CGRect) {
+    let saved = SavedWindowFrame(
+        pid: pid,
+        window_id: windowID,
+        x: Double(frame.origin.x),
+        y: Double(frame.origin.y),
+        width: Double(frame.size.width),
+        height: Double(frame.size.height)
+    )
+    guard let data = try? JSONEncoder().encode(saved) else { return }
+    try? data.write(to: URL(fileURLWithPath: windowLifecycleFramePath(pid: pid, windowID: windowID)), options: [.atomic])
+}
+
+private func loadWindowFrame(pid: Int, windowID: Int) -> SavedWindowFrame? {
+    let path = windowLifecycleFramePath(pid: pid, windowID: windowID)
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+    return try? JSONDecoder().decode(SavedWindowFrame.self, from: data)
+}
+
+private func firstDisplayBounds(containing frame: CGRect) -> CGRect? {
+    var count: UInt32 = 0
+    guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
+    var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+    guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return nil }
+
+    let center = CGPoint(x: frame.midX, y: frame.midY)
+    let bounds = displays.map { CGDisplayBounds($0) }
+    return bounds.first { $0.contains(center) } ?? bounds.first
+}
+
+private func setWindowFrame(_ window: AXUIElement, frame: CGRect) -> AXError {
+    var point = frame.origin
+    guard let pointValue = AXValueCreate(.cgPoint, &point) else { return .failure }
+    let positionResult = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, pointValue)
+    guard positionResult == .success else { return positionResult }
+
+    var size = frame.size
+    guard let sizeValue = AXValueCreate(.cgSize, &size) else { return .failure }
+    return AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+}
+
+private func setWindowMinimized(_ window: AXUIElement, minimized: Bool) -> AXError {
+    var settable = DarwinBoolean(false)
+    let settableResult = AXUIElementIsAttributeSettable(window, kAXMinimizedAttribute as CFString, &settable)
+    guard settableResult == .success, settable.boolValue else { return settableResult == .success ? .notImplemented : settableResult }
+    return AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, minimized as CFTypeRef)
+}
+
+private func requireWindowAttributeSettable(_ window: AXUIElement, attribute: String, action: String) {
+    var settable = DarwinBoolean(false)
+    let result = AXUIElementIsAttributeSettable(window, attribute as CFString, &settable)
+    guard result == .success else {
+        exitError("Cannot inspect window \(action) support (AX error \(result.rawValue))", code: "AX_ACTION_UNAVAILABLE")
+    }
+    guard settable.boolValue else {
+        exitError("Window does not support \(action)", code: "AX_ACTION_UNAVAILABLE")
+    }
+}
+
+private func requireWindowFrameSettable(_ window: AXUIElement, action: String) {
+    requireWindowAttributeSettable(window, attribute: kAXPositionAttribute as String, action: "\(action) position")
+    requireWindowAttributeSettable(window, attribute: kAXSizeAttribute as String, action: "\(action) size")
+}
+
+private func requireWindowButtonPress(_ window: AXUIElement, attribute: String, action: String) -> AXUIElement {
+    var value: AnyObject?
+    let copyResult = AXUIElementCopyAttributeValue(window, attribute as CFString, &value)
+    guard copyResult == .success, let button = value else {
+        exitError("Window \(action) button is unavailable (AX error \(copyResult.rawValue))", code: "AX_ACTION_UNAVAILABLE")
+    }
+    let buttonElement = button as! AXUIElement
+    if axBool(buttonElement, kAXEnabledAttribute as String) == false {
+        exitError("Window \(action) button is disabled", code: "AX_ACTION_UNAVAILABLE")
+    }
+    guard axActions(buttonElement).contains(kAXPressAction as String) else {
+        exitError("Window \(action) button does not expose AXPress", code: "AX_ACTION_UNAVAILABLE")
+    }
+    return buttonElement
+}
+
+private func windowFrameApproximatelyEquals(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+    abs(lhs.origin.x - rhs.origin.x) <= 2
+        && abs(lhs.origin.y - rhs.origin.y) <= 2
+        && abs(lhs.size.width - rhs.size.width) <= 2
+        && abs(lhs.size.height - rhs.size.height) <= 2
+}
+
+private func validateWindowLifecyclePrerequisites(
+    action: String,
+    resolved: (pid: Int, windowID: Int, window: AXUIElement, target: LegacyTargetInfo),
+    minimized: Bool?
+) {
+    switch action {
+    case "close":
+        _ = requireWindowButtonPress(resolved.window, attribute: kAXCloseButtonAttribute as String, action: "close")
+    case "minimize":
+        requireWindowAttributeSettable(resolved.window, attribute: kAXMinimizedAttribute as String, action: "minimize")
+    case "maximize":
+        if minimized == true {
+            exitError("Cannot maximize minimized window \(resolved.windowID); restore it first", code: "WINDOW_MINIMIZED")
+        }
+        guard let current = axBounds(resolved.window) else {
+            exitError("Cannot read current window frame", code: "WINDOW_FRAME_UNAVAILABLE")
+        }
+        guard firstDisplayBounds(containing: current) != nil else {
+            exitError("Cannot resolve display bounds for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
+        }
+        requireWindowFrameSettable(resolved.window, action: "maximize")
+    case "restore":
+        guard let minimized else {
+            exitError("Cannot read minimized state for window \(resolved.windowID)", code: "WINDOW_STATE_UNAVAILABLE")
+        }
+        if minimized {
+            requireWindowAttributeSettable(resolved.window, attribute: kAXMinimizedAttribute as String, action: "restore")
+        } else {
+            guard loadWindowFrame(pid: resolved.pid, windowID: resolved.windowID) != nil else {
+                exitError("No saved maximize frame for window \(resolved.windowID)", code: "WINDOW_RESTORE_STATE_NOT_FOUND")
+            }
+            requireWindowFrameSettable(resolved.window, action: "restore")
+        }
+    default:
+        exitError("Unknown window lifecycle action: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func resolveExactWindow(args: [String], action: String) -> (pid: Int, windowID: Int, window: AXUIElement, target: LegacyTargetInfo) {
+    guard let pid = parseInt(getArg(args, "--pid")) else {
+        exitError("\(action) requires --pid", code: "MISSING_ARG")
+    }
+    guard let windowID = parseInt(getArg(args, "--window")) else {
+        exitError("\(action) requires --window", code: "MISSING_ARG")
+    }
+    guard let app = NSRunningApplication(processIdentifier: pid_t(pid)) else {
+        exitError("No running application found for pid \(pid)", code: "APP_NOT_FOUND")
+    }
+    guard let window = findWindowByID(pid: pid_t(pid), windowID: windowID) else {
+        exitError("No window \(windowID) found for pid \(pid)", code: "WINDOW_NOT_FOUND")
+    }
+
+    var target = LegacyTargetInfo(pid: pid)
+    target.window_id = windowID
+    target.app = app.localizedName
+    if let frame = axBounds(window) {
+        target.x = Double(frame.origin.x)
+        target.y = Double(frame.origin.y)
+        target.width = Double(frame.size.width)
+        target.height = Double(frame.size.height)
+    }
+    return (pid, windowID, window, target)
+}
+
+/// `aos do close|minimize|maximize|restore` — exact window lifecycle controls.
+func cliWindowLifecycle(action: String, args: [String]) {
+    let dryRun = hasFlag(args, "--dry-run")
+    let resolved = resolveExactWindow(args: args, action: action)
+    let minimized = axBool(resolved.window, kAXMinimizedAttribute as String)
+    validateWindowLifecyclePrerequisites(action: action, resolved: resolved, minimized: minimized)
+
+    if dryRun {
+        let onCurrentSpace = nativeAXWindowOnCurrentSpace(windowID: resolved.windowID)
+        let space = onCurrentSpace.map { $0 ? "visible_current_space" : "not_visible_current_space" } ?? "unknown_space"
+        let detail = "minimized=\(minimized.map(String.init) ?? "unknown") \(space) prerequisite=ok"
+        cliPrintLegacy(action: action, backend: "ax", target: resolved.target, detail: detail, dryRun: true)
+        return
+    }
+
+    switch action {
+    case "close":
+        let closeButton = requireWindowButtonPress(resolved.window, attribute: kAXCloseButtonAttribute as String, action: "close")
+        let result = AXUIElementPerformAction(closeButton, kAXPressAction as CFString)
+        guard result == .success else {
+            exitError("Failed to press window close button (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
+        }
+        usleep(150_000)
+        guard findWindowByID(pid: pid_t(resolved.pid), windowID: resolved.windowID) == nil else {
+            exitError("Window close was not confirmed for window \(resolved.windowID)", code: "WINDOW_CLOSE_UNCONFIRMED")
+        }
+    case "minimize":
+        let result = setWindowMinimized(resolved.window, minimized: true)
+        guard result == .success else {
+            exitError("Failed to minimize window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
+        }
+        guard axBool(resolved.window, kAXMinimizedAttribute as String) == true else {
+            exitError("Window minimize was not confirmed for window \(resolved.windowID)", code: "WINDOW_MINIMIZE_UNCONFIRMED")
+        }
+    case "maximize":
+        guard let current = axBounds(resolved.window) else {
+            exitError("Cannot read current window frame", code: "WINDOW_FRAME_UNAVAILABLE")
+        }
+        guard let targetFrame = firstDisplayBounds(containing: current) else {
+            exitError("Cannot resolve display bounds for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
+        }
+        saveWindowFrame(pid: resolved.pid, windowID: resolved.windowID, frame: current)
+        let result = setWindowFrame(resolved.window, frame: targetFrame)
+        guard result == .success else {
+            exitError("Failed to maximize window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
+        }
+        guard let actual = axBounds(resolved.window), windowFrameApproximatelyEquals(actual, targetFrame) else {
+            exitError("Window maximize was not confirmed for window \(resolved.windowID)", code: "WINDOW_MAXIMIZE_UNCONFIRMED")
+        }
+    case "restore":
+        if minimized == true {
+            let result = setWindowMinimized(resolved.window, minimized: false)
+            guard result == .success else {
+                exitError("Failed to restore minimized window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
+            }
+            guard axBool(resolved.window, kAXMinimizedAttribute as String) == false else {
+                exitError("Window restore was not confirmed for window \(resolved.windowID)", code: "WINDOW_RESTORE_UNCONFIRMED")
+            }
+        } else {
+            guard let saved = loadWindowFrame(pid: resolved.pid, windowID: resolved.windowID) else {
+                exitError("No saved maximize frame for window \(resolved.windowID)", code: "WINDOW_RESTORE_STATE_NOT_FOUND")
+            }
+            let frame = CGRect(x: saved.x, y: saved.y, width: saved.width, height: saved.height)
+            let result = setWindowFrame(resolved.window, frame: frame)
+            guard result == .success else {
+                exitError("Failed to restore window frame (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
+            }
+            guard let actual = axBounds(resolved.window), windowFrameApproximatelyEquals(actual, frame) else {
+                exitError("Window restore was not confirmed for window \(resolved.windowID)", code: "WINDOW_RESTORE_UNCONFIRMED")
+            }
+        }
+    default:
+        exitError("Unknown window lifecycle action: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+
+    cliPrintLegacy(action: action, backend: "ax", target: resolved.target, dryRun: false)
+}
+
 /// `aos do activate|quit|hide|unhide` — app lifecycle controls by process id.
 func cliAppLifecycle(action: String, args: [String]) {
     let dryRun = hasFlag(args, "--dry-run")

@@ -53,6 +53,10 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'do-raise',
     'do-move',
     'do-resize',
+    'do-close',
+    'do-minimize',
+    'do-maximize',
+    'do-restore',
     'do-tell',
     'show-create',
     'show-list',
@@ -78,6 +82,10 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'aos do quit',
     'aos do hide',
     'aos do unhide',
+    'aos do close',
+    'aos do minimize',
+    'aos do maximize',
+    'aos do restore',
     'aos skills companion check --name playwright-cli',
   ]) {
     assert.match(doc, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -90,9 +98,7 @@ test('AOS capability map preserves unsupported desktop verbs and browser boundar
   const decision = await read('docs/design/aos-desktop-command-vocabulary-decision.md');
 
   for (const phrase of [
-    'Window close',
-    'Window minimize',
-    'Window maximize/restore',
+    'Window fullscreen',
     'Space detection',
     'Space switching',
     'Menu-item invocation',

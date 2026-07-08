@@ -301,6 +301,26 @@ fi
 check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
 check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 300,200 --dry-run
 check_unknown_arg do-native-resize-extra-positional ./aos do resize stray --pid 123 --to 300,200 --dry-run
+check_missing_arg do-native-close-pid-missing ./aos do close --window 456 --dry-run
+check_missing_arg do-native-close-pid-invalid ./aos do close --pid nope --window 456 --dry-run
+check_missing_arg do-native-close-window-missing ./aos do close --pid 123 --dry-run
+check_invalid_arg do-native-close-window-invalid ./aos do close --pid 123 --window nope --dry-run
+check_unknown_arg do-native-close-extra-positional ./aos do close stray --pid 123 --window 456 --dry-run
+check_missing_arg do-native-minimize-pid-missing ./aos do minimize --window 456 --dry-run
+check_missing_arg do-native-minimize-pid-invalid ./aos do minimize --pid nope --window 456 --dry-run
+check_missing_arg do-native-minimize-window-missing ./aos do minimize --pid 123 --dry-run
+check_invalid_arg do-native-minimize-window-invalid ./aos do minimize --pid 123 --window nope --dry-run
+check_unknown_arg do-native-minimize-extra-positional ./aos do minimize stray --pid 123 --window 456 --dry-run
+check_missing_arg do-native-maximize-pid-missing ./aos do maximize --window 456 --dry-run
+check_missing_arg do-native-maximize-pid-invalid ./aos do maximize --pid nope --window 456 --dry-run
+check_missing_arg do-native-maximize-window-missing ./aos do maximize --pid 123 --dry-run
+check_invalid_arg do-native-maximize-window-invalid ./aos do maximize --pid 123 --window nope --dry-run
+check_unknown_arg do-native-maximize-extra-positional ./aos do maximize stray --pid 123 --window 456 --dry-run
+check_missing_arg do-native-restore-pid-missing ./aos do restore --window 456 --dry-run
+check_missing_arg do-native-restore-pid-invalid ./aos do restore --pid nope --window 456 --dry-run
+check_missing_arg do-native-restore-window-missing ./aos do restore --pid 123 --dry-run
+check_invalid_arg do-native-restore-window-invalid ./aos do restore --pid 123 --window nope --dry-run
+check_unknown_arg do-native-restore-extra-positional ./aos do restore stray --pid 123 --window 456 --dry-run
 check_missing_arg do-native-activate-pid-missing ./aos do activate --dry-run
 check_missing_arg do-native-activate-pid-invalid ./aos do activate --pid nope --dry-run
 check_unknown_arg do-native-activate-extra-positional ./aos do activate stray --pid 123 --dry-run

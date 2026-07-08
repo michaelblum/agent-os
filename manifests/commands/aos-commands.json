@@ -4679,6 +4679,198 @@
         {
           "args" : [
             {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Window ID",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the window action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do close --pid 1234 --window 5678 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-close",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do close --pid <pid> --window <id> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Window ID",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the window action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do minimize --pid 1234 --window 5678 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-minimize",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do minimize --pid <pid> --window <id> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Window ID",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the window action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do maximize --pid 1234 --window 5678 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-maximize",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do maximize --pid <pid> --window <id> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "window",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Window ID",
+              "token" : "--window",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the window action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do restore --pid 1234 --window 5678 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-restore",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do restore --pid <pid> --window <id> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
               "id" : "app",
               "kind" : "positional",
               "required" : true,

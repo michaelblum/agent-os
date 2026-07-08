@@ -142,6 +142,18 @@ private func handleDoPrimitive(args: [String]) {
     case "resize":
         ensureInteractivePreflight(command: "aos do resize", requiresInputTap: true)
         cliResize(args: subArgs)
+    case "close":
+        ensureInteractivePreflight(command: "aos do close")
+        cliWindowLifecycle(action: "close", args: subArgs)
+    case "minimize":
+        ensureInteractivePreflight(command: "aos do minimize")
+        cliWindowLifecycle(action: "minimize", args: subArgs)
+    case "maximize":
+        ensureInteractivePreflight(command: "aos do maximize")
+        cliWindowLifecycle(action: "maximize", args: subArgs)
+    case "restore":
+        ensureInteractivePreflight(command: "aos do restore")
+        cliWindowLifecycle(action: "restore", args: subArgs)
     case "activate":
         ensureInteractivePreflight(command: "aos do activate")
         cliAppLifecycle(action: "activate", args: subArgs)

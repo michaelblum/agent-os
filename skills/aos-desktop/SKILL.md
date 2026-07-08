@@ -26,6 +26,11 @@ capability map.
 - Use `./aos do raise --pid <pid> [--window id] --dry-run` before window raise.
 - Use `./aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before window move.
 - Use `./aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before window resize.
+- Use `./aos do close --pid <pid> --window <id> --dry-run` before window close.
+- Use `./aos do minimize --pid <pid> --window <id> --dry-run` before window minimize.
+- Use `./aos do maximize --pid <pid> --window <id> --dry-run` and `./aos do restore --pid <pid> --window <id> --dry-run` before window maximize/restore.
+- Window close/minimize/maximize/restore commands require exact `--pid` and
+  `--window` identity.
 - Use `./aos do press|focus|set-value <ref> --workspace <id> --dry-run` for
   stable native AX saved refs.
 - Use `./aos do press|focus|set-value --pid <pid> --role <role> ... --dry-run`
@@ -33,9 +38,8 @@ capability map.
 
 ## Boundaries
 
-- Window close/minimize/maximize/restore, fullscreen, Space switching,
-  Mission Control, and menu-item invocation are not first-class semantic
-  commands in this slice.
+- Window fullscreen, Space switching, Mission Control, and menu-item invocation
+  are not first-class semantic commands in this slice.
 - `./aos do tell <app> <script>` is a lower-level scripting escape hatch, not a
   substitute for claiming a semantic desktop verb exists.
 - Coordinates and keyboard fallback act on current focus; use them only when

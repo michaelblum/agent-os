@@ -1755,6 +1755,10 @@ Primary public verbs:
 | `raise` | raise an app/window |
 | `move` | move a window |
 | `resize` | resize a window |
+| `close` | close an exact window by pid and window id |
+| `minimize` | minimize an exact window by pid and window id |
+| `maximize` | maximize an exact window by pid and window id |
+| `restore` | restore an exact minimized/maximized window by pid and window id |
 | `tell` | AppleScript verb |
 | `session` | interactive action session |
 | `profiles` | inspect behavior profiles |

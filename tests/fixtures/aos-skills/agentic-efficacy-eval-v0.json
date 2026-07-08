@@ -60,7 +60,7 @@
     },
     {
       "id": "desktop-window-control-inventory",
-      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, dry-run app/window control before mutating, and name the unsupported desktop lifecycle verbs that should not be simulated through shortcuts.",
+      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, dry-run app/window control before mutating, and name the unsupported desktop boundaries that should not be simulated through shortcuts.",
       "expected_skills": [
         "aos-desktop"
       ],
@@ -68,17 +68,21 @@
         "^\\./aos help graph --json$",
         "^\\./aos graph windows$",
         "^\\./aos do activate --pid <pid> --dry-run$",
-        "^\\./aos do raise --pid <pid> --window <window-id> --dry-run$"
+        "^\\./aos do raise --pid <pid> --window <window-id> --dry-run$",
+        "^\\./aos do close --pid <pid> --window <window-id> --dry-run$",
+        "^\\./aos do minimize --pid <pid> --window <window-id> --dry-run$",
+        "^\\./aos do maximize --pid <pid> --window <window-id> --dry-run$",
+        "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$"
       ],
       "expected_decision_terms": [
         "activate|quit|hide|unhide",
         "raise",
-        "move|resize|native AX",
+        "move|resize|close|minimize|maximize|restore|native AX",
         "dry-run"
       ],
       "expected_stop_terms": [
         "unsupported|stop",
-        "close|minimize|maximize|Space"
+        "fullscreen|menu invocation|Space"
       ],
       "forbidden_patterns": [
         "AppleScript",
@@ -203,10 +207,18 @@
             "./aos do move --pid <pid> --to <x,y> --window <window-id> --dry-run",
             "./aos do move --pid <pid> --to <x,y> --window <window-id>",
             "./aos do resize --pid <pid> --to <w,h> --window <window-id> --dry-run",
-            "./aos do resize --pid <pid> --to <w,h> --window <window-id>"
+            "./aos do resize --pid <pid> --to <w,h> --window <window-id>",
+            "./aos do close --pid <pid> --window <window-id> --dry-run",
+            "./aos do close --pid <pid> --window <window-id>",
+            "./aos do minimize --pid <pid> --window <window-id> --dry-run",
+            "./aos do minimize --pid <pid> --window <window-id>",
+            "./aos do maximize --pid <pid> --window <window-id> --dry-run",
+            "./aos do maximize --pid <pid> --window <window-id>",
+            "./aos do restore --pid <pid> --window <window-id> --dry-run",
+            "./aos do restore --pid <pid> --window <window-id>"
           ],
-          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, and native AX controls before action.",
-          "stop_condition": "Stop on unsupported lifecycle verbs such as window close, minimize, maximize, restore, fullscreen, menu invocation, or Space switching instead of simulating them."
+          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, and native AX controls before action.",
+          "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, menu invocation, or Space switching instead of simulating them."
         },
         {
           "case_id": "saved-workspace-observe-act-recapture",
@@ -281,7 +293,7 @@
             "./aos graph windows --json",
             "./aos do click <x,y> --state-id <state-id>"
           ],
-          "decision": "Use AppleScript or coordinate click to close and minimize windows.",
+          "decision": "Use AppleScript or coordinate click to fullscreen windows and switch Spaces.",
           "stop_condition": "Stop after the click."
         },
         {

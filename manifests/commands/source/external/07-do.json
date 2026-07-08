@@ -56,6 +56,10 @@
           "raise",
           "move",
           "resize",
+          "close",
+          "minimize",
+          "maximize",
+          "restore",
           "activate",
           "quit",
           "hide",
@@ -858,6 +862,82 @@
         "node",
         "scripts/aos-do-native.mjs",
         "resize"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "close"
+      ],
+      "summary": "Close an exact native window through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "close"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "minimize"
+      ],
+      "summary": "Minimize an exact native window through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "minimize"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "maximize"
+      ],
+      "summary": "Maximize an exact native window through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "maximize"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "restore"
+      ],
+      "summary": "Restore an exact native window through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "restore"
       ],
       "cwd": "repo",
       "env": {
