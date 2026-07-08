@@ -189,7 +189,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
-| Desktop/native control | Window raise/move/resize and native AX press/focus/set-value | `do raise`, `do move`, `do resize`, `do press`, `do focus`, `do set-value` |
+| Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do press`, `do focus`, `do set-value` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
 | Browser companion | AOS browser refs plus upstream Playwright CLI escape hatch | `focus create --target browser://...`, `see capture browser:<session> --save`, `do ... browser/ref`, `skills companion check --name playwright-cli` |
@@ -233,9 +233,9 @@ Status values:
 | Action | Status | Current command | Mechanism | Dry-run | Permissions | Spaces/minimized notes | Next step |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | App launch | first-class command | `aos launch <app> [--dry-run]` | AOS source app launcher | Yes | No special TCC in manifest | Source-owned app ids, not arbitrary macOS apps | Keep |
-| App activate | deferred follow-up | none | likely native/AX or script | No | Accessibility likely | Must prove off-Space behavior | Add semantic verb only after fail-closed design |
-| App quit | deferred follow-up | none | likely native/AX or AppleScript | No | Accessibility/Automation likely | Must avoid quitting wrong app | Add semantic verb |
-| App hide/unhide | deferred follow-up | none | likely key/script/native | No | Accessibility/Automation likely | Space/frontmost ambiguity | Add semantic verb |
+| App activate | first-class command | `aos do activate --pid <pid> --dry-run` before `aos do activate --pid <pid>` | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Activates all app windows; still use graph/readback to target the intended pid | Keep |
+| App quit | first-class command | `aos do quit --pid <pid> --dry-run` before `aos do quit --pid <pid>` | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Sends graceful terminate request to exactly one running pid | Keep |
+| App hide/unhide | first-class command | `aos do hide --pid <pid> --dry-run` / `aos do unhide --pid <pid> --dry-run` before action | AppKit app lifecycle | Yes | Accessibility/setup gate in manifest | Pid-scoped app visibility, not Space switching | Keep |
 | Window list | first-class command | `aos graph windows [--display N]` | AOS display/window graph | Read-only | No special TCC in manifest | Lists visible graph state only | Keep |
 | Window focus | first-class command | `aos focus create --id <name> --window <wid>` | AOS focus channel | No | No special TCC in manifest | Tracks a window channel; not a raise command | Keep |
 | Window raise | first-class command | `aos do raise --pid <pid> [--window id] --dry-run` before `aos do raise --pid <pid> [--window id]` | native window control | Yes | Accessibility | May fail under Space/minimized constraints | Keep |

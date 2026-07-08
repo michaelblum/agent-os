@@ -53,7 +53,7 @@ Authoritative sources for this map:
 | No focused canvas/vision fallback skill | Skill wording gap | `skills/aos-canvas-vision/` | Medium | Add installable skill. |
 | No focused focus/session lifecycle skill | Skill wording gap | `skills/aos-focus-sessions/` | Medium | Add installable skill. |
 | No focused verification/assertion skill | Skill wording gap | `skills/aos-verification/` | High | Add installable skill. |
-| App activate/quit/hide/unhide are not semantic AOS commands | Missing semantic command alias | `manifests/commands/source/aos/` and runtime adapter | High | Follow-up card seed; use `aos do tell` only as explicit escape hatch. |
+| App activate/quit/hide/unhide need command-truth coverage | Shipped as pid-scoped semantic `aos do` forms | `manifests/commands/source/aos/` and runtime adapter | Low | Keep dry-run/readback coverage current; use `aos do tell` only as explicit escape hatch for app-specific scripts. |
 | Window close/minimize/maximize/restore/fullscreen are not semantic AOS commands | Missing semantic command alias | `manifests/commands/source/aos/` and runtime adapter | High | Follow-up card seed; do not hand-wave as supported. |
 | Space detection/switching is not first-class | Missing underlying primitive | native runtime + command manifest | High | Follow-up card seed; fail closed until TCC/Space behavior is proven. |
 | Menu-item invocation is not first-class | Missing semantic command alias | native AX/runtime adapter | Medium | Follow-up card seed; use direct AX or script only when explicitly scoped. |

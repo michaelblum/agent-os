@@ -4780,6 +4780,166 @@
             "supports_json_flag" : false
           },
           "usage" : "aos do profiles [name]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the app lifecycle action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do activate --pid 1234 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-activate",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do activate --pid <pid> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the app lifecycle action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do quit --pid 1234 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-quit",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do quit --pid <pid> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the app lifecycle action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do hide --pid 1234 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-hide",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do hide --pid <pid> [--dry-run]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "pid",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Process ID",
+              "token" : "--pid",
+              "value_type" : "int"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Validate and describe the app lifecycle action without executing it",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos do unhide --pid 1234 --dry-run"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "do-unhide",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos do unhide --pid <pid> [--dry-run]"
         }
       ],
       "path" : [

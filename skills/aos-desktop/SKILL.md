@@ -20,6 +20,9 @@ capability map.
 
 ## Desktop Actions
 
+- Use `./aos do activate --pid <pid> --dry-run` before app activate.
+- Use `./aos do quit --pid <pid> --dry-run` before app quit.
+- Use `./aos do hide --pid <pid> --dry-run` and `./aos do unhide --pid <pid> --dry-run` before app visibility changes.
 - Use `./aos do raise --pid <pid> [--window id] --dry-run` before window raise.
 - Use `./aos do move --pid <pid> --to <x,y> [--window id] --dry-run` before window move.
 - Use `./aos do resize --pid <pid> --to <w,h> [--window id] --dry-run` before window resize.
@@ -30,9 +33,9 @@ capability map.
 
 ## Boundaries
 
-- App activate/quit/hide/unhide and window close/minimize/maximize/restore,
-  fullscreen, Space switching, Mission Control, and menu-item invocation are
-  not first-class semantic commands in this slice.
+- Window close/minimize/maximize/restore, fullscreen, Space switching,
+  Mission Control, and menu-item invocation are not first-class semantic
+  commands in this slice.
 - `./aos do tell <app> <script>` is a lower-level scripting escape hatch, not a
   substitute for claiming a semantic desktop verb exists.
 - Coordinates and keyboard fallback act on current focus; use them only when

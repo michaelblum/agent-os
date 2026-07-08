@@ -56,6 +56,10 @@
           "raise",
           "move",
           "resize",
+          "activate",
+          "quit",
+          "hide",
+          "unhide",
           "tell",
           "session",
           "profiles"
@@ -854,6 +858,82 @@
         "node",
         "scripts/aos-do-native.mjs",
         "resize"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "activate"
+      ],
+      "summary": "Activate an app through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "activate"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "quit"
+      ],
+      "summary": "Quit an app through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "quit"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "hide"
+      ],
+      "summary": "Hide an app through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "hide"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "do",
+        "unhide"
+      ],
+      "summary": "Unhide an app through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-do-native.mjs",
+        "unhide"
       ],
       "cwd": "repo",
       "env": {

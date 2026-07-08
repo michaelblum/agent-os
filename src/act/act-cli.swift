@@ -461,6 +461,48 @@ func cliResize(args: [String]) {
     cliPrintLegacy(action: "resize", backend: "ax", target: target, dryRun: false)
 }
 
+/// `aos do activate|quit|hide|unhide` — app lifecycle controls by process id.
+func cliAppLifecycle(action: String, args: [String]) {
+    let dryRun = hasFlag(args, "--dry-run")
+
+    guard let pid = parseInt(getArg(args, "--pid")) else {
+        exitError("\(action) requires --pid", code: "MISSING_ARG")
+    }
+
+    let running = NSRunningApplication(processIdentifier: pid_t(pid))
+    var target = LegacyTargetInfo(pid: pid)
+    target.app = running?.localizedName
+
+    if dryRun {
+        cliPrintLegacy(action: action, backend: "appkit", target: target, dryRun: true)
+        return
+    }
+
+    guard let app = running else {
+        exitError("No running application found for pid \(pid)", code: "APP_NOT_FOUND")
+    }
+
+    let ok: Bool
+    switch action {
+    case "activate":
+        ok = app.activate(options: [.activateAllWindows])
+    case "quit":
+        ok = app.terminate()
+    case "hide":
+        ok = app.hide()
+    case "unhide":
+        ok = app.unhide()
+    default:
+        exitError("Unknown app lifecycle action: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+
+    guard ok else {
+        exitError("App lifecycle action \(action) failed for pid \(pid)", code: "APP_ACTION_FAILED")
+    }
+
+    cliPrintLegacy(action: action, backend: "appkit", target: target, dryRun: false)
+}
+
 // MARK: - CGEvent Backend CLI Commands
 
 /// `aos do click` — click at coordinates.

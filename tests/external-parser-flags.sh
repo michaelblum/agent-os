@@ -301,6 +301,18 @@ fi
 check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
 check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 300,200 --dry-run
 check_unknown_arg do-native-resize-extra-positional ./aos do resize stray --pid 123 --to 300,200 --dry-run
+check_missing_arg do-native-activate-pid-missing ./aos do activate --dry-run
+check_missing_arg do-native-activate-pid-invalid ./aos do activate --pid nope --dry-run
+check_unknown_arg do-native-activate-extra-positional ./aos do activate stray --pid 123 --dry-run
+check_missing_arg do-native-quit-pid-missing ./aos do quit --dry-run
+check_missing_arg do-native-quit-pid-invalid ./aos do quit --pid nope --dry-run
+check_unknown_arg do-native-quit-extra-positional ./aos do quit stray --pid 123 --dry-run
+check_missing_arg do-native-hide-pid-missing ./aos do hide --dry-run
+check_missing_arg do-native-hide-pid-invalid ./aos do hide --pid nope --dry-run
+check_unknown_arg do-native-hide-extra-positional ./aos do hide stray --pid 123 --dry-run
+check_missing_arg do-native-unhide-pid-missing ./aos do unhide --dry-run
+check_missing_arg do-native-unhide-pid-invalid ./aos do unhide --pid nope --dry-run
+check_unknown_arg do-native-unhide-extra-positional ./aos do unhide stray --pid 123 --dry-run
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected

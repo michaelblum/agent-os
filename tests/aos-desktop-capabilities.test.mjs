@@ -46,6 +46,10 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'do-press',
     'do-focus',
     'do-set-value',
+    'do-activate',
+    'do-quit',
+    'do-hide',
+    'do-unhide',
     'do-raise',
     'do-move',
     'do-resize',
@@ -70,6 +74,10 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'aos do press',
     'aos do focus',
     'aos do set-value',
+    'aos do activate',
+    'aos do quit',
+    'aos do hide',
+    'aos do unhide',
     'aos skills companion check --name playwright-cli',
   ]) {
     assert.match(doc, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));

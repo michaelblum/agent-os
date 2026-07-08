@@ -142,6 +142,18 @@ private func handleDoPrimitive(args: [String]) {
     case "resize":
         ensureInteractivePreflight(command: "aos do resize", requiresInputTap: true)
         cliResize(args: subArgs)
+    case "activate":
+        ensureInteractivePreflight(command: "aos do activate")
+        cliAppLifecycle(action: "activate", args: subArgs)
+    case "quit":
+        ensureInteractivePreflight(command: "aos do quit")
+        cliAppLifecycle(action: "quit", args: subArgs)
+    case "hide":
+        ensureInteractivePreflight(command: "aos do hide")
+        cliAppLifecycle(action: "hide", args: subArgs)
+    case "unhide":
+        ensureInteractivePreflight(command: "aos do unhide")
+        cliAppLifecycle(action: "unhide", args: subArgs)
     case "tell":
         ensureInteractivePreflight(command: "aos do tell", requiresInputTap: true)
         cliTell(args: subArgs)

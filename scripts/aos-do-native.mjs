@@ -199,6 +199,13 @@ function validate(verb, args) {
       requireFlag(args, '--pid', 'resize requires --pid', isInt);
       requireFlag(args, '--to', 'resize requires --to w,h', isCoord);
       break;
+    case 'activate':
+    case 'quit':
+    case 'hide':
+    case 'unhide':
+      if (pos.length > 0) unknownArg(pos[0]);
+      requireFlag(args, '--pid', `${verb} requires --pid`, isInt);
+      break;
     case 'tell':
       if (pos.length < 2) error('tell requires an app name and a script body', 'MISSING_ARG');
       break;

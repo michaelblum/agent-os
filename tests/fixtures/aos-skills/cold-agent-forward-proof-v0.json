@@ -65,7 +65,7 @@
     {
       "id": "desktop-window-control-inventory",
       "requirement": "use desktop skill and capability map to inventory app, window, and native AX controls before acting",
-      "prompt": "Fresh agent: decide how to inspect visible windows, identify first-class window controls, dry-run window control before mutating, and stop on unsupported app/window lifecycle verbs.",
+      "prompt": "Fresh agent: decide how to inspect visible windows, identify first-class app/window controls, dry-run app/window control before mutating, and stop on unsupported window lifecycle verbs.",
       "selected_skills": [
         "aos-desktop"
       ],
@@ -73,6 +73,11 @@
         "./aos help graph --json",
         "./aos help do --json",
         "./aos graph windows",
+        "./aos do activate --pid <pid> --dry-run",
+        "./aos do activate --pid <pid>",
+        "./aos do quit --pid <pid> --dry-run",
+        "./aos do hide --pid <pid> --dry-run",
+        "./aos do unhide --pid <pid> --dry-run",
         "./aos do raise --pid <pid> --window <window-id> --dry-run",
         "./aos do raise --pid <pid> --window <window-id>",
         "./aos do move --pid <pid> --to <x,y> --window <window-id> --dry-run",
@@ -82,7 +87,7 @@
         "./aos do press --pid <pid> --role <role> --title <title> --dry-run"
       ],
       "captured_output": {
-        "decision": "Treat raise, move, resize, and native AX press/focus/set-value as current AOS desktop controls, and dry-run supported mutating controls before action. Treat app activate/quit/hide/unhide, window close/minimize/maximize/restore/fullscreen, Space switching, and menu invocation as follow-up or unsupported until a fail-closed semantic command exists.",
+        "decision": "Treat app activate/quit/hide/unhide, raise, move, resize, and native AX press/focus/set-value as current AOS desktop controls, and dry-run supported mutating controls before action. Treat window close/minimize/maximize/restore/fullscreen, Space switching, and menu invocation as follow-up or unsupported until a fail-closed semantic command exists.",
         "stop_condition": "Stop before using script, key, or coordinate fallback to simulate an unsupported semantic desktop verb unless the task explicitly authorizes that escape hatch.",
         "rejected_competing_surfaces": [
           "claiming close-window is supported because AppleScript could do it",
