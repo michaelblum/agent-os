@@ -71,6 +71,10 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.doesNotMatch(verification, /act-recapture-assert/);
   assert.match(verification, /see refs --diff/);
 
+  const annotations = await readFile(path.join(repoRoot, 'skills', 'aos-operator-annotations', 'SKILL.md'), 'utf8');
+  assert.match(annotations, /experience menu invoke/);
+  assert.match(annotations, /status-item\/operator annotation flow/);
+
   const retiredWorkspace = await readFile(path.join(repoRoot, 'skills', 'aos-agent-workspace', 'SKILL.md'), 'utf8');
   assert.match(retiredWorkspace, /retired as installable guidance/);
   assert.match(retiredWorkspace, /skills\/aos-desktop\/SKILL\.md/);

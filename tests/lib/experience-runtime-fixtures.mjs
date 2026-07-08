@@ -50,6 +50,18 @@ async function writeFakeAosScript(tmp, {
     ? `
 if (key.startsWith('config set ')) process.exit(0);
 if (key === 'content wait --root toolkit --auto-start --allow-start --timeout 15s') process.exit(0);
+if (key.startsWith('show create ')) {
+  console.log(JSON.stringify({ status: 'success' }));
+  process.exit(0);
+}
+if (key.startsWith('show wait ')) {
+  console.log(JSON.stringify({ status: 'success', ready: true }));
+  process.exit(0);
+}
+if (key.startsWith('show remove ')) {
+  console.log(JSON.stringify({ status: 'success' }));
+  process.exit(0);
+}
 `
     : `
 const denied = [

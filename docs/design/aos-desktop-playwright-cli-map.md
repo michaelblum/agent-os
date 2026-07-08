@@ -57,7 +57,7 @@ Authoritative sources for this map:
 | Window close/minimize/maximize/restore need command-truth coverage; fullscreen remains deferred | Shipped exact-window `aos do` forms for close/minimize/maximize/restore | `manifests/commands/source/aos/` and runtime adapter | Medium | Keep fullscreen as a follow-up card seed until Space behavior is proven. |
 | Space detection/switching is not first-class | Missing underlying primitive | native runtime + command manifest | High | Follow-up card seed; fail closed until TCC/Space behavior is proven. |
 | Mission Control / app expose is not first-class | Missing stable global UI-mode readback | native runtime + command manifest | High | Keep unsupported until the command can prove before/after UI mode without relying on shortcuts alone. |
-| Menu-item invocation needs command-truth coverage | Shipped as pid-scoped `aos do menu --path ...` | native AX/runtime adapter | Low | Keep dry-run path and enabled-leaf readback current. |
+| Menu-item invocation needs command-truth coverage | Shipped as pid-scoped app menu `aos do menu --path ...`; AOS-owned status-item menus use `aos experience menu invoke` | native AX/runtime adapter plus experience mounted-surface dispatch | Low | Keep app-menu dry-run path and AOS-owned status-item dry-run path current; do not imply arbitrary third-party menu-extra scraping. |
 | Browser-only primitives can look like AOS scope | Boundary wording gap | `aos-browser` skill and capability map | High | Explicitly delegate network mocking, storage/auth state, console/eval, tracing, video, PDF, locator/test generation, test debugging, uploads, select/check/uncheck, navigation history, reload, and tab management to upstream Playwright CLI. |
 
 ## Follow-Up Card Seeds
@@ -69,7 +69,7 @@ the verbs that have graduated into first-class command truth.
 | --- | --- | --- |
 | Maintain semantic app lifecycle verbs | `aos do activate`, `quit`, `hide`, `unhide` | Dry-run must identify app, required permissions, and whether the action would affect the frontmost app. |
 | Maintain semantic window lifecycle verbs | `aos do close`, `minimize`, `maximize`, `restore`; future `fullscreen-window` remains deferred | Must require a resolved pid/window id and report minimized/off-Space ambiguity before mutation. |
-| Maintain menu item invocation | `aos do menu --pid <pid> --path File,Save` | Must validate the menu path and enabled state before dispatch. |
+| Maintain menu item invocation | `aos do menu --pid <pid> --path File,Save`; `aos experience menu invoke <id> --item <item-id>` for AOS-owned status-item entries | Must validate app menu path/enabled state or experience menu projection before dispatch. |
 | Add Space readback before switching | `aos graph spaces` or `aos do switch-space --dry-run` | Must fail closed when macOS does not expose reliable current-Space identity. |
 | Add Mission Control readback before showing global UI modes | `aos do show-mission-control --dry-run`, `aos do show-app-windows --pid <pid> --dry-run` | Must prove target UI mode before/after and provide a restore path. |
 

@@ -14,6 +14,7 @@ import {
   resolveRepoPath,
   rootMap,
   template,
+  mountedSurfaceMenuItemsForSurface,
 } from './lib/experience-manifest.mjs';
 import { buildExperienceRuntimeContext } from './lib/experience-runtime-context.mjs';
 import { experienceRuntimeEnv } from './lib/experience-runtime-env.mjs';
@@ -36,11 +37,12 @@ function fail(message, code) {
 }
 
 function run(command, args, options = {}) {
+  const { env: optionEnv = {}, ...spawnOptions } = options;
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     maxBuffer: 100 * 1024 * 1024,
-    env: runtimeEnv.env,
-    ...options,
+    env: { ...runtimeEnv.env, ...optionEnv },
+    ...spawnOptions,
   });
   return {
     status: result.status ?? 1,
@@ -134,11 +136,12 @@ function writeActiveExperience(id) {
 
 function parseArgs(argv) {
   const [subcommand, ...tail] = argv;
-  if (!subcommand || !['status', 'activate', 'deactivate'].includes(subcommand)) {
-    throw new ExperienceFailure('Usage: aos experience <status|activate|deactivate> [id] [--json] [--dry-run]', 'MISSING_ARG');
+  if (!subcommand || !['status', 'activate', 'deactivate', 'menu'].includes(subcommand)) {
+    throw new ExperienceFailure('Usage: aos experience <status|activate|deactivate|menu> [id] [--json] [--dry-run]', 'MISSING_ARG');
   }
   if (subcommand === 'status') return parseStatusArgs(tail);
   if (subcommand === 'activate') return parseActivateArgs(tail);
+  if (subcommand === 'menu') return parseMenuArgs(tail);
   return parseDeactivateArgs(tail);
 }
 
@@ -187,6 +190,44 @@ function parseDeactivateArgs(tail) {
     else throw new ExperienceFailure(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
   }
   return { subcommand: 'deactivate', id: null, json, dryRun, allowStart: false };
+}
+
+function parseMenuArgs(tail) {
+  const [action, ...rest] = tail;
+  if (action !== 'invoke') {
+    throw new ExperienceFailure('Usage: aos experience menu invoke <id> --item <item-id> [--json] [--dry-run]', 'MISSING_SUBCOMMAND');
+  }
+  return parseMenuInvokeArgs(rest);
+}
+
+function parseMenuInvokeArgs(tail) {
+  let json = false;
+  let dryRun = false;
+  let allowStart = false;
+  let id = null;
+  let item = null;
+
+  for (let i = 0; i < tail.length; i += 1) {
+    const arg = tail[i];
+    if (arg === '--json') json = true;
+    else if (arg === '--dry-run') dryRun = true;
+    else if (arg === '--allow-start') allowStart = true;
+    else if (arg === '--item') {
+      const value = tail[++i];
+      if (!value || value.startsWith('--')) throw new ExperienceFailure('--item requires a value', 'MISSING_ARG');
+      item = value;
+    } else if (arg.startsWith('--')) {
+      throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    } else if (id === null) {
+      id = arg;
+    } else {
+      throw new ExperienceFailure(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
+    }
+  }
+
+  if (!id) throw new ExperienceFailure('Usage: aos experience menu invoke <id> --item <item-id> [--json] [--dry-run]', 'MISSING_ARG');
+  if (!item) throw new ExperienceFailure('aos experience menu invoke requires --item <item-id>', 'MISSING_ARG');
+  return { subcommand: 'menu-invoke', id, item, json, dryRun, allowStart };
 }
 
 function vanillaFallback() {
@@ -315,7 +356,7 @@ function reconcileExperienceContentRoots(roots) {
   return removed.sort();
 }
 
-function configureStatusItem(manifest, roots, steps) {
+function configureStatusItem(manifest, roots, steps, allowStart) {
   const rootsByID = rootMap(roots);
   const surface = manifest.status_item.toggle_surface;
   const previousConfig = readRuntimeConfig();
@@ -323,18 +364,21 @@ function configureStatusItem(manifest, roots, steps) {
   const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
   const nextToggleURL = projectedToggleURL(manifest, surface, rootsByID, { mode, repoRoot });
   const existingCanvasURL = liveCanvasURL(surface.id);
-  const values = [
-    ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
-    ['status_item.toggle_id', surface.id],
-    ['status_item.toggle_url', nextToggleURL],
-    ['status_item.toggle_track', surface.track],
-  ];
-  for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
   const stalePreviousTarget = previousToggleID === surface.id
     && previousToggleURL
     && !equivalentContentURLs(previousToggleURL, nextToggleURL);
   const staleExistingCanvas = existingCanvasURL
     && !equivalentContentURLs(existingCanvasURL, nextToggleURL);
+  if (previousToggleID && previousToggleID !== surface.id) {
+    const remove = runAos(['show', 'remove', '--id', previousToggleID], { timeout: 10000 });
+    steps.push({
+      id: `status-item:previous-target:${previousToggleID}`,
+      status: remove.status === 0 ? 'success' : 'skipped',
+      previous_toggle_id: previousToggleID,
+      next_toggle_id: surface.id,
+      action: remove.status === 0 ? 'removed-canvas' : 'canvas-not-present-or-daemon-unavailable',
+    });
+  }
   if (stalePreviousTarget || staleExistingCanvas) {
     const remove = runAos(['show', 'remove', '--id', surface.id], { timeout: 10000 });
     steps.push({
@@ -346,7 +390,115 @@ function configureStatusItem(manifest, roots, steps) {
       action: remove.status === 0 ? 'removed-canvas' : 'canvas-not-present-or-daemon-unavailable',
     });
   }
+  const values = [
+    ['status_item.enabled', 'false'],
+    ['status_item.toggle_url', nextToggleURL],
+    ['status_item.toggle_track', surface.track],
+    ['status_item.toggle_id', surface.id],
+    ['status_item.icon', manifest.status_item.icon || 'aos'],
+    ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
+  ];
+  for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
   steps.push({ id: 'status-item', status: 'success', mode: 'experience', label: manifest.status_item.label });
+  if (manifest.status_item.enabled !== false) {
+    const shouldCreate = !existingCanvasURL || staleExistingCanvas || stalePreviousTarget;
+    const autoStartEnv = allowStart ? { AOS_ALLOW_DAEMON_AUTOSTART: '1' } : {};
+    if (shouldCreate) {
+      const createArgs = ['show', 'create', '--id', surface.id, '--url', nextToggleURL, '--window-level', 'status_bar'];
+      if (surface.track) createArgs.push('--track', surface.track);
+      requireSuccess(runAos(createArgs, { timeout: 10000, env: autoStartEnv }), `create mounted status surface ${surface.id}`);
+      steps.push({ id: `status-item:mounted-surface:${surface.id}`, status: 'success', action: 'created-canvas' });
+    } else {
+      steps.push({ id: `status-item:mounted-surface:${surface.id}`, status: 'unchanged', action: 'canvas-already-current' });
+    }
+    requireSuccess(
+      runAos(['show', 'wait', '--id', surface.id, '--timeout', '30s', '--json'], { timeout: 45000, env: autoStartEnv }),
+      `wait for mounted status surface ${surface.id}`,
+    );
+    steps.push({ id: `status-item:mounted-surface-ready:${surface.id}`, status: 'success' });
+  }
+}
+
+function resolveStatusMenuItem(manifest, itemID) {
+  const surface = manifest.status_item?.toggle_surface;
+  if (!surface?.id) {
+    throw new ExperienceFailure(`Experience ${manifest.id} does not declare a status item surface`, 'STATUS_ITEM_UNAVAILABLE');
+  }
+  const projectedItems = mountedSurfaceMenuItemsForSurface(manifest.menu, surface.id);
+  const item = projectedItems.find((candidate) => (
+    candidate?.id === itemID || candidate?.action_id === itemID
+  ));
+  if (!item) {
+    throw new ExperienceFailure(`No status menu item ${itemID} for experience ${manifest.id}`, 'MENU_ITEM_NOT_FOUND');
+  }
+  if (item.enabled === false) {
+    throw new ExperienceFailure(`Status menu item ${itemID} is disabled`, 'MENU_ITEM_DISABLED');
+  }
+  const actionID = typeof item.action_id === 'string' && item.action_id.trim()
+    ? item.action_id.trim()
+    : item.id;
+  return { surface, item, actionID };
+}
+
+function statusMenuActionEvent(manifest, item, actionID) {
+  return {
+    type: 'status_item.menu_action',
+    id: actionID,
+    action_id: actionID,
+    menu_item_id: item.id,
+    source: 'status_item',
+    invoked_by: 'aos.experience.menu.invoke',
+    experience_id: manifest.id,
+    origin_x: null,
+    origin_y: null,
+    modifiers: [],
+  };
+}
+
+async function menuInvoke(id, itemID, asJSON, dryRun, allowStart) {
+  const manifest = discoverExperience(id, { experiencesRoot });
+  const { surface, item, actionID } = resolveStatusMenuItem(manifest, itemID);
+  const event = statusMenuActionEvent(manifest, item, actionID);
+  const planned = {
+    status: dryRun ? 'dry_run' : 'success',
+    code: 'OK',
+    mode,
+    dry_run: dryRun,
+    experience: {
+      id: manifest.id,
+      title: manifest.title,
+      version: manifest.version,
+    },
+    status_item: {
+      surface_id: surface.id,
+      menu_item_id: item.id,
+      action_id: actionID,
+      kind: item.kind,
+      label: item.label,
+    },
+    event,
+  };
+
+  if (dryRun) {
+    if (asJSON) emitJSON(planned);
+    else process.stdout.write(`dry-run invoke experience ${id} status menu item ${item.id} (${actionID})\n`);
+    return;
+  }
+
+  requireLivePermission('experience.menu-invoke', allowStart);
+  const result = runAos(['show', 'post', '--id', surface.id, '--event', JSON.stringify(event)], { timeout: 10000 });
+  if (result.status !== 0) {
+    throw new ExperienceFailure(`status menu invoke failed: ${result.stderr || result.stdout}`.trim(), 'STATUS_MENU_INVOKE_FAILED');
+  }
+  const response = {
+    ...planned,
+    show_post: {
+      status: 'success',
+      surface_id: surface.id,
+    },
+  };
+  if (asJSON) emitJSON(response);
+  else process.stdout.write(`invoked experience ${id} status menu item ${item.id} (${actionID}).\n`);
 }
 
 function runHooks(manifest, phase, roots, steps) {
@@ -373,7 +525,7 @@ function activate(id, asJSON, dryRun, allowStart) {
   requireLivePermission('experience.activate', allowStart);
   ensureContentRoots(roots, steps, allowStart);
   runHooks(manifest, 'before_activate', roots, steps);
-  configureStatusItem(manifest, roots, steps);
+  configureStatusItem(manifest, roots, steps, allowStart);
   writeActiveExperience(manifest.id);
   steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
   runHooks(manifest, 'after_activate', roots, steps);
@@ -394,7 +546,7 @@ function deactivate(asJSON, dryRun) {
       label: 'AOS',
       icon: 'aos',
       menu: [],
-      note: 'vanilla status-item menu is not implemented yet; status item disabled',
+      note: 'vanilla fallback status item is disabled; AOS-owned experience menu invocation requires an active experience',
     },
   };
   if (dryRun) {
@@ -418,13 +570,14 @@ function deactivate(asJSON, dryRun) {
   steps.push({ id: 'experience:inactive', status: 'success' }, { id: 'status-item', status: 'success', mode: 'disabled' });
   if (manifest) runHooks(manifest, 'after_deactivate', roots, steps);
   if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: null, steps });
-  else process.stdout.write('active experience cleared; status item disabled until vanilla menu is implemented.\n');
+  else process.stdout.write('active experience cleared; vanilla fallback status item disabled; AOS-owned experience menu invocation requires an active experience.\n');
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.subcommand === 'status') await status(args.id, args.json);
   else if (args.subcommand === 'activate') activate(args.id, args.json, args.dryRun, args.allowStart);
+  else if (args.subcommand === 'menu-invoke') await menuInvoke(args.id, args.item, args.json, args.dryRun, args.allowStart);
   else deactivate(args.json, args.dryRun);
 }
 

@@ -191,6 +191,72 @@
         {
           "args" : [
             {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Experience id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "item",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Experience status-item menu item id or action id",
+              "token" : "--item",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable invocation result",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Plan status-item menu invocation without posting to the mounted surface",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json",
+            "aos experience menu invoke sigil --item annotate-this-thing --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "experience-menu-invoke",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos experience menu invoke <id> --item <item-id> [--json] [--dry-run]"
+        }
+      ],
+      "path" : [
+        "experience",
+        "menu",
+        "invoke"
+      ],
+      "summary" : "Invoke a source-owned experience status-item menu action"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
               "id" : "json",
               "kind" : "flag",
               "required" : false,

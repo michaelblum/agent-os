@@ -28,6 +28,7 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'doctor',
     'permissions-check',
     'service-status',
+    'experience-menu-invoke',
     'graph-displays',
     'graph-windows',
     'see-capture',
@@ -88,6 +89,7 @@ test('AOS capability map is backed by current command manifest forms', async () 
     'aos do maximize',
     'aos do restore',
     'aos do menu',
+    'aos experience menu invoke',
     'aos skills companion check --name playwright-cli',
   ]) {
     assert.match(doc, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));

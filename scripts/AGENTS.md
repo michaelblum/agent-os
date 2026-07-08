@@ -21,7 +21,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   legacy active-experience fallback path.
 - `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
   content-root resolution, status-item URL equivalence, and mounted-surface
-  menu projection helpers used by experience activation and status.
+  menu projection helpers used by experience activation, status, and
+  status-item menu invocation.
 - `lib/experience-runtime-facts.mjs` owns read-only fact collection for
   `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
   active-experience and runtime-config file reads. Passive probes must be

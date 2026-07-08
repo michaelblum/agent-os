@@ -30,7 +30,8 @@ composition metadata.
 ## Verification
 
 - Run the existing experience or status command check named by the changed file
-  when present.
+  when present. For status-item menu contracts, include
+  `tests/aos-experience-menu-invoke.test.mjs`.
 
 ## Child DOX Index
 

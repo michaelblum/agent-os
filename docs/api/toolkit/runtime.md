@@ -364,6 +364,13 @@ URL data. The native status item still emits the generic
 `status_item.menu_action` event; the toolkit helper maps that action id to a
 `canvas.send` message for the projected operator surface.
 
+Public operators should invoke this path through the AOS-owned experience
+status-item menu command sequence: `aos experience status <id> --json`,
+`aos experience menu invoke <id> --item <item-id> --dry-run --json`, then the
+same invoke command without `--dry-run`. This posts the generic
+`status_item.menu_action` event to the mounted status surface; it does not scrape
+or dispatch arbitrary third-party macOS menu extras.
+
 Use `operatorAnnotationStatusMenuItems(menu)` to project manifest menu entries
 to native menu descriptors, `operatorAnnotationMenuFromLocation(location)` to
 read the activation-projected `aos_mounted_surface_menu` data inside the

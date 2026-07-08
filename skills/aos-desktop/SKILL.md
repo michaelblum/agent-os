@@ -38,6 +38,19 @@ capability map.
 - Use `./aos do press|focus|set-value --pid <pid> --role <role> ... --dry-run`
   for direct native AX current matching.
 
+## AOS Experience Status-Item Menus
+
+For AOS-owned experience status-item/operator annotation menus, use:
+
+```bash
+./aos experience status <id> --json
+./aos experience menu invoke <id> --item <item-id> --dry-run --json
+./aos experience menu invoke <id> --item <item-id> --json
+```
+
+This is AOS-owned experience status-item invocation against the mounted status
+surface, not arbitrary third-party macOS menu-extra scraping.
+
 ## Boundaries
 
 - Window fullscreen, Space switching, and Mission Control are not first-class

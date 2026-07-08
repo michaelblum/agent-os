@@ -60,7 +60,7 @@
     },
     {
       "id": "desktop-window-control-inventory",
-      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, dry-run app/window control before mutating, and name the unsupported desktop boundaries that should not be simulated through shortcuts.",
+      "prompt": "Fresh agent: inspect visible desktop windows, identify first-class AOS app/window controls, dry-run app/window control before mutating, use the AOS-owned status-item menu path for operator annotation, and name the unsupported desktop boundaries that should not be simulated through shortcuts.",
       "expected_skills": [
         "aos-desktop"
       ],
@@ -73,12 +73,15 @@
         "^\\./aos do minimize --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do maximize --pid <pid> --window <window-id> --dry-run$",
         "^\\./aos do restore --pid <pid> --window <window-id> --dry-run$",
-        "^\\./aos do menu --pid <pid> --path File,Save --dry-run$"
+        "^\\./aos do menu --pid <pid> --path File,Save --dry-run$",
+        "^\\./aos experience status operator-fixture --json$",
+        "^\\./aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json$"
       ],
       "expected_decision_terms": [
         "activate|quit|hide|unhide",
         "raise",
         "move|resize|close|minimize|maximize|restore|menu|native AX",
+        "status-item|operator annotation",
         "dry-run"
       ],
       "expected_stop_terms": [
@@ -219,9 +222,12 @@
             "./aos do maximize --pid <pid> --window <window-id>",
             "./aos do restore --pid <pid> --window <window-id> --dry-run",
             "./aos do restore --pid <pid> --window <window-id>",
-            "./aos do menu --pid <pid> --path File,Save --dry-run"
+            "./aos do menu --pid <pid> --path File,Save --dry-run",
+            "./aos experience status operator-fixture --json",
+            "./aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json",
+            "./aos experience menu invoke operator-fixture --item annotate-visible-target --json"
           ],
-          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, menu, and native AX controls before action.",
+          "decision": "Use graph windows for inventory and dry-run first-class app lifecycle, raise, move, resize, close, minimize, maximize, restore, app menu, AOS-owned status-item operator annotation menu, and native AX controls before action.",
           "stop_condition": "Stop on unsupported desktop boundaries such as window fullscreen, Mission Control, or Space switching instead of simulating them."
         },
         {

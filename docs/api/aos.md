@@ -129,7 +129,7 @@ The current top-level commands are:
 | `aos content` | Content-server status |
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
-| `aos experience` | active AOS experience-layer status, activation, and deactivation |
+| `aos experience` | active AOS experience-layer status, activation, deactivation, and AOS-owned status-item menu invocation |
 | `aos runtime` | packaged runtime utilities |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
@@ -178,6 +178,33 @@ valid records, not the index, decide whether the store is initialized.
 
 `aos experience status --json` without an id remains the compact legacy
 active-experience readback.
+
+### AOS-Owned Status-Item Menu Invocation
+
+For AOS-owned experience status-item/operator annotation menus, first read the
+mounted surface and menu projection:
+
+```bash
+aos experience status <id> --json
+```
+
+Then preview the menu item action:
+
+```bash
+aos experience menu invoke <id> --item <item-id> --dry-run --json
+```
+
+If the dry-run reports the expected mounted status surface and menu item, invoke
+the live action:
+
+```bash
+aos experience menu invoke <id> --item <item-id> --json
+```
+
+This command posts the generic `status_item.menu_action` event to the
+experience's mounted status surface. It is only for AOS-owned experience
+status-item menu entries; it is not arbitrary third-party macOS menu-extra
+scraping or dispatch.
 
 ## Target And Handle Ladder
 
@@ -322,7 +349,10 @@ projected operator surface. `operator-fixture` remains the minimal reusable
 contract fixture for this route; `sigil` is the first-party AOS-owned status
 item entry point and projects `annotate-this-thing` onto its mounted
 `avatar-main` surface. Downstream consumers such as Med Ops should consume this
-AOS-owned primitive instead of owning a forked Sigil surface.
+AOS-owned primitive through `aos experience status <id> --json`, then
+`aos experience menu invoke <id> --item <item-id> --dry-run --json`, then the
+same invoke command without `--dry-run`, instead of owning a forked Sigil
+surface or scraping third-party macOS menu extras.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,

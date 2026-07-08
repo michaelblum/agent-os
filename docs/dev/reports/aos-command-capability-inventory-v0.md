@@ -18,14 +18,14 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 42
-- Concrete forms: 208
-- Consumer-discoverable forms: 191
+- Command paths: 43
+- Concrete forms: 209
+- Consumer-discoverable forms: 192
 - Internal/transitional command paths: 2
-- Mutating or conditionally mutating forms: 110
+- Mutating or conditionally mutating forms: 111
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 203
-- Forms with dry-run support: 36
+- Forms with JSON output path: 204
+- Forms with dry-run support: 37
 
 ## Capability Group Counts
 
@@ -36,7 +36,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Capture and perception | 7 |
 | CLI metadata | 2 |
 | Content/wiki | 17 |
-| Core desktop | 8 |
+| Core desktop | 9 |
 | Core readiness | 7 |
 | Desktop discovery | 4 |
 | Desktop/native control | 18 |
@@ -61,6 +61,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `experience` | 0 | Core desktop | yes | family only | family only | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience status` | 1 | Core desktop | yes | read-only | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience activate` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs activate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `experience menu invoke` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs menu invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience deactivate` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs deactivate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see` | 13 | Capture and perception, Saved workspace | yes | conditional --save, mutates, read-only | --json, default | `manifests/commands/source/aos/03-see-01-capture.json, manifests/commands/source/aos/03-see-02-workspace.json` | `node scripts/aos-help-proxy.mjs see [missing child]; node scripts/aos-see-native.mjs capture [not capture/observe/cursor/list...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see zone` | 4 | Canvas and vision | yes | mutates | default | `manifests/commands/source/aos/03-see-03-zone.json` | `node scripts/aos-subcommand-router.mjs see zone MISSING_SUBCOMMAND see zone requires a subcommand. Usage: aos see zone <save\|define\|list\|delete> ... UNKNOWN_SUBCOMMAND see zone subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -107,6 +108,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `launch` | `launch-app` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/01-launch.json` | `node scripts/aos-launch.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience status` | `experience-status` | Core desktop | yes | read-only | --json | no | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience activate` | `activate-experience` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs activate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `experience menu invoke` | `experience-menu-invoke` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs menu invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience deactivate` | `deactivate-experience` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs deactivate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see cursor` | `see-cursor` | Capture and perception | yes | read-only | default | no | `manifests/commands/source/aos/03-see-01-capture.json` | `node scripts/aos-see-native.mjs cursor` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see capture` | `see-capture` | Capture and perception | yes | conditional --save | default | no | `manifests/commands/source/aos/03-see-01-capture.json` | `node scripts/aos-see-native.mjs capture` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

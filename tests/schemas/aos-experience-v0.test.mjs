@@ -416,7 +416,24 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
-  assert(calls.some((args) => args.join('\0') === ['show', 'remove', '--id', 'operator-fixture-surface'].join('\0')), calls);
+  const callText = calls.map((args) => args.join('\0'));
+  const removeIndex = callText.indexOf(['show', 'remove', '--id', 'operator-fixture-surface'].join('\0'));
+  const disableIndex = callText.indexOf(['config', 'set', 'status_item.enabled', 'false'].join('\0'));
+  const urlIndex = callText.findIndex((line) => line.startsWith(['config', 'set', 'status_item.toggle_url'].join('\0')));
+  const idIndex = callText.indexOf(['config', 'set', 'status_item.toggle_id', 'operator-fixture-surface'].join('\0'));
+  const enableIndex = callText.indexOf(['config', 'set', 'status_item.enabled', 'true'].join('\0'));
+  const createIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
+  const waitIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
+  assert.notEqual(removeIndex, -1, calls);
+  assert.notEqual(disableIndex, -1, calls);
+  assert.notEqual(urlIndex, -1, calls);
+  assert.notEqual(idIndex, -1, calls);
+  assert.notEqual(enableIndex, -1, calls);
+  assert.notEqual(createIndex, -1, calls);
+  assert.notEqual(waitIndex, -1, calls);
+  assert(removeIndex < idIndex, calls);
+  assert(disableIndex < urlIndex && urlIndex < idIndex && idIndex < enableIndex, calls);
+  assert(enableIndex < createIndex && createIndex < waitIndex, calls);
 });
 
 test('Sigil experience is exclusive and status-item-first', async () => {
