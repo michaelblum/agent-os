@@ -27,6 +27,9 @@ policy at the lowest reusable layer that still preserves opt-in customization.
 
 ## Child DOX Index
 
+- `act/AGENTS.md` governs native `aos do` action primitives, session-mode
+  action execution, AX targeting, canvas action refs, and exact native app,
+  menu, and window lifecycle controls.
 - `daemon/AGENTS.md` governs daemon-specific native arbitration, sockets,
   subscriptions, display geometry, canvas lifecycle, content routing, input
   delivery, voice/communication routing, and cleanup.

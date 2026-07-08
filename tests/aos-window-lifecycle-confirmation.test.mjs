@@ -11,8 +11,20 @@ async function actCliSource() {
   return readFile(path.join(repoRoot, 'src/act/act-cli.swift'), 'utf8');
 }
 
+async function windowLifecycleSource() {
+  return readFile(path.join(repoRoot, 'src/act/window-lifecycle.swift'), 'utf8');
+}
+
+test('window lifecycle code lives in its native owner', async () => {
+  const actCli = await actCliSource();
+  const source = await windowLifecycleSource();
+
+  assert.doesNotMatch(actCli, /func cliWindowLifecycle/);
+  assert.match(source, /func cliWindowLifecycle\(action: String, args: \[String\]\)/);
+});
+
 test('window lifecycle maximize targets visible work area instead of raw display bounds', async () => {
-  const source = await actCliSource();
+  const source = await windowLifecycleSource();
 
   assert.doesNotMatch(source, /firstDisplayBounds/);
   assert.match(source, /private func firstDisplayWorkArea\(containing frame: CGRect\) -> CGRect\?/);
@@ -21,7 +33,7 @@ test('window lifecycle maximize targets visible work area instead of raw display
 });
 
 test('window lifecycle confirmation waits for AX readback', async () => {
-  const source = await actCliSource();
+  const source = await windowLifecycleSource();
 
   assert.match(source, /private func waitForWindowMinimizedState/);
   assert.match(source, /private func waitForWindowMinimizeConfirmation/);
