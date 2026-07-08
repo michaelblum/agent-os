@@ -1748,6 +1748,10 @@ Primary public verbs:
 | `press` | saved native AX press or direct `--pid` / `--role` AX press |
 | `set-value` | saved refs, direct AX, or AOS canvas semantic set-value |
 | `focus` | saved native AX focus or direct `--pid` / `--role` AX focus |
+| `activate` | activate an app by pid |
+| `quit` | gracefully quit an app by pid |
+| `hide` | hide an app by pid |
+| `unhide` | unhide an app by pid |
 | `raise` | raise an app/window |
 | `move` | move a window |
 | `resize` | resize a window |

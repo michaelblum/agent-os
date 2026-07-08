@@ -46,9 +46,6 @@ Add a semantic desktop verb only when all of these are true:
 
 Candidate future verbs remain:
 
-- `aos do activate-app`;
-- `aos do quit-app`;
-- `aos do hide-app` and `aos do unhide-app`;
 - `aos do close-window`;
 - `aos do minimize-window`;
 - `aos do maximize-window` and `aos do restore-window`;

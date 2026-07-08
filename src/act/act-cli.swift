@@ -469,17 +469,15 @@ func cliAppLifecycle(action: String, args: [String]) {
         exitError("\(action) requires --pid", code: "MISSING_ARG")
     }
 
-    let running = NSRunningApplication(processIdentifier: pid_t(pid))
+    guard let app = NSRunningApplication(processIdentifier: pid_t(pid)) else {
+        exitError("No running application found for pid \(pid)", code: "APP_NOT_FOUND")
+    }
     var target = LegacyTargetInfo(pid: pid)
-    target.app = running?.localizedName
+    target.app = app.localizedName
 
     if dryRun {
         cliPrintLegacy(action: action, backend: "appkit", target: target, dryRun: true)
         return
-    }
-
-    guard let app = running else {
-        exitError("No running application found for pid \(pid)", code: "APP_NOT_FOUND")
     }
 
     let ok: Bool
