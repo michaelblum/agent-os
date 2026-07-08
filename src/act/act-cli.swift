@@ -499,15 +499,49 @@ private func loadWindowFrame(pid: Int, windowID: Int) -> SavedWindowFrame? {
     return try? JSONDecoder().decode(SavedWindowFrame.self, from: data)
 }
 
-private func firstDisplayBounds(containing frame: CGRect) -> CGRect? {
+private let windowLifecycleConfirmationTimeout: TimeInterval = 0.8
+private let windowLifecycleConfirmationPollMicros: useconds_t = 50_000
+
+private func windowLifecycleScreenIndexByDisplayNumber() -> [CGDirectDisplayID: NSScreen] {
+    var map: [CGDirectDisplayID: NSScreen] = [:]
+    for screen in NSScreen.screens {
+        if let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
+            map[CGDirectDisplayID(num.uint32Value)] = screen
+        }
+    }
+    return map
+}
+
+private func visibleDisplayBounds(
+    for id: CGDirectDisplayID,
+    fallback: CGRect,
+    screens: [CGDirectDisplayID: NSScreen]
+) -> CGRect {
+    guard let screen = screens[id] else { return fallback }
+    let visibleBottomLeft = screen.visibleFrame
+    let fullBottomLeft = screen.frame
+    let topInset = fullBottomLeft.maxY - visibleBottomLeft.maxY
+    let leftInset = visibleBottomLeft.minX - fullBottomLeft.minX
+    return CGRect(
+        x: fallback.origin.x + leftInset,
+        y: fallback.origin.y + topInset,
+        width: visibleBottomLeft.width,
+        height: visibleBottomLeft.height
+    )
+}
+
+private func firstDisplayWorkArea(containing frame: CGRect) -> CGRect? {
     var count: UInt32 = 0
     guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
     var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
     guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return nil }
 
     let center = CGPoint(x: frame.midX, y: frame.midY)
-    let bounds = displays.map { CGDisplayBounds($0) }
-    return bounds.first { $0.contains(center) } ?? bounds.first
+    let screens = windowLifecycleScreenIndexByDisplayNumber()
+    let displayID = displays.first { CGDisplayBounds($0).contains(center) } ?? displays.first
+    guard let displayID else { return nil }
+    let fallback = CGDisplayBounds(displayID)
+    return visibleDisplayBounds(for: displayID, fallback: fallback, screens: screens)
 }
 
 private func setWindowFrame(_ window: AXUIElement, frame: CGRect) -> AXError {
@@ -567,6 +601,96 @@ private func windowFrameApproximatelyEquals(_ lhs: CGRect, _ rhs: CGRect) -> Boo
         && abs(lhs.size.height - rhs.size.height) <= 2
 }
 
+private func cgWindowBounds(windowID: Int) -> CGRect? {
+    guard let infoList = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(windowID)) as? [[String: Any]],
+          let info = infoList.first,
+          let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+          let x = boundsDict["X"] as? Double,
+          let y = boundsDict["Y"] as? Double,
+          let width = boundsDict["Width"] as? Double,
+          let height = boundsDict["Height"] as? Double else { return nil }
+    return CGRect(x: x, y: y, width: width, height: height)
+}
+
+private func windowFrameLooksLikeStageManagerThumbnail(_ candidate: CGRect, original: CGRect) -> Bool {
+    guard original.width > 0, original.height > 0 else { return false }
+    let candidateArea = candidate.width * candidate.height
+    let originalArea = original.width * original.height
+    return candidateArea <= originalArea * 0.12
+        && candidate.width <= original.width * 0.5
+        && candidate.height <= original.height * 0.5
+}
+
+private func windowIsStageManagerThumbnail(windowID: Int, axFrame: CGRect?) -> Bool {
+    guard let axFrame,
+          let cgFrame = cgWindowBounds(windowID: windowID),
+          !windowFrameApproximatelyEquals(cgFrame, axFrame) else {
+        return false
+    }
+    return windowFrameLooksLikeStageManagerThumbnail(cgFrame, original: axFrame)
+}
+
+private func raiseWindow(pid: Int, windowID: Int) {
+    if let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+        app.activate(options: [.activateAllWindows])
+    }
+    if let window = findWindowByID(pid: pid_t(pid), windowID: windowID) {
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
+}
+
+private func waitForWindowMinimizedState(pid: Int, windowID: Int, expected: Bool) -> Bool {
+    let deadline = Date().addingTimeInterval(windowLifecycleConfirmationTimeout)
+    while true {
+        if let window = findWindowByID(pid: pid_t(pid), windowID: windowID),
+           axBool(window, kAXMinimizedAttribute as String) == expected {
+            return true
+        }
+        if Date() >= deadline { return false }
+        usleep(windowLifecycleConfirmationPollMicros)
+    }
+}
+
+private func waitForWindowMinimizeConfirmation(pid: Int, windowID: Int, originalFrame: CGRect?) -> Bool {
+    let deadline = Date().addingTimeInterval(windowLifecycleConfirmationTimeout)
+    while true {
+        if let window = findWindowByID(pid: pid_t(pid), windowID: windowID),
+           axBool(window, kAXMinimizedAttribute as String) == true {
+            return true
+        }
+        if let originalFrame,
+           let cgFrame = cgWindowBounds(windowID: windowID),
+           windowFrameLooksLikeStageManagerThumbnail(cgFrame, original: originalFrame) {
+            return true
+        }
+        if Date() >= deadline { return false }
+        usleep(windowLifecycleConfirmationPollMicros)
+    }
+}
+
+private func waitForWindowFrame(
+    pid: Int,
+    windowID: Int,
+    matching predicate: (CGRect) -> Bool
+) -> CGRect? {
+    let deadline = Date().addingTimeInterval(windowLifecycleConfirmationTimeout)
+    while true {
+        if let window = findWindowByID(pid: pid_t(pid), windowID: windowID),
+           let frame = axBounds(window),
+           predicate(frame) {
+            if let cgFrame = cgWindowBounds(windowID: windowID) {
+                if predicate(cgFrame) {
+                    return cgFrame
+                }
+            } else {
+                return frame
+            }
+        }
+        if Date() >= deadline { return nil }
+        usleep(windowLifecycleConfirmationPollMicros)
+    }
+}
+
 private func validateWindowLifecyclePrerequisites(
     action: String,
     resolved: (pid: Int, windowID: Int, window: AXUIElement, target: LegacyTargetInfo),
@@ -584,8 +708,8 @@ private func validateWindowLifecyclePrerequisites(
         guard let current = axBounds(resolved.window) else {
             exitError("Cannot read current window frame", code: "WINDOW_FRAME_UNAVAILABLE")
         }
-        guard firstDisplayBounds(containing: current) != nil else {
-            exitError("Cannot resolve display bounds for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
+        guard firstDisplayWorkArea(containing: current) != nil else {
+            exitError("Cannot resolve display work area for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
         }
         requireWindowFrameSettable(resolved.window, action: "maximize")
     case "restore":
@@ -595,7 +719,9 @@ private func validateWindowLifecyclePrerequisites(
         if minimized {
             requireWindowAttributeSettable(resolved.window, attribute: kAXMinimizedAttribute as String, action: "restore")
         } else {
-            guard loadWindowFrame(pid: resolved.pid, windowID: resolved.windowID) != nil else {
+            let currentFrame = axBounds(resolved.window)
+            guard windowIsStageManagerThumbnail(windowID: resolved.windowID, axFrame: currentFrame)
+                    || loadWindowFrame(pid: resolved.pid, windowID: resolved.windowID) != nil else {
                 exitError("No saved maximize frame for window \(resolved.windowID)", code: "WINDOW_RESTORE_STATE_NOT_FOUND")
             }
             requireWindowFrameSettable(resolved.window, action: "restore")
@@ -658,26 +784,27 @@ func cliWindowLifecycle(action: String, args: [String]) {
             exitError("Window close was not confirmed for window \(resolved.windowID)", code: "WINDOW_CLOSE_UNCONFIRMED")
         }
     case "minimize":
+        let originalFrame = cgWindowBounds(windowID: resolved.windowID) ?? axBounds(resolved.window)
         let result = setWindowMinimized(resolved.window, minimized: true)
         guard result == .success else {
             exitError("Failed to minimize window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
         }
-        guard axBool(resolved.window, kAXMinimizedAttribute as String) == true else {
+        guard waitForWindowMinimizeConfirmation(pid: resolved.pid, windowID: resolved.windowID, originalFrame: originalFrame) else {
             exitError("Window minimize was not confirmed for window \(resolved.windowID)", code: "WINDOW_MINIMIZE_UNCONFIRMED")
         }
     case "maximize":
         guard let current = axBounds(resolved.window) else {
             exitError("Cannot read current window frame", code: "WINDOW_FRAME_UNAVAILABLE")
         }
-        guard let targetFrame = firstDisplayBounds(containing: current) else {
-            exitError("Cannot resolve display bounds for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
+        guard let targetFrame = firstDisplayWorkArea(containing: current) else {
+            exitError("Cannot resolve display work area for window \(resolved.windowID)", code: "DISPLAY_NOT_FOUND")
         }
         saveWindowFrame(pid: resolved.pid, windowID: resolved.windowID, frame: current)
         let result = setWindowFrame(resolved.window, frame: targetFrame)
         guard result == .success else {
             exitError("Failed to maximize window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
         }
-        guard let actual = axBounds(resolved.window), windowFrameApproximatelyEquals(actual, targetFrame) else {
+        guard waitForWindowFrame(pid: resolved.pid, windowID: resolved.windowID, matching: { windowFrameApproximatelyEquals($0, targetFrame) }) != nil else {
             exitError("Window maximize was not confirmed for window \(resolved.windowID)", code: "WINDOW_MAXIMIZE_UNCONFIRMED")
         }
     case "restore":
@@ -686,10 +813,19 @@ func cliWindowLifecycle(action: String, args: [String]) {
             guard result == .success else {
                 exitError("Failed to restore minimized window (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
             }
-            guard axBool(resolved.window, kAXMinimizedAttribute as String) == false else {
+            raiseWindow(pid: resolved.pid, windowID: resolved.windowID)
+            guard waitForWindowMinimizedState(pid: resolved.pid, windowID: resolved.windowID, expected: false) else {
                 exitError("Window restore was not confirmed for window \(resolved.windowID)", code: "WINDOW_RESTORE_UNCONFIRMED")
             }
         } else {
+            if let currentFrame = axBounds(resolved.window),
+               windowIsStageManagerThumbnail(windowID: resolved.windowID, axFrame: currentFrame) {
+                raiseWindow(pid: resolved.pid, windowID: resolved.windowID)
+                guard waitForWindowFrame(pid: resolved.pid, windowID: resolved.windowID, matching: { windowFrameApproximatelyEquals($0, currentFrame) }) != nil else {
+                    exitError("Window restore was not confirmed for window \(resolved.windowID)", code: "WINDOW_RESTORE_UNCONFIRMED")
+                }
+                break
+            }
             guard let saved = loadWindowFrame(pid: resolved.pid, windowID: resolved.windowID) else {
                 exitError("No saved maximize frame for window \(resolved.windowID)", code: "WINDOW_RESTORE_STATE_NOT_FOUND")
             }
@@ -698,7 +834,7 @@ func cliWindowLifecycle(action: String, args: [String]) {
             guard result == .success else {
                 exitError("Failed to restore window frame (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
             }
-            guard let actual = axBounds(resolved.window), windowFrameApproximatelyEquals(actual, frame) else {
+            guard waitForWindowFrame(pid: resolved.pid, windowID: resolved.windowID, matching: { windowFrameApproximatelyEquals($0, frame) }) != nil else {
                 exitError("Window restore was not confirmed for window \(resolved.windowID)", code: "WINDOW_RESTORE_UNCONFIRMED")
             }
         }
