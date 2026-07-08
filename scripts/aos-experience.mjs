@@ -187,7 +187,15 @@ function captureActivationRollbackSnapshot() {
     config,
     active: readActiveExperience(),
     mounted_surface: mountedSurface,
+    created_mounted_surfaces: [],
   };
+}
+
+function recordRollbackCreatedMountedSurface(snapshot, id) {
+  if (!snapshot || !Array.isArray(snapshot.created_mounted_surfaces)) return;
+  const surfaceID = typeof id === 'string' && id.trim() ? id.trim() : null;
+  if (!surfaceID) return;
+  snapshot.created_mounted_surfaces.push({ id: surfaceID });
 }
 
 function parseArgs(argv) {
@@ -412,7 +420,7 @@ function reconcileExperienceContentRoots(roots) {
   return removed.sort();
 }
 
-function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig) {
+function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig, rollbackSnapshot) {
   const rootsByID = rootMap(roots);
   const surface = manifest.status_item.toggle_surface;
   const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
@@ -461,6 +469,7 @@ function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousCo
     if (shouldCreate) {
       const createArgs = ['show', 'create', '--id', surface.id, '--url', nextToggleURL, '--window-level', 'status_bar'];
       if (surface.track) createArgs.push('--track', surface.track);
+      recordRollbackCreatedMountedSurface(rollbackSnapshot, surface.id);
       requireSuccess(runAos(createArgs, { timeout: 10000, env: autoStartEnv }), `create mounted status surface ${surface.id}`);
       steps.push({ id: `status-item:mounted-surface:${surface.id}`, status: 'success', action: 'created-canvas' });
     } else {
@@ -484,6 +493,29 @@ function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousCo
       });
     },
   };
+}
+
+function removeRollbackCreatedMountedSurfaces(snapshot, steps, allowStart) {
+  const records = Array.isArray(snapshot.created_mounted_surfaces)
+    ? [...snapshot.created_mounted_surfaces].reverse()
+    : [];
+  const removed = new Set();
+  const autoStartEnv = allowStart ? { AOS_ALLOW_DAEMON_AUTOSTART: '1' } : {};
+  for (const record of records) {
+    const id = typeof record?.id === 'string' && record.id.trim()
+      ? record.id.trim()
+      : null;
+    if (!id || removed.has(id)) continue;
+    removed.add(id);
+    const remove = runAos(['show', 'remove', '--id', id], { timeout: 10000, env: autoStartEnv });
+    steps.push({
+      id: `status-surface:rollback-created-surface:${id}`,
+      status: remove.status === 0 ? 'success' : 'failed',
+      action: remove.status === 0 ? 'removed-created-canvas' : 'remove-created-canvas-failed',
+      toggle_id: id,
+      error: remove.status === 0 ? undefined : (remove.stderr || remove.stdout || null),
+    });
+  }
 }
 
 function restoreRollbackMountedSurface(snapshot, steps, allowStart) {
@@ -518,6 +550,7 @@ function restoreRollbackMountedSurface(snapshot, steps, allowStart) {
 
 function rollbackStatusSurfaceActivation(snapshot, steps, allowStart) {
   try {
+    removeRollbackCreatedMountedSurfaces(snapshot, steps, allowStart);
     writeRuntimeConfig(snapshot.config);
     writeActiveExperience(snapshot.active);
     steps.push({
@@ -535,9 +568,9 @@ function rollbackStatusSurfaceActivation(snapshot, steps, allowStart) {
   }
 }
 
-function activateStatusSurfaceTransaction(manifest, roots, steps, allowStart) {
+function activateStatusSurfaceTransaction(manifest, roots, steps, allowStart, rollbackSnapshot) {
   const previousConfig = readRuntimeConfig();
-  const statusSurface = prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig);
+  const statusSurface = prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig, rollbackSnapshot);
   statusSurface.commit();
   writeActiveExperience(manifest.id);
   steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
@@ -710,7 +743,7 @@ function activate(id, asJSON, dryRun, allowStart) {
   try {
     ensureContentRoots(roots, steps, allowStart);
     runHooks(manifest, 'before_activate', roots, steps);
-    activateStatusSurfaceTransaction(manifest, roots, steps, allowStart);
+    activateStatusSurfaceTransaction(manifest, roots, steps, allowStart, rollbackSnapshot);
   } catch (err) {
     rollbackStatusSurfaceActivation(rollbackSnapshot, steps, allowStart);
     throw err;

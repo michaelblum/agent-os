@@ -447,6 +447,7 @@ test('experience activation rolls back status item config and active state when 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-activation-rollback-'));
   const fakeAos = path.join(tmp, 'fake-aos.mjs');
   const logPath = path.join(tmp, 'aos-calls.jsonl');
+  const canvasStatePath = path.join(tmp, 'canvases.json');
   const previousConfig = {
     content: {
       roots: {
@@ -466,25 +467,58 @@ test('experience activation rolls back status item config and active state when 
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
   await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify(previousConfig, null, 2));
   await fs.writeFile(path.join(tmp, 'repo', 'experience-state.json'), JSON.stringify({ active_experience: 'previous-experience', exclusive: true }));
+  await fs.writeFile(canvasStatePath, JSON.stringify({
+    canvases: {
+      'previous-surface': {
+        id: 'previous-surface',
+        url: 'aos://previous/renderer/index.html',
+        lifecycleState: 'active',
+      },
+    },
+  }, null, 2));
   await fs.writeFile(fakeAos, `#!/usr/bin/env node
 import fs from 'node:fs';
 const args = process.argv.slice(2);
+const key = args.join('\\0');
 fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
-if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
+function readCanvasState() {
+  return JSON.parse(fs.readFileSync(process.env.FAKE_AOS_CANVASES, 'utf8'));
+}
+function writeCanvasState(state) {
+  fs.writeFileSync(process.env.FAKE_AOS_CANVASES, JSON.stringify(state, null, 2));
+}
+if (key === ['content', 'status', '--json'].join('\\0')) {
   console.log(JSON.stringify({ roots: { toolkit: '${path.join(repoRoot, 'packages/toolkit')}' } }));
   process.exit(0);
 }
-if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
-  console.log(JSON.stringify({
-    canvases: [{
-      id: 'previous-surface',
-      url: 'aos://previous/renderer/index.html',
-      lifecycleState: 'active',
-    }],
-  }));
+if (key === ['show', 'list', '--json'].join('\\0')) {
+  const state = readCanvasState();
+  console.log(JSON.stringify({ canvases: Object.values(state.canvases) }));
   process.exit(0);
 }
-if (args.join('\\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\\0')) {
+if (args[0] === 'show' && args[1] === 'remove' && args[2] === '--id') {
+  const state = readCanvasState();
+  delete state.canvases[args[3]];
+  writeCanvasState(state);
+  process.exit(0);
+}
+if (args[0] === 'show' && args[1] === 'create' && args[2] === '--id') {
+  const state = readCanvasState();
+  const id = args[3];
+  const urlIndex = args.indexOf('--url');
+  if (id === 'previous-surface' && state.canvases['operator-fixture-surface']) {
+    console.error('next surface still present before restoring previous');
+    process.exit(22);
+  }
+  state.canvases[id] = {
+    id,
+    url: urlIndex >= 0 ? args[urlIndex + 1] : '',
+    lifecycleState: 'active',
+  };
+  writeCanvasState(state);
+  process.exit(0);
+}
+if (key === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\\0')) {
   console.error('surface never became ready');
   process.exit(17);
 }
@@ -500,6 +534,7 @@ process.exit(0);
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
       FAKE_AOS_LOG: logPath,
+      FAKE_AOS_CANVASES: canvasStatePath,
     },
     encoding: 'utf8',
   });
@@ -521,14 +556,25 @@ process.exit(0);
   const removePreviousIndex = callText.indexOf(['show', 'remove', '--id', 'previous-surface'].join('\0'));
   const createNextIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
   const waitNextIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
+  const removeNextIndex = callText.indexOf(['show', 'remove', '--id', 'operator-fixture-surface'].join('\0'));
   const restorePreviousIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'previous-surface'].join('\0')));
   assert.notEqual(removePreviousIndex, -1, calls);
   assert.notEqual(createNextIndex, -1, calls);
   assert.notEqual(waitNextIndex, -1, calls);
+  assert.notEqual(removeNextIndex, -1, calls);
   assert.notEqual(restorePreviousIndex, -1, calls);
-  assert(removePreviousIndex < createNextIndex && createNextIndex < waitNextIndex && waitNextIndex < restorePreviousIndex, calls);
+  assert(
+    removePreviousIndex < createNextIndex
+      && createNextIndex < waitNextIndex
+      && waitNextIndex < removeNextIndex
+      && removeNextIndex < restorePreviousIndex,
+    calls,
+  );
   assert(calls.some((args) => args.join('\0').startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0'))), calls);
   assert(calls.some((args) => args.join('\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0')), calls);
+  const finalCanvasState = JSON.parse(await fs.readFile(canvasStatePath, 'utf8'));
+  assert.deepEqual(Object.keys(finalCanvasState.canvases).sort(), ['previous-surface']);
+  assert.equal(finalCanvasState.canvases['previous-surface'].url, 'aos://previous/renderer/index.html');
 });
 
 test('Sigil experience is exclusive and status-item-first', async () => {
