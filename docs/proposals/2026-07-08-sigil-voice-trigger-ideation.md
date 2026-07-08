@@ -350,6 +350,82 @@ Recognition don't share that particular quirk and behave more like
 Accessibility (persistent until explicitly revoked), but this is worth
 verifying against whatever macOS version ships when this is actually built.
 
+## Prior art: local Wispr Flow-style dictation apps (license-verified)
+
+A [research comment on this PR](https://github.com/michaelblum/agent-os/pull/589#issuecomment-4919428700)
+surveyed existing open-source, local-first dictation tools (Wispr Flow /
+Superwhisper alternatives) as candidate reference implementations or fork
+bases for Concept B's transcription layer. Before folding that survey in
+here, each project's actual `LICENSE` file was checked directly against the
+GitHub license API, since licensing accuracy matters for what can be *copied*
+versus merely *read for inspiration* — and a few of the comment's license
+characterizations don't hold up under that check.
+
+**agent-os itself has no `LICENSE` file at all** (confirmed — no license is
+declared at the repo root), which means the real open question isn't yet
+"Apache vs. MIT compatibility" — it's that agent-os has no declared license
+for anyone to check compatibility against in the first place. That's a
+maintainer decision that sits upstream of any of this.
+
+**Tier 1 — permissive, verified safe to read and adapt code from directly:**
+
+- **[FreeFlow](https://github.com/zachlatta/freeflow)** (macOS-only) — `LICENSE`
+  confirmed **MIT**. Hotkey-based hold-to-talk *and* toggle modes,
+  context-aware cleanup, voice macros, custom vocabulary, no subscription,
+  reached a "feature-complete" v1.0 in May 2026. This maps almost directly
+  onto Concepts A/B's hold-vs-toggle trigger duality and is small enough to
+  read end-to-end as a state-machine reference.
+- **[OpenWhispr](https://github.com/OpenWhispr/openwhispr)** (cross-platform)
+  — `LICENSE` confirmed **MIT**. Runs Whisper/Parakeet fully on-device by
+  default, with optional cloud/Groq as an explicit opt-in — the same
+  local-first default posture already recommended in the TCC section above.
+  Its local/cloud boundary code is worth reading directly since it's the
+  closest existing analog to "on-device by default, no silent network calls."
+
+**Tier 2 — architecture/UX reference only, not code-copy sources (copyleft):**
+
+- **Whispering** (part of the [Epicenter](https://github.com/EpicenterHQ/epicenter)
+  monorepo) — the PR comment characterized this as MIT; that's only true for
+  Epicenter's separately-licensed reusable toolkit packages
+  (`packages/workspace`, `packages/ui`, `packages/sync`, etc.). The actual
+  `apps/whispering` dictation app ships under **AGPL-3.0-or-later**, per
+  Epicenter's own `LICENSE` index and `apps/whispering/LICENSE`. AGPL's
+  copyleft (including its network-use clause) means its code shouldn't be
+  forked or copied into agent-os without accepting that obligation. Its
+  transform-chain extensibility model (chaining grammar fixes, translation,
+  formatting after transcription) is still a good *concept* to study for
+  Concept C's response-hook idea — study the idea, don't copy the
+  implementation.
+- **[TypeWhisper](https://github.com/TypeWhisper/typewhisper-mac)** — the
+  comment called this generically "open source"; GitHub's license API shows
+  it's actually **GPL-3.0**, a copyleft license, not a permissive one. Same
+  caution as above.
+- **[Voicetypr](https://github.com/moinulmoin/voicetypr)** — likewise
+  **AGPL-3.0**, confirmed via its `LICENSE.md`. Reference only.
+- **[wispr-flow (shmbhvi101)](https://github.com/shmbhvi101/wispr-flow)** —
+  has **no LICENSE file at all** (all-rights-reserved by default under
+  copyright law). The original comment already scoped this as "UI/UX
+  reference" rather than a fork base, which is the only safe way to use it.
+- **Dictara** — the comment linked a Reddit announcement post rather than a
+  direct repository URL, and the announcement doesn't resolve unambiguously
+  to one verifiable GitHub repo. Treat as unverified until someone locates
+  and checks the actual source and license directly.
+
+**A technical implication worth folding back into the TCC section above:**
+FreeFlow and OpenWhispr both bundle their own local transcription model
+(Whisper/Parakeet) rather than calling Apple's Speech framework. A voice
+trigger implementation that does the same — runs a bundled local model
+in-process instead of `SFSpeechRecognizer`/`SpeechAnalyzer` — would only ever
+need the **Microphone** TCC grant, and would skip the separate **Speech
+Recognition** TCC prompt entirely, since it never calls Apple's Speech
+framework. That's a real architectural fork in the road for whoever picks
+this up: Apple's Speech framework is zero-dependency and ships with macOS,
+but a bundled local Whisper/Parakeet model (as both MIT-licensed Tier 1
+projects chose) trades a larger binary and a model-management story for one
+fewer permission prompt and full control over on-device model quality —
+worth weighing explicitly rather than defaulting to the Speech framework
+simply because it's the path of least resistance.
+
 ## Full-duplex (explicit stretch goal, likely "later or never")
 
 Flagging this honestly rather than over-scoping it: true full-duplex (agent
@@ -414,3 +490,17 @@ Checked both `skills/` and `recipes/` as candidate homes before writing this:
    Sigil's own config (the wiki-doc-based per-agent config pattern already
    used for `sigil/agents/<id>.md` seems like a strong existing precedent to
    reuse for response-bank config too).
+5. Local transcription model choice (Apple Speech framework vs. a bundled
+   local Whisper/Parakeet model, per the Prior Art section above) — this is
+   now a real decision with a concrete permission-surface tradeoff (one fewer
+   TCC prompt for the bundled-model path), not just an implementation detail.
+6. Whether agent-os adopts a project license at all, and if so which one —
+   this determines whether Tier 1 (MIT) prior-art code can actually be
+   vendored/adapted, versus only read for architectural inspiration like
+   Tier 2. Currently unresolved since agent-os has no `LICENSE` file today.
+7. Cross-platform reach vs. staying as close as possible to Wispr Flow's
+   macOS-native UX — raised directly by the PR comment surfacing this prior
+   art, and unresolved. FreeFlow (Tier 1, macOS-only) and OpenWhispr (Tier 1,
+   cross-platform) represent the two ends of that tradeoff and are both
+   license-clear to build from, so this is a product decision, not a
+   licensing constraint.
