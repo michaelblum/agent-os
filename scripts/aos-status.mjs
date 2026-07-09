@@ -148,6 +148,26 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) 
   return notes;
 }
 
+function readinessSummary(verdict) {
+  const summary = {
+    ready: verdict.ready,
+    status: verdict.status,
+    phase: verdict.phase,
+    diagnosis: verdict.diagnosis,
+    ready_for_testing: verdict.ready_for_testing,
+    ready_source: verdict.ready_source,
+    blocked_capabilities: verdict.blocked_capabilities,
+  };
+  if (verdict.tcc_staleness) {
+    summary.tcc_staleness = {
+      id: verdict.tcc_staleness.id,
+      diagnosis: verdict.tcc_staleness.diagnosis,
+    };
+  }
+  if (verdict.terminal_handoff) summary.terminal_handoff = verdict.terminal_handoff;
+  return summary;
+}
+
 async function buildStatusResponse() {
   const facts = brokerFacts({
     failureCode: 'STATUS_PRIMITIVE_FAILED',
@@ -168,6 +188,7 @@ async function buildStatusResponse() {
   });
   return {
     status: notes.length ? 'degraded' : 'ok',
+    readiness: readinessSummary(verdict),
     identity: identity(runtime, facts.permissionsFacts),
     runtime,
     runtime_verdict: verdict,
@@ -203,7 +224,7 @@ function printText(response) {
   const daemonState = response.runtime.socket_reachable
     ? 'reachable'
     : (response.runtime.daemon_running ? 'running' : 'down');
-  let line = `status=${response.status} mode=${response.runtime.mode} daemon=${daemonState} pid=${response.runtime.daemon_pid ?? '?'} tap=${tapValue} focused_app=${focusedApp} displays=${displays} windows=${windows} channels=${channels} stale_canvases=${staleCanvasCount}`;
+  let line = `status=${response.status} readiness=${response.readiness.status} ready=${response.readiness.ready} mode=${response.runtime.mode} daemon=${daemonState} pid=${response.runtime.daemon_pid ?? '?'} tap=${tapValue} focused_app=${focusedApp} displays=${displays} windows=${windows} channels=${channels} stale_canvases=${staleCanvasCount}`;
   if (response.git) {
     line += ` branch=${response.git.branch} ahead=${response.git.ahead_of_origin_main ?? '?'} dirty=${response.git.dirty_files}`;
   }

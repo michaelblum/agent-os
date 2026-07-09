@@ -73,6 +73,15 @@ function facts(overrides = {}) {
     daemon: overrides.daemon === null ? null : daemon(overrides.daemon ?? {}),
     permissions: permissions(overrides.permissions),
     setup: setup(overrides.setup),
+    binary_identity: {
+      path: '/repo/aos',
+      exists: true,
+      mtime: '2026-07-09T01:36:00Z',
+      mtime_ms: 1783557360000,
+      size_bytes: 123456,
+      cdhash: 'abc123def456',
+      ...overrides.binary_identity,
+    },
     cleanReport: {
       status: 'clean',
       stale_daemons: [],
@@ -115,6 +124,68 @@ test('daemon accessibility false overrides granted CLI accessibility as stale da
   assert.deepEqual(disagreementFor(current.daemon, current.permissions), {
     accessibility: { cli: true, daemon: false },
   });
+});
+
+test('passive-green live-fail daemon input monitoring names post-rebuild stale TCC and remedy', () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'human_required');
+  assert.equal(verdict.diagnosis, 'daemon_tcc_grant_stale_or_missing');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.tcc_staleness.reason.includes('stale registration for a previous aos binary'), true);
+  assert.deepEqual(verdict.tcc_staleness.stale_fields, ['listen_access']);
+  assert.deepEqual(verdict.tcc_staleness.cli_passive, {
+    accessibility: true,
+    screen_recording: true,
+    listen_access: true,
+    post_access: true,
+  });
+  assert.equal(verdict.tcc_staleness.daemon_live.listen_access, false);
+  assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
+  assert.equal(verdict.tcc_staleness.binary_identity.cdhash, 'abc123def456');
+  assert.deepEqual(verdict.tcc_staleness.remedy.commands, [
+    './aos ready --post-permission',
+  ]);
+  assert.deepEqual(verdict.terminal_handoff, {
+    type: 'manual_tcc_reset',
+    reason: 'post_rebuild_tcc_stale',
+    terminal: true,
+    alert: 'three_chimes',
+    instruction: 'End the current turn. Do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes until the user says finished.',
+    next_user_signal: 'finished',
+    human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
+    target_path: '/repo/aos',
+    resume_command: './aos ready --post-permission',
+  });
+  assert.deepEqual(verdict.next_actions, [
+    {
+      type: 'manual_tcc_reset',
+      label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
+      reason: 'post_rebuild_tcc_stale',
+      terminal: true,
+      next_user_signal: 'finished',
+    },
+    {
+      type: 'command',
+      label: 'after the user says finished, run the bounded post-permission readiness check',
+      command: './aos ready --post-permission',
+      after_user_signal: 'finished',
+    },
+  ]);
+  assert.equal(
+    verdict.notes.some((note) => note.includes('passive checks pass, but live privileged access fails after a rebuild')),
+    true,
+  );
 });
 
 test('legacy daemon health without access fields falls back to CLI permission view', () => {
@@ -329,6 +400,13 @@ test('ready auto-repair reason stays null for ready, stale, and unmanaged states
   assert.equal(readyAutoRepairReason({ ready: true, blockers: [] }), null);
   assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }), null);
   assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_unmanaged', kind: 'runtime' }] }), null);
+  assert.equal(readyAutoRepairReason({
+    ready: false,
+    blockers: [
+      { id: 'input_tap_not_active', kind: 'runtime' },
+      { id: 'input_monitoring_listen', kind: 'permission', reason: 'post_rebuild_tcc_stale' },
+    ],
+  }), null);
 });
 
 test('ready auto-repair reason is deterministic for ownership and input-tap blockers', () => {

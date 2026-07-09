@@ -13,13 +13,20 @@ LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
 BUILD_MODE="dev"
 FORCE_BUILD=0
 RESTART_DAEMON=1
+PACKAGE_RUNTIME=0
+CODE_SIGN_IDENTIFIER="com.agentos.repo-aos"
+CODE_SIGN_IDENTITY="${AOS_CODESIGN_IDENTITY:--}"
+PACKAGING_DIR="$REPO_ROOT/packaging"
+PACKAGED_INFO_PLIST="$PACKAGING_DIR/Info.plist"
+PACKAGED_ENTITLEMENTS="$PACKAGING_DIR/aos.entitlements"
 
 usage() {
     cat <<'EOF'
-Usage: bash build.sh [--release] [--force] [--no-restart]
+Usage: bash build.sh [--release] [--package] [--force] [--no-restart]
 
 Default mode is a faster development build (`-Onone`).
 Use `--release` for optimized artifacts such as packaged app builds.
+Use `--package` to embed packaging/Info.plist and sign with packaging/aos.entitlements.
 EOF
 }
 
@@ -27,6 +34,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --release)
             BUILD_MODE="release"
+            ;;
+        --package)
+            PACKAGE_RUNTIME=1
             ;;
         --force)
             FORCE_BUILD=1
@@ -46,6 +56,19 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+BUILD_VARIANT="$BUILD_MODE"
+if [[ $PACKAGE_RUNTIME -eq 1 ]]; then
+    BUILD_VARIANT="$BUILD_MODE+package"
+    if [[ ! -f "$PACKAGED_INFO_PLIST" ]]; then
+        echo "Missing packaged runtime Info.plist: $PACKAGED_INFO_PLIST" >&2
+        exit 1
+    fi
+    if [[ ! -f "$PACKAGED_ENTITLEMENTS" ]]; then
+        echo "Missing packaged runtime entitlements: $PACKAGED_ENTITLEMENTS" >&2
+        exit 1
+    fi
+fi
 
 SOURCES=()
 while IFS= read -r file; do
@@ -82,6 +105,15 @@ if [[ "$BUILD_MODE" == "release" ]]; then
 else
     SWIFTC_FLAGS=(-parse-as-library -Onone -o "$OUTPUT_PATH" -lsqlite3)
 fi
+if [[ $PACKAGE_RUNTIME -eq 1 ]]; then
+    SWIFTC_FLAGS=(
+        "${SWIFTC_FLAGS[@]}"
+        -Xlinker -sectcreate
+        -Xlinker __TEXT
+        -Xlinker __info_plist
+        -Xlinker "$PACKAGED_INFO_PLIST"
+    )
+fi
 
 codesign_available() {
     command -v codesign >/dev/null 2>&1
@@ -91,54 +123,29 @@ signature_valid() {
     if ! codesign_available; then
         return 0
     fi
-    codesign --verify "$OUTPUT_PATH" >/dev/null 2>&1
+    if [[ $PACKAGE_RUNTIME -eq 1 ]]; then
+        codesign --verify --strict "$OUTPUT_PATH" >/dev/null 2>&1
+    else
+        codesign --verify "$OUTPUT_PATH" >/dev/null 2>&1
+    fi
 }
 
 sign_output() {
     if codesign_available; then
-        if ! CODESIGN_OUTPUT="$(codesign --force --sign - --identifier com.agentos.repo-aos "$1" 2>&1)"; then
+        CODESIGN_ARGS=(--force --sign "$CODE_SIGN_IDENTITY" --identifier "$CODE_SIGN_IDENTIFIER")
+        if [[ $PACKAGE_RUNTIME -eq 1 ]]; then
+            CODESIGN_ARGS=("${CODESIGN_ARGS[@]}" --entitlements "$PACKAGED_ENTITLEMENTS")
+        fi
+        if ! CODESIGN_OUTPUT="$(codesign "${CODESIGN_ARGS[@]}" "$1" 2>&1)"; then
             printf '%s\n' "$CODESIGN_OUTPUT" >&2
             exit 1
         fi
     fi
 }
 
-play_rebuild_alert() {
-    if [[ "${AOS_BUILD_REBUILD_ALERT:-1}" == "0" ]]; then
-        return 0
-    fi
-
-    echo "Alert: repo-mode ./aos binary rebuilt; user must manually reset/regrant needed macOS TCC permissions before TCC-backed proof."
-
-    if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
-        "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true
-        return 0
-    fi
-
-    local sound="${AOS_BUILD_REBUILD_ALERT_SOUND:-/System/Library/Sounds/Sosumi.aiff}"
-    local repeat="${AOS_BUILD_REBUILD_ALERT_REPEAT:-3}"
-    local volume="${AOS_BUILD_REBUILD_ALERT_VOLUME:-2}"
-    case "$repeat" in
-        ''|*[!0-9]*) repeat=3 ;;
-    esac
-
-    if [[ -x /usr/bin/afplay && -f "$sound" ]]; then
-        local i=0
-        while [[ $i -lt $repeat ]]; do
-            /usr/bin/afplay -v "$volume" "$sound" >/dev/null 2>&1 || break
-            i=$((i + 1))
-        done
-        return 0
-    fi
-
-    if command -v osascript >/dev/null 2>&1; then
-        osascript -e "beep $repeat" >/dev/null 2>&1 || true
-    fi
-}
-
 build_fingerprint() {
     {
-        printf 'mode %s\n' "$BUILD_MODE"
+        printf 'mode %s\n' "$BUILD_VARIANT"
         for input in "${INPUTS[@]}"; do
             printf 'file %s\n' "$input"
             shasum -a 256 "$input"
@@ -161,6 +168,9 @@ if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
     INPUTS+=("${SHARED_IPC[@]}")
     SWIFT_INPUTS+=("${SHARED_IPC[@]}")
 fi
+if [[ $PACKAGE_RUNTIME -eq 1 ]]; then
+    INPUTS+=("$PACKAGED_INFO_PLIST" "$PACKAGED_ENTITLEMENTS")
+fi
 CURRENT_FINGERPRINT="$(build_fingerprint)"
 NEEDS_BUILD=1
 NEEDS_SIGN=0
@@ -168,7 +178,7 @@ BINARY_REBUILT=0
 
 if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
     LAST_MODE="$(cat "$MODE_FILE")"
-    if [[ "$LAST_MODE" == "$BUILD_MODE" ]]; then
+    if [[ "$LAST_MODE" == "$BUILD_VARIANT" ]]; then
         if [[ -f "$FINGERPRINT_FILE" && "$(cat "$FINGERPRINT_FILE")" == "$CURRENT_FINGERPRINT" ]]; then
             NEEDS_BUILD=0
         elif [[ ! -f "$FINGERPRINT_FILE" ]] && ! runtime_inputs_newer_than_output; then
@@ -184,12 +194,12 @@ fi
 
 if [[ $NEEDS_BUILD -eq 0 && $NEEDS_SIGN -eq 0 ]]; then
     printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
-    echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
+    echo "Up to date: ./aos ($BUILD_VARIANT, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
     exit 0
 fi
 
 if [[ $NEEDS_BUILD -eq 1 ]]; then
-    echo "Compiling aos ($BUILD_MODE)..."
+    echo "Compiling aos ($BUILD_VARIANT)..."
     TMP_OUTPUT="$(mktemp "$BUILD_DIR/aos.tmp.XXXXXX")"
     cleanup_tmp_output() {
         rm -f "$TMP_OUTPUT"
@@ -211,16 +221,16 @@ if [[ $NEEDS_BUILD -eq 1 ]]; then
     BINARY_REBUILT=1
     echo "Rebuilt: ./aos"
 else
-    echo "Signing aos ($BUILD_MODE)..."
+    echo "Signing aos ($BUILD_VARIANT)..."
     sign_output "$OUTPUT_PATH"
     "$OUTPUT_PATH" help --json >/dev/null
 fi
-printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
+printf '%s\n' "$BUILD_VARIANT" > "$MODE_FILE"
 printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
 if [[ $BINARY_REBUILT -eq 1 ]]; then
-    play_rebuild_alert
+    echo "Note: TCC handoff alert is deferred until a live readiness check reports post-rebuild stale TCC."
 fi
 
 # Restart daemon if it's running as a service

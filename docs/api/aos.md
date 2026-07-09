@@ -50,9 +50,10 @@ instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
 itself under repair. The build path avoids rebuilding the TCC-owning repo-mode
 binary unless Swift runtime input content changed, the output is missing or in
 the wrong mode, or the caller passes `--force`. When it does rebuild, it emits a
-`Rebuilt: ./aos` marker and plays the configured system rebuild alert; stop
-before TCC-backed proof until the user manually resets/regrants the needed
-macOS permissions and `./aos ready --post-permission` is green. Use
+`Rebuilt: ./aos` marker but does not play the TCC alert. If a later live
+TCC-backed readiness check reports `post_rebuild_tcc_stale`, that command plays
+the three-chime handoff alert and the agent must end the current turn until the
+user manually resets/regrants TCC and replies `finished`. Use
 `./aos dev gh` for GitHub operations from repo
 sessions; it shells out to the authenticated local `gh` CLI and does not fall
 back to connector-backed GitHub tools.
@@ -725,9 +726,11 @@ runtime inputs, not mtime-based, and build-tooling edits alone do not replace
 the TCC-owning binary. No post-build hook automates TCC handling: build does not
 reset permissions, open System Settings, show a human-needed surface, write
 completed-build markers, or inject provider input. Repo-mode binary rebuilds
-are TCC-sensitive and intentionally rare; successful rebuilds play a system
-alert sound and require a user reset/regrant checkpoint before TCC-backed proof.
-After the user confirms the reset, verify with `./aos ready --post-permission`.
+are TCC-sensitive and intentionally rare; successful rebuilds only print
+`Rebuilt: ./aos`. The three-chime alert is deferred until a live readiness check
+observes `post_rebuild_tcc_stale`, then the agent must stop the turn and wait
+for the user to manually reset/regrant TCC. After the user replies `finished`,
+verify with `./aos ready --post-permission`.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
@@ -2329,13 +2332,13 @@ Consumers:
   and returns structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
-  input tap, because those states commonly appear after a human refreshes macOS
-  privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
-  should use `./aos permissions reset-runtime --mode repo` before Settings: it
-  stops the managed daemon, verifies `running=false`, then either runs a real
-  targeted TCC reset for a targetable runtime identity or reports targeted reset
-  unavailable for the bare repo binary. Manual Settings removal is fallback only
-  if that command reports targeted reset is unavailable or failed.
+  input tap with no permission blocker, because those states commonly appear
+  after a human refreshes macOS privacy grants. When passive CLI grants are
+  green but the live daemon reports denied Accessibility/Input Monitoring,
+  `ready` must not restart/recheck in a loop. It reports
+  `post_rebuild_tcc_stale`, plays the handoff alert once per binary identity,
+  returns a terminal handoff, and the agent ends the turn until the user replies
+  `finished` after manually resetting/regranting TCC.
   `--post-permission` is the explicit
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
@@ -2384,6 +2387,16 @@ Consumers:
   `runtime_verdict` as the shared readiness/action-plan contract:
   `ready`, `phase`, `diagnosis`, `blockers`, `blocked_capabilities`, `notes`,
   `next_actions`, `ownership`, and `cleanup`.
+- When passive CLI permission checks are granted but the live daemon view
+  reports denied Accessibility or Input Monitoring after a rebuild,
+  `runtime_verdict.tcc_staleness` names the condition as
+  `post_rebuild_tcc_stale`, includes side-by-side `cli_passive` and
+  `daemon_live` booleans, includes the current runtime binary identity
+  (`path`, `mtime`, `cdhash` when available), and carries the manual reset
+  remedy. `aos ready --json` also exposes the same object at top-level
+  `tcc_staleness` plus a top-level `terminal_handoff` telling agents to stop
+  the current turn, wait for the user signal `finished`, and then run
+  `./aos ready --post-permission`.
 - When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
   `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
   The process command line is either present as `command_line` or explicitly
@@ -2391,7 +2404,14 @@ Consumers:
   `command_line_unavailable_reason`.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
-- `aos status` text mode includes `tap=<status>` in the one-line summary.
+- `aos status --json` also exposes top-level `readiness`, a compact projection
+  of `runtime_verdict` with `ready`, `status`, `phase`, `diagnosis`,
+  `ready_for_testing`, `ready_source`, `blocked_capabilities`, and any
+  `tcc_staleness` / `terminal_handoff` summary. This lets agents distinguish
+  recovered TCC/runtime readiness from unrelated overall status degradations
+  such as stale resource cleanup notes.
+- `aos status` text mode includes `readiness=<status>`, `ready=<bool>`, and
+  `tap=<status>` in the one-line summary.
 - `aos doctor --json` exposes top-level `ready_for_testing` and
   `ready_source`.
 - `aos service install`, `start`, and `restart` block-and-poll for up to 5s

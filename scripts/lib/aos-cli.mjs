@@ -152,3 +152,29 @@ export function binaryTimestamp(file) {
     return undefined;
   }
 }
+
+export function binaryCDHash(file) {
+  const result = run('/usr/bin/codesign', ['-dvvv', file]);
+  if (result.exitCode !== 0) return undefined;
+  const match = `${result.stdout}\n${result.stderr}`.match(/^CDHash=(\S+)/m);
+  return match?.[1];
+}
+
+export function binaryFileIdentity(file) {
+  try {
+    const stat = fs.statSync(file);
+    return {
+      path: file,
+      exists: true,
+      mtime: stat.mtime.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      mtime_ms: stat.mtimeMs,
+      size_bytes: stat.size,
+      cdhash: binaryCDHash(file),
+    };
+  } catch {
+    return {
+      path: file,
+      exists: false,
+    };
+  }
+}

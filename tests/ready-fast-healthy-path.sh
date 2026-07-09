@@ -82,10 +82,16 @@ import json, sys
 d = json.loads(sys.stdin.read())
 runtime = d.get("runtime", {})
 tap = runtime.get("input_tap", {})
+readiness = d.get("readiness", {})
 notes = d.get("notes", [])
 joined = "\n".join(notes)
 
 assert d.get("status") == "ok", d
+assert readiness.get("ready") is True, readiness
+assert readiness.get("status") == "ok", readiness
+assert readiness.get("phase") == "ready", readiness
+assert readiness.get("diagnosis") == "ready", readiness
+assert readiness.get("ready_source") == "daemon", readiness
 assert runtime.get("socket_reachable") is True, runtime
 assert runtime.get("input_tap_status") == "active", runtime
 assert tap.get("status") == "active", tap

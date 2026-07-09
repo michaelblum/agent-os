@@ -19,10 +19,12 @@ tooling does not by itself rebuild the TCC-owning binary; use `--force` only
 when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
-`Rebuilt: ./aos` marker and plays the configured rebuild alert sound. Treat that
-as a human-attention event for TCC-sensitive sessions: stop before TCC-backed
-proof, ask the human to manually reset/regrant the needed macOS permissions, and
-run `./aos ready --post-permission` after they confirm.
+`Rebuilt: ./aos` marker but does not play the TCC alert. Continue with non-TCC
+checks as needed. If a later live TCC-backed readiness check reports
+`post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
+prints a terminal handoff, and the agent must end the current turn. The next
+user response is the signal that they manually reset/regranted TCC; resume with
+`./aos ready --post-permission`.
 
 When you are unsure which loop applies, ask the router first:
 
@@ -73,16 +75,12 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 
 Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
 
-If readiness or permissions setup says repo-mode Accessibility/Input Monitoring
-must be reset, use `./aos permissions reset-runtime --mode repo` first. It stops
-the managed daemon, verifies `running=false`, and either runs a real targeted
-TCC reset for a targetable runtime identity or reports targeted reset
-unavailable for the bare repo binary. Then run
-`./aos permissions setup --once` to request fresh macOS prompts. If the grant
-remains stale or macOS does not prompt, the human physically removes and re-adds
-the repo-mode `aos` runtime in System Settings, then says `finished` in the
-waiting session. The session then runs `./aos ready --post-permission` to
-verify.
+If readiness reports `post_rebuild_tcc_stale`, stop immediately after the
+three-chime handoff. Do not run reset-runtime, setup, service restart, another
+ready probe, or any other TCC-backed command in the same turn. The human
+physically removes and re-adds the repo-mode `aos` runtime in System Settings,
+then says `finished` in the waiting session. The session then runs
+`./aos ready --post-permission` to verify.
 Service-wide TCC reset affects other apps and is a break-glass capability only;
 do not use `--allow-service-reset --emergency-ack-other-apps` unless Michael
 explicitly asks for emergency recovery.

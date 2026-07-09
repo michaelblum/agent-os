@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import {
   compactProcessDetail,
@@ -53,6 +56,8 @@ function buildReadyResponse(startup, actionTrace, mode, prefix) {
     startup,
     runtime: facts.runtime,
     runtime_verdict: verdict,
+    tcc_staleness: verdict.tcc_staleness,
+    terminal_handoff: verdict.terminal_handoff,
     permissions: facts.permissions,
     permissions_setup: facts.setup,
     blocked_capabilities: verdict.blocked_capabilities,
@@ -61,6 +66,99 @@ function buildReadyResponse(startup, actionTrace, mode, prefix) {
     action_trace: actionTrace,
     notes: verdict.notes,
   };
+}
+
+function stateDir(mode) {
+  const root = process.env.AOS_STATE_ROOT
+    ? path.resolve(process.env.AOS_STATE_ROOT)
+    : path.join(os.homedir(), '.config', 'aos');
+  return path.join(root, mode);
+}
+
+function staleTccAlertMarkerPath(mode) {
+  return path.join(stateDir(mode), 'post-rebuild-tcc-handoff-alert.json');
+}
+
+function staleTccAlertKey(staleness) {
+  const identity = staleness?.binary_identity ?? {};
+  return [
+    identity.path,
+    identity.cdhash,
+    identity.mtime_ms,
+    identity.size_bytes,
+  ].filter((part) => part !== undefined && part !== null && part !== '').join('|');
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function commandExists(file) {
+  try {
+    fs.accessSync(file, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function playTccHandoffAlertSound() {
+  if (process.env.AOS_TCC_HANDOFF_ALERT_COMMAND) {
+    spawnSync('/bin/sh', ['-c', process.env.AOS_TCC_HANDOFF_ALERT_COMMAND], { stdio: 'ignore' });
+    return;
+  }
+
+  const sound = process.env.AOS_TCC_HANDOFF_ALERT_SOUND || '/System/Library/Sounds/Sosumi.aiff';
+  const repeat = parsePositiveInt(process.env.AOS_TCC_HANDOFF_ALERT_REPEAT, 3);
+  const volume = process.env.AOS_TCC_HANDOFF_ALERT_VOLUME || '2';
+  if (commandExists('/usr/bin/afplay') && fs.existsSync(sound)) {
+    for (let i = 0; i < repeat; i += 1) {
+      const result = spawnSync('/usr/bin/afplay', ['-v', volume, sound], { stdio: 'ignore' });
+      if (result.status !== 0) break;
+    }
+    return;
+  }
+
+  if (commandExists('/usr/bin/osascript')) {
+    spawnSync('/usr/bin/osascript', ['-e', `beep ${repeat}`], { stdio: 'ignore' });
+  }
+}
+
+function maybePlayTccHandoffAlert(response, mode) {
+  const handoff = response.terminal_handoff;
+  const staleness = response.tcc_staleness;
+  if (!handoff?.terminal || staleness?.id !== 'post_rebuild_tcc_stale') return undefined;
+
+  const markerPath = staleTccAlertMarkerPath(mode);
+  const key = staleTccAlertKey(staleness);
+  if (!key) return { status: 'skipped', reason: 'missing_binary_identity', marker_path: markerPath };
+  if (process.env.AOS_TCC_HANDOFF_ALERT === '0') {
+    return { status: 'skipped', reason: 'disabled', marker_path: markerPath, key };
+  }
+
+  try {
+    const existing = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+    if (existing.key === key) {
+      return { status: 'skipped', reason: 'already_alerted_for_binary_identity', marker_path: markerPath, key };
+    }
+  } catch {
+    // Missing or invalid marker: play the alert and replace it.
+  }
+
+  playTccHandoffAlertSound();
+  try {
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+    fs.writeFileSync(markerPath, `${JSON.stringify({
+      key,
+      alerted_at: new Date().toISOString(),
+      target_path: staleness.remedy?.target_path,
+      cdhash: staleness.binary_identity?.cdhash,
+    }, null, 2)}\n`);
+  } catch {
+    return { status: 'played', marker_status: 'write_failed', marker_path: markerPath, key };
+  }
+  return { status: 'played', marker_status: 'written', marker_path: markerPath, key };
 }
 
 function serviceCommandString(mode, prefix, action) {
@@ -201,6 +299,17 @@ function runReadyCleanRepair(startup, actionTrace, mode, prefix) {
 
 function printReadyHumanHandoff(response, mode, prefix) {
   if (response.phase !== 'human_required') return;
+  if (response.terminal_handoff?.reason === 'post_rebuild_tcc_stale') {
+    process.stdout.write('\n');
+    process.stdout.write('Human action needed:\n');
+    process.stdout.write('Post-rebuild TCC reset checkpoint:\n');
+    process.stdout.write(`  Runtime mode: ${mode}\n`);
+    process.stdout.write(`  Target binary: ${response.terminal_handoff.target_path}\n`);
+    process.stdout.write('  Agent: end this turn now; do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes.\n');
+    process.stdout.write(`  Human: ${response.terminal_handoff.human_action}\n`);
+    process.stdout.write(`  Session: after the user says ${response.terminal_handoff.next_user_signal}, run ${prefix} ready --post-permission\n`);
+    return;
+  }
   const permissionBlockers = response.blockers.filter((blocker) => blocker.kind === 'permission');
   if (!permissionBlockers.length) return;
 
@@ -239,10 +348,12 @@ function printText(response, mode, prefix) {
     if (blocker.settings_url) process.stdout.write(`  settings: ${blocker.settings_url}\n`);
   }
   printReadyHumanHandoff(response, mode, prefix);
+  if (response.terminal_handoff?.terminal) return;
   if (response.next_actions.length) {
     process.stdout.write('Next:\n');
     for (const action of response.next_actions) {
       if (response.phase === 'human_required' && action.type === 'open_settings') continue;
+      if (response.terminal_handoff?.terminal && !action.after_user_signal && action.type !== 'manual_tcc_reset') continue;
       if (action.command) process.stdout.write(`  ${action.command}  # ${action.label}\n`);
       else process.stdout.write(`  ${action.label}\n`);
     }
@@ -285,6 +396,9 @@ if (options.repair && !response.ready) {
     response = buildReadyResponse(decision.startup, trace, mode, prefix);
   }
 }
+
+const handoffAlert = maybePlayTccHandoffAlert(response, mode);
+if (handoffAlert) response.tcc_handoff_alert = handoffAlert;
 
 if (options.json) printJSON(response);
 else printText(response, mode, prefix);
