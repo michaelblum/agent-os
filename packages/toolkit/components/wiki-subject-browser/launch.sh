@@ -134,7 +134,7 @@ NODE
   "$AOS" show wait \
     --id "$CANVAS_ID" \
     --manifest wiki-subject-browser-v0 \
-    --js 'window.__wikiSubjectBrowserState?.catalog_entries?.length > 0 && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:inspect:work-record-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06\"]")' \
+    --js 'window.__wikiSubjectBrowserState?.catalog_entries?.length > 0 && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-catalog:open:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:inspect:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:open:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06\"]")' \
     --timeout 5s \
     --json >/dev/null || true
   "$AOS" show wait \

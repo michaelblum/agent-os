@@ -182,15 +182,18 @@ test('Sigil operator annotation receiver fails closed without a selection receiv
 
 test('Sigil main guards native operator annotation messages to the primary segment', async () => {
   const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const statusRuntimeSource = await readFile(new URL('../../apps/sigil/renderer/live-modules/status-menu-runtime.js', import.meta.url), 'utf8')
   const globalFilter = source.match(/function shouldProcessGlobalDaemonEvent\(msg = \{\}\) \{[\s\S]*?\n\}/)?.[0] || ''
-  const statusHandler = source.match(/async function handleStatusMenuAction\(msg = \{\}\) \{[\s\S]*?const id =/)?.[0] || ''
+  const statusHandler = statusRuntimeSource.match(/async function handleStatusMenuAction\(msg = \{\}\) \{[\s\S]*?const id =/)?.[0] || ''
   const receiverConfig = source.match(/const sigilOperatorAnnotationReceiver = createSigilOperatorAnnotationReceiver\(\{[\s\S]*?\n\}\);/)?.[0] || ''
+  const statusRuntimeConfig = source.match(/statusMenuRuntime = createSigilStatusMenuRuntime\(\{[\s\S]*?\n\}\);/)?.[0] || ''
 
   assert.match(globalFilter, /msg\.type === 'status_item\.menu_action'/)
   assert.match(globalFilter, /msg\.type === OPERATOR_ANNOTATION_START_EVENT/)
   assert.match(statusHandler, /if \(!isPrimarySurfaceSegment\(\)\) return true;/)
   assert.match(receiverConfig, /resolvePointer: resolveOperatorAnnotationPointer/)
   assert.match(receiverConfig, /isPrimarySurfaceSegment/)
+  assert.match(statusRuntimeConfig, /isPrimarySurfaceSegment/)
 })
 
 test('Sigil main operator annotation pointer resolver converts status origin before fallback', async () => {
@@ -207,7 +210,7 @@ test('Sigil main operator annotation pointer resolver converts status origin bef
     displays: [{ id: 1 }],
     pointerPos: { x: 20, y: 30, valid: true },
   }
-  const nativeToDesktopWorldPoint = (point, displays) => {
+  const projectNativePointForTest = (point, displays) => {
     calls.push({ point, displays })
     return { x: point.x + 2000, y: point.y + 3000, valid: true }
   }
@@ -216,7 +219,7 @@ test('Sigil main operator annotation pointer resolver converts status origin bef
     'liveJs',
     `${originFunction}\n${fallbackFunction}\n${resolverFunction}\nreturn resolveOperatorAnnotationPointer;`,
   )
-  const resolvePointer = buildResolver(nativeToDesktopWorldPoint, liveJs)
+  const resolvePointer = buildResolver(projectNativePointForTest, liveJs)
 
   assert.deepEqual(resolvePointer({ origin_x: 120, origin_y: 88 }), {
     x: 2120,

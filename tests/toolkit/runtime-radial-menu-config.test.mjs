@@ -26,7 +26,7 @@ test('radial menu resolver cascades toolkit defaults into Sigil override data', 
   assert.deepEqual(
     resolved.logical_items.map((item) => [item.id, item.label, item.action]),
     [
-      ['context-menu', 'Context Menu', 'contextMenu'],
+      ['avatar-controls', 'Avatar Controls', 'avatarControls'],
       ['agent-terminal', 'Agent Terminal', 'agentTerminal'],
       ['annotation-mode', 'Annotate', 'annotationMode'],
       ['annotation-camera', 'Snapshot', 'annotationSnapshot'],
@@ -40,7 +40,7 @@ test('radial menu resolver cascades toolkit defaults into Sigil override data', 
     assert.equal(item.logical.close_on_select, true)
   }
 
-  const context = resolved.items.find((item) => item.id === 'context-menu')
+  const context = resolved.items.find((item) => item.id === 'avatar-controls')
   const reticle = resolved.items.find((item) => item.id === 'annotation-mode')
   const wiki = resolved.items.find((item) => item.id === 'wiki-graph')
 
@@ -59,8 +59,8 @@ test('radial menu resolver merges item overrides by id without replacing default
     extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
     items: [
       {
-        id: 'context-menu',
-        label: 'Context Menu',
+        id: 'avatar-controls',
+        label: 'Avatar Controls',
         geometry: {
           radiusScale: 3,
         },
@@ -69,8 +69,8 @@ test('radial menu resolver merges item overrides by id without replacing default
   }, {
     base: sigilMenu,
   })
-  const context = resolved.items.find((item) => item.id === 'context-menu')
-  assert.equal(context.action, 'contextMenu')
+  const context = resolved.items.find((item) => item.id === 'avatar-controls')
+  assert.equal(context.action, 'avatarControls')
   assert.equal(context.geometry.type, 'gltf')
   assert.equal(context.geometry.radiusScale, 3)
 })
