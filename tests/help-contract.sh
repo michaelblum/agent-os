@@ -825,6 +825,9 @@ if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/t
     && node scripts/aos-dev-build.mjs build -h >/tmp/aos-dev-build-help-short.out 2>/tmp/aos-dev-build-help-short.err \
     && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help.out \
     && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help-short.out \
+    && grep -q 'bash build.sh --force --no-restart' /tmp/aos-dev-build-help.out \
+    && grep -q 'no post-build codesign' /tmp/aos-dev-build-help.out \
+    && grep -q 'spctl launch gate' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Signing aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \

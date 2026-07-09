@@ -247,8 +247,8 @@
       "owner": "build-tooling",
       "harness_level": "shell_router",
       "proof_kind": "build_policy",
-      "contract": "Repo-mode builds are content-based, do not post-sign, and emit the manual TCC handoff only after real rebuilds.",
-      "worth": "This protects rebuild behavior without touching the real repo-mode binary or macOS TCC state.",
+      "contract": "Repo-mode builds are content-based, stay raw direct swiftc output, do not post-sign or gate on spctl, and emit the manual TCC handoff only after real rebuilds.",
+      "worth": "This protects raw rebuild and 137 recovery behavior without touching the real repo-mode binary or macOS TCC state.",
       "command": "bash tests/build-rebuild-policy.sh",
       "replaces": [],
       "guard": "uses a temporary fake repo and fake toolchain",
@@ -450,6 +450,216 @@
       "command": "node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs",
       "replaces": [],
       "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "daemon-event-voice-schema-proof",
+      "path_patterns": [
+        "tests/schemas/daemon-event.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/voice-*.json"
+      ],
+      "owner": "voice-io",
+      "harness_level": "schema",
+      "proof_kind": "daemon_event_schema_contract",
+      "contract": "Voice daemon-event fixtures and the frozen voice event vocabulary stay aligned with the canonical daemon event schema.",
+      "worth": "This catches voice wake and dictation envelope drift before renderer or daemon behavior tests consume invalid events.",
+      "command": "node --test tests/schemas/daemon-event.test.mjs",
+      "replaces": [],
+      "guard": "schema-only validation",
+      "status": "active"
+    },
+    {
+      "id": "sigil-voice-dictation-renderer-proof",
+      "path_patterns": [
+        "tests/renderer/sigil-voice-dictation.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "model_unit",
+      "proof_kind": "voice_dictation_contract",
+      "contract": "Sigil renderer dictation state emits key-driven voice envelopes and consumes generic daemon voice envelopes without re-emitting them.",
+      "worth": "This proves the renderer voice bridge without needing a live daemon, keyboard hook, or status item.",
+      "command": "node --test tests/renderer/sigil-voice-dictation.test.mjs",
+      "replaces": [],
+      "guard": "renderer module unit; no live daemon",
+      "status": "active"
+    },
+    {
+      "id": "toolkit-controls-dictation-proof",
+      "path_patterns": [
+        "tests/toolkit/controls-dictation.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "voice_dictation_contract",
+      "contract": "Toolkit controls dictation controller mirrors the Sigil voice dictation envelope contract for control-surface consumers.",
+      "worth": "This prevents toolkit control state from drifting away from the renderer voice dictation bridge.",
+      "command": "node --test tests/toolkit/controls-dictation.test.mjs",
+      "replaces": [],
+      "guard": "controller unit; no live daemon",
+      "status": "active"
+    },
+    {
+      "id": "voice-bind-proof",
+      "path_patterns": [
+        "tests/voice-bind.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_assignment_contract",
+      "contract": "Voice bind supports exact, filtered, unavailable, disabled, and unspeakable voice assignment outcomes.",
+      "worth": "This catches assignment and allocatability regressions using mock providers in an isolated state root.",
+      "command": "bash tests/voice-bind.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and mock voice providers",
+      "status": "active"
+    },
+    {
+      "id": "voice-cursor-rotation-proof",
+      "path_patterns": [
+        "tests/voice-cursor-rotation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_assignment_contract",
+      "contract": "Voice session allocation rotates through mock voices, preserves cursor state, and revalidates assignments after policy changes.",
+      "worth": "This proves rotation and policy-filter behavior without touching the shared repo daemon.",
+      "command": "bash tests/voice-cursor-rotation.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and mock voice providers",
+      "status": "active"
+    },
+    {
+      "id": "voice-external-parser-proof",
+      "path_patterns": [
+        "tests/voice-external-parser.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "shell_router",
+      "proof_kind": "external_parser_contract",
+      "contract": "Voice subcommands reject unknown flags and missing values with the external command error contract.",
+      "worth": "This keeps voice CLI forms aligned with maintainer-facing parser semantics.",
+      "command": "bash tests/voice-external-parser.sh",
+      "replaces": [],
+      "guard": "parser-only assertions",
+      "status": "active"
+    },
+    {
+      "id": "voice-final-response-proof",
+      "path_patterns": [
+        "tests/voice-final-response.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_final_response_contract",
+      "contract": "Voice final-response hooks route Codex and Claude payloads through the human voice response policy with disabled-delivery acknowledgement.",
+      "worth": "This protects final response speech routing without requiring a live TTS provider.",
+      "command": "bash tests/voice-final-response.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT; voice delivery remains disabled",
+      "status": "active"
+    },
+    {
+      "id": "voice-id-canonicalization-proof",
+      "path_patterns": [
+        "tests/voice-id-canonicalization.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "shell_router",
+      "proof_kind": "voice_id_contract",
+      "contract": "Voice IDs round-trip, preserve provider namespaces, canonicalize system IDs, and fail closed on malformed inputs.",
+      "worth": "This prevents ambiguous provider IDs from leaking into assignment, policy, or speech paths.",
+      "command": "bash tests/voice-id-canonicalization.sh",
+      "replaces": [],
+      "guard": "internal helper command only",
+      "status": "active"
+    },
+    {
+      "id": "voice-policy-reload-proof",
+      "path_patterns": [
+        "tests/voice-policy-reload.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_policy_contract",
+      "contract": "Voice policy file rewrites are observed by the daemon and reflected in voice availability and session assignment state.",
+      "worth": "This catches policy watcher and reload regressions using a disposable state root.",
+      "command": "bash tests/voice-policy-reload.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and mock voice providers",
+      "status": "active"
+    },
+    {
+      "id": "voice-providers-proof",
+      "path_patterns": [
+        "tests/voice-providers.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_provider_contract",
+      "contract": "Voice providers list exposes the canonical system and ElevenLabs provider catalog shape.",
+      "worth": "This catches provider registry regressions before voice assignment or speech paths consume the catalog.",
+      "command": "bash tests/voice-providers.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT",
+      "status": "active"
+    },
+    {
+      "id": "voice-registry-snapshot-proof",
+      "path_patterns": [
+        "tests/voice-registry-snapshot.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "shell_router",
+      "proof_kind": "voice_registry_contract",
+      "contract": "The internal voice registry snapshot exposes sorted mock voices and parser errors through the external error contract.",
+      "worth": "This gives the cheapest deterministic proof that mock voice fixtures stay discoverable for voice tests.",
+      "command": "bash tests/voice-registry-snapshot.sh",
+      "replaces": [],
+      "guard": "uses mock provider registry without daemon startup",
+      "status": "active"
+    },
+    {
+      "id": "voice-session-allocation-proof",
+      "path_patterns": [
+        "tests/voice-session-allocation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_assignment_contract",
+      "contract": "Voice session allocation assigns, persists, restores, and rebinds mock voices across daemon restarts.",
+      "worth": "This protects session voice continuity without using the shared repo runtime.",
+      "command": "bash tests/voice-session-allocation.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and mock voice providers",
+      "status": "active"
+    },
+    {
+      "id": "voice-telemetry-proof",
+      "path_patterns": [
+        "tests/voice-telemetry.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "voice_telemetry_contract",
+      "contract": "Voice assignment fallback emits telemetry when stored session preferences are no longer allocatable.",
+      "worth": "This catches silent policy and allocation failures that would otherwise look like successful session restore.",
+      "command": "bash tests/voice-telemetry.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and mock voice providers",
       "status": "active"
     },
     {

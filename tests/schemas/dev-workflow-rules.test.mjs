@@ -86,12 +86,32 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     rules.get('swift-core')?.verification?.[0]?.command,
     './aos ready --post-permission',
   );
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('bash build.sh --force --no-restart') && note.includes('exits 137'),
+    ),
+  );
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('direct build.sh swiftc output only') && note.includes('spctl launch gate'),
+    ),
+  );
   assert.deepEqual(
     rules.get('repo-build-tooling')?.commands?.map((step) => step.command),
     ['bash tests/build-rebuild-policy.sh'],
   );
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('build.sh'));
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-rebuild-policy.sh'));
+  assert.ok(
+    rules.get('repo-build-tooling')?.notes?.some((note) =>
+      note.includes('bash build.sh --force --no-restart') && note.includes('post-build codesign'),
+    ),
+  );
+  assert.ok(
+    rules.get('repo-build-tooling')?.notes?.some((note) =>
+      note.includes('spctl rejection is expected') && note.includes('launchability'),
+    ),
+  );
   assert.deepEqual(
     rules.get('root-skill-packages')?.commands?.map((step) => step.command),
     [

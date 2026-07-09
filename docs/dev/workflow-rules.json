@@ -53,6 +53,10 @@
           "command": "./aos ready --post-permission",
           "reason": "After a real rebuild and user TCC reset/regrant, verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
         }
+      ],
+      "notes": [
+        "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because ./aos dev build cannot run through a broken ./aos artifact.",
+        "Repo-mode rebuilds must stay raw: direct build.sh swiftc output only, no post-build codesign, explicit signing identifier, entitlements, app bundle, allowlist assumption, or spctl launch gate."
       ]
     },
     {
@@ -79,7 +83,11 @@
           "reason": "Verify content-based rebuilds, no repo-mode post-signing, and rebuild alert/TCC handoff behavior."
         }
       ],
-      "verification": []
+      "verification": [],
+      "notes": [
+        "The raw recovery command for a missing or launch-killed repo ./aos is `bash build.sh --force --no-restart`; do not repair by adding post-build codesign or an spctl acceptance gate.",
+        "spctl rejection is expected for the repo-local raw binary shape; launchability of ./aos is the operational gate."
+      ]
     },
     {
       "id": "root-skill-packages",

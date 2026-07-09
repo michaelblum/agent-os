@@ -222,6 +222,47 @@ test('proof-worth evaluator routes root skills command and forward proofs', asyn
   assert.ok(result.guarded.some((item) => item.entry === 'cross-backend-saved-ref-manual-proof'));
 });
 
+test('proof-worth evaluator routes voice proof family assets', async () => {
+  const registry = await loadJson(canonicalPath);
+  const result = evaluateProofWorth({
+    changedFiles: [
+      'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',
+      'tests/renderer/sigil-voice-dictation.test.mjs',
+      'tests/toolkit/controls-dictation.test.mjs',
+      'tests/voice-bind.sh',
+      'tests/voice-cursor-rotation.sh',
+      'tests/voice-external-parser.sh',
+      'tests/voice-final-response.sh',
+      'tests/voice-id-canonicalization.sh',
+      'tests/voice-policy-reload.sh',
+      'tests/voice-providers.sh',
+      'tests/voice-registry-snapshot.sh',
+      'tests/voice-session-allocation.sh',
+      'tests/voice-telemetry.sh',
+    ],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command).sort(), [
+    'bash tests/voice-bind.sh',
+    'bash tests/voice-cursor-rotation.sh',
+    'bash tests/voice-external-parser.sh',
+    'bash tests/voice-final-response.sh',
+    'bash tests/voice-id-canonicalization.sh',
+    'bash tests/voice-policy-reload.sh',
+    'bash tests/voice-providers.sh',
+    'bash tests/voice-registry-snapshot.sh',
+    'bash tests/voice-session-allocation.sh',
+    'bash tests/voice-telemetry.sh',
+    'node --test tests/renderer/sigil-voice-dictation.test.mjs',
+    'node --test tests/schemas/daemon-event.test.mjs',
+    'node --test tests/toolkit/controls-dictation.test.mjs',
+  ].sort());
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [

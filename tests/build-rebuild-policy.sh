@@ -15,6 +15,15 @@ mkdir -p "$FAKE_REPO/src" "$FAKE_BIN"
 cp build.sh "$FAKE_REPO/build.sh"
 printf 'print("fake")\n' > "$FAKE_REPO/src/main.swift"
 
+if ! grep -q 'swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\]}"' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: repo-mode build must compile directly with swiftc" >&2
+    exit 1
+fi
+if grep -Eq 'codesign --force|--identifier[ =]com\.agentos\.repo-aos|spctl' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: repo-mode build must stay raw: no post-build codesign, explicit identifier, or spctl gate" >&2
+    exit 1
+fi
+
 cat >"$FAKE_BIN/swiftc" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -68,6 +77,14 @@ touch "$target.signed"
 EOF
 chmod +x "$FAKE_BIN/codesign"
 
+cat >"$FAKE_BIN/spctl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'spctl %s\n' "$*" >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
+exit 1
+EOF
+chmod +x "$FAKE_BIN/spctl"
+
 cat >"$FAKE_BIN/rebuild-alert" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -76,6 +93,7 @@ EOF
 chmod +x "$FAKE_BIN/rebuild-alert"
 
 FIRST_OUT="$TMP/first.out"
+FORCE_OUT="$TMP/force.out"
 REPAIR_OUT="$TMP/repair.out"
 UP_TO_DATE_OUT="$TMP/up-to-date.out"
 TOUCHED_OUT="$TMP/touched.out"
@@ -94,9 +112,22 @@ if grep -q '^codesign ' "$LOG"; then
     cat "$LOG" >&2
     exit 1
 fi
+if grep -q '^spctl ' "$LOG"; then
+    echo "FAIL: repo-mode first build must not gate raw local launchability on spctl" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
 if ! grep -qx 'alert' "$LOG"; then
     echo "FAIL: first build did not play the rebuild alert" >&2
     cat "$LOG" >&2
+    exit 1
+fi
+if [[ -e "$FAKE_REPO/aos.signed" ]]; then
+    echo "FAIL: first build left a post-signing marker" >&2
+    exit 1
+fi
+if ! "$FAKE_REPO/aos" help --json >/dev/null; then
+    echo "FAIL: raw repo-mode build artifact must be judged by launchability" >&2
     exit 1
 fi
 if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
@@ -112,6 +143,22 @@ fi
 if grep -q -- '--identifier' "$LOG"; then
     echo "FAIL: repo-mode build must not post-sign or force an explicit identifier" >&2
     cat "$LOG" >&2
+    exit 1
+fi
+
+: > "$LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --force --no-restart >"$FORCE_OUT"
+# Scenario: the direct recovery command for a missing or launch-killed ./aos is
+# still the raw compile-only build path. A rejected spctl assessment is not a
+# build failure criterion for repo-local development.
+if ! grep -qx 'swiftc' "$LOG" || grep -q '^codesign ' "$LOG" || grep -q '^spctl ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
+    echo "FAIL: force rebuild recovery must compile and alert without post-signing or spctl gating" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q '^Rebuilt: ./aos' "$FORCE_OUT"; then
+    echo "FAIL: force rebuild recovery did not report explicit rebuild marker" >&2
+    cat "$FORCE_OUT" >&2
     exit 1
 fi
 
@@ -152,7 +199,7 @@ printf '// runtime source changed\n' >> "$FAKE_REPO/src/main.swift"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
 # Scenario: real Swift content changes rebuild and alert, still without
 # repo-mode post-signing.
-if ! grep -qx 'swiftc' "$LOG" || grep -q '^codesign ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
+if ! grep -qx 'swiftc' "$LOG" || grep -q '^codesign ' "$LOG" || grep -q '^spctl ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
     echo "FAIL: changed runtime input content should compile and alert without repo-mode post-signing" >&2
     cat "$LOG" >&2
     exit 1

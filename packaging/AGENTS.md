@@ -32,6 +32,7 @@ experiments, including the embedded runtime `Info.plist` and entitlements file.
 
 - Run `plutil -lint packaging/Info.plist packaging/aos.entitlements` after
   metadata edits.
-- Run the focused build-signing test after `build.sh` or signing metadata edits.
+- Run `bash tests/build-rebuild-policy.sh` after `build.sh`, repo-mode build
+  wrapper, or signing metadata edits.
 
 ## Child DOX Index

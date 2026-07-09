@@ -91,11 +91,16 @@ commands, runtime helpers, wiki tools, and command adapters.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
   local binary; packaged app signing belongs outside the repo-mode build path.
-  Only actual rebuilds should drive TCC-sensitive human-attention behavior. After a rebuild that
-  emits `Rebuilt: ./aos`, stop before TCC-backed daemon, capture, input, or
-  native proof and tell the user to manually reset/regrant the needed macOS TCC
-  permissions for the rebuilt binary. Treat TCC-backed failures after a rebuild
-  as inconclusive until the user confirms that reset.
+  If the repo-local `./aos` artifact is missing or exits `137`, recover with
+  `bash build.sh --force --no-restart`; do not add post-build signing, an
+  explicit signing identifier, entitlements, app bundle wrapping, allowlist
+  assumptions, or an `spctl` acceptance gate. `spctl` rejection is expected for
+  the raw local binary shape; launchability of `./aos` is the operational check.
+  Only actual rebuilds should drive TCC-sensitive human-attention behavior.
+  After a rebuild that emits `Rebuilt: ./aos`, stop before TCC-backed daemon,
+  capture, input, or native proof and tell the user to manually reset/regrant
+  the needed macOS TCC permissions for the rebuilt binary. Treat TCC-backed
+  failures after a rebuild as inconclusive until the user confirms that reset.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.

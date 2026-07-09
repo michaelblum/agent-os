@@ -19,8 +19,10 @@ tooling does not by itself rebuild the TCC-owning binary; use `--force` only
 when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
-`Rebuilt: ./aos` marker but does not play the TCC alert. Continue with non-TCC
-checks as needed. If a later live TCC-backed readiness check reports
+`Rebuilt: ./aos` marker and the rebuild/TCC alert. Continue with non-TCC checks
+as needed, but do not treat TCC-backed daemon, capture, input, or native proof as
+conclusive until the user has manually reset/regranted TCC for the rebuilt
+binary. If a later live TCC-backed readiness check reports
 `post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
 prints a terminal handoff, and the agent must end the current turn. The next
 user response is the signal that they manually reset/regranted TCC; resume with
@@ -32,10 +34,20 @@ When you are unsure which loop applies, ask the router first:
 ./aos dev recommend --json
 ```
 
-Use raw `bash build.sh` only when `./aos` is missing or the build surface itself
-is being repaired. `scripts/aos-after-build` still exists for serialized
-automation around an in-flight build, but the normal developer control surface is
-`./aos dev build`.
+Use raw `bash build.sh` only when `./aos` is missing, exits `137`, cannot run
+`./aos dev build`, or the build surface itself is being repaired. The recovery
+command for a killed or missing repo binary is:
+
+```bash
+bash build.sh --force --no-restart
+```
+
+That direct script path must remain the raw repo-mode build: direct `swiftc`
+output at `./aos`, no post-build `codesign`, no explicit signing identifier, no
+entitlements, no app bundle, and no allowlist assumption. `spctl` rejection is
+expected for this local shape; `./aos` launchability is the gate.
+`scripts/aos-after-build` still exists for serialized automation around an
+in-flight build, but the normal developer control surface is `./aos dev build`.
 
 Examples that usually do **not** need `bash build.sh`:
 
