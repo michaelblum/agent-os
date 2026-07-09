@@ -169,6 +169,7 @@ Examples:
 
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
+- `node --test tests/bundled-whisper-stt.test.mjs`
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
 
