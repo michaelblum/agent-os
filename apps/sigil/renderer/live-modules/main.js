@@ -89,8 +89,6 @@ import {
     currentToolkitRoot,
     sigilUrl,
     toolkitSpecifier,
-    toolkitUrl,
-    withQuery,
 } from './content-roots.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
@@ -118,6 +116,18 @@ import {
     createSigilRenderPerformanceSampler,
     finiteOrNull,
 } from './render-performance-telemetry.js';
+import {
+    AGENT_TERMINAL_CANVAS_ID,
+    AGENT_TERMINAL_PARK_SCALE,
+    AGENT_TERMINAL_URL,
+    LEGACY_CODEX_TERMINAL_CANVAS_ID,
+    STATUS_PARK_SCALE,
+    WIKI_WORKBENCH_CANVAS_ID,
+    WIKI_WORKBENCH_DEFAULT_PATH,
+    WIKI_WORKBENCH_DEFAULT_URL,
+    createSigilUtilityCanvasIdSet,
+    utilityConfig as createUtilityConfig,
+} from './utility-canvas-config.js';
 import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
@@ -267,25 +277,8 @@ const liveJs = {
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
-const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
-const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
-const AGENT_TERMINAL_URL = sigilUrl('agent-terminal/index.html', {
-    query: {
-        port: 17761,
-        session: 'sigil-agent-terminal-agent-os',
-    },
-});
-const AGENT_TERMINAL_PARK_SCALE = 0.24;
-const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
-const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/runtime-modes.md';
 const SIGIL_CONTENT_ROOT = currentSigilRoot();
 const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
-const WIKI_WORKBENCH_URL = toolkitUrl('components/wiki-subject-browser/index.html');
-const WIKI_WORKBENCH_DEFAULT_URL = withQuery(WIKI_WORKBENCH_URL, {
-    wiki: WIKI_WORKBENCH_DEFAULT_PATH,
-    transition: 'fade-in',
-});
-const STATUS_PARK_SCALE = 0.2;
 
 window.liveJs = liveJs;
 window.state = state;
@@ -1008,17 +1001,7 @@ sigilInputRegions = createSigilInputRegionAdapter({
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
-const UTILITY_CANVAS_IDS = new Set([
-    '__log__',
-    'surface-inspector',
-    'surface-inspector',
-    'sigil-interaction-trace',
-    RENDER_PERFORMANCE_CANVAS_ID,
-    WIKI_WORKBENCH_CANVAS_ID,
-    AGENT_TERMINAL_CANVAS_ID,
-    LEGACY_CODEX_TERMINAL_CANVAS_ID,
-    SIGIL_AVATAR_PANEL_CANVAS_ID,
-]);
+const UTILITY_CANVAS_IDS = createSigilUtilityCanvasIdSet([SIGIL_AVATAR_PANEL_CANVAS_ID]);
 
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
@@ -1033,117 +1016,11 @@ state._onAppearanceChanged = () => {
     if (!rendererSuspended) scheduleRenderFrame();
 };
 
-function mainDisplayVisibleBounds() {
-    const displays = liveJs.displays || [];
-    const display = displays.find((entry) => entry.index === 0 || entry.is_main || entry.isMain)
-        || displays[0];
-    return display?.visibleBounds || display?.visible_bounds || display?.bounds || liveJs.visibleBounds;
-}
-
-function utilityFrame(kind) {
-    const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
-    if (kind === 'log-console') {
-        const width = Math.min(520, Math.max(420, visible.w * 0.32));
-        const height = Math.min(320, Math.max(260, visible.h * 0.32));
-        return [
-            Math.round(visible.x + 20),
-            Math.round(visible.y + visible.h - height - 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'sigil-interaction-trace') {
-        const width = Math.min(760, Math.max(620, visible.w * 0.42));
-        const height = Math.min(620, Math.max(480, visible.h * 0.58));
-        return [
-            Math.round(visible.x + 20),
-            Math.round(visible.y + 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'render-performance') {
-        const width = Math.min(560, Math.max(460, visible.w * 0.36));
-        const height = Math.min(560, Math.max(460, visible.h * 0.52));
-        return [
-            Math.round(visible.x + visible.w - width - 20),
-            Math.round(visible.y + visible.h - height - 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'wiki-workbench') {
-        const width = Math.min(1180, Math.max(840, visible.w * 0.72));
-        const height = Math.min(760, Math.max(560, visible.h * 0.74));
-        return [
-            Math.round(visible.x + (visible.w - width) / 2),
-            Math.round(visible.y + 48),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-
-    const width = Math.min(360, Math.max(320, visible.w * 0.26));
-    const height = Math.min(520, Math.max(420, visible.h * 0.55));
-    return [
-        Math.round(visible.x + visible.w - width - 20),
-        Math.round(visible.y + 20),
-        Math.round(width),
-        Math.round(height),
-    ];
-}
-
 function utilityConfig(kind) {
-    if (kind === 'log-console') {
-        return {
-            id: '__log__',
-            url: toolkitUrl('components/log-console/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'sigil-interaction-trace') {
-        return {
-            id: 'sigil-interaction-trace',
-            url: sigilUrl('diagnostics/interaction-trace/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'render-performance') {
-        return {
-            id: RENDER_PERFORMANCE_CANVAS_ID,
-            url: toolkitUrl('components/render-performance/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'wiki-workbench') {
-        return {
-            id: WIKI_WORKBENCH_CANVAS_ID,
-            url: WIKI_WORKBENCH_DEFAULT_URL,
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'agent-terminal' || kind === 'codex-terminal') {
-        const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
-        const previousWidth = Math.min(920, Math.max(720, visible.w * 0.58));
-        const width = Math.round(previousWidth * 2 / 3);
-        const height = Math.min(620, Math.max(480, visible.h * 0.58));
-        const defaultFrame = [
-            Math.round(visible.x + visible.w - width - 28),
-            Math.round(visible.y + visible.h - height - 28),
-            Math.round(width),
-            Math.round(height),
-        ];
-        return {
-            id: AGENT_TERMINAL_CANVAS_ID,
-            url: AGENT_TERMINAL_URL,
-            frame: defaultFrame,
-        };
-    }
-    return {
-        id: 'surface-inspector',
-        url: toolkitUrl('components/surface-inspector/index.html'),
-        frame: utilityFrame(kind),
-    };
+    return createUtilityConfig(kind, {
+        displays: liveJs.displays || [],
+        visibleBounds: liveJs.visibleBounds,
+    });
 }
 
 function agentTerminalFrame() {
