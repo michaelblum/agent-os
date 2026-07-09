@@ -78,15 +78,19 @@ assert payload.get("input_tap", {}).get("status") == "active", payload
 PY
 
 CLEAN_DRY_RUN="$(./aos clean --dry-run --json)"
-python3 - "$CLEAN_DRY_RUN" "$PID" <<'PY'
+OWNER_PPID="$(ps -p "$PID" -o ppid= | tr -d '[:space:]')"
+python3 - "$CLEAN_DRY_RUN" "$PID" "$OWNER_PPID" <<'PY'
 import json
 import sys
 
 payload = json.loads(sys.argv[1])
 expected_pid = int(sys.argv[2])
+parent_pid = int(sys.argv[3])
 
 assert payload.get("status") == "dirty", payload
 assert any(item.get("pid") == expected_pid for item in payload.get("foreground_dev_owners", [])), payload
+assert any(item.get("pid") == expected_pid for item in payload.get("stale_daemons", [])), payload
+assert not any(item.get("pid") == parent_pid for item in payload.get("stale_daemons", [])), payload
 PY
 
 set +e

@@ -101,7 +101,7 @@ function firstAvailableBackend(catalog) {
 }
 
 function responseKindForBackend(backend) {
-    return backend.kind === 'tts' ? 'mock_tts' : 'system_sound';
+    return backend.kind === 'tts' ? 'tts' : 'system_sound';
 }
 
 export function lookupSigilVoiceResponsePolicy(eventName) {

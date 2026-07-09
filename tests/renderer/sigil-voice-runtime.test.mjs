@@ -74,6 +74,6 @@ test('Sigil voice runtime handles menu backend selection and external voice even
   assert.equal(routed.handled, true)
   assert.equal(routed.dictation.handled, true)
   assert.equal(routed.response.handled, true)
-  assert.equal(liveState.voiceResponseActions.at(-1).kind, 'mock_tts')
+  assert.equal(liveState.voiceResponseActions.at(-1).kind, 'tts')
   assert.equal(runtime.handleVoiceEvent({ type: 'mouse_moved' }).handled, false)
 })

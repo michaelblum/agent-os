@@ -118,6 +118,10 @@ function allDaemonPIDs() {
     .filter(Number.isFinite);
 }
 
+function isAOSDaemonArgs(args) {
+  return /(?:^|[\/\s])aos (?:serve|__serve)(?:\s|$)/.test(String(args ?? ''));
+}
+
 function processTable() {
   const output = run('/bin/ps', ['-axww', '-o', 'pid=,ppid=,stat=,args='], {
     maxBuffer: 32 * 1024 * 1024,
@@ -168,6 +172,18 @@ function addProcessFamily(pids) {
     }
   }
   return protectedPIDs;
+}
+
+function addDaemonCleanupFamily(pids) {
+  const table = processTable();
+  const cleanupPIDs = new Set();
+  for (const pid of pids.filter((value) => value != null)) {
+    cleanupPIDs.add(pid);
+    for (const child of table) {
+      if (child.ppid === pid && isAOSDaemonArgs(child.args)) cleanupPIDs.add(child.pid);
+    }
+  }
+  return cleanupPIDs;
 }
 
 function parseJSON(text) {
@@ -504,12 +520,13 @@ function runClean(dryRun) {
     defaultRootForegroundDevOwner(alternateMode),
   ].filter(Boolean);
   const foregroundDevOwnerPIDs = new Set(foregroundDevOwners.map((owner) => owner.pid));
-  const foregroundDevOwnerFamilies = foregroundDevOwners.map((owner) => ({
+  const foregroundDevCleanupFamilies = foregroundDevOwners.map((owner) => ({
     owner,
-    pids: addProcessFamily([owner.pid]),
+    pids: addDaemonCleanupFamily([owner.pid]),
   }));
-  const foregroundDevOwnerFamily = new Set(foregroundDevOwnerFamilies.flatMap((item) => [...item.pids]));
-  const foregroundOwnerForPID = (pid) => foregroundDevOwnerFamilies.find((item) => item.pids.has(pid))?.owner;
+  const foregroundDevCleanupTargets = new Set(foregroundDevCleanupFamilies.flatMap((item) => [...item.pids]));
+  const foregroundDevProtectedFamily = addProcessFamily([...foregroundDevOwnerPIDs]);
+  const foregroundOwnerForPID = (pid) => foregroundDevCleanupFamilies.find((item) => item.pids.has(pid))?.owner;
   const protectedRoots = [
     launchdManagedPID(serviceLabel(mode)),
     launchdManagedPID(serviceLabel(alternateMode)),
@@ -545,8 +562,11 @@ function runClean(dryRun) {
   if (!dryRun && staleLocks.length > 0) {
     remainingStaleLocks = staleDaemonLocks([mode, alternateMode]);
   }
-  const candidateDaemonPIDs = new Set([...allDaemonPIDs(), ...foregroundDevOwnerFamily]);
-  for (const pid of [...candidateDaemonPIDs].filter((pid) => foregroundDevOwnerFamily.has(pid) || !protectedPIDs.has(pid))) {
+  const candidateDaemonPIDs = new Set([...allDaemonPIDs(), ...foregroundDevCleanupTargets]);
+  for (const pid of [...candidateDaemonPIDs].filter((pid) => {
+    if (foregroundDevProtectedFamily.has(pid) && !foregroundDevCleanupTargets.has(pid)) return false;
+    return foregroundDevCleanupTargets.has(pid) || !protectedPIDs.has(pid);
+  })) {
     const args = processArgs(pid);
     const foregroundOwner = foregroundOwnerForPID(pid) ?? (foregroundDevOwnerPIDs.has(pid) ? foregroundDevOwners.find((owner) => owner.pid === pid) : null);
     staleDaemons.push({

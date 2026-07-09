@@ -62,7 +62,7 @@ test('Sigil voice response backend selection routes dictation_opened to mocked T
   assert.equal(result.handled, true)
   assert.equal(soundActions.length, 0)
   assert.equal(ttsActions.length, 1)
-  assert.equal(ttsActions[0].kind, 'mock_tts')
+  assert.equal(ttsActions[0].kind, 'tts')
   assert.equal(ttsActions[0].backendId, SIGIL_VOICE_RESPONSE_BACKEND_IDS.MOCK_TTS)
   assert.equal(ttsActions[0].text, 'Listening.')
   assert.equal(ttsActions[0].mocked, true)
