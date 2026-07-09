@@ -382,6 +382,22 @@
       "status": "active"
     },
     {
+      "id": "worktree-runtime-policy-contract",
+      "path_patterns": [
+        "tests/agent-os-worktree-runtime-policy.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "shell_router",
+      "proof_kind": "runtime_policy",
+      "contract": "Linked git worktrees cannot use the default repo runtime without an explicit isolated AOS_STATE_ROOT.",
+      "worth": "This protects the single-checkout runtime ownership model from alternate-checkout agent work.",
+      "command": "bash tests/agent-os-worktree-runtime-policy.sh",
+      "replaces": [],
+      "guard": "creates a disposable linked worktree and does not execute its native ./aos binary",
+      "status": "active"
+    },
+    {
       "id": "content-wait-listener-lifecycle",
       "path_patterns": [
         "tests/content-wait-listener-lifecycle.test.mjs"
