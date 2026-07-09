@@ -830,10 +830,9 @@ If the content root is not live, make that explicit before reloading:
 aos content wait --root toolkit --auto-start
 ```
 
-Topic worktrees should use branch-scoped root names from
-`scripts/aos-content-scope.sh` or pass explicit root query parameters where the
-surface supports them. Do not overwrite canonical `content.roots.toolkit` or
-`content.roots.sigil` from a topic worktree just to refresh a canvas.
+Do not refresh the shared runtime from a linked git worktree. Switch branches in
+the primary checkout for shared-runtime work, or set an explicit isolated
+`AOS_STATE_ROOT` for alternate-checkout runtime proof.
 
 For inline `--html` or `--file` canvases, `show update --html ...` or
 `show update --file ...` replaces the content in place. `--file` is resolved by
@@ -843,9 +842,9 @@ manifest or observable JavaScript condition.
 
 ### 3. Load Toolkit Content Through the Content Server
 
-Use the canonical `toolkit` root for `main` or installed examples. Topic
-worktrees should use branch-scoped root names so one singleton daemon can serve
-multiple sessions without root collisions.
+Use the canonical `toolkit` root from the primary checkout. Do not use linked
+git worktrees or branch-scoped roots to share the singleton daemon across
+parallel agents.
 
 ```bash
 aos set content.roots.toolkit packages/toolkit
@@ -2289,6 +2288,11 @@ Consumers should assume:
 - `aos ready` is the front-door managed-daemon readiness gate
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
+- the default `~/.config/aos/{repo|installed}` runtime is single-owner,
+  launchd-managed, and tied to the primary agent-os checkout. Linked git
+  worktrees cannot use the default repo runtime; runtime-coupled tests from an
+  alternate checkout must set an isolated `AOS_STATE_ROOT`.
+  Default-root foreground dev ownership is a cleanup-required readiness blocker.
 
 This is runtime state in the
 [user-facing state model](./aos-capabilities.md#user-facing-state-model). It is
@@ -2341,8 +2345,10 @@ Consumers:
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
-  longer safe recovery path, but stale daemon owners are cleaned before service
-  start/restart and unmanaged socket owners are reported as PID/command facts
+  longer safe recovery path, but linked-worktree blockers stop before service
+  start/restart, stale daemon owners and default-root foreground dev owners are
+  cleaned before service start/restart, and unmanaged socket owners are reported
+  as PID/command facts
   instead of restart loops. For restartable daemon states, repair may restart,
   wait/recheck, then report plain-English human instructions when macOS privacy
   settings still require manual action. It does not open Settings or show
@@ -2410,6 +2416,8 @@ Consumers:
   `tcc_staleness` / `terminal_handoff` summary. This lets agents distinguish
   recovered TCC/runtime readiness from unrelated overall status degradations
   such as stale resource cleanup notes.
+- `aos status --json` exposes `stale_resources.foreground_dev_owners` as the
+  PID list for default-root foreground dev owners reported by `aos clean`.
 - `aos status` text mode includes `readiness=<status>`, `ready=<bool>`, and
   `tap=<status>` in the one-line summary.
 - `aos doctor --json` exposes top-level `ready_for_testing` and
@@ -2418,8 +2426,12 @@ Consumers:
   after launchctl kickstart and exit non-zero with `reason: "input_tap_not_active"`
   or `"socket_unreachable"` when the daemon is not fully ready.
 - Service readiness JSON includes `runtime_ownership`, sourced from native
-  `__runtime status-facts --json`; foreground `aos serve` development owners
-  are accepted only when that broker reports `ownership_kind: "foreground_dev"`.
+  `__runtime status-facts --json`. A broker classification of
+  `ownership_kind: "foreground_dev"` is acceptable for isolated development
+  state roots, but default-root readiness reports
+  `daemon_foreground_dev_default` and routes through `aos clean`. A linked git
+  worktree without explicit `AOS_STATE_ROOT` reports
+  `agent_os_worktree_default_runtime` and must not touch the default runtime.
 - `aos do click/type/...` preflight exits with `INPUT_TAP_NOT_ACTIVE` when
   the daemon is reachable but its tap is inactive.
 
@@ -2504,9 +2516,8 @@ Minimal setup:
 aos set content.roots.toolkit packages/toolkit
 ```
 
-In topic worktrees, use `scripts/aos-content-scope.sh` or a branch-aware launch
-script to derive a root such as `toolkit_codex_example` instead of overwriting
-canonical `toolkit`.
+Alternate-checkout runtime proofs must use an explicit isolated
+`AOS_STATE_ROOT`; the default repo runtime does not serve linked git worktrees.
 
 Then:
 

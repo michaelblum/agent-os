@@ -27,13 +27,16 @@ assert_fails() {
 
 unset AOS_SIGIL_CONTENT_ROOT AOS_TOOLKIT_CONTENT_ROOT AOS_VISUAL_CONTENT_ROOT_SCOPE
 export AOS_VISUAL_DISABLE_CACHE_BUST=1
-assert_eq "sigil" "$(aos_visual_content_root_key sigil)" "single-worktree Sigil root key"
-assert_eq "toolkit" "$(aos_visual_content_root_key toolkit)" "single-worktree toolkit root key"
+assert_eq "sigil" "$(aos_visual_content_root_key sigil)" "single-checkout Sigil root key"
+assert_eq "toolkit" "$(aos_visual_content_root_key toolkit)" "single-checkout toolkit root key"
 assert_eq "aos://sigil/renderer/index.html?toolkit-root=toolkit" "$(aos_visual_sigil_renderer_url)" "Sigil renderer URL"
 assert_eq "aos://toolkit/components/surface-inspector/index.html" "$(aos_visual_toolkit_url components/surface-inspector/index.html)" "toolkit URL"
 
-AOS_VISUAL_CONTENT_ROOT_SCOPE=branch
-branch_key="$(aos_visual_content_root_key sigil)"
+if AOS_VISUAL_CONTENT_ROOT_SCOPE=branch aos_visual_content_root_key sigil 2>"$tmpdir/branch-without-state-root.err"; then
+  fail "expected branch-scoped visual root to require AOS_STATE_ROOT"
+fi
+
+branch_key="$(AOS_STATE_ROOT="$tmpdir/state" AOS_VISUAL_CONTENT_ROOT_SCOPE=branch aos_visual_content_root_key sigil)"
 [[ "$branch_key" == sigil_* ]] || fail "branch-scoped Sigil root key did not use scoped form: $branch_key"
 assert_eq "aos://$branch_key/renderer/index.html" "$(aos_visual_content_url "$branch_key" /renderer/index.html)" "branch-scoped URL"
 unset AOS_VISUAL_CONTENT_ROOT_SCOPE

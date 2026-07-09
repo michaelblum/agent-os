@@ -396,7 +396,7 @@ function reconcileExperienceContentRoots(roots) {
 
   const keepKeys = new Set(roots.map((root) => root.key));
   const owned = roots
-    .filter((root) => root.branch_scoped)
+    .filter((root) => root.branch_scoped || root.declared_branch_scoped)
     .map((root) => ({
       id: root.id,
       prefix: `${root.id}_`,

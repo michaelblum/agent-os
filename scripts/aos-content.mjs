@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
+import { guardAgentOSWorktreeDefaultRuntime, guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
 
 function prettyError(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
@@ -226,6 +226,8 @@ function parseWaitArgs(args) {
 
 async function waitCommand(args) {
   const options = parseWaitArgs(args);
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId: 'content.wait', mode: runtimeMode() });
+  if (!worktreeGuard.ok) prettyFailure(worktreeGuard.failure);
   const permitStart = Boolean(options.autoStart && (options.allowStart || process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1'));
   if (options.autoStart && !permitStart) {
     const guarded = guardedLiveOperation({ operationId: 'content.wait', allowStart: false, mode: runtimeMode(), prefix: aosPath() });

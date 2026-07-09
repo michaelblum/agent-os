@@ -7,6 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
+  guardAgentOSWorktreeDefaultRuntime,
+} from './lib/aos-live-operation.mjs';
+import {
+  explicitStateRootOverride,
+} from './lib/aos-cli.mjs';
+import {
   serviceInputTapRecovery,
   serviceRuntimeRecovery,
 } from './lib/aos-readiness.mjs';
@@ -17,6 +23,11 @@ function printJSON(value) {
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.exit(1);
+}
+
+function failPayload(payload) {
+  process.stderr.write(`${JSON.stringify(payload, null, 2)}\n`);
   process.exit(1);
 }
 
@@ -51,11 +62,6 @@ function currentMode() {
 
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
-}
-
-function explicitStateRootOverride() {
-  return Boolean(process.env.AOS_STATE_ROOT)
-    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
 }
 
 function installAppPath() {
@@ -559,6 +565,8 @@ async function verifyRestartReadiness(mode, json) {
 
 function installCommand(args) {
   const options = parseOptions(args);
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId: 'service.install', mode: options.mode });
+  if (!worktreeGuard.ok) failPayload(worktreeGuard.failure);
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
   writeServicePlist(paths);
@@ -570,6 +578,8 @@ function installCommand(args) {
 
 function startCommand(args) {
   const options = parseOptions(args);
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId: 'service.start', mode: options.mode });
+  if (!worktreeGuard.ok) failPayload(worktreeGuard.failure);
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
   launchctlEnable(paths.label);
@@ -592,12 +602,16 @@ function stopService(mode) {
 
 function stopCommand(args) {
   const options = parseOptions(args);
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId: 'service.stop', mode: options.mode });
+  if (!worktreeGuard.ok) failPayload(worktreeGuard.failure);
   stopService(options.mode);
   statusCommand(args);
 }
 
 async function restartCommand(args) {
   const options = parseOptions(args);
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId: 'service.restart', mode: options.mode });
+  if (!worktreeGuard.ok) failPayload(worktreeGuard.failure);
   const paths = servicePaths(options.mode);
   stopService(options.mode);
   guardBinaryExists(paths.binaryPath);

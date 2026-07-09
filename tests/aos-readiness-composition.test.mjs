@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { setupState } from '../scripts/lib/aos-facts.mjs';
+import { guardedLiveOperation } from '../scripts/lib/aos-live-operation.mjs';
 import {
   disagreementFor,
   evaluateReadyForTesting,
@@ -91,6 +92,23 @@ function facts(overrides = {}) {
       ...overrides.cleanReport,
     },
   };
+}
+
+function withEnv(overrides, fn) {
+  const previous = new Map();
+  for (const key of Object.keys(overrides)) {
+    previous.set(key, process.env[key]);
+    if (overrides[key] === undefined) delete process.env[key];
+    else process.env[key] = overrides[key];
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 }
 
 test('daemon-active ready path uses daemon source with setup complete and screen recording granted', () => {
@@ -243,6 +261,221 @@ test('stale and unmanaged runtime blockers produce cleanup or repair next action
     ['./aos clean', './aos ready'],
   );
 });
+
+test('default-root foreground dev owner blocks readiness and routes to cleanup', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_ALLOW_FOREGROUND_DEV: undefined,
+}, () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'consistent',
+      ownership_kind: 'foreground_dev',
+      owner_pid: 3333,
+      serving_pid: 3333,
+      owner_launchd_managed: false,
+      owner_process: {
+        pid: 3333,
+        command_line_status: 'available',
+        command_line: './aos serve --idle-timeout 5m',
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'runtime_blocked');
+  assert.equal(verdict.diagnosis, 'daemon_foreground_dev_default');
+  assert.equal(verdict.blockers.some((blocker) => blocker.id === 'daemon_foreground_dev_default'), true);
+  assert.deepEqual(verdict.cleanup.foreground_dev_owners, []);
+  assert.deepEqual(verdict.next_actions.map((action) => action.command), ['./aos clean', './aos ready']);
+  assert.equal(verdict.notes.some((note) => note.includes('foreground dev daemon')), true);
+}));
+
+test('isolated state-root foreground dev owner remains allowed for isolated runtime proofs', () => withEnv({
+  AOS_STATE_ROOT: '/tmp/aos-isolated-state-root',
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_ALLOW_FOREGROUND_DEV: undefined,
+}, () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'consistent',
+      ownership_kind: 'foreground_dev',
+      owner_pid: 4444,
+      serving_pid: 4444,
+      owner_launchd_managed: false,
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, true);
+  assert.equal(verdict.phase, 'ready');
+  assert.equal(verdict.diagnosis, 'ready');
+  assert.equal(verdict.blockers.some((blocker) => blocker.id === 'daemon_foreground_dev_default'), false);
+}));
+
+test('state-root classified as normal enforces default foreground dev owner blocker', () => withEnv({
+  AOS_STATE_ROOT: '/tmp/aos-normal-classified-state-root',
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: '1',
+  AOS_ALLOW_FOREGROUND_DEV: undefined,
+}, () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'consistent',
+      ownership_kind: 'foreground_dev',
+      owner_pid: 5555,
+      serving_pid: 5555,
+      owner_launchd_managed: false,
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'daemon_foreground_dev_default');
+}));
+
+test('default state root does not permit foreground dev owner', () => withEnv({
+  HOME: '/tmp/aos-policy-home',
+  AOS_STATE_ROOT: '/tmp/aos-policy-home/.config/aos',
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_ALLOW_FOREGROUND_DEV: undefined,
+}, () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'consistent',
+      ownership_kind: 'foreground_dev',
+      owner_pid: 5556,
+      serving_pid: 5556,
+      owner_launchd_managed: false,
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'daemon_foreground_dev_default');
+}));
+
+test('allow-start does not bypass cleanup-required foreground dev ownership', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_ALLOW_FOREGROUND_DEV: undefined,
+}, () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'consistent',
+      ownership_kind: 'foreground_dev',
+      owner_pid: 6666,
+      serving_pid: 6666,
+      owner_launchd_managed: false,
+    },
+  });
+  const guarded = guardedLiveOperation({
+    operationId: 'test.foreground-owner',
+    allowStart: true,
+    mode: 'repo',
+    prefix: './aos',
+    facts: current,
+  });
+
+  assert.equal(guarded.ok, false);
+  assert.equal(guarded.failure.blocker, 'daemon_foreground_dev_default');
+  assert.equal(guarded.failure.code, 'LIVE_START_NOT_ALLOWED');
+}));
+
+test('allow-start still permits absent runtime startup path', () => {
+  const current = facts({
+    runtime: {
+      daemon_running: false,
+      socket_reachable: false,
+      ownership_state: 'absent',
+      ownership_kind: 'absent',
+    },
+    daemon: null,
+  });
+  const guarded = guardedLiveOperation({
+    operationId: 'test.absent-runtime',
+    allowStart: true,
+    mode: 'repo',
+    prefix: './aos',
+    facts: current,
+  });
+
+  assert.equal(guarded.ok, true);
+  assert.equal(guarded.preflight.ready, false);
+  assert.equal(guarded.preflight.diagnosis, 'daemon_socket_unreachable');
+});
+
+test('linked git worktrees cannot use the default repo runtime', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+}, () => {
+  const current = facts();
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'runtime_blocked');
+  assert.equal(verdict.diagnosis, 'agent_os_worktree_default_runtime');
+  assert.equal(verdict.blockers.some((blocker) => blocker.id === 'agent_os_worktree_default_runtime'), true);
+  assert.deepEqual(verdict.next_actions.map((action) => action.type), ['manual', 'command']);
+}));
+
+test('explicit state root permits linked-worktree isolated runtime tests', () => withEnv({
+  AOS_STATE_ROOT: '/tmp/aos-linked-worktree-isolated',
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+}, () => {
+  const current = facts();
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, true);
+  assert.equal(verdict.diagnosis, 'ready');
+  assert.equal(verdict.blockers.some((blocker) => blocker.id === 'agent_os_worktree_default_runtime'), false);
+}));
+
+test('default state root does not count as linked-worktree isolation', () => withEnv({
+  HOME: '/tmp/aos-policy-home',
+  AOS_STATE_ROOT: '/tmp/aos-policy-home/.config/aos',
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+}, () => {
+  const current = facts();
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'agent_os_worktree_default_runtime');
+}));
+
+test('legacy worktree override env does not bypass the default runtime ban', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+  AOS_ALLOW_AGENT_OS_WORKTREE: '1',
+}, () => {
+  const current = facts();
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'agent_os_worktree_default_runtime');
+}));
+
+test('allow-start does not bypass linked-worktree default runtime ban', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+}, () => {
+  const guarded = guardedLiveOperation({
+    operationId: 'test.linked-worktree',
+    allowStart: true,
+    mode: 'repo',
+    prefix: './aos',
+    facts: facts(),
+  });
+
+  assert.equal(guarded.ok, false);
+  assert.equal(guarded.failure.blocker, 'agent_os_worktree_default_runtime');
+  assert.equal(guarded.failure.code, 'AGENT_OS_WORKTREE_DEFAULT_RUNTIME');
+}));
 
 test('shared runtime verdict carries readiness fields, ownership evidence, cleanup facts, and action plan', () => {
   const current = facts({

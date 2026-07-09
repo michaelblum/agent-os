@@ -267,8 +267,8 @@ aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifes
 ```
 
 Use canonical root names in the single-checkout local workflow. Branch-scoped
-sibling roots via `scripts/aos-content-scope.sh` are for explicit parallel
-session overrides, not the default local relay loop.
+sibling roots via `scripts/aos-content-scope.sh` are for explicit isolated
+runtime proofs under `AOS_STATE_ROOT`, not the default local relay loop.
 
 Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 

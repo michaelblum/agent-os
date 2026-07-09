@@ -398,10 +398,11 @@ Visual URL helpers own the canonical `aos://...` launch/update contract. Runtime
 evidence may contain resolved localhost URLs; compare those with
 `aos_visual_assert_url_equivalent` instead of raw string equality. Reload
 URL-backed canvases with `aos_visual_update_canvas_url`, which rejects resolved
-localhost inputs by default. In the single-worktree dev workflow, visual helpers
+localhost inputs by default. In the single-checkout dev workflow, visual helpers
 use canonical `sigil` and `toolkit` root keys; branch-scoped keys are for
-explicit overrides or true parallel worktree/session isolation. Use
-`aos_visual_assert_canvas_worktree` for owner metadata and
+explicit isolated proofs with `AOS_STATE_ROOT` and
+`AOS_VISUAL_CONTENT_ROOT_SCOPE=branch`. Use `aos_visual_assert_canvas_worktree`
+for owner metadata and
 `aos_visual_assert_sigil_renderer_fresh` when a live Sigil smoke must prove the
 loaded page is newer than or equal to the commit under test.
 

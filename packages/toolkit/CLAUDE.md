@@ -98,12 +98,13 @@ components/             Layer 2 — reusable Content units
 
 Components are served via the AOS content server over `aos://toolkit/...` URLs
 in the single-checkout local workflow. Branch-scoped toolkit roots, for example
-`aos://toolkit_codex_example/...`, are for explicit parallel session overrides
-so they do not overwrite the canonical `toolkit` root.
+`aos://toolkit_codex_example/...`, are for explicit isolated runtime proofs so
+they do not overwrite the canonical `toolkit` root.
 
 **Default setup:** `aos set content.roots.toolkit packages/toolkit`
 
-**Explicit parallel-session setup:** source `scripts/aos-content-scope.sh` or
+**Explicit isolated branch setup:** set a non-default `AOS_STATE_ROOT` and
+`AOS_CONTENT_ROOT_SCOPE=branch`, then source `scripts/aos-content-scope.sh` or
 use the component launch script so the root name is derived from the branch.
 
 **Loading a component standalone:** `aos show create --id <id> --url aos://toolkit/components/<name>/index.html`

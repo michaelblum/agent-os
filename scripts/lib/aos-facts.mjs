@@ -105,7 +105,7 @@ function processCommandLine(pid) {
 }
 
 export function enrichRuntimeOwnership(runtime) {
-  if (!runtime || runtime.ownership_state !== 'unmanaged') return runtime;
+  if (!runtime || (runtime.ownership_state !== 'unmanaged' && runtime.ownership_kind !== 'foreground_dev')) return runtime;
   const pid = Number.isInteger(runtime.owner_pid) ? runtime.owner_pid : runtime.serving_pid;
   const command = processCommandLine(pid);
   const ownerProcess = {
@@ -129,11 +129,12 @@ export function cleanReport() {
     try {
       return JSON.parse(result.stdout);
     } catch {
-      return { status: 'unknown', stale_daemons: [], canvases: [], notes: ['clean dry-run failed'] };
+      return { status: 'unknown', foreground_dev_owners: [], stale_daemons: [], canvases: [], notes: ['clean dry-run failed'] };
     }
   }
   return {
     status: 'unknown',
+    foreground_dev_owners: [],
     stale_daemons: [],
     canvases: [],
     notes: [compactProcessDetail(result) || 'clean dry-run failed'],

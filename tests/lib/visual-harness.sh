@@ -147,6 +147,10 @@ aos_visual_content_root_key() {
 
   case "${AOS_VISUAL_CONTENT_ROOT_SCOPE:-}" in
     branch|scoped|parallel|worktree)
+      if [[ -z "${AOS_STATE_ROOT:-}" ]]; then
+        echo "FAIL: branch-scoped visual roots require explicit non-default AOS_STATE_ROOT; agent-os default runtime uses canonical root names." >&2
+        return 2
+      fi
       aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
       return
       ;;
@@ -156,12 +160,7 @@ aos_visual_content_root_key() {
       ;;
   esac
 
-  if [[ "$(git -C "$VISUAL_HARNESS_ROOT" worktree list --porcelain 2>/dev/null | awk '$1 == "worktree" { count++ } END { print count + 0 }')" -le 1 ]]; then
-    printf '%s\n' "$prefix"
-    return
-  fi
-
-  aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
+  printf '%s\n' "$prefix"
 }
 
 aos_visual_content_url() {

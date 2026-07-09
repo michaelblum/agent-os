@@ -6,8 +6,7 @@ toolkit object transform panel instead of inventing a private control surface.
 
 ## Launch
 
-Use the repo daemon and point the Sigil content root at the worktree that owns
-the change:
+Use the repo daemon from the primary checkout:
 
 ```bash
 AOS=/Users/Michael/Code/agent-os/aos \
@@ -20,11 +19,11 @@ The item argument is optional. Editable subjects are discovered from
 
 `AOS_SIGIL_CONTENT_ROOT` and `AOS_TOOLKIT_CONTENT_ROOT` are AOS content-root
 names, not filesystem paths. Leave them unset unless you need stable short keys.
-On `main`, the launch script uses `sigil` and `toolkit`. On topic branches, it
-uses branch-scoped root names so a worktree launch does not overwrite the
-canonical repo roots expected by `aos ready`. If those roots are not already
-live in the content server, the script performs one repo daemon restart before
-creating the editor canvases.
+By default, the launch script uses canonical `sigil` and `toolkit` roots on all
+branches. Branch-scoped roots require an isolated `AOS_STATE_ROOT` plus
+`AOS_CONTENT_ROOT_SCOPE=branch`; do not use them against the shared default
+runtime. If the selected roots are not already live in the content server, the
+script performs one repo daemon restart before creating the editor canvases.
 
 ## Contracts
 

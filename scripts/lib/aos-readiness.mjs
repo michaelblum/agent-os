@@ -1,4 +1,9 @@
-import { expectedBinaryPath, invocationName } from './aos-cli.mjs';
+import {
+  agentOSWorktreePolicy,
+  expectedBinaryPath,
+  explicitStateRootOverride,
+  invocationName,
+} from './aos-cli.mjs';
 
 export function permissionRequirements(permissions) {
   return [
@@ -280,11 +285,34 @@ export function staleGrantGuidance(mode, service) {
   return `${panel} -> ${entry} (enable)`;
 }
 
+export function foregroundDevRuntimeAllowed(env = process.env) {
+  if (env.AOS_ALLOW_FOREGROUND_DEV === '1') return true;
+  return explicitStateRootOverride(env);
+}
+
+export function defaultRootForegroundDevBlocked(runtime, env = process.env) {
+  return runtime?.ownership_kind === 'foreground_dev'
+    && !foregroundDevRuntimeAllowed(env);
+}
+
 export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport }, mode) {
   const blockers = [];
   const daemonPath = expectedBinaryPath(mode);
   const currentPath = expectedBinaryPath(mode);
   const staleDaemons = cleanReport?.stale_daemons || [];
+  const worktreePolicy = agentOSWorktreePolicy({ mode });
+
+  if (!worktreePolicy.allowed) {
+    blockers.push({
+      kind: 'runtime',
+      id: worktreePolicy.id,
+      scope: 'repo',
+      message: worktreePolicy.message,
+      target_path: daemonPath,
+      worktree: worktreePolicy.worktree,
+      blocks: ['see', 'do', 'show', 'tell', 'listen', 'content', 'experience', 'service'],
+    });
+  }
 
   if (!runtime.socket_reachable) {
     blockers.push({
@@ -322,6 +350,24 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       id: 'daemon_unmanaged',
       scope: 'daemon',
       message: `Repo daemon is reachable with owner pid=${runtime.owner_pid ?? 'unknown'}, but it is not launchd-managed or an accepted foreground/dev runtime.${ownerCommand}`,
+      target_path: daemonPath,
+      owner_process: ownerProcess,
+      blocks: ['see', 'do', 'show', 'tell', 'listen'],
+    });
+  }
+
+  if (defaultRootForegroundDevBlocked(runtime)) {
+    const ownerProcess = runtime.owner_process;
+    const ownerCommand = ownerProcess?.command_line
+      ? ` command=${ownerProcess.command_line}`
+      : ownerProcess?.command_line_unavailable_reason
+        ? ` command=unavailable (${ownerProcess.command_line_unavailable_reason})`
+        : '';
+    blockers.push({
+      kind: 'runtime',
+      id: 'daemon_foreground_dev_default',
+      scope: 'daemon',
+      message: `Default AOS runtime is owned by a foreground dev daemon pid=${runtime.owner_pid ?? 'unknown'}. The shared one-screen runtime must be launchd-managed; foreground dev daemons require an isolated AOS_STATE_ROOT.${ownerCommand}`,
       target_path: daemonPath,
       owner_process: ownerProcess,
       blocks: ['see', 'do', 'show', 'tell', 'listen'],
@@ -466,9 +512,11 @@ export function hasRestartableReadyRuntimeBlocker(response) {
 
 export function readyPhase(ready, blockers) {
   if (ready) return 'ready';
+  if (blockers.some((b) => b.id === 'agent_os_worktree_default_runtime')) return 'runtime_blocked';
   if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'runtime_blocked';
   if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'runtime_blocked';
   if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'runtime_blocked';
+  if (blockers.some((b) => b.id === 'daemon_foreground_dev_default')) return 'runtime_blocked';
   if (blockers.some((b) => b.id === 'stale_daemons')) return 'runtime_blocked';
   if (blockers.some((b) => b.kind === 'permission')) return 'human_required';
   if (blockers.some((b) => b.id === 'input_tap_not_active')) return 'runtime_blocked';
@@ -478,8 +526,10 @@ export function readyPhase(ready, blockers) {
 
 export function readyDiagnosis(ready, blockers, daemon, permissions) {
   if (ready) return 'ready';
+  if (blockers.some((b) => b.id === 'agent_os_worktree_default_runtime')) return 'agent_os_worktree_default_runtime';
   if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'daemon_ownership_mismatch';
   if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'daemon_unmanaged';
+  if (blockers.some((b) => b.id === 'daemon_foreground_dev_default')) return 'daemon_foreground_dev_default';
   if (blockers.some((b) => b.id === 'stale_daemons')) return 'stale_daemons';
   if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'daemon_socket_unreachable';
   if (daemon && ((daemon.permissions.accessibility === false && permissions.accessibility)
@@ -506,7 +556,9 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
 
   const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
   const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
+  const hasAgentOSWorktreeBlocker = blockers.some((b) => b.id === 'agent_os_worktree_default_runtime');
   const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
+  const hasDefaultForegroundDevDaemon = blockers.some((b) => b.id === 'daemon_foreground_dev_default');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
   const hasPostRebuildTccStale = blockers.some((b) => b.reason === 'post_rebuild_tcc_stale');
 
@@ -523,6 +575,20 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
       label: 'after the user says finished, run the bounded post-permission readiness check',
       command: `${prefix} ready --post-permission`,
       after_user_signal: 'finished',
+    });
+    return actions;
+  }
+
+  if (hasAgentOSWorktreeBlocker) {
+    appendAction(actions, seen, {
+      type: 'manual',
+      label: 'run AOS from the primary agent-os checkout, or set an explicit AOS_STATE_ROOT for isolated runtime tests',
+      reason: 'agent_os_worktree_default_runtime',
+    });
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 're-check readiness from the primary checkout or isolated runtime',
+      command: `${prefix} ready`,
     });
     return actions;
   }
@@ -545,13 +611,14 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     });
   }
 
-  if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker) {
-    if (hasStaleDaemons || hasUnmanagedDaemon) {
+  if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) && !hasPermissionBlocker) {
+    if (hasStaleDaemons || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) {
+      let label = 'clean stale daemon processes and stale runtime resources';
+      if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
+      else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
       appendAction(actions, seen, {
         type: 'command',
-        label: hasUnmanagedDaemon
-          ? 'clean the unmanaged daemon that owns the repo socket'
-          : 'clean stale daemon processes and stale runtime resources',
+        label,
         command: `${prefix} clean`,
       });
     }
@@ -614,6 +681,19 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
     notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner};${command}. Do not loop service start/restart or ready repair while this owner controls the repo socket.`);
     notes.push(`Run '${prefix} clean' once for cleanup-owned stale resources; if the owner remains, return the owner PID and command line to Foreman/human.`);
   }
+  if (defaultRootForegroundDevBlocked(runtime)) {
+    const owner = runtime.owner_pid ?? 'unknown';
+    const command = runtime.owner_process?.command_line
+      ? ` command=${runtime.owner_process.command_line}`
+      : runtime.owner_process?.command_line_unavailable_reason
+        ? ` command unavailable: ${runtime.owner_process.command_line_unavailable_reason}`
+        : ' command unavailable';
+    notes.push(`Default AOS runtime is owned by a foreground dev daemon: owner pid=${owner};${command}. Run '${prefix} clean' or rerun foreground development under an isolated AOS_STATE_ROOT.`);
+  }
+  const worktreePolicy = agentOSWorktreePolicy({ mode });
+  if (!worktreePolicy.allowed) {
+    notes.push(`${worktreePolicy.message} worktree=${worktreePolicy.worktree?.repo_root ?? 'unknown'} git_dir=${worktreePolicy.worktree?.git_dir ?? 'unknown'} common_git_dir=${worktreePolicy.worktree?.git_common_dir ?? 'unknown'}.`);
+  }
   if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
     notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
   }
@@ -667,6 +747,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
     },
     cleanup: {
       status: facts.cleanReport?.status,
+      foreground_dev_owners: facts.cleanReport?.foreground_dev_owners ?? [],
       stale_daemons: facts.cleanReport?.stale_daemons ?? [],
       stale_locks: facts.cleanReport?.stale_locks ?? [],
       canvases: facts.cleanReport?.canvases ?? [],

@@ -5,10 +5,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  branchScopedContentRootsEnabled,
   equivalentContentURLs,
   projectedToggleURL,
   rootMap,
+  scopedRootName,
 } from './lib/experience-manifest.mjs';
+import { explicitStateRootOverride } from './lib/aos-cli.mjs';
 
 function prettyError(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
@@ -45,11 +48,6 @@ function run(command, args, options = {}) {
 function stateRoot() {
   if (process.env.AOS_STATE_ROOT) return path.resolve(process.env.AOS_STATE_ROOT);
   return path.join(os.homedir(), '.config', 'aos');
-}
-
-function explicitStateRootOverride() {
-  return Boolean(process.env.AOS_STATE_ROOT)
-    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
 }
 
 function runtimeMode() {
@@ -180,24 +178,36 @@ function parseJSON(text) {
   }
 }
 
+function runtimeFacts(mode) {
+  const result = run(aosPath(), ['__runtime', 'status-facts', '--json'], {
+    env: { ...process.env, AOS_RUNTIME_MODE: mode },
+  });
+  if (result.status !== 0) return null;
+  return parseJSON(result.stdout);
+}
+
+function defaultRootForegroundDevOwner(mode) {
+  if (explicitStateRootOverride()) return null;
+  const facts = runtimeFacts(mode);
+  if (!facts || facts.ownership_kind !== 'foreground_dev') return null;
+  const pid = Number.isInteger(facts.owner_pid) ? facts.owner_pid : facts.serving_pid;
+  if (!Number.isInteger(pid)) return null;
+  return {
+    mode,
+    pid,
+    args: processArgs(pid),
+    socket_path: facts.socket_path,
+    state_dir: facts.state_dir,
+    reason: 'default runtime is owned by a foreground dev daemon; use launchd for the shared runtime or isolate foreground development with AOS_STATE_ROOT',
+  };
+}
+
 function readJSONFile(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     return null;
   }
-}
-
-function branchName() {
-  const result = run('/usr/bin/git', ['-C', process.cwd(), 'branch', '--show-current']);
-  return result.status === 0 ? result.stdout.trim() : '';
-}
-
-function scopedRootName(prefix) {
-  const branch = branchName();
-  if (!branch || branch === 'main') return prefix;
-  const suffix = branch.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'worktree';
-  return `${prefix}_${suffix}`;
 }
 
 function validExperienceID(id) {
@@ -220,14 +230,18 @@ function resolveRepoPath(relPath) {
 }
 
 function resolveExperienceContentRoots(manifest) {
+  const useBranchScopedRoots = branchScopedContentRootsEnabled(process.env);
   return (manifest?.content_roots || []).flatMap((root) => {
     const resolved = resolveRepoPath(root.path);
     if (!root.id || !resolved) return [];
+    const declaredBranchScoped = root.branch_scoped !== false;
+    const activeBranchScoped = useBranchScopedRoots && declaredBranchScoped;
     return [{
       id: root.id,
-      key: root.branch_scoped === false ? root.id : scopedRootName(root.id),
+      key: activeBranchScoped ? scopedRootName(root.id) : root.id,
       path: resolved,
-      branch_scoped: root.branch_scoped !== false,
+      branch_scoped: activeBranchScoped,
+      declared_branch_scoped: declaredBranchScoped,
     }];
   });
 }
@@ -485,6 +499,17 @@ function waitForCanvasRemoval(mode, timeoutMs = 2500) {
 function runClean(dryRun) {
   const mode = runtimeMode();
   const alternateMode = otherMode(mode);
+  const foregroundDevOwners = [
+    defaultRootForegroundDevOwner(mode),
+    defaultRootForegroundDevOwner(alternateMode),
+  ].filter(Boolean);
+  const foregroundDevOwnerPIDs = new Set(foregroundDevOwners.map((owner) => owner.pid));
+  const foregroundDevOwnerFamilies = foregroundDevOwners.map((owner) => ({
+    owner,
+    pids: addProcessFamily([owner.pid]),
+  }));
+  const foregroundDevOwnerFamily = new Set(foregroundDevOwnerFamilies.flatMap((item) => [...item.pids]));
+  const foregroundOwnerForPID = (pid) => foregroundDevOwnerFamilies.find((item) => item.pids.has(pid))?.owner;
   const protectedRoots = [
     launchdManagedPID(serviceLabel(mode)),
     launchdManagedPID(serviceLabel(alternateMode)),
@@ -501,6 +526,7 @@ function runClean(dryRun) {
 
   const staleDaemons = [];
   let remainingStaleDaemons = [];
+  let remainingForegroundDevOwners = foregroundDevOwners;
   const orphanedClients = orphanedClientProcesses();
   const staleLocks = staleDaemonLocks([mode, alternateMode]);
   let remainingStaleLocks = staleLocks;
@@ -519,9 +545,16 @@ function runClean(dryRun) {
   if (!dryRun && staleLocks.length > 0) {
     remainingStaleLocks = staleDaemonLocks([mode, alternateMode]);
   }
-  for (const pid of allDaemonPIDs().filter((pid) => !protectedPIDs.has(pid))) {
+  const candidateDaemonPIDs = new Set([...allDaemonPIDs(), ...foregroundDevOwnerFamily]);
+  for (const pid of [...candidateDaemonPIDs].filter((pid) => foregroundDevOwnerFamily.has(pid) || !protectedPIDs.has(pid))) {
     const args = processArgs(pid);
-    staleDaemons.push({ pid, args });
+    const foregroundOwner = foregroundOwnerForPID(pid) ?? (foregroundDevOwnerPIDs.has(pid) ? foregroundDevOwners.find((owner) => owner.pid === pid) : null);
+    staleDaemons.push({
+      pid,
+      args,
+      reason: foregroundOwner ? 'default_foreground_dev_owner' : undefined,
+      mode: foregroundOwner?.mode,
+    });
     if (!dryRun) {
       try {
         process.kill(pid, 'SIGTERM');
@@ -535,9 +568,12 @@ function runClean(dryRun) {
     const stalePIDs = staleDaemons.map((daemon) => daemon.pid);
     const remainingPIDs = waitForDaemonExit(stalePIDs);
     remainingStaleDaemons = staleDaemons.filter((daemon) => remainingPIDs.includes(daemon.pid));
+    remainingForegroundDevOwners = foregroundDevOwners.filter((owner) => pidExists(owner.pid));
     for (const daemon of remainingStaleDaemons) {
       notes.push(`failed to verify stale daemon exit pid=${daemon.pid}`);
     }
+  } else if (!dryRun && foregroundDevOwners.length > 0) {
+    remainingForegroundDevOwners = foregroundDevOwners.filter((owner) => pidExists(owner.pid));
   }
   for (const client of orphanedClients) {
     if (!dryRun) {
@@ -582,17 +618,18 @@ function runClean(dryRun) {
   }
 
   const remainingCanvases = dryRun ? canvases : [...currentCanvases, ...otherCanvases];
-  const foundResources = staleDaemons.length > 0 || staleLocks.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || experienceDrift != null;
+  const foundResources = staleDaemons.length > 0 || foregroundDevOwners.length > 0 || staleLocks.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || experienceDrift != null;
   let status = 'clean';
   if (dryRun && foundResources) {
     status = 'dirty';
-  } else if (!dryRun && (remainingCanvases.length > 0 || remainingStaleDaemons.length > 0 || remainingStaleLocks.length > 0)) {
+  } else if (!dryRun && (remainingCanvases.length > 0 || remainingForegroundDevOwners.length > 0 || remainingStaleDaemons.length > 0 || remainingStaleLocks.length > 0)) {
     status = 'failed';
   } else if (!dryRun && foundResources) {
     status = 'cleaned';
   }
   return {
     status,
+    foreground_dev_owners: dryRun ? foregroundDevOwners : remainingForegroundDevOwners,
     stale_daemons: dryRun ? staleDaemons : remainingStaleDaemons,
     stale_locks: dryRun ? staleLocks : remainingStaleLocks,
     orphaned_clients: orphanedClients,
@@ -603,9 +640,13 @@ function runClean(dryRun) {
 }
 
 function printText(report, dryRun) {
-  if (report.stale_daemons.length === 0 && report.stale_locks.length === 0 && report.orphaned_clients.length === 0 && report.canvases.length === 0) {
+  if ((report.foreground_dev_owners ?? []).length === 0 && report.stale_daemons.length === 0 && report.stale_locks.length === 0 && report.orphaned_clients.length === 0 && report.canvases.length === 0) {
     process.stdout.write('clean: nothing to clean\n');
   } else {
+    for (const owner of report.foreground_dev_owners ?? []) {
+      const verb = dryRun ? 'found' : 'cleaned';
+      process.stdout.write(`clean: ${verb} default foreground dev owner pid=${owner.pid} mode=${owner.mode} (${owner.args})\n`);
+    }
     for (const daemon of report.stale_daemons) {
       const verb = dryRun ? 'found' : 'killed';
       process.stdout.write(`clean: ${verb} stale daemon pid=${daemon.pid} (${daemon.args})\n`);

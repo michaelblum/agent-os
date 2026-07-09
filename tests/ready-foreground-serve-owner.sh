@@ -77,4 +77,43 @@ assert payload.get("daemon_view", {}).get("pid") == expected_pid, payload
 assert payload.get("input_tap", {}).get("status") == "active", payload
 PY
 
+CLEAN_DRY_RUN="$(./aos clean --dry-run --json)"
+python3 - "$CLEAN_DRY_RUN" "$PID" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+expected_pid = int(sys.argv[2])
+
+assert payload.get("status") == "dirty", payload
+assert any(item.get("pid") == expected_pid for item in payload.get("foreground_dev_owners", [])), payload
+PY
+
+set +e
+READY_JSON="$(./aos ready --json)"
+READY_STATUS=$?
+set -e
+if [[ $READY_STATUS -eq 0 ]]; then
+  echo "FAIL: default-root foreground daemon unexpectedly passed readiness"
+  echo "$READY_JSON"
+  exit 1
+fi
+python3 - "$READY_JSON" "$PID" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+expected_pid = int(sys.argv[2])
+blockers = payload.get("blockers", [])
+cleanup = payload.get("runtime_verdict", {}).get("cleanup", {})
+
+assert payload.get("ready") is False, payload
+assert payload.get("phase") == "runtime_blocked", payload
+assert payload.get("diagnosis") == "daemon_foreground_dev_default", payload
+assert any(item.get("id") == "daemon_foreground_dev_default" for item in blockers), payload
+assert any(item.get("pid") == expected_pid for item in cleanup.get("foreground_dev_owners", [])), payload
+assert any(item.get("pid") == expected_pid for item in cleanup.get("stale_daemons", [])), payload
+assert payload.get("action_trace", [{}])[0].get("result") == "cleanup_required", payload
+PY
+
 echo "PASS"

@@ -139,6 +139,10 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) 
   if (clean.status === 'dirty') {
     const canvasIDs = (clean.canvases ?? []).map((canvas) => canvas.id).filter(Boolean);
     if (canvasIDs.length) notes.push(`Stale canvas cleanup recommended: ${canvasIDs.join(', ')}.`);
+    const foregroundDevOwnerPIDs = (clean.foreground_dev_owners ?? []).map((owner) => owner.pid).filter(Boolean);
+    if (foregroundDevOwnerPIDs.length) {
+      notes.push(`Default foreground dev daemon cleanup recommended: ${foregroundDevOwnerPIDs.join(', ')}.`);
+    }
     if (clean.stale_daemons?.length) {
       notes.push(`Stale daemon cleanup recommended: ${clean.stale_daemons.map((daemon) => daemon.pid).join(', ')}.`);
     }
@@ -197,6 +201,7 @@ async function buildStatusResponse() {
     daemon_snapshot: snapshot.snapshot,
     stale_resources: {
       status: clean.status,
+      foreground_dev_owners: (clean.foreground_dev_owners ?? []).map((owner) => owner.pid).filter(Boolean),
       stale_daemons: clean.stale_daemons?.length ?? 0,
       canvases: (clean.canvases ?? []).map((canvas) => canvas.id).filter(Boolean),
       notes: clean.notes ?? [],

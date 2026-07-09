@@ -5,11 +5,21 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
+import { guardAgentOSWorktreeDefaultRuntime, guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
 
 const ORIGINAL_PARENT_PID = process.ppid;
 const WINDOW_LEVELS = new Set(['automatic', 'floating', 'status_bar', 'screen_saver']);
 const AUTO_PROJECT_MODES = new Set(['cursor_trail', 'highlight_focused', 'label_elements']);
+const RUNTIME_COUPLED_SHOW_ACTIONS = new Set([
+  'audit',
+  'create',
+  'eval',
+  'post',
+  'remove',
+  'remove_all',
+  'to_front',
+  'update',
+]);
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -225,6 +235,11 @@ function diagnosticVerdict(operationId, timeoutMs) {
   return guardedLiveOperation({ operationId, allowStart: false, mode: runtimeMode(), prefix: aosPath() }).preflight;
 }
 
+function requireDefaultRepoRuntimePolicy(operationId) {
+  const guard = guardAgentOSWorktreeDefaultRuntime({ operationId, mode: runtimeMode() });
+  if (!guard.ok) failure(guard.failure);
+}
+
 async function oneShot(action, data, {
   autoStart = false,
   emptyListOnNoDaemon = false,
@@ -232,6 +247,9 @@ async function oneShot(action, data, {
   retryNoResponse = 0,
   allowStart = false,
 } = {}) {
+  if (RUNTIME_COUPLED_SHOW_ACTIONS.has(action)) {
+    requireDefaultRepoRuntimePolicy(`show.${action}`);
+  }
   const connection = autoStart ? await connectWithAutoStart({ allowStart }) : { socket: await connectOnce() };
   let socket = connection?.socket ?? null;
   if (!socket) {
@@ -597,6 +615,7 @@ async function waitCommand(args) {
   }
 
   if (!id) error('wait requires --id <name>', 'MISSING_ARG');
+  requireDefaultRepoRuntimePolicy('show.wait');
   let condition = "window.headsup && typeof window.headsup.receive === 'function'";
   if (manifest) condition += ` && window.headsup.manifest && window.headsup.manifest.name === ${JSON.stringify(manifest)}`;
   if (js) condition += ` && (${js})`;
@@ -729,6 +748,7 @@ async function auditCommand(args) {
 
 async function listenCommand(args) {
   if (args.length > 0) unknownArg(args[0]);
+  requireDefaultRepoRuntimePolicy('show.listen');
   const connection = await connectWithAutoStart({ managed: true });
   const socket = connection?.socket ?? null;
   const daemon = connection?.daemon ?? null;

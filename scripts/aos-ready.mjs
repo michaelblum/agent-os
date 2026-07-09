@@ -203,10 +203,23 @@ function decideReadyStartup({ repair, mode, prefix }) {
   }
 
   const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
-  if (preflight.blockers.some((blocker) => blocker.id === 'stale_daemons')) {
+  if (preflight.blockers.some((blocker) => blocker.id === 'agent_os_worktree_default_runtime')) {
     const actionTrace = [{
       step: 'ready_preflight',
-      result: 'stale_daemons',
+      result: 'runtime_policy_blocked',
+      detail: 'linked git worktrees cannot use the default agent-os repo runtime',
+    }];
+    return {
+      startup: skippedStartup,
+      actionTrace,
+      readyResponse: { ...preflight, action_trace: actionTrace },
+    };
+  }
+
+  if (preflight.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
+    const actionTrace = [{
+      step: 'ready_preflight',
+      result: 'cleanup_required',
       detail: 'cleanup must run before service start',
     }];
     return {
@@ -381,7 +394,7 @@ if (!options.repair && process.env.AOS_TEST_SKIP_READY_SERVICE_START !== '1') {
 }
 
 if (options.repair && !response.ready) {
-  if (response.blockers.some((blocker) => blocker.id === 'stale_daemons')) {
+  if (response.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
     response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
   }
   if (hasRestartableReadyRuntimeBlocker(response)) {

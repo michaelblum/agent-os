@@ -1,5 +1,5 @@
 import { brokerFacts } from './aos-facts.mjs';
-import { invocationName } from './aos-cli.mjs';
+import { agentOSWorktreePolicy, invocationName } from './aos-cli.mjs';
 import { runtimeVerdict } from './aos-readiness.mjs';
 
 export function primaryRuntimeBlocker(verdict) {
@@ -16,7 +16,9 @@ export function primaryRuntimeBlocker(verdict) {
 }
 
 export function runtimeHandoffText(blockerID, prefix = invocationName()) {
+  if (blockerID === 'agent_os_worktree_default_runtime') return 'Run AOS from the primary agent-os checkout, or set AOS_STATE_ROOT for an isolated runtime. Do not use linked worktrees with the default repo runtime.';
   if (blockerID === 'daemon_unmanaged') return 'Return the unmanaged owner PID and command line to Foreman; do not loop service restart.';
+  if (blockerID === 'daemon_foreground_dev_default') return `Run ${prefix} clean once, then re-check readiness; foreground dev daemons must use an isolated AOS_STATE_ROOT.`;
   if (blockerID === 'stale_daemons') return `Run ${prefix} clean once, then re-check readiness after stale owners are removed.`;
   if (blockerID === 'daemon_unreachable' || blockerID === 'socket_unreachable') return 'Return the daemon/socket blocker to Foreman unless live-start permission was explicitly supplied.';
   if (blockerID === 'input_tap_not_active') return 'Return input_tap_not_active to Foreman; do not run TCC reset unless the verdict also names a permission blocker.';
@@ -47,6 +49,31 @@ export function runtimeFailurePayload({
   };
 }
 
+export function worktreePolicyFailurePayload({
+  operationId,
+  policy,
+} = {}) {
+  return {
+    status: 'failure',
+    code: 'AGENT_OS_WORKTREE_DEFAULT_RUNTIME',
+    error: policy?.message ?? 'agent-os linked git worktrees cannot use the default repo runtime.',
+    blocker: 'agent_os_worktree_default_runtime',
+    operation_id: operationId,
+    worktree: policy?.worktree,
+    next_action: runtimeHandoffText('agent_os_worktree_default_runtime'),
+  };
+}
+
+export function guardAgentOSWorktreeDefaultRuntime({ operationId, mode = 'repo' } = {}) {
+  const policy = agentOSWorktreePolicy({ mode });
+  if (policy.allowed) return { ok: true, policy };
+  return {
+    ok: false,
+    policy,
+    failure: worktreePolicyFailurePayload({ operationId, policy }),
+  };
+}
+
 export function guardedLiveOperation({
   operationId,
   allowStart = false,
@@ -57,13 +84,28 @@ export function guardedLiveOperation({
   if (process.env.AOS_BYPASS_PREFLIGHT === '1') {
     return { ok: true, preflight: null };
   }
+  const worktreeGuard = guardAgentOSWorktreeDefaultRuntime({ operationId, mode });
+  if (!worktreeGuard.ok) {
+    return {
+      ok: false,
+      preflight: null,
+      failure: worktreeGuard.failure,
+    };
+  }
   const resolvedFacts = facts ?? brokerFacts({
     daemonRequired: false,
     includeRuntime: true,
     includeClean: true,
   });
   const verdict = runtimeVerdict(resolvedFacts, mode, prefix);
-  if (verdict.ready || allowStart) {
+  const cleanupRequired = (verdict.blockers ?? []).some((blocker) => [
+    'daemon_ownership_mismatch',
+    'daemon_unmanaged',
+    'agent_os_worktree_default_runtime',
+    'daemon_foreground_dev_default',
+    'stale_daemons',
+  ].includes(blocker.id));
+  if (verdict.ready || (allowStart && !cleanupRequired)) {
     return { ok: true, preflight: verdict };
   }
   return {

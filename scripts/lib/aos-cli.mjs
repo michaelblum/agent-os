@@ -39,6 +39,77 @@ export function repoRoot() {
   return path.resolve(scriptDir, '..', '..');
 }
 
+function resolveGitPath(root, value) {
+  if (!value) return undefined;
+  return path.resolve(root, value);
+}
+
+function gitOutput(root, args) {
+  const result = spawnSync('/usr/bin/git', ['-C', root, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) return undefined;
+  return result.stdout.trim() || undefined;
+}
+
+export function repoGitWorktreeFacts(root = repoRoot(), env = process.env) {
+  if (env.AOS_TEST_FORCE_LINKED_WORKTREE === '1') {
+    const canonicalRoot = env.AOS_TEST_CANONICAL_REPO_ROOT
+      ? path.resolve(env.AOS_TEST_CANONICAL_REPO_ROOT)
+      : root;
+    return {
+      repo_root: root,
+      git_dir: path.join(canonicalRoot, '.git', 'worktrees', path.basename(root) || 'agent-os-worktree'),
+      git_common_dir: path.join(canonicalRoot, '.git'),
+      linked_worktree: true,
+      forced: true,
+    };
+  }
+
+  const gitDir = resolveGitPath(root, gitOutput(root, ['rev-parse', '--git-dir']));
+  const gitCommonDir = resolveGitPath(root, gitOutput(root, ['rev-parse', '--git-common-dir']));
+  if (!gitDir || !gitCommonDir) {
+    return {
+      repo_root: root,
+      linked_worktree: false,
+      unavailable_reason: 'git metadata unavailable',
+    };
+  }
+  return {
+    repo_root: root,
+    git_dir: gitDir,
+    git_common_dir: gitCommonDir,
+    linked_worktree: gitDir !== gitCommonDir,
+  };
+}
+
+export function defaultStateRoot(env = process.env) {
+  const home = env.HOME || os.homedir();
+  return path.resolve(home, '.config/aos');
+}
+
+export function explicitStateRootOverride(env = process.env) {
+  if (!env.AOS_STATE_ROOT) return false;
+  if (env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL === '1') return false;
+  return path.resolve(env.AOS_STATE_ROOT) !== defaultStateRoot(env);
+}
+
+export function agentOSWorktreePolicy({ mode = currentMode(), root = repoRoot(), env = process.env } = {}) {
+  if (mode !== 'repo') return { allowed: true, reason: 'not_repo_mode' };
+  if (explicitStateRootOverride(env)) return { allowed: true, reason: 'explicit_state_root', state_root: path.resolve(env.AOS_STATE_ROOT) };
+
+  const facts = repoGitWorktreeFacts(root, env);
+  if (!facts.linked_worktree) return { allowed: true, reason: 'primary_checkout', worktree: facts };
+  return {
+    allowed: false,
+    id: 'agent_os_worktree_default_runtime',
+    reason: 'linked_git_worktree_default_runtime_forbidden',
+    message: 'agent-os linked git worktrees cannot use the default repo runtime. Run AOS from the primary checkout, or set an explicit AOS_STATE_ROOT for isolated runtime tests.',
+    worktree: facts,
+  };
+}
+
 export function aosPath() {
   return process.env.AOS_PATH || path.join(repoRoot(), 'aos');
 }

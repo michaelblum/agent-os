@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { explicitStateRootOverride } from './aos-cli.mjs';
 import {
   MOUNTED_SURFACE_MENU_QUERY_PARAM,
   mountedSurfaceMenuItemsForSurface,
@@ -84,6 +85,22 @@ export function scopedRootName(prefix, repoRoot = process.cwd()) {
   return `${prefix}_${suffix}`;
 }
 
+export function contentRootScope(env = process.env) {
+  const raw = (env.AOS_EXPERIENCE_CONTENT_ROOT_SCOPE || env.AOS_CONTENT_ROOT_SCOPE || '').toLowerCase();
+  if (!raw || raw === 'canonical' || raw === 'single') return 'canonical';
+  if (['branch', 'scoped', 'parallel', 'worktree'].includes(raw)) return 'branch';
+  throw new ExperienceManifestError(`Unknown content root scope: ${raw}`, 'INVALID_CONTENT_ROOT_SCOPE');
+}
+
+export function branchScopedContentRootsEnabled(env = process.env) {
+  if (contentRootScope(env) !== 'branch') return false;
+  if (explicitStateRootOverride(env)) return true;
+  throw new ExperienceManifestError(
+    'Branch-scoped content roots require an explicit non-default AOS_STATE_ROOT; default agent-os runtime uses canonical root names.',
+    'BRANCH_SCOPED_CONTENT_ROOTS_REQUIRE_STATE_ROOT',
+  );
+}
+
 export function resolveRepoPath(relPath, fieldName, {
   repoRoot = process.cwd(),
 } = {}) {
@@ -99,16 +116,21 @@ export function resolveRepoPath(relPath, fieldName, {
 
 export function resolveContentRoots(manifest, {
   repoRoot = process.cwd(),
+  env = process.env,
 } = {}) {
+  const useBranchScopedRoots = branchScopedContentRootsEnabled(env);
   return (manifest.content_roots || []).map((root) => {
     if (!root.id || !root.path) {
       throw new ExperienceManifestError('content_roots entries require id and path', 'INVALID_EXPERIENCE_MANIFEST');
     }
+    const declaredBranchScoped = root.branch_scoped !== false;
+    const activeBranchScoped = useBranchScopedRoots && declaredBranchScoped;
     return {
       id: root.id,
-      key: root.branch_scoped === false ? root.id : scopedRootName(root.id, repoRoot),
+      key: activeBranchScoped ? scopedRootName(root.id, repoRoot) : root.id,
       path: resolveRepoPath(root.path, `content_roots.${root.id}.path`, { repoRoot }),
-      branch_scoped: root.branch_scoped !== false,
+      branch_scoped: activeBranchScoped,
+      declared_branch_scoped: declaredBranchScoped,
     };
   });
 }

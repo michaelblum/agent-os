@@ -61,10 +61,15 @@ generic file.
 - Reload boundary: reload URL-backed canvases with
   `aos show update --url 'aos://...'`; do not copy a resolved localhost URL
   back into launch or update inputs.
-- Root scoping: the single-worktree dev workflow defaults to canonical
-  `sigil` and `toolkit` content-root keys, even on feature branches. Use
-  branch-scoped keys only for explicit overrides or true parallel
-  worktree/session isolation.
+- Root scoping: the single-checkout dev workflow defaults to canonical
+  `sigil` and `toolkit` content-root keys, even on feature branches. Do not use
+  linked git worktrees or branch-scoped keys to share the default agent-os
+  runtime across agents.
+- Runtime ownership: the default local runtime is single-owner. Use the
+  launchd-managed daemon for `~/.config/aos/{repo|installed}`. Foreground
+  `aos serve` development daemons must use an isolated `AOS_STATE_ROOT`; a
+  default-root foreground dev owner is a readiness blocker and should be cleaned
+  before service start/restart.
 - Namespace boundary: a content-root key is a served namespace, not proof of a
   Git worktree. Use show-list owner metadata to prove
   `owner.worktree_root` matches the expected repo root.
@@ -83,6 +88,11 @@ generic file.
   Use shared repo-daemon live canvas tests, with `tests/lib/live-canvas-serial.sh`,
   when singleton canvas namespace, live content roots, or the current repo
   daemon is the variable under test.
+- Alternate-checkout isolated runtime proof: when an agent needs a foreground
+  daemon from any alternate checkout, set `AOS_STATE_ROOT` to a temporary
+  isolated directory and keep all content roots, canvases, and status-item
+  mutations in that state root. Do not branch-scope the active shared experience
+  or create linked worktrees as a substitute for runtime isolation.
 - Real pointer input versus renderer state mutation: renderer or toolkit tests
   can cover deterministic state transitions. If the failure happens through
   mouse movement, keyboard input, input taps, status-item clicks, or

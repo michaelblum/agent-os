@@ -61,11 +61,11 @@ canvas:
     --track union
 ```
 
-For topic worktrees, do not overwrite canonical `content.roots.toolkit` or
-`content.roots.sigil`. Use branch-scoped content roots from
-`scripts/aos-content-scope.sh` or a branch-aware launch script, then launch
-surfaces from the scoped Sigil root and pass the matching `toolkit-root` when a
-Sigil surface opens toolkit panels.
+Do not run Sigil against the default repo runtime from a linked git worktree.
+Switch branches in the primary checkout for shared-runtime Sigil work. If an
+alternate checkout needs runtime-coupled proof, set an explicit isolated
+`AOS_STATE_ROOT` and keep all content roots, canvases, and status-item mutation
+inside that isolated state root.
 
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
 
@@ -187,16 +187,17 @@ Canvases load via `aos://sigil/renderer/index.html` and other Sigil content-root
 
 Sigil now depends on toolkit runtime modules at load time for shared spatial
 helpers, so repo-mode workflows must ensure both content roots are configured.
-Use canonical roots only on `main`:
+Use canonical roots in the primary checkout, including feature branches:
 
 ```bash
 ./aos set content.roots.toolkit packages/toolkit
 ./aos set content.roots.sigil apps/sigil
 ```
 
-Topic worktrees must use branch-scoped sibling roots such as
-`sigil_codex_example` and `toolkit_codex_example` so multiple sessions can share
-the singleton daemon without loading each other's HTML, JS, or CSS.
+Linked git worktrees must not share the singleton daemon. Branch-scoped Sigil
+and toolkit roots are allowed only inside explicit isolated runtime proofs under
+`AOS_STATE_ROOT` with `AOS_CONTENT_ROOT_SCOPE=branch`, not for the active shared
+status-item experience.
 
 ## Dependencies
 
