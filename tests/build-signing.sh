@@ -13,11 +13,30 @@ LOG="$TMP/events.log"
 mkdir -p "$FAKE_REPO/src" "$FAKE_BIN"
 
 cp build.sh "$FAKE_REPO/build.sh"
+mkdir -p "$FAKE_REPO/packaging"
 printf 'print("fake")\n' > "$FAKE_REPO/src/main.swift"
+cat > "$FAKE_REPO/packaging/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.agentos.repo-aos</string>
+</dict>
+</plist>
+EOF
+cat > "$FAKE_REPO/packaging/aos.entitlements" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict/>
+</plist>
+EOF
 
 cat >"$FAKE_BIN/swiftc" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+printf 'swiftc_args %s\n' "$*" >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
 out=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,6 +99,7 @@ REPAIR_OUT="$TMP/repair.out"
 UP_TO_DATE_OUT="$TMP/up-to-date.out"
 TOUCHED_OUT="$TMP/touched.out"
 CHANGED_OUT="$TMP/changed.out"
+PACKAGE_OUT="$TMP/package.out"
 
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
 if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
@@ -189,6 +209,29 @@ fi
 if ! grep -q '^Up to date: ./aos' "$UP_TO_DATE_OUT"; then
     echo "FAIL: valid signed artifact did not report up to date" >&2
     cat "$UP_TO_DATE_OUT" >&2
+    exit 1
+fi
+
+: > "$LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --package --no-restart >"$PACKAGE_OUT"
+if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
+    echo "FAIL: packaged build should compile and sign" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q 'swiftc_args .*__TEXT .*__info_plist .*packaging/Info.plist' "$LOG"; then
+    echo "FAIL: packaged build did not embed packaging/Info.plist with linker flags" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q -- '--entitlements .*/packaging/aos.entitlements' "$LOG"; then
+    echo "FAIL: packaged build did not sign with packaging/aos.entitlements" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if ! grep -q '^Compiling aos (dev+package)' "$PACKAGE_OUT"; then
+    echo "FAIL: packaged build did not report the package build variant" >&2
+    cat "$PACKAGE_OUT" >&2
     exit 1
 fi
 

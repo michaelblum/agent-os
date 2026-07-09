@@ -132,6 +132,8 @@ Default section order:
 - `experiences/AGENTS.md` governs experience manifests and app activation
   material.
 - `manifests/AGENTS.md` governs command and capability manifests.
+- `packaging/AGENTS.md` governs repo runtime packaging metadata such as
+  `Info.plist`, entitlements, and signing experiment inputs.
 - `packages/AGENTS.md` governs reusable JavaScript/package layers. Its current
   child is `packages/toolkit/AGENTS.md`, which further indexes `contracts/`,
   `controls/`, `panel/`, and `runtime/`.
