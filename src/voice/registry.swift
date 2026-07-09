@@ -177,11 +177,27 @@ final class VoiceRegistry {
 
     static func defaultProviders() -> [VoiceProvider] {
         var providers: [VoiceProvider] = [SystemVoiceProvider(), ElevenLabsStubProvider()]
-        let env = ProcessInfo.processInfo.environment["AOS_VOICE_TEST_PROVIDERS"]
-        if env == "mock" {
+        let testProviders = providerFlags(ProcessInfo.processInfo.environment["AOS_VOICE_TEST_PROVIDERS"])
+        if testProviders.contains("mock-unreachable") {
+            providers.append(MockVoiceProvider(name: "mock", reachable: false))
+        } else if testProviders.contains("mock") {
             providers.append(MockVoiceProvider(name: "mock"))
         }
+        if testProviders.contains("kokoro") || ProcessInfo.processInfo.environment["AOS_VOICE_KOKORO_PROVIDER"] == "1" {
+            providers.append(KokoroProvider())
+        }
         return providers
+    }
+
+    private static func providerFlags(_ raw: String?) -> Set<String> {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        return Set(
+            raw.split { ch in
+                ch == "," || ch == ":" || ch == ";" || ch.isWhitespace
+            }
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        )
     }
 
     func providersInfo() -> [ProviderInfo] {
@@ -235,6 +251,38 @@ final class VoiceRegistry {
     }
 
     func contains(_ uri: String) -> Bool { lookup(uri) != nil }
+
+    func speak(text: String, voiceID rawVoiceID: String, rate: Float?, skipAudio: Bool) throws -> VoiceSpeakResult {
+        let canonical = VoiceID.canonicalize(rawVoiceID)
+        guard let parsed = VoiceID.parse(canonical) else {
+            throw VoiceSpeakError(code: "INVALID_VOICE_ID", message: "invalid voice id: \(rawVoiceID)")
+        }
+        guard parsed.provider != "system" else {
+            throw VoiceSpeakError(code: "INVALID_VOICE_PROVIDER", message: "system voices use the NSSpeechSynthesizer path")
+        }
+        guard let record = lookup(canonical) else {
+            throw VoiceSpeakError(code: "VOICE_NOT_FOUND", message: "voice not found in registry: \(canonical)")
+        }
+        guard record.capabilities.speak_supported else {
+            throw VoiceSpeakError(code: "VOICE_NOT_SPEAKABLE", message: "voice cannot synthesize in this version: \(canonical)")
+        }
+        guard record.availability.enabled else {
+            throw VoiceSpeakError(code: "VOICE_NOT_ALLOCATABLE", message: "voice is disabled by policy: \(canonical)")
+        }
+        guard record.availability.installed && record.availability.reachable else {
+            throw VoiceSpeakError(code: "VOICE_PROVIDER_UNAVAILABLE", message: "voice provider is unavailable for \(canonical)")
+        }
+        guard let provider = providers.first(where: { $0.name == parsed.provider }) else {
+            throw VoiceSpeakError(code: "VOICE_PROVIDER_UNAVAILABLE", message: "voice provider not loaded: \(parsed.provider)")
+        }
+        guard provider.availability.reachable else {
+            throw VoiceSpeakError(code: "VOICE_PROVIDER_UNAVAILABLE", message: provider.availability.reason ?? "voice provider unavailable: \(parsed.provider)")
+        }
+        guard let speakable = provider as? SpeakableVoiceProvider else {
+            throw VoiceSpeakError(code: "VOICE_NOT_SPEAKABLE", message: "voice provider cannot synthesize in this version: \(parsed.provider)")
+        }
+        return try speakable.speak(VoiceSpeakRequest(text: text, voice: record, rate: rate, skipAudio: skipAudio))
+    }
 
     func refresh() -> [VoiceRecord] { snapshot() }
 
