@@ -31,6 +31,7 @@ test('avatar controls snapshot projection clones bounds and reads compact surfac
   assert.deepEqual(snapshot, {
     open: true,
     bounds,
+    placementPlan: null,
     surface: 'embedded',
     panelId: null,
     stack: null,
@@ -44,6 +45,7 @@ test('avatar controls snapshot projection preserves closed null surface shape', 
   assert.deepEqual(buildAvatarControlsSnapshot({ open: false, bounds: null }, null), {
     open: false,
     bounds: null,
+    placementPlan: null,
     surface: null,
     panelId: null,
     stack: null,
