@@ -1,18 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 
 import {
-  createSigilVoiceDictationController,
-  isSpacebarDictationInput,
+  applyDictationTextValue,
+  buildDictationTextValue,
+  createDictationController,
+  isHoldToDictateInput,
   normalizeVoiceDictationEvent,
-} from '../../apps/sigil/renderer/live-modules/voice-dictation.js'
+} from '../../packages/toolkit/controls/dictation.js'
 
 function createHarness(options = {}) {
   let now = 1000
   const voiceEvents = []
   const changes = []
-  const controller = createSigilVoiceDictationController({
+  const controller = createDictationController({
     now: () => now,
     timestamp: () => now / 1000,
     timeoutMs: options.timeoutMs ?? 500,
@@ -33,15 +34,15 @@ function createHarness(options = {}) {
   }
 }
 
-test('Sigil dictation recognizes daemon key-code and DOM Space key shapes', () => {
-  assert.equal(isSpacebarDictationInput({ type: 'key_down', key_code: 49 }), true)
-  assert.equal(isSpacebarDictationInput({ type: 'key_up', key: ' ' }), true)
-  assert.equal(isSpacebarDictationInput({ type: 'key_down', code: 'Space' }), true)
-  assert.equal(isSpacebarDictationInput({ type: 'key_down', key: 'Enter' }), false)
-  assert.equal(isSpacebarDictationInput({ type: 'mouse_moved' }), false)
+test('dictation recognizes daemon key-code and DOM Space key shapes', () => {
+  assert.equal(isHoldToDictateInput({ type: 'key_down', key_code: 49 }), true)
+  assert.equal(isHoldToDictateInput({ type: 'key_up', key: ' ' }), true)
+  assert.equal(isHoldToDictateInput({ type: 'key_down', code: 'Space' }), true)
+  assert.equal(isHoldToDictateInput({ type: 'key_down', key: 'Enter' }), false)
+  assert.equal(isHoldToDictateInput({ type: 'mouse_moved' }), false)
 })
 
-test('hold-spacebar opens LISTENING and emits generic dictation_opened', () => {
+test('hold-to-dictate opens LISTENING and emits generic dictation_opened', () => {
   const harness = createHarness()
   const result = harness.controller.handleInput({ type: 'key_down', key_code: 49 })
 
@@ -112,7 +113,7 @@ test('timeout sends with captured speech and cancels when empty', () => {
   assert.deepEqual(empty.voiceEvents.at(-1).data, { reason: 'timeout' })
 })
 
-test('Sigil consumes generic voice dictation envelopes without re-emitting them', () => {
+test('controller consumes generic voice dictation envelopes without re-emitting them', () => {
   const harness = createHarness()
 
   const opened = harness.controller.handleVoiceEvent({
@@ -141,7 +142,7 @@ test('Sigil consumes generic voice dictation envelopes without re-emitting them'
   assert.equal(harness.voiceEvents.length, 0)
 })
 
-test('Sigil accepts the existing flat canvas event bridge shape for voice events', () => {
+test('normalizes the existing flat canvas event bridge shape for voice events', () => {
   const event = normalizeVoiceDictationEvent({
     type: 'dictation_closed_cancel',
     reason: 'timeout',
@@ -153,23 +154,16 @@ test('Sigil accepts the existing flat canvas event bridge shape for voice events
   )
 })
 
-test('Sigil dictation module delegates reusable behavior to toolkit controls', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/voice-dictation.js', import.meta.url), 'utf8')
+test('dictation text values can insert, append, replace, and apply to text targets', () => {
+  assert.deepEqual(
+    buildDictationTextValue('open window', 'terminal', { selectionStart: 5, selectionEnd: 11 }),
+    { value: 'open terminal', selectionStart: 13, selectionEnd: 13, changed: true },
+  )
+  assert.equal(buildDictationTextValue('open', 'terminal', { mode: 'append' }).value, 'open terminal')
+  assert.equal(buildDictationTextValue('open', 'close', { mode: 'replace' }).value, 'close')
 
-  assert.match(source, /controls\/dictation\.js/)
-  assert.doesNotMatch(source, /function normalizeVoiceDictationEvent\(/)
-  assert.doesNotMatch(source, /function createDictationController\(/)
-  assert.doesNotMatch(source, /function createSigilVoiceDictationController\(\{\s*now/s)
-})
-
-test('Sigil main wires dictation controller to host messages and key input', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
-
-  assert.match(source, /createSigilVoiceDictationController/)
-  assert.match(source, /voiceDictation\.handleInput\(msg\)\.handled/)
-  assert.match(source, /isVoiceDictationEvent\(msg\)/)
-  assert.match(source, /voiceDictation\.handleVoiceEvent\(msg\)/)
-  assert.match(source, /'dictation_opened'/)
-  assert.match(source, /'dictation_closed_send'/)
-  assert.match(source, /'dictation_closed_cancel'/)
+  const target = { value: 'hello world', selectionStart: 6, selectionEnd: 11 }
+  const result = applyDictationTextValue(target, 'there')
+  assert.deepEqual(result, { value: 'hello there', selectionStart: 11, selectionEnd: 11, changed: true })
+  assert.deepEqual(target, { value: 'hello there', selectionStart: 11, selectionEnd: 11 })
 })

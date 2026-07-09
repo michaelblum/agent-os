@@ -1,4 +1,5 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { applyDictationTextValue } from './dictation.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -97,6 +98,14 @@ export function createTextField(config = {}) {
     if (event.key === 'Enter') emitCommit();
   };
 
+  const applyDictationTranscript = (transcript, options = {}) => {
+    const result = applyDictationTextValue(input, transcript, options);
+    validate();
+    if (options.emit !== false) emitChange();
+    if (options.commit) emitCommit();
+    return result;
+  };
+
   input.addEventListener('input', emitChange);
   input.addEventListener('blur', emitCommit);
   input.addEventListener('keydown', keydown);
@@ -113,6 +122,7 @@ export function createTextField(config = {}) {
       if (options.emit) emitChange();
     },
     setError,
+    applyDictationTranscript,
     on(type, callback) {
       return type === 'change' || type === 'commit' ? hub.on(type, callback) : () => {};
     },

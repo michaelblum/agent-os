@@ -14,6 +14,8 @@ Controls should:
 - preserve keyboard, pointer, and accessibility behavior;
 - stay small enough that panels and workbenches can combine them without
   inheriting product assumptions.
+- keep reusable dictation/text-entry state here so apps can opt into shared
+  input behavior instead of forking private text-control guts.
 
 Do not add a control here merely because one app needs it. Promote behavior to
 `controls/` only when the same interaction should be reusable across AOS

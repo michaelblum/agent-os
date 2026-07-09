@@ -10,11 +10,24 @@ test('createTextField returns shape and updates value', () => {
   assert.equal(typeof field.getValue, 'function');
   assert.equal(typeof field.setValue, 'function');
   assert.equal(typeof field.setError, 'function');
+  assert.equal(typeof field.applyDictationTranscript, 'function');
   assert.equal(typeof field.on, 'function');
   assert.equal(typeof field.destroy, 'function');
   assert.equal(field.getValue(), 'start');
   field.setValue('foo');
   assert.equal(field.getValue(), 'foo');
+});
+
+test('text field applies dictation transcripts through the shared text hook', () => {
+  const document = createFakeDocument();
+  const changes = [];
+  const field = createTextField({ document, value: 'find', onChange: (value) => changes.push(value) });
+
+  const result = field.applyDictationTranscript(' subject', { mode: 'insert' });
+
+  assert.equal(result.value, 'find subject');
+  assert.equal(field.getValue(), 'find subject');
+  assert.deepEqual(changes, ['find subject']);
 });
 
 test('text field renders and clears error state', () => {

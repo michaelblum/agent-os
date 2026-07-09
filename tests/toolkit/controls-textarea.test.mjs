@@ -17,6 +17,7 @@ test('createTextarea returns shape and updates value', () => {
   assert.equal(typeof field.getValue, 'function');
   assert.equal(typeof field.setValue, 'function');
   assert.equal(typeof field.setReadOnly, 'function');
+  assert.equal(typeof field.applyDictationTranscript, 'function');
   assert.equal(typeof field.on, 'function');
   assert.equal(typeof field.destroy, 'function');
   assert.equal(field.el.tagName, 'TEXTAREA');
@@ -25,6 +26,22 @@ test('createTextarea returns shape and updates value', () => {
   assert.equal(field.getValue(), 'start');
   field.setValue('next');
   assert.equal(field.getValue(), 'next');
+});
+
+test('textarea applies dictation transcripts through the shared text hook', () => {
+  const document = createFakeDocument();
+  const changes = [];
+  const field = createTextarea({
+    document,
+    value: 'open',
+    onChange: (value) => changes.push(value),
+  });
+
+  const result = field.applyDictationTranscript('terminal', { mode: 'append' });
+
+  assert.equal(result.value, 'open terminal');
+  assert.equal(field.getValue(), 'open terminal');
+  assert.deepEqual(changes, ['open terminal']);
 });
 
 test('textarea emits change on input and commit on blur', () => {

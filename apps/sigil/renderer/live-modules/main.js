@@ -124,6 +124,12 @@ import {
     createSigilAvatarControls,
     resolveAvatarPanelAvoidancePosition,
 } from '../../avatar-controls/surface.js';
+import {
+    avatarNativeFrame,
+    panelFrameToAvatarControlsBounds as resolvePanelFrameToAvatarControlsBounds,
+    panelNativeFrameFromLifecycle,
+    resolveAvatarPanelLifecycleAvoidance,
+} from './avatar-panel-geometry.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 import { copyTextToClipboard } from './clipboard-utils.js';
@@ -399,106 +405,34 @@ const selectionModeNativeFrameResolver = createSelectionModeNativeFrameResolver(
 });
 
 function nativeFrameForAvatar() {
-    if (!liveJs.avatarPos.valid) return null;
-    const center = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
-    const size = Math.max(1, Math.round(liveJs.avatarHitRadius * 2));
-    const half = size / 2;
-    return [
-        Math.round(center.x - half),
-        Math.round(center.y - half),
-        size,
-        size,
-    ];
-}
-
-function rectFromFrame(frame) {
-    if (!Array.isArray(frame) || frame.length < 4) return null;
-    const rect = {
-        x: Number(frame[0]),
-        y: Number(frame[1]),
-        w: Number(frame[2]),
-        h: Number(frame[3]),
-    };
-    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
-    if (rect.w <= 0 || rect.h <= 0) return null;
-    return rect;
-}
-
-function frameFromRectDictionary(rect) {
-    if (!rect || typeof rect !== 'object') return null;
-    return rectFromFrame([
-        rect.x,
-        rect.y,
-        rect.w ?? rect.width,
-        rect.h ?? rect.height,
-    ]);
-}
-
-function rectContainsRect(outer, inner) {
-    return !!(outer && inner
-        && inner.x >= outer.x
-        && inner.y >= outer.y
-        && inner.x + inner.w <= outer.x + outer.w
-        && inner.y + inner.h <= outer.y + outer.h);
-}
-
-function nativeVisibleViewportForRect(rect) {
-    const displays = liveJs.displays || [];
-    return displays.map((display) => (
-        frameFromRectDictionary(display.nativeVisibleBounds)
-        || frameFromRectDictionary(display.native_visible_bounds)
-        || frameFromRectDictionary(display.visibleBounds)
-        || frameFromRectDictionary(display.visible_bounds)
-        || frameFromRectDictionary(display.nativeBounds)
-        || frameFromRectDictionary(display.native_bounds)
-        || frameFromRectDictionary(display.bounds)
-    )).find((viewport) => rectContainsRect(viewport, rect))
-        || displays.map((display) => (
-            frameFromRectDictionary(display.nativeVisibleBounds)
-            || frameFromRectDictionary(display.native_visible_bounds)
-            || frameFromRectDictionary(display.visibleBounds)
-            || frameFromRectDictionary(display.visible_bounds)
-            || frameFromRectDictionary(display.nativeBounds)
-            || frameFromRectDictionary(display.native_bounds)
-            || frameFromRectDictionary(display.bounds)
-        )).find((viewport) => {
-            const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
-            return viewport
-                && center.x >= viewport.x
-                && center.y >= viewport.y
-                && center.x < viewport.x + viewport.w
-                && center.y < viewport.y + viewport.h;
-        })
-        || null;
-}
-
-function panelNativeFrameFromLifecycle(message = {}) {
-    const canvas = message.canvas || {};
-    return rectFromFrame(canvas.placement?.final_settled_frame)
-        || rectFromFrame(canvas.placement?.policy_adjusted_frame)
-        || rectFromFrame(canvas.at)
-        || rectFromFrame(message.at);
+    return avatarNativeFrame({
+        avatarPos: liveJs.avatarPos,
+        avatarHitRadius: liveJs.avatarHitRadius,
+        displays: liveJs.displays,
+        desktopWorldToNativePoint,
+    });
 }
 
 function panelFrameToAvatarControlsBounds(frame) {
-    const nativeRect = Array.isArray(frame) ? rectFromFrame(frame) : frameFromRectDictionary(frame);
-    if (!nativeRect) return null;
-    return nativeToDesktopWorldRect(nativeRect, liveJs.displays) || nativeRect;
+    return resolvePanelFrameToAvatarControlsBounds(frame, {
+        displays: liveJs.displays,
+        nativeToDesktopWorldRect,
+    });
 }
 
 function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
-    if (!avatarControls.isOpen() || !liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
-    const panelRect = panelNativeFrameFromLifecycle(message);
-    const avatarRect = rectFromFrame(nativeFrameForAvatar());
-    const viewport = nativeVisibleViewportForRect(panelRect);
-    const next = resolveAvatarPanelAvoidancePosition({
-        avatarRect,
-        panelRect,
-        viewport,
-        margin: 12,
+    const resolved = resolveAvatarPanelLifecycleAvoidance(message, {
+        avatarControlsOpen: avatarControls.isOpen(),
+        avatarVisible: liveJs.avatarVisible,
+        avatarPos: liveJs.avatarPos,
+        avatarHitRadius: liveJs.avatarHitRadius,
+        displays: liveJs.displays,
+        desktopWorldToNativePoint,
+        nativeToDesktopWorldPoint,
+        resolveAvatarPanelAvoidancePosition,
     });
-    if (!next || next.overlap !== 0) return false;
-    const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
+    if (!resolved) return false;
+    const { panelRect, avatarRect, viewport, next, desktopPoint } = resolved;
     setAvatarPosition(desktopPoint.x, desktopPoint.y);
     hideTrailSprites();
     interactionTrace.record('sigil-avatar-panel:avoid-overlap', {

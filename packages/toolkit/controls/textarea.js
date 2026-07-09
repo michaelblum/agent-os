@@ -1,4 +1,5 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { applyDictationTextValue } from './dictation.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -90,6 +91,13 @@ export function createTextarea(config = {}) {
     dispatchDomEvent(el, 'commit', { value: el.value });
   };
 
+  const applyDictationTranscript = (transcript, options = {}) => {
+    const result = applyDictationTextValue(el, transcript, options);
+    if (options.emit !== false) emitChange();
+    if (options.commit) emitCommit();
+    return result;
+  };
+
   el.addEventListener('input', emitChange);
   el.addEventListener('blur', emitCommit);
 
@@ -105,6 +113,7 @@ export function createTextarea(config = {}) {
     setReadOnly(readOnly = true) {
       el.readOnly = !!readOnly;
     },
+    applyDictationTranscript,
     on(type, callback) {
       return type === 'change' || type === 'commit' ? hub.on(type, callback) : () => {};
     },

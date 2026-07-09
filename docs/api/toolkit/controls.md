@@ -22,10 +22,13 @@ import {
   createAccordion,
   createCollapsible,
   createDialog,
+  createDictationController,
   createMenu,
   createPopover,
   createSplitter,
   createTooltip,
+  buildDictationTextValue,
+  applyDictationTextValue,
   renderTextareaHtml,
   wireNumberFieldControls,
 } from 'aos://toolkit/controls/index.js'
@@ -42,8 +45,8 @@ control.
 | `createButton({ label, variant, disabled, onClick })` | single pressable button with `primary`, `secondary`, `danger`, or `ghost` styling | `setLabel`, `setDisabled`, `getUxTreeFragment(options = {})`, `on('click')`, `destroy` |
 | `createButtonGroup({ options, value, onChange })` | exclusive choice button row using `.aos-segmented` | `getValue`, `setValue`, `getUxTreeFragment(options = {})`, `on('change')`, `destroy` |
 | `createToggle({ label, checked, onChange })` | boolean switch backed by an accessible hidden checkbox | `getValue`, `setValue`, `getUxTreeFragment(options = {})`, `on('change')`, `destroy` |
-| `createTextField({ value, placeholder, label, maxLength, validate, onChange, onCommit })` | single-line text input with inline error state | `getValue`, `setValue`, `setError`, `on('change')`, `on('commit')`, `destroy` |
-| `createTextarea({ value, placeholder, rows, maxLength, spellcheck, readOnly, onChange, onCommit })` | native multi-line text area using shared textarea styling | `getValue`, `setValue`, `setReadOnly`, `on('change')`, `on('commit')`, `destroy` |
+| `createTextField({ value, placeholder, label, maxLength, validate, onChange, onCommit })` | single-line text input with inline error state | `getValue`, `setValue`, `setError`, `applyDictationTranscript`, `on('change')`, `on('commit')`, `destroy` |
+| `createTextarea({ value, placeholder, rows, maxLength, spellcheck, readOnly, onChange, onCommit })` | native multi-line text area using shared textarea styling | `getValue`, `setValue`, `setReadOnly`, `applyDictationTranscript`, `on('change')`, `on('commit')`, `destroy` |
 | `createCheckboxGroup({ options, value, onChange })` | multi-choice checkbox column with select-all when there are at least three options | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createSelect({ options, value, label, onChange })` | Zag-backed single-value listbox select | `getValue`, `setValue`, `setOptions`, `setDisabled`, `on('change')`, `destroy` |
 | `createSlider({ value, min, max, step, unit, label, onChange })` | Zag-backed numeric slider with single-thumb scalar values and array-shaped multi-thumb values | `getValue`, `getValues`, `setValue`, `setDisabled`, `on('change')`, `on('commit')`, `destroy` |
@@ -58,6 +61,26 @@ Factory-created toggles honor `disabled` on the underlying checkbox.
 Factory-created button groups honor option-level `disabled` on the live option
 buttons; disabled options are skipped by pointer and arrow-key selection and
 reported as disabled in factory-returned UX tree fragments.
+
+## Dictation
+
+`createDictationController(options)` owns reusable dictation state for toolkit
+consumers. It accepts injectable `now`, `timestamp`, `timeoutMs`,
+`isDictationInput`, `onChange`, and `onVoiceEvent` callbacks. The default input
+matcher is hold-to-dictate Space input, including daemon key code `49`, DOM
+`key: " "`, and `code: "Space"`.
+
+The controller consumes and emits generic `voice.*` envelopes:
+`wake_detected`, `dictation_opened`, `dictation_closed_send`, and
+`dictation_closed_cancel`. App code may present those events, but reusable event
+normalization belongs in `normalizeVoiceDictationEvent()` and
+`isVoiceDictationEvent()`.
+
+Text targets should use `buildDictationTextValue()` or
+`applyDictationTextValue()` for insert, append, and replace behavior. Toolkit
+`createTextField()` and `createTextarea()` expose
+`applyDictationTranscript(transcript, options)` so app surfaces can opt into
+shared dictation text insertion without forking input-control internals.
 
 ## Zag Primitives
 
