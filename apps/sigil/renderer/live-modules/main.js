@@ -113,6 +113,11 @@ import {
     normalizeStatusMenuActionId,
     routeSigilStatusMenuAction,
 } from './status-menu.js';
+import {
+    RENDER_PERFORMANCE_CANVAS_ID,
+    createSigilRenderPerformanceSampler,
+    finiteOrNull,
+} from './render-performance-telemetry.js';
 import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
@@ -280,7 +285,6 @@ const WIKI_WORKBENCH_DEFAULT_URL = withQuery(WIKI_WORKBENCH_URL, {
     wiki: WIKI_WORKBENCH_DEFAULT_PATH,
     transition: 'fade-in',
 });
-const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
 window.liveJs = liveJs;
@@ -363,8 +367,6 @@ let radialGestureVisuals = null;
 let selectionModeCommentEditor = null;
 let selectionModeCommentEditorEl = null;
 let lastSelectionModeEffectActive = false;
-let lastRenderPerformanceFrameAt = null;
-let lastRenderPerformanceSampleAt = 0;
 const sessionVitality = createSessionVitalityController({
     now: () => performance.now(),
 });
@@ -505,6 +507,15 @@ const voiceRuntime = createSigilVoiceRuntime({
     recordInteraction,
     scheduleRenderFrame,
     isRendererSuspended: () => rendererSuspended,
+});
+const renderPerformanceSampler = createSigilRenderPerformanceSampler({
+    liveState: liveJs,
+    isPrimarySurfaceSegment,
+    isPanelVisible: () => isUtilityCanvasVisible(RENDER_PERFORMANCE_CANVAS_ID),
+    getRendererInfo: () => state.renderer?.info,
+    getRenderLoopWork: () => liveJs.renderLoop?.work,
+    post: (message) => host.post('canvas.send', message),
+    warn: (...args) => console.warn(...args),
 });
 
 function runBootStep(stage, fn) {
@@ -1222,64 +1233,6 @@ async function handleStatusMenuAction(msg = {}) {
         onQuit: () => host.aosAction({ action: 'app.quit', source: 'status_item_menu' }),
     });
     return statusRoute.handled;
-}
-
-function finiteOrNull(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-}
-
-function postRenderPerformanceSample({ frameStartedAt, renderStartedAt, renderEndedAt }) {
-    liveJs.renderPerformanceTelemetry.attempted += 1;
-    if (!isPrimarySurfaceSegment()) {
-        liveJs.renderPerformanceTelemetry.skipped = 'secondary-segment';
-        return;
-    }
-    if (!isUtilityCanvasVisible(RENDER_PERFORMANCE_CANVAS_ID)) {
-        liveJs.renderPerformanceTelemetry.skipped = 'panel-hidden';
-        lastRenderPerformanceFrameAt = null;
-        return;
-    }
-    const now = renderEndedAt;
-    const frameMs = lastRenderPerformanceFrameAt == null ? null : now - lastRenderPerformanceFrameAt;
-    lastRenderPerformanceFrameAt = now;
-    if (now - lastRenderPerformanceSampleAt < 500) {
-        liveJs.renderPerformanceTelemetry.skipped = 'throttled';
-        return;
-    }
-    if (!Number.isFinite(frameMs) || frameMs <= 0) {
-        liveJs.renderPerformanceTelemetry.skipped = 'invalid-frame';
-        return;
-    }
-    lastRenderPerformanceSampleAt = now;
-    const info = state.renderer?.info;
-    try {
-        host.post('canvas.send', {
-            target: RENDER_PERFORMANCE_CANVAS_ID,
-            message: {
-                type: 'render-performance/sample',
-                payload: {
-                    source: 'sigil-avatar',
-                    targetFps: liveJs.renderLoop?.work?.visualOnly ? 30 : 60,
-                    frameMs,
-                    updateMs: renderStartedAt - frameStartedAt,
-                    renderMs: renderEndedAt - renderStartedAt,
-                    drawCalls: finiteOrNull(info?.render?.calls),
-                    triangles: finiteOrNull(info?.render?.triangles),
-                    points: finiteOrNull(info?.render?.points),
-                    lines: finiteOrNull(info?.render?.lines),
-                    geometries: finiteOrNull(info?.memory?.geometries),
-                    textures: finiteOrNull(info?.memory?.textures),
-                },
-            },
-        });
-        liveJs.renderPerformanceTelemetry.sent += 1;
-        liveJs.renderPerformanceTelemetry.skipped = null;
-        liveJs.renderPerformanceTelemetry.lastError = null;
-    } catch (error) {
-        liveJs.renderPerformanceTelemetry.lastError = String(error?.message || error);
-        console.warn('[sigil] render-performance sample failed:', error);
-    }
 }
 
 function isAgentTerminalParkedAtStatus() {
@@ -4859,7 +4812,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     fastTravel.clear?.();
     const renderStartedAt = performance.now();
     state.renderer.clear(true, true, true);
-    postRenderPerformanceSample({
+    renderPerformanceSampler.postSample({
         frameStartedAt,
         renderStartedAt,
         renderEndedAt: performance.now(),
@@ -5085,7 +5038,7 @@ function animate() {
     }
     const renderStartedAt = performance.now();
     state.renderer.render(state.scene, state.camera);
-    postRenderPerformanceSample({
+    renderPerformanceSampler.postSample({
         frameStartedAt,
         renderStartedAt,
         renderEndedAt: performance.now(),
