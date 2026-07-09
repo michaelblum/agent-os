@@ -182,6 +182,24 @@ test('proof-worth evaluator treats real-input surface helper as guarded proof as
   assert.match(result.guarded[0].guard, /real-input approval/);
 });
 
+test('proof-worth evaluator routes skills efficacy fixture through test and CLI proofs', async () => {
+  const registry = await loadJson(canonicalPath);
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.equal(result.assets.length, 1, result);
+  assert.equal(result.assets[0].kind, 'fixture', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/aos-skills-eval.test.mjs',
+    'node scripts/aos-skills-eval.mjs --fixture tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json --json',
+  ]);
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [

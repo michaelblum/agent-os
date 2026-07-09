@@ -348,6 +348,43 @@
       "status": "active"
     },
     {
+      "id": "skills-efficacy-eval-test",
+      "path_patterns": [
+        "tests/aos-skills-eval.test.mjs"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json"
+      ],
+      "owner": "skills",
+      "harness_level": "model_unit",
+      "proof_kind": "agentic_efficacy_eval_contract",
+      "contract": "Skills efficacy scoring, prompt packet generation, captured OpenAI response handling, and CLI threshold behavior remain deterministic.",
+      "worth": "This catches drift between installable skill guidance, generated command manifests, fixture captures, and scorer boundaries before live model runs are trusted.",
+      "command": "node --test tests/aos-skills-eval.test.mjs",
+      "replaces": [],
+      "guard": "offline fixture; live OpenAI capture is mocked in the test",
+      "status": "active"
+    },
+    {
+      "id": "skills-efficacy-fixture-cli-proof",
+      "path_patterns": [
+        "scripts/aos-skills-eval.mjs",
+        "tests/aos-skills-eval.test.mjs"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json"
+      ],
+      "owner": "skills",
+      "harness_level": "shell_router",
+      "proof_kind": "agentic_efficacy_fixture_cli",
+      "contract": "The captured agentic-efficacy fixture evaluates through the public CLI JSON path without live provider access.",
+      "worth": "This proves the fixture remains usable by maintainers outside the unit harness and keeps live-provider capture separate from deterministic scoring.",
+      "command": "node scripts/aos-skills-eval.mjs --fixture tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json --json",
+      "replaces": [],
+      "guard": "offline captured fixture; does not use --run-openai",
+      "status": "active"
+    },
+    {
       "id": "agent-capability-manifest-schema-proof",
       "path_patterns": [
         "tests/schemas/aos-agent-capability-manifest-v0.test.mjs"
