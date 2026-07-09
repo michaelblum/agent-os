@@ -124,6 +124,13 @@ inspect refs, dry-run/act, save a fresh capture, then compare saved refs or
 record evidence. Do not imply saved workspaces recapture automatically or hold a
 daemon-scoped current workspace.
 
+`show wait` and `content wait` are readiness waits, not generic assertions.
+They are appropriate for proving that a named canvas bridge, manifest, JS
+predicate, or content root is available before the next command. They should
+stay bounded, return structured timeout JSON, and report the pending condition
+they were waiting on. Use saved refs, explicit command JSON postconditions, or
+Work Record verification for behavior assertions after an action.
+
 ## Diagnostics And Evidence Trace
 
 AOS does not currently expose a Playwright-style `trace`, `video`, or

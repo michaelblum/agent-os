@@ -103,6 +103,25 @@ generic file.
   `avatar-main` with `show create --html` or changing renderer state with
   `show eval` skips the ownership and click path and is not enough by itself.
 
+## Wait And Retry Posture
+
+Use `show wait` and `content wait` only for readiness conditions that have a
+named canvas, manifest, JS predicate, or content root. Every live wait must have
+an explicit timeout and, when JSON is requested, enough pending-condition detail
+to explain what was still missing. Do not layer open-ended sleeps around these
+commands.
+
+Dogfood AOS for real input dwell, animation settling, and OS event delivery
+wherever AOS can observe the condition: use canvas readiness, semantic target
+state, saved captures/refs, input-region events, lifecycle readback, or Work
+Record verification. A fixed sleep is a temporary low-level harness escape hatch
+only when the condition is not yet observable through AOS; keep it inside a
+named helper or guarded scenario, bound it tightly, and treat promotion to an
+AOS-observed predicate as the cleanup target. If a test needs to prove behavior
+after an action, use the canonical observe-act loop: capture/save refs, dry-run
+the action when supported, act once, recapture, and verify with refs diff/expect
+or a Work Record verifier.
+
 ## Reporting Hooks
 
 For runtime, canvas, input, status, lifecycle, visual, supervised, or

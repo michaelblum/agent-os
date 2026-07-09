@@ -635,12 +635,22 @@ async function waitCommand(args) {
     }));
   }
   let daemonStarted = false;
+  const observed = {
+    connection_attempts: 0,
+    eval_attempts: 0,
+    no_response_count: 0,
+    last_state: 'not_connected',
+  };
   const connectForWait = async () => {
     const budget = remainingMs(deadline);
     if (budget <= 0) return { socket: null };
+    observed.connection_attempts += 1;
     if (permitStart && !daemonStarted) {
       const socket = await connectOnce(Math.min(1000, budget));
-      if (socket) return { socket };
+      if (socket) {
+        observed.last_state = 'connected';
+        return { socket };
+      }
       if (autoStartDisabled()) {
         process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
         return { socket: null };
@@ -648,7 +658,9 @@ async function waitCommand(args) {
       startDaemon();
       daemonStarted = true;
     }
-    return { socket: await connectOnce(Math.min(1000, budget)) };
+    const socket = await connectOnce(Math.min(1000, budget));
+    observed.last_state = socket ? 'connected' : 'not_connected';
+    return { socket };
   };
   let connection = await connectForWait();
   let socket = connection?.socket ?? null;
@@ -659,8 +671,11 @@ async function waitCommand(args) {
       socket = connection?.socket ?? null;
       continue;
     }
+    observed.eval_attempts += 1;
     const response = await sendEnvelope(socket, 'eval', { id, js: evalJS }, Math.min(1500, remainingMs(deadline)));
     if (!response) {
+      observed.no_response_count += 1;
+      observed.last_state = 'no_response';
       socket.end();
       await sleep(Math.min(100, remainingMs(deadline)));
       connection = await connectForWait();
@@ -674,13 +689,16 @@ async function waitCommand(args) {
       else process.stdout.write('ready\n');
       return;
     }
+    observed.last_state = 'condition_not_ready';
+    observed.last_result = body?.result ?? null;
+    observed.last_error = body?.error ?? body?.code ?? null;
     await sleep(Math.min(100, remainingMs(deadline)));
   }
   socket?.end();
   if (asJSON) {
     failure(runtimeFailurePayload({
       operationId: 'show.wait',
-      condition: { id, manifest, js_predicate: Boolean(js) },
+      condition: { id, manifest, js_predicate: Boolean(js), observed },
       timeoutMs,
       verdict: diagnosticVerdict('show.wait', timeoutMs),
       prefix: aosPath(),

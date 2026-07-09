@@ -103,3 +103,25 @@ grep -q '"code" : "MISSING_ARG"' "$ROOT/content-wait-timeout-missing.err" || {
   echo "FAIL: content wait missing --timeout value did not use MISSING_ARG"
   exit 1
 }
+
+if ./aos content wait --root missing-root --timeout 0.2 --json >"$ROOT/content-wait-missing-root.out" 2>"$ROOT/content-wait-missing-root.err"; then
+  echo "FAIL: content wait reported success for a missing root"
+  exit 1
+fi
+python3 - "$ROOT/content-wait-missing-root.err" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert payload["status"] == "failure", payload
+assert payload["code"] == "CONTENT_WAIT_TIMEOUT", payload
+assert payload["operation_id"] == "content.wait", payload
+assert payload["timeout_ms"] == 200, payload
+condition = payload["pending_condition"]
+assert condition["roots"] == ["missing-root"], payload
+assert condition["missing_roots"] == ["missing-root"], payload
+assert condition["observed"]["last_state"] == "content_server_running", payload
+assert "toolkit" in condition["observed"]["roots"], payload
+assert payload.get("next_action"), payload
+PY

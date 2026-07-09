@@ -167,6 +167,20 @@ function contentReady(response, requiredRoots) {
   return requiredRoots.every((root) => roots[root] != null);
 }
 
+function missingRoots(response, requiredRoots) {
+  const roots = response?.roots ?? {};
+  return requiredRoots.filter((root) => roots[root] == null);
+}
+
+function contentObservation(response) {
+  if (!response || typeof response !== 'object') return { last_state: 'no_response' };
+  return {
+    last_state: contentReady(response, []) ? 'content_server_running' : 'content_server_not_ready',
+    port: Number(response?.port ?? 0),
+    roots: Object.keys(response?.roots ?? {}).sort(),
+  };
+}
+
 function printStatus(response, json) {
   if (json) {
     process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
@@ -258,8 +272,10 @@ async function waitCommand(args) {
     prettyError("Cannot connect to daemon — is 'aos serve' running?", permitStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
   }
   const deadline = Date.now() + options.timeoutMs;
+  let lastResponse = null;
   while (Date.now() < deadline) {
     const response = unwrapResponse(await sendEnvelope(socket, 'content', 'status', {}));
+    lastResponse = response;
     if (contentReady(response, options.roots)) {
       socket.end();
       response.status = 'success';
@@ -281,7 +297,11 @@ async function waitCommand(args) {
     const guarded = guardedLiveOperation({ operationId: 'content.wait', allowStart: false, mode: runtimeMode(), prefix: aosPath() });
     prettyFailure(runtimeFailurePayload({
       operationId: 'content.wait',
-      condition: { roots: options.roots, missing_roots: options.roots },
+      condition: {
+        roots: options.roots,
+        missing_roots: missingRoots(lastResponse, options.roots),
+        observed: contentObservation(lastResponse),
+      },
       timeoutMs: options.timeoutMs,
       verdict: guarded.preflight,
       prefix: aosPath(),
