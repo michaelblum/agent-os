@@ -71,6 +71,10 @@ import {
     isVoiceDictationEvent,
 } from './voice-dictation.js';
 import {
+    createSigilVoiceResponsePolicy,
+    sigilVoiceResponseBackendMenuItems,
+} from './voice-response-policy.js';
+import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
     buildSelectionModeSnapshotPayload,
@@ -239,6 +243,8 @@ const liveJs = {
     contextRecording: createDefaultContextRecordingState(),
     voiceDictation: null,
     voiceDictationEvents: [],
+    voiceResponse: null,
+    voiceResponseActions: [],
     annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleBrowserDomBridge: null,
     annotationReticleEvents: [],
@@ -562,6 +568,28 @@ function recordInteraction(stage, data = {}) {
     });
 }
 
+function recordVoiceResponseAction(action) {
+    liveJs.voiceResponseActions.push(action);
+    if (liveJs.voiceResponseActions.length > 32) liveJs.voiceResponseActions.shift();
+    recordInteraction('voice-response:action', {
+        kind: action.kind,
+        event: action.event,
+        backendId: action.backendId,
+        mocked: action.mocked,
+    });
+}
+
+const voiceResponsePolicy = createSigilVoiceResponsePolicy({
+    playSound: recordVoiceResponseAction,
+    speak: recordVoiceResponseAction,
+    onChange(snapshot, transition) {
+        liveJs.voiceResponse = snapshot;
+        recordInteraction('voice-response', { transition });
+        if (!rendererSuspended) scheduleRenderFrame({ structural: false });
+    },
+});
+liveJs.voiceResponse = voiceResponsePolicy.snapshot();
+
 const voiceDictation = createSigilVoiceDictationController({
     onChange(snapshot, transition) {
         liveJs.voiceDictation = snapshot;
@@ -577,6 +605,7 @@ const voiceDictation = createSigilVoiceDictationController({
             data: event.data,
             transition,
         });
+        voiceResponsePolicy.handleVoiceEvent(event);
     },
 });
 liveJs.voiceDictation = voiceDictation.snapshot();
@@ -1236,9 +1265,12 @@ function isUtilityCanvasVisible(id) {
 function publishStatusMenuItems() {
     if (!isPrimarySurfaceSegment()) return;
     const operatorAnnotationItems = operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu);
+    const voiceResponseItems = sigilVoiceResponseBackendMenuItems(voiceResponsePolicy.snapshot());
     host.setStatusMenuItems([
         ...operatorAnnotationItems,
         ...(operatorAnnotationItems.length ? [{ type: 'separator' }] : []),
+        ...voiceResponseItems,
+        ...(voiceResponseItems.length ? [{ type: 'separator' }] : []),
         {
             id: 'sigil.status.console',
             title: 'Console Log',
@@ -1292,6 +1324,12 @@ async function handleStatusMenuAction(msg = {}) {
     if (!id) return false;
     const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
     if (operatorRoute.handled) return true;
+    const voiceResponseRoute = voiceResponsePolicy.handleMenuAction(id);
+    if (voiceResponseRoute.handled) {
+        liveJs.voiceResponse = voiceResponsePolicy.snapshot();
+        publishStatusMenuItems();
+        return true;
+    }
     if (id === 'sigil.status.console') {
         await toggleUtilityCanvas('log-console');
         return true;
@@ -4560,6 +4598,7 @@ function handleHostMessage(rawMsg) {
 
     if (isVoiceDictationEvent(msg)) {
         voiceDictation.handleVoiceEvent(msg);
+        voiceResponsePolicy.handleVoiceEvent(msg);
         return;
     }
 
