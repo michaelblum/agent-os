@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "dictation_closed_cancel",
+  "ts": 1783570003.125,
+  "data": {
+    "reason": "key_release"
+  }
+}
