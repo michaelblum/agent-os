@@ -112,6 +112,11 @@ import {
     routeSigilStatusMenuAction,
 } from './status-menu.js';
 import {
+    createSigilAvatarParkingController,
+    nativePointFromMessageOrigin,
+    statusCollapseFrameFromOrigin,
+} from './avatar-parking.js';
+import {
     RENDER_PERFORMANCE_CANVAS_ID,
     createSigilRenderPerformanceSampler,
     finiteOrNull,
@@ -1003,6 +1008,20 @@ sigilInputRegions = createSigilInputRegionAdapter({
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
 const UTILITY_CANVAS_IDS = createSigilUtilityCanvasIdSet([SIGIL_AVATAR_PANEL_CANVAS_ID]);
+const avatarParking = createSigilAvatarParkingController({
+    liveState: liveJs,
+    renderState: state,
+    terminalScale: AGENT_TERMINAL_PARK_SCALE,
+    statusScale: STATUS_PARK_SCALE,
+    nativePointToDesktop: (nativePoint) => {
+        if (!nativePoint) return null;
+        return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
+    },
+    setAvatarVisibility,
+    animateVisibility,
+    setAvatarHover,
+    emitAvatarMark,
+});
 
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
@@ -1114,68 +1133,20 @@ async function handleStatusMenuAction(msg = {}) {
 }
 
 function isAgentTerminalParkedAtStatus() {
-    return liveJs.avatarParking?.mode === 'status';
-}
-
-function nativePointFromMessageOrigin(msg) {
-    const x = Number(msg?.origin_x ?? msg?.payload?.origin_x);
-    const y = Number(msg?.origin_y ?? msg?.payload?.origin_y);
-    if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-    return null;
-}
-
-function nativePointToDesktop(nativePoint) {
-    if (!nativePoint) return null;
-    return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
-}
-
-function parkAvatarAtNativePoint(nativePoint, mode, scale = AGENT_TERMINAL_PARK_SCALE) {
-    const desktopPoint = nativePointToDesktop(nativePoint);
-    if (!desktopPoint) return;
-    if (!liveJs.avatarParking && liveJs.avatarPos.valid) {
-        liveJs._avatarParkingRestore = {
-            pos: { ...liveJs.avatarPos },
-            scale: state.appScale,
-            visible: liveJs.avatarVisible,
-        };
-    }
-    liveJs.avatarParking = { mode, nativePoint: { ...nativePoint }, scale };
-    liveJs.avatarPos = { x: desktopPoint.x, y: desktopPoint.y, valid: true };
-    state.appScale = scale;
-    setAvatarVisibility(true);
-    setAvatarHover(false);
-    emitAvatarMark();
+    return avatarParking.isParkedAtStatus();
 }
 
 function parkAvatarInTerminal(frameLike) {
     const frame = Array.isArray(frameLike) ? frameLike : agentTerminalState()?.at;
-    if (!Array.isArray(frame) || frame.length < 4) return;
-    parkAvatarAtNativePoint({
-        x: Number(frame[0]) + 23,
-        y: Number(frame[1]) + 21,
-    }, 'terminal', AGENT_TERMINAL_PARK_SCALE);
+    return avatarParking.parkInTerminal(frame);
 }
 
 function parkAvatarAtStatus(msg) {
-    const origin = nativePointFromMessageOrigin(msg);
-    if (!origin) return;
-    parkAvatarAtNativePoint(origin, 'status', STATUS_PARK_SCALE);
+    return avatarParking.parkAtStatusMessage(msg);
 }
 
 function clearAvatarParking({ restoreVisible = true } = {}) {
-    const restore = liveJs._avatarParkingRestore;
-    const restorePos = restore?.pos;
-    liveJs.avatarParking = null;
-    liveJs._avatarParkingRestore = null;
-    if (restorePos?.valid) {
-        liveJs.avatarPos = { ...restorePos };
-    }
-    if (restoreVisible) {
-        state.appScale = restore?.scale > 0.05 ? restore.scale : 1;
-        animateVisibility(true);
-    } else {
-        animateVisibility(false);
-    }
+    return avatarParking.clear({ restoreVisible });
 }
 
 function animateUtilityCanvasFrame(id, from, to, durationMs = 180) {
@@ -1206,7 +1177,7 @@ async function collapseAgentTerminalToStatus(msg) {
     liveJs.pendingAgentTerminalStatusPoint = { ...origin };
     parkAvatarAtStatus(msg);
     const from = Array.isArray(current.at) ? current.at.map(Number) : agentTerminalFrame();
-    const to = [origin.x - 14, origin.y - 14, 28, 28];
+    const to = statusCollapseFrameFromOrigin(origin);
     await animateUtilityCanvasFrame(targetId, from, to, 180);
     await host.canvasSuspend(targetId);
     host.canvasUpdate({ id: targetId, frame: from });
