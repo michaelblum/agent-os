@@ -61,7 +61,7 @@
       "patterns": [
         "build.sh",
         "scripts/aos-dev-build.mjs",
-        "tests/build-signing.sh"
+        "tests/build-rebuild-policy.sh"
       ],
       "classes": [
         "build_tooling",
@@ -74,9 +74,9 @@
       "tcc_identity_sensitive": false,
       "commands": [
         {
-          "id": "build-signing-test",
-          "command": "bash tests/build-signing.sh",
-          "reason": "Verify content-based rebuilds, sign-only repair, and rebuild alert/TCC handoff behavior."
+          "id": "build-rebuild-policy-test",
+          "command": "bash tests/build-rebuild-policy.sh",
+          "reason": "Verify content-based rebuilds, no repo-mode post-signing, and rebuild alert/TCC handoff behavior."
         }
       ],
       "verification": []

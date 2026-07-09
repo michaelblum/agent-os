@@ -136,6 +136,20 @@ PY
 BRANCH_SUFFIX="$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
 SIGIL_ROOT="sigil_${BRANCH_SUFFIX:-worktree}"
 TOOLKIT_ROOT="toolkit_${BRANCH_SUFFIX:-worktree}"
+# Sigil is the first-party active-experience fixture here. The expected URL is
+# derived from the generic mounted-surface projection contract, not hardcoded.
+EXPECTED_ACTIVE_STATUS_ITEM_URL="$(node --input-type=module - "$ROOT_DIR" <<'JS'
+import { discoverExperience, projectedToggleURL, resolveContentRoots, rootMap } from './scripts/lib/experience-manifest.mjs';
+
+const repoRoot = process.argv[2];
+const manifest = discoverExperience('sigil', {
+  experiencesRoot: `${repoRoot}/experiences`,
+});
+const roots = resolveContentRoots(manifest, { repoRoot });
+const surface = manifest.status_item.toggle_surface;
+process.stdout.write(projectedToggleURL(manifest, surface, rootMap(roots), { mode: 'repo', repoRoot }));
+JS
+)"
 write_status_item_config false "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
 ./aos clean --json >/dev/null
 aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" sigil "$ROOT_DIR/apps/sigil" \
@@ -153,7 +167,7 @@ create_canvas() {
 ./aos show create \
   --id avatar-main \
   --at 80,80,240,120 \
-  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
+  --html '<html><body>avatar-main</body></html>' \
   >/dev/null
 
 for id in \
@@ -202,7 +216,7 @@ OWNED_IDS="avatar-main sigil-hit-avatar-main sigil-radial-menu-avatar-main sigil
 DIAGNOSTIC_IDS="sigil-render-performance sigil-interaction-trace aos-desktop-world-stage"
 UNOWNED_IDS="surface-inspector __log__ clean-unowned-canvas"
 
-write_status_item_config true "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
+write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
 OWNED_DRY_RUN="$(./aos clean --dry-run --json)"
 OWNED_DRY_RUN="$OWNED_DRY_RUN" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
 import json, os
@@ -222,6 +236,17 @@ for canvas_id in os.environ["UNOWNED_IDS"].split():
     assert canvas_id in stale_ids, (canvas_id, payload)
 PY
 
+write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
+PROJECTED_DRY_RUN="$(./aos clean --dry-run --json)"
+PROJECTED_DRY_RUN="$PROJECTED_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["PROJECTED_DRY_RUN"])
+notes = "\n".join(payload.get("notes", []))
+assert "Active experience sigil status item target drift" not in notes, payload
+assert "missing content root" not in notes, payload
+PY
+
 write_status_item_config true 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch'
 ./aos show update \
   --id avatar-main \
@@ -238,7 +263,7 @@ assert "Active experience sigil status item target drift" in notes, payload
 assert "missing content root" in notes, payload
 assert "Active experience sigil canvas avatar-main is loaded at" not in notes, payload
 PY
-write_status_item_config true "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
+write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
 STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
 STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
 import json, os
@@ -253,7 +278,7 @@ assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases
 PY
 ./aos show update \
   --id avatar-main \
-  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
+  --url "$EXPECTED_ACTIVE_STATUS_ITEM_URL" \
   >/dev/null
 
 OWNED_STATUS="$(./aos status --json)"

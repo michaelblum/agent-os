@@ -88,10 +88,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.deepEqual(
     rules.get('repo-build-tooling')?.commands?.map((step) => step.command),
-    ['bash tests/build-signing.sh'],
+    ['bash tests/build-rebuild-policy.sh'],
   );
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('build.sh'));
-  assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-signing.sh'));
+  assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-rebuild-policy.sh'));
   assert.deepEqual(
     rules.get('root-skill-packages')?.commands?.map((step) => step.command),
     [
