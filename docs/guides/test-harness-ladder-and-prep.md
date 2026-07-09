@@ -41,6 +41,10 @@ Candidate reusable artifact reporting:
    input defects, and isolated daemons for shared repo-daemon singleton defects.
 6. If new helper code is still needed, keep it local until a second caller or a
    clear platform boundary proves it should be promoted.
+7. For a new or touched executable test, helper, fixture, or proof report, add
+   or update `docs/dev/test-proof-registry.json` only after the primitive
+   contract, cheapest harness level, replacement proof, exact command, and guard
+   posture are clear.
 
 ## Canonical URL And Fresh Runtime Evidence
 

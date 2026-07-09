@@ -88,6 +88,15 @@ contract, or would need private test plumbing that already exists one level up.
   manual tests under `tests/manual/`. Escalate to this level only with a clear
   human-needed question and artifact path.
 
+## Proof-Worth Ratchet
+
+New or touched executable tests, test helpers, fixtures, and proof reports must
+be covered by `docs/dev/test-proof-registry.json`. Start from the primitive
+contract, choose the cheapest harness level that preserves the defect variable,
+name the replacement proof for any older asset, then add the registry entry
+with the exact command and guard posture. `./aos dev recommend --json` enforces
+this only for changed proof assets; untouched legacy tests remain runnable debt.
+
 For cross-backend agent workspace saved-ref regressions, use:
 
 ```bash

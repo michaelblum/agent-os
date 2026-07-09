@@ -150,6 +150,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.deepEqual(
     rules.get('dev-workflow-manifest')?.commands?.map((step) => step.command),
     [
+      'node --test tests/schemas/dev-test-proof-registry.test.mjs',
       'node --test tests/schemas/dev-workflow-rules.test.mjs',
       'node --test tests/schemas/dev-active-profile.test.mjs',
       'node --test tests/schemas/dev-workflow-profiles.test.mjs',
@@ -162,9 +163,14 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-workflow.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-situation.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-drift-lint.mjs'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/lib/dev-test-proof-registry.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-situation.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-drift-lint.sh'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/dev-test-proof-registry.schema.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/fixtures/dev-test-proof-registry/**'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-test-proof-registry.test.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-active-profile.test.mjs'));

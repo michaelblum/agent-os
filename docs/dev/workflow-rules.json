@@ -295,13 +295,17 @@
         "docs/dev/workflow-rules.json",
         "docs/dev/agent-capabilities.json",
         "docs/dev/active-profile.json",
+        "docs/dev/test-proof-registry.json",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "scripts/aos-dev-workflow.mjs",
         "scripts/aos-dev-situation.mjs",
         "scripts/aos-dev-drift-lint.mjs",
+        "scripts/lib/dev-test-proof-registry.mjs",
         "manifests/commands/aos-commands.json",
         "manifests/commands/aos-external-commands.json",
+        "shared/schemas/dev-test-proof-registry.schema.json",
+        "shared/schemas/fixtures/dev-test-proof-registry/**",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
         "shared/schemas/dev-active-profile.schema.json",
@@ -312,6 +316,7 @@
         "tests/dev-audit.sh",
         "tests/dev-situation.sh",
         "tests/dev-drift-lint.sh",
+        "tests/schemas/dev-test-proof-registry.test.mjs",
         "tests/schemas/dev-workflow-rules.test.mjs",
         "tests/schemas/dev-active-profile.test.mjs",
         "tests/schemas/dev-workflow-profiles.test.mjs"
@@ -326,6 +331,11 @@
       "hot_swappable": true,
       "tcc_identity_sensitive": false,
       "commands": [
+        {
+          "id": "dev-test-proof-registry-schema-test",
+          "command": "node --test tests/schemas/dev-test-proof-registry.test.mjs",
+          "reason": "Validate the proof-worth registry, fixtures, and focused evaluator behavior."
+        },
         {
           "id": "dev-workflow-schema-test",
           "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",

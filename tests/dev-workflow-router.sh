@@ -48,6 +48,111 @@ else
     fail "dev recommend docs-only routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files tests/dev-workflow-router.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+assert data["proof_worth"]["changed_asset_count"] == 1, data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/dev-workflow-router.sh") == 1, data
+router = next(item for item in data["next_commands"] if item["command"] == "bash tests/dev-workflow-router.sh")
+assert "dev-workflow-manifest" in router["source_rules"], router
+assert "proof:dev-workflow-router-contract" in router["source_rules"], router
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend accepts registered changed tests and deduplicates registry commands"
+else
+    fail "dev recommend proof-worth registered test routing drifted"
+fi
+
+PROOF_TEMP="tests/.proof-worth-unregistered-temp.sh"
+rm -f "$PROOF_TEMP"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$PROOF_TEMP"
+set +e
+OUT="$(./aos dev recommend --json --files "$PROOF_TEMP" 2>/dev/null)"
+RC=$?
+set -e
+if [[ "$RC" -eq 0 ]]; then
+    fail "dev recommend should fail for existing unregistered proof assets"
+elif OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+assert data["code"] == "MISSING_PROOF_WORTH", data
+assert data["proof_worth"]["status"] == "failed", data
+failure = data["proof_worth"]["failures"][0]
+assert failure["path"] == "tests/.proof-worth-unregistered-temp.sh", data
+assert failure["reason"] == "missing_registry_entry", data
+PY
+then
+    pass "dev recommend fails existing unregistered proof assets"
+else
+    fail "dev recommend unregistered proof-worth failure shape drifted"
+fi
+
+if OUT="$(./aos dev classify --json --files "$PROOF_TEMP" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "failed", data
+assert data["proof_worth"]["failures"][0]["reason"] == "missing_registry_entry", data
+PY
+then
+    pass "dev classify reports proof-worth metadata without failing"
+else
+    fail "dev classify proof-worth metadata behavior drifted"
+fi
+rm -f "$PROOF_TEMP"
+
+DELETED_PROOF="tests/.proof-worth-deleted-temp.sh"
+rm -f "$DELETED_PROOF"
+if OUT="$(./aos dev recommend --json --files "$DELETED_PROOF" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+asset = data["proof_worth"]["assets"][0]
+assert asset["path"] == "tests/.proof-worth-deleted-temp.sh", data
+assert asset["deleted"] is True, data
+assert asset["coverage"] == "deleted_unregistered_cleanup", data
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend treats deleted unregistered proof assets as cleanup"
+else
+    fail "dev recommend deleted proof cleanup behavior drifted"
+fi
+
+if OUT="$(./aos dev recommend --json --files tests/manual/native-ax-saved-ref-live-proof.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+assert data["proof_worth"]["commands"] == [], data
+guarded = data["proof_worth"]["guarded"]
+assert guarded and guarded[0]["entry"] == "native-ax-saved-ref-live-proof", data
+assert "real-input approval" in guarded[0]["guard"], data
+assert all(item["command"] != "bash tests/manual/native-ax-saved-ref-live-proof.sh" for item in data["next_commands"]), data
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend reports guarded manual proofs without default verification"
+else
+    fail "dev recommend guarded proof behavior drifted"
+fi
+
 if OUT="$(./aos dev recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

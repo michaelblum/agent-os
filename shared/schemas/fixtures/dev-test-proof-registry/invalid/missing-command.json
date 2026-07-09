@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Invalid proof-worth registry fixture missing an exact command.",
+  "entries": [
+    {
+      "id": "example-router-proof",
+      "path_patterns": [
+        "tests/example-router.sh"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "router_contract",
+      "contract": "Example router contract.",
+      "worth": "Protects an example routing decision.",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    }
+  ]
+}

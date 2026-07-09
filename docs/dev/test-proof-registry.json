@@ -1,0 +1,352 @@
+{
+  "$schema": "../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth ratchet registry for touched executable tests, helpers, fixtures, and proof assets. V0 seeds only the enforced dev-workflow and recent wait/proof families.",
+  "entries": [
+    {
+      "id": "dev-test-proof-registry-schema",
+      "path_patterns": [
+        "docs/dev/test-proof-registry.json",
+        "tests/schemas/dev-test-proof-registry.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-test-proof-registry/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The proof-worth registry schema, canonical registry, fixtures, and evaluator smoke coverage stay aligned.",
+      "worth": "Without this proof, the ratchet can silently stop enforcing the metadata it depends on.",
+      "command": "node --test tests/schemas/dev-test-proof-registry.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-rules-schema",
+      "path_patterns": [
+        "tests/schemas/dev-workflow-rules.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-workflow-rules/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The dev workflow rules manifest and fixtures validate and preserve V0 routing contracts.",
+      "worth": "This catches stale routing rules before agents trust a bad recommendation packet.",
+      "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-active-profile-schema",
+      "path_patterns": [
+        "tests/schemas/dev-active-profile.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The active development profile selector points at a defined workflow profile.",
+      "worth": "This keeps developer routing profile selection explicit instead of implied by stale defaults.",
+      "command": "node --test tests/schemas/dev-active-profile.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-profiles-schema",
+      "path_patterns": [
+        "tests/schemas/dev-workflow-profiles.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-workflow-profiles/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "Workflow profile manifests and fixtures remain schema-valid.",
+      "worth": "This prevents profile metadata drift from changing the dev routing context silently.",
+      "command": "node --test tests/schemas/dev-workflow-profiles.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-router-contract",
+      "path_patterns": [
+        "tests/dev-workflow-router.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "router_contract",
+      "contract": "The dev classify/recommend router, help form parity, and proof-worth ratchet behavior agree.",
+      "worth": "This is the cheapest end-to-end proof that changed paths route to actionable validation instead of stale broad loops.",
+      "command": "bash tests/dev-workflow-router.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "command-manifest-generation-proof",
+      "path_patterns": [
+        "tests/command-manifest-generation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "command_contract",
+      "contract": "Source command manifests and generated compatibility artifacts stay in sync.",
+      "worth": "This is the cheapest proof that command metadata edits did not bypass generation.",
+      "command": "bash tests/command-manifest-generation.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "external-command-manifest-schema-proof",
+      "path_patterns": [
+        "tests/schemas/aos-external-command-manifest-v0.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "schema",
+      "proof_kind": "command_contract",
+      "contract": "External command manifest schema, script targets, and help-manifest route coverage remain valid.",
+      "worth": "This catches command schema drift without rebuilding or starting runtime services.",
+      "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "visual-harness-boundary-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Generic visual primitives and app-specific visual compositions stay separated.",
+      "worth": "This prevents shared visual helpers from absorbing product-specific launch behavior.",
+      "command": "bash tests/visual-harness-boundary.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "visual-harness-canonical-url-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Canonical aos:// URL generation and resolved URL equivalence remain deterministic.",
+      "worth": "This keeps visual harness checks representative of the current content-root path.",
+      "command": "bash tests/visual-harness-canonical-url-primitives.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "visual-harness-content-preflight-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Stale live content-root detection remains deterministic before visual proof runs.",
+      "worth": "This catches stale runtime content before visual checks produce misleading evidence.",
+      "command": "bash tests/visual-harness-content-preflight.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "harness-composability-contract-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Shared harness guards fail fast and release cleanly.",
+      "worth": "This prevents visual helper composition from leaving hidden daemon or canvas state behind.",
+      "command": "bash tests/harness-composability-contracts.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "content-wait-contract",
+      "path_patterns": [
+        "tests/content-wait.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "wait_contract",
+      "contract": "Content-root wait success, parser rejection, autostart, and missing-root timeout shape stay bounded.",
+      "worth": "This protects the canonical content wait surface without touching the shared repo daemon.",
+      "command": "bash tests/content-wait.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT",
+      "status": "active"
+    },
+    {
+      "id": "content-wait-listener-lifecycle",
+      "path_patterns": [
+        "tests/content-wait-listener-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "wait_contract",
+      "contract": "Content wait polling does not accumulate socket listeners while status is unresolved.",
+      "worth": "This catches listener leaks with a fake socket instead of a live daemon loop.",
+      "command": "node --test tests/content-wait-listener-lifecycle.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "show-wait-timeout-boundary",
+      "path_patterns": [
+        "tests/show-wait-timeout-boundary.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "wait_contract",
+      "contract": "Show wait bounds daemon read stalls by caller timeout and emits structured pending-condition JSON.",
+      "worth": "This proves timeout behavior without needing a real canvas or live repo daemon.",
+      "command": "node --test tests/show-wait-timeout-boundary.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "show-wait-isolated-smoke",
+      "path_patterns": [
+        "tests/show-wait.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "wait_contract",
+      "contract": "Show wait observes a URL-backed toolkit canvas readiness predicate through an isolated daemon.",
+      "worth": "This is the focused live smoke for the user-visible wait path without sharing the repo runtime.",
+      "command": "bash tests/show-wait.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT",
+      "status": "active"
+    },
+    {
+      "id": "guarded-live-operation-contract",
+      "path_patterns": [
+        "tests/guarded-live-operation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "live_guard_contract",
+      "contract": "Live-start operations fail closed without explicit allow-start authority.",
+      "worth": "This keeps content wait, show wait, launch, and experience activation from mutating runtime state accidentally.",
+      "command": "bash tests/guarded-live-operation.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and asserts live start is blocked",
+      "status": "active"
+    },
+    {
+      "id": "ready-stale-daemon-hygiene",
+      "path_patterns": [
+        "tests/ready-stale-daemon-hygiene.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "readiness_contract",
+      "contract": "Ready, status, doctor, and clean classify stale daemons consistently.",
+      "worth": "This keeps readiness proof bounded to mock and temporary daemon state instead of broad live cleanup.",
+      "command": "bash tests/ready-stale-daemon-hygiene.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT plus temporary mock processes",
+      "status": "active"
+    },
+    {
+      "id": "wait-surface-housecleaning-report",
+      "path_patterns": [
+        "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "proof_report",
+      "proof_kind": "proof_report",
+      "contract": "The wait/surface housecleaning report remains an evidence pointer, not a deletion authority by itself.",
+      "worth": "This protects test cleanup decisions from deleting a proof before its replacement command is green and routed.",
+      "command": "git diff --check docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md",
+      "replaces": [],
+      "guard": "report-only; run the named replacement proof before deleting a test",
+      "status": "manual_only"
+    },
+    {
+      "id": "cross-backend-saved-ref-manual-proof",
+      "path_patterns": [
+        "tests/manual/cross-backend-saved-ref-regression-proof.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json"
+      ],
+      "owner": "agent-workspace",
+      "harness_level": "guarded_live",
+      "proof_kind": "saved_ref_contract",
+      "contract": "Cross-backend saved-ref regression proof preserves browser, AOS canvas, native AX, summary, and cleanup evidence.",
+      "worth": "This proof is valuable but too environment-sensitive for broad default loops.",
+      "command": "AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh",
+      "replaces": [
+        "tests/agent-workspace-cross-backend-proof.sh"
+      ],
+      "guard": "requires explicit guarded-live approval, isolated proof root, and permission/runtime readiness",
+      "status": "manual_only"
+    },
+    {
+      "id": "native-ax-saved-ref-live-proof",
+      "path_patterns": [
+        "tests/manual/native-ax-saved-ref-live-proof.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "real_input",
+      "proof_kind": "saved_ref_contract",
+      "contract": "Native AX saved-ref live proof exercises the real native accessibility boundary.",
+      "worth": "This catches native-boundary failures that deterministic saved-ref fixtures cannot observe.",
+      "command": "bash tests/manual/native-ax-saved-ref-live-proof.sh",
+      "replaces": [
+        "tests/agent-workspace-cross-backend-proof.sh"
+      ],
+      "guard": "requires explicit real-input approval, native AX permissions, and a user-safe desktop state",
+      "status": "manual_only"
+    }
+  ]
+}

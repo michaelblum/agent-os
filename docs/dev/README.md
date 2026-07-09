@@ -44,6 +44,13 @@ of growing persona instructions. It also owns the current self-hosting boundary:
 shaped through direct commands, stable help/JSON contracts, and explicit
 capability groups rather than command-name parity with another CLI.
 
+`test-proof-registry.json` is the hidden proof-worth ratchet for changed tests,
+helpers, fixtures, and proof assets. It is source truth, not generated output:
+each entry names the owner, harness level, contract, worth, exact proof command,
+replacement relationship, guard posture, and status. `./aos dev recommend`
+enforces it for changed proof assets; `./aos dev classify` may report the same
+metadata but must not fail.
+
 For test harness selection, start with the foundational ladder in
 `tests/README.md`. For runtime, canvas, input, status-item, lifecycle, visual,
 supervised, or cross-layer slices where the harness is not obvious, use
@@ -52,7 +59,9 @@ supervised, or cross-layer slices where the harness is not obvious, use
 Validate routing changes with:
 
 ```bash
+node --test tests/schemas/dev-test-proof-registry.test.mjs
 node --test tests/schemas/dev-workflow-rules.test.mjs
 node --test tests/schemas/dev-workflow-profiles.test.mjs
 node --test tests/schemas/dev-active-profile.test.mjs
+bash tests/dev-workflow-router.sh
 ```

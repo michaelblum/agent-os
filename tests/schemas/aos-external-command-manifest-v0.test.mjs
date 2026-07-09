@@ -409,7 +409,7 @@ test('private Swift primitives are reachable only through expected external wrap
   ]);
   const expectedWrapperFiles = new Map([
     ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
-    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-service.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-service.mjs', 'scripts/aos-clean.mjs']],
     ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],

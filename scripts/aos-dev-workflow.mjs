@@ -3,6 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  defaultProofRegistryPath,
+  evaluateProofWorth,
+  loadProofRegistry,
+  proofWorthFailureCode,
+} from './lib/dev-test-proof-registry.mjs';
 
 const workflowDefaultManifest = 'docs/dev/workflow-rules.json';
 const capabilitiesDefaultManifest = 'docs/dev/agent-capabilities.json';
@@ -280,6 +286,39 @@ function aggregateWorkflow(classified) {
   };
 }
 
+function buildProofWorth(files, repoRoot) {
+  try {
+    const loaded = loadProofRegistry({ repoRoot, registryPath: defaultProofRegistryPath });
+    return evaluateProofWorth({
+      changedFiles: files,
+      repoRoot,
+      registry: loaded.registry,
+      registryPath: loaded.relativePath,
+    });
+  } catch (err) {
+    return {
+      status: 'failed',
+      passed: false,
+      failed: true,
+      code: proofWorthFailureCode,
+      registry: defaultProofRegistryPath,
+      changed_asset_count: 0,
+      assets: [],
+      commands: [],
+      guarded: [],
+      failures: [
+        {
+          path: defaultProofRegistryPath,
+          kind: 'proof_registry',
+          reason: err.code || 'invalid_proof_registry',
+          entries: [],
+          message: err.message,
+        },
+      ],
+    };
+  }
+}
+
 function buildClassification(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const manifestPath = resolveUnderRepo(options.manifest, repoRoot, workflowDefaultManifest);
@@ -287,6 +326,7 @@ function buildClassification(options) {
   const changed = resolveChangedFiles(options, repoRoot);
   const files = unique(changed.files.map((file) => normalizeRepoRelative(file, repoRoot))).filter(Boolean);
   const classified = classifyFiles(files, manifest, repoRoot);
+  const proofWorth = buildProofWorth(files, repoRoot);
   return {
     status: 'success',
     manifest: normalizeRepoRelative(manifestPath, repoRoot),
@@ -303,20 +343,66 @@ function buildClassification(options) {
       tcc_identity_sensitive: file.rules.some((rule) => rule.tcc_identity_sensitive === true),
     })),
     summary: aggregateWorkflow(classified),
+    proof_worth: proofWorth,
   };
 }
 
+function mergeRecommendationSteps(baseSteps, proofCommands) {
+  const order = [];
+  const map = new Map();
+  const add = (step, sourceRule) => {
+    if (!step?.command) return;
+    if (map.has(step.command)) {
+      const existing = map.get(step.command);
+      for (const rule of step.source_rules || [sourceRule].filter(Boolean)) {
+        if (rule && !existing.source_rules.includes(rule)) existing.source_rules.push(rule);
+      }
+      return;
+    }
+    order.push(step.command);
+    map.set(step.command, {
+      command: step.command,
+      reason: step.reason,
+      source_rules: step.source_rules ? step.source_rules.slice() : [sourceRule].filter(Boolean),
+      ...(step.id ? { id: step.id } : {}),
+    });
+  };
+
+  for (const step of baseSteps || []) add(step, null);
+  for (const command of proofCommands || []) {
+    add({
+      command: command.command,
+      reason: command.reason,
+      source_rules: (command.source_entries || []).map((entry) => `proof:${entry}`),
+    }, 'proof-registry');
+  }
+
+  return order.map((key) => map.get(key));
+}
+
+function proofWorthSuppressesGenericTestFallback(proofWorth) {
+  return proofWorth?.status === 'passed' && (proofWorth.assets || []).length > 0;
+}
+
 function buildRecommendation(classification) {
+  const proofWorth = classification.proof_worth || null;
+  const verification = proofWorthSuppressesGenericTestFallback(proofWorth)
+    ? (classification.summary?.verification || []).filter((step) => step.command !== 'bash <changed-test>')
+    : (classification.summary?.verification || []);
+  const nextCommands = mergeRecommendationSteps(classification.summary?.commands || [], proofWorth?.commands || []);
+  const failed = proofWorth?.status === 'failed';
   return {
-    status: 'success',
+    status: failed ? 'failed' : 'success',
+    ...(failed ? { code: proofWorthFailureCode } : {}),
     manifest: classification.manifest || workflowDefaultManifest,
     repo: classification.repo || process.cwd(),
     diff_base: classification.diff_base ?? null,
     changed_files: classification.changed_files || [],
-    next_commands: classification.summary?.commands || [],
-    verification: classification.summary?.verification || [],
+    next_commands: nextCommands,
+    verification,
     notes: classification.summary?.notes || [],
     summary: classification.summary || {},
+    proof_worth: proofWorth,
   };
 }
 
@@ -464,8 +550,8 @@ function auditRegistryClaims(repoRoot) {
 function auditWorkflowManifestClaims(manifest) {
   const rule = (manifest.rules || []).find((item) => item.id === workflowRuleID);
   if (!rule) return [claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
-  const expectedPatterns = ['docs/dev/workflow-rules.json', 'docs/dev/agent-capabilities.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'manifests/commands/aos-commands.json', 'manifests/commands/aos-external-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
-  const expectedCommands = ['node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh', 'bash tests/dev-situation.sh', 'bash tests/dev-drift-lint.sh'];
+  const expectedPatterns = ['docs/dev/workflow-rules.json', 'docs/dev/agent-capabilities.json', 'docs/dev/test-proof-registry.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'scripts/lib/dev-test-proof-registry.mjs', 'manifests/commands/aos-commands.json', 'manifests/commands/aos-external-commands.json', 'shared/schemas/dev-test-proof-registry.schema.json', 'shared/schemas/fixtures/dev-test-proof-registry/**', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-test-proof-registry.test.mjs', 'tests/schemas/dev-workflow-rules.test.mjs'];
+  const expectedCommands = ['node --test tests/schemas/dev-test-proof-registry.test.mjs', 'node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh', 'bash tests/dev-situation.sh', 'bash tests/dev-drift-lint.sh'];
   const patterns = rule.patterns || [];
   const commands = (rule.commands || []).map((item) => item.command);
   return [
@@ -533,10 +619,15 @@ function printClassification(payload) {
 }
 
 function printRecommendation(payload) {
+  if (payload.status === 'failed') process.stdout.write(`Status: failed (${payload.code || 'UNKNOWN'})\n`);
   process.stdout.write(payload.next_commands.length ? 'Next commands:\n' : 'Next commands: none\n');
   for (const item of payload.next_commands) process.stdout.write(`- ${item.command || ''}\n`);
   process.stdout.write(payload.verification.length ? 'Verification:\n' : 'Verification: none\n');
   for (const item of payload.verification) process.stdout.write(`- ${item.command || ''}\n`);
+  if (payload.proof_worth?.status === 'failed') {
+    process.stdout.write('Proof worth failures:\n');
+    for (const item of payload.proof_worth.failures || []) process.stdout.write(`- ${item.path}: ${item.reason}\n`);
+  }
   for (const note of payload.notes) process.stdout.write(`Note: ${note}\n`);
 }
 
@@ -578,6 +669,7 @@ if (subcommand === 'classify') {
   const options = parseWorkflowOptions(rest);
   const payload = buildRecommendation(buildClassification(options));
   options.json ? printJSON(payload) : printRecommendation(payload);
+  if (payload.status === 'failed') process.exit(1);
 } else if (subcommand === 'audit') {
   auditCommand(rest);
 } else if (subcommand === 'capabilities') {
