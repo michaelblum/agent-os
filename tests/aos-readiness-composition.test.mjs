@@ -47,6 +47,7 @@ function permissions(overrides = {}) {
     screen_recording: true,
     listen_access: true,
     post_access: true,
+    microphone: true,
     ...overrides,
   };
 }
@@ -149,6 +150,7 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
     screen_recording: true,
     listen_access: true,
     post_access: true,
+    microphone: true,
   });
   assert.equal(verdict.tcc_staleness.daemon_live.listen_access, false);
   assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
@@ -301,8 +303,31 @@ test('permissionRequirements keeps public output shape stable', () => {
         required_for: ['synthetic events', 'mouse/keyboard actions', 'AX element actions'],
         setup_trigger: 'CGRequestPostEventAccess prompt',
       },
+      {
+        id: 'microphone',
+        granted: true,
+        required_for: ['voice dictation', 'local STT capture'],
+        setup_trigger: 'AVCaptureDevice.requestAccess(for:.audio) prompt',
+      },
     ],
   );
+});
+
+test('missing microphone blocks listen without changing daemon readiness source', () => {
+  const current = facts({ permissions: { microphone: false } });
+  const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.deepEqual(evaluation, { readyForTesting: true, readySource: 'daemon' });
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'human_required');
+  assert.deepEqual(verdict.blocked_capabilities, ['listen']);
+  assert.deepEqual(missingPermissionIDsFor(current.daemon, current.permissions), ['microphone']);
+  assert.equal(
+    verdict.blockers.some((blocker) => blocker.id === 'microphone' && blocker.scope === 'cli'),
+    true,
+  );
+  assert.equal(verdict.notes.some((note) => note.includes('Microphone permission is not granted')), true);
 });
 
 test('one shared readiness verdict feeds camelCase and snake_case public surfaces', () => {
@@ -330,6 +355,20 @@ test('setup planner prompts missing permissions in deterministic order', () => {
   assert.deepEqual(plan.promptOrder.map((item) => item.primitiveID), ['accessibility', 'screen-recording', 'listen-event']);
   assert.equal(plan.writeMarker, false);
   assert.equal(plan.restartServices, false);
+});
+
+test('setup planner includes microphone after core desktop prompts', () => {
+  const plan = planPermissionSetup({
+    initialPermissions: permissions({ microphone: false }),
+    initialSetup: setup({ marker_exists: false, setup_completed: false }),
+    initialMissing: ['microphone'],
+    once: true,
+    mode: 'repo',
+    prefix: './aos',
+  });
+
+  assert.equal(plan.branch, 'prompt_missing');
+  assert.deepEqual(plan.promptOrder.map((item) => item.primitiveID), ['microphone']);
 });
 
 test('setup prompt loop stops on failed prompt and reports cancellation note', () => {

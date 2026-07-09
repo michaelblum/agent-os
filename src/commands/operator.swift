@@ -3,6 +3,7 @@
 import Foundation
 import ApplicationServices
 import CoreGraphics
+import AVFoundation
 
 // MARK: - Response Models
 
@@ -11,6 +12,7 @@ private struct PermissionsState: Encodable {
     let screen_recording: Bool
     let listen_access: Bool
     let post_access: Bool
+    let microphone: Bool
 }
 
 private struct PermissionsSetupState: Encodable {
@@ -357,7 +359,8 @@ private func permissionsFactsCommand(args: [String]) {
     let complete = permissions.accessibility &&
         permissions.screen_recording &&
         permissions.listen_access &&
-        permissions.post_access
+        permissions.post_access &&
+        permissions.microphone
     let response = PermissionsFactsResponse(
         status: complete ? "ok" : "degraded",
         mode: aosCurrentRuntimeMode().rawValue,
@@ -406,6 +409,7 @@ private enum PermissionPromptKind: String {
     case screenRecording = "screen-recording"
     case listenEvent = "listen-event"
     case postEvent = "post-event"
+    case microphone
 
     var permissionID: String {
         switch self {
@@ -417,6 +421,8 @@ private enum PermissionPromptKind: String {
             return "listen_access"
         case .postEvent:
             return "post_access"
+        case .microphone:
+            return "microphone"
         }
     }
 
@@ -430,13 +436,15 @@ private enum PermissionPromptKind: String {
             return "CGRequestListenEventAccess"
         case .postEvent:
             return "CGRequestPostEventAccess"
+        case .microphone:
+            return "AVCaptureDevice.requestAccess(for:.audio)"
         }
     }
 }
 
 private func permissionsPromptCommand(args: [String]) {
     guard args.count == 2, let rawPermission = args.first, args[1] == "--json" else {
-        exitError("__permissions prompt requires <accessibility|screen-recording|listen-event|post-event> --json.",
+        exitError("__permissions prompt requires <accessibility|screen-recording|listen-event|post-event|microphone> --json.",
                   code: "INVALID_ARG")
     }
     guard let kind = PermissionPromptKind(rawValue: rawPermission) else {
@@ -479,6 +487,8 @@ private func permissionGranted(_ kind: PermissionPromptKind, in permissions: Per
         return permissions.listen_access
     case .postEvent:
         return permissions.post_access
+    case .microphone:
+        return permissions.microphone
     }
 }
 
@@ -493,6 +503,8 @@ private func triggerPermissionPrompt(_ kind: PermissionPromptKind) -> Bool {
         return requestListenEventAccess()
     case .postEvent:
         return requestPostEventAccess()
+    case .microphone:
+        return requestMicrophoneAccess()
     }
 }
 
@@ -659,7 +671,8 @@ private func currentPermissionsState() -> PermissionsState {
             accessibility: true,
             screen_recording: true,
             listen_access: true,
-            post_access: true
+            post_access: true,
+            microphone: true
         )
     }
 
@@ -667,8 +680,24 @@ private func currentPermissionsState() -> PermissionsState {
         accessibility: AXIsProcessTrusted(),
         screen_recording: preflightScreenRecordingAccess(),
         listen_access: preflightListenEventAccess(),
-        post_access: preflightPostEventAccess()
+        post_access: preflightPostEventAccess(),
+        microphone: preflightMicrophoneAccess()
     )
+}
+
+private func preflightMicrophoneAccess() -> Bool {
+    AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+}
+
+private func requestMicrophoneAccess() -> Bool {
+    let semaphore = DispatchSemaphore(value: 0)
+    var granted = false
+    AVCaptureDevice.requestAccess(for: .audio) { allowed in
+        granted = allowed
+        semaphore.signal()
+    }
+    let result = semaphore.wait(timeout: .now() + 30)
+    return result == .success && granted
 }
 
 private func testAssumePermissionsGranted() -> Bool {
@@ -706,6 +735,7 @@ private func currentPermissionsSetupMarkerFacts(permissions: PermissionsState) -
         permissions.screen_recording &&
         permissions.listen_access &&
         permissions.post_access &&
+        permissions.microphone &&
         marker != nil &&
         (bundleMatchesCurrent || mode == .repo)
 
@@ -726,6 +756,7 @@ private func missingPermissionIDs(_ permissions: PermissionsState) -> [String] {
     if !permissions.screen_recording { missing.append("screen_recording") }
     if !permissions.listen_access { missing.append("listen_access") }
     if !permissions.post_access { missing.append("post_access") }
+    if !permissions.microphone { missing.append("microphone") }
     return missing
 }
 
@@ -1140,7 +1171,8 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
             "accessibility": permissions.accessibility,
             "screen_recording": permissions.screen_recording,
             "listen_access": permissions.listen_access,
-            "post_access": permissions.post_access
+            "post_access": permissions.post_access,
+            "microphone": permissions.microphone
         ]
     ]
 

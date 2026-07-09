@@ -31,6 +31,7 @@ assert permissions == {
     "screen_recording": True,
     "listen_access": True,
     "post_access": True,
+    "microphone": True,
 }, d
 identity = d.get("identity") or {}
 assert identity.get("executable_path") == expected_executable, identity
@@ -78,6 +79,7 @@ assert stored.get("permissions") == {
     "screen_recording": True,
     "listen_access": True,
     "post_access": True,
+    "microphone": True,
 }, stored
 PY
 echo "PASS: __permissions setup-marker write --json"
@@ -96,7 +98,7 @@ assert "notes" not in d, d
 PY
 echo "PASS: __permissions setup-marker get --json after write"
 
-for prompt in accessibility screen-recording listen-event post-event; do
+for prompt in accessibility screen-recording listen-event post-event microphone; do
   PROMPT_JSON="$(./aos __permissions prompt "$prompt" --json)"
   python3 - "$PROMPT_JSON" "$prompt" <<'PY'
 import json
@@ -109,6 +111,7 @@ ids = {
     "screen-recording": "screen_recording",
     "listen-event": "listen_access",
     "post-event": "post_access",
+    "microphone": "microphone",
 }
 assert d.get("status") == "ok", d
 assert d.get("permission") == ids[prompt], d
@@ -124,6 +127,7 @@ for permissions in (before, after):
         "screen_recording": True,
         "listen_access": True,
         "post_access": True,
+        "microphone": True,
     }, d
 for policy_key in ("notes", "next_actions", "recommended_command", "setup"):
     assert policy_key not in d, (policy_key, d)
