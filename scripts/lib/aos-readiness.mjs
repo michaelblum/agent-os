@@ -122,15 +122,13 @@ export function postRebuildTccStalenessFor(facts, mode, prefix = invocationName(
     },
     remedy: {
       type: 'manual_tcc_reset',
-      summary: 'Stop the turn, ask the user to reset/regrant macOS TCC permissions for the rebuilt aos binary, then continue with the post-permission readiness check.',
+      summary: 'Play the stale-TCC handoff alert, end the current turn, and wait for the user to manually reset/regrant macOS TCC permissions for the rebuilt aos binary.',
       commands: [
-        `${prefix} permissions reset-runtime --mode ${mode}`,
-        `${prefix} permissions setup --once`,
         `${prefix} ready --post-permission`,
-        `${prefix} ready`,
       ],
-      human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security if reset-runtime reports targeted reset unavailable or the grant remains stale.',
+      human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
       target_path: targetPath,
+      next_user_signal: 'finished',
     },
   };
 }
@@ -246,6 +244,21 @@ export function permissionResetSafeSequenceLines(blockers, mode, prefix = invoca
     lines.splice(4, 0, 'Screen Recording can be re-requested by permissions setup after reset.');
   }
   return lines;
+}
+
+export function staleTccTerminalHandoff(tccStaleness, prefix = invocationName()) {
+  if (!tccStaleness || tccStaleness.id !== 'post_rebuild_tcc_stale') return undefined;
+  return {
+    type: 'manual_tcc_reset',
+    reason: 'post_rebuild_tcc_stale',
+    terminal: true,
+    alert: 'three_chimes',
+    instruction: 'End the current turn. Do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes until the user says finished.',
+    next_user_signal: 'finished',
+    human_action: tccStaleness.remedy.human_action,
+    target_path: tccStaleness.remedy.target_path,
+    resume_command: `${prefix} ready --post-permission`,
+  };
 }
 
 export function staleGrantGuidance(mode, service) {
@@ -412,6 +425,7 @@ export function isRepairableRuntimeBlockerID(id) {
 
 export function readyAutoRepairReason(response, { postPermission = false } = {}) {
   if (response.ready) return null;
+  if ((response.blockers ?? []).some((blocker) => blocker.kind === 'permission')) return null;
   const blockerIDs = new Set((response.blockers ?? []).map((blocker) => blocker.id));
   const hasRepairableRuntimeBlocker = (response.blockers ?? [])
     .some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
@@ -475,6 +489,23 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
   const hasPostRebuildTccStale = blockers.some((b) => b.reason === 'post_rebuild_tcc_stale');
 
+  if (hasPostRebuildTccStale) {
+    appendAction(actions, seen, {
+      type: 'manual_tcc_reset',
+      label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
+      reason: 'post_rebuild_tcc_stale',
+      terminal: true,
+      next_user_signal: 'finished',
+    });
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 'after the user says finished, run the bounded post-permission readiness check',
+      command: `${prefix} ready --post-permission`,
+      after_user_signal: 'finished',
+    });
+    return actions;
+  }
+
   if (hasPermissionBlocker) {
     appendAction(actions, seen, {
       type: 'command',
@@ -491,13 +522,6 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
       label: 'bounded handoff check after permissions have been granted',
       command: `${prefix} ready --post-permission`,
     });
-    if (hasPostRebuildTccStale) {
-      appendAction(actions, seen, {
-        type: 'manual_tcc_reset',
-        label: 'stop the turn and ask the user to reset/regrant macOS TCC permissions for the rebuilt aos binary',
-        reason: 'post_rebuild_tcc_stale',
-      });
-    }
   }
 
   if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker) {
@@ -549,6 +573,8 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (tccStaleness) {
     notes.push(tccStaleness.reason);
     notes.push(tccStaleness.remedy.summary);
+    notes.push(`After the user says ${tccStaleness.remedy.next_user_signal}, run '${prefix} ready --post-permission'.`);
+    return notes;
   }
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
   else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
@@ -593,6 +619,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
   const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
   const tccStaleness = postRebuildTccStalenessFor(facts, mode, prefix);
+  const terminalHandoff = staleTccTerminalHandoff(tccStaleness, prefix);
   return {
     ready,
     status: ready ? 'ok' : 'degraded',
@@ -603,6 +630,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
     blockers,
     blocked_capabilities: blockedCapabilities,
     tcc_staleness: tccStaleness,
+    terminal_handoff: terminalHandoff,
     notes: readyNotes(facts, mode, prefix, tccStaleness),
     next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
     ownership: {

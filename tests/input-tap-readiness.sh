@@ -17,6 +17,7 @@ mkdir -p "$(dirname "$SOCK")"
 # This isolates the test from developer-machine state and makes it portable.
 export AOS_BYPASS_PERMISSIONS_SETUP=1
 export AOS_TEST_SKIP_READY_SERVICE_START=1
+export AOS_TCC_HANDOFF_ALERT=0
 
 cleanup() {
   if [[ -n "${MOCK_PID:-}" ]] && kill -0 "$MOCK_PID" 2>/dev/null; then
@@ -82,9 +83,15 @@ assert tap.get("status") == "retrying", f"runtime.input_tap.status: {tap}"
 assert tap.get("listen_access") is False, f"listen_access: {tap}"
 assert tap.get("post_access") is False, f"post_access: {tap}"
 verdict = d.get("runtime_verdict") or {}
+readiness = d.get("readiness") or {}
 stale = verdict.get("tcc_staleness") or {}
 assert stale.get("id") == "post_rebuild_tcc_stale", d
 assert stale.get("daemon_live", {}).get("listen_access") is False, stale
+assert readiness.get("ready") is False, readiness
+assert readiness.get("status") == "degraded", readiness
+assert readiness.get("phase") == "human_required", readiness
+assert readiness.get("diagnosis") == "daemon_tcc_grant_stale_or_missing", readiness
+assert readiness.get("tcc_staleness", {}).get("id") == "post_rebuild_tcc_stale", readiness
 
 notes = d.get("notes", [])
 joined = "\n".join(notes)
@@ -96,8 +103,8 @@ echo "PASS: status --json (degraded tap)"
 # status (text) one-liner should include tap=retrying.
 OUT_TEXT="$(./aos status 2>&1 | head -1)"
 case "$OUT_TEXT" in
-  *"tap=retrying"*) echo "PASS: status text one-liner" ;;
-  *) echo "FAIL: status text one-liner missing tap=retrying: $OUT_TEXT"; exit 1 ;;
+  *"readiness=degraded"*"ready=false"*"tap=retrying"*) echo "PASS: status text one-liner" ;;
+  *) echo "FAIL: status text one-liner missing readiness/tap fields: $OUT_TEXT"; exit 1 ;;
 esac
 
 # do click should fail at the preflight gate with INPUT_TAP_NOT_ACTIVE.
@@ -153,15 +160,19 @@ assert "passive checks pass" in stale.get("reason", ""), stale
 assert stale.get("binary_identity", {}).get("path") == target, stale
 actions = d.get("next_actions", [])
 commands = [a.get("command", "") for a in actions]
-assert "./aos permissions reset-runtime --mode repo" in commands, actions
-assert "./aos permissions setup --once" in commands, actions
 assert "./aos ready --post-permission" in commands, actions
-assert any(a.get("type") == "manual_tcc_reset" and a.get("reason") == "post_rebuild_tcc_stale" for a in actions), actions
-reset_index = commands.index("./aos permissions reset-runtime --mode repo")
-setup_index = commands.index("./aos permissions setup --once")
+manual = [a for a in actions if a.get("type") == "manual_tcc_reset" and a.get("reason") == "post_rebuild_tcc_stale"]
+assert len(manual) == 1 and manual[0].get("terminal") is True, actions
 post_index = commands.index("./aos ready --post-permission")
-assert reset_index < setup_index < post_index, actions
+assert actions[post_index].get("after_user_signal") == "finished", actions
+assert not any(a.get("command") == "./aos permissions reset-runtime --mode repo" for a in actions), actions
+assert not any(a.get("command") == "./aos permissions setup --once" for a in actions), actions
 assert not any(a.get("type") == "open_settings" for a in actions), actions
+handoff = d.get("terminal_handoff") or {}
+assert handoff.get("terminal") is True, handoff
+assert handoff.get("reason") == "post_rebuild_tcc_stale", handoff
+assert handoff.get("next_user_signal") == "finished", handoff
+assert handoff.get("resume_command") == "./aos ready --post-permission", handoff
 blockers = d.get("blockers", [])
 assert any(b.get("target_path") == target for b in blockers), blockers
 PY
@@ -171,21 +182,73 @@ if [[ "$READY_RC" -eq 0 ]]; then
 fi
 echo "PASS: ready --json safe permission reset next_actions"
 
+ALERT_LOG="$STATE_ROOT/tcc-alert.log"
+ALERT_MARKER="$STATE_ROOT/repo/post-rebuild-tcc-handoff-alert.json"
+rm -f "$ALERT_LOG" "$ALERT_MARKER"
+set +e
+ALERT_READY_JSON="$(AOS_TCC_HANDOFF_ALERT=1 AOS_TCC_HANDOFF_ALERT_COMMAND="printf alert >> \"$ALERT_LOG\"" ./aos ready --json)"
+ALERT_READY_RC=$?
+set -e
+if [[ "$ALERT_READY_RC" -eq 0 ]]; then
+  echo "FAIL: stale TCC alert readiness unexpectedly exited 0"
+  exit 1
+fi
+python3 - "$ALERT_READY_JSON" "$ALERT_MARKER" <<'PY'
+import json
+import pathlib
+import sys
+
+d = json.loads(sys.argv[1])
+marker_path = pathlib.Path(sys.argv[2])
+alert = d.get("tcc_handoff_alert") or {}
+assert alert.get("status") == "played", alert
+assert alert.get("marker_status") == "written", alert
+assert marker_path.exists(), marker_path
+marker = json.loads(marker_path.read_text())
+assert marker.get("key") == alert.get("key"), (marker, alert)
+PY
+if [[ "$(cat "$ALERT_LOG")" != "alert" ]]; then
+  echo "FAIL: stale TCC handoff alert did not fire exactly once on first live failure"
+  cat "$ALERT_LOG" 2>/dev/null || true
+  exit 1
+fi
+set +e
+ALERT_REPEAT_JSON="$(AOS_TCC_HANDOFF_ALERT=1 AOS_TCC_HANDOFF_ALERT_COMMAND="printf alert >> \"$ALERT_LOG\"" ./aos ready --json)"
+ALERT_REPEAT_RC=$?
+set -e
+if [[ "$ALERT_REPEAT_RC" -eq 0 ]]; then
+  echo "FAIL: repeated stale TCC alert readiness unexpectedly exited 0"
+  exit 1
+fi
+python3 - "$ALERT_REPEAT_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+alert = d.get("tcc_handoff_alert") or {}
+assert alert.get("status") == "skipped", alert
+assert alert.get("reason") == "already_alerted_for_binary_identity", alert
+PY
+if [[ "$(cat "$ALERT_LOG")" != "alert" ]]; then
+  echo "FAIL: stale TCC handoff alert repeated for the same binary identity"
+  cat "$ALERT_LOG" >&2
+  exit 1
+fi
+echo "PASS: ready stale TCC handoff alert is one-shot per binary identity"
+
 set +e
 READY_TEXT="$(./aos ready 2>&1)"
 READY_TEXT_RC=$?
 set -e
-if [[ "$READY_TEXT" == *"Preferred permission reset sequence:"* ]] &&
+if [[ "$READY_TEXT" == *"Post-rebuild TCC reset checkpoint:"* ]] &&
    [[ "$READY_TEXT" == *"Runtime mode: repo"* ]] &&
    [[ "$READY_TEXT" == *"Target binary: $ROOT/aos"* ]] &&
-   [[ "$READY_TEXT" == *"1. Agent: run ./aos permissions reset-runtime --mode repo"* ]] &&
-   [[ "$READY_TEXT" == *"2. Agent: run ./aos permissions setup --once"* ]] &&
-   [[ "$READY_TEXT" == *"4. Human: return to the waiting session and say: finished"* ]] &&
-   [[ "$READY_TEXT" == *"5. Session: run ./aos ready --post-permission"* ]] &&
-   [[ "$READY_TEXT" == *"Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale."* ]]; then
-  echo "PASS: ready text safe permission reset handoff"
+   [[ "$READY_TEXT" == *"Agent: end this turn now; do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes."* ]] &&
+   [[ "$READY_TEXT" == *"Human: Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished."* ]] &&
+   [[ "$READY_TEXT" == *"Session: after the user says finished, run ./aos ready --post-permission"* ]]; then
+  echo "PASS: ready text terminal TCC handoff"
 else
-  echo "FAIL: ready text missing safe permission reset handoff:"
+  echo "FAIL: ready text missing terminal TCC handoff:"
   echo "$READY_TEXT"
   exit 1
 fi

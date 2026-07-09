@@ -154,15 +154,34 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
   assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
   assert.equal(verdict.tcc_staleness.binary_identity.cdhash, 'abc123def456');
   assert.deepEqual(verdict.tcc_staleness.remedy.commands, [
-    './aos permissions reset-runtime --mode repo',
-    './aos permissions setup --once',
     './aos ready --post-permission',
-    './aos ready',
   ]);
-  assert.equal(
-    verdict.next_actions.some((action) => action.type === 'manual_tcc_reset' && action.reason === 'post_rebuild_tcc_stale'),
-    true,
-  );
+  assert.deepEqual(verdict.terminal_handoff, {
+    type: 'manual_tcc_reset',
+    reason: 'post_rebuild_tcc_stale',
+    terminal: true,
+    alert: 'three_chimes',
+    instruction: 'End the current turn. Do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes until the user says finished.',
+    next_user_signal: 'finished',
+    human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
+    target_path: '/repo/aos',
+    resume_command: './aos ready --post-permission',
+  });
+  assert.deepEqual(verdict.next_actions, [
+    {
+      type: 'manual_tcc_reset',
+      label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
+      reason: 'post_rebuild_tcc_stale',
+      terminal: true,
+      next_user_signal: 'finished',
+    },
+    {
+      type: 'command',
+      label: 'after the user says finished, run the bounded post-permission readiness check',
+      command: './aos ready --post-permission',
+      after_user_signal: 'finished',
+    },
+  ]);
   assert.equal(
     verdict.notes.some((note) => note.includes('passive checks pass, but live privileged access fails after a rebuild')),
     true,
@@ -381,6 +400,13 @@ test('ready auto-repair reason stays null for ready, stale, and unmanaged states
   assert.equal(readyAutoRepairReason({ ready: true, blockers: [] }), null);
   assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }), null);
   assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_unmanaged', kind: 'runtime' }] }), null);
+  assert.equal(readyAutoRepairReason({
+    ready: false,
+    blockers: [
+      { id: 'input_tap_not_active', kind: 'runtime' },
+      { id: 'input_monitoring_listen', kind: 'permission', reason: 'post_rebuild_tcc_stale' },
+    ],
+  }), null);
 });
 
 test('ready auto-repair reason is deterministic for ownership and input-tap blockers', () => {

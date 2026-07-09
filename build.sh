@@ -143,39 +143,6 @@ sign_output() {
     fi
 }
 
-play_rebuild_alert() {
-    if [[ "${AOS_BUILD_REBUILD_ALERT:-1}" == "0" ]]; then
-        return 0
-    fi
-
-    echo "Alert: repo-mode ./aos binary rebuilt; user must manually reset/regrant needed macOS TCC permissions before TCC-backed proof."
-
-    if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
-        "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true
-        return 0
-    fi
-
-    local sound="${AOS_BUILD_REBUILD_ALERT_SOUND:-/System/Library/Sounds/Sosumi.aiff}"
-    local repeat="${AOS_BUILD_REBUILD_ALERT_REPEAT:-3}"
-    local volume="${AOS_BUILD_REBUILD_ALERT_VOLUME:-2}"
-    case "$repeat" in
-        ''|*[!0-9]*) repeat=3 ;;
-    esac
-
-    if [[ -x /usr/bin/afplay && -f "$sound" ]]; then
-        local i=0
-        while [[ $i -lt $repeat ]]; do
-            /usr/bin/afplay -v "$volume" "$sound" >/dev/null 2>&1 || break
-            i=$((i + 1))
-        done
-        return 0
-    fi
-
-    if command -v osascript >/dev/null 2>&1; then
-        osascript -e "beep $repeat" >/dev/null 2>&1 || true
-    fi
-}
-
 build_fingerprint() {
     {
         printf 'mode %s\n' "$BUILD_VARIANT"
@@ -263,7 +230,7 @@ printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
 if [[ $BINARY_REBUILT -eq 1 ]]; then
-    play_rebuild_alert
+    echo "Note: TCC handoff alert is deferred until a live readiness check reports post-rebuild stale TCC."
 fi
 
 # Restart daemon if it's running as a service

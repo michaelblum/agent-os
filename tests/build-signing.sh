@@ -87,13 +87,6 @@ touch "$target.signed"
 EOF
 chmod +x "$FAKE_BIN/codesign"
 
-cat >"$FAKE_BIN/rebuild-alert" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'alert\n' >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
-EOF
-chmod +x "$FAKE_BIN/rebuild-alert"
-
 FIRST_OUT="$TMP/first.out"
 REPAIR_OUT="$TMP/repair.out"
 UP_TO_DATE_OUT="$TMP/up-to-date.out"
@@ -101,14 +94,14 @@ TOUCHED_OUT="$TMP/touched.out"
 CHANGED_OUT="$TMP/changed.out"
 PACKAGE_OUT="$TMP/package.out"
 
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
 if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
     echo "FAIL: first build did not compile and sign" >&2
     cat "$LOG" >&2
     exit 1
 fi
-if ! grep -qx 'alert' "$LOG"; then
-    echo "FAIL: first build did not play the rebuild alert" >&2
+if grep -qx 'alert' "$LOG"; then
+    echo "FAIL: first build should not play the TCC handoff alert" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -117,8 +110,8 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     cat "$FIRST_OUT" >&2
     exit 1
 fi
-if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$FIRST_OUT"; then
-    echo "FAIL: first build did not report the manual TCC reset handoff" >&2
+if ! grep -q 'TCC handoff alert is deferred until a live readiness check reports post-rebuild stale TCC' "$FIRST_OUT"; then
+    echo "FAIL: first build did not report deferred TCC handoff alert behavior" >&2
     cat "$FIRST_OUT" >&2
     exit 1
 fi
@@ -135,7 +128,7 @@ fi
 
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
 if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG" || grep -qx 'alert' "$LOG"; then
     echo "FAIL: signature repair should sign without compiling" >&2
     cat "$LOG" >&2
@@ -159,7 +152,7 @@ fi
 
 touch "$FAKE_REPO/src/main.swift" "$FAKE_REPO/build.sh"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$TOUCHED_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$TOUCHED_OUT"
 if [[ -s "$LOG" ]]; then
     echo "FAIL: unchanged runtime input content should not rebuild or re-sign" >&2
     cat "$LOG" >&2
@@ -173,9 +166,9 @@ fi
 
 printf '// runtime source changed\n' >> "$FAKE_REPO/src/main.swift"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
-if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
-    echo "FAIL: changed runtime input content should compile, sign, and alert" >&2
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
+if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG" || grep -qx 'alert' "$LOG"; then
+    echo "FAIL: changed runtime input content should compile and sign without alerting" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -184,15 +177,15 @@ if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
-if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$CHANGED_OUT"; then
-    echo "FAIL: changed runtime input content did not report the manual TCC reset handoff" >&2
+if ! grep -q 'TCC handoff alert is deferred until a live readiness check reports post-rebuild stale TCC' "$CHANGED_OUT"; then
+    echo "FAIL: changed runtime input content did not report deferred TCC handoff alert behavior" >&2
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
 
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
 if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG" || grep -qx 'alert' "$LOG"; then
     echo "FAIL: post-change signature repair should sign without compiling or alerting" >&2
     cat "$LOG" >&2
@@ -200,7 +193,7 @@ if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG" || grep -qx 'alert'
 fi
 
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$UP_TO_DATE_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --no-restart >"$UP_TO_DATE_OUT"
 if [[ -s "$LOG" ]]; then
     echo "FAIL: valid signed artifact should not rebuild or re-sign" >&2
     cat "$LOG" >&2
@@ -213,7 +206,7 @@ if ! grep -q '^Up to date: ./aos' "$UP_TO_DATE_OUT"; then
 fi
 
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --package --no-restart >"$PACKAGE_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" bash "$FAKE_REPO/build.sh" --package --no-restart >"$PACKAGE_OUT"
 if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
     echo "FAIL: packaged build should compile and sign" >&2
     cat "$LOG" >&2

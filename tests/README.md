@@ -125,14 +125,13 @@ The build gate is content-based for Swift runtime inputs. Touching a Swift file
 without changing its content, or editing build tooling alone, should not replace
 the TCC-owning `./aos` binary. Passing `--force`, changing Swift runtime input
 content, changing build mode, or missing output can still rebuild it. A real
-rebuild emits `Rebuilt: ./aos` and plays the configured rebuild alert sound.
+rebuild emits `Rebuilt: ./aos` without playing the TCC alert.
 
-After a real rebuild, the user must manually reset/regrant the repo-mode macOS
-TCC permissions for the rebuilt `./aos` binary before Accessibility, Screen
-Recording, Input Monitoring, input-tap, daemon readiness, capture, or native
-input proof is valid. Agents should stop at that handoff and run only non-TCC
-checks until the user confirms permissions are reset, then verify with
-`./aos ready --post-permission`.
+After a real rebuild, continue with non-TCC checks as needed. The stop point is
+the first live readiness check that reports `post_rebuild_tcc_stale`: it plays
+the three-chime handoff alert, returns a terminal handoff, and agents must end
+the turn. After the user manually resets/regrants TCC and replies `finished`,
+verify with `./aos ready --post-permission`.
 
 GDI is not allowed to perform this rebuild; return native/binary work to
 Foreman instead.
