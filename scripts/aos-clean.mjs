@@ -4,6 +4,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  equivalentContentURLs,
+  projectedToggleURL,
+  rootMap,
+} from './lib/experience-manifest.mjs';
 
 function prettyError(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
@@ -227,27 +232,6 @@ function resolveExperienceContentRoots(manifest) {
   });
 }
 
-function experienceRootMap(roots) {
-  return Object.fromEntries(roots.map((root) => [root.id, root]));
-}
-
-function templateExperienceValue(value, rootsByID, mode) {
-  if (typeof value !== 'string') return value;
-  let valid = true;
-  const templated = value
-    .replace(/\$\{root:([A-Za-z0-9_-]+)\}/g, (_, id) => {
-      const root = rootsByID[id];
-      if (!root) {
-        valid = false;
-        return '';
-      }
-      return root.key;
-    })
-    .replace(/\$\{mode\}/g, mode)
-    .replace(/\$\{repo_root\}/g, process.cwd());
-  return valid ? templated : null;
-}
-
 function activeExperienceContext(mode) {
   const id = activeExperience(mode);
   const manifest = readExperienceManifest(id);
@@ -262,9 +246,16 @@ function activeExperienceContext(mode) {
   }
 
   const roots = resolveExperienceContentRoots(manifest);
-  const rootsByID = experienceRootMap(roots);
+  const rootsByID = rootMap(roots);
   const toggleSurface = manifest.status_item?.toggle_surface || null;
-  const expectedStatusItemURL = templateExperienceValue(toggleSurface?.url, rootsByID, mode);
+  let expectedStatusItemURL = null;
+  if (toggleSurface) {
+    try {
+      expectedStatusItemURL = projectedToggleURL(manifest, toggleSurface, rootsByID, { mode, repoRoot: process.cwd() });
+    } catch {
+      expectedStatusItemURL = null;
+    }
+  }
   const preserveCanvasIDs = new Set(
     Array.isArray(manifest.cleanup?.preserve_canvas_ids)
       ? manifest.cleanup.preserve_canvas_ids.filter((id) => typeof id === 'string' && id.length > 0)
@@ -304,44 +295,6 @@ function contentRootKeysFromStatusItemURL(rawURL) {
   } catch {
     return [];
   }
-}
-
-function contentURLIdentity(rawURL) {
-  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
-  try {
-    const parsed = new URL(rawURL);
-    if (parsed.protocol === 'aos:') {
-      return {
-        root: parsed.hostname,
-        path: parsed.pathname || '/',
-        query: parsed.search,
-      };
-    }
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      const host = parsed.hostname.toLowerCase();
-      if (!['127.0.0.1', 'localhost', '::1'].includes(host)) return null;
-      const parts = parsed.pathname.split('/').filter(Boolean);
-      if (parts.length === 0) return null;
-      return {
-        root: parts[0],
-        path: `/${parts.slice(1).join('/')}`,
-        query: parsed.search,
-      };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function equivalentContentURLs(left, right) {
-  if (left === right) return true;
-  const leftIdentity = contentURLIdentity(left);
-  const rightIdentity = contentURLIdentity(right);
-  if (!leftIdentity || !rightIdentity) return false;
-  return leftIdentity.root === rightIdentity.root
-    && leftIdentity.path === rightIdentity.path
-    && leftIdentity.query === rightIdentity.query;
 }
 
 function activeExperienceStatusItemDrift(mode, canvases, context = activeExperienceContext(mode)) {
