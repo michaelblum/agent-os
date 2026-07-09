@@ -532,30 +532,6 @@ Manual Sigil harnesses can pass `manual-visible` to
 non-main display when available. This avoids repeated false debugging of Sigil
 state while tracked union canvases are still unreliable on some display slices.
 
-Examples:
-
-- `bash tests/capture-region-perception.sh`
-- `bash tests/capture-canvas-surface.sh`
-- `bash tests/capture-union-canvas-surface.sh`
-- `bash tests/capture-parallel.sh`
-- `bash tests/spatial-telemetry-smoke.sh`
-- `bash tests/display-debug-battery-layout.sh`
-- `bash tests/surface-inspector-move-abs.sh`
-- `bash tests/surface-inspector-cross-display-drag.sh`
-- `bash tests/surface-inspector-tint.sh`
-- `bash tests/panel-tabs-activation.sh`
-- `bash tests/voice-session-leases.sh`
-- `bash tests/say-voice-slot.sh`
-- `bash tests/say-tts-provider-seam.sh`
-- `bash tests/voice-bind.sh`
-- `bash tests/voice-final-response.sh`
-- `bash tests/voice-telemetry.sh`
-- `bash tests/final-response-hook.sh`
-- `bash tests/config-surface.sh`
-- `bash tests/cli-error-log.sh`
-- `bash tests/sigil-avatar-interactions.sh`
-- `bash tests/sigil-workbench-launch.sh`
-
 ## Recovery
 
 If an interrupted display/toolkit run leaves stale windows or extra non-launchd
