@@ -1,7 +1,8 @@
 # Archived Superpowers Design History
 
-This tree preserves historical plans and specs from the retired
-`docs/superpowers/` path.
+This tree keeps only historical Superpowers plans/specs that are still cited by
+active docs, schemas, skills, or source comments. Unreferenced historical files
+were removed from the active checkout; use Git history for broader archaeology.
 
 Archived Sigil and Studio material predates the accepted visual-object
 descriptor/resource-lifecycle closure. Do not use files in this tree as current
@@ -14,5 +15,3 @@ policy, stellation, or resource-lifecycle proof. Current authority is
 Do not add new working notes, plans, or specs here. Put current material in the
 repo docs taxonomy instead: `docs/design/`, `docs/recipes/`, `docs/api/`,
 `docs/reference/`, or `docs/dev/`.
-
-Some internal links intentionally preserve their original historical paths.

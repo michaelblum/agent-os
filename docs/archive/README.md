@@ -1,8 +1,13 @@
 # Historical Archives
 
-This directory and the archive branches are for historical research only. Do
-not treat archived files, old `AGENTS.md` files, dock configs, or work-card
-routing instructions as current operating guidance.
+This directory is for historical research only. Do not treat archived files,
+old `AGENTS.md` files, dock configs, or work-card routing instructions as
+current operating guidance.
+
+Most unreferenced historical notes were removed from the active checkout in the
+modernity cleanup. Use Git history for broader archaeology. Current
+implementation work belongs in the main repo checkout and active feature
+branches.
 
 ## Foreman Team Remodel Snapshot
 
@@ -21,8 +26,4 @@ still existed as separate dock surfaces.
 When available on this machine, the local read-only reference checkout is:
 
 `/Users/Michael/Code/agent-os-pre-foreman-team-remodel`
-
-Use this branch or worktree for archaeological search across old work cards,
-reports, and dock-era instructions. Current implementation work belongs in the
-main repo checkout and active feature branches.
 
