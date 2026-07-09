@@ -2,7 +2,7 @@ import {
   ARTIFACT_BUNDLE_WORKBENCH_URL,
   createArtifactBundleSubject,
 } from './artifact-bundle-subject.js';
-import { createWorkRecordSubject } from './work-record.js';
+import { createWorkRecordSubject } from './work-record-subject.js';
 import {
   subjectCapabilities,
   subjectCanonicalContracts,

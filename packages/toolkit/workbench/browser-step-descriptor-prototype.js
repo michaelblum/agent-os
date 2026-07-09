@@ -1,6 +1,6 @@
 import { createWorkbenchSubject } from './subject.js';
 import { runOneStepStepDescriptorHarness } from './step-descriptor-harness.js';
-import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record.js';
+import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record-verifier.js';
 
 export const BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION = '2026-05-browser-step-descriptor-prototype-v0';
 export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'step-descriptor-prototype:browser-click-status';

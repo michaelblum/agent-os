@@ -3807,6 +3807,14 @@ function handleHostMessage(rawMsg) {
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (canvasId === hitTarget.hit.id && hitTarget.handleLifecycle(msg)) {
+            syncHitTargetToAvatar();
+            scheduleRenderFrame();
+        }
+        if (canvasId === radialTargetSurface.id && radialTargetSurface.handleLifecycle(msg)) {
+            syncRadialTargetSurface();
+            scheduleRenderFrame();
+        }
         if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID && msg.action === 'removed') {
             avatarControls.close('panel-removed');
         } else if (

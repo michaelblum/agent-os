@@ -235,6 +235,14 @@ export function createSemanticChildTargetSurface(options = {}) {
     }
   }
 
+  function handleLifecycle(message = {}) {
+    if (typeof controller.handleLifecycle !== 'function') return false
+    if (!controller.handleLifecycle(message)) return false
+    syncControllerState()
+    if (!state.ready) state.targets = []
+    return true
+  }
+
   function snapshot() {
     return {
       id: state.id,
@@ -256,6 +264,7 @@ export function createSemanticChildTargetSurface(options = {}) {
     disable,
     refreshPayload,
     remove,
+    handleLifecycle,
     snapshot,
   }
 }

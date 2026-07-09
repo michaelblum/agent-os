@@ -1,13 +1,12 @@
 import { toolkitSpecifier } from './content-roots.js';
+import { RENDER_PERFORMANCE_CANVAS_ID } from './utility-canvas-config.js';
 
 const {
     createRenderPerformanceSampler,
     finiteOrNull,
 } = await import(toolkitSpecifier('runtime/render-performance-sampler.js'));
 
-export const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
-
-export { finiteOrNull };
+export { RENDER_PERFORMANCE_CANVAS_ID, finiteOrNull };
 
 export function createSigilRenderPerformanceSampler({
     liveState,

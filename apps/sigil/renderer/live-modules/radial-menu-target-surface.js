@@ -220,6 +220,13 @@ export function createRadialMenuTargetSurface({
         }
     }
 
+    function handleLifecycle(msg = {}) {
+        if (typeof surface.handleLifecycle !== 'function') return false;
+        const handled = surface.handleLifecycle(msg);
+        if (handled) syncSurfaceState();
+        return handled;
+    }
+
     function snapshot() {
         return {
             id: state.id,
@@ -247,6 +254,7 @@ export function createRadialMenuTargetSurface({
         disable,
         refreshPayload,
         remove,
+        handleLifecycle,
         snapshot,
     };
 }

@@ -75,6 +75,48 @@ test('InteractionSurface updates frame and interactive state atomically', async 
   assert.equal(surface.setPlacement([50, 61, 20, 30], true), false)
 })
 
+test('InteractionSurface reconciles ready state from daemon lifecycle events', () => {
+  const updates = []
+  const surface = createInteractionSurface({
+    runtime: {
+      canvasCreate: () => Promise.resolve({ id: 'surface-lifecycle' }),
+      canvasUpdate(payload) {
+        updates.push(payload)
+      },
+    },
+    id: 'surface-lifecycle',
+    url: 'aos://test/surface.html',
+    frame: [-10000, -10000, 10, 10],
+  })
+
+  assert.equal(surface.handleLifecycle({
+    canvas_id: 'surface-lifecycle',
+    canvas: {
+      at: [12, 24, 32, 48],
+      interactive: true,
+      windowLevel: 'floating',
+    },
+  }), true)
+  assert.deepEqual(surface.snapshot(), {
+    id: 'surface-lifecycle',
+    ready: true,
+    creating: false,
+    removed: false,
+    frame: [12, 24, 32, 48],
+    interactive: true,
+    windowLevel: 'floating',
+    parent: null,
+  })
+
+  assert.equal(surface.setPlacement([30, 40, 32, 48], true), true)
+  assert.deepEqual(updates, [{ id: 'surface-lifecycle', frame: [30, 40, 32, 48] }])
+
+  assert.equal(surface.handleLifecycle({ canvas_id: 'other', action: 'removed' }), false)
+  assert.equal(surface.handleLifecycle({ canvas_id: 'surface-lifecycle', action: 'removed' }), true)
+  assert.equal(surface.snapshot().ready, false)
+  assert.equal(surface.snapshot().removed, true)
+})
+
 test('InteractionSurface disable moves offscreen and clears interactivity in one update', async () => {
   const updates = []
   const surface = createInteractionSurface({

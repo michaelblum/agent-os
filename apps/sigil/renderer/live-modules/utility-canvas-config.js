@@ -1,7 +1,6 @@
 import { sigilUrl, toolkitUrl, withQuery } from './content-roots.js';
-import { RENDER_PERFORMANCE_CANVAS_ID } from './render-performance-telemetry.js';
 
-export { RENDER_PERFORMANCE_CANVAS_ID };
+export const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 
 export const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
 export const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';

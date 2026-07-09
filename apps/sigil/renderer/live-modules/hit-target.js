@@ -117,6 +117,13 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         }
     }
 
+    function handleLifecycle(msg = {}) {
+        if (typeof surface.handleLifecycle !== 'function') return false;
+        const handled = surface.handleLifecycle(msg);
+        if (handled) syncSurfaceState();
+        return handled;
+    }
+
     return {
         hit,
         ensureCreated,
@@ -126,5 +133,6 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         syncFrame,
         setSize,
         remove,
+        handleLifecycle,
     };
 }

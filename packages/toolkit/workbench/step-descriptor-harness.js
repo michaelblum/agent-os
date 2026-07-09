@@ -1,8 +1,10 @@
 import {
   buildWorkRecordV0FromStepDescriptorEvidence,
+} from './work-record-capture-step-descriptor.js';
+import {
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-} from './work-record.js';
+} from './work-record-verifier.js';
 
 export const STEP_DESCRIPTOR_HARNESS_VERSION = '2026-05-one-step-step-descriptor-harness-v0';
 

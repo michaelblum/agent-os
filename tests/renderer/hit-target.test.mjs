@@ -132,6 +132,39 @@ test('Sigil hit target syncs DesktopWorld rects with display offsets', async () 
   assert.deepEqual(hitTarget.hit.frame, [-1240, 120, 300, 140])
 })
 
+test('Sigil hit target reconciles ready state from child lifecycle events', () => {
+  const updates = []
+  const hitTarget = createHitTargetController({
+    runtime: {
+      canvasCreate(payload) {
+        return Promise.resolve({ id: payload.id })
+      },
+      canvasUpdate(payload) {
+        updates.push(payload)
+      },
+    },
+    url: 'aos://sigil/renderer/hit-area.html',
+    id: 'sigil-hit-lifecycle',
+    size: 80,
+  })
+
+  assert.equal(hitTarget.handleLifecycle({
+    canvas_id: 'sigil-hit-lifecycle',
+    canvas: {
+      at: [-10000, -10000, 80, 80],
+      interactive: false,
+    },
+  }), true)
+  assert.equal(hitTarget.hit.ready, true)
+
+  assert.equal(hitTarget.syncWorldCenter({ x: 100, y: 100, valid: true }, true), true)
+  assert.deepEqual(updates.at(-1), {
+    id: 'sigil-hit-lifecycle',
+    frame: [60, 60, 80, 80],
+    interactive: true,
+  })
+})
+
 test('Sigil hit target disables offscreen and non-interactive', async () => {
   const updates = []
   const runtime = {

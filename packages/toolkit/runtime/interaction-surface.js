@@ -27,6 +27,32 @@ function offscreenFrame(size) {
   return [-10000, -10000, width, height]
 }
 
+function lifecycleCanvasId(message = {}) {
+  return message.canvas_id || message.canvasId || message.id || message.canvas?.id || null
+}
+
+function lifecycleFrame(message = {}) {
+  return message.at || message.frame || message.canvas?.at || message.canvas?.frame || null
+}
+
+function lifecycleInteractive(message = {}) {
+  const value = message.interactive ?? message.canvas?.interactive
+  return typeof value === 'boolean' ? value : null
+}
+
+function lifecycleWindowLevel(message = {}) {
+  return message.windowLevel
+    ?? message.window_level
+    ?? message.canvas?.windowLevel
+    ?? message.canvas?.window_level
+    ?? null
+}
+
+function lifecycleRemoved(message = {}) {
+  const state = message.lifecycleState ?? message.lifecycle_state ?? message.canvas?.lifecycleState ?? message.canvas?.lifecycle_state
+  return message.action === 'removed' || state === 'removed'
+}
+
 function callRuntime(runtime, method, payload) {
   const fn = runtime?.[method]
   if (typeof fn !== 'function') {
@@ -151,6 +177,26 @@ export function createInteractionSurface(options = {}) {
     }
   }
 
+  function handleLifecycle(message = {}) {
+    if (lifecycleCanvasId(message) !== state.id) return false
+    state.creating = false
+    if (lifecycleRemoved(message)) {
+      state.ready = false
+      state.interactive = false
+      state.removed = true
+      return true
+    }
+    state.ready = true
+    state.removed = false
+    const nextFrame = normalizeFrame(lifecycleFrame(message), state.frame)
+    if (nextFrame) state.frame = nextFrame
+    const nextInteractive = lifecycleInteractive(message)
+    if (nextInteractive !== null) state.interactive = nextInteractive
+    const nextWindowLevel = lifecycleWindowLevel(message)
+    if (nextWindowLevel) state.windowLevel = nextWindowLevel
+    return true
+  }
+
   function snapshot() {
     return {
       id: state.id,
@@ -173,6 +219,7 @@ export function createInteractionSurface(options = {}) {
     setPlacement,
     disable,
     remove,
+    handleLifecycle,
     snapshot,
   }
 }

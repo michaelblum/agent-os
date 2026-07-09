@@ -193,3 +193,40 @@ test('radial menu target surface creates an offscreen child and posts live item 
     interactive: false,
   })
 })
+
+test('radial menu target surface reconciles ready state from child lifecycle events', () => {
+  const updates = []
+  const posts = []
+  const surface = createRadialMenuTargetSurface({
+    runtime: {
+      canvasCreate(payload) {
+        return Promise.resolve({ id: payload.id })
+      },
+      canvasUpdate(payload) {
+        updates.push(payload)
+      },
+      post(type, payload) {
+        posts.push({ type, payload })
+      },
+    },
+    url: 'aos://sigil/renderer/radial-menu-surface.html',
+    id: 'sigil-radial-menu-lifecycle',
+  })
+
+  assert.equal(surface.handleLifecycle({
+    canvas_id: 'sigil-radial-menu-lifecycle',
+    canvas: {
+      at: [-10000, -10000, 1, 1],
+      interactive: false,
+    },
+  }), true)
+  assert.equal(surface.snapshot().ready, true)
+
+  assert.equal(surface.sync(radialSnapshot, { displays: [] }), true)
+  assert.deepEqual(updates[0], {
+    id: 'sigil-radial-menu-lifecycle',
+    frame: [62, 42, 156, 76],
+    interactive: true,
+  })
+  assert.equal(posts[0].payload.target, 'sigil-radial-menu-lifecycle')
+})

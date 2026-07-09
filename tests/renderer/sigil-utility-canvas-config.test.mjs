@@ -89,9 +89,11 @@ test('Sigil utility id set includes known utility canvases plus caller-owned ext
 
 test('Sigil main delegates utility canvas config out of the monolith', async () => {
   const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const runtimeSource = await readFile(new URL('../../apps/sigil/renderer/live-modules/utility-canvas-runtime.js', import.meta.url), 'utf8')
 
-  assert.match(source, /utilityConfig as createUtilityConfig/)
-  assert.match(source, /createSigilUtilityCanvasIdSet/)
+  assert.match(source, /createSigilUtilityCanvasRuntime/)
+  assert.match(runtimeSource, /utilityConfig as createUtilityConfig/)
+  assert.match(runtimeSource, /createSigilUtilityCanvasIdSet/)
   assert.doesNotMatch(source, /function mainDisplayVisibleBounds/)
   assert.doesNotMatch(source, /function utilityFrame/)
 })

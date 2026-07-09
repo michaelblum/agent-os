@@ -148,6 +148,42 @@ test('SemanticChildTargetSurface disables offscreen and refreshes payloads', asy
   assert.equal(surface.snapshot().interactive, false)
 })
 
+test('SemanticChildTargetSurface reconciles ready state from child lifecycle events', () => {
+  const calls = []
+  const surface = createSemanticChildTargetSurface({
+    runtime: fakeRuntime(calls),
+    id: 'semantic-surface-lifecycle',
+    url: 'aos://toolkit/semantic-child.html',
+    fallbackOwnerCanvasId: 'parent-lifecycle',
+    resolveTargets(snapshot) {
+      return snapshot?.items || []
+    },
+  })
+
+  assert.equal(surface.handleLifecycle({
+    canvas_id: 'semantic-surface-lifecycle',
+    canvas: {
+      at: [-10000, -10000, 10, 10],
+      interactive: false,
+    },
+  }), true)
+  assert.equal(surface.snapshot().ready, true)
+
+  assert.equal(surface.sync({
+    phase: 'active',
+    items: [{ id: 'one', center: { x: 20, y: 30 }, radius: 5, size: 10 }],
+  }), true)
+  assert.deepEqual(calls.find((call) => call[0] === 'update'), ['update', {
+    id: 'semantic-surface-lifecycle',
+    frame: [15, 25, 10, 10],
+    interactive: true,
+  }])
+
+  assert.equal(surface.handleLifecycle({ canvas_id: 'semantic-surface-lifecycle', action: 'removed' }), true)
+  assert.equal(surface.snapshot().ready, false)
+  assert.deepEqual(surface.snapshot().targets, [])
+})
+
 test('SemanticChildTargetSurface can sync direct world rects without target payloads', async () => {
   const calls = []
   const surface = createSemanticChildTargetSurface({

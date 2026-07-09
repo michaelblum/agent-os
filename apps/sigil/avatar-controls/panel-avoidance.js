@@ -1,7 +1,11 @@
-import {
+import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
+
+const {
   avoidAnchorPanelOverlap,
   rectOverlapArea,
-} from '../../../packages/toolkit/panel/placement.js';
+} = await import(toolkitSpecifier('panel/placement.js', {
+  local: '../../../packages/toolkit/panel/placement.js',
+}));
 
 export function displayVisibleBoundsForPoint(displays = [], point) {
   return displays.find((entry) => {

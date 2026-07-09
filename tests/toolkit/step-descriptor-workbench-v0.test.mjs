@@ -207,6 +207,10 @@ test('Step Descriptor Workbench V0 exposes stable semantic refs and no replay/re
   const refs = stepDescriptorWorkbenchSemanticRefs();
   const indexHtml = await repoText('packages/toolkit/components/step-descriptor-workbench/index.html');
   const indexJs = await repoText('packages/toolkit/components/step-descriptor-workbench/index.js');
+  const modelJs = await repoText('packages/toolkit/components/step-descriptor-workbench/model.js');
+  const harnessJs = await repoText('packages/toolkit/workbench/step-descriptor-harness.js');
+  const prototypeJs = await repoText('packages/toolkit/workbench/browser-step-descriptor-prototype.js');
+  const workRecordModelJs = await repoText('packages/toolkit/components/work-record-workbench/model.js');
   const launch = await repoText('packages/toolkit/components/step-descriptor-workbench/launch.sh');
 
   assert.equal(shell.manifest.name, STEP_DESCRIPTOR_WORKBENCH_MANIFEST);
@@ -230,4 +234,8 @@ test('Step Descriptor Workbench V0 exposes stable semantic refs and no replay/re
   assert.match(launch, /--manifest step-descriptor-workbench/);
   assert.match(launch, /step_descriptor_workbench\.load/);
   assert.doesNotMatch(indexJs, /data-action="[^"]*(replay|repair|macro)[^"]*"/i);
+  assert.doesNotMatch(modelJs, /workbench\/work-record\.js/);
+  assert.doesNotMatch(harnessJs, /from '\.\/work-record\.js'/);
+  assert.doesNotMatch(prototypeJs, /from '\.\/work-record\.js'/);
+  assert.doesNotMatch(workRecordModelJs, /workbench\/work-record\.js/);
 });

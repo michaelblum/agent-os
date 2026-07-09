@@ -31,6 +31,16 @@ function artifactBundleFixture() {
   return JSON.parse(fs.readFileSync(artifactBundleFixturePath, 'utf8'));
 }
 
+test('subject catalog keeps browser import graph off the Node-heavy Work Record facade', () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'packages/toolkit/workbench/subject-catalog.js'),
+    'utf8',
+  );
+
+  assert.match(source, /from '\.\/work-record-subject\.js'/);
+  assert.doesNotMatch(source, /from '\.\/work-record\.js'/);
+});
+
 test('subject catalog creates an openable non-wiki Work Record entry from canonical descriptor fields', () => {
   const record = fixture('workflow-browser-click-status.json');
   const entry = createWorkRecordSubjectCatalogEntry(record, {
