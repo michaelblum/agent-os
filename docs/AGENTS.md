@@ -16,6 +16,8 @@ developer workflow docs, design notes, reports, references, and archives.
 - `agents/` owns issue, triage, and domain-doc practices.
 - `design/` owns design notes and active architecture exploration before they
   graduate into ADRs, APIs, schemas, or guides.
+- `proposals/` owns time-bounded implementation proposals and decision records
+  before they graduate into ADRs, APIs, schemas, guides, or source contracts.
 - `archive/` owns preserved historical material.
 
 ## Local Contracts
@@ -51,6 +53,7 @@ developer workflow docs, design notes, reports, references, and archives.
 - `design/` holds design exploration and transition notes.
 - `dev/` holds developer workflow docs, reports, and work cards.
 - `guides/` holds repeatable procedures.
+- `proposals/` holds implementation proposals and decision records.
 - `reference/` holds external or factual references.
 - `superpowers/` holds superpower documentation.
 - `wiki/` holds wiki-related documentation.
