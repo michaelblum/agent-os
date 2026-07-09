@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "service": "perceive",
+  "event": "cursor_moved",
+  "ts": 1783570000.125,
+  "data": {
+    "x": 450,
+    "y": 320,
+    "display": 1
+  }
+}

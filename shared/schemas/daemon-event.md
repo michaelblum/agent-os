@@ -125,6 +125,24 @@ other geometry sequence when a sequence exists.
 | `action_complete` | `{action, target, result}` | An action finished executing |
 | `context_changed` | `{pid, window_id, bounds}` | Session context changed |
 
+### voice
+
+The `voice` service is a generic daemon event namespace. It must stay
+product-neutral: the daemon publishes trigger and dictation lifecycle facts,
+while apps such as Sigil own UX policy, response sounds, TTS hooks, and menu
+behavior.
+
+| Event | Data | Trigger |
+|-------|------|---------|
+| `wake_detected` | `{source}` where `source` is `hotkey` or `phrase` | A hotkey or wake phrase trigger was detected |
+| `dictation_opened` | `{source}` where `source` is `hotkey` or `phrase` | A dictation session opened |
+| `dictation_closed_send` | `{reason}` where `reason` is `key_release`, `phrase`, `explicit_trigger`, or `timeout` | Dictation closed and captured text should be sent |
+| `dictation_closed_cancel` | `{reason}` where `reason` is `key_release`, `phrase`, `explicit_trigger`, or `timeout` | Dictation closed and captured text should be discarded |
+
+These events intentionally do not define microphone capture, transcription,
+audio playback, or Sigil behavior. Downstream shorthand such as
+`voice.wake_detected` means `{service:"voice", event:"wake_detected"}`.
+
 ## Shared Types
 
 `Bounds` from `annotation.schema.json`: `{x, y, width, height}`. Coordinate space depends on context — global CG for topology events, window-relative when scoped.

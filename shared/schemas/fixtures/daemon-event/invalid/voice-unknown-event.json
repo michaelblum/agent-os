@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "transcript_ready",
+  "ts": 1783570004.125,
+  "data": {
+    "transcript": "hello"
+  }
+}

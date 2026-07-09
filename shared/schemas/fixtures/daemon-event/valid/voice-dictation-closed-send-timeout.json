@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "dictation_closed_send",
+  "ts": 1783570002.125,
+  "data": {
+    "reason": "timeout"
+  }
+}

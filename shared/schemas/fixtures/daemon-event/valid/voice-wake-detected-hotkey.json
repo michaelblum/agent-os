@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "wake_detected",
+  "ts": 1783570000.5,
+  "data": {
+    "source": "hotkey"
+  }
+}

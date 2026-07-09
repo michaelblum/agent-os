@@ -6,6 +6,84 @@
   "type": "object",
   "required": ["v", "service", "event", "ts", "data"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": ["service"],
+        "properties": {
+          "service": { "const": "voice" }
+        }
+      },
+      "then": {
+        "properties": {
+          "event": {
+            "enum": [
+              "wake_detected",
+              "dictation_opened",
+              "dictation_closed_send",
+              "dictation_closed_cancel"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "wake_detected" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSourceData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "dictation_opened" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSourceData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "dictation_closed_send" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceDictationClosedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "dictation_closed_cancel" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceDictationClosedData" }
+        }
+      }
+    }
+  ],
   "properties": {
     "v": {
       "const": 1,
@@ -38,6 +116,32 @@
     "Bounds": {
       "$ref": "annotation.schema.json#/$defs/Bounds",
       "description": "Reuse shared Bounds type (x, y, width, height)."
+    },
+    "VoiceSource": {
+      "type": "string",
+      "enum": ["hotkey", "phrase"],
+      "description": "Trigger source for generic voice events."
+    },
+    "VoiceDictationCloseReason": {
+      "type": "string",
+      "enum": ["key_release", "phrase", "explicit_trigger", "timeout"],
+      "description": "Reason a dictation session closed."
+    },
+    "VoiceSourceData": {
+      "type": "object",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "#/$defs/VoiceSource" }
+      }
+    },
+    "VoiceDictationClosedData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "$ref": "#/$defs/VoiceDictationCloseReason" }
+      }
     }
   }
 }
