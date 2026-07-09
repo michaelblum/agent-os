@@ -108,6 +108,11 @@ import {
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
+import {
+    buildSigilStatusMenuItems,
+    normalizeStatusMenuActionId,
+    routeSigilStatusMenuAction,
+} from './status-menu.js';
 import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
@@ -1156,44 +1161,12 @@ function isUtilityCanvasVisible(id) {
 
 function publishStatusMenuItems() {
     if (!isPrimarySurfaceSegment()) return;
-    const operatorAnnotationItems = operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu);
-    const voiceResponseItems = voiceRuntime.responseBackendMenuItems();
-    host.setStatusMenuItems([
-        ...operatorAnnotationItems,
-        ...(operatorAnnotationItems.length ? [{ type: 'separator' }] : []),
-        ...voiceResponseItems,
-        ...(voiceResponseItems.length ? [{ type: 'separator' }] : []),
-        {
-            id: 'sigil.status.console',
-            title: 'Console Log',
-            checked: isUtilityCanvasVisible('__log__'),
-        },
-        {
-            id: 'sigil.status.surface_inspector',
-            title: 'Surface Inspector',
-            checked: isUtilityCanvasVisible('surface-inspector'),
-        },
-        {
-            id: 'sigil.status.annotation_mode',
-            title: 'Annotation Mode',
-            checked: isUtilityCanvasVisible('surface-inspector') && !!annotationReticle.active,
-        },
-        { type: 'separator' },
-        {
-            id: 'sigil.status.reload',
-            title: 'Reload',
-            key_equivalent: 'r',
-        },
-        {
-            id: 'sigil.status.remove',
-            title: 'Remove',
-        },
-        { type: 'separator' },
-        {
-            id: 'aos.app.quit',
-            title: 'Quit AOS',
-        },
-    ]);
+    host.setStatusMenuItems(buildSigilStatusMenuItems({
+        operatorAnnotationItems: operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu),
+        voiceResponseItems: voiceRuntime.responseBackendMenuItems(),
+        isUtilityCanvasVisible,
+        annotationReticleActive: annotationReticle.active,
+    }));
 }
 
 async function reloadFromStatusMenu() {
@@ -1212,7 +1185,7 @@ async function reloadFromStatusMenu() {
 
 async function handleStatusMenuAction(msg = {}) {
     if (!isPrimarySurfaceSegment()) return true;
-    const id = String(msg.id || msg.action_id || '').trim();
+    const id = normalizeStatusMenuActionId(msg);
     if (!id) return false;
     const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
     if (operatorRoute.handled) return true;
@@ -1221,44 +1194,34 @@ async function handleStatusMenuAction(msg = {}) {
         publishStatusMenuItems();
         return true;
     }
-    if (id === 'sigil.status.console') {
-        await toggleUtilityCanvas('log-console');
-        return true;
-    }
-    if (id === 'sigil.status.surface_inspector') {
-        await toggleUtilityCanvas('surface-inspector');
-        return true;
-    }
-    if (id === 'sigil.status.annotation_mode') {
-        await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
-        host.post('canvas.send', {
-            target: 'surface-inspector',
-            message: {
-                type: 'canvas_inspector.annotation_toggle',
-                reason: 'status_item_menu',
-            },
-        });
-        publishStatusMenuItems();
-        return true;
-    }
-    if (id === 'sigil.status.reload') {
-        void reloadFromStatusMenu();
-        return true;
-    }
-    if (id === 'sigil.status.remove') {
-        await Promise.allSettled([
-            hitTarget.remove(),
-            radialTargetSurface.remove(),
-            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
-        ]);
-        host.post('canvas.remove', { id: 'avatar-main' });
-        return true;
-    }
-    if (id === 'aos.app.quit') {
-        await host.aosAction({ action: 'app.quit', source: 'status_item_menu' });
-        return true;
-    }
-    return false;
+    const statusRoute = await routeSigilStatusMenuAction(id, {
+        onConsole: () => toggleUtilityCanvas('log-console'),
+        onSurfaceInspector: () => toggleUtilityCanvas('surface-inspector'),
+        async onAnnotationMode() {
+            await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
+            host.post('canvas.send', {
+                target: 'surface-inspector',
+                message: {
+                    type: 'canvas_inspector.annotation_toggle',
+                    reason: 'status_item_menu',
+                },
+            });
+            publishStatusMenuItems();
+        },
+        onReload() {
+            void reloadFromStatusMenu();
+        },
+        async onRemove() {
+            await Promise.allSettled([
+                hitTarget.remove(),
+                radialTargetSurface.remove(),
+                host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+            ]);
+            host.post('canvas.remove', { id: 'avatar-main' });
+        },
+        onQuit: () => host.aosAction({ action: 'app.quit', source: 'status_item_menu' }),
+    });
+    return statusRoute.handled;
 }
 
 function finiteOrNull(value) {
