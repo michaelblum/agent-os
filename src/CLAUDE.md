@@ -65,9 +65,9 @@ In this repo, invoke the CLI as `./aos`, not `aos`.
 Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will work:
 
 ```bash
-./aos permissions setup --once   # One-time Accessibility, Screen Recording, and Input Monitoring flow
+./aos permissions setup --once   # One-time Accessibility, Screen Recording, Input Monitoring, and Microphone flow
 ./aos ready                      # Primary readiness gate
-./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring
+./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring/Microphone
 ./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
 ./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed

@@ -2370,12 +2370,14 @@ Consumers:
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
   The top-level `permissions` object is the CLI-side view and includes
-  `accessibility`, `screen_recording`, `listen_access`, and `post_access`.
+  `accessibility`, `screen_recording`, `listen_access`, `post_access`, and
+  `microphone`. Microphone gates voice dictation / local STT capture and is not
+  mirrored in the daemon-side view.
   The daemon-side Accessibility and Input Monitoring view remains under
   `daemon_view` / `runtime.input_tap`; daemon Screen Recording is not reported.
 - `aos permissions setup --once` checks the full CLI permission set
   (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
-  post). If the CLI grant is present but the daemon reports stale or missing
+  post, Microphone). If the CLI grant is present but the daemon reports stale or missing
   daemon-owned grants, setup returns degraded with the same reset-runtime
   guidance instead of silently declaring onboarding complete.
 - The permissions onboarding marker is mode-scoped and proves the operator has

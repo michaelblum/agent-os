@@ -26,6 +26,12 @@ export function permissionRequirements(permissions) {
       required_for: ['synthetic events', 'mouse/keyboard actions', 'AX element actions'],
       setup_trigger: 'CGRequestPostEventAccess prompt',
     },
+    {
+      id: 'microphone',
+      granted: Boolean(permissions.microphone),
+      required_for: ['voice dictation', 'local STT capture'],
+      setup_trigger: 'AVCaptureDevice.requestAccess(for:.audio) prompt',
+    },
   ];
 }
 
@@ -61,6 +67,7 @@ export function missingPermissionIDsFor(daemon, cli) {
   if (!cli.screen_recording) missing.push('screen_recording');
   if (!listen) missing.push('listen_access');
   if (!post) missing.push('post_access');
+  if (!cli.microphone) missing.push('microphone');
   return missing;
 }
 
@@ -86,6 +93,7 @@ export function passiveLiveViewsFor(daemon, cli) {
       screen_recording: Boolean(cli.screen_recording),
       listen_access: Boolean(cli.listen_access),
       post_access: Boolean(cli.post_access),
+      microphone: Boolean(cli.microphone),
     },
     daemon_live: daemon ? {
       accessibility: daemon.permissions.accessibility,
@@ -206,6 +214,7 @@ export function permissionPanel(id) {
   if (id === 'accessibility') return 'Accessibility';
   if (id === 'screen_recording') return 'Screen Recording';
   if (id === 'listen_access' || id === 'post_access' || id === 'input_monitoring_listen' || id === 'input_monitoring_post') return 'Input Monitoring';
+  if (id === 'microphone') return 'Microphone';
   return id;
 }
 
@@ -364,6 +373,18 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       target_path: currentPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
       blocks: ['see'],
+    });
+  }
+
+  if (!permissions.microphone) {
+    blockers.push({
+      kind: 'permission',
+      id: 'microphone',
+      scope: 'cli',
+      message: 'CLI lacks Microphone permission for voice dictation.',
+      target_path: currentPath,
+      settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+      blocks: ['listen'],
     });
   }
 
@@ -606,6 +627,7 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (!permissions.accessibility) notes.push('Accessibility permission is not granted (CLI view).');
   if (daemon?.permissions.accessibility === false) notes.push('Accessibility permission is not granted (daemon view).');
   if (!permissions.screen_recording) notes.push('Screen Recording permission is not granted.');
+  if (!permissions.microphone) notes.push('Microphone permission is not granted.');
   if (!setup.setup_completed && setup.recommended_command) notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
   if (cleanReport?.stale_daemons?.length) {
     notes.push(`Stale daemon cleanup required before readiness: ${cleanReport.stale_daemons.map((item) => item.pid).join(', ')}. Run '${prefix} clean'.`);
@@ -659,6 +681,7 @@ export function permissionCheckNotes(cli, setup, daemon, mode) {
   if (!cli.screen_recording) notes.push('Screen Recording permission is not granted.');
   if (!cli.listen_access) notes.push('Input Monitoring listen access is not granted (CLI view).');
   if (!cli.post_access) notes.push('Input Monitoring post access is not granted (CLI view).');
+  if (!cli.microphone) notes.push('Microphone permission is not granted.');
   if (!setup.marker_exists) {
     notes.push('Permission onboarding has not been completed for this runtime identity.');
   } else if (!setup.bundle_matches_current && !setup.setup_completed) {
@@ -689,6 +712,9 @@ export function permissionRecoveryNotes(missing, mode, prefix = invocationName()
   if (missing.includes('listen_access') || missing.includes('post_access')) {
     notes.push('Daemon-owned Input Monitoring permission is stale or missing.');
   }
+  if (missing.includes('microphone')) {
+    notes.push('Microphone permission is still not granted.');
+  }
   notes.push(`Run '${prefix} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
   notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --post-permission'.`);
   return notes;
@@ -699,6 +725,7 @@ export const SETUP_PROMPT_ORDER = [
   ['screen_recording', 'screen-recording'],
   ['listen_access', 'listen-event'],
   ['post_access', 'post-event'],
+  ['microphone', 'microphone'],
 ];
 
 export function planPermissionSetup({ initialPermissions, initialSetup, initialMissing, once = false, mode = 'repo', prefix = invocationName() }) {
@@ -712,7 +739,8 @@ export function planPermissionSetup({ initialPermissions, initialSetup, initialM
   const allCLIGranted = initialPermissions.accessibility
     && initialPermissions.screen_recording
     && initialPermissions.listen_access
-    && initialPermissions.post_access;
+    && initialPermissions.post_access
+    && initialPermissions.microphone;
 
   if (once && allCLIGranted && initialMissing.length === 0) {
     return { branch: 'record_marker_without_prompts', status: 'ok', completed: true, promptOrder: [], writeMarker: true, restartServices: true, notes: [] };
