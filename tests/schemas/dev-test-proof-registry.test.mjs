@@ -164,6 +164,24 @@ test('proof-worth evaluator treats toolkit component launchers as guarded proof 
   assert.match(result.guarded[0].guard, /not part of broad default loops/);
 });
 
+test('proof-worth evaluator treats real-input surface helper as guarded proof asset', async () => {
+  const registry = await loadJson(canonicalPath);
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/lib/real-input-surface-harness.sh'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.equal(result.assets.length, 1, result);
+  assert.equal(result.assets[0].kind, 'helper', result);
+  assert.equal(result.assets[0].coverage, 'guarded', result);
+  assert.equal(result.commands.length, 0, result);
+  assert.equal(result.guarded[0].entry, 'real-input-surface-harness-helper');
+  assert.match(result.guarded[0].guard, /real-input approval/);
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [

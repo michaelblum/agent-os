@@ -494,6 +494,22 @@
       "status": "manual_only"
     },
     {
+      "id": "real-input-surface-harness-helper",
+      "path_patterns": [
+        "tests/lib/real-input-surface-harness.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "real_input",
+      "proof_kind": "real_input_harness_helper",
+      "contract": "Real-input surface scenarios use one guarded helper for readiness, canvas existence, cleanup, and input preflight.",
+      "worth": "This keeps shared real-input sleeps and readiness polling isolated behind a named helper instead of spreading them through broad default tests.",
+      "command": "AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh",
+      "replaces": [],
+      "guard": "requires explicit real-input approval, idle mouse and keyboard, active repo daemon readiness, and harness lock availability",
+      "status": "manual_only"
+    },
+    {
       "id": "sigil-radial-real-input-proof",
       "path_patterns": [
         "tests/scenarios/sigil/radial-menu/real-input.sh"
