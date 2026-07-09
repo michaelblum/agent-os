@@ -348,6 +348,56 @@
       "status": "active"
     },
     {
+      "id": "skills-command-proof",
+      "path_patterns": [
+        "tests/aos-skills-command.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "skills",
+      "harness_level": "model_unit",
+      "proof_kind": "skills_command_contract",
+      "contract": "Skills list, check, install, dry-run, repair, and idempotent temp-target flows preserve managed install state.",
+      "worth": "This prevents root skill installation changes from mutating real user skill trees or losing stale/partial install safeguards.",
+      "command": "node --test tests/aos-skills-command.test.mjs",
+      "replaces": [],
+      "guard": "uses temporary path targets with daemon autostart disabled",
+      "status": "active"
+    },
+    {
+      "id": "skills-companion-proof",
+      "path_patterns": [
+        "tests/aos-skills-companion.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "skills",
+      "harness_level": "model_unit",
+      "proof_kind": "companion_skill_contract",
+      "contract": "Playwright CLI companion checks distinguish missing, outdated, candidate, installed, and installable companion skill states.",
+      "worth": "This keeps AOS installable skills from vendoring or misclassifying upstream Playwright CLI companion skills.",
+      "command": "node --test tests/aos-skills-companion.test.mjs",
+      "replaces": [],
+      "guard": "uses fake Playwright CLI binaries and temporary path targets",
+      "status": "active"
+    },
+    {
+      "id": "skills-forward-proof",
+      "path_patterns": [
+        "tests/aos-skills-forward-proof.test.mjs"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json"
+      ],
+      "owner": "skills",
+      "harness_level": "model_unit",
+      "proof_kind": "cold_agent_forward_proof",
+      "contract": "The cold-agent forward proof preserves required installable skill scenarios, direct AOS commands, and AOS versus Playwright boundaries.",
+      "worth": "This proves the desktop skill pack guides fresh agents through current command surfaces without wrappers, retired skills, or live UI mutation.",
+      "command": "node --test tests/aos-skills-forward-proof.test.mjs",
+      "replaces": [],
+      "guard": "offline fixture; temp install target model only",
+      "status": "active"
+    },
+    {
       "id": "skills-efficacy-eval-test",
       "path_patterns": [
         "tests/aos-skills-eval.test.mjs"

@@ -200,6 +200,28 @@ test('proof-worth evaluator routes skills efficacy fixture through test and CLI 
   ]);
 });
 
+test('proof-worth evaluator routes root skills command and forward proofs', async () => {
+  const registry = await loadJson(canonicalPath);
+  const result = evaluateProofWorth({
+    changedFiles: [
+      'tests/aos-skills-command.test.mjs',
+      'tests/aos-skills-companion.test.mjs',
+      'tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json',
+    ],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/aos-skills-command.test.mjs',
+    'node --test tests/aos-skills-companion.test.mjs',
+    'node --test tests/aos-skills-forward-proof.test.mjs',
+  ]);
+  assert.ok(result.guarded.some((item) => item.entry === 'cross-backend-saved-ref-manual-proof'));
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [
