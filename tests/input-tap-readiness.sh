@@ -81,6 +81,10 @@ assert isinstance(tap, dict), f"runtime.input_tap missing: {d}"
 assert tap.get("status") == "retrying", f"runtime.input_tap.status: {tap}"
 assert tap.get("listen_access") is False, f"listen_access: {tap}"
 assert tap.get("post_access") is False, f"post_access: {tap}"
+verdict = d.get("runtime_verdict") or {}
+stale = verdict.get("tcc_staleness") or {}
+assert stale.get("id") == "post_rebuild_tcc_stale", d
+assert stale.get("daemon_live", {}).get("listen_access") is False, stale
 
 notes = d.get("notes", [])
 joined = "\n".join(notes)
@@ -141,11 +145,18 @@ target = sys.argv[1]
 assert d.get("ready") is False, d
 assert d.get("phase") == "human_required", d
 assert d.get("diagnosis") == "daemon_tcc_grant_stale_or_missing", d
+stale = d.get("tcc_staleness") or {}
+assert stale.get("id") == "post_rebuild_tcc_stale", d
+assert stale.get("cli_passive", {}).get("listen_access") is True, stale
+assert stale.get("daemon_live", {}).get("listen_access") is False, stale
+assert "passive checks pass" in stale.get("reason", ""), stale
+assert stale.get("binary_identity", {}).get("path") == target, stale
 actions = d.get("next_actions", [])
 commands = [a.get("command", "") for a in actions]
 assert "./aos permissions reset-runtime --mode repo" in commands, actions
 assert "./aos permissions setup --once" in commands, actions
 assert "./aos ready --post-permission" in commands, actions
+assert any(a.get("type") == "manual_tcc_reset" and a.get("reason") == "post_rebuild_tcc_stale" for a in actions), actions
 reset_index = commands.index("./aos permissions reset-runtime --mode repo")
 setup_index = commands.index("./aos permissions setup --once")
 post_index = commands.index("./aos ready --post-permission")

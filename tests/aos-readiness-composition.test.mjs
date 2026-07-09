@@ -73,6 +73,15 @@ function facts(overrides = {}) {
     daemon: overrides.daemon === null ? null : daemon(overrides.daemon ?? {}),
     permissions: permissions(overrides.permissions),
     setup: setup(overrides.setup),
+    binary_identity: {
+      path: '/repo/aos',
+      exists: true,
+      mtime: '2026-07-09T01:36:00Z',
+      mtime_ms: 1783557360000,
+      size_bytes: 123456,
+      cdhash: 'abc123def456',
+      ...overrides.binary_identity,
+    },
     cleanReport: {
       status: 'clean',
       stale_daemons: [],
@@ -115,6 +124,49 @@ test('daemon accessibility false overrides granted CLI accessibility as stale da
   assert.deepEqual(disagreementFor(current.daemon, current.permissions), {
     accessibility: { cli: true, daemon: false },
   });
+});
+
+test('passive-green live-fail daemon input monitoring names post-rebuild stale TCC and remedy', () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'human_required');
+  assert.equal(verdict.diagnosis, 'daemon_tcc_grant_stale_or_missing');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.tcc_staleness.reason.includes('stale registration for a previous aos binary'), true);
+  assert.deepEqual(verdict.tcc_staleness.stale_fields, ['listen_access']);
+  assert.deepEqual(verdict.tcc_staleness.cli_passive, {
+    accessibility: true,
+    screen_recording: true,
+    listen_access: true,
+    post_access: true,
+  });
+  assert.equal(verdict.tcc_staleness.daemon_live.listen_access, false);
+  assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
+  assert.equal(verdict.tcc_staleness.binary_identity.cdhash, 'abc123def456');
+  assert.deepEqual(verdict.tcc_staleness.remedy.commands, [
+    './aos permissions reset-runtime --mode repo',
+    './aos permissions setup --once',
+    './aos ready --post-permission',
+    './aos ready',
+  ]);
+  assert.equal(
+    verdict.next_actions.some((action) => action.type === 'manual_tcc_reset' && action.reason === 'post_rebuild_tcc_stale'),
+    true,
+  );
+  assert.equal(
+    verdict.notes.some((note) => note.includes('passive checks pass, but live privileged access fails after a rebuild')),
+    true,
+  );
 });
 
 test('legacy daemon health without access fields falls back to CLI permission view', () => {

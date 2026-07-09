@@ -2384,6 +2384,14 @@ Consumers:
   `runtime_verdict` as the shared readiness/action-plan contract:
   `ready`, `phase`, `diagnosis`, `blockers`, `blocked_capabilities`, `notes`,
   `next_actions`, `ownership`, and `cleanup`.
+- When passive CLI permission checks are granted but the live daemon view
+  reports denied Accessibility or Input Monitoring after a rebuild,
+  `runtime_verdict.tcc_staleness` names the condition as
+  `post_rebuild_tcc_stale`, includes side-by-side `cli_passive` and
+  `daemon_live` booleans, includes the current runtime binary identity
+  (`path`, `mtime`, `cdhash` when available), and carries the manual reset
+  remedy. `aos ready --json` also exposes the same object at top-level
+  `tcc_staleness` for front-door agents.
 - When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
   `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
   The process command line is either present as `command_line` or explicitly

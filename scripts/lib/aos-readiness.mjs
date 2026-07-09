@@ -79,6 +79,62 @@ export function disagreementFor(daemon, cli) {
   return Object.keys(disagreement).length ? disagreement : undefined;
 }
 
+export function passiveLiveViewsFor(daemon, cli) {
+  return {
+    cli_passive: {
+      accessibility: Boolean(cli.accessibility),
+      screen_recording: Boolean(cli.screen_recording),
+      listen_access: Boolean(cli.listen_access),
+      post_access: Boolean(cli.post_access),
+    },
+    daemon_live: daemon ? {
+      accessibility: daemon.permissions.accessibility,
+      listen_access: daemon.inputTap.listenAccess,
+      post_access: daemon.inputTap.postAccess,
+      input_tap_status: daemon.inputTap.status,
+      input_tap_attempts: daemon.inputTap.attempts,
+    } : undefined,
+  };
+}
+
+export function postRebuildTccStalenessFor(facts, mode, prefix = invocationName()) {
+  const disagreement = disagreementFor(facts.daemon, facts.permissions);
+  if (!disagreement) return undefined;
+  const staleFields = Object.entries(disagreement)
+    .filter(([, value]) => value.cli === true && value.daemon === false)
+    .map(([field]) => field);
+  if (!staleFields.length) return undefined;
+  const targetPath = facts.binary_identity?.path ?? expectedBinaryPath(mode);
+  return {
+    id: 'post_rebuild_tcc_stale',
+    diagnosis: 'daemon_tcc_grant_stale_or_missing',
+    reason: 'TCC has a stale registration for a previous aos binary; passive checks pass, but live privileged access fails after a rebuild.',
+    stale_fields: staleFields,
+    ...passiveLiveViewsFor(facts.daemon, facts.permissions),
+    disagreement,
+    binary_identity: {
+      path: targetPath,
+      exists: facts.binary_identity?.exists,
+      mtime: facts.binary_identity?.mtime,
+      mtime_ms: facts.binary_identity?.mtime_ms,
+      size_bytes: facts.binary_identity?.size_bytes,
+      cdhash: facts.binary_identity?.cdhash,
+    },
+    remedy: {
+      type: 'manual_tcc_reset',
+      summary: 'Stop the turn, ask the user to reset/regrant macOS TCC permissions for the rebuilt aos binary, then continue with the post-permission readiness check.',
+      commands: [
+        `${prefix} permissions reset-runtime --mode ${mode}`,
+        `${prefix} permissions setup --once`,
+        `${prefix} ready --post-permission`,
+        `${prefix} ready`,
+      ],
+      human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security if reset-runtime reports targeted reset unavailable or the grant remains stale.',
+      target_path: targetPath,
+    },
+  };
+}
+
 export function inputTapRecoveryGuidance(status, attempts) {
   return [
     `Input tap is not active (status=${status}, attempts=${attempts}).`,
@@ -278,6 +334,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'accessibility',
       scope: 'daemon',
+      reason: permissions.accessibility ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Accessibility'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
@@ -313,6 +370,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'input_monitoring_listen',
       scope: 'daemon',
+      reason: permissions.listen_access ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Input Monitoring listen access'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
@@ -325,6 +383,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'input_monitoring_post',
       scope: 'daemon',
+      reason: permissions.post_access ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Input Monitoring post access'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
@@ -414,6 +473,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
   const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
+  const hasPostRebuildTccStale = blockers.some((b) => b.reason === 'post_rebuild_tcc_stale');
 
   if (hasPermissionBlocker) {
     appendAction(actions, seen, {
@@ -431,6 +491,13 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
       label: 'bounded handoff check after permissions have been granted',
       command: `${prefix} ready --post-permission`,
     });
+    if (hasPostRebuildTccStale) {
+      appendAction(actions, seen, {
+        type: 'manual_tcc_reset',
+        label: 'stop the turn and ask the user to reset/regrant macOS TCC permissions for the rebuilt aos binary',
+        reason: 'post_rebuild_tcc_stale',
+      });
+    }
   }
 
   if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker) {
@@ -477,8 +544,12 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   return actions;
 }
 
-export function readyNotes({ runtime, daemon, permissions, setup, cleanReport }, mode, prefix = invocationName()) {
+export function readyNotes({ runtime, daemon, permissions, setup, cleanReport }, mode, prefix = invocationName(), tccStaleness = undefined) {
   const notes = [];
+  if (tccStaleness) {
+    notes.push(tccStaleness.reason);
+    notes.push(tccStaleness.remedy.summary);
+  }
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
   else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
   if (runtime.ownership_state === 'mismatch') {
@@ -521,6 +592,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   const blockers = readyBlockers(facts, mode);
   const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
   const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
+  const tccStaleness = postRebuildTccStalenessFor(facts, mode, prefix);
   return {
     ready,
     status: ready ? 'ok' : 'degraded',
@@ -530,7 +602,8 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
     ready_for_testing: evaluation.readyForTesting,
     blockers,
     blocked_capabilities: blockedCapabilities,
-    notes: readyNotes(facts, mode, prefix),
+    tcc_staleness: tccStaleness,
+    notes: readyNotes(facts, mode, prefix, tccStaleness),
     next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
     ownership: {
       state: facts.runtime.ownership_state,

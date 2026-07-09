@@ -1,5 +1,6 @@
 import {
   aosPath,
+  binaryFileIdentity,
   binaryTimestamp,
   compactProcessDetail,
   currentMode,
@@ -161,6 +162,7 @@ export function brokerFacts({
     }
   }
   const runtime = includeRuntime ? enrichRuntimeOwnership(parse(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts')) : undefined;
+  const runtimeIdentity = identity(runtime ?? { mode: currentMode() }, permissionsFacts);
   return {
     permissionsFacts,
     permissions: permissionsFacts.permissions ?? {},
@@ -168,6 +170,8 @@ export function brokerFacts({
     daemonHealth,
     daemon: daemonView(daemonHealth),
     runtime,
+    identity: runtimeIdentity,
+    binary_identity: binaryFileIdentity(runtimeIdentity.executable_path),
     cleanReport: includeClean ? cleanReport() : undefined,
   };
 }

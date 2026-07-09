@@ -53,6 +53,7 @@ function buildReadyResponse(startup, actionTrace, mode, prefix) {
     startup,
     runtime: facts.runtime,
     runtime_verdict: verdict,
+    tcc_staleness: verdict.tcc_staleness,
     permissions: facts.permissions,
     permissions_setup: facts.setup,
     blocked_capabilities: verdict.blocked_capabilities,
