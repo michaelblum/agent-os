@@ -110,57 +110,78 @@ func sayCommand(args: [String]) {
                   code: "MISSING_ARG")
     }
 
+    let store = VoicePolicyStore()
+    let registry = VoiceRegistry(policyLoader: { store.load() })
+
     var reportedVoiceID = voiceID ?? SpeechEngine.defaultVoiceID
+    var nonSystemVoiceID: String?
     if let rawSlot = voiceSlot {
         voiceFilter.quality_tiers = qualityTiers
-        let resolved = resolveSayVoiceSlot(rawSlot, matching: voiceFilter)
+        let resolved = resolveSayVoiceSlot(rawSlot, matching: voiceFilter, registry: registry)
         voiceID = resolved.engineVoiceID
         reportedVoiceID = resolved.reportedVoiceID
+        nonSystemVoiceID = resolved.nonSystemVoiceID
+    } else if let rawVoiceID = voiceID {
+        let resolved = resolveExplicitSayVoice(rawVoiceID, registry: registry)
+        voiceID = resolved.engineVoiceID
+        reportedVoiceID = resolved.reportedVoiceID
+        nonSystemVoiceID = resolved.nonSystemVoiceID
     }
 
-    // Initialize NSApplication (needed for NSSpeechSynthesizer and global event monitor)
-    _ = NSApplication.shared
+    let skipSpeech = ProcessInfo.processInfo.environment["AOS_SAY_TEST_SKIP_SPEECH"] == "1"
+    if let nonSystemVoiceID {
+        do {
+            _ = try registry.speak(text: text, voiceID: nonSystemVoiceID, rate: rate, skipAudio: skipSpeech)
+        } catch let error as VoiceSpeakError {
+            exitError(error.message, code: error.code)
+        } catch {
+            exitError("voice provider failed: \(error.localizedDescription)", code: "VOICE_PROVIDER_ERROR")
+        }
+    } else {
+        // Initialize NSApplication (needed for NSSpeechSynthesizer and global event monitor)
+        _ = NSApplication.shared
 
-    // Create engine with configured voice
-    let engine = SpeechEngine(voice: voiceID)
-    if let r = rate { engine.setRate(r) }
+        // Create engine with configured voice
+        let engine = SpeechEngine(voice: voiceID)
+        if let r = rate { engine.setRate(r) }
 
-    // Hotkey: cancel speech (default: ESC = keyCode 53) via CGEvent tap
-    let cancelKey = effectiveSpeechCancelKeyCode(config: config)
-    let engineRef = Unmanaged.passUnretained(engine).toOpaque()
-    let tap = cancelKey.flatMap { cancelKey in
-        CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .listenOnly,
-            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
-            callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
-                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
-                let eng = Unmanaged<SpeechEngine>.fromOpaque(refcon).takeUnretainedValue()
-                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-                if let activeKey = effectiveSpeechCancelKeyCode(config: loadConfig()),
-                   keyCode == activeKey {
-                    eng.stop()
-                }
-                return Unmanaged.passUnretained(event)
-            },
-            userInfo: engineRef
-        )
+        // Hotkey: cancel speech (default: ESC = keyCode 53) via CGEvent tap
+        let cancelKey = skipSpeech ? nil : effectiveSpeechCancelKeyCode(config: config)
+        let engineRef = Unmanaged.passUnretained(engine).toOpaque()
+        let tap = cancelKey.flatMap { cancelKey in
+            CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .listenOnly,
+                eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+                callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
+                    guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
+                    let eng = Unmanaged<SpeechEngine>.fromOpaque(refcon).takeUnretainedValue()
+                    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                    if let activeKey = effectiveSpeechCancelKeyCode(config: loadConfig()),
+                       keyCode == activeKey {
+                        eng.stop()
+                    }
+                    return Unmanaged.passUnretained(event)
+                },
+                userInfo: engineRef
+            )
+        }
+        var tapSource: CFRunLoopSource?
+        if let tap = tap {
+            tapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), tapSource, .defaultMode)
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+
+        // Speak and wait
+        if !skipSpeech {
+            engine.speakAndWait(text)
+        }
+
+        if let tap = tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let s = tapSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), s, .defaultMode) }
     }
-    var tapSource: CFRunLoopSource?
-    if let tap = tap {
-        tapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), tapSource, .defaultMode)
-        CGEvent.tapEnable(tap: tap, enable: true)
-    }
-
-    // Speak and wait
-    if ProcessInfo.processInfo.environment["AOS_SAY_TEST_SKIP_SPEECH"] != "1" {
-        engine.speakAndWait(text)
-    }
-
-    if let tap = tap { CGEvent.tapEnable(tap: tap, enable: false) }
-    if let s = tapSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), s, .defaultMode) }
 
     // Output confirmation
     let response: [String: Any] = [
@@ -175,13 +196,34 @@ func sayCommand(args: [String]) {
     }
 }
 
-private func resolveSayVoiceSlot(_ rawSlot: String, matching filter: VoiceFilter) -> (engineVoiceID: String?, reportedVoiceID: String) {
+private func resolveExplicitSayVoice(_ rawVoiceID: String, registry: VoiceRegistry) -> (engineVoiceID: String?, reportedVoiceID: String, nonSystemVoiceID: String?) {
+    let canonical = VoiceID.canonicalize(rawVoiceID)
+    guard let parsed = VoiceID.parse(canonical) else {
+        return (rawVoiceID, rawVoiceID, nil)
+    }
+    if parsed.provider == "system" {
+        return (parsed.providerVoiceID, rawVoiceID.hasPrefix(VoiceID.prefix) ? canonical : rawVoiceID, nil)
+    }
+    guard let record = registry.lookup(canonical) else {
+        exitError("voice not found in registry: \(canonical)", code: "VOICE_NOT_FOUND")
+    }
+    guard record.capabilities.speak_supported else {
+        exitError("voice cannot synthesize in this version: \(canonical)", code: "VOICE_NOT_SPEAKABLE")
+    }
+    guard record.availability.enabled else {
+        exitError("voice is disabled by policy: \(canonical)", code: "VOICE_NOT_ALLOCATABLE")
+    }
+    guard record.availability.installed && record.availability.reachable else {
+        exitError("voice provider is unavailable for \(canonical)", code: "VOICE_PROVIDER_UNAVAILABLE")
+    }
+    return (nil, record.id, record.id)
+}
+
+private func resolveSayVoiceSlot(_ rawSlot: String, matching filter: VoiceFilter, registry: VoiceRegistry) -> (engineVoiceID: String?, reportedVoiceID: String, nonSystemVoiceID: String?) {
     guard let slot = Int(rawSlot), slot > 0 else {
         exitError("say --voice-slot must be a positive 1-based integer, got \(rawSlot)", code: "INVALID_VOICE_SLOT")
     }
 
-    let store = VoicePolicyStore()
-    let registry = VoiceRegistry(policyLoader: { store.load() })
     let voices = filter.isEmpty ? registry.allocatableSnapshot() : registry.allocatableSnapshot(matching: filter)
     if voices.isEmpty {
         exitError("say --voice-slot \(slot) found no speakable voices after filters\(sayFilterDescription(filter))", code: "VOICE_FILTER_EMPTY")
@@ -192,9 +234,9 @@ private func resolveSayVoiceSlot(_ rawSlot: String, matching filter: VoiceFilter
 
     let record = voices[slot - 1]
     if record.provider == "system" {
-        return (record.provider_voice_id, record.id)
+        return (record.provider_voice_id, record.id, nil)
     }
-    return (record.provider_voice_id, record.id)
+    return (nil, record.id, record.id)
 }
 
 private func parseSayQualityTiers(_ value: String) -> [String] {
