@@ -1519,6 +1519,8 @@ test('Surface Inspector semantic target refresh requests existing live canvases 
 test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry points', () => {
   const statusItem = readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8');
   const sigilMain = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8');
+  const sigilStatusMenu = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/status-menu.js'), 'utf8');
+  const sigilStatusMenuRuntime = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/status-menu-runtime.js'), 'utf8');
   const daemonBundle = readFileSync(path.join(repoRoot, 'src/daemon/surface-inspector-bundle.swift'), 'utf8');
   const unified = readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8');
 
@@ -1526,10 +1528,10 @@ test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry poi
   assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Surface Inspector"/);
   assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Annotation Mode"/);
   assert.doesNotMatch(statusItem, /menuCanvasInspectorAnnotateMode/);
-  assert.match(sigilMain, /title: 'Surface Inspector'/);
-  assert.match(sigilMain, /title: 'Annotation Mode'/);
+  assert.match(sigilStatusMenu, /title: 'Surface Inspector'/);
+  assert.match(sigilStatusMenu, /title: 'Annotation Mode'/);
   assert.match(sigilMain, /status_item\.menu_action/);
-  assert.match(sigilMain, /canvas_inspector\.annotation_toggle/);
+  assert.match(sigilStatusMenuRuntime, /canvas_inspector\.annotation_toggle/);
   assert.doesNotMatch(unified, /canvasInspectorAnnotationModeHandler/);
   assert.match(daemonBundle, /maybeHandleCanvasInspectorAnnotationHotkey/);
   assert.match(daemonBundle, /hotkeyDataMatches\(data, combo: "ctrl\+opt\+a"\)/);

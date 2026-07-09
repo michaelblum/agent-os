@@ -46,6 +46,14 @@ test('Sigil render-performance sampler skips hidden, invalid, and throttled fram
   )
 })
 
+test('Sigil render-performance sampler delegates sampling mechanics to toolkit', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/render-performance-telemetry.js', import.meta.url), 'utf8')
+
+  assert.match(source, /createRenderPerformanceSampler/)
+  assert.doesNotMatch(source, /let lastFrameAt/)
+  assert.doesNotMatch(source, /let lastSampleAt/)
+})
+
 test('Sigil render-performance sampler posts payloads and updates telemetry', () => {
   const liveState = createLiveState()
   const posts = []

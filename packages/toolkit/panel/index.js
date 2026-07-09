@@ -44,10 +44,12 @@ export {
   workAreaFromWindow,
 } from './chrome.js'
 export {
+  avoidAnchorPanelOverlap,
   chipFrameForPanelFrame,
   resizeFrameFromTopLeft,
   displayOwnerForTopLeft,
   normalizePanelDisplays,
+  rectOverlapArea,
   restoredPanelFrameForChip,
   workAreaForPoint,
 } from './placement.js'

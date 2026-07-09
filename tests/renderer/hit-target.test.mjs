@@ -29,6 +29,13 @@ test('Sigil hit target requests the above-menu window level', async () => {
   assert.match(calls[0].url, /id=sigil-hit-test/)
 })
 
+test('Sigil hit target delegates child surface mechanics to toolkit', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/hit-target.js', import.meta.url), 'utf8')
+
+  assert.match(source, /createSemanticChildTargetSurface/)
+  assert.doesNotMatch(source, /createDesktopWorldHitRegionController/)
+})
+
 test('Sigil hit target owner id prefers canvas id, surface canvas id, then avatar-main', async () => {
   const cases = [
     [{ __aosCanvasId: 'sigil-status-demo', __aosSurfaceCanvasId: 'sigil-surface-demo' }, 'sigil-status-demo'],

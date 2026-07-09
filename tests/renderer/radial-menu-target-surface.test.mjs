@@ -59,6 +59,13 @@ test('radial menu targets enforce AOS-sized hit surfaces', () => {
   })
 })
 
+test('radial menu target surface delegates child-surface mechanics to toolkit', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/radial-menu-target-surface.js', import.meta.url), 'utf8')
+
+  assert.match(source, /createSemanticChildTargetSurface/)
+  assert.doesNotMatch(source, /createDesktopWorldHitRegionController/)
+})
+
 test('radial menu surface keeps labels in AX attributes, not visible text', async () => {
   const html = await readFile(new URL('../../apps/sigil/renderer/radial-menu-surface.html', import.meta.url), 'utf8')
 
