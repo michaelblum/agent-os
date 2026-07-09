@@ -722,7 +722,10 @@ the lower-level `wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection)` and
 through the canonical descriptor API (`subjectFacets`, `subjectHosts`,
 `subjectContracts`, and `subjectReferences`) so graph selections open only when
 the selected Subject advertises the Markdown facet, Host, and contracts needed
-by the Markdown Workbench.
+by the Markdown Workbench. Hosts that already fetched wiki Markdown can call
+`createMarkdownOpenDocumentFromWikiPage({ path, content })` to build the
+canonical `markdown_document.open` message without copying that payload shape
+into an app surface.
 
 Wiki KB remains generic: it publishes selected wiki identity and a Workbench
 Subject descriptor. Markdown Workbench remains responsible for fetching,

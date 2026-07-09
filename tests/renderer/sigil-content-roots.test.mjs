@@ -66,10 +66,11 @@ test('Sigil toolkit specifier keeps local Node tests on filesystem imports', () 
 test('Sigil renderer routes wiki workbench through scoped toolkit resolver', async () => {
   const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
   const utilityConfigSource = await readFile(new URL('../../apps/sigil/renderer/live-modules/utility-canvas-config.js', import.meta.url), 'utf8')
+  const wikiRuntimeSource = await readFile(new URL('../../apps/sigil/renderer/live-modules/wiki-workbench-runtime.js', import.meta.url), 'utf8')
 
   assert.match(utilityConfigSource, /toolkitUrl\('components\/wiki-subject-browser\/index\.html'/)
   assert.doesNotMatch(utilityConfigSource, /WIKI_WORKBENCH_URL\s*=\s*['"]aos:\/\/toolkit\/components\/wiki-subject-browser\/index\.html/)
   assert.doesNotMatch(utilityConfigSource, /toolkitUrl\('components\/markdown-workbench\/index\.html'/)
   assert.match(source, /sigilUrl\('renderer\/hit-area\.html'\)/)
-  assert.match(source, /sendCanvasMessage\(WIKI_WORKBENCH_CANVAS_ID, message\)/)
+  assert.match(wikiRuntimeSource, /sendCanvasMessage\(targetCanvasId, message\)/)
 })

@@ -128,6 +128,7 @@ import {
     createSigilUtilityCanvasIdSet,
     utilityConfig as createUtilityConfig,
 } from './utility-canvas-config.js';
+import { createSigilWikiWorkbenchRuntime } from './wiki-workbench-runtime.js';
 import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
@@ -1395,30 +1396,6 @@ async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
     }
 }
 
-async function fetchWikiMarkdownDocument(path = WIKI_WORKBENCH_DEFAULT_PATH) {
-    const wikiPath = String(path || WIKI_WORKBENCH_DEFAULT_PATH).replace(/^\/+/, '');
-    const response = await fetch(`/wiki/${wikiPath}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`wiki fetch failed for ${wikiPath}: ${response.status}`);
-    const content = await response.text();
-    return {
-        type: 'markdown_document.open',
-        path: wikiPath,
-        source: {
-            kind: 'wiki',
-            path: wikiPath,
-            page: {
-                path: wikiPath,
-                frontmatter: {},
-            },
-        },
-        content,
-    };
-}
-
-function sendCanvasMessage(target, message) {
-    host.post('canvas.send', { target, message });
-}
-
 function sendActivationUpdate(activation, phase, extra = {}) {
     const update = advanceMenuActivation(activation, phase, extra);
     liveJs.lastRadialActivation = update;
@@ -1426,28 +1403,14 @@ function sendActivationUpdate(activation, phase, extra = {}) {
     return update;
 }
 
+const wikiWorkbenchRuntime = createSigilWikiWorkbenchRuntime({
+    ensureUtilityCanvasVisible,
+    post: (type, payload) => host.post(type, payload),
+    sendActivationUpdate,
+});
+
 async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation = null) {
-    let currentActivation = activation;
-    const canvas = await ensureUtilityCanvasVisible('wiki-workbench', { focus: true });
-    if (currentActivation) {
-        currentActivation = sendActivationUpdate(currentActivation, 'surface_transition', {
-            target_surface: currentActivation.target_surface,
-            result: {
-                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
-            },
-        });
-    }
-    const message = await fetchWikiMarkdownDocument(path);
-    sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
-    if (currentActivation) {
-        sendActivationUpdate(currentActivation, 'completed', {
-            result: {
-                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
-                subject: message.source,
-            },
-        });
-    }
-    return { canvas, message };
+    return wikiWorkbenchRuntime.open(path, activation);
 }
 
 function projectStageLocalToScene(localX, localY, yOffset = 0) {
