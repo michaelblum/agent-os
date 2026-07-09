@@ -67,6 +67,10 @@ import {
     selectionModeKeyName,
 } from './selection-mode-input.js';
 import {
+    createSigilVoiceDictationController,
+    isVoiceDictationEvent,
+} from './voice-dictation.js';
+import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
     buildSelectionModeSnapshotPayload,
@@ -233,6 +237,8 @@ const liveJs = {
     },
     activeContext: createDefaultActiveContextState(),
     contextRecording: createDefaultContextRecordingState(),
+    voiceDictation: null,
+    voiceDictationEvents: [],
     annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleBrowserDomBridge: null,
     annotationReticleEvents: [],
@@ -555,6 +561,25 @@ function recordInteraction(stage, data = {}) {
         avatarPos: liveJs.avatarPos,
     });
 }
+
+const voiceDictation = createSigilVoiceDictationController({
+    onChange(snapshot, transition) {
+        liveJs.voiceDictation = snapshot;
+        recordInteraction('voice-dictation', { transition });
+        if (!rendererSuspended) scheduleRenderFrame({ structural: false });
+    },
+    onVoiceEvent(event, transition) {
+        liveJs.voiceDictationEvents.push(event);
+        if (liveJs.voiceDictationEvents.length > 32) liveJs.voiceDictationEvents.shift();
+        liveJs.voiceDictation = voiceDictation.snapshot();
+        recordInteraction('voice-dictation:event', {
+            event: event.event,
+            data: event.data,
+            transition,
+        });
+    },
+});
+liveJs.voiceDictation = voiceDictation.snapshot();
 
 function runBootStep(stage, fn) {
     recordBoot(stage);
@@ -4123,23 +4148,25 @@ function handleInputEvent(msg) {
         rememberDaemonPointerEvent(msg);
     }
 
-        if (handleSelectionModeInput(msg)) return;
+    if (voiceDictation.handleInput(msg).handled) return;
 
-        if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
-            if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
-                cancelInteraction('escape');
-                return;
-            }
-            if (msg.type === 'right_mouse_down') {
-                cancelInteraction('right-click');
-                return;
-            }
+    if (handleSelectionModeInput(msg)) return;
+
+    if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+        if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
+            cancelInteraction('escape');
+            return;
         }
+        if (msg.type === 'right_mouse_down') {
+            cancelInteraction('right-click');
+            return;
+        }
+    }
 
-        if (
-            avatarControls.isOpen()
-            && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
-            && typeof msg.x === 'number'
+    if (
+        avatarControls.isOpen()
+        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
+        && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
@@ -4531,6 +4558,11 @@ function handleHostMessage(rawMsg) {
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
+    if (isVoiceDictationEvent(msg)) {
+        voiceDictation.handleVoiceEvent(msg);
+        return;
+    }
+
     if (msg.type === 'agent.session.telemetry' || msg.type === 'agent.session.lifecycle') {
         handleSessionTelemetryEnvelope(msg);
         return;
@@ -4830,6 +4862,10 @@ function startPrimarySurfaceServices() {
         'window_entered',
         'element_focused',
         'canvas_inspector.semantic_targets',
+        'wake_detected',
+        'dictation_opened',
+        'dictation_closed_send',
+        'dictation_closed_cancel',
     ], { snapshot: true });
     startMarkHeartbeat();
     emitRadialMenuObjectRegistry();
