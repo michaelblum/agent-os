@@ -91,6 +91,58 @@
       "status": "active"
     },
     {
+      "id": "dev-audit-contract",
+      "path_patterns": [
+        "tests/dev-audit.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "dev_grammar_contract",
+      "contract": "The dev grammar verifier reports evidence-backed pass and fail claims for manifest, help, and recommendation routing.",
+      "worth": "This keeps the hidden maintainer router self-auditing instead of trusting stale help or manifest assumptions.",
+      "command": "bash tests/dev-audit.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-situation-contract",
+      "path_patterns": [
+        "tests/dev-situation.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/dev-situation/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "orientation_packet_contract",
+      "contract": "The dev situation packet preserves sourced repo, GitHub, readiness, successor-note, and partial-failure state without synthesizing missing facts.",
+      "worth": "This protects the operator orientation surface agents use before choosing a workflow route.",
+      "command": "bash tests/dev-situation.sh",
+      "replaces": [],
+      "guard": "uses fake AOS and temporary Git repositories",
+      "status": "active"
+    },
+    {
+      "id": "dev-drift-lint-contract",
+      "path_patterns": [
+        "tests/dev-drift-lint.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/dev-drift-lint/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "docs_drift_contract",
+      "contract": "The durable-status tripwire distinguishes dated historical claims from unmarked standing lifecycle claims.",
+      "worth": "This prevents stale issue, stash, runtime, and role claims from becoming active instructions through docs drift.",
+      "command": "bash tests/dev-drift-lint.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
       "id": "command-manifest-generation-proof",
       "path_patterns": [
         "tests/command-manifest-generation.sh"
