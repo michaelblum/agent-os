@@ -83,26 +83,6 @@ else
     SWIFTC_FLAGS=(-parse-as-library -Onone -o "$OUTPUT_PATH" -lsqlite3)
 fi
 
-codesign_available() {
-    command -v codesign >/dev/null 2>&1
-}
-
-signature_valid() {
-    if ! codesign_available; then
-        return 0
-    fi
-    codesign --verify "$OUTPUT_PATH" >/dev/null 2>&1
-}
-
-sign_output() {
-    if codesign_available; then
-        if ! CODESIGN_OUTPUT="$(codesign --force --sign - --identifier com.agentos.repo-aos "$1" 2>&1)"; then
-            printf '%s\n' "$CODESIGN_OUTPUT" >&2
-            exit 1
-        fi
-    fi
-}
-
 play_rebuild_alert() {
     if [[ "${AOS_BUILD_REBUILD_ALERT:-1}" == "0" ]]; then
         return 0
@@ -163,7 +143,6 @@ if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
 fi
 CURRENT_FINGERPRINT="$(build_fingerprint)"
 NEEDS_BUILD=1
-NEEDS_SIGN=0
 BINARY_REBUILT=0
 
 if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
@@ -176,13 +155,10 @@ if [[ $FORCE_BUILD -eq 0 && -f "$OUTPUT_PATH" && -f "$MODE_FILE" ]]; then
             # the content fingerprint stamp.
             NEEDS_BUILD=0
         fi
-        if [[ $NEEDS_BUILD -eq 0 ]] && ! signature_valid; then
-            NEEDS_SIGN=1
-        fi
     fi
 fi
 
-if [[ $NEEDS_BUILD -eq 0 && $NEEDS_SIGN -eq 0 ]]; then
+if [[ $NEEDS_BUILD -eq 0 ]]; then
     printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
     echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
     exit 0
@@ -190,30 +166,12 @@ fi
 
 if [[ $NEEDS_BUILD -eq 1 ]]; then
     echo "Compiling aos ($BUILD_MODE)..."
-    TMP_OUTPUT="$(mktemp "$BUILD_DIR/aos.tmp.XXXXXX")"
-    cleanup_tmp_output() {
-        rm -f "$TMP_OUTPUT"
-    }
-    trap cleanup_tmp_output EXIT
-    TMP_SWIFTC_FLAGS=("${SWIFTC_FLAGS[@]}")
-    for i in "${!TMP_SWIFTC_FLAGS[@]}"; do
-        if [[ "${TMP_SWIFTC_FLAGS[$i]}" == "$OUTPUT_PATH" ]]; then
-            TMP_SWIFTC_FLAGS[$i]="$TMP_OUTPUT"
-        fi
-    done
-    swiftc "${TMP_SWIFTC_FLAGS[@]}" "${SWIFT_INPUTS[@]}"
-    sign_output "$TMP_OUTPUT"
-    "$TMP_OUTPUT" help --json >/dev/null
-    cp "$TMP_OUTPUT" "$OUTPUT_PATH"
-    sign_output "$OUTPUT_PATH"
-    rm -f "$TMP_OUTPUT"
-    trap - EXIT
+    # Repo-mode builds intentionally do not run codesign after swiftc.
+    # The local managed-machine development path depends on preserving this
+    # compile-only shape; packaged app signing belongs in scripts/sign-aos-runtime.
+    swiftc "${SWIFTC_FLAGS[@]}" "${SWIFT_INPUTS[@]}"
     BINARY_REBUILT=1
     echo "Rebuilt: ./aos"
-else
-    echo "Signing aos ($BUILD_MODE)..."
-    sign_output "$OUTPUT_PATH"
-    "$OUTPUT_PATH" help --json >/dev/null
 fi
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"

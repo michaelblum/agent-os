@@ -89,8 +89,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   Preserve structured missing, too-old, and probe-failure evidence instead of
   adding ad hoc PATH checks.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
-  binary rebuild from sign-only repair or no-op checks. Only actual rebuilds
-  should drive TCC-sensitive human-attention behavior. After a rebuild that
+  binary rebuild from no-op checks. Repo-mode builds must not post-sign the
+  local binary; packaged app signing belongs outside the repo-mode build path.
+  Only actual rebuilds should drive TCC-sensitive human-attention behavior. After a rebuild that
   emits `Rebuilt: ./aos`, stop before TCC-backed daemon, capture, input, or
   native proof and tell the user to manually reset/regrant the needed macOS TCC
   permissions for the rebuilt binary. Treat TCC-backed failures after a rebuild

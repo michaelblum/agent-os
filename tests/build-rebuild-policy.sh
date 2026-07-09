@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/aos-build-signing.XXXXXX")"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/aos-build-rebuild-policy.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 FAKE_REPO="$TMP/repo"
@@ -82,8 +82,15 @@ TOUCHED_OUT="$TMP/touched.out"
 CHANGED_OUT="$TMP/changed.out"
 
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
-if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG"; then
-    echo "FAIL: first build did not compile and sign" >&2
+# Scenario: first repo-mode build compiles, emits the rebuild/TCC handoff, and
+# does not run any post-build signing hook.
+if ! grep -qx 'swiftc' "$LOG"; then
+    echo "FAIL: first build did not compile" >&2
+    cat "$LOG" >&2
+    exit 1
+fi
+if grep -q '^codesign ' "$LOG"; then
+    echo "FAIL: repo-mode first build must not post-sign the binary" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -102,13 +109,8 @@ if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$F
     cat "$FIRST_OUT" >&2
     exit 1
 fi
-if ! grep -q -- '--identifier com.agentos.repo-aos' "$LOG"; then
-    echo "FAIL: build signing must use the repo-launchable identifier" >&2
-    cat "$LOG" >&2
-    exit 1
-fi
-if grep -q -- '--identifier aos\\>' "$LOG"; then
-    echo "FAIL: build signing must not force the launch-breaking bare aos identifier" >&2
+if grep -q -- '--identifier' "$LOG"; then
+    echo "FAIL: repo-mode build must not post-sign or force an explicit identifier" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -116,23 +118,15 @@ fi
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
-if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG" || grep -qx 'alert' "$LOG"; then
-    echo "FAIL: signature repair should sign without compiling" >&2
+# Scenario: legacy missing signature markers are irrelevant in repo mode. The
+# build remains a no-op instead of entering an obsolete signature repair path.
+if [[ -s "$LOG" ]]; then
+    echo "FAIL: missing signature marker must not trigger repo-mode post-sign or rebuild" >&2
     cat "$LOG" >&2
     exit 1
 fi
-if ! grep -q -- '--identifier com.agentos.repo-aos' "$LOG"; then
-    echo "FAIL: signature repair must use the repo-launchable identifier" >&2
-    cat "$LOG" >&2
-    exit 1
-fi
-if grep -q -- '--identifier aos\\>' "$LOG"; then
-    echo "FAIL: signature repair must not force the launch-breaking bare aos identifier" >&2
-    cat "$LOG" >&2
-    exit 1
-fi
-if ! grep -q '^Signing aos (dev)' "$REPAIR_OUT"; then
-    echo "FAIL: signature repair did not report sign-only path" >&2
+if ! grep -q '^Up to date: ./aos' "$REPAIR_OUT"; then
+    echo "FAIL: missing signature marker should still report up to date when runtime inputs are unchanged" >&2
     cat "$REPAIR_OUT" >&2
     exit 1
 fi
@@ -140,6 +134,8 @@ fi
 touch "$FAKE_REPO/src/main.swift" "$FAKE_REPO/build.sh"
 : > "$LOG"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$TOUCHED_OUT"
+# Scenario: timestamp-only churn, including build tooling mtime changes, does
+# not rebuild, does not sign, and does not alert.
 if [[ -s "$LOG" ]]; then
     echo "FAIL: unchanged runtime input content should not rebuild or re-sign" >&2
     cat "$LOG" >&2
@@ -154,8 +150,10 @@ fi
 printf '// runtime source changed\n' >> "$FAKE_REPO/src/main.swift"
 : > "$LOG"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
-if ! grep -qx 'swiftc' "$LOG" || ! grep -q '^codesign ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
-    echo "FAIL: changed runtime input content should compile, sign, and alert" >&2
+# Scenario: real Swift content changes rebuild and alert, still without
+# repo-mode post-signing.
+if ! grep -qx 'swiftc' "$LOG" || grep -q '^codesign ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
+    echo "FAIL: changed runtime input content should compile and alert without repo-mode post-signing" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -173,8 +171,10 @@ fi
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
-if ! grep -q '^codesign ' "$LOG" || grep -qx 'swiftc' "$LOG" || grep -qx 'alert' "$LOG"; then
-    echo "FAIL: post-change signature repair should sign without compiling or alerting" >&2
+# Scenario: after a real rebuild, missing signature markers are still ignored
+# and alerts stay tied only to rebuilds.
+if [[ -s "$LOG" ]]; then
+    echo "FAIL: post-change missing signature marker must not trigger repo-mode post-sign, rebuild, or alert" >&2
     cat "$LOG" >&2
     exit 1
 fi
@@ -192,4 +192,4 @@ if ! grep -q '^Up to date: ./aos' "$UP_TO_DATE_OUT"; then
     exit 1
 fi
 
-echo "build-signing: all checks passed"
+echo "build-rebuild-policy: all checks passed"

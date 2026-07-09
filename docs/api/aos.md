@@ -720,13 +720,15 @@ are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 
 `build` wraps the repo `build.sh`, forces `--no-restart` unless the caller has
 already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
-or only re-signed in JSON mode. Rebuild detection is content-based for Swift
-runtime inputs, not mtime-based, and build-tooling edits alone do not replace
-the TCC-owning binary. No post-build hook automates TCC handling: build does not
-reset permissions, open System Settings, show a human-needed surface, write
-completed-build markers, or inject provider input. Repo-mode binary rebuilds
-are TCC-sensitive and intentionally rare; successful rebuilds play a system
-alert sound and require a user reset/regrant checkpoint before TCC-backed proof.
+in JSON mode. Rebuild detection is content-based for Swift runtime inputs, not
+mtime-based, and build-tooling edits alone do not replace the TCC-owning binary.
+Repo-mode builds do not post-sign the local binary; packaged app signing is
+owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
+build does not reset permissions, open System Settings, show a human-needed
+surface, write completed-build markers, or inject provider input.
+Repo-mode binary rebuilds are TCC-sensitive and intentionally rare; successful
+rebuilds play a system alert sound and require a user reset/regrant checkpoint
+before TCC-backed proof.
 After the user confirms the reset, verify with `./aos ready --post-permission`.
 
 `capabilities` is read-only discovery over

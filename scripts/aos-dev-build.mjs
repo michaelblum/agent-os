@@ -18,7 +18,7 @@ function usage() {
     'Usage: aos dev build [--release] [--force] [--no-restart] [--json]',
     '',
     'Wraps repo-root build.sh and always passes --no-restart unless already supplied.',
-    'Running this command may rebuild and ad-hoc re-sign the repo-mode ./aos binary.',
+    'Running this command may rebuild the repo-mode ./aos binary.',
     '',
     'Options:',
     '  --release     Build optimized release binary',
@@ -55,7 +55,6 @@ function buildCommand(args) {
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? (result.error ? `${result.error.message}\n` : '');
   const binaryRebuilt = exitCode === 0 && /^Rebuilt: \.\/aos\b/m.test(stdout);
-  const binaryResigned = exitCode === 0 && /^Signing aos\b/m.test(stdout);
   if (asJSON) {
     printJSON({
       status: exitCode === 0 ? 'success' : 'error',
@@ -63,7 +62,7 @@ function buildCommand(args) {
       build_wrapper: 'build.sh',
       build_source: 'repo-root/build.sh',
       binary_rebuilt: binaryRebuilt,
-      binary_resigned: binaryResigned,
+      binary_resigned: false,
       exit_code: exitCode,
       stdout,
       stderr,
