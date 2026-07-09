@@ -66,14 +66,7 @@ import {
     createAvatarDoubleClickTracker,
     selectionModeKeyName,
 } from './selection-mode-input.js';
-import {
-    createSigilVoiceDictationController,
-    isVoiceDictationEvent,
-} from './voice-dictation.js';
-import {
-    createSigilVoiceResponsePolicy,
-    sigilVoiceResponseBackendMenuItems,
-} from './voice-response-policy.js';
+import { createSigilVoiceRuntime } from './voice-runtime.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
@@ -502,47 +495,12 @@ function recordInteraction(stage, data = {}) {
     });
 }
 
-function recordVoiceResponseAction(action) {
-    liveJs.voiceResponseActions.push(action);
-    if (liveJs.voiceResponseActions.length > 32) liveJs.voiceResponseActions.shift();
-    recordInteraction('voice-response:action', {
-        kind: action.kind,
-        event: action.event,
-        backendId: action.backendId,
-        mocked: action.mocked,
-    });
-}
-
-const voiceResponsePolicy = createSigilVoiceResponsePolicy({
-    playSound: recordVoiceResponseAction,
-    speak: recordVoiceResponseAction,
-    onChange(snapshot, transition) {
-        liveJs.voiceResponse = snapshot;
-        recordInteraction('voice-response', { transition });
-        if (!rendererSuspended) scheduleRenderFrame({ structural: false });
-    },
+const voiceRuntime = createSigilVoiceRuntime({
+    liveState: liveJs,
+    recordInteraction,
+    scheduleRenderFrame,
+    isRendererSuspended: () => rendererSuspended,
 });
-liveJs.voiceResponse = voiceResponsePolicy.snapshot();
-
-const voiceDictation = createSigilVoiceDictationController({
-    onChange(snapshot, transition) {
-        liveJs.voiceDictation = snapshot;
-        recordInteraction('voice-dictation', { transition });
-        if (!rendererSuspended) scheduleRenderFrame({ structural: false });
-    },
-    onVoiceEvent(event, transition) {
-        liveJs.voiceDictationEvents.push(event);
-        if (liveJs.voiceDictationEvents.length > 32) liveJs.voiceDictationEvents.shift();
-        liveJs.voiceDictation = voiceDictation.snapshot();
-        recordInteraction('voice-dictation:event', {
-            event: event.event,
-            data: event.data,
-            transition,
-        });
-        voiceResponsePolicy.handleVoiceEvent(event);
-    },
-});
-liveJs.voiceDictation = voiceDictation.snapshot();
 
 function runBootStep(stage, fn) {
     recordBoot(stage);
@@ -1199,7 +1157,7 @@ function isUtilityCanvasVisible(id) {
 function publishStatusMenuItems() {
     if (!isPrimarySurfaceSegment()) return;
     const operatorAnnotationItems = operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu);
-    const voiceResponseItems = sigilVoiceResponseBackendMenuItems(voiceResponsePolicy.snapshot());
+    const voiceResponseItems = voiceRuntime.responseBackendMenuItems();
     host.setStatusMenuItems([
         ...operatorAnnotationItems,
         ...(operatorAnnotationItems.length ? [{ type: 'separator' }] : []),
@@ -1258,9 +1216,8 @@ async function handleStatusMenuAction(msg = {}) {
     if (!id) return false;
     const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
     if (operatorRoute.handled) return true;
-    const voiceResponseRoute = voiceResponsePolicy.handleMenuAction(id);
+    const voiceResponseRoute = voiceRuntime.handleMenuAction(id);
     if (voiceResponseRoute.handled) {
-        liveJs.voiceResponse = voiceResponsePolicy.snapshot();
         publishStatusMenuItems();
         return true;
     }
@@ -4120,7 +4077,7 @@ function handleInputEvent(msg) {
         rememberDaemonPointerEvent(msg);
     }
 
-    if (voiceDictation.handleInput(msg).handled) return;
+    if (voiceRuntime.handleInput(msg).handled) return;
 
     if (handleSelectionModeInput(msg)) return;
 
@@ -4530,11 +4487,7 @@ function handleHostMessage(rawMsg) {
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
-    if (isVoiceDictationEvent(msg)) {
-        voiceDictation.handleVoiceEvent(msg);
-        voiceResponsePolicy.handleVoiceEvent(msg);
-        return;
-    }
+    if (voiceRuntime.handleVoiceEvent(msg).handled) return;
 
     if (msg.type === 'agent.session.telemetry' || msg.type === 'agent.session.lifecycle') {
         handleSessionTelemetryEnvelope(msg);

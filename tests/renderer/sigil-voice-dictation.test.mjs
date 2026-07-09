@@ -162,14 +162,12 @@ test('Sigil dictation module delegates reusable behavior to toolkit controls', a
   assert.doesNotMatch(source, /function createSigilVoiceDictationController\(\{\s*now/s)
 })
 
-test('Sigil main wires dictation controller to host messages and key input', async () => {
+test('Sigil main delegates dictation host messages and key input to voice runtime', async () => {
   const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
 
-  assert.match(source, /createSigilVoiceDictationController/)
-  assert.match(source, /voiceDictation\.handleInput\(msg\)\.handled/)
-  assert.match(source, /isVoiceDictationEvent\(msg\)/)
-  assert.match(source, /voiceDictation\.handleVoiceEvent\(msg\)/)
-  assert.match(source, /'dictation_opened'/)
-  assert.match(source, /'dictation_closed_send'/)
-  assert.match(source, /'dictation_closed_cancel'/)
+  assert.match(source, /createSigilVoiceRuntime/)
+  assert.match(source, /voiceRuntime\.handleInput\(msg\)\.handled/)
+  assert.match(source, /voiceRuntime\.handleVoiceEvent\(msg\)\.handled/)
+  assert.doesNotMatch(source, /createSigilVoiceDictationController/)
+  assert.doesNotMatch(source, /isVoiceDictationEvent\(msg\)/)
 })
