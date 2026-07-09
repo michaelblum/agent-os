@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "model_id": "fake-bundled-whisper-tiny",
+  "distribution": "fake-test-fixture",
+  "language": "en",
+  "transcripts_by_fixture": {
+    "hello.fixture-audio.txt": "hello agent os"
+  }
+}
