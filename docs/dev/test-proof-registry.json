@@ -494,6 +494,70 @@
       "status": "manual_only"
     },
     {
+      "id": "sigil-radial-real-input-proof",
+      "path_patterns": [
+        "tests/scenarios/sigil/radial-menu/real-input.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "real_input",
+      "proof_kind": "real_input_contract",
+      "contract": "Sigil radial menu responds to real pointer input through the active repo daemon and Surface Inspector harness.",
+      "worth": "This catches pointer-delivery and radial-hit-target failures that renderer or show-eval tests cannot prove.",
+      "command": "bash tests/scenarios/sigil/radial-menu/real-input.sh",
+      "replaces": [],
+      "guard": "requires AOS_REAL_INPUT_OK=1, idle mouse and keyboard, active repo daemon readiness, and harness lock availability",
+      "status": "manual_only"
+    },
+    {
+      "id": "sigil-radial-desktop-world-real-input-proof",
+      "path_patterns": [
+        "tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "real_input",
+      "proof_kind": "real_input_contract",
+      "contract": "Sigil radial menu handles a real-input DesktopWorld path through the active repo daemon and Surface Inspector harness.",
+      "worth": "This protects DesktopWorld coordinate conversion and radial-path delivery beyond deterministic renderer state.",
+      "command": "bash tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh",
+      "replaces": [],
+      "guard": "requires AOS_REAL_INPUT_OK=1, idle mouse and keyboard, active repo daemon readiness, and harness lock availability",
+      "status": "manual_only"
+    },
+    {
+      "id": "sigil-status-avatar-real-input-proof",
+      "path_patterns": [
+        "tests/sigil-real-input-status-avatar.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "real_input",
+      "proof_kind": "status_item_real_input_contract",
+      "contract": "Sigil status-item click launches the avatar through real input in an isolated daemon state root.",
+      "worth": "This proves status-item ownership and click delivery without relying on renderer state mutation alone.",
+      "command": "bash tests/sigil-real-input-status-avatar.sh",
+      "replaces": [],
+      "guard": "requires AOS_REAL_INPUT_OK=1, idle mouse and keyboard, status-item access, and isolated daemon setup",
+      "status": "manual_only"
+    },
+    {
+      "id": "sigil-avatar-controls-real-input-proof",
+      "path_patterns": [
+        "tests/sigil-avatar-controls-real-input.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "real_input",
+      "proof_kind": "avatar_controls_real_input_contract",
+      "contract": "Sigil avatar controls can be operated through AOS-native real-input control records.",
+      "worth": "This catches native control-record click failures that compact panel state tests cannot observe.",
+      "command": "bash tests/sigil-avatar-controls-real-input.sh",
+      "replaces": [],
+      "guard": "requires AOS_REAL_INPUT_OK=1, idle mouse and keyboard, native input permissions, and isolated daemon setup",
+      "status": "manual_only"
+    },
+    {
       "id": "cross-backend-saved-ref-manual-proof",
       "path_patterns": [
         "tests/manual/cross-backend-saved-ref-regression-proof.sh"
