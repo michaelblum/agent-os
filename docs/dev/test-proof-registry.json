@@ -558,6 +558,86 @@
       "status": "manual_only"
     },
     {
+      "id": "surface-inspector-launcher-smoke",
+      "path_patterns": [
+        "packages/toolkit/components/surface-inspector/launch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "visual_harness",
+      "proof_kind": "surface_smoke",
+      "contract": "Surface Inspector launcher creates a URL-backed canvas and waits for live lifecycle plus display geometry readiness.",
+      "worth": "This catches WebView import, content-root, canvas placement, and Surface Inspector readiness failures that Node-only tests miss.",
+      "command": "bash packages/toolkit/components/surface-inspector/launch.sh",
+      "replaces": [],
+      "guard": "requires live AOS readiness or explicit --allow-start; not part of broad default loops",
+      "status": "manual_only"
+    },
+    {
+      "id": "wiki-subject-browser-launcher-smoke",
+      "path_patterns": [
+        "packages/toolkit/components/wiki-subject-browser/launch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "visual_harness",
+      "proof_kind": "surface_smoke",
+      "contract": "Wiki Subject Browser launcher creates a graph-first workbench canvas with subject search, filters, and details refs.",
+      "worth": "This catches content-root, fixture, and workbench boot failures not covered by package-local logic tests.",
+      "command": "bash packages/toolkit/components/wiki-subject-browser/launch.sh",
+      "replaces": [],
+      "guard": "requires live AOS readiness and repo/toolkit content roots; not part of broad default loops",
+      "status": "manual_only"
+    },
+    {
+      "id": "step-descriptor-workbench-launcher-smoke",
+      "path_patterns": [
+        "packages/toolkit/components/step-descriptor-workbench/launch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "visual_harness",
+      "proof_kind": "surface_smoke",
+      "contract": "Step Descriptor Workbench launcher opens fixture-backed descriptor and evidence state in a URL-backed canvas.",
+      "worth": "This catches fixture handoff and workbench boot failures beyond schema validation alone.",
+      "command": "bash packages/toolkit/components/step-descriptor-workbench/launch.sh",
+      "replaces": [],
+      "guard": "requires live AOS readiness and toolkit content root; not part of broad default loops",
+      "status": "manual_only"
+    },
+    {
+      "id": "artifact-bundle-workbench-launcher-smoke",
+      "path_patterns": [
+        "packages/toolkit/components/artifact-bundle-workbench/launch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "visual_harness",
+      "proof_kind": "surface_smoke",
+      "contract": "Artifact Bundle Workbench launcher opens a fixture-backed artifact subject in a URL-backed canvas.",
+      "worth": "This catches artifact fixture projection, repo content-root, and workbench boot failures outside Node-only checks.",
+      "command": "bash packages/toolkit/components/artifact-bundle-workbench/launch.sh",
+      "replaces": [],
+      "guard": "requires live AOS readiness and repo/toolkit content roots; not part of broad default loops",
+      "status": "manual_only"
+    },
+    {
+      "id": "work-record-workbench-launcher-smoke",
+      "path_patterns": [
+        "packages/toolkit/components/work-record-workbench/launch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "visual_harness",
+      "proof_kind": "surface_smoke",
+      "contract": "Work Record Workbench launcher opens fixture-backed Work Record state in a URL-backed canvas.",
+      "worth": "This catches Work Record workbench boot and fixture loading failures not covered by schema tests alone.",
+      "command": "bash packages/toolkit/components/work-record-workbench/launch.sh",
+      "replaces": [],
+      "guard": "requires live AOS readiness or explicit --allow-start; not part of broad default loops",
+      "status": "manual_only"
+    },
+    {
       "id": "cross-backend-saved-ref-manual-proof",
       "path_patterns": [
         "tests/manual/cross-backend-saved-ref-regression-proof.sh"

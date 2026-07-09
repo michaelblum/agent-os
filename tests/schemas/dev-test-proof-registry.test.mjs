@@ -146,6 +146,24 @@ test('proof-worth evaluator reports guarded entries without default commands', a
   assert.match(result.guarded[0].guard, /real-input approval/);
 });
 
+test('proof-worth evaluator treats toolkit component launchers as guarded proof assets', async () => {
+  const registry = await loadJson(canonicalPath);
+  const result = evaluateProofWorth({
+    changedFiles: ['packages/toolkit/components/surface-inspector/launch.sh'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.equal(result.assets.length, 1, result);
+  assert.equal(result.assets[0].kind, 'proof_launcher', result);
+  assert.equal(result.assets[0].coverage, 'guarded', result);
+  assert.equal(result.commands.length, 0, result);
+  assert.equal(result.guarded[0].entry, 'surface-inspector-launcher-smoke');
+  assert.match(result.guarded[0].guard, /not part of broad default loops/);
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [

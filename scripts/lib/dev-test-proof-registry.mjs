@@ -116,6 +116,10 @@ export function classifyProofAsset(itemPath) {
     }
   }
 
+  if (/^packages\/toolkit\/components\/[^/]+\/launch\.sh$/.test(normalized)) {
+    return { kind: 'proof_launcher', patternField: 'path_patterns' };
+  }
+
   if (/^docs\/dev\/reports\/.+(?:proof|test-housecleaning|harness).+\.md$/.test(normalized)) {
     return { kind: 'proof_report', patternField: 'path_patterns' };
   }
