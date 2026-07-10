@@ -32,31 +32,44 @@ function functionBodyAfter(swiftSource, signature, startAt) {
   throw new Error(`${signature} body did not close`);
 }
 
-test('single Canvas close clears retained callbacks before closing WebKit window', () => {
-  const body = functionBody(source('src/display/canvas.swift'), 'func close()');
-  const onMessage = body.indexOf('onMessage = nil');
-  const onTTLExpired = body.indexOf('onTTLExpired = nil');
-  const removeHandler = body.indexOf('removeScriptMessageHandler(forName: "headsup")');
-  const closeWindow = body.indexOf('window.close()');
+test('single Canvas retirement quiesces callbacks before finalizing WebKit', () => {
+  const swiftSource = source('src/display/canvas.swift');
+  const classStart = swiftSource.indexOf('class Canvas {');
+  assert.notEqual(classStart, -1, 'Canvas class not found');
+  const quiesce = functionBodyAfter(swiftSource, 'func quiesceForRetirement()', classStart);
+  const finalize = functionBodyAfter(swiftSource, 'func finalizeRetirement()', classStart);
+  const onMessage = quiesce.indexOf('onMessage = nil');
+  const onTTLExpired = quiesce.indexOf('onTTLExpired = nil');
+  const orderOut = quiesce.indexOf('window.orderOut(nil)');
+  const callQuiesce = finalize.indexOf('quiesceForRetirement()');
+  const removeHandler = finalize.indexOf('removeScriptMessageHandler(forName: "headsup")');
+  const closeWindow = finalize.indexOf('window.close()');
 
-  assert.ok(onMessage >= 0, 'Canvas.close should clear the message callback');
-  assert.ok(onTTLExpired >= 0, 'Canvas.close should clear the TTL callback');
-  assert.ok(removeHandler > onMessage, 'Canvas.close should clear callbacks before removing WebKit handler');
-  assert.ok(closeWindow > removeHandler, 'Canvas.close should remove WebKit handler before closing window');
+  assert.ok(onMessage >= 0, 'Canvas quiesce should clear the message callback');
+  assert.ok(onTTLExpired >= 0, 'Canvas quiesce should clear the TTL callback');
+  assert.ok(orderOut > onMessage, 'Canvas quiesce should clear callbacks before hiding the window');
+  assert.ok(callQuiesce >= 0, 'Canvas finalization should be idempotently quiesced');
+  assert.ok(removeHandler > callQuiesce, 'Canvas finalization should quiesce before removing WebKit handler');
+  assert.ok(closeWindow > removeHandler, 'Canvas finalization should remove WebKit handler before closing');
 });
 
-test('DesktopWorldSurfaceCanvas close clears retained callbacks and segment handlers', () => {
+test('DesktopWorldSurfaceCanvas retirement delegates every segment to the shared primitive', () => {
   const swiftSource = source('src/display/desktop-world-surface.swift');
   const classStart = swiftSource.indexOf('final class DesktopWorldSurfaceCanvas');
   assert.notEqual(classStart, -1, 'DesktopWorldSurfaceCanvas class not found');
-  const body = functionBodyAfter(swiftSource, 'func close()', classStart);
-  const onMessage = body.indexOf('onMessage = nil');
-  const onTTLExpired = body.indexOf('onTTLExpired = nil');
-  const segmentHandler = body.indexOf('segment.messageHandler.onMessage = nil');
-  const segmentsCleared = body.indexOf('segments = []');
+  const surfaceMethodsStart = swiftSource.indexOf('var remainingTTL:', classStart);
+  assert.notEqual(surfaceMethodsStart, -1, 'DesktopWorldSurfaceCanvas methods not found');
+  const quiesce = functionBodyAfter(swiftSource, 'func quiesceForRetirement()', surfaceMethodsStart);
+  const finalize = functionBodyAfter(swiftSource, 'func finalizeRetirement()', surfaceMethodsStart);
+  const onMessage = quiesce.indexOf('onMessage = nil');
+  const onTTLExpired = quiesce.indexOf('onTTLExpired = nil');
+  const segmentQuiesce = quiesce.indexOf('segment.quiesceForRetirement()');
+  const segmentFinalize = finalize.indexOf('segment.finalizeRetirement()');
+  const segmentsCleared = finalize.indexOf('segments = []');
 
-  assert.ok(onMessage >= 0, 'DesktopWorldSurfaceCanvas.close should clear the retained message callback');
-  assert.ok(onTTLExpired >= 0, 'DesktopWorldSurfaceCanvas.close should clear the TTL callback');
-  assert.ok(segmentHandler > onMessage, 'DesktopWorldSurfaceCanvas.close should clear segment handlers after clearing root callback');
-  assert.ok(segmentsCleared > segmentHandler, 'DesktopWorldSurfaceCanvas.close should clear segments after handler teardown');
+  assert.ok(onMessage >= 0, 'surface quiesce should clear the retained message callback');
+  assert.ok(onTTLExpired >= 0, 'surface quiesce should clear the TTL callback');
+  assert.ok(segmentQuiesce > onMessage, 'surface quiesce should delegate segment native resources');
+  assert.ok(segmentFinalize >= 0, 'surface finalization should delegate segment native resources');
+  assert.ok(segmentsCleared > segmentFinalize, 'surface finalization should clear segments after teardown');
 });

@@ -602,10 +602,11 @@ extension Canvas: CanvasLike {
 class CanvasManager {
     private var canvases: [String: CanvasLike] = [:]
     private let lifecycleCoordinator = CanvasLifecycleCoordinator()
+    private let lifecycleCompletions = CanvasLifecycleCompletionTracker()
     private var anchorTimer: DispatchSourceTimer?
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
-    var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
+    var onEvent: ((CanvasLifecycleGeneration, Any) -> Void)?
     var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
@@ -626,6 +627,27 @@ class CanvasManager {
 
     private func lease(for canvas: CanvasLike) -> CanvasLifecycleGeneration {
         CanvasLifecycleGeneration(canvasID: canvas.id, value: canvas.lifecycleGeneration)
+    }
+
+    func deliveryTarget(forCanvasID id: String) -> CanvasLifecycleGeneration? {
+        precondition(Thread.isMainThread, "canvas delivery target capture must run on the main thread")
+        guard let canvas = canvases[id] else { return nil }
+        return lease(for: canvas)
+    }
+
+    @discardableResult
+    func awaitLifecycleCompletion(
+        for generations: Set<CanvasLifecycleGeneration>,
+        action: String,
+        timeout: TimeInterval? = nil,
+        completion: @escaping (Bool) -> Void
+    ) -> UUID? {
+        lifecycleCompletions.await(
+            generations: generations,
+            action: action,
+            timeout: timeout,
+            completion: completion
+        )
     }
 
     private func currentCanvas(for generation: CanvasLifecycleGeneration) -> CanvasLike? {
@@ -659,11 +681,10 @@ class CanvasManager {
         activeGeometryTransactions.removeValue(forKey: id)
         let generation = lease(for: canvas)
         canvas.lifecycleState = "retiring"
-        canvas.quiesceForRetirement()
         canvas.lifecycleState = "removed"
         let removedInfo = canvas.toInfo()
         lifecycleCoordinator.retainUntilNextRunLoop(canvas, generation: generation)
-        abandonLifecycleCompletions(forCanvasID: id)
+        lifecycleCompletions.abandon(generation)
         if !hasAnchoredCanvases { stopAnchorPolling() }
         if notifyCountChanged { onCanvasCountChanged?() }
         if emitLifecycle { onCanvasLifecycle?(removedInfo, "removed") }
@@ -726,7 +747,7 @@ class CanvasManager {
             "interactive_active": interactiveActiveCount,
             "full_desktop_active": fullDesktopActiveCount,
             "desktop_world_segments": desktopWorldSegmentCount,
-            "pending_lifecycle_waiters": lifecycleWaiters.count,
+            "pending_lifecycle_waiters": lifecycleCompletions.pendingCount,
             "pending_retirements": lifecycleCoordinator.pendingFinalizationCount,
             "pending_retirement_ids": lifecycleCoordinator.pendingFinalizationIDs,
             "unregistered_canvas_window_count": unregisteredCanvasWindows.count,
@@ -1498,75 +1519,6 @@ class CanvasManager {
         return nil
     }
 
-    private final class LifecycleWaiter {
-        let id = UUID()
-        let action: String
-        var pendingCanvasIDs: Set<String>
-        let completion: (Bool) -> Void
-        var timeoutWorkItem: DispatchWorkItem?
-
-        init(action: String, pendingCanvasIDs: Set<String>, completion: @escaping (Bool) -> Void) {
-            self.action = action
-            self.pendingCanvasIDs = pendingCanvasIDs
-            self.completion = completion
-        }
-    }
-
-    /// Lifecycle-complete waiters keyed by action. Renderers ACK transitions
-    /// with `lifecycle.complete`, letting daemon-side flows wait on real
-    /// transition completion instead of fixed sleeps.
-    private var lifecycleWaiters: [UUID: LifecycleWaiter] = [:]
-
-    @discardableResult
-    func awaitLifecycleCompletion(
-        canvasIDs: Set<String>,
-        action: String,
-        timeout: TimeInterval? = nil,
-        completion: @escaping (Bool) -> Void
-    ) -> UUID? {
-        guard !canvasIDs.isEmpty else {
-            completion(true)
-            return nil
-        }
-
-        let waiter = LifecycleWaiter(action: action, pendingCanvasIDs: canvasIDs, completion: completion)
-        lifecycleWaiters[waiter.id] = waiter
-
-        if let timeout, timeout.isFinite {
-            let workItem = DispatchWorkItem { [weak self] in
-                guard let self,
-                      let pending = self.lifecycleWaiters.removeValue(forKey: waiter.id) else { return }
-                pending.timeoutWorkItem = nil
-                pending.completion(false)
-            }
-            waiter.timeoutWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
-        }
-
-        return waiter.id
-    }
-
-    private func completeLifecycleWaiter(_ waiterID: UUID, success: Bool) {
-        guard let waiter = lifecycleWaiters.removeValue(forKey: waiterID) else { return }
-        waiter.timeoutWorkItem?.cancel()
-        waiter.timeoutWorkItem = nil
-        waiter.completion(success)
-    }
-
-    private func abandonLifecycleCompletions(forCanvasID canvasID: String) {
-        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
-            waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
-        }
-
-        for waiterID in waiterIDs {
-            guard let waiter = lifecycleWaiters[waiterID] else { continue }
-            waiter.pendingCanvasIDs.remove(canvasID)
-            if waiter.pendingCanvasIDs.isEmpty {
-                completeLifecycleWaiter(waiterID, success: false)
-            }
-        }
-    }
-
     /// Re-resolve bounds for every canvas with a tracking target and apply
     /// the new bounds. Called from the daemon's coalesced display_geometry
     /// handler on topology change. Failures on individual canvases are logged
@@ -1808,7 +1760,8 @@ class CanvasManager {
                 id: id,
                 interactive: interactive,
                 windowLevel: windowLevel,
-                aosSchemeHandler: aosSchemeHandler
+                aosSchemeHandler: aosSchemeHandler,
+                lifecycleCoordinator: lifecycleCoordinator
             )
             surface.trackTarget = .union
             canvas = surface
@@ -1883,9 +1836,23 @@ class CanvasManager {
                 return
             }
 
-               if let dict = body as? [String: Any],
+            if let dict = body as? [String: Any],
                let type = dict["type"] as? String {
                 let messagePayload = dict["payload"] as? [String: Any]
+
+                if type == "lifecycle.complete" {
+                    let action = (messagePayload?["action"] as? String)
+                        ?? (messagePayload?["reason"] as? String)
+                        ?? ""
+                    self?.lifecycleCompletions.receive(generation, action: action)
+                    return
+                }
+                if type == "lifecycle.ready" {
+                    self?.lifecycleCompletions.receive(generation, action: "resume")
+                    self?.onEvent?(generation, body)
+                    return
+                }
+
                 func messageString(_ key: String) -> String? {
                     (dict[key] as? String) ?? (messagePayload?[key] as? String)
                 }
@@ -2086,7 +2053,7 @@ class CanvasManager {
                     return
                 }
             }
-            self?.onEvent?(id, body)
+            self?.onEvent?(generation, body)
         }
 
         if let anchorWin = resolvedAnchorWindow {
@@ -2428,15 +2395,15 @@ class CanvasManager {
         return postMessage(for: lease(for: canvas), payload: payload)
     }
 
-    func postMessageAsync(canvasID: String, payload: Any) {
+    func postMessageToCurrentCanvasAsync(canvasID: String, payload: Any) {
         DispatchQueue.main.async { [weak self] in
             guard let self, let canvas = self.canvases[canvasID] else { return }
             _ = self.postMessage(for: self.lease(for: canvas), payload: payload)
         }
     }
 
-    private func postMessageAsync(
-        for generation: CanvasLifecycleGeneration,
+    func postMessageAsync(
+        to generation: CanvasLifecycleGeneration,
         payload: Any
     ) {
         enqueue(for: generation) { manager, _ in
@@ -2494,7 +2461,7 @@ class CanvasManager {
 
         // Phase 2: notify renderers (async, best-effort, no ACK needed)
         for generation in suspendedGenerations {
-            postMessageAsync(for: generation, payload: ["type": "lifecycle", "action": "suspend"])
+            postMessageAsync(to: generation, payload: ["type": "lifecycle", "action": "suspend"])
         }
 
         onCanvasCountChanged?()
@@ -2530,8 +2497,8 @@ class CanvasManager {
             self.onCanvasCountChanged?()
         }
 
-        _ = awaitLifecycleCompletion(
-            canvasIDs: Set(suspendedGenerations.map(\.canvasID)),
+        _ = lifecycleCompletions.await(
+            generations: Set(suspendedGenerations),
             action: "resume",
             timeout: 1.0
         ) { completed in
@@ -2543,32 +2510,10 @@ class CanvasManager {
 
         // Send lifecycle:resume to each renderer
         for generation in suspendedGenerations {
-            postMessageAsync(for: generation, payload: ["type": "lifecycle", "action": "resume"])
+            postMessageAsync(to: generation, payload: ["type": "lifecycle", "action": "resume"])
         }
 
         return .ok()
-    }
-
-    /// Back-compat alias for older renderers that still post lifecycle.ready.
-    func receiveLifecycleReady(_ canvasID: String) {
-        receiveLifecycleComplete(canvasID, action: "resume")
-    }
-
-    /// Called when a renderer sends lifecycle.complete ACK for an action.
-    func receiveLifecycleComplete(_ canvasID: String, action: String) {
-        guard !action.isEmpty else { return }
-
-        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
-            waiter.action == action && waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
-        }
-
-        for waiterID in waiterIDs {
-            guard let waiter = lifecycleWaiters[waiterID] else { continue }
-            waiter.pendingCanvasIDs.remove(canvasID)
-            if waiter.pendingCanvasIDs.isEmpty {
-                completeLifecycleWaiter(waiterID, success: true)
-            }
-        }
     }
 
     // MARK: - Window Anchoring

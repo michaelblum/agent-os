@@ -100,7 +100,7 @@ extension UnifiedDaemon {
                 _ = self.canvasManager.handle(request)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                self.canvasManager.postMessageAsync(canvasID: canvasID, payload: [
+                self.canvasManager.postMessageToCurrentCanvasAsync(canvasID: canvasID, payload: [
                     "type": "canvas_inspector.annotation_toggle",
                     "reason": "shortcut",
                 ])
@@ -1174,7 +1174,7 @@ extension UnifiedDaemon {
             "payload": inner,
         ]
         DispatchQueue.main.async { [weak self] in
-            self?.canvasManager.postMessageAsync(canvasID: canvasID, payload: payload)
+            self?.canvasManager.postMessageToCurrentCanvasAsync(canvasID: canvasID, payload: payload)
         }
     }
 

@@ -32,6 +32,7 @@ class LifecycleStress:
         self.stop = threading.Event()
         self.input_errors = []
         self.input_commands = 0
+        self.click_commands = 0
         self.targeted_key_events = 0
         self.input_focus_lock = threading.Lock()
         self.hidden_window_baseline = 0
@@ -95,6 +96,23 @@ class LifecycleStress:
 
     def canvas_audit(self):
         return json.loads(self.run("show", "audit", "--json").stdout)
+
+    def wait_for_input_subscription(self, canvas_id, timeout=5):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            resources = self.system_ping().get("runtime_resources") or {}
+            subscriptions = (resources.get("canvas_event_subscriptions") or {}).get("canvases") or []
+            match = next(
+                (item for item in subscriptions if item.get("canvas_id") == canvas_id),
+                None,
+            )
+            if match and match.get("input_event") is True:
+                generation = match.get("lifecycle_generation")
+                if not isinstance(generation, (int, float)) or generation <= 0:
+                    raise RuntimeError(f"input subscription omitted lifecycle generation: {match}")
+                return match
+            time.sleep(0.05)
+        raise RuntimeError(f"canvas {canvas_id} did not establish input_event subscription")
 
     def wait_for_canvas(self, canvas_id, predicate, timeout=5):
         deadline = time.time() + timeout
@@ -289,10 +307,12 @@ class LifecycleStress:
         while not self.stop.is_set():
             try:
                 self.run("do", "hover", points[index % len(points)], timeout=5)
+                self.run("do", "click", "900,500", "--dwell", "10", timeout=5)
+                self.click_commands += 1
                 with self.input_focus_lock:
                     self.run("show", "update", "--id", "lifecycle-input-sink", "--focus")
                     self.post_targeted_key()
-                self.input_commands += 2
+                self.input_commands += 3
                 index += 1
             except Exception as error:
                 self.input_errors.append(str(error))
@@ -370,9 +390,26 @@ class LifecycleStress:
         self.unregistered_app_window_baseline = 0
         self.assert_same_id_generation_isolation()
         if self.options.concurrent_input:
+            boot_epoch_offset_ms = time.time() * 1000 - time.monotonic() * 1000
             sink_html = (
                 '<!doctype html><input autofocus value="input sink">'
-                '<script>document.querySelector("input").focus();'
+                '<script>window.__fanoutProof={deliveries:0,moves:0,boundaries:[],invalid:[]};'
+                f'window.__bootEpochOffsetMs={boot_epoch_offset_ms!r};'
+                'window.headsup=window.headsup||{};'
+                'window.headsup.receive=function(encoded){let event;try{event=JSON.parse(atob(encoded))}'
+                'catch(error){window.__fanoutProof.invalid.push(String(error));return}'
+                'if(event.input_schema_version!==2)return;'
+                'window.__fanoutProof.deliveries+=1;'
+                'if(event.event_kind!=="pointer")return;'
+                'if(event.phase==="move"||event.phase==="drag")window.__fanoutProof.moves+=1;'
+                'const point=event.native||{};'
+                'if((event.phase!=="down"&&event.phase!=="up")||'
+                'Math.abs(Number(point.x)-900)>8||Math.abs(Number(point.y)-500)>8)return;'
+                'const receivedMonotonicMs=Date.now()-window.__bootEpochOffsetMs;'
+                'window.__fanoutProof.boundaries.push({phase:event.phase,'
+                'sequence:event.sequence&&event.sequence.value,'
+                'latencyMs:receivedMonotonicMs-Number(event.timestamp_monotonic_ms)});};'
+                'document.querySelector("input").focus();'
                 'window.__testKeyCount=0;'
                 'document.addEventListener("keydown",event=>{'
                 'window.__testKeyCount+=1;event.preventDefault()})</script>'
@@ -383,6 +420,11 @@ class LifecycleStress:
                 "--interactive", "--focus",
             )
             self.wait_for_document("lifecycle-input-sink")
+            self.bridge("lifecycle-input-sink", {
+                "type": "subscribe",
+                "payload": {"events": ["input_event"], "snapshot": False},
+            })
+            self.wait_for_input_subscription("lifecycle-input-sink")
             input_thread = threading.Thread(target=self.perturb_input, daemon=True)
             input_thread.start()
 
@@ -438,6 +480,60 @@ class LifecycleStress:
                     "targeted key events did not remain owned by the input sink: "
                     f"posted={self.targeted_key_events} delivered={delivered_keys}"
                 )
+            fanout_result = json.loads(
+                self.run(
+                    "show", "eval", "--id", "lifecycle-input-sink",
+                    "--js", "JSON.stringify(window.__fanoutProof)",
+                ).stdout
+            )
+            fanout = json.loads(fanout_result.get("result") or "{}")
+            if fanout.get("invalid"):
+                raise RuntimeError(f"canvas input fanout decode failed: {fanout['invalid']}")
+            if int(fanout.get("moves") or 0) < 1:
+                raise RuntimeError(f"canvas input fanout did not deliver pointer motion: {fanout}")
+            boundaries = fanout.get("boundaries") or []
+            if len(boundaries) < self.click_commands * 2:
+                raise RuntimeError(
+                    "canvas input fanout lost click boundaries: "
+                    f"clicks={self.click_commands} boundaries={boundaries}"
+                )
+            pending_down = None
+            seen_sequences = set()
+            matched_clicks = 0
+            latencies = []
+            for boundary in boundaries:
+                phase = boundary.get("phase")
+                sequence = str(boundary.get("sequence"))
+                if sequence in seen_sequences:
+                    raise RuntimeError(f"canvas input fanout duplicated sequence {sequence}: {boundaries}")
+                seen_sequences.add(sequence)
+                latency = float(boundary.get("latencyMs"))
+                if latency < -50 or latency > 500:
+                    raise RuntimeError(
+                        "canvas input fanout exceeded event-to-JS latency bound: "
+                        f"latency_ms={latency} boundary={boundary}"
+                    )
+                latencies.append(latency)
+                if phase == "down":
+                    if pending_down is not None:
+                        raise RuntimeError(f"canvas input fanout reordered click boundaries: {boundaries}")
+                    pending_down = boundary
+                elif phase == "up":
+                    if pending_down is None:
+                        raise RuntimeError(f"canvas input fanout delivered up before down: {boundaries}")
+                    pending_down = None
+                    matched_clicks += 1
+            if pending_down is not None or matched_clicks < self.click_commands:
+                raise RuntimeError(
+                    "canvas input fanout did not complete every click: "
+                    f"clicks={self.click_commands} matched={matched_clicks} boundaries={boundaries}"
+                )
+            self.canvas_fanout_result = {
+                "deliveries": int(fanout.get("deliveries") or 0),
+                "moves": int(fanout.get("moves") or 0),
+                "clicks": matched_clicks,
+                "max_latency_ms": round(max(latencies), 2),
+            }
         self.assert_coherent()
 
         return {
@@ -448,6 +544,7 @@ class LifecycleStress:
             "concurrent_input": self.options.concurrent_input,
             "input_commands": self.input_commands,
             "targeted_key_events": self.targeted_key_events,
+            "canvas_input_fanout": getattr(self, "canvas_fanout_result", None),
             "window_server_hidden_delta": max(
                 0,
                 len(self.canvas_audit().get("non_visible_unmatched_native_windows") or [])

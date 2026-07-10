@@ -89,6 +89,7 @@ let lowRegion = AOSInputRegionRecord(
 let highRegion = AOSInputRegionRecord(
     id: "high-region",
     ownerCanvasID: "stage",
+    ownerCanvasGeneration: 42,
     nativeFrame: baseFrame,
     semanticLabel: "High region",
     priority: 10,
@@ -163,6 +164,7 @@ let delivered = failOpenRegistry.resolveDelivery(
 if case .deliver(let delivery)? = delivered {
     assert(delivery.consume, "successful region delivery should preserve consume decision")
     assert(delivery.ownerCanvasID == "stage", "delivery should retain the typed owner destination")
+    assert(delivery.ownerCanvasGeneration == 42, "delivery should retain the owner generation")
     assert(delivery.phase == .down, "delivery should retain the typed diagnostic phase")
     assert(delivery.regionID == "high-region", "delivery should retain the typed diagnostic region")
     assert(Set(delivery.payload.keys) == Set(["type", "routed_input"]), "successful delivery should expose only the exact envelope")

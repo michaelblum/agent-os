@@ -67,7 +67,7 @@ private final class DaemonInputSafetyVisualFeedbackRuntime: InputSafetyVisualFee
     }
 
     func sendCountdown(remaining: Int, deadline: Date, active: Bool) {
-        canvasManager.postMessageAsync(canvasID: inputSafetyLogCanvasID, payload: [
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: inputSafetyLogCanvasID, payload: [
             "type": "log/input_safety_countdown",
             "payload": [
                 "title": "AOS input passthrough",
@@ -119,9 +119,15 @@ class UnifiedDaemon {
     var canvasInspectorBundleInFlight = false
     var canvasInspectorBundleLastTriggerAt = Date.distantPast
 
-    // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
+    struct CanvasEventSubscription {
+        let target: CanvasLifecycleGeneration
+        var events: Set<String>
+    }
+
+    // Canvas-side event subscriptions retain the generation that established
+    // ownership so queued fanout cannot retarget a same-ID replacement.
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
-    var canvasEventSubscriptions: [String: Set<String>] = [:]
+    var canvasEventSubscriptions: [String: CanvasEventSubscription] = [:]
     var canvasPerceptionChannels: [String: CanvasPerceptionChannel] = [:]
     var canvasObjectRegistries: [String: [String: Any]] = [:]
     var canvasReadyManifests: [String: [String: Any]] = [:]
@@ -243,8 +249,9 @@ class UnifiedDaemon {
         }
 
         // Wire canvas events -> broadcast
-        canvasManager.onEvent = { [weak self] canvasID, payload in
+        canvasManager.onEvent = { [weak self] target, payload in
             guard let self = self else { return }
+            let canvasID = target.canvasID
 
             // Intercept subscribe/unsubscribe before relay — these configure daemon
             // state, not events for other subscribers to observe.
@@ -256,7 +263,7 @@ class UnifiedDaemon {
                     let events = self.subscriptionEvents(from: inner)
                     let wantsSnapshot = (inner?["snapshot"] as? Bool) ?? false
                     self.handleCanvasSubscription(
-                        canvasID: canvasID,
+                        target: target,
                         type: type,
                         events: events,
                         snapshot: wantsSnapshot
@@ -290,10 +297,14 @@ class UnifiedDaemon {
                     self.handleCanvasResume(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "input_region.register":
-                    self.handleInputRegionRegister(callerID: canvasID, payload: inner ?? [:])
+                    self.handleInputRegionRegister(caller: target, payload: inner ?? [:])
                     return
                 case "input_region.update":
-                    self.handleInputRegionRegister(callerID: canvasID, payload: inner ?? [:], updateOnly: true)
+                    self.handleInputRegionRegister(
+                        caller: target,
+                        payload: inner ?? [:],
+                        updateOnly: true
+                    )
                     return
                 case "input_region.remove":
                     self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
@@ -303,17 +314,6 @@ class UnifiedDaemon {
                     return
                 case "lifecycle.ready":
                     self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
-                    DispatchQueue.main.async { [weak self] in
-                        self?.canvasManager.receiveLifecycleReady(canvasID)
-                    }
-                    return
-                case "lifecycle.complete":
-                    let action = (inner?["action"] as? String)
-                        ?? (inner?["reason"] as? String)
-                        ?? ""
-                    DispatchQueue.main.async { [weak self] in
-                        self?.canvasManager.receiveLifecycleComplete(canvasID, action: action)
-                    }
                     return
                 case "position.get":
                     self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
@@ -652,32 +652,63 @@ class UnifiedDaemon {
         return []
     }
 
-    private func handleCanvasSubscription(canvasID: String, type: String, events: [String], snapshot: Bool) {
+    private func handleCanvasSubscription(
+        target: CanvasLifecycleGeneration,
+        type: String,
+        events: [String],
+        snapshot: Bool
+    ) {
         guard !events.isEmpty else { return }
+        let canvasID = target.canvasID
 
         canvasSubscriptionLock.lock()
         if type == "subscribe" {
-            var current = canvasEventSubscriptions[canvasID] ?? []
+            var current = canvasEventSubscriptions[canvasID]?.target == target
+                ? canvasEventSubscriptions[canvasID]!.events
+                : []
             for ev in events { current.insert(ev) }
-            canvasEventSubscriptions[canvasID] = current
+            canvasEventSubscriptions[canvasID] = CanvasEventSubscription(
+                target: target,
+                events: current
+            )
         } else {  // unsubscribe
-            if var current = canvasEventSubscriptions[canvasID] {
-                for ev in events { current.remove(ev) }
-                if current.isEmpty {
+            if var current = canvasEventSubscriptions[canvasID], current.target == target {
+                for ev in events { current.events.remove(ev) }
+                if current.events.isEmpty {
                     canvasEventSubscriptions.removeValue(forKey: canvasID)
                 } else {
                     canvasEventSubscriptions[canvasID] = current
                 }
             }
         }
-        let currentEvents = canvasEventSubscriptions[canvasID]
+        let currentEvents = canvasEventSubscriptions[canvasID]?.events
         canvasSubscriptionLock.unlock()
         reconcileCanvasPerceptionChannel(canvasID: canvasID, currentEvents: currentEvents)
         fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(currentEvents ?? [])\n", stderr)
 
         if type == "subscribe" && (snapshot || events.contains("display_geometry")) {
-            dispatchCanvasSubscriptionSnapshots(to: canvasID, events: events)
+            dispatchCanvasSubscriptionSnapshots(to: target, events: events)
         }
+    }
+
+    private func canvasSubscriptionTargets(for event: String) -> [CanvasLifecycleGeneration] {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions.values
+            .filter { $0.events.contains(event) }
+            .map(\.target)
+        canvasSubscriptionLock.unlock()
+        return targets
+    }
+
+    private func canvasSubscriptionTarget(
+        canvasID: String,
+        event: String
+    ) -> CanvasLifecycleGeneration? {
+        canvasSubscriptionLock.lock()
+        let subscription = canvasEventSubscriptions[canvasID]
+        let target = subscription?.events.contains(event) == true ? subscription?.target : nil
+        canvasSubscriptionLock.unlock()
+        return target
     }
 
     private func canvasPerceptionRequest(for events: Set<String>?) -> (depth: Int, rate: String)? {
@@ -778,11 +809,12 @@ class UnifiedDaemon {
     private func canvasEventSubscriptionSnapshot() -> [[String: Any]] {
         canvasSubscriptionLock.lock()
         let snapshot = canvasEventSubscriptions
-            .map { canvasID, events in
+            .map { canvasID, subscription in
                 [
                     "canvas_id": canvasID,
-                    "events": Array(events).sorted(),
-                    "input_event": events.contains("input_event"),
+                    "lifecycle_generation": subscription.target.value,
+                    "events": Array(subscription.events).sorted(),
+                    "input_event": subscription.events.contains("input_event"),
                 ] as [String: Any]
             }
             .sorted { ($0["canvas_id"] as? String ?? "") < ($1["canvas_id"] as? String ?? "") }
@@ -852,62 +884,57 @@ class UnifiedDaemon {
         return snapshot
     }
 
-    private func dispatchCanvasSubscriptionSnapshots(to canvasID: String, events: [String]) {
+    private func dispatchCanvasSubscriptionSnapshots(
+        to target: CanvasLifecycleGeneration,
+        events: [String]
+    ) {
         // Dispatch async to avoid reentering the canvas message handler from inside
         // the subscribe path.
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let requested = Set(events)
             if requested.contains("display_geometry") {
-                self.broadcastDisplayGeometry(to: canvasID)
+                self.broadcastDisplayGeometry(to: target)
             }
             if requested.contains("canvas_lifecycle") {
-                self.broadcastCanvasLifecycleSnapshot(to: canvasID)
+                self.broadcastCanvasLifecycleSnapshot(to: target)
             }
             if requested.contains("input_event") {
                 self.canvasManager.postMessageAsync(
-                    canvasID: canvasID,
+                    to: target,
                     payload: self.currentInputEventSnapshot()
                 )
             }
             if requested.contains("canvas_object.registry") {
-                self.broadcastCanvasObjectRegistrySnapshot(to: canvasID)
+                self.broadcastCanvasObjectRegistrySnapshot(to: target)
             }
             if requested.contains("input_region") {
-                self.broadcastInputRegionSnapshot(to: canvasID)
+                self.broadcastInputRegionSnapshot(to: target)
             }
         }
     }
 
     private func forwardInputEventToCanvases(data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("input_event") }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: "input_event")
 
         guard !targets.isEmpty else { return }
 
-        recordInputFanoutDelivery(targets: targets)
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
+        recordInputFanoutDelivery(targets: targets.map(\.canvasID))
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: data)
         }
     }
 
     private func forwardSubscribedEventToCanvases(type: String, data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains(type) }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: type)
 
         guard !targets.isEmpty else { return }
 
         var msg: [String: Any] = ["type": type]
         for (key, value) in data { msg[key] = value }
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: msg)
         }
     }
 
@@ -917,16 +944,12 @@ class UnifiedDaemon {
     /// name ("wiki_page_changed"), since live-js canvas dispatch routes by
     /// msg.type.
     func forwardWikiPageChangedToCanvases(data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("wiki_page_changed") }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: "wiki_page_changed")
 
         guard !targets.isEmpty else { return }
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: data)
         }
     }
 
@@ -936,28 +959,20 @@ class UnifiedDaemon {
     /// broadcast site does not include `type` in the data dict.
     /// Mirror of forwardWikiPageChangedToCanvases.
     func fanOutCanvasLifecycle(_ data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("canvas_lifecycle") }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: "canvas_lifecycle")
 
         guard !targets.isEmpty else { return }
 
         var msg: [String: Any] = ["type": "canvas_lifecycle"]
         for (k, v) in data { msg[k] = v }
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: msg)
         }
     }
 
     func fanOutCanvasLifecycleSubEvent(event: String, data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("canvas_lifecycle") }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: "canvas_lifecycle")
 
         guard !targets.isEmpty else { return }
 
@@ -967,8 +982,8 @@ class UnifiedDaemon {
         ]
         for (k, v) in data { msg[k] = v }
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: msg)
         }
     }
 
@@ -997,9 +1012,10 @@ class UnifiedDaemon {
         forwardCanvasObjectControlMessage(type: "canvas_object.registry", data: data)
     }
 
-    private func broadcastCanvasObjectRegistrySnapshot(to specificCanvas: String) {
+    private func broadcastCanvasObjectRegistrySnapshot(to target: CanvasLifecycleGeneration) {
         canvasSubscriptionLock.lock()
-        let subscribed = canvasEventSubscriptions[specificCanvas]?.contains("canvas_object.registry") == true
+        let subscribed = canvasEventSubscriptions[target.canvasID]?.target == target
+            && canvasEventSubscriptions[target.canvasID]?.events.contains("canvas_object.registry") == true
         let snapshots = Array(canvasObjectRegistries.values)
         canvasSubscriptionLock.unlock()
 
@@ -1008,30 +1024,27 @@ class UnifiedDaemon {
         for snapshot in snapshots {
             var msg: [String: Any] = ["type": "canvas_object.registry"]
             for (k, v) in snapshot { msg[k] = v }
-            canvasManager.postMessageAsync(canvasID: specificCanvas, payload: msg)
+            canvasManager.postMessageAsync(to: target, payload: msg)
         }
     }
 
     private func forwardCanvasObjectControlMessage(type: String, data: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains(type) }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: type)
 
         guard !targets.isEmpty else { return }
 
         var msg: [String: Any] = ["type": type]
         for (k, v) in data { msg[k] = v }
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: msg)
         }
     }
 
-    private func broadcastInputRegionSnapshot(to specificCanvas: String) {
+    private func broadcastInputRegionSnapshot(to target: CanvasLifecycleGeneration) {
         canvasSubscriptionLock.lock()
-        let subscribed = canvasEventSubscriptions[specificCanvas]?.contains("input_region") == true
+        let subscribed = canvasEventSubscriptions[target.canvasID]?.target == target
+            && canvasEventSubscriptions[target.canvasID]?.events.contains("input_region") == true
         canvasSubscriptionLock.unlock()
         guard subscribed else { return }
 
@@ -1039,7 +1052,7 @@ class UnifiedDaemon {
         let regions = inputRegions.snapshot()
         inputRegionLock.unlock()
 
-        canvasManager.postMessageAsync(canvasID: specificCanvas, payload: [
+        canvasManager.postMessageAsync(to: target, payload: [
             "type": "input_region.snapshot",
             "regions": regions.map { inputRegionPayload($0) },
         ])
@@ -1056,14 +1069,10 @@ class UnifiedDaemon {
     }
 
     private func forwardInputRegionStateEvent(_ payload: [String: Any]) {
-        canvasSubscriptionLock.lock()
-        let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("input_region") }
-            .map { $0.key }
-        canvasSubscriptionLock.unlock()
+        let targets = canvasSubscriptionTargets(for: "input_region")
         guard !targets.isEmpty else { return }
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: payload)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: payload)
         }
     }
 
@@ -1087,18 +1096,18 @@ class UnifiedDaemon {
         ]
     }
 
-    private func broadcastCanvasLifecycleSnapshot(to specificCanvas: String) {
+    private func broadcastCanvasLifecycleSnapshot(to target: CanvasLifecycleGeneration) {
         let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
         for info in infos {
             if let segments = info.segments {
                 var topology = canvasManager.topologySettledPayload(canvasID: info.id, segments: segments)
                 topology["type"] = "canvas_lifecycle"
                 topology["event"] = "canvas_topology_settled"
-                canvasManager.postMessageAsync(canvasID: specificCanvas, payload: topology)
+                canvasManager.postMessageAsync(to: target, payload: topology)
             }
             guard var payload = canvasLifecyclePayload(action: "created", canvasInfo: info) else { continue }
             payload["type"] = "canvas_lifecycle"
-            canvasManager.postMessageAsync(canvasID: specificCanvas, payload: payload)
+            canvasManager.postMessageAsync(to: target, payload: payload)
         }
     }
 
@@ -1106,25 +1115,24 @@ class UnifiedDaemon {
     /// subscribed to `display_geometry`. Invoked on subscribe (single
     /// target) and on `NSApplication.didChangeScreenParametersNotification`
     /// (all subscribers).
-    private func broadcastDisplayGeometry(to specificCanvas: String? = nil) {
-        canvasSubscriptionLock.lock()
-        let targets: [String]
-        if let one = specificCanvas {
-            targets = canvasEventSubscriptions[one]?.contains("display_geometry") == true ? [one] : []
+    private func broadcastDisplayGeometry(to specificTarget: CanvasLifecycleGeneration? = nil) {
+        let targets: [CanvasLifecycleGeneration]
+        if let specificTarget {
+            targets = canvasSubscriptionTarget(
+                canvasID: specificTarget.canvasID,
+                event: "display_geometry"
+            ) == specificTarget ? [specificTarget] : []
         } else {
-            targets = canvasEventSubscriptions
-                .filter { $0.value.contains("display_geometry") }
-                .map { $0.key }
+            targets = canvasSubscriptionTargets(for: "display_geometry")
         }
-        canvasSubscriptionLock.unlock()
 
         guard !targets.isEmpty else { return }
         fputs("[canvas-sub] display_geometry change -> broadcasting to \(targets.count) canvas(es)\n", stderr)
 
         let snapshot = snapshotDisplayGeometry()
 
-        for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: snapshot)
+        for target in targets {
+            canvasManager.postMessageAsync(to: target, payload: snapshot)
         }
     }
 
@@ -1185,7 +1193,7 @@ class UnifiedDaemon {
             }
             obj[k] = v
         }
-        canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: canvasID, payload: obj)
     }
 
     private func dispatchCanvasErrorResponse(
@@ -1201,7 +1209,7 @@ class UnifiedDaemon {
             "code": code,
             "message": message
         ]
-        canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: canvasID, payload: obj)
     }
 
     private func handleClipboardWrite(canvasID: String, payload: [String: Any]) {
@@ -1985,7 +1993,7 @@ class UnifiedDaemon {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.recordCanvasSendMessage(targetID: targetID, message: message)
-            self.canvasManager.postMessageAsync(canvasID: targetID, payload: message)
+            self.canvasManager.postMessageToCurrentCanvasAsync(canvasID: targetID, payload: message)
             self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
                 "target": targetID,
                 "source_canvas_id": callerID,
@@ -1993,7 +2001,12 @@ class UnifiedDaemon {
         }
     }
 
-    private func handleInputRegionRegister(callerID: String, payload: [String: Any], updateOnly: Bool = false) {
+    private func handleInputRegionRegister(
+        caller: CanvasLifecycleGeneration,
+        payload: [String: Any],
+        updateOnly: Bool = false
+    ) {
+        let callerID = caller.canvasID
         let requestID = payload["request_id"] as? String
         guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
@@ -2004,6 +2017,13 @@ class UnifiedDaemon {
         guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "FORBIDDEN", message: "caller \(callerID) may not own region \(id) for \(ownerCanvasID)")
+            return
+        }
+        guard let ownerTarget = ownerCanvasID == callerID
+            ? caller
+            : canvasManager.deliveryTarget(forCanvasID: ownerCanvasID) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "NOT_FOUND", message: "owner canvas \(ownerCanvasID) not found")
             return
         }
         guard let frame = inputRegionFrame(from: payload) else {
@@ -2032,6 +2052,7 @@ class UnifiedDaemon {
         let region = AOSInputRegionRecord(
             id: id,
             ownerCanvasID: ownerCanvasID,
+            ownerCanvasGeneration: ownerTarget.value,
             nativeFrame: nativeFrame,
             coordinateSpace: coordinateSpace,
             semanticLabel: semanticLabel,
@@ -2890,8 +2911,8 @@ class UnifiedDaemon {
             }
             canvasSubscriptionLock.lock()
             var subscriptionEventCounts: [String: Int] = [:]
-            for events in canvasEventSubscriptions.values {
-                for event in events {
+            for subscription in canvasEventSubscriptions.values {
+                for event in subscription.events {
                     subscriptionEventCounts[event, default: 0] += 1
                 }
             }
@@ -3656,12 +3677,13 @@ class UnifiedDaemon {
             }
             return false
         case .deliver(let delivery):
-            DispatchQueue.main.async { [weak self] in
-                self?.canvasManager.postMessageAsync(
+            canvasManager.postMessageAsync(
+                to: CanvasLifecycleGeneration(
                     canvasID: delivery.ownerCanvasID,
-                    payload: delivery.payload
-                )
-            }
+                    value: delivery.ownerCanvasGeneration
+                ),
+                payload: delivery.payload
+            )
             if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {
                 let detail = "event=\(event) phase=\(delivery.phase.rawValue) region=\(delivery.regionID) owner=\(delivery.ownerCanvasID) consume=\(delivery.consume)"
                 fputs("[input-region] \(detail)\n", stderr)

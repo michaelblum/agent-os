@@ -164,6 +164,24 @@
       "status": "active"
     },
     {
+      "id": "canvas-lifecycle-generation-model-proof",
+      "path_patterns": [
+        "tests/canvas-close-callback-contract.test.mjs",
+        "tests/canvas-lifecycle-generation.sh",
+        "tests/lib/canvas-lifecycle-generation.swift"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "canvas_lifecycle_generation_contract",
+      "contract": "Lifecycle completion and native retirement remain generation-bound across same-ID replacement, partial abandonment, and deferred AppKit finalization.",
+      "worth": "This executes the identity and retirement transaction directly without relying on source-shape assertions or a shared daemon.",
+      "command": "node --test tests/canvas-close-callback-contract.test.mjs && bash tests/canvas-lifecycle-generation.sh",
+      "replaces": [],
+      "guard": "compiles the lifecycle coordinator with a minimal native resource and runs on the main AppKit loop; no shared daemon or input tap",
+      "status": "active"
+    },
+    {
       "id": "canvas-lifecycle-stress-proof",
       "path_patterns": [
         "tests/canvas-lifecycle-stress.sh",
@@ -191,8 +209,8 @@
       "owner": "runtime-readiness",
       "harness_level": "real_input",
       "proof_kind": "canvas_lifecycle_concurrent_input_contract",
-      "contract": "Canvas create, lookup, and retirement stay transactional while canonical pointer events continue through persistent v1 see.observe and non-text key events remain targeted to the harness-owned daemon sink.",
-      "worth": "This reproduces the AppKit/WebKit release race class that deterministic lifecycle commands cannot expose alone.",
+      "contract": "Canvas create, lookup, and retirement stay transactional while canonical pointer events continue through persistent v1 see.observe and a generation-bound harness canvas input_event subscription with ordered down/up delivery and bounded event-to-JS latency.",
+      "worth": "This reproduces the AppKit/WebKit release race class while exercising both lossless socket observation and the live global-tap-to-WebKit fanout path.",
       "command": "AOS_REAL_INPUT_OK=1 bash tests/canvas-lifecycle-concurrent-input.sh",
       "replaces": [],
       "guard": "requires explicit AOS_REAL_INPUT_OK=1, native input permissions, and an isolated AOS_STATE_ROOT; incidental user mouse or keyboard input is permitted",
