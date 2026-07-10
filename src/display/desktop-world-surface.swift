@@ -16,6 +16,7 @@ protocol CanvasLike: AnyObject {
     var focusOnReady: Bool { get set }
     var suspended: Bool { get set }
     var lifecycleState: String { get set }
+    var lifecycleGeneration: UInt64 { get set }
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
     var owner: CanvasOwnerInfo? { get set }
@@ -33,7 +34,8 @@ protocol CanvasLike: AnyObject {
     func loadURL(_ urlString: String)
     func show()
     func grabFocus()
-    func close()
+    func quiesceForRetirement()
+    func finalizeRetirement()
     func updatePosition(cgRect: CGRect)
     func finalizeDragPosition()
     func toInfo() -> CanvasInfo
@@ -158,6 +160,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var focusOnReady: Bool = false
     var suspended: Bool = false
     var lifecycleState: String = "active"
+    var lifecycleGeneration: UInt64 = 0
     var cascadeFromParent: Bool = true
     var parent: String? = nil
     var owner: CanvasOwnerInfo? = nil
@@ -179,6 +182,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var sourceURL: String? { urlString }
     private var hasShown = false
     private var inputPassthrough = false
+    private var retirementQuiesced = false
+    private var retirementFinalized = false
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
 
@@ -275,20 +280,39 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         first.window.makeKeyAndOrderFront(nil)
     }
 
-    func close() {
+    func quiesceForRetirement() {
+        precondition(Thread.isMainThread, "canvas quiesce must run on the main thread")
+        guard !retirementQuiesced else { return }
+        retirementQuiesced = true
         onMessage = nil
         onTTLExpired = nil
         ttlTimer?.cancel()
         ttlTimer = nil
         for segment in segments {
             segment.messageHandler.onMessage = nil
-            segment.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+            segment.window.ignoresMouseEvents = true
+            segment.window.isInteractiveCanvas = false
             segment.window.orderOut(nil)
+            segment.webView.stopLoading()
+        }
+        hasShown = false
+    }
+
+    func finalizeRetirement() {
+        precondition(Thread.isMainThread, "canvas finalization must run on the main thread")
+        guard !retirementFinalized else { return }
+        retirementFinalized = true
+        quiesceForRetirement()
+        for segment in segments {
+            segment.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+            segment.webView.navigationDelegate = nil
+            segment.webView.uiDelegate = nil
+            segment.webView.removeFromSuperview()
+            segment.window.contentView = nil
             segment.window.close()
         }
         segments = []
         lastDelta = nil
-        hasShown = false
     }
 
     func updatePosition(cgRect: CGRect) {
@@ -433,9 +457,19 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
         for orphan in byDisplay.values {
             removed.append(segmentMetadata(orphan))
-            orphan.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+            orphan.messageHandler.onMessage = nil
+            orphan.window.ignoresMouseEvents = true
+            orphan.window.isInteractiveCanvas = false
             orphan.window.orderOut(nil)
-            orphan.window.close()
+            orphan.webView.stopLoading()
+            DispatchQueue.main.async {
+                orphan.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+                orphan.webView.navigationDelegate = nil
+                orphan.webView.uiDelegate = nil
+                orphan.webView.removeFromSuperview()
+                orphan.window.contentView = nil
+                orphan.window.close()
+            }
         }
 
         segments = nextSegments
@@ -456,6 +490,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             defer: false
         )
         window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
