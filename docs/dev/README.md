@@ -22,11 +22,11 @@ development integration profile only.
 For the current cleanup narrative that led from real-input/live-drag testing to
 the agent-relay readiness state, read
 `docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md` before
-inferring active work from old work cards, stashes, or branch names.
+inferring active work from historical reports, stashes, or branch names.
 
-Reports and work cards under `docs/dev/` are evidence and routing history, not
-standing command, schema, runtime, or architecture contracts. Before acting on a
-claim from those files, verify the current source surface first: command source
+Reports under `docs/dev/` are evidence and history, not standing command,
+schema, runtime, or architecture contracts. Before acting on a claim from those
+files, verify the current source surface first: command source
 manifests under `manifests/commands/source/`, generated help output, schemas
 under `shared/schemas/`, `docs/api/`, applicable `AGENTS.md` files, tests, and
 live Git/AOS state when the task allows runtime reads.

@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { readdir, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import test from 'node:test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
+const execFileAsync = promisify(execFile);
 
 async function text(relativePath) {
   return readFile(path.join(repoRoot, relativePath), 'utf8');
@@ -51,6 +54,29 @@ async function directChildAgentsPaths() {
     }
   }
   return paths.sort();
+}
+
+async function activeAuthorityPaths() {
+  const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
+  return stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((relativePath) => (
+      relativePath === 'README.md'
+      || relativePath === 'AGENTS.md'
+      || relativePath.endsWith('/README.md')
+      || relativePath.endsWith('/AGENTS.md')
+      || relativePath.startsWith('scripts/')
+      || relativePath.startsWith('skills/')
+      || relativePath.startsWith('docs/api/')
+      || relativePath.startsWith('docs/guides/')
+      || relativePath.startsWith('docs/design/work-cards/')
+      || relativePath === 'docs/dev/README.md'
+      || relativePath === 'docs/dev/command-surface.md'
+    ))
+    .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
+    .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
+    .sort();
 }
 
 test('active authority map points to existing runtime primitive contract owners', async () => {
@@ -124,4 +150,19 @@ test('root AGENTS stays a DOX rail instead of an orchestration contract', async 
 test('root Child DOX Index has no stale removed child docs', async () => {
   const rootAgents = await text('AGENTS.md');
   assert.doesNotMatch(rootAgents, /ai-agents\/AGENTS\.md/);
+});
+
+test('active authority contains no retired Foreman or GDI role vocabulary', async () => {
+  const patterns = [
+    /\bforeman\b/i,
+    /\bgdi\b/i,
+  ];
+  const violations = [];
+  for (const relativePath of await activeAuthorityPaths()) {
+    const content = await text(relativePath);
+    for (const pattern of patterns) {
+      if (pattern.test(content)) violations.push(`${relativePath}: ${pattern}`);
+    }
+  }
+  assert.deepEqual(violations, [], 'retired project-agent authority returned to an active source');
 });

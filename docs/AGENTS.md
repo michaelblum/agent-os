@@ -12,10 +12,10 @@ developer workflow docs, design notes, reports, references, and archives.
 - `adr/` owns durable architecture decisions.
 - `api/` owns consumer-facing command, schema, and toolkit contracts.
 - `guides/` owns repeatable procedures and checklists.
-- `dev/` owns developer workflow profiles, reports, and work cards.
+- `dev/` owns developer workflow profiles and reports.
 - `agents/` owns issue, triage, and domain-doc practices.
-- `design/` owns design notes and active architecture exploration before they
-  graduate into ADRs, APIs, schemas, or guides.
+- `design/` owns design notes, current work cards, and active architecture
+  exploration before they graduate into ADRs, APIs, schemas, or guides.
 - `proposals/` owns time-bounded implementation proposals and decision records
   before they graduate into ADRs, APIs, schemas, guides, or source contracts.
 - `archive/` owns preserved historical material.
@@ -50,8 +50,8 @@ developer workflow docs, design notes, reports, references, and archives.
 - `agents/` holds agent issue/triage/domain practices.
 - `api/` holds public and consumer-facing contracts.
 - `archive/` holds historical material.
-- `design/` holds design exploration and transition notes.
-- `dev/` holds developer workflow docs, reports, and work cards.
+- `design/` holds design exploration, transition notes, and current work cards.
+- `dev/` holds developer workflow docs and reports.
 - `guides/` holds repeatable procedures.
 - `proposals/` holds implementation proposals and decision records.
 - `reference/` holds external or factual references.

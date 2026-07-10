@@ -132,6 +132,22 @@
       "status": "active"
     },
     {
+      "id": "runtime-readiness-broker-primitives-proof",
+      "path_patterns": [
+        "tests/runtime-readiness-broker-primitives.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "guarded_live",
+      "proof_kind": "readiness_broker_contract",
+      "contract": "Private runtime and readiness broker primitives preserve their native acceptance scenario until the owning source route is available.",
+      "worth": "This prevents a future native acceptance proof from drifting silently while keeping it out of default no-build validation.",
+      "command": "bash tests/runtime-readiness-broker-primitives.sh",
+      "replaces": [],
+      "guard": "requires a current rebuilt native ./aos and an isolated AOS_STATE_ROOT; use bash -n for no-build edits",
+      "status": "manual_only"
+    },
+    {
       "id": "wait-surface-housecleaning-report",
       "path_patterns": [
         "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"

@@ -15,7 +15,6 @@ const defaultIncludePrefixes = [
 
 const defaultExcludedPrefixes = [
   'docs/design/work-cards/',
-  'docs/dev/work-cards/',
 ];
 
 const lifecycleKeywords = [
