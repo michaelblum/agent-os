@@ -38,6 +38,7 @@ final class AOSCGEventPostingOwner {
     private var receiptRunLoop: CFRunLoop?
 
     func makeReceipt() -> AOSInputPostReceipt? {
+        teardownReceiptTap()
         guard ensureReceiptTap() else { return nil }
         nextReceiptCounter &+= 1
         if nextReceiptCounter == 0 { nextReceiptCounter = 1 }
@@ -62,6 +63,7 @@ final class AOSCGEventPostingOwner {
         }
         event.post(tap: .cghidEventTap)
         guard awaitReceipt, let receipt else { return true }
+        defer { teardownReceiptTap() }
 
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
@@ -72,6 +74,10 @@ final class AOSCGEventPostingOwner {
     }
 
     deinit {
+        teardownReceiptTap()
+    }
+
+    private func teardownReceiptTap() {
         if let receiptTap {
             CGEvent.tapEnable(tap: receiptTap, enable: false)
             CFMachPortInvalidate(receiptTap)
@@ -79,6 +85,9 @@ final class AOSCGEventPostingOwner {
         if let receiptRunLoop, let receiptRunLoopSource {
             CFRunLoopRemoveSource(receiptRunLoop, receiptRunLoopSource, .commonModes)
         }
+        receiptTap = nil
+        receiptRunLoopSource = nil
+        receiptRunLoop = nil
     }
 
     private func ensureReceiptTap() -> Bool {

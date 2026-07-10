@@ -201,24 +201,18 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let points = bezierPath(from: from, to: target, steps: steps, overshoot: overshoot, jitter: jitter)
 
     let owner = state.eventPostingOwner
-    guard let receipt = owner.makeReceipt() else {
-        return inputDeliveryError("move", state: state)
-    }
-    for (index, pt) in points.enumerated() {
+    for pt in points {
         guard let event = CGEvent(mouseEventSource: owner.source, mouseType: .mouseMoved,
                                   mouseCursorPosition: pt, mouseButton: .left) else {
             return errorResponse("move", state: state, message: "Failed to create mouseMoved event", code: "CGEVENT_FAILED")
         }
         event.flags = currentFlags(state)
-        let isTerminal = index == points.count - 1
-        if !owner.post(event, receipt: isTerminal ? receipt : nil, awaitReceipt: isTerminal) {
-            return inputDeliveryError("move", state: state)
-        }
+        owner.post(event)
         usleep(UInt32(stepInterval * 1_000_000))
     }
 
     state.updateCursor(target)
-    return okResponse("move", state: state, start: start, backend: "cgevent", strategy: "cgevent_move", stateID: req.state_id, terminalReceiptID: receipt.id)
+    return okResponse("move", state: state, start: start, backend: "cgevent", strategy: "cgevent_move", stateID: req.state_id)
 }
 
 /// Click at (req.x, req.y). Moves to target first if cursor is more than 2px away.

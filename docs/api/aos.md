@@ -1876,9 +1876,11 @@ responses and session responses report an additive `execution` object:
 family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), and
 `fallback_used` is reserved for paths that intentionally degrade from a
 preferred semantic strategy. `duration_ms` remains the top-level timing field on
-session responses. Successful CoreGraphics actions include an opaque
-`terminal_event_receipt` after the action process observes its exact terminal
-event at the session event tap; callers must not parse or construct this value.
+session responses. Successful CoreGraphics actions with a discrete terminal
+event include an opaque `terminal_event_receipt` after the action process
+observes that exact event at the session event tap. Continuous hover motion may
+be coalesced by macOS and does not claim this receipt. Callers must not parse or
+construct receipt values.
 
 Direct AX `press`, `focus`, and `set-value --pid ... --role ...` responses also
 include a top-level `conformance` block from the external wrapper. The wrapper

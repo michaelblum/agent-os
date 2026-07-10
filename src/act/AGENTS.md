@@ -33,8 +33,9 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   primitives and leave product behavior to higher layers.
 - Keep exact window lifecycle behavior fail-closed: prerequisites must be
   checked before live mutation, and live mutations must have bounded readback.
-- Prepare the terminal-event receipt tap before posting a CGEvent action and do
-  not report success until the exact terminal event has been observed.
+- Prepare an action-local receipt tap before posting a discrete CGEvent action
+  and do not report success until its exact terminal event has been observed.
+  Continuous pointer motion may be coalesced and must not claim such a receipt.
 
 ## Work Guidance
 
