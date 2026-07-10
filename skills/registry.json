@@ -305,13 +305,13 @@
         "docs/api/aos.md",
         "manifests/commands/source/aos/06-recipe.json",
         "recipes/AGENTS.md",
-        "tests/ops-contract.sh"
+        "tests/recipe-contract.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/aos.md",
         "recipes/AGENTS.md",
-        "tests/ops-contract.sh"
+        "tests/recipe-contract.sh"
       ]
     },
     {
@@ -442,6 +442,7 @@
       "references": [
         "docs/dev/workflow-rules.json",
         "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/",
         "scripts/aos-dev-workflow.mjs",
         "tests/dev-workflow-router.sh"
       ],

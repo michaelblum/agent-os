@@ -44,9 +44,9 @@ Recipes and are not Work Record origins.
 
 `aos recipe` is the canonical public command surface. The old `aos ops`
 command surface is retired; do not add manifests, docs, examples, or tests that
-teach it as a callable command. Internal filenames, script names, environment
-variables, and schema IDs that still contain `ops` are implementation names,
-not public taxonomy.
+teach it as a callable command. Recipe implementation files, environment
+variables, and schema IDs use recipe-owned names; do not add new `ops` recipe
+implementation vocabulary.
 
 The existing gated descriptor contract is named `aos.step_descriptor`. It is a
 neutral V0 sketch for one Workflow-gated step/evidence bridge; it is not

@@ -304,6 +304,7 @@
         "docs/dev/agent-capabilities.json",
         "docs/dev/active-profile.json",
         "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/**",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "scripts/aos-dev-workflow.mjs",

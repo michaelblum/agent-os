@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by recipe.",
+  "entries": [
+    {
+      "id": "recipe-contract-proof",
+      "path_patterns": [
+        "tests/recipe-contract.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/recipe/**"
+      ],
+      "owner": "recipe",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "recipe_contract",
+      "contract": "Source-backed recipe schema validation, list/explain/dry-run/run behavior, cleanup, and failure reporting remain intact.",
+      "worth": "This catches recipe-runner drift where command manifests still dispatch but executable recipe safety, cleanup, or JSON contracts regress.",
+      "command": "bash tests/recipe-contract.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and an auto-started repo daemon for bounded canvas cleanup checks",
+      "status": "active"
+    },
+    {
+      "id": "recipe-ref-postcondition-contract-proof",
+      "path_patterns": [
+        "tests/recipe-ref-postcondition-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "recipe",
+      "harness_level": "model_unit",
+      "proof_kind": "recipe_contract",
+      "contract": "Recipe saved-ref postcondition examples stay schema-valid and remain evidence, not Work Record replay authority.",
+      "worth": "This keeps recipe postcondition drift from turning evidence checks into a hidden replay contract.",
+      "command": "node --test tests/recipe-ref-postcondition-contract.test.mjs",
+      "replaces": [],
+      "guard": "read-only schema and documentation assertions",
+      "status": "active"
+    }
+  ]
+}

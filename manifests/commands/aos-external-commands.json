@@ -2052,7 +2052,7 @@
       "path": ["recipe"],
       "summary": "Run source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs"],
+      "argv_prefix": ["node", "scripts/aos-recipe.mjs"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2065,7 +2065,7 @@
       "path": ["recipe", "list"],
       "summary": "List source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "list"],
+      "argv_prefix": ["node", "scripts/aos-recipe.mjs", "list"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2078,7 +2078,7 @@
       "path": ["recipe", "explain"],
       "summary": "Explain source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "explain"],
+      "argv_prefix": ["node", "scripts/aos-recipe.mjs", "explain"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2091,7 +2091,7 @@
       "path": ["recipe", "dry-run"],
       "summary": "Dry-run source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "dry-run"],
+      "argv_prefix": ["node", "scripts/aos-recipe.mjs", "dry-run"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -2104,7 +2104,7 @@
       "path": ["recipe", "run"],
       "summary": "Run source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "run"],
+      "argv_prefix": ["node", "scripts/aos-recipe.mjs", "run"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

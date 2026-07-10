@@ -25,5 +25,6 @@ Use this skill to choose verification for changes in this repo.
 
 - `docs/dev/workflow-rules.json`
 - `docs/dev/test-proof-registry.json`
+- `docs/dev/test-proof-registry.d/`
 - `scripts/aos-dev-workflow.mjs`
 - `tests/dev-workflow-router.sh`

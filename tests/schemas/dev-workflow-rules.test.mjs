@@ -188,6 +188,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-situation.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-drift-lint.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.d/**'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/dev-test-proof-registry.schema.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/fixtures/dev-test-proof-registry/**'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-test-proof-registry.test.mjs'));

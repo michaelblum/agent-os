@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-class OpsFailure extends Error {
+class RecipeFailure extends Error {
   constructor(message, code) {
     super(message);
     this.code = code;
@@ -60,7 +60,7 @@ function parseArgs(argv) {
   if (!subcommand) return { subcommand: null, json: false, positional: [] };
   const json = rest.includes('--json');
   for (const arg of rest) {
-    if (arg.startsWith('--') && arg !== '--json') throw new OpsFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    if (arg.startsWith('--') && arg !== '--json') throw new RecipeFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
   }
   return { subcommand, json, positional: rest.filter((arg) => arg !== '--json') };
 }
@@ -71,16 +71,16 @@ function readObject(file) {
     if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('expected object');
     return parsed;
   } catch (err) {
-    if (err instanceof OpsFailure) throw err;
-    throw new OpsFailure(`Could not read ${file}: ${err.message}`, 'RECIPE_READ_FAILED');
+    if (err instanceof RecipeFailure) throw err;
+    throw new RecipeFailure(`Could not read ${file}: ${err.message}`, 'RECIPE_READ_FAILED');
   }
 }
 
 function recipeFromManifest(manifest, owner, recipePath, sourceKind) {
-  if (!manifest.id) throw new OpsFailure(`Recipe missing id: ${recipePath}`, 'INVALID_RECIPE');
+  if (!manifest.id) throw new RecipeFailure(`Recipe missing id: ${recipePath}`, 'INVALID_RECIPE');
   const version = Number(manifest.version || 0);
   if (!Number.isInteger(version) || version <= 0) {
-    throw new OpsFailure(`Recipe ${manifest.id} must declare positive integer version`, 'INVALID_RECIPE');
+    throw new RecipeFailure(`Recipe ${manifest.id} must declare positive integer version`, 'INVALID_RECIPE');
   }
   return {
     id: manifest.id,
@@ -118,7 +118,7 @@ function bundledRecipeIndexPath() {
 
 function loadRecipeIndex(indexPath) {
   const root = readObject(indexPath);
-  if (!Array.isArray(root.recipes)) throw new OpsFailure(`Recipe index missing recipes array: ${indexPath}`, 'INVALID_RECIPE_INDEX');
+  if (!Array.isArray(root.recipes)) throw new RecipeFailure(`Recipe index missing recipes array: ${indexPath}`, 'INVALID_RECIPE_INDEX');
   return root.recipes.map((entry) => {
     const manifest = entry.manifest && typeof entry.manifest === 'object' ? entry.manifest : entry;
     return recipeFromManifest(
@@ -131,7 +131,7 @@ function loadRecipeIndex(indexPath) {
 }
 
 function discoverSourceRecipes() {
-  const override = envValue('AOS_OPS_RECIPE_ROOTS');
+  const override = envValue('AOS_RECIPE_ROOTS');
   if (override) {
     return override.split(':').flatMap((root) => loadRecipeFiles(root, root, 'fixture'));
   }
@@ -149,12 +149,12 @@ function discoverSourceRecipes() {
 
 function loadRecipes() {
   let recipes;
-  const indexOverride = envValue('AOS_OPS_RECIPE_INDEX');
+  const indexOverride = envValue('AOS_RECIPE_INDEX');
   if (indexOverride) recipes = loadRecipeIndex(indexOverride);
   else if (mode() === 'installed') {
     const indexPath = bundledRecipeIndexPath();
     if (!fs.existsSync(indexPath)) {
-      throw new OpsFailure('Installed-mode executable recipe index not found in packaged resources', 'RECIPE_DISCOVERY_FAILED');
+      throw new RecipeFailure('Installed-mode executable recipe index not found in packaged resources', 'RECIPE_DISCOVERY_FAILED');
     }
     recipes = loadRecipeIndex(indexPath);
   } else recipes = discoverSourceRecipes();
@@ -162,7 +162,7 @@ function loadRecipes() {
   const seen = new Map();
   for (const recipe of recipes) {
     if (seen.has(recipe.id)) {
-      throw new OpsFailure(`Duplicate executable recipe id '${recipe.id}' in ${seen.get(recipe.id).path} and ${recipe.path}`, 'DUPLICATE_RECIPE_ID');
+      throw new RecipeFailure(`Duplicate executable recipe id '${recipe.id}' in ${seen.get(recipe.id).path} and ${recipe.path}`, 'DUPLICATE_RECIPE_ID');
     }
     seen.set(recipe.id, recipe);
   }
@@ -184,7 +184,7 @@ let commandRegistry = null;
 function loadCommandRegistry() {
   if (commandRegistry) return commandRegistry;
   const result = spawnSync(aosPath(), ['help', '--json'], { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, env: process.env });
-  if (result.status !== 0) throw new OpsFailure('Could not load command registry from aos help --json', 'INTERNAL');
+  if (result.status !== 0) throw new RecipeFailure('Could not load command registry from aos help --json', 'INTERNAL');
   commandRegistry = JSON.parse(result.stdout);
   return commandRegistry;
 }
@@ -208,9 +208,9 @@ function validateAssertions(assertions, stepID) {
   for (const assertion of assertions) {
     const hasPath = Array.isArray(assertion.path);
     const hasSelect = assertion.select && typeof assertion.select === 'object';
-    if (!hasPath && !hasSelect) throw new OpsFailure(`Assertion in step ${stepID} must declare path or select`, 'INVALID_RECIPE');
+    if (!hasPath && !hasSelect) throw new RecipeFailure(`Assertion in step ${stepID} must declare path or select`, 'INVALID_RECIPE');
     const operators = ['exists', 'not_exists', 'equals', 'contains'].filter((key) => Object.prototype.hasOwnProperty.call(assertion, key));
-    if (operators.length !== 1) throw new OpsFailure(`Assertion in step ${stepID} must declare exactly one operator`, 'INVALID_RECIPE');
+    if (operators.length !== 1) throw new RecipeFailure(`Assertion in step ${stepID} must declare exactly one operator`, 'INVALID_RECIPE');
   }
 }
 
@@ -223,23 +223,23 @@ function repoRoot() {
 }
 
 function resolveRepoPath(relPath, fieldName) {
-  if (typeof relPath !== 'string' || !relPath) throw new OpsFailure(`${fieldName} must be a repo-relative path`, 'INVALID_RECIPE');
-  if (path.isAbsolute(relPath)) throw new OpsFailure(`${fieldName} must not be absolute: ${relPath}`, 'INVALID_RECIPE');
+  if (typeof relPath !== 'string' || !relPath) throw new RecipeFailure(`${fieldName} must be a repo-relative path`, 'INVALID_RECIPE');
+  if (path.isAbsolute(relPath)) throw new RecipeFailure(`${fieldName} must not be absolute: ${relPath}`, 'INVALID_RECIPE');
   const root = path.resolve(repoRoot());
   const resolved = path.resolve(root, relPath);
   if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
-    throw new OpsFailure(`${fieldName} must stay under the repo: ${relPath}`, 'INVALID_RECIPE');
+    throw new RecipeFailure(`${fieldName} must stay under the repo: ${relPath}`, 'INVALID_RECIPE');
   }
   return resolved;
 }
 
 function planRecipe(recipe) {
   const steps = recipe.manifest.steps;
-  if (!Array.isArray(steps) || steps.length === 0) throw new OpsFailure(`Recipe ${recipe.id} must declare at least one step`, 'INVALID_RECIPE');
+  if (!Array.isArray(steps) || steps.length === 0) throw new RecipeFailure(`Recipe ${recipe.id} must declare at least one step`, 'INVALID_RECIPE');
   const planned = steps.map((step) => {
-    if (!step.id) throw new OpsFailure(`Recipe ${recipe.id} contains a step without id`, 'INVALID_RECIPE');
+    if (!step.id) throw new RecipeFailure(`Recipe ${recipe.id} contains a step without id`, 'INVALID_RECIPE');
     const timeoutMs = Number(step.timeout_ms || 5000);
-    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new OpsFailure(`Step ${step.id} timeout_ms must be positive`, 'INVALID_RECIPE');
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new RecipeFailure(`Step ${step.id} timeout_ms must be positive`, 'INVALID_RECIPE');
     const assertions = Array.isArray(step.assertions) ? step.assertions : [];
     validateAssertions(assertions, step.id);
     const kind = blockKind(step);
@@ -254,9 +254,9 @@ function planRecipe(recipe) {
     if (kind === 'aos_command') {
       const commandPath = step.command?.path;
       const formID = step.command?.form_id;
-      if (!Array.isArray(commandPath) || !formID) throw new OpsFailure(`Step ${step.id} must use command.path and command.form_id`, 'INVALID_RECIPE');
+      if (!Array.isArray(commandPath) || !formID) throw new RecipeFailure(`Step ${step.id} must use command.path and command.form_id`, 'INVALID_RECIPE');
       const form = findCommandForm(commandPath, formID);
-      if (!form) throw new OpsFailure(`Step ${step.id} references unknown command form ${commandPath.join(' ')}/${formID}`, 'UNKNOWN_COMMAND_FORM');
+      if (!form) throw new RecipeFailure(`Step ${step.id} references unknown command form ${commandPath.join(' ')}/${formID}`, 'UNKNOWN_COMMAND_FORM');
       const argv = Array.isArray(step.argv) ? step.argv : [];
       const mutates = Boolean(step.mutates) || formMutatesForArgv(form, argv);
       return {
@@ -273,12 +273,12 @@ function planRecipe(recipe) {
       const script = shell.script;
       const scriptPath = resolveRepoPath(script, `Step ${step.id} shell.script`);
       if (!fs.existsSync(scriptPath) || !fs.statSync(scriptPath).isFile()) {
-        throw new OpsFailure(`Step ${step.id} shell.script does not exist: ${script}`, 'INVALID_RECIPE');
+        throw new RecipeFailure(`Step ${step.id} shell.script does not exist: ${script}`, 'INVALID_RECIPE');
       }
       let cwd = shell.cwd || '.';
       const cwdPath = resolveRepoPath(cwd, `Step ${step.id} shell.cwd`);
       if (!fs.existsSync(cwdPath) || !fs.statSync(cwdPath).isDirectory()) {
-        throw new OpsFailure(`Step ${step.id} shell.cwd does not exist: ${cwd}`, 'INVALID_RECIPE');
+        throw new RecipeFailure(`Step ${step.id} shell.cwd does not exist: ${cwd}`, 'INVALID_RECIPE');
       }
       return {
         ...base,
@@ -292,9 +292,9 @@ function planRecipe(recipe) {
       };
     }
     if (['recipe_call', 'assert', 'cleanup', 'signal', 'gate', 'condition', 'loop'].includes(kind)) {
-      throw new OpsFailure(`Step ${step.id} uses reserved recipe block kind '${kind}' without execution support in this engine version`, 'INVALID_RECIPE');
+      throw new RecipeFailure(`Step ${step.id} uses reserved recipe block kind '${kind}' without execution support in this engine version`, 'INVALID_RECIPE');
     }
-    throw new OpsFailure(`Step ${step.id} uses unknown recipe block kind '${kind}'`, 'INVALID_RECIPE');
+    throw new RecipeFailure(`Step ${step.id} uses unknown recipe block kind '${kind}'`, 'INVALID_RECIPE');
   });
   validateOwnedResourcePlan(recipe, planned);
   return planned;
@@ -304,7 +304,7 @@ function ownedResourceTemplates(recipe) {
   const raw = recipe.manifest.owned_resources;
   if (!Array.isArray(raw)) return [];
   return raw.map((item) => {
-    if (!item.name || !item.type || !item.id) throw new OpsFailure(`Recipe ${recipe.id} has invalid owned_resources entry`, 'INVALID_RECIPE');
+    if (!item.name || !item.type || !item.id) throw new RecipeFailure(`Recipe ${recipe.id} has invalid owned_resources entry`, 'INVALID_RECIPE');
     return { name: item.name, type: item.type, id: item.id, ttlSeconds: item.ttl_seconds };
   });
 }
@@ -322,21 +322,21 @@ function validateOwnedResourcePlan(recipe, plan) {
   const owned = ownedResourceTemplates(recipe);
   const ownedNames = new Set();
   for (const resource of owned) {
-    if (ownedNames.has(resource.name)) throw new OpsFailure(`Recipe ${recipe.id} declares duplicate owned resource '${resource.name}'`, 'INVALID_RECIPE');
+    if (ownedNames.has(resource.name)) throw new RecipeFailure(`Recipe ${recipe.id} declares duplicate owned resource '${resource.name}'`, 'INVALID_RECIPE');
     ownedNames.add(resource.name);
   }
   for (const step of plan) {
     if (step.cleanupResources.length && !step.finally) {
-      throw new OpsFailure(`Step ${step.id} declares cleanup_resources but is not marked finally`, 'INVALID_RECIPE');
+      throw new RecipeFailure(`Step ${step.id} declares cleanup_resources but is not marked finally`, 'INVALID_RECIPE');
     }
     for (const name of step.cleanupResources) {
-      if (!ownedNames.has(name)) throw new OpsFailure(`Step ${step.id} references unknown cleanup resource '${name}'`, 'INVALID_RECIPE');
+      if (!ownedNames.has(name)) throw new RecipeFailure(`Step ${step.id} references unknown cleanup resource '${name}'`, 'INVALID_RECIPE');
     }
   }
   if (!mutates) return;
   const cleanupRequired = owned.some(resourceNeedsCleanup);
   if (cleanupRequired && !plan.some((step) => step.finally && step.cleanupResources.length)) {
-    throw new OpsFailure(`Mutating recipe ${recipe.id} must declare cleanup finally steps for owned cleanup resources`, 'INVALID_RECIPE');
+    throw new RecipeFailure(`Mutating recipe ${recipe.id} must declare cleanup finally steps for owned cleanup resources`, 'INVALID_RECIPE');
   }
 }
 
@@ -401,7 +401,7 @@ function stepResult(step, status, durationMs, observed, resolvedArgv = undefined
   return out;
 }
 
-function opsResult(status, code, error, recipe, dryRun, steps, mutatedResources, cleanup) {
+function recipeResult(status, code, error, recipe, dryRun, steps, mutatedResources, cleanup) {
   return {
     status,
     code,
@@ -523,15 +523,15 @@ function argValue(args, flag) {
   return args[index + 1];
 }
 
-function recoverMutatingTransient(step, argv, output) {
+function recoverMutatingCreateTransient(step, argv, output) {
   if (!step.mutates || !transientIPCFailure(output)) return output;
   if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show') return output;
-  if (argv[0] !== 'create' && argv[0] !== 'remove') return output;
+  if (argv[0] !== 'create') return output;
   const id = argValue(argv, '--id');
   if (!id) return output;
   const exists = runProcess(aosPath(), ['show', 'exists', '--id', id], step.timeoutMs);
   const parsed = parseJSON(exists.stdout);
-  if (argv[0] === 'create' && exists.exitCode === 0 && parsed?.exists === true) {
+  if (exists.exitCode === 0 && parsed?.exists === true) {
     return {
       timedOut: false,
       exitCode: 0,
@@ -541,7 +541,25 @@ function recoverMutatingTransient(step, argv, output) {
       recovered: 'verified-created-resource',
     };
   }
-  if (argv[0] === 'remove' && exists.exitCode === 0 && parsed?.exists === false) {
+  return output;
+}
+
+function recoverCleanupRemoveTransient(step, argv, output, ownedResources) {
+  if (!step.finally || !step.cleanupResources.length || !step.mutates || !transientIPCFailure(output)) return output;
+  if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show') return output;
+  if (step.formID !== 'show-remove' || argv[0] !== 'remove') return output;
+  const ownedByName = new Map(ownedResources.map((resource) => [resource.name, resource]));
+  const declared = step.cleanupResources.map((name) => ownedByName.get(name)).filter(Boolean);
+  if (!declared.length || declared.some((resource) => !resourceNeedsCleanup(resource))) return output;
+  const declaredIDs = new Set(declared.map((resource) => resource.id));
+  const ids = argv.flatMap((value, index) => (value === '--id' && index + 1 < argv.length ? [argv[index + 1]] : []));
+  if (!ids.length || !ids.every((id) => declaredIDs.has(id))) return output;
+  const missing = ids.every((id) => {
+    const exists = runProcess(aosPath(), ['show', 'exists', '--id', id], step.timeoutMs);
+    const parsed = parseJSON(exists.stdout);
+    return exists.exitCode === 0 && parsed?.exists === false;
+  });
+  if (missing) {
     return {
       timedOut: false,
       exitCode: 0,
@@ -554,18 +572,21 @@ function recoverMutatingTransient(step, argv, output) {
   return output;
 }
 
-function executeStep(step, runID, resources) {
+function executeStep(step, runID, resources, options = {}) {
   const argv = step.argv.map((item) => resolveTemplate(item, runID, resources));
   const started = Date.now();
   let output;
   if (step.kind === 'aos_command') {
     output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs, !step.mutates);
-    output = recoverMutatingTransient(step, argv, output);
+    output = recoverMutatingCreateTransient(step, argv, output);
+    if (options.cleanupOwnedResources) {
+      output = recoverCleanupRemoveTransient(step, argv, output, options.cleanupOwnedResources);
+    }
   } else if (step.kind === 'shell') {
     output = runProcess(step.scriptPath, argv, step.timeoutMs, step.cwdPath);
     output.attempts = 1;
   } else {
-    throw new OpsFailure(`Unsupported execution block '${step.kind}'`, 'INVALID_RECIPE');
+    throw new RecipeFailure(`Unsupported execution block '${step.kind}'`, 'INVALID_RECIPE');
   }
   const durationMs = Date.now() - started;
   const observed = { exit_code: output.exitCode };
@@ -616,29 +637,29 @@ function validateCleanupSafety(cleanupPlan, ownedResources, runID, resources) {
   const ownedByName = new Map(ownedResources.map((resource) => [resource.name, resource]));
   const ownedIDs = new Set(ownedResources.map((resource) => resource.id));
   for (const step of cleanupPlan) {
-    if (!step.cleanupResources.length) throw new OpsFailure(`Cleanup step ${step.id} must declare cleanup_resources`, 'INVALID_RECIPE');
+    if (!step.cleanupResources.length) throw new RecipeFailure(`Cleanup step ${step.id} must declare cleanup_resources`, 'INVALID_RECIPE');
     const argv = step.argv.map((item) => resolveTemplate(item, runID, resources));
     for (const name of step.cleanupResources) {
       const resource = ownedByName.get(name);
-      if (!resource) throw new OpsFailure(`Cleanup step ${step.id} references unknown owned resource ${name}`, 'INVALID_RECIPE');
-      if (resourceNeedsCleanup(resource) && !argv.includes(resource.id)) throw new OpsFailure(`Cleanup step ${step.id} does not target owned resource ${name}`, 'INVALID_RECIPE');
+      if (!resource) throw new RecipeFailure(`Cleanup step ${step.id} references unknown owned resource ${name}`, 'INVALID_RECIPE');
+      if (resourceNeedsCleanup(resource) && !argv.includes(resource.id)) throw new RecipeFailure(`Cleanup step ${step.id} does not target owned resource ${name}`, 'INVALID_RECIPE');
     }
     if (JSON.stringify(step.commandPath) === JSON.stringify(['show']) && step.formID === 'show-remove') {
       const ids = argv.flatMap((value, index) => (value === '--id' && index + 1 < argv.length ? [argv[index + 1]] : []));
-      if (!ids.length) throw new OpsFailure(`Cleanup step ${step.id} show remove must include --id`, 'INVALID_RECIPE');
+      if (!ids.length) throw new RecipeFailure(`Cleanup step ${step.id} show remove must include --id`, 'INVALID_RECIPE');
       for (const id of ids) {
-        if (!ownedIDs.has(id)) throw new OpsFailure(`Cleanup step ${step.id} targets unowned canvas id ${id}`, 'INVALID_RECIPE');
+        if (!ownedIDs.has(id)) throw new RecipeFailure(`Cleanup step ${step.id} targets unowned canvas id ${id}`, 'INVALID_RECIPE');
       }
     }
   }
 }
 
-function runCleanup(cleanupPlan, runID, resources) {
+function runCleanup(cleanupPlan, runID, resources, ownedResources) {
   if (!cleanupPlan.length) return { status: 'not_needed', steps: [] };
   const steps = [];
   let failed = false;
   for (const step of cleanupPlan) {
-    const execution = executeStep(step, runID, resources);
+    const execution = executeStep(step, runID, resources, { cleanupOwnedResources: ownedResources });
     steps.push(execution.result);
     if (execution.code) failed = true;
   }
@@ -654,7 +675,7 @@ function runRecipe(recipe, plan, asJSON) {
   const cleanupPlan = plan.filter((step) => step.finally);
   if (mutates) validateCleanupSafety(cleanupPlan, ownedResources, runID, resources);
   else if (cleanupPlan.length) {
-    const result = opsResult('failure', 'INVALID_RECIPE', `Read-only recipe ${recipe.id} must not declare cleanup finally steps.`, recipe, false, plan.map((step) => stepResult(step, 'skipped', null, null)), [], { status: 'not_needed', steps: [] });
+    const result = recipeResult('failure', 'INVALID_RECIPE', `Read-only recipe ${recipe.id} must not declare cleanup finally steps.`, recipe, false, plan.map((step) => stepResult(step, 'skipped', null, null)), [], { status: 'not_needed', steps: [] });
     emitJSON(result, true);
     process.exit(1);
   }
@@ -670,17 +691,17 @@ function runRecipe(recipe, plan, asJSON) {
       break;
     }
   }
-  const cleanup = mutates ? runCleanup(cleanupPlan, runID, resources) : { status: 'not_needed', steps: [] };
+  const cleanup = mutates ? runCleanup(cleanupPlan, runID, resources, ownedResources) : { status: 'not_needed', steps: [] };
   const mutatedResources = ownedResourcesJSON(ownedResources, runID, cleanup.status === 'not_needed' ? undefined : cleanup.status);
   if (cleanup.status === 'failed') {
-    emitJSON(opsResult('partial', 'CLEANUP_FAILED', failureError ? `${failureError} Cleanup also failed.` : `Cleanup failed for ${recipe.id}.`, recipe, false, stepResults, mutatedResources, cleanup), true);
+    emitJSON(recipeResult('partial', 'CLEANUP_FAILED', failureError ? `${failureError} Cleanup also failed.` : `Cleanup failed for ${recipe.id}.`, recipe, false, stepResults, mutatedResources, cleanup), true);
     process.exit(1);
   }
   if (failureCode) {
-    emitJSON(opsResult('failure', failureCode, failureError, recipe, false, stepResults, mutatedResources, cleanup), true);
+    emitJSON(recipeResult('failure', failureCode, failureError, recipe, false, stepResults, mutatedResources, cleanup), true);
     process.exit(1);
   }
-  const result = opsResult('success', 'OK', null, recipe, false, stepResults, mutatedResources, cleanup);
+  const result = recipeResult('success', 'OK', null, recipe, false, stepResults, mutatedResources, cleanup);
   if (asJSON) emitJSON(result, false);
   else emitRunText(recipe, result);
 }
@@ -729,13 +750,13 @@ function emitRunText(recipe, result) {
 
 function findRecipe(id) {
   const recipe = loadRecipes().find((item) => item.id === id);
-  if (!recipe) throw new OpsFailure(`Recipe not found: ${id}`, 'RECIPE_NOT_FOUND');
+  if (!recipe) throw new RecipeFailure(`Recipe not found: ${id}`, 'RECIPE_NOT_FOUND');
   return recipe;
 }
 
 function singleRecipeID(positional, usage) {
-  if (positional.length === 0 || !positional[0]) throw new OpsFailure(`Usage: ${invocationName()} ${usage}`, 'MISSING_ARG');
-  if (positional.length > 1) throw new OpsFailure(`Unknown argument: ${positional[1]}`, 'UNKNOWN_ARG');
+  if (positional.length === 0 || !positional[0]) throw new RecipeFailure(`Usage: ${invocationName()} ${usage}`, 'MISSING_ARG');
+  if (positional.length > 1) throw new RecipeFailure(`Unknown argument: ${positional[1]}`, 'UNKNOWN_ARG');
   return positional[0];
 }
 
@@ -747,7 +768,7 @@ function main() {
       return;
     }
     if (subcommand === 'list') {
-      if (positional.length) throw new OpsFailure(`Unknown argument: ${positional[0]}`, 'UNKNOWN_ARG');
+      if (positional.length) throw new RecipeFailure(`Unknown argument: ${positional[0]}`, 'UNKNOWN_ARG');
       emitList(loadRecipes(), json);
     } else if (subcommand === 'explain') {
       const recipe = findRecipe(singleRecipeID(positional, `${publicSurface()} explain <id> [--json]`));
@@ -762,7 +783,7 @@ function main() {
         const steps = plan.map((step) => stepResult(step, 'planned', null, null, step.argv.map((item) => resolveTemplate(item, runID, resources))));
         const cleanupPlan = plan.filter((step) => step.finally);
         const cleanup = cleanupPlan.length ? { status: 'planned', steps: cleanupPlan.map((step) => stepResult(step, 'planned', null, null, step.argv.map((item) => resolveTemplate(item, runID, resources)))) } : { status: 'not_needed', steps: [] };
-        const result = opsResult('dry_run', 'OK', null, recipe, true, steps, ownedResourcesJSON(owned, runID, 'planned'), cleanup);
+        const result = recipeResult('dry_run', 'OK', null, recipe, true, steps, ownedResourcesJSON(owned, runID, 'planned'), cleanup);
         result.parameters = recipe.manifest.parameters || {};
         result.resources = resources;
         emitJSON(result, false);
@@ -771,10 +792,10 @@ function main() {
       const recipe = findRecipe(singleRecipeID(positional, `${publicSurface()} run <id> [--json]`));
       runRecipe(recipe, planRecipe(recipe), json);
     } else {
-      throw new OpsFailure(`Unknown ${publicSurface()} subcommand: ${subcommand}`, 'UNKNOWN_SUBCOMMAND');
+      throw new RecipeFailure(`Unknown ${publicSurface()} subcommand: ${subcommand}`, 'UNKNOWN_SUBCOMMAND');
     }
   } catch (err) {
-    if (err instanceof OpsFailure) exitFailure(err.message, err.code);
+    if (err instanceof RecipeFailure) exitFailure(err.message, err.code);
     exitFailure(String(err.stack || err), 'INTERNAL');
   }
 }

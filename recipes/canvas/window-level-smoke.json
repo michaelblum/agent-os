@@ -7,7 +7,7 @@
   "requires": ["show"],
   "docs": "docs/api/aos.md#aos-recipe",
   "resources": {
-    "canvas_id": "ops-${run_id}-window-level-smoke"
+    "canvas_id": "recipe-${run_id}-window-level-smoke"
   },
   "owned_resources": [
     {

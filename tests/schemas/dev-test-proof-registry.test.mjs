@@ -4,24 +4,32 @@ import fs from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateProofWorth } from '../../scripts/lib/dev-test-proof-registry.mjs';
+import { evaluateProofWorth, loadProofRegistry } from '../../scripts/lib/dev-test-proof-registry.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/dev-test-proof-registry.schema.json');
 const canonicalPath = path.join(repoRoot, 'docs/dev/test-proof-registry.json');
+const fragmentRoot = path.join(repoRoot, 'docs/dev/test-proof-registry.d');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/dev-test-proof-registry');
 
-async function jsonFiles(dir) {
+async function jsonFiles(dir, recursive = false) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
-    .map((entry) => path.join(dir, entry.name))
-    .sort();
+  const files = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && recursive) files.push(...await jsonFiles(full, true));
+    else if (entry.isFile() && entry.name.endsWith('.json')) files.push(full);
+  }
+  return files.sort();
 }
 
 async function loadJson(file) {
   return JSON.parse(await fs.readFile(file, 'utf8'));
+}
+
+function loadCanonicalRegistry() {
+  return loadProofRegistry({ repoRoot, registryPath: 'docs/dev/test-proof-registry.json' }).registry;
 }
 
 function validate(instancePath) {
@@ -51,9 +59,30 @@ if errors:
   );
 }
 
-test('canonical dev test proof registry matches the schema', () => {
+test('canonical dev test proof registry index matches the schema', () => {
   const result = validate(canonicalPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});
+
+test('dev test proof registry fragments match the schema', async () => {
+  const fragments = await jsonFiles(fragmentRoot);
+  assert.ok(fragments.length >= 1, 'expected proof registry fragments');
+  for (const fragment of fragments) {
+    const result = validate(fragment);
+    assert.equal(
+      result.status,
+      0,
+      `${path.relative(repoRoot, fragment)} should validate\n${result.stdout}${result.stderr}`,
+    );
+  }
+});
+
+test('dev test proof registry source files stay decomposed', async () => {
+  const files = [canonicalPath, ...await jsonFiles(fragmentRoot)];
+  for (const file of files) {
+    const lineCount = (await fs.readFile(file, 'utf8')).split(/\r?\n/).length - 1;
+    assert.ok(lineCount < 1000, `${path.relative(repoRoot, file)} must stay under 1000 lines; saw ${lineCount}`);
+  }
 });
 
 test('valid dev test proof registry fixtures match the schema', async () => {
@@ -79,7 +108,7 @@ test('invalid dev test proof registry fixtures are rejected by the schema', asyn
 });
 
 test('canonical registry entries keep ids unique and commands exact', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const ids = registry.entries.map((entry) => entry.id);
   assert.equal(new Set(ids).size, ids.length, 'registry ids must be unique');
   for (const entry of registry.entries) {
@@ -92,7 +121,7 @@ test('canonical registry entries keep ids unique and commands exact', async () =
 });
 
 test('proof-worth evaluator accepts registered tests and fixtures with exact commands', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: [
       'tests/schemas/dev-test-proof-registry.test.mjs',
@@ -131,7 +160,7 @@ test('proof-worth evaluator fails existing unregistered tests and allows deleted
 });
 
 test('proof-worth evaluator reports guarded entries without default commands', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: ['tests/manual/native-ax-saved-ref-live-proof.sh'],
     repoRoot,
@@ -147,7 +176,7 @@ test('proof-worth evaluator reports guarded entries without default commands', a
 });
 
 test('proof-worth evaluator treats toolkit component launchers as guarded proof assets', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: ['packages/toolkit/components/surface-inspector/launch.sh'],
     repoRoot,
@@ -165,7 +194,7 @@ test('proof-worth evaluator treats toolkit component launchers as guarded proof 
 });
 
 test('proof-worth evaluator treats real-input surface helper as guarded proof asset', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: ['tests/lib/real-input-surface-harness.sh'],
     repoRoot,
@@ -183,7 +212,7 @@ test('proof-worth evaluator treats real-input surface helper as guarded proof as
 });
 
 test('proof-worth evaluator routes skills efficacy fixture through test and CLI proofs', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: ['tests/fixtures/aos-skills/agentic-efficacy-eval-v0.json'],
     repoRoot,
@@ -201,7 +230,7 @@ test('proof-worth evaluator routes skills efficacy fixture through test and CLI 
 });
 
 test('proof-worth evaluator routes root skills command and forward proofs', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: [
       'tests/aos-skills-command.test.mjs',
@@ -223,7 +252,7 @@ test('proof-worth evaluator routes root skills command and forward proofs', asyn
 });
 
 test('proof-worth evaluator routes voice proof family assets', async () => {
-  const registry = await loadJson(canonicalPath);
+  const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: [
       'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',

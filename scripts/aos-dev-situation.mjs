@@ -25,6 +25,13 @@ function parsePositiveInteger(value, flag) {
   return parsed;
 }
 
+function commandTimeoutMs() {
+  const raw = process.env.AOS_DEV_SITUATION_TIMEOUT_MS || '10000';
+  if (!/^[0-9]+$/.test(raw)) return 10000;
+  const parsed = Number.parseInt(raw, 10);
+  return parsed > 0 ? parsed : 10000;
+}
+
 function parseArgs(args) {
   const options = {
     json: false,
@@ -63,7 +70,19 @@ function parseArgs(args) {
 }
 
 function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: commandTimeoutMs(),
+  });
+  if (result.error?.code === 'ETIMEDOUT') {
+    return {
+      exitCode: 124,
+      stdout: result.stdout ?? '',
+      stderr: `${commandString(command, args)} timed out after ${commandTimeoutMs()}ms\n${result.stderr ?? ''}`,
+    };
+  }
   if (result.error) {
     return {
       exitCode: 127,

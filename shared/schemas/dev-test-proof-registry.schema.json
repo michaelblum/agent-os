@@ -4,12 +4,26 @@
   "title": "AOS Dev Test Proof Registry",
   "description": "Maintainer registry for proof-worth routing of touched executable tests, helpers, fixtures, and proof assets.",
   "type": "object",
-  "required": ["schema_version", "summary", "entries"],
+  "required": ["schema_version", "summary"],
   "additionalProperties": false,
+  "oneOf": [
+    { "required": ["entries"], "not": { "required": ["fragments"] } },
+    { "required": ["fragments"], "not": { "required": ["entries"] } }
+  ],
   "properties": {
     "$schema": { "type": "string" },
     "schema_version": { "type": "integer", "minimum": 1 },
     "summary": { "type": "string", "minLength": 1 },
+    "fragments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^/].*\\.json$"
+      },
+      "uniqueItems": true
+    },
     "entries": {
       "type": "array",
       "minItems": 1,

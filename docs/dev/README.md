@@ -54,9 +54,10 @@ AOS ergonomics should be shaped through direct commands, stable help/JSON
 contracts, and explicit capability groups rather than command-name parity with
 another CLI.
 
-`test-proof-registry.json` is the hidden proof-worth ratchet for changed tests,
-helpers, fixtures, and proof assets. It is source truth, not generated output:
-each entry names the owner, harness level, contract, worth, exact proof command,
+`test-proof-registry.json` is the hidden proof-worth ratchet index for changed
+tests, helpers, fixtures, and proof assets. Its owner fragments under
+`docs/dev/test-proof-registry.d/` are source truth, not generated output: each
+entry names the owner, harness level, contract, worth, exact proof command,
 replacement relationship, guard posture, and status.
 `node scripts/aos-dev-workflow.mjs recommend` enforces it for changed proof
 assets; `node scripts/aos-dev-workflow.mjs classify` may report the same

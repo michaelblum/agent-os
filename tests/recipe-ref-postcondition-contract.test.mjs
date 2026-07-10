@@ -32,7 +32,7 @@ instance = json.loads(sys.stdin.read())
 Draft202012Validator.check_schema(schema)
 Draft202012Validator(schema).validate(instance)
 `,
-      path.join(repoRoot, 'shared/schemas/ops-recipe.schema.json'),
+      path.join(repoRoot, 'shared/schemas/recipe.schema.json'),
     ],
     {
       input: JSON.stringify(recipe),
@@ -62,21 +62,21 @@ test('source-backed recipes can carry compact saved-ref diff postconditions', as
       {
         id: 'before-capture',
         command: { path: ['see'], form_id: 'see-capture-save' },
-        argv: ['capture', 'browser:todo', '--save', '--mode', 'ax', '--workspace', 'ops-ref-postcondition', '--name', 'before', '--query', 'Click me'],
+        argv: ['capture', 'browser:todo', '--save', '--mode', 'ax', '--workspace', 'recipe-ref-postcondition', '--name', 'before', '--query', 'Click me'],
         timeout_ms: 10000,
         assertions: [{ path: ['status'], equals: 'success' }],
       },
       {
         id: 'after-capture',
         command: { path: ['see'], form_id: 'see-capture-save' },
-        argv: ['capture', 'browser:todo', '--save', '--mode', 'ax', '--workspace', 'ops-ref-postcondition', '--name', 'after', '--query', 'Click me'],
+        argv: ['capture', 'browser:todo', '--save', '--mode', 'ax', '--workspace', 'recipe-ref-postcondition', '--name', 'after', '--query', 'Click me'],
         timeout_ms: 10000,
         assertions: [{ path: ['status'], equals: 'success' }],
       },
       {
         id: 'ref-postcondition',
         command: { path: ['see'], form_id: 'see-refs' },
-        argv: ['refs', '--workspace', 'ops-ref-postcondition', '--diff', 'before..after', '--expect-ref', 'r2=unchanged', '--expect-ref', 'r4=present', '--json'],
+        argv: ['refs', '--workspace', 'recipe-ref-postcondition', '--diff', 'before..after', '--expect-ref', 'r2=unchanged', '--expect-ref', 'r4=present', '--json'],
         timeout_ms: 10000,
         mutates: false,
         assertions: [

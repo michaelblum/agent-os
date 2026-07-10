@@ -31,4 +31,4 @@ or the requested operation would mutate runtime state without authorization.
 - `docs/api/aos.md`
 - `manifests/commands/source/aos/06-recipe.json`
 - `recipes/AGENTS.md`
-- `tests/ops-contract.sh`
+- `tests/recipe-contract.sh`

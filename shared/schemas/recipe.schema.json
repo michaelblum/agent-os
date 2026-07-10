@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/ops-recipe.schema.json",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/recipe.schema.json",
   "title": "AOS Recipe",
   "description": "Source-backed executable recipe manifest for aos recipe.",
   "type": "object",

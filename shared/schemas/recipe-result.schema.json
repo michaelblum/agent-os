@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/ops-result.schema.json",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/recipe-result.schema.json",
   "title": "AOS Recipe Result",
   "description": "Machine-readable result for aos recipe dry-run and run.",
   "type": "object",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/ops-assertion.schema.json",
-  "title": "AOS Ops Structured Assertion",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/recipe-assertion.schema.json",
+  "title": "AOS Recipe Structured Assertion",
   "description": "Small in-tree matcher for source-backed executable recipes. This is intentionally not JSONPath or jq.",
   "type": "object",
   "additionalProperties": false,

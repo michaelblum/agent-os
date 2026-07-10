@@ -29,6 +29,61 @@ export function normalizeProofPath(value, repoRoot = process.cwd()) {
   return toPosixPath(normalized).replace(/^\.\//, '');
 }
 
+function readRegistryObject(resolved) {
+  let raw;
+  try {
+    raw = fs.readFileSync(resolved, 'utf8');
+  } catch (err) {
+    throw new ProofRegistryError(`Missing dev test proof registry: ${resolved}`, 'MISSING_PROOF_REGISTRY', { cause: err });
+  }
+
+  try {
+    const registry = JSON.parse(raw);
+    if (!registry || Array.isArray(registry) || typeof registry !== 'object') {
+      throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: expected JSON object`, 'INVALID_PROOF_REGISTRY');
+    }
+    return registry;
+  } catch (err) {
+    if (err instanceof ProofRegistryError) throw err;
+    throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: ${err.message}`, 'INVALID_PROOF_REGISTRY');
+  }
+}
+
+function resolveFragmentPath(fragment, parentPath, repoRoot) {
+  const expanded = fragment.startsWith('~') ? path.join(process.env.HOME || '', fragment.slice(1)) : fragment;
+  if (path.isAbsolute(expanded)) return path.resolve(expanded);
+  return path.resolve(path.dirname(parentPath), expanded);
+}
+
+function normalizeRegistryShape(registry, resolved, repoRoot, seen = new Set()) {
+  if (Array.isArray(registry.entries)) return registry;
+  if (!Array.isArray(registry.fragments)) {
+    throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: expected entries[] or fragments[]`, 'INVALID_PROOF_REGISTRY');
+  }
+
+  const entries = [];
+  const fragments = [];
+  for (const fragment of registry.fragments) {
+    if (typeof fragment !== 'string' || fragment.length === 0) {
+      throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: fragments[] must contain paths`, 'INVALID_PROOF_REGISTRY');
+    }
+    const fragmentPath = resolveFragmentPath(fragment, resolved, repoRoot);
+    if (seen.has(fragmentPath)) {
+      throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: duplicate fragment ${normalizeProofPath(fragmentPath, repoRoot)}`, 'INVALID_PROOF_REGISTRY');
+    }
+    seen.add(fragmentPath);
+    const loaded = normalizeRegistryShape(readRegistryObject(fragmentPath), fragmentPath, repoRoot, seen);
+    entries.push(...loaded.entries);
+    fragments.push(normalizeProofPath(fragmentPath, repoRoot));
+  }
+
+  return {
+    ...registry,
+    fragments,
+    entries,
+  };
+}
+
 export function globToRegex(pattern) {
   let out = '';
   for (let i = 0; i < pattern.length;) {
@@ -64,23 +119,7 @@ export function globMatches(pattern, itemPath) {
 
 export function loadProofRegistry({ repoRoot = process.cwd(), registryPath = defaultProofRegistryPath } = {}) {
   const resolved = path.resolve(path.isAbsolute(registryPath) ? registryPath : path.join(repoRoot, registryPath));
-  let raw;
-  try {
-    raw = fs.readFileSync(resolved, 'utf8');
-  } catch (err) {
-    throw new ProofRegistryError(`Missing dev test proof registry: ${resolved}`, 'MISSING_PROOF_REGISTRY', { cause: err });
-  }
-
-  let registry;
-  try {
-    registry = JSON.parse(raw);
-  } catch (err) {
-    throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: ${err.message}`, 'INVALID_PROOF_REGISTRY');
-  }
-
-  if (!registry || Array.isArray(registry) || typeof registry !== 'object' || !Array.isArray(registry.entries)) {
-    throw new ProofRegistryError(`Invalid dev test proof registry ${resolved}: expected object with entries[]`, 'INVALID_PROOF_REGISTRY');
-  }
+  const registry = normalizeRegistryShape(readRegistryObject(resolved), resolved, repoRoot, new Set([resolved]));
 
   return {
     path: resolved,
@@ -94,6 +133,10 @@ export function classifyProofAsset(itemPath) {
   if (!normalized || normalized === '.') return null;
 
   if (normalized === defaultProofRegistryPath) {
+    return { kind: 'proof_registry', patternField: 'path_patterns' };
+  }
+
+  if (normalized.startsWith('docs/dev/test-proof-registry.d/') && normalized.endsWith('.json')) {
     return { kind: 'proof_registry', patternField: 'path_patterns' };
   }
 

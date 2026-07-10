@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ops-contract.sh — verify source-backed executable recipe contracts.
+# recipe-contract.sh — verify source-backed executable recipe contracts.
 
 set -euo pipefail
 
@@ -40,15 +40,15 @@ import jsonschema
 
 root = pathlib.Path(".")
 schemas = [
-    "shared/schemas/ops-assertion.schema.json",
-    "shared/schemas/ops-recipe.schema.json",
-    "shared/schemas/ops-result.schema.json",
+    "shared/schemas/recipe-assertion.schema.json",
+    "shared/schemas/recipe.schema.json",
+    "shared/schemas/recipe-result.schema.json",
 ]
 for path in schemas:
     with (root / path).open() as f:
         jsonschema.Draft202012Validator.check_schema(json.load(f))
 
-with (root / "shared/schemas/ops-recipe.schema.json").open() as f:
+with (root / "shared/schemas/recipe.schema.json").open() as f:
     recipe_schema = json.load(f)
 validator = jsonschema.Draft202012Validator(recipe_schema)
 valid_recipes = [
@@ -70,7 +70,7 @@ except jsonschema.ValidationError:
     pass
 else:
     raise SystemExit("allow_many unexpectedly validated")
-with (root / "tests/fixtures/ops/invalid/missing-command.json").open() as f:
+with (root / "tests/fixtures/recipe/invalid/missing-command.json").open() as f:
     invalid = json.load(f)
 try:
     validator.validate(invalid)
@@ -80,9 +80,9 @@ else:
     raise SystemExit("invalid missing-command fixture unexpectedly validated")
 PY
 then
-    pass "ops schemas and fixtures validate"
+    pass "recipe schemas and fixtures validate"
 else
-    fail "ops schemas or fixtures failed validation"
+    fail "recipe schemas or fixtures failed validation"
 fi
 
 # --- 2. Registry drift guard: show create --scope default matches daemon. ---
@@ -176,7 +176,7 @@ cat >"$TMP/flag-sensitive/saved-capture.json" <<'JSON'
         "path": ["see"],
         "form_id": "see-capture"
       },
-      "argv": ["capture", "main", "--save", "--workspace", "ops-fixture"],
+      "argv": ["capture", "main", "--save", "--workspace", "recipe-fixture"],
       "timeout_ms": 10000,
       "assertions": [
         {
@@ -188,7 +188,7 @@ cat >"$TMP/flag-sensitive/saved-capture.json" <<'JSON'
   ]
 }
 JSON
-OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/flag-sensitive" ./aos recipe explain fixture/saved-capture --json 2>/dev/null)"
+OUT="$(AOS_RECIPE_ROOTS="$TMP/flag-sensitive" ./aos recipe explain fixture/saved-capture --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -233,13 +233,13 @@ data = json.loads(os.environ["OUT"])
 assert data["status"] == "dry_run", data
 assert data["mutated_resources"], data
 resource = data["mutated_resources"][0]
-assert resource["id"] == "ops-dry-run-window-level-smoke", resource
+assert resource["id"] == "recipe-dry-run-window-level-smoke", resource
 assert resource["cleanup_status"] == "planned", resource
 assert any(step["finally"] for step in data["steps"]), data
 assert all("dry-run" in " ".join(step["argv"]) or not step["mutates"] for step in data["steps"] if step["id"] != "inspect-canvas"), data
 PY
 then
-    EXISTS="$(./aos show exists --id ops-dry-run-window-level-smoke 2>/dev/null)"
+    EXISTS="$(./aos show exists --id recipe-dry-run-window-level-smoke 2>/dev/null)"
     if EXISTS="$EXISTS" python3 - <<'PY'
 import json
 import os
@@ -247,7 +247,7 @@ data = json.loads(os.environ["EXISTS"])
 assert data["exists"] is False, data
 PY
     then
-        pass "ops dry-run reports owned resources without side effects"
+        pass "recipe dry-run reports owned resources without side effects"
     else
         fail "mutating dry-run created its planned canvas"
     fi
@@ -258,24 +258,24 @@ fi
 # --- 8. dry-run default output is text, matching the registry. ---
 OUT="$(./aos recipe dry-run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'dry-run runtime/status-snapshot'; then
-    pass "ops dry-run default output is text"
+    pass "recipe dry-run default output is text"
 else
-    fail "ops dry-run default output mismatch: $OUT"
+    fail "recipe dry-run default output mismatch: $OUT"
 fi
 
 # --- 9. run default output is text, matching the registry. ---
 OUT="$(./aos recipe run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'success runtime/status-snapshot'; then
-    pass "ops run default output is text"
+    pass "recipe run default output is text"
 else
-    fail "ops run default output mismatch: $OUT"
+    fail "recipe run default output mismatch: $OUT"
 fi
 
 # --- 10. duplicate recipe IDs are rejected. ---
 mkdir -p "$TMP/dup-a" "$TMP/dup-b"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-a/status-a.json"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-b/status-b.json"
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/dup-a:$TMP/dup-b" ./aos recipe list --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_RECIPE_ROOTS="$TMP/dup-a:$TMP/dup-b" ./aos recipe list --json 2>&1 >/dev/null)"; then
     fail "duplicate recipe IDs should fail"
 elif echo "$ERR" | grep -q '"code" : "DUPLICATE_RECIPE_ID"'; then
     pass "duplicate recipe IDs are rejected"
@@ -284,7 +284,7 @@ else
 fi
 
 # --- 11. invalid recipe explain fails before execution. ---
-if ERR="$(AOS_OPS_RECIPE_ROOTS="tests/fixtures/ops/invalid" ./aos recipe explain fixture/missing-command --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_RECIPE_ROOTS="tests/fixtures/recipe/invalid" ./aos recipe explain fixture/missing-command --json 2>&1 >/dev/null)"; then
     fail "invalid recipe should fail explain"
 elif echo "$ERR" | grep -q '"code" : "INVALID_RECIPE"'; then
     pass "invalid recipe is rejected during explanation"
@@ -293,8 +293,8 @@ else
 fi
 
 # --- 12. installed-mode index discovery does not need source roots. ---
-scripts/generate-ops-recipe-index "$PWD" "$TMP/recipes-index.json"
-OUT="$(AOS_RUNTIME_MODE=installed AOS_OPS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos recipe list --json 2>/dev/null)"
+scripts/generate-recipe-index "$PWD" "$TMP/recipes-index.json"
+OUT="$(AOS_RUNTIME_MODE=installed AOS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos recipe list --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -327,7 +327,7 @@ import pathlib
 import jsonschema
 
 data = json.loads(os.environ["OUT"])
-with pathlib.Path("shared/schemas/ops-result.schema.json").open() as f:
+with pathlib.Path("shared/schemas/recipe-result.schema.json").open() as f:
     schema = json.load(f)
 jsonschema.Draft202012Validator(schema).validate(data)
 assert data["status"] == "success", data
@@ -337,12 +337,12 @@ assert data["steps"][0]["status"] == "success", data
 assert data["mutated_resources"] == [], data
 PY
 then
-    pass "ops run executes read-only status recipe"
+    pass "recipe run executes read-only status recipe"
 else
-    fail "ops run read-only recipe failed"
+    fail "recipe run read-only recipe failed"
 fi
 
-# --- 14. ops run drains large stdout without deadlocking on full pipes. ---
+# --- 14. recipe run drains large stdout without deadlocking on full pipes. ---
 mkdir -p "$TMP/large"
 cat >"$TMP/large/help-snapshot.json" <<'JSON'
 {
@@ -371,7 +371,7 @@ cat >"$TMP/large/help-snapshot.json" <<'JSON'
   ]
 }
 JSON
-OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/large" ./aos recipe run fixture/help-snapshot --json 2>/dev/null)"
+OUT="$(AOS_RECIPE_ROOTS="$TMP/large" ./aos recipe run fixture/help-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -382,12 +382,12 @@ observed = data["steps"][0]["observed"]
 assert "stdout_json" in observed, observed
 PY
 then
-    pass "ops run drains large child stdout"
+    pass "recipe run drains large child stdout"
 else
-    fail "ops run large-output fixture failed"
+    fail "recipe run large-output fixture failed"
 fi
 
-# --- 15. ops run executes a mutating canvas smoke and cleans up owned resources. ---
+# --- 15. recipe run executes a mutating canvas smoke and cleans up owned resources. ---
 OUT="$(./aos recipe run canvas/window-level-smoke --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -396,18 +396,18 @@ import pathlib
 import jsonschema
 
 data = json.loads(os.environ["OUT"])
-with pathlib.Path("shared/schemas/ops-result.schema.json").open() as f:
+with pathlib.Path("shared/schemas/recipe-result.schema.json").open() as f:
     schema = json.load(f)
 jsonschema.Draft202012Validator(schema).validate(data)
 assert data["status"] == "success", data
 assert data["cleanup"]["status"] == "success", data
 assert data["mutated_resources"][0]["cleanup_status"] == "success", data
-assert data["steps"][0]["argv"][2].startswith("ops-"), data["steps"][0]
+assert data["steps"][0]["argv"][2].startswith("recipe-"), data["steps"][0]
 assert data["steps"][0]["argv"][2].endswith("-window-level-smoke"), data["steps"][0]
 assert data["cleanup"]["steps"][0]["status"] == "success", data
 PY
 then
-    pass "ops run executes mutating canvas smoke with cleanup"
+    pass "recipe run executes mutating canvas smoke with cleanup"
 else
     fail "mutating canvas smoke failed"
 fi
@@ -416,7 +416,7 @@ if OUT="$(show_list_json)" && OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])
-leaks = [c["id"] for c in data.get("canvases", []) if c.get("id", "").startswith("ops-") and c.get("id", "").endswith("-window-level-smoke")]
+leaks = [c["id"] for c in data.get("canvases", []) if c.get("id", "").startswith("recipe-") and c.get("id", "").endswith("-window-level-smoke")]
 assert not leaks, leaks
 PY
 then
@@ -435,7 +435,7 @@ cat >"$TMP/assertion-cleanup/assertion-cleanup.json" <<'JSON'
   "scope": "source",
   "mutates": true,
   "resources": {
-    "canvas_id": "ops-test-${run_id}-assertion-cleanup"
+    "canvas_id": "recipe-test-${run_id}-assertion-cleanup"
   },
   "owned_resources": [
     {
@@ -449,7 +449,7 @@ cat >"$TMP/assertion-cleanup/assertion-cleanup.json" <<'JSON'
     {
       "id": "create-canvas",
       "command": { "path": ["show"], "form_id": "show-create" },
-      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>ops</body></html>", "--ttl", "30s", "--scope", "global"],
+      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>recipe</body></html>", "--ttl", "30s", "--scope", "global"],
       "timeout_ms": 10000,
       "mutates": true,
       "assertions": [{ "path": ["status"], "equals": "success" }]
@@ -481,7 +481,7 @@ cat >"$TMP/assertion-cleanup/assertion-cleanup.json" <<'JSON'
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/assertion-cleanup" ./aos recipe run fixture/assertion-cleanup --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_RECIPE_ROOTS="$TMP/assertion-cleanup" ./aos recipe run fixture/assertion-cleanup --json 2>&1 >/dev/null)"; then
     fail "assertion cleanup fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -493,7 +493,7 @@ assert data["cleanup"]["status"] == "success", data
 assert data["mutated_resources"][0]["cleanup_status"] == "success", data
 PY
 then
-    pass "ops run cleans up after assertion failure"
+    pass "recipe run cleans up after assertion failure"
 else
     fail "assertion cleanup result mismatch: $ERR"
 fi
@@ -504,11 +504,11 @@ cat >"$TMP/cleanup-failed/cleanup-failed.json" <<'JSON'
 {
   "id": "fixture/cleanup-failed",
   "version": 1,
-  "summary": "Force cleanup failure by removing the owned canvas before finally.",
+  "summary": "Force cleanup failure after removing the owned canvas.",
   "scope": "source",
   "mutates": true,
   "resources": {
-    "canvas_id": "ops-test-${run_id}-cleanup-failed"
+    "canvas_id": "recipe-test-${run_id}-cleanup-failed"
   },
   "owned_resources": [
     {
@@ -522,33 +522,25 @@ cat >"$TMP/cleanup-failed/cleanup-failed.json" <<'JSON'
     {
       "id": "create-canvas",
       "command": { "path": ["show"], "form_id": "show-create" },
-      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>ops</body></html>", "--ttl", "30s", "--scope", "global"],
+      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>recipe</body></html>", "--ttl", "30s", "--scope", "global"],
       "timeout_ms": 10000,
       "mutates": true,
       "assertions": [{ "path": ["status"], "equals": "success" }]
     },
     {
-      "id": "remove-before-cleanup",
-      "command": { "path": ["show"], "form_id": "show-remove" },
-      "argv": ["remove", "--id", "${resources.canvas_id}"],
-      "timeout_ms": 10000,
-      "mutates": true,
-      "assertions": [{ "path": ["status"], "equals": "success" }]
-    },
-    {
-      "id": "remove-canvas",
-      "command": { "path": ["show"], "form_id": "show-remove" },
-      "argv": ["remove", "--id", "${resources.canvas_id}"],
+      "id": "fail-after-remove",
+      "kind": "shell",
+      "shell": { "script": "tests/fixtures/recipe/fail-after-remove.sh", "cwd": "." },
+      "argv": ["${resources.canvas_id}"],
       "timeout_ms": 10000,
       "mutates": true,
       "finally": true,
-      "cleanup_resources": ["canvas"],
-      "assertions": [{ "path": ["status"], "equals": "success" }]
+      "cleanup_resources": ["canvas"]
     }
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/cleanup-failed" ./aos recipe run fixture/cleanup-failed --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_RECIPE_ROOTS="$TMP/cleanup-failed" ./aos recipe run fixture/cleanup-failed --json 2>&1 >/dev/null)"; then
     fail "cleanup-failed fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -560,12 +552,113 @@ assert data["cleanup"]["status"] == "failed", data
 assert data["mutated_resources"][0]["cleanup_status"] == "failed", data
 PY
 then
-    pass "ops run reports cleanup failure"
+    pass "recipe run reports cleanup failure"
 else
     fail "cleanup failure result mismatch: $ERR"
 fi
 
-# --- 18. timeout failure still runs owned cleanup. ---
+# --- 18. transient show remove recovery is limited to owned cleanup steps. ---
+mkdir -p "$TMP/recovery-narrow"
+FAKE_AOS="$TMP/recovery-narrow/aos"
+cat >"$FAKE_AOS" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "help" ] && [ "${2:-}" = "--json" ]; then
+  cat <<'JSON'
+{
+  "commands": [
+    {
+      "path": ["show"],
+      "forms": [
+        {
+          "id": "show-remove",
+          "execution": {
+            "mutates_state": true,
+            "supports_dry_run": false
+          }
+        }
+      ]
+    }
+  ]
+}
+JSON
+  exit 0
+fi
+if [ "${1:-}" = "show" ] && [ "${2:-}" = "exists" ]; then
+  printf '{"exists":false}\n'
+  exit 0
+fi
+if [ "${1:-}" = "show" ] && [ "${2:-}" = "remove" ]; then
+  printf 'IPC failure while removing\n' >&2
+  exit 1
+fi
+printf 'unexpected fake aos call: %s\n' "$*" >&2
+exit 2
+SH
+chmod +x "$FAKE_AOS"
+cat >"$TMP/recovery-narrow/recovery-narrow.json" <<'JSON'
+{
+  "id": "fixture/recovery-narrow",
+  "version": 1,
+  "summary": "Verify transient remove recovery stays cleanup-only.",
+  "scope": "source",
+  "mutates": true,
+  "resources": {
+    "canvas_id": "recipe-test-${run_id}-recovery-narrow"
+  },
+  "owned_resources": [
+    {
+      "name": "canvas",
+      "type": "canvas",
+      "id": "${resources.canvas_id}",
+      "ttl_seconds": 30
+    }
+  ],
+  "steps": [
+    {
+      "id": "main-remove",
+      "command": { "path": ["show"], "form_id": "show-remove" },
+      "argv": ["remove", "--id", "not-owned-${run_id}"],
+      "timeout_ms": 10000,
+      "mutates": true
+    },
+    {
+      "id": "cleanup-remove",
+      "command": { "path": ["show"], "form_id": "show-remove" },
+      "argv": ["remove", "--id", "${resources.canvas_id}"],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "finally": true,
+      "cleanup_resources": ["canvas"],
+      "assertions": [{ "path": ["status"], "equals": "success" }]
+    }
+  ]
+}
+JSON
+if ERR="$(AOS_PATH="$FAKE_AOS" AOS_RECIPE_ROOTS="$TMP/recovery-narrow" node scripts/aos-recipe.mjs run fixture/recovery-narrow --json 2>&1 >/dev/null)"; then
+    fail "recovery-narrow fixture should fail on main remove"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "failure", data
+assert data["code"] == "COMMAND_FAILED", data
+assert data["steps"][0]["id"] == "main-remove", data
+assert data["steps"][0]["status"] == "failure", data
+assert "recovered" not in data["steps"][0].get("observed", {}), data
+assert data["cleanup"]["status"] == "success", data
+cleanup = data["cleanup"]["steps"][0]
+assert cleanup["id"] == "cleanup-remove", data
+assert cleanup["status"] == "success", data
+assert cleanup["observed"]["recovered"] == "verified-removed-resource", data
+PY
+then
+    pass "transient remove recovery is cleanup-owned only"
+else
+    fail "transient remove recovery scope drifted: $ERR"
+fi
+
+# --- 19. timeout failure still runs owned cleanup. ---
 mkdir -p "$TMP/timeout-cleanup"
 cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
 {
@@ -575,7 +668,7 @@ cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
   "scope": "source",
   "mutates": true,
   "resources": {
-    "canvas_id": "ops-test-${run_id}-timeout-cleanup"
+    "canvas_id": "recipe-test-${run_id}-timeout-cleanup"
   },
   "owned_resources": [
     {
@@ -589,7 +682,7 @@ cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
     {
       "id": "create-canvas",
       "command": { "path": ["show"], "form_id": "show-create" },
-      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>ops</body></html>", "--ttl", "30s", "--scope", "global"],
+      "argv": ["create", "--id", "${resources.canvas_id}", "--at", "-10000,-10000,80,60", "--html", "<html><body>recipe</body></html>", "--ttl", "30s", "--scope", "global"],
       "timeout_ms": 10000,
       "mutates": true,
       "assertions": [{ "path": ["status"], "equals": "success" }]
@@ -614,7 +707,7 @@ cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/timeout-cleanup" ./aos recipe run fixture/timeout-cleanup --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_RECIPE_ROOTS="$TMP/timeout-cleanup" ./aos recipe run fixture/timeout-cleanup --json 2>&1 >/dev/null)"; then
     fail "timeout cleanup fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -626,7 +719,7 @@ assert data["cleanup"]["status"] == "success", data
 assert data["steps"][-1]["status"] == "timeout", data
 PY
 then
-    pass "ops run cleans up after timeout"
+    pass "recipe run cleans up after timeout"
 else
     fail "timeout cleanup result mismatch: $ERR"
 fi
@@ -635,7 +728,7 @@ if OUT="$(show_list_json)" && OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])
-leaks = [c["id"] for c in data.get("canvases", []) if c.get("id", "").startswith("ops-test-")]
+leaks = [c["id"] for c in data.get("canvases", []) if c.get("id", "").startswith("recipe-test-")]
 assert not leaks, leaks
 PY
 then
@@ -646,9 +739,9 @@ fi
 
 echo
 if [ "$FAILS" -eq 0 ]; then
-    echo "ops-contract: all checks passed"
+    echo "recipe-contract: all checks passed"
     exit 0
 else
-    echo "ops-contract: $FAILS failure(s)"
+    echo "recipe-contract: $FAILS failure(s)"
     exit 1
 fi
