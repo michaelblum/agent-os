@@ -7,6 +7,7 @@
       "id": "sigil-renderer-extraction-contract-proof",
       "path_patterns": [
         "tests/renderer/annotation-reticle.test.mjs",
+        "tests/renderer/annotation-reticle-wiring.test.mjs",
         "tests/renderer/sigil-status-menu.test.mjs"
       ],
       "fixture_patterns": [],
@@ -15,7 +16,7 @@
       "proof_kind": "renderer_extraction_contract",
       "contract": "Sigil annotation, target-surface, debug, and status-menu behavior remains wired through the modules that own each extracted responsibility.",
       "worth": "This catches stale main-module assumptions and missing delegation after renderer responsibilities move into narrower owners.",
-      "command": "node --test tests/renderer/annotation-reticle.test.mjs tests/renderer/sigil-status-menu.test.mjs",
+      "command": "node --test tests/renderer/annotation-reticle.test.mjs tests/renderer/annotation-reticle-wiring.test.mjs tests/renderer/sigil-status-menu.test.mjs",
       "replaces": [],
       "guard": "deterministic renderer module tests; no live daemon",
       "status": "active"
