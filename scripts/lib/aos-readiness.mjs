@@ -44,15 +44,24 @@ export function evaluateReadyForTesting(daemon, permissions, setup) {
   if (daemon && daemon.inputTap.status !== 'active') {
     return { readyForTesting: false, readySource: 'daemon' };
   }
-  if (daemon && daemon.permissions.accessibility !== undefined) {
-    return {
-      readyForTesting: Boolean(daemon.permissions.accessibility && permissions.screen_recording && setup.setup_completed),
-      readySource: 'daemon',
-    };
-  }
+  const daemonViewAvailable = Boolean(daemon && [
+    daemon.permissions.accessibility,
+    daemon.inputTap.listenAccess,
+    daemon.inputTap.postAccess,
+  ].some((value) => value !== undefined));
+  const accessibility = daemon?.permissions.accessibility ?? permissions.accessibility;
+  const listenAccess = daemon?.inputTap.listenAccess ?? permissions.listen_access;
+  const postAccess = daemon?.inputTap.postAccess ?? permissions.post_access;
   return {
-    readyForTesting: Boolean(permissions.accessibility && permissions.screen_recording && setup.setup_completed),
-    readySource: 'cli',
+    readyForTesting: Boolean(
+      accessibility
+      && permissions.screen_recording
+      && listenAccess
+      && postAccess
+      && permissions.microphone
+      && setup.setup_completed
+    ),
+    readySource: daemonViewAvailable ? 'daemon' : 'cli',
   };
 }
 

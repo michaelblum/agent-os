@@ -2362,7 +2362,9 @@ Consumers:
   grants. Non-permission tap creation failures may still report `retrying`.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
-  from the daemon view when reachable and from the CLI view as fallback.
+  from the full capability permission set: daemon Accessibility and Input
+  Monitoring facts when available, per-field CLI fallback for those facts, and
+  CLI Screen Recording, Microphone, and setup completion in every case.
   The top-level `permissions` object is the CLI-side view and includes
   `accessibility`, `screen_recording`, `listen_access`, `post_access`, and
   `microphone`. Microphone gates voice dictation / local STT capture and is not

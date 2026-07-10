@@ -54,6 +54,22 @@
       "status": "active"
     },
     {
+      "id": "sigil-voice-runtime-proof",
+      "path_patterns": [
+        "tests/renderer/sigil-voice-runtime.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "model_unit",
+      "proof_kind": "voice_runtime_contract",
+      "contract": "Sigil voice runtime arbitrates hold-Space input ownership, preserves active dictation release, and coordinates dictation and response state through injected renderer context.",
+      "worth": "This catches input-priority and state-stranding regressions without requiring a live input tap, microphone, daemon, or speech provider.",
+      "command": "node --test tests/renderer/sigil-voice-runtime.test.mjs",
+      "replaces": [],
+      "guard": "renderer module unit; no live daemon or input tap",
+      "status": "active"
+    },
+    {
       "id": "voice-bind-proof",
       "path_patterns": [
         "tests/voice-bind.sh"

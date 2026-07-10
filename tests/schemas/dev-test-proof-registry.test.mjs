@@ -257,6 +257,7 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     changedFiles: [
       'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',
       'tests/renderer/sigil-voice-dictation.test.mjs',
+      'tests/renderer/sigil-voice-runtime.test.mjs',
       'tests/toolkit/controls-dictation.test.mjs',
       'tests/voice-bind.sh',
       'tests/voice-cursor-rotation.sh',
@@ -287,6 +288,7 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     'bash tests/voice-session-allocation.sh',
     'bash tests/voice-telemetry.sh',
     'node --test tests/renderer/sigil-voice-dictation.test.mjs',
+    'node --test tests/renderer/sigil-voice-runtime.test.mjs',
     'node --test tests/schemas/daemon-event.test.mjs',
     'node --test tests/toolkit/controls-dictation.test.mjs',
   ].sort());

@@ -119,7 +119,7 @@ function nextActionsFor(current, blockers = readyBlockers(current, 'repo')) {
   return readyNextActions(decision, blockers, current.setup, 'repo', './aos');
 }
 
-test('daemon-active ready path uses daemon source with setup complete and screen recording granted', () => {
+test('daemon-active ready path uses daemon source with the full capability permission set granted', () => {
   const result = evaluateReadyForTesting(daemon(), permissions(), setup());
   assert.deepEqual(result, { readyForTesting: true, readySource: 'daemon' });
   assert.deepEqual(readyEvaluationSnake(result), { ready_for_testing: true, ready_source: 'daemon' });
@@ -315,6 +315,41 @@ test('legacy daemon health without access fields falls back to CLI permission vi
   assert.deepEqual(result, { readyForTesting: true, readySource: 'cli' });
   assert.deepEqual(missingPermissionIDsFor(legacyDaemon, cli), []);
   assert.equal(disagreementFor(legacyDaemon, cli), undefined);
+});
+
+test('ready_for_testing requires each capability permission independently', () => {
+  const cases = [
+    ['accessibility', daemon({ permissions: { accessibility: false } }), permissions()],
+    ['screen_recording', daemon(), permissions({ screen_recording: false })],
+    ['listen_access', daemon({ inputTap: { listenAccess: false } }), permissions()],
+    ['post_access', daemon({ inputTap: { postAccess: false } }), permissions()],
+    ['microphone', daemon(), permissions({ microphone: false })],
+  ];
+
+  for (const [name, daemonView, cliView] of cases) {
+    assert.deepEqual(
+      evaluateReadyForTesting(daemonView, cliView, setup()),
+      { readyForTesting: false, readySource: 'daemon' },
+      name,
+    );
+  }
+});
+
+test('daemon readiness facts override or fall back to CLI facts per field', () => {
+  const partialDaemon = daemon({
+    inputTap: { listenAccess: false, postAccess: undefined },
+    permissions: { accessibility: undefined },
+  });
+  assert.deepEqual(
+    evaluateReadyForTesting(partialDaemon, permissions(), setup()),
+    { readyForTesting: false, readySource: 'daemon' },
+  );
+
+  const daemonWithoutPost = daemon({ inputTap: { postAccess: undefined } });
+  assert.deepEqual(
+    evaluateReadyForTesting(daemonWithoutPost, permissions({ post_access: false }), setup()),
+    { readyForTesting: false, readySource: 'daemon' },
+  );
 });
 
 test('missing setup marker blocks readiness even when permissions are granted', () => {
@@ -642,14 +677,15 @@ test('permissionRequirements keeps public output shape stable', () => {
   );
 });
 
-test('missing microphone blocks listen without changing daemon readiness source', () => {
+test('missing microphone blocks listen and makes ready_for_testing capability-consistent', () => {
   const current = facts({ permissions: { microphone: false } });
   const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
   const verdict = runtimeVerdict(current, 'repo', './aos');
 
-  assert.deepEqual(evaluation, { readyForTesting: true, readySource: 'daemon' });
+  assert.deepEqual(evaluation, { readyForTesting: false, readySource: 'daemon' });
   assert.equal(verdict.ready, false);
   assert.equal(verdict.phase, 'human_required');
+  assert.equal(verdict.ready_for_testing, false);
   assert.deepEqual(verdict.blocked_capabilities, ['listen']);
   assert.deepEqual(missingPermissionIDsFor(current.daemon, current.permissions), ['microphone']);
   assert.equal(
