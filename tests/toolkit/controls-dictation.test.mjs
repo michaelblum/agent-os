@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
+import * as controlsFacade from '../../packages/toolkit/controls/index.js'
+
 import {
   adaptLegacyVoiceDictationBridgeEvent,
   applyDictationTextValue,
@@ -10,6 +12,11 @@ import {
   normalizeVoiceDictationEvent,
   parseCanonicalVoiceDictationEvent,
 } from '../../packages/toolkit/controls/dictation.js'
+
+test('controls facade exports strict voice parsing boundaries', () => {
+  assert.equal(controlsFacade.parseCanonicalVoiceDictationEvent, parseCanonicalVoiceDictationEvent)
+  assert.equal(controlsFacade.adaptLegacyVoiceDictationBridgeEvent, adaptLegacyVoiceDictationBridgeEvent)
+})
 
 function createHarness(options = {}) {
   let now = 1000

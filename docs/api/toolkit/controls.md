@@ -23,6 +23,8 @@ import {
   createCollapsible,
   createDialog,
   createDictationController,
+  parseCanonicalVoiceDictationEvent,
+  adaptLegacyVoiceDictationBridgeEvent,
   createMenu,
   createPopover,
   createSplitter,
@@ -74,7 +76,11 @@ The controller consumes and emits generic `voice.*` envelopes:
 `wake_detected`, `dictation_opened`, `dictation_closed_send`, and
 `dictation_closed_cancel`. App code may present those events, but reusable event
 normalization belongs in `normalizeVoiceDictationEvent()` and
-`isVoiceDictationEvent()`.
+`isVoiceDictationEvent()`. `parseCanonicalVoiceDictationEvent()` accepts only
+strict version-1 envelopes with exact event payloads, while
+`adaptLegacyVoiceDictationBridgeEvent()` is the explicit boundary for the flat
+canvas-event bridge shape. Both return the same narrow canonical envelope or
+`null`.
 
 Text targets should use `buildDictationTextValue()` or
 `applyDictationTextValue()` for insert, append, and replace behavior. Toolkit

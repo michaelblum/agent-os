@@ -40,28 +40,33 @@ export function permissionRequirements(permissions) {
   ];
 }
 
+export function effectivePermissionView(daemon, cli = {}) {
+  const daemonViewAvailable = Boolean(daemon && [
+    daemon.permissions?.accessibility,
+    daemon.inputTap?.listenAccess,
+    daemon.inputTap?.postAccess,
+  ].some((value) => value !== undefined));
+  return {
+    accessibility: daemon?.permissions?.accessibility ?? cli.accessibility,
+    screen_recording: cli.screen_recording,
+    listen_access: daemon?.inputTap?.listenAccess ?? cli.listen_access,
+    post_access: daemon?.inputTap?.postAccess ?? cli.post_access,
+    microphone: cli.microphone,
+    source: daemonViewAvailable ? 'daemon' : 'cli',
+  };
+}
+
 export function evaluateReadyForTesting(daemon, permissions, setup) {
   if (daemon && daemon.inputTap.status !== 'active') {
     return { readyForTesting: false, readySource: 'daemon' };
   }
-  const daemonViewAvailable = Boolean(daemon && [
-    daemon.permissions.accessibility,
-    daemon.inputTap.listenAccess,
-    daemon.inputTap.postAccess,
-  ].some((value) => value !== undefined));
-  const accessibility = daemon?.permissions.accessibility ?? permissions.accessibility;
-  const listenAccess = daemon?.inputTap.listenAccess ?? permissions.listen_access;
-  const postAccess = daemon?.inputTap.postAccess ?? permissions.post_access;
+  const effective = effectivePermissionView(daemon, permissions);
   return {
     readyForTesting: Boolean(
-      accessibility
-      && permissions.screen_recording
-      && listenAccess
-      && postAccess
-      && permissions.microphone
+      permissionRequirements(effective).every((requirement) => requirement.granted)
       && setup.setup_completed
     ),
-    readySource: daemonViewAvailable ? 'daemon' : 'cli',
+    readySource: effective.source,
   };
 }
 
@@ -73,16 +78,9 @@ export function readyEvaluationSnake(evaluation) {
 }
 
 export function missingPermissionIDsFor(daemon, cli) {
-  const missing = [];
-  const accessibility = daemon?.permissions.accessibility ?? cli.accessibility;
-  const listen = daemon?.inputTap.listenAccess ?? cli.listen_access;
-  const post = daemon?.inputTap.postAccess ?? cli.post_access;
-  if (!accessibility) missing.push('accessibility');
-  if (!cli.screen_recording) missing.push('screen_recording');
-  if (!listen) missing.push('listen_access');
-  if (!post) missing.push('post_access');
-  if (!cli.microphone) missing.push('microphone');
-  return missing;
+  return permissionRequirements(effectivePermissionView(daemon, cli))
+    .filter((requirement) => !requirement.granted)
+    .map((requirement) => requirement.id);
 }
 
 export function disagreementFor(daemon, cli) {

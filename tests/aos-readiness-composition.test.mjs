@@ -5,6 +5,7 @@ import { setupState } from '../scripts/lib/aos-facts.mjs';
 import { guardedLiveOperation } from '../scripts/lib/aos-live-operation.mjs';
 import {
   disagreementFor,
+  effectivePermissionView,
   evaluateReadyForTesting,
   hasRestartableReadyRuntimeBlocker,
   inputMonitoringSubGuidance,
@@ -350,6 +351,28 @@ test('daemon readiness facts override or fall back to CLI facts per field', () =
     evaluateReadyForTesting(daemonWithoutPost, permissions({ post_access: false }), setup()),
     { readyForTesting: false, readySource: 'daemon' },
   );
+});
+
+test('effective permission view is the shared daemon-first readiness projection', () => {
+  const daemonView = daemon({
+    inputTap: { listenAccess: false, postAccess: undefined },
+    permissions: { accessibility: undefined },
+  });
+  const cliView = permissions({ post_access: false, microphone: false });
+
+  assert.deepEqual(effectivePermissionView(daemonView, cliView), {
+    accessibility: true,
+    screen_recording: true,
+    listen_access: false,
+    post_access: false,
+    microphone: false,
+    source: 'daemon',
+  });
+  assert.deepEqual(missingPermissionIDsFor(daemonView, cliView), [
+    'listen_access',
+    'post_access',
+    'microphone',
+  ]);
 });
 
 test('missing setup marker blocks readiness even when permissions are granted', () => {

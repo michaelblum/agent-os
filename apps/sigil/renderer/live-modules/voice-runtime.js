@@ -49,7 +49,7 @@ function sourceIdentityAllowsGlobalHotkey(identity = {}) {
 
 function voiceInputDecision(message, snapshot, context = {}) {
     if (!isSpacebarDictationInput(message)) return { canHandle: false, reason: 'not_spacebar' };
-    if (snapshot.phase === 'LISTENING' || snapshot.spacebarHeld || snapshot.holdKeyDown) {
+    if (snapshot.spacebarHeld || snapshot.holdKeyDown) {
         return { canHandle: true, reason: 'dictation_active' };
     }
     if (context.textInputActive) return { canHandle: false, reason: 'text_input_active' };
@@ -136,6 +136,9 @@ export function createSigilVoiceRuntime({
 
     function handleInput(message = {}) {
         const snapshot = voiceDictation.snapshot();
+        if (!isSpacebarDictationInput(message)) {
+            return { handled: false, reason: 'not_spacebar', snapshot };
+        }
         const context = typeof getInputContext === 'function' ? getInputContext(message) || {} : {};
         const decision = voiceInputDecision(message, snapshot, context);
         if (!decision.canHandle) {
