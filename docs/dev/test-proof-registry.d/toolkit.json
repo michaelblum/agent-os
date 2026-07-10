@@ -20,6 +20,22 @@
       "status": "active"
     },
     {
+      "id": "runtime-utility-surface-manager-proof",
+      "path_patterns": [
+        "tests/toolkit/runtime-utility-surface-manager.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "utility_surface_contract",
+      "contract": "Utility surface lifecycle creation, suspension, duplicate recovery, and non-collision create failures stay bounded to toolkit state.",
+      "worth": "This catches broad canvas-create recovery drift without needing a live daemon or visual harness.",
+      "command": "node --test tests/toolkit/runtime-utility-surface-manager.test.mjs",
+      "replaces": [],
+      "guard": "fake host only; no live daemon",
+      "status": "active"
+    },
+    {
       "id": "surface-inspector-launcher-smoke",
       "path_patterns": [
         "packages/toolkit/components/surface-inspector/launch.sh"

@@ -121,13 +121,29 @@ export function createUtilitySurfaceManager({
     return { id: config.id, frame, created: true }
   }
 
-  async function recoverExisting(config, { focus = true } = {}) {
+  async function recoverExisting(config, { focus = true, suspended = false } = {}) {
     const frame = normalizeFrame(config.frame, null)
     host.canvasUpdate({ id: config.id, frame })
-    await host.canvasResume(config.id)
-    const next = remember(config, { suspended: false, at: frame })
-    onResume({ config, state: next, frame, recovered: true, focus })
+    if (suspended) await host.canvasSuspend(config.id)
+    else await host.canvasResume(config.id)
+    const next = remember(config, { suspended, at: frame })
+    const event = { config, state: next, frame, recovered: true, focus }
+    if (suspended) onSuspend(event)
+    else onResume(event)
     return { id: config.id, frame, created: false, recovered: true }
+  }
+
+  async function createOrRecoverExisting(config, { focus = true, suspended = false } = {}) {
+    try {
+      return await create(config, { focus, suspended })
+    } catch (error) {
+      if (!isCollision(error)) throw error
+      try {
+        return await recoverExisting(config, { focus, suspended })
+      } catch (_) {
+        throw error
+      }
+    }
   }
 
   async function toggle(kindOrConfig) {
@@ -143,16 +159,8 @@ export function createUtilitySurfaceManager({
       if (currentState) {
         return await resume(config, currentState, { focus: true })
       }
-      return await create(config, { focus: true, suspended: false })
+      return await createOrRecoverExisting(config, { focus: true, suspended: false })
     } catch (error) {
-      if (!currentState) {
-        try {
-          const result = await recoverExisting(config, { focus: true })
-          return result
-        } catch (_) {
-          // Keep the original error below.
-        }
-      }
       logger?.warn?.('[toolkit] utility surface toggle failed:', config.id, error)
       throw error
     } finally {
@@ -167,15 +175,8 @@ export function createUtilitySurfaceManager({
 
     const promise = (async () => {
       const currentState = current(config.id)
-      try {
-        if (currentState) return await resume(config, currentState, { focus })
-        return await create(config, { focus, suspended: false })
-      } catch (error) {
-        if (!currentState && isCollision(error)) {
-          return recoverExisting(config, { focus })
-        }
-        throw error
-      }
+      if (currentState) return await resume(config, currentState, { focus })
+      return await createOrRecoverExisting(config, { focus, suspended: false })
     })().finally(() => {
       if (openPromises.get(config.id) === promise) openPromises.delete(config.id)
       onChange({ id: config.id, config, state: current(config.id) })
@@ -189,10 +190,7 @@ export function createUtilitySurfaceManager({
     const config = configFor(kindOrConfig)
     if (current(config.id)) return { id: config.id, frame: current(config.id).at, created: false }
     try {
-      return await create(config, { focus, suspended: true })
-    } catch (error) {
-      if (!isCollision(error)) throw error
-      return { id: config.id, frame: normalizeFrame(config.frame, null), created: false, recovered: true }
+      return await createOrRecoverExisting(config, { focus, suspended: true })
     } finally {
       onChange({ id: config.id, config, state: current(config.id) })
     }

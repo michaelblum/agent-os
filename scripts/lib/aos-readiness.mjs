@@ -549,7 +549,7 @@ function appendAction(actions, seen, action) {
   actions.push(action);
 }
 
-export function readyNextActions(blockers, setup, mode, prefix = invocationName()) {
+export function readyNextActions(blockers, setup, mode, prefix = invocationName(), { diagnosis = null } = {}) {
   const actions = [];
   const seen = new Set();
   if (!blockers.length) return actions;
@@ -561,8 +561,9 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   const hasDefaultForegroundDevDaemon = blockers.some((b) => b.id === 'daemon_foreground_dev_default');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
   const hasPostRebuildTccStale = blockers.some((b) => b.reason === 'post_rebuild_tcc_stale');
+  const staleTccOwnsDecision = hasPostRebuildTccStale && (!diagnosis || diagnosis === 'daemon_tcc_grant_stale_or_missing');
 
-  if (hasPostRebuildTccStale) {
+  if (staleTccOwnsDecision) {
     appendAction(actions, seen, {
       type: 'manual_tcc_reset',
       label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
@@ -588,6 +589,32 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     appendAction(actions, seen, {
       type: 'command',
       label: 're-check readiness from the primary checkout or isolated runtime',
+      command: `${prefix} ready`,
+    });
+    return actions;
+  }
+
+  if (hasStaleDaemons || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) {
+    let label = 'clean stale daemon processes and stale runtime resources';
+    if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
+    else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
+    appendAction(actions, seen, {
+      type: 'command',
+      label,
+      command: `${prefix} clean`,
+    });
+    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
+      appendAction(actions, seen, {
+        type: 'command',
+        label: hasStaleDaemons
+          ? 'run automated repair only after cleanup has removed stale daemon owners'
+          : 'run automated repair: restart/recheck, then print human instructions if needed',
+        command: `${prefix} ready --repair`,
+      });
+    }
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 're-check readiness',
       command: `${prefix} ready`,
     });
     return actions;
@@ -721,20 +748,23 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
   const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
   const tccStaleness = postRebuildTccStalenessFor(facts, mode, prefix);
-  const terminalHandoff = staleTccTerminalHandoff(tccStaleness, prefix);
+  const phase = readyPhase(ready, blockers);
+  const diagnosis = readyDiagnosis(ready, blockers, facts.daemon, facts.permissions);
+  const selectedTccStaleness = tccStaleness?.diagnosis === diagnosis ? tccStaleness : undefined;
+  const terminalHandoff = staleTccTerminalHandoff(selectedTccStaleness, prefix);
   return {
     ready,
     status: ready ? 'ok' : 'degraded',
-    phase: readyPhase(ready, blockers),
-    diagnosis: readyDiagnosis(ready, blockers, facts.daemon, facts.permissions),
+    phase,
+    diagnosis,
     ready_source: evaluation.readySource,
     ready_for_testing: evaluation.readyForTesting,
     blockers,
     blocked_capabilities: blockedCapabilities,
     tcc_staleness: tccStaleness,
     terminal_handoff: terminalHandoff,
-    notes: readyNotes(facts, mode, prefix, tccStaleness),
-    next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
+    notes: readyNotes(facts, mode, prefix, selectedTccStaleness),
+    next_actions: readyNextActions(blockers, facts.setup, mode, prefix, { diagnosis }),
     ownership: {
       state: facts.runtime.ownership_state,
       kind: facts.runtime.ownership_kind,

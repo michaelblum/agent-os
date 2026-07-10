@@ -208,6 +208,59 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
   );
 });
 
+test('stale daemon cleanup outranks stale-TCC terminal handoff in mixed readiness states', () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+    },
+    cleanReport: {
+      status: 'dirty',
+      stale_daemons: [{ pid: 1234 }],
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'stale_daemons');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.terminal_handoff, undefined);
+  assert.deepEqual(verdict.next_actions.map((action) => action.command), [
+    './aos clean',
+    './aos ready --repair',
+    './aos ready',
+  ]);
+  assert.equal(verdict.next_actions.some((action) => action.type === 'manual_tcc_reset'), false);
+  assert.equal(verdict.notes.some((note) => note.includes('Stale daemon cleanup required')), true);
+});
+
+test('linked-worktree runtime policy outranks stale-TCC terminal handoff', () => withEnv({
+  AOS_STATE_ROOT: undefined,
+  AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL: undefined,
+  AOS_TEST_FORCE_LINKED_WORKTREE: '1',
+}, () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'agent_os_worktree_default_runtime');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.terminal_handoff, undefined);
+  assert.deepEqual(verdict.next_actions.map((action) => action.type), ['manual', 'command']);
+  assert.equal(verdict.next_actions.some((action) => action.type === 'manual_tcc_reset'), false);
+}));
+
 test('legacy daemon health without access fields falls back to CLI permission view', () => {
   const legacyDaemon = daemon({
     inputTap: { listenAccess: undefined, postAccess: undefined },

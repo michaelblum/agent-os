@@ -116,6 +116,22 @@
       "status": "active"
     },
     {
+      "id": "aos-readiness-composition-proof",
+      "path_patterns": [
+        "tests/aos-readiness-composition.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "readiness_contract",
+      "contract": "Readiness verdict composition, blocker priority, TCC staleness telemetry, and next-action ordering stay deterministic.",
+      "worth": "This catches readiness priority regressions without touching live TCC or daemon state.",
+      "command": "node --test tests/aos-readiness-composition.test.mjs",
+      "replaces": [],
+      "guard": "model fixtures only; no live TCC mutation",
+      "status": "active"
+    },
+    {
       "id": "wait-surface-housecleaning-report",
       "path_patterns": [
         "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"

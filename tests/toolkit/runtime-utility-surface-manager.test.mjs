@@ -100,6 +100,87 @@ test('UtilitySurfaceManager recovers duplicate create with update and resume', a
   assert.equal(manager.isVisible('tool-inspector'), true)
 })
 
+test('UtilitySurfaceManager recovers duplicate toggle and prewarm creates only as collisions', async () => {
+  const calls = []
+  const manager = createUtilitySurfaceManager({
+    host: {
+      canvasCreate(payload) {
+        calls.push(['create', payload])
+        return Promise.reject(new Error('ID_COLLISION: exists'))
+      },
+      canvasUpdate(payload) {
+        calls.push(['update', payload])
+      },
+      canvasResume(id) {
+        calls.push(['resume', id])
+        return Promise.resolve()
+      },
+      canvasSuspend(id) {
+        calls.push(['suspend', id])
+        return Promise.resolve()
+      },
+    },
+    resolveConfig: configFor,
+    logger: { warn() {} },
+  })
+
+  assert.deepEqual(await manager.toggle('monitor'), {
+    id: 'tool-monitor',
+    frame: [10, 20, 300, 200],
+    created: false,
+    recovered: true,
+  })
+  assert.equal(manager.isVisible('tool-monitor'), true)
+  manager.handleLifecycle({ action: 'removed', canvas_id: 'tool-monitor' })
+
+  assert.deepEqual(await manager.prewarm('monitor'), {
+    id: 'tool-monitor',
+    frame: [10, 20, 300, 200],
+    created: false,
+    recovered: true,
+  })
+  assert.equal(manager.isVisible('tool-monitor'), false)
+  assert.deepEqual(calls.map((call) => call[0]), [
+    'create',
+    'update',
+    'resume',
+    'create',
+    'update',
+    'suspend',
+  ])
+})
+
+test('UtilitySurfaceManager does not recover non-collision create failures', async () => {
+  const calls = []
+  const manager = createUtilitySurfaceManager({
+    host: {
+      canvasCreate(payload) {
+        calls.push(['create', payload])
+        return Promise.reject(new Error('IPC_UNAVAILABLE'))
+      },
+      canvasUpdate(payload) {
+        calls.push(['update', payload])
+      },
+      canvasResume(id) {
+        calls.push(['resume', id])
+        return Promise.resolve()
+      },
+      canvasSuspend(id) {
+        calls.push(['suspend', id])
+        return Promise.resolve()
+      },
+    },
+    resolveConfig: configFor,
+    logger: { warn() {} },
+  })
+
+  await assert.rejects(() => manager.toggle('inspector'), /IPC_UNAVAILABLE/)
+  await assert.rejects(() => manager.ensureVisible('inspector'), /IPC_UNAVAILABLE/)
+  await assert.rejects(() => manager.prewarm('inspector'), /IPC_UNAVAILABLE/)
+  assert.deepEqual(calls.map((call) => call[0]), ['create', 'create', 'create'])
+  assert.equal(manager.current('tool-inspector'), null)
+})
+
 test('UtilitySurfaceManager dedupes concurrent ensureVisible calls', async () => {
   const calls = []
   let resolveCreate
