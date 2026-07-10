@@ -292,7 +292,7 @@ to retrieve it. The `sigil` content root maps to `apps/sigil/`.
 
 The following are explicitly out of scope for v0:
 
-- **GPU / visual-object resources** — Phase 5 (`gdi-sigil-avatar-panel-resource-contract-migration-v0`)
+- **GPU / visual-object resources** — deferred beyond this v0 API
 - **Focus-group management** — backlog (Tab-loop trap, per-panel focus memory)
 - **Daemon event subscriptions** — widgets do not subscribe to daemon streams
   directly; the World document receives events and distributes them in-heap

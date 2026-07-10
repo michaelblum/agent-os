@@ -96,8 +96,8 @@ if (matches(['label', 'list', '--repo', 'michaelblum/agent-os', '--limit', '10',
 if (matches(['pr', 'view', '298', '--repo', 'michaelblum/agent-os', '--json', 'number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews'])) {
   ok('{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}');
 }
-if (matches(['pr', 'list', '--repo', 'michaelblum/agent-os', '--state', 'all', '--limit', '30', '--author', 'michaelblum', '--base', 'main', '--head', 'gdi/example', '--draft', '--json', 'number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author'])) {
-  ok('[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]');
+if (matches(['pr', 'list', '--repo', 'michaelblum/agent-os', '--state', 'all', '--limit', '30', '--author', 'michaelblum', '--base', 'main', '--head', 'maintainer/example', '--draft', '--json', 'number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author'])) {
+  ok('[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"maintainer/example","baseRefName":"main","isDraft":true}]');
 }
 if (matches(['pr', 'checks', '298', '--repo', 'michaelblum/agent-os', '--json', 'name,state,bucket,link,startedAt,completedAt,workflow'])) {
   ok('[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]');
@@ -106,12 +106,12 @@ if (matches(['pr', 'checks', '299', '--repo', 'michaelblum/agent-os', '--json', 
   out('[{"name":"lint","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/988","workflow":"CI"}]');
   fail('checks failed');
 }
-if (matches(['pr', 'create', '--repo', 'michaelblum/agent-os', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', '*'])) {
+if (matches(['pr', 'create', '--repo', 'michaelblum/agent-os', '--base', 'main', '--head', 'maintainer/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', '*'])) {
   appendBodyFile();
   ok('https://github.com/michaelblum/agent-os/pull/433');
 }
 if (matches(['pr', 'view', 'https://github.com/michaelblum/agent-os/pull/433', '--repo', 'michaelblum/agent-os', '--json', 'number,url,state,headRefName,baseRefName'])) {
-  ok('{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"foreman/dev-gh-pr-create-v0","baseRefName":"main"}');
+  ok('{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"maintainer/dev-gh-pr-create-v0","baseRefName":"main"}');
 }
 if (matches(['pr', 'merge', '410', '--repo', 'michaelblum/agent-os', '--merge', '--match-head-commit', 'abc123', '--body-file', '*'])) {
   ok('Merged pull request #410');
@@ -263,15 +263,15 @@ test('GitHub helper wraps issue, label, PR, CI, and review-comment commands thro
   const labels = parseJSONResult(runDevGh(fixture, ['label', 'list', '--limit', '10', '--search', 'governance', '--sort', 'name', '--order', 'desc', '--json']));
   assert.equal(labels[0].name, 'governance');
 
-  const prs = parseJSONResult(runDevGh(fixture, ['pr', 'list', '--state', 'all', '--limit', '30', '--author', 'michaelblum', '--base', 'main', '--head', 'gdi/example', '--draft', '--json']));
-  assert.equal(prs[0].headRefName, 'gdi/example');
+  const prs = parseJSONResult(runDevGh(fixture, ['pr', 'list', '--state', 'all', '--limit', '30', '--author', 'michaelblum', '--base', 'main', '--head', 'maintainer/example', '--draft', '--json']));
+  assert.equal(prs[0].headRefName, 'maintainer/example');
 
   const prView = parseJSONResult(runDevGh(fixture, ['pr', 'view', '298', '--json']));
   assert.equal(prView.reviewDecision, 'CHANGES_REQUESTED');
 
-  const prCreate = parseJSONResult(runDevGh(fixture, ['pr', 'create', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', body, '--json']));
+  const prCreate = parseJSONResult(runDevGh(fixture, ['pr', 'create', '--base', 'main', '--head', 'maintainer/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', body, '--json']));
   assert.equal(prCreate.number, 433);
-  assert.equal(prCreate.head, 'foreman/dev-gh-pr-create-v0');
+  assert.equal(prCreate.head, 'maintainer/dev-gh-pr-create-v0');
 
   const prMerge = runDevGh(fixture, ['pr', 'merge', '410', '--merge', '--match-head-commit', 'abc123', '--body-file', body]);
   assert.equal(prMerge.status, 0, prMerge.stderr);
@@ -339,7 +339,7 @@ test('GitHub helper wraps issue, label, PR, CI, and review-comment commands thro
     '--base',
     'main',
     '--head',
-    'foreman/dev-gh-pr-create-v0',
+    'maintainer/dev-gh-pr-create-v0',
     '--title',
     'Add PR create',
     '--body-file',
@@ -378,11 +378,11 @@ test('GitHub helper rejects ambiguous or interactive-prone argument forms', (t) 
     [['label', 'list', '--label', 'bug', '--json'], /--label is only valid for issue create and issue\/PR list subcommands/],
     [['pr', 'comment', '298', 'extra', '--body-file', body], /Unknown dev gh pr argument: extra/],
     [['pr', 'list', '--base', '--json'], /--base requires a base branch/],
-    [['pr', 'create', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--body-file', body, '--json'], /dev gh pr create requires --title/],
-    [['pr', 'create', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', body, '--json'], /dev gh pr create requires --base/],
+    [['pr', 'create', '--base', 'main', '--head', 'maintainer/dev-gh-pr-create-v0', '--body-file', body, '--json'], /dev gh pr create requires --title/],
+    [['pr', 'create', '--head', 'maintainer/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', body, '--json'], /dev gh pr create requires --base/],
     [['pr', 'create', '--base', 'main', '--title', 'Add PR create', '--body-file', body, '--json'], /dev gh pr create requires --head/],
-    [['pr', 'create', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--json'], /dev gh pr create requires --body-file/],
-    [['pr', 'create', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', '--json'], /--body-file requires a path or -/],
+    [['pr', 'create', '--base', 'main', '--head', 'maintainer/dev-gh-pr-create-v0', '--title', 'Add PR create', '--json'], /dev gh pr create requires --body-file/],
+    [['pr', 'create', '--base', 'main', '--head', 'maintainer/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', '--json'], /--body-file requires a path or -/],
     [['pr', 'merge', '410', '--match-head-commit', 'abc123'], /dev gh pr merge requires one of --squash, --merge, or --rebase/],
     [['pr', 'merge', '410', '--merge', '--squash'], /dev gh pr merge accepts exactly one merge strategy/],
     [['pr', 'merge', 'current', '--merge'], /PR number must be numeric for merge: current/],

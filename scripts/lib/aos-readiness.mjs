@@ -753,7 +753,7 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
         ? ` command unavailable: ${runtime.owner_process.command_line_unavailable_reason}`
         : ' command unavailable';
     notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner};${command}. Do not loop service start/restart or ready repair while this owner controls the repo socket.`);
-    notes.push(`Run '${prefix} clean' once for cleanup-owned stale resources; if the owner remains, return the owner PID and command line to Foreman/human.`);
+    notes.push(`Run '${prefix} clean' once for cleanup-owned stale resources; if the owner remains, return the owner PID and command line to the operator.`);
   }
   if (defaultRootForegroundDevBlocked(runtime)) {
     const owner = runtime.owner_pid ?? 'unknown';

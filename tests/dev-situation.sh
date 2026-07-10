@@ -189,7 +189,7 @@ fi
 VALID_NOTE="$TMPDIR/valid-successor-note.json"
 cat > "$VALID_NOTE" <<JSON
 {
-  "role": "foreman",
+  "role": "maintainer",
   "active_epic": {
     "id": "#426",
     "source": "GitHub issue #426",
@@ -216,7 +216,7 @@ if OUT="$(REPO="$REPO" BODY_FILE="$VALID_NOTE" node --input-type=module <<'JS' 2
 import fs from 'node:fs';
 import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
 
-const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+const result = writeSuccessorNote(process.env.REPO, 'maintainer', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
 if (!result.ok) process.exit(1);
 process.stdout.write(`${JSON.stringify(result)}\n`);
 JS
@@ -226,11 +226,11 @@ import os
 from pathlib import Path
 
 data = json.loads(os.environ["OUT"])
-path = Path(os.environ["REPO"]) / ".runtime/dev/successor/foreman.json"
+path = Path(os.environ["REPO"]) / ".runtime/dev/successor/maintainer.json"
 stored = json.loads(path.read_text())
 assert data["status"] == "ok", data
-assert data["role"] == "foreman", data
-assert data["path"] == ".runtime/dev/successor/foreman.json", data
+assert data["role"] == "maintainer", data
+assert data["path"] == ".runtime/dev/successor/maintainer.json", data
 assert data["bytes"] <= data["max_bytes"], data
 assert stored["active_epic"]["id"] == "#426", stored
 assert stored["side_missions"][0]["id"] == "provider-runner-routing", stored
@@ -249,7 +249,7 @@ data = json.loads(os.environ["OUT"])
 note = data["successor_note"]
 assert note["status"] == "valid", note
 assert note["authority"] == "local_breadcrumb", note
-assert note["note"]["role"] == "foreman", note
+assert note["note"]["role"] == "maintainer", note
 assert note["note"]["active_epic"]["id"] == "#426", note
 assert note["note"]["side_missions"][0]["status"] == "parked", note
 assert note["expires"]["status"] == "current", note
@@ -262,12 +262,12 @@ else
 fi
 
 INVALID_NOTE="$TMPDIR/invalid-successor-note.json"
-printf '%s\n' '{"role":"foreman"}' > "$INVALID_NOTE"
+printf '%s\n' '{"role":"maintainer"}' > "$INVALID_NOTE"
 if ERR="$(REPO="$REPO" BODY_FILE="$INVALID_NOTE" node --input-type=module <<'JS' 2>&1 >/dev/null
 import fs from 'node:fs';
 import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
 
-const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+const result = writeSuccessorNote(process.env.REPO, 'maintainer', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
 if (result.ok) process.exit(0);
 process.stderr.write(`${JSON.stringify({ code: 'INVALID_NOTE', error: `successor note ${result.status}`, details: result.errors })}\n`);
 process.exit(1);
@@ -288,7 +288,7 @@ else
     fail "successor note writer invalid-note error drifted: $ERR"
 fi
 
-printf '%s\n' '{"role":"foreman"}' > "$REPO/.runtime/dev/successor/foreman.json"
+printf '%s\n' '{"role":"maintainer"}' > "$REPO/.runtime/dev/successor/maintainer.json"
 if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -306,9 +306,9 @@ else
     fail "dev situation invalid-note handling drifted"
 fi
 
-cat > "$REPO/.runtime/dev/successor/foreman.json" <<JSON
+cat > "$REPO/.runtime/dev/successor/maintainer.json" <<JSON
 {
-  "role": "foreman",
+  "role": "maintainer",
   "active_epic": {
     "id": "#426",
     "source": "GitHub issue #426",
@@ -327,7 +327,7 @@ import os
 data = json.loads(os.environ["OUT"])
 note = data["successor_note"]
 assert note["status"] == "stale", note
-assert note["note"]["role"] == "foreman", note
+assert note["note"]["role"] == "maintainer", note
 assert note["expires"]["status"] == "stale", note
 assert data["status"] == "success", data
 PY
@@ -339,7 +339,7 @@ fi
 
 OVERSIZED_NOTE="$TMPDIR/oversized-successor-note.json"
 {
-    printf '%s' '{"role":"foreman","active_epic":{"id":"#426","source":"GitHub issue #426","why":"x"},"current_slice":"'
+    printf '%s' '{"role":"maintainer","active_epic":{"id":"#426","source":"GitHub issue #426","why":"x"},"current_slice":"'
     head -c 5000 /dev/zero | tr '\0' a
     printf '%s\n' '","next_step":"x","side_missions":[],"expires_when":"git.head == '"$HEAD"'"}'
 } > "$OVERSIZED_NOTE"
@@ -347,7 +347,7 @@ if ERR="$(REPO="$REPO" BODY_FILE="$OVERSIZED_NOTE" node --input-type=module <<'J
 import fs from 'node:fs';
 import { writeSuccessorNote } from './scripts/aos-successor-note.mjs';
 
-const result = writeSuccessorNote(process.env.REPO, 'foreman', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
+const result = writeSuccessorNote(process.env.REPO, 'maintainer', fs.readFileSync(process.env.BODY_FILE, 'utf8'));
 if (result.ok) process.exit(0);
 const code = result.status === 'oversized' ? 'OVERSIZED_NOTE' : 'INVALID_NOTE';
 process.stderr.write(`${JSON.stringify({ code, error: `successor note ${result.status}`, details: result.errors })}\n`);
@@ -369,7 +369,7 @@ else
     fail "successor note writer oversized-note error drifted: $ERR"
 fi
 
-cp "$OVERSIZED_NOTE" "$REPO/.runtime/dev/successor/foreman.json"
+cp "$OVERSIZED_NOTE" "$REPO/.runtime/dev/successor/maintainer.json"
 if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os

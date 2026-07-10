@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Future acceptance test for private runtime/readiness broker primitives.
 # This test intentionally requires a rebuilt native ./aos after the source route
-# exists. No-build Foreman prep should validate this file with bash -n only.
+# exists. Before a native build is available, validate this file with bash -n only.
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"

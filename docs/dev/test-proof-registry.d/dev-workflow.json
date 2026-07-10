@@ -144,6 +144,22 @@
       "status": "active"
     },
     {
+      "id": "active-authority-retirement-contract",
+      "path_patterns": [
+        "tests/active-authority-pointers.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "model_unit",
+      "proof_kind": "authority_retirement_contract",
+      "contract": "Tracked active authority roots contain no retired Foreman or GDI role names and continue pointing at current contract owners.",
+      "worth": "This prevents historical project-agent vocabulary from returning as executable maintainer guidance.",
+      "command": "node --test tests/active-authority-pointers.test.mjs",
+      "replaces": [],
+      "guard": "tracked files only; archives, historical reports, ADRs, and negative retirement tests are outside the scanned authority roots",
+      "status": "active"
+    },
+    {
       "id": "agent-capability-manifest-schema-proof",
       "path_patterns": [
         "tests/schemas/aos-agent-capability-manifest-v0.test.mjs"
