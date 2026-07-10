@@ -82,7 +82,12 @@ final class AOSCGEventPostingOwner {
     }
 
     private func ensureReceiptTap() -> Bool {
-        if receiptTap != nil { return true }
+        if let receiptTap {
+            if !CGEvent.tapIsEnabled(tap: receiptTap) {
+                CGEvent.tapEnable(tap: receiptTap, enable: true)
+            }
+            return CGEvent.tapIsEnabled(tap: receiptTap)
+        }
         let eventTypes: [CGEventType] = [
             .mouseMoved,
             .leftMouseDown,
@@ -101,7 +106,7 @@ final class AOSCGEventPostingOwner {
         let eventMask = eventTypes.reduce(CGEventMask(0)) { mask, type in
             mask | CGEventMask(1 << type.rawValue)
         }
-        let refcon = Unmanaged.passUnretained(tracker).toOpaque()
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -109,12 +114,18 @@ final class AOSCGEventPostingOwner {
             eventsOfInterest: eventMask,
             callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
                 guard let refcon else { return Unmanaged.passUnretained(event) }
-                let tracker = Unmanaged<AOSInputReceiptTracker>
+                let owner = Unmanaged<AOSCGEventPostingOwner>
                     .fromOpaque(refcon)
                     .takeUnretainedValue()
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let tap = owner.receiptTap {
+                        CGEvent.tapEnable(tap: tap, enable: true)
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
                 let marker = event.getIntegerValueField(.eventSourceUserData)
                 if aosInputReceiptID(marker: marker) != nil {
-                    tracker.observe(marker, eventType: type)
+                    owner.tracker.observe(marker, eventType: type)
                 }
                 return Unmanaged.passUnretained(event)
             },

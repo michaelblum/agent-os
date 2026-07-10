@@ -52,6 +52,9 @@ test('CGEvent actions await terminal receipts without fixed completion sleeps', 
   assert.match(models, /var terminal_event_receipt:\s*String\?/);
   assert.doesNotMatch(actions, /CGEventSource\(stateID:\s*\.hidSystemState\)/);
   assert.match(posting, /guard ensureReceiptTap\(\) else \{ return nil \}/);
+  assert.match(posting, /CGEvent\.tapIsEnabled\(tap:\s*receiptTap\)/);
+  assert.match(posting, /type == \.tapDisabledByTimeout \|\| type == \.tapDisabledByUserInput/);
+  assert.match(posting, /CGEvent\.tapEnable\(tap:\s*tap,\s*enable:\s*true\)/);
   assert.match(actions, /owner\.post\(up,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
   assert.match(actions, /CGEVENT_DELIVERY_UNCONFIRMED/);
   assert.match(posting, /event\.setIntegerValueField\(\.eventSourceUserData,\s*value:\s*receipt\.marker\)/);
