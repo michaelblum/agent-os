@@ -46,6 +46,7 @@ test('CGEvent actions await terminal receipts without fixed completion sleeps', 
   const models = source('src/act/act-models.swift');
   const actions = source('src/act/actions.swift');
   const posting = source('src/act/event-posting.swift');
+  const deliveryState = source('src/act/input-delivery-state.swift');
   const session = source('src/act/session.swift');
 
   assert.match(models, /let eventPostingOwner:\s*AOSCGEventPostingOwner/);
@@ -56,11 +57,29 @@ test('CGEvent actions await terminal receipts without fixed completion sleeps', 
   assert.match(posting, /CGEvent\.tapIsEnabled\(tap:\s*receiptTap\)/);
   assert.match(posting, /type == \.tapDisabledByTimeout \|\| type == \.tapDisabledByUserInput/);
   assert.match(posting, /CGEvent\.tapEnable\(tap:\s*tap,\s*enable:\s*true\)/);
+  assert.match(posting, /tracker\.begin\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
   assert.match(actions, /func handleMove[\s\S]*?owner\.post\(event\)[\s\S]*?func handleClick/);
   assert.match(actions, /owner\.post\(up,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
   assert.match(actions, /CGEVENT_DELIVERY_UNCONFIRMED/);
   assert.match(posting, /event\.setIntegerValueField\(\.eventSourceUserData,\s*value:\s*receipt\.marker\)/);
-  assert.match(posting, /tracker\.consume\(receipt\.marker,\s*eventType:\s*event\.type\)/);
+  assert.match(posting, /tracker\.consume\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
+  assert.match(posting, /tracker\.observe\(marker:\s*marker,\s*eventType:\s*type\.rawValue\)/);
+  assert.match(posting, /tracker\.clearAll\(\)/);
+  assert.match(deliveryState, /private var pending:\s*Expectation\?/);
+  assert.match(deliveryState, /var uncertainState:\s*Set<String>\s*\{\s*before\.union\(after\)\s*\}/);
+  assert.doesNotMatch(posting, /private var observed:\s*Set/);
   assert.match(session, /keyboardEventSource:\s*state\.eventPostingOwner\.source/);
   assert.doesNotMatch(actions, /usleep\(50_000\)/);
+});
+
+test('modifier receipt timeouts remain owned by session cleanup', () => {
+  const actions = source('src/act/actions.swift');
+  const keyDown = functionBody(actions, 'func handleKeyDown(');
+  const keyUp = functionBody(actions, 'func handleKeyUp(');
+
+  assert.match(keyDown, /AOSModifierDeliveryTransition\(before:\s*before,\s*after:\s*after\)/);
+  assert.match(keyDown, /state\.modifiers\s*=\s*transition\.uncertainState/);
+  assert.doesNotMatch(keyDown, /state\.modifiers\.remove\(modifier\)/);
+  assert.match(keyUp, /AOSModifierDeliveryTransition\(before:\s*before,\s*after:\s*after\)/);
+  assert.match(keyUp, /state\.modifiers\s*=\s*transition\.uncertainState/);
 });

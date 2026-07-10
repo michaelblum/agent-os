@@ -463,10 +463,14 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
             return errorResponse("key_down", state: state, message: "Failed to create keyDown event", code: "CGEVENT_FAILED")
         }
         let modifier = canonicalModifier(lower)
-        state.modifiers.insert(modifier)
+        let before = state.modifiers
+        var after = before
+        after.insert(modifier)
+        let transition = AOSModifierDeliveryTransition(before: before, after: after)
+        state.modifiers = transition.provisionalState
         event.flags = currentFlags(state)
         if !owner.post(event, receipt: receipt, awaitReceipt: true) {
-            state.modifiers.remove(modifier)
+            state.modifiers = transition.uncertainState
             return inputDeliveryError("key_down", state: state)
         }
         return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id, terminalReceiptID: receipt.id)
@@ -513,13 +517,16 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         guard let event = CGEvent(keyboardEventSource: owner.source, virtualKey: mod.keyCode, keyDown: false) else {
             return errorResponse("key_up", state: state, message: "Failed to create keyUp event", code: "CGEVENT_FAILED")
         }
-        let previousModifiers = state.modifiers
+        let before = state.modifiers
+        var after = before
         for alias in aliases {
-            state.modifiers.remove(alias)
+            after.remove(alias)
         }
+        let transition = AOSModifierDeliveryTransition(before: before, after: after)
+        state.modifiers = transition.provisionalState
         event.flags = currentFlags(state)
         if !owner.post(event, receipt: receipt, awaitReceipt: true) {
-            state.modifiers = previousModifiers
+            state.modifiers = transition.uncertainState
             return inputDeliveryError("key_up", state: state)
         }
         return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id, terminalReceiptID: receipt.id)

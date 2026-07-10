@@ -185,17 +185,19 @@
       "id": "native-action-event-source-contract",
       "path_patterns": [
         "tests/click-count-contract.test.mjs",
-        "tests/aos-do-session-streaming.test.mjs"
+        "tests/aos-do-session-streaming.test.mjs",
+        "tests/native-action-input-delivery.sh",
+        "tests/lib/native-action-input-delivery.swift"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "native_action_event_source_contract",
-      "contract": "Mouse, drag, key, typing, and modifier release actions prepare an action-owned CoreGraphics receipt tap before mutation, acknowledge the exact terminal event, and expose public streaming session stdin without fixed timing delays.",
-      "worth": "This gives one-shot and persistent actions the same explicit delivery boundary while proving the public session route preserves NDJSON streaming.",
-      "command": "node --test tests/click-count-contract.test.mjs tests/aos-do-session-streaming.test.mjs",
+      "contract": "Mouse, drag, key, typing, and modifier actions hold one exact terminal receipt expectation, ignore nonterminal observations, retain uncertain modifier transitions for session cleanup, and expose public streaming session stdin without fixed timing delays.",
+      "worth": "The executable Swift model covers terminal sequencing, timeout teardown, expectation replacement, and provisional or uncertain modifier state; static wiring and the public wrapper prove integration ownership.",
+      "command": "node --test tests/click-count-contract.test.mjs tests/aos-do-session-streaming.test.mjs && bash tests/native-action-input-delivery.sh",
       "replaces": [],
-      "guard": "static ownership plus public-wrapper streaming contract; the guarded concurrent lane proves live receipt delivery",
+      "guard": "executable transaction model plus static ownership and public-wrapper streaming; the guarded concurrent lane separately proves live click delivery",
       "status": "active"
     },
     {

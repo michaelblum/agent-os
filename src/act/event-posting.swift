@@ -6,32 +6,10 @@ struct AOSInputPostReceipt: Hashable {
     let id: String
 }
 
-private final class AOSInputReceiptTracker {
-    private struct Observation: Hashable {
-        let marker: Int64
-        let eventType: UInt32
-    }
-
-    private let lock = NSLock()
-    private var observed: Set<Observation> = []
-
-    func observe(_ marker: Int64, eventType: CGEventType) {
-        lock.lock()
-        observed.insert(Observation(marker: marker, eventType: eventType.rawValue))
-        lock.unlock()
-    }
-
-    func consume(_ marker: Int64, eventType: CGEventType) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return observed.remove(Observation(marker: marker, eventType: eventType.rawValue)) != nil
-    }
-}
-
 final class AOSCGEventPostingOwner {
     let source = CGEventSource(stateID: .hidSystemState)
 
-    private let tracker = AOSInputReceiptTracker()
+    private let tracker = AOSInputTerminalReceiptTracker()
     private var nextReceiptCounter: UInt32 = 0
     private var receiptTap: CFMachPort?
     private var receiptRunLoopSource: CFRunLoopSource?
@@ -57,7 +35,10 @@ final class AOSCGEventPostingOwner {
         awaitReceipt: Bool = false,
         timeout: TimeInterval = 1.0
     ) -> Bool {
-        if awaitReceipt && receiptTap == nil { return false }
+        if awaitReceipt {
+            guard let receipt, receiptTap != nil else { return false }
+            tracker.begin(marker: receipt.marker, eventType: event.type.rawValue)
+        }
         if let receipt {
             event.setIntegerValueField(.eventSourceUserData, value: receipt.marker)
         }
@@ -67,10 +48,10 @@ final class AOSCGEventPostingOwner {
 
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if tracker.consume(receipt.marker, eventType: event.type) { return true }
+            if tracker.consume(marker: receipt.marker, eventType: event.type.rawValue) { return true }
             CFRunLoopRunInMode(.defaultMode, 0.005, true)
         } while Date() < deadline
-        return tracker.consume(receipt.marker, eventType: event.type)
+        return tracker.consume(marker: receipt.marker, eventType: event.type.rawValue)
     }
 
     deinit {
@@ -78,6 +59,7 @@ final class AOSCGEventPostingOwner {
     }
 
     private func teardownReceiptTap() {
+        tracker.clearAll()
         if let receiptTap {
             CGEvent.tapEnable(tap: receiptTap, enable: false)
             CFMachPortInvalidate(receiptTap)
@@ -134,7 +116,7 @@ final class AOSCGEventPostingOwner {
                 }
                 let marker = event.getIntegerValueField(.eventSourceUserData)
                 if aosInputReceiptID(marker: marker) != nil {
-                    owner.tracker.observe(marker, eventType: type)
+                    owner.tracker.observe(marker: marker, eventType: type.rawValue)
                 }
                 return Unmanaged.passUnretained(event)
             },

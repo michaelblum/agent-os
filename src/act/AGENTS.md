@@ -22,6 +22,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   and invocation.
 - `actions.swift`, `session.swift`, `targeting.swift`, and adjacent helpers own
   session-mode action execution and reusable act-module mechanics.
+- `input-delivery-state.swift` owns the single terminal receipt expectation and
+  modifier uncertainty state shared by one-shot and persistent actions.
 - `SessionState` owns the CoreGraphics posting source and terminal-event receipt
   boundary used by one-shot and persistent action sessions.
 
@@ -36,6 +38,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
 - Prepare an action-local receipt tap before posting a discrete CGEvent action
   and do not report success until its exact terminal event has been observed.
   Continuous pointer motion may be coalesced and must not claim such a receipt.
+- Keep an unconfirmed modifier transition in session cleanup ownership; a
+  receipt timeout means delivery is unknown and must not discard release state.
 
 ## Work Guidance
 
@@ -46,6 +50,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
 ## Verification
 
 - Run focused Node tests for changed source-shape or command contracts.
+- Run `bash tests/native-action-input-delivery.sh` for terminal receipt and
+  modifier uncertainty changes.
 - Run `bash build.sh --no-restart` after Swift edits that should compile into
   the repo-mode `./aos` binary.
 
