@@ -305,7 +305,7 @@ test('proof-worth evaluator routes toolkit input identity normalization', async 
 
   assert.equal(result.status, 'passed', result);
   assert.deepEqual(result.commands.map((item) => item.command), [
-    'node --test tests/toolkit/runtime-input-events.test.mjs',
+    'node --test tests/toolkit/runtime-input-events.test.mjs tests/toolkit/runtime-gesture-stream.test.mjs tests/toolkit/stage-affordance.test.mjs tests/toolkit/panel-chrome.test.mjs tests/toolkit/surface-inspector-mouse-effects.test.mjs tests/toolkit/passive-component-semantics.test.mjs',
   ]);
 });
 

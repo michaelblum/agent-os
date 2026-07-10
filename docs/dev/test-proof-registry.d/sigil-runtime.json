@@ -22,6 +22,23 @@
       "status": "active"
     },
     {
+      "id": "sigil-input-transport-contract-proof",
+      "path_patterns": [
+        "tests/renderer/input-message.test.mjs",
+        "tests/renderer/sigil-surface-transport-probe.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "input_transport_contract",
+      "contract": "Sigil delegates canonical input normalization to toolkit, rejects retired wrappers and unversioned names, classifies global input by schema claim, and records canonical transport identity.",
+      "worth": "This prevents app-local wrapper adaptation or secondary-segment routing from drifting away from the toolkit input contract.",
+      "command": "node --test tests/renderer/input-message.test.mjs tests/renderer/sigil-surface-transport-probe.test.mjs",
+      "replaces": [],
+      "guard": "deterministic renderer module tests; no live daemon",
+      "status": "active"
+    },
+    {
       "id": "sigil-utility-canvas-transaction-proof",
       "path_patterns": [
         "tests/renderer/sigil-avatar-parking.test.mjs",

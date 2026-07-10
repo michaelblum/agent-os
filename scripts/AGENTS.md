@@ -14,6 +14,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   inventory at `docs/dev/reports/aos-command-capability-inventory-v0.md`.
   Keep it generated from command manifests and external routes; do not turn it
   into a hand-maintained source of truth.
+- `generate-input-event-validator.mjs` owns the checked browser-safe Ajv
+  standalone validator derived from `shared/schemas/input-event-v2.schema.json`;
+  Ajv is a toolkit dev dependency, its referenced helper is inlined from the
+  installed package, and no runtime package import may remain.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/aos-readiness.mjs` owns the effective permission view, readiness
   decision model, and reusable status/doctor/permissions projections. The

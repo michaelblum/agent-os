@@ -3618,65 +3618,49 @@ class UnifiedDaemon {
     }
 
     private func routeInputRegionEvent(event: String, data: [String: Any]) -> Bool? {
+        guard let descriptor = AOSInputEventDescriptor(type: event) else { return nil }
+        let parsedEvent = AOSCanonicalInputEvent(canonicalData: data)
+        let canonicalEvent = parsedEvent?.descriptor == descriptor ? parsedEvent : nil
         let point = inputPoint(from: data)
         let sourceSequence = inputEventSourceSequenceString(data)
-        let sourceSequencePayload = data["sequence"] as? [String: Any]
         let gestureID = data["gesture_id"] as? String
+        let desktopWorld: CGPoint?
+        if let point {
+            desktopWorld = inputRegionNativeToDesktopWorldPoint(point)
+        } else {
+            desktopWorld = nil
+        }
         inputRegionLock.lock()
-        let route = inputRegions.route(
-            eventType: event,
+        let decision = inputRegions.resolveDelivery(
+            descriptor: descriptor,
+            event: canonicalEvent,
             point: point,
+            desktopWorld: desktopWorld,
             sourceSequence: sourceSequence,
             gestureID: gestureID
         )
         inputRegionLock.unlock()
-        guard let route else { return nil }
+        guard let decision else { return nil }
 
-        let desktopWorld: [String: Any]?
-        if let point {
-            let desktopPoint = inputRegionNativeToDesktopWorldPoint(point)
-            desktopWorld = ["x": Double(desktopPoint.x), "y": Double(desktopPoint.y)]
-        } else {
-            desktopWorld = nil
+        switch decision {
+        case .failOpen:
+            if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {
+                fputs("[input-region] event=\(event) canonical_routed_input=false consume=false\n", stderr)
+            }
+            return false
+        case .deliver(let delivery):
+            DispatchQueue.main.async { [weak self] in
+                self?.canvasManager.postMessageAsync(
+                    canvasID: delivery.ownerCanvasID,
+                    payload: delivery.payload
+                )
+            }
+            if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {
+                let detail = "event=\(event) phase=\(delivery.phase.rawValue) region=\(delivery.regionID) owner=\(delivery.ownerCanvasID) consume=\(delivery.consume)"
+                fputs("[input-region] \(detail)\n", stderr)
+            }
+            return delivery.consume
         }
-        let routedInput = inputRegionRoutedInputPayload(
-            event: event,
-            data: data,
-            route: route,
-            desktopWorld: desktopWorld,
-            sourceSequence: sourceSequence,
-            sourceSequencePayload: sourceSequencePayload,
-            gestureID: gestureID
-        )
-        var payload: [String: Any] = [
-            "type": "input_region.event",
-            "routed_input": routedInput,
-            "region_id": route.region.id,
-            "owner_canvas_id": route.region.ownerCanvasID,
-            "semantic_label": route.region.semanticLabel,
-            "phase": route.phase,
-            "source_event": event,
-            "source_sequence": sourceSequence ?? NSNull(),
-            "source_origin": "daemon",
-            "captured": route.captured,
-            "capture_id": route.captureID ?? NSNull(),
-            "consume_policy": route.region.consumePolicy,
-            "should_consume": route.shouldConsume,
-            "metadata": route.region.metadata,
-        ]
-        if let point {
-            payload["native"] = ["x": Double(point.x), "y": Double(point.y)]
-            payload["desktop_world"] = desktopWorld
-        }
-        if let flags = data["flags"] { payload["flags"] = flags }
-
-        DispatchQueue.main.async { [weak self] in
-            self?.canvasManager.postMessageAsync(canvasID: route.region.ownerCanvasID, payload: payload)
-        }
-        if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {
-            fputs("[input-region] event=\(event) phase=\(route.phase) region=\(route.region.id) owner=\(route.region.ownerCanvasID) consume=\(route.shouldConsume)\n", stderr)
-        }
-        return route.shouldConsume
     }
 
     private func inputEventSourceSequenceString(_ data: [String: Any]) -> String? {
@@ -3686,26 +3670,6 @@ class UnifiedDaemon {
         if let value = sequence["value"] as? UInt64 { return "\(source):\(value)" }
         if let value = sequence["value"] as? String, !value.isEmpty { return "\(source):\(value)" }
         return nil
-    }
-
-    private func inputRegionRoutedInputPayload(
-        event: String,
-        data: [String: Any],
-        route: AOSInputRegionRoute,
-        desktopWorld: [String: Any]?,
-        sourceSequence: String?,
-        sourceSequencePayload: [String: Any]?,
-        gestureID: String?
-    ) -> [String: Any] {
-        aosInputRegionRoutedInputPayload(
-            event: event,
-            data: data,
-            route: route,
-            desktopWorld: desktopWorld,
-            sourceSequence: sourceSequence,
-            sourceSequencePayload: sourceSequencePayload,
-            gestureID: gestureID
-        )
     }
 
     private func inputRegionFrame(from payload: [String: Any]) -> CGRect? {

@@ -22,6 +22,14 @@ func assert(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+func descriptor(_ type: String) -> AOSInputEventDescriptor {
+    guard let value = AOSInputEventDescriptor(type: type) else {
+        fputs("FAIL: missing descriptor for \(type)\n", stderr)
+        exit(1)
+    }
+    return value
+}
+
 let point = CGPoint(x: 25, y: 25)
 let baseFrame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
@@ -89,7 +97,7 @@ let highRegion = AOSInputRegionRecord(
 registry.register(lowRegion)
 registry.register(highRegion)
 
-if let route = registry.route(eventType: "left_mouse_down", point: point) {
+if let route = registry.route(event: descriptor("left_mouse_down"), point: point) {
     assert(route.region.id == "high-region", "highest-priority region should receive pointer down")
     assert(route.phase == "down", "pointer down should route as down phase")
     assert(route.shouldConsume, "captured policy should consume pointer down")
@@ -97,7 +105,7 @@ if let route = registry.route(eventType: "left_mouse_down", point: point) {
     assert(false, "expected region route on pointer down")
 }
 
-if let route = registry.route(eventType: "left_mouse_dragged", point: CGPoint(x: 500, y: 500)) {
+if let route = registry.route(event: descriptor("left_mouse_dragged"), point: CGPoint(x: 500, y: 500)) {
     assert(route.region.id == "high-region", "captured region should receive drag outside frame")
     assert(route.captured, "drag should be marked captured")
     assert(route.shouldConsume, "captured drag should consume")
@@ -105,7 +113,7 @@ if let route = registry.route(eventType: "left_mouse_dragged", point: CGPoint(x:
     assert(false, "expected captured drag route")
 }
 
-if let route = registry.route(eventType: "left_mouse_up", point: CGPoint(x: 500, y: 500)) {
+if let route = registry.route(event: descriptor("left_mouse_up"), point: CGPoint(x: 500, y: 500)) {
     assert(route.region.id == "high-region", "captured region should receive up outside frame")
     assert(route.phase == "up", "pointer up should route as up phase")
 } else {
@@ -119,7 +127,7 @@ let neverRegion = AOSInputRegionRecord(
     consumePolicy: "never"
 )
 registry.register(neverRegion)
-if let route = registry.route(eventType: "left_mouse_down", point: CGPoint(x: 210, y: 210)) {
+if let route = registry.route(event: descriptor("left_mouse_down"), point: CGPoint(x: 210, y: 210)) {
     assert(route.region.id == "never-region", "never-consume region should still receive events")
     assert(!route.shouldConsume, "never policy must not consume")
 } else {
@@ -141,6 +149,43 @@ assert(registry.removeOwned(by: "stage", includeSuspendRetained: false).isEmpty,
 assert(registry.snapshot().map(\.id) == ["retained"], "retained region should remain visible")
 assert(registry.removeOwned(by: "stage", includeSuspendRetained: true).map(\.id) == ["retained"], "owner removal should remove retained regions")
 
+let failOpenRegistry = AOSInputRegionRegistry()
+failOpenRegistry.register(highRegion)
+let canonicalDown = AOSCanonicalInputEvent(type: "left_mouse_down", x: 25, y: 25)!
+let delivered = failOpenRegistry.resolveDelivery(
+    descriptor: canonicalDown.descriptor,
+    event: canonicalDown,
+    point: point,
+    desktopWorld: point,
+    sourceSequence: "daemon:1",
+    gestureID: "g-1"
+)
+if case .deliver(let delivery)? = delivered {
+    assert(delivery.consume, "successful region delivery should preserve consume decision")
+    assert(delivery.ownerCanvasID == "stage", "delivery should retain the typed owner destination")
+    assert(delivery.phase == .down, "delivery should retain the typed diagnostic phase")
+    assert(delivery.regionID == "high-region", "delivery should retain the typed diagnostic region")
+    assert(Set(delivery.payload.keys) == Set(["type", "routed_input"]), "successful delivery should expose only the exact envelope")
+} else {
+    assert(false, "canonical region input should produce deliver decision")
+}
+assert(failOpenRegistry.activeCaptureSnapshot() != nil, "delivered pointer down should establish capture")
+
+let failed = failOpenRegistry.resolveDelivery(
+    descriptor: descriptor("left_mouse_dragged"),
+    event: nil,
+    point: CGPoint(x: 500, y: 500),
+    desktopWorld: CGPoint(x: 500, y: 500),
+    sourceSequence: "daemon:2",
+    gestureID: "g-1"
+)
+if case .failOpen? = failed {
+    assert(true, "noncanonical captured input should fail open")
+} else {
+    assert(false, "noncanonical captured input must not expose a deliver payload")
+}
+assert(failOpenRegistry.activeCaptureSnapshot() == nil, "fail-open decision must atomically clear active capture")
+
 let cursorReconciler = AOSNativeCursorSuppressionReconciler()
 let firstCursorSuppression = cursorReconciler.reconcile(active: true)
 assert(firstCursorSuppression.hideNativeCursor == true, "first cursor suppression should hide the process cursor once")
@@ -159,7 +204,7 @@ assert(repeatedCleanup.showNativeCursor == false, "repeated cursor cleanup shoul
 print("PASS daemon input surface ownership and input regions")
 SWIFT
 
-swiftc "$ROOT/src/daemon/input-surface-ownership.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
+swiftc "$ROOT/src/shared/input-event.swift" "$ROOT/src/daemon/input-surface-ownership.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
 "$TMP/test-input-surface-ownership"
 
 cat >"$TMP/main.swift" <<'SWIFT'
@@ -247,21 +292,51 @@ let ownedPointer = AOSInputRegionRoute(
     captureID: "daemon:1:contract-region",
     shouldConsume: true
 )
-let desktopWorld: [String: Any] = ["x": 25.0, "y": 25.0]
-let sourceSequence: [String: Any] = ["source": "daemon", "value": 1]
+let desktopWorld = CGPoint(x: 25, y: 25)
+let canonicalPointer = AOSCanonicalInputEvent(canonicalData: rawPointer)
+assert(canonicalPointer != nil, "raw pointer should hydrate the shared canonical event")
 
-let routedPointer = aosInputRegionRoutedInputPayload(
-    event: "left_mouse_down",
-    data: rawPointer,
+let routedPointerEvent = AOSInputRegionRoutedInput(
+    event: canonicalPointer!,
     route: ownedPointer,
     desktopWorld: desktopWorld,
     sourceSequence: "daemon:1",
-    sourceSequencePayload: sourceSequence,
     gestureID: rawPointer["gesture_id"] as? String
 )
+assert(routedPointerEvent != nil, "complete routed pointer should construct a typed routed-v1 event")
+let routedPointer = routedPointerEvent!.jsonObject
 assert(routedPointer["routed_schema_version"] as? Int == 1, "complete routed pointer may claim routed v1")
-assert((routedPointer["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed pointer should preserve canonical raw v2 source_event")
+assert(routedPointer["source_event"] as? String == "daemon:1", "typed routed pointer should use bounded string source identity")
+assert(routedPointer["coordinate_authority"] as? String == "daemon", "typed routed pointer should own coordinate authority")
+assert(routedPointer["source_origin"] as? String == "daemon", "typed routed pointer should own source origin")
+let routedPointerEnvelope = aosInputRegionEventEnvelope(routedInput: routedPointerEvent!)
+assert(Set(routedPointerEnvelope.keys) == Set(["type", "routed_input"]), "input-region envelope must contain only type and routed_input")
+assert(routedPointerEnvelope["type"] as? String == "input_region.event", "input-region envelope type must be canonical")
 writeJSON("routed-pointer", routedPointer)
+
+assert(AOSInputRegionRoutedInput(
+    event: canonicalPointer!,
+    route: ownedPointer,
+    desktopWorld: nil,
+    sourceSequence: "daemon:1",
+    gestureID: "g-missing-point"
+) == nil, "missing routed point must fail typed construction")
+
+let capturedWithoutID = AOSInputRegionRoute(
+    region: region,
+    phase: "drag",
+    captured: true,
+    captureID: nil,
+    shouldConsume: true
+)
+let canonicalDrag = AOSCanonicalInputEvent(type: "left_mouse_dragged", x: 25, y: 25)
+assert(AOSInputRegionRoutedInput(
+    event: canonicalDrag!,
+    route: capturedWithoutID,
+    desktopWorld: desktopWorld,
+    sourceSequence: "daemon:1",
+    gestureID: "g-missing-capture"
+) == nil, "captured routed input without capture id must fail typed construction")
 
 let scrollRoute = AOSInputRegionRoute(
     region: region,
@@ -270,29 +345,19 @@ let scrollRoute = AOSInputRegionRoute(
     captureID: nil,
     shouldConsume: true
 )
-let routedScrollLegacy = aosInputRegionRoutedInputPayload(
-    event: "scroll_wheel",
-    data: unsupportedScroll,
-    route: scrollRoute,
-    desktopWorld: desktopWorld,
-    sourceSequence: "daemon:2",
-    sourceSequencePayload: ["source": "daemon", "value": 2],
-    gestureID: "g-2"
-)
-assert(routedScrollLegacy["routed_schema_version"] == nil, "routed scroll without scroll data must not claim v1")
-assert(routedScrollLegacy["source_event"] as? String == "daemon:2", "helper-only unversioned routed scroll should keep string source_event")
-
-let routedScroll = aosInputRegionRoutedInputPayload(
-    event: "scroll_wheel",
-    data: rawScroll,
+let canonicalScroll = AOSCanonicalInputEvent(canonicalData: rawScroll)
+assert(canonicalScroll != nil, "raw scroll should hydrate the shared canonical event")
+let routedScrollEvent = AOSInputRegionRoutedInput(
+    event: canonicalScroll!,
     route: scrollRoute,
     desktopWorld: desktopWorld,
     sourceSequence: "daemon:3",
-    sourceSequencePayload: ["source": "daemon", "value": 3],
     gestureID: rawScroll["gesture_id"] as? String
 )
+assert(routedScrollEvent != nil, "complete routed scroll should construct a typed routed-v1 event")
+let routedScroll = routedScrollEvent!.jsonObject
 assert(routedScroll["routed_schema_version"] as? Int == 1, "complete routed scroll may claim routed v1")
-assert((routedScroll["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed scroll should preserve canonical raw v2 source_event")
+assert(routedScroll["source_event"] as? String == "daemon:3", "typed routed scroll should use bounded string source identity")
 writeJSON("routed-scroll", routedScroll)
 
 let cancelRoute = AOSInputRegionRoute(
@@ -302,29 +367,19 @@ let cancelRoute = AOSInputRegionRoute(
     captureID: "daemon:4:contract-region",
     shouldConsume: true
 )
-let routedCancelLegacy = aosInputRegionRoutedInputPayload(
-    event: "pointer_cancel",
-    data: unsupportedCancel,
-    route: cancelRoute,
-    desktopWorld: desktopWorld,
-    sourceSequence: "daemon:4",
-    sourceSequencePayload: ["source": "daemon", "value": 4],
-    gestureID: "g-4"
-)
-assert(routedCancelLegacy["routed_schema_version"] == nil, "routed cancel without cancel_reason must not claim v1")
-assert(routedCancelLegacy["source_event"] as? String == "daemon:4", "helper-only unversioned routed cancel should keep string source_event")
-
-let routedCancel = aosInputRegionRoutedInputPayload(
-    event: "pointer_cancel",
-    data: rawCancel,
+let canonicalCancel = AOSCanonicalInputEvent(canonicalData: rawCancel)
+assert(canonicalCancel != nil, "raw cancel should hydrate the shared canonical event")
+let routedCancelEvent = AOSInputRegionRoutedInput(
+    event: canonicalCancel!,
     route: cancelRoute,
     desktopWorld: desktopWorld,
     sourceSequence: "daemon:5",
-    sourceSequencePayload: ["source": "daemon", "value": 5],
     gestureID: rawCancel["gesture_id"] as? String
 )
+assert(routedCancelEvent != nil, "complete routed cancel should construct a typed routed-v1 event")
+let routedCancel = routedCancelEvent!.jsonObject
 assert(routedCancel["routed_schema_version"] as? Int == 1, "complete routed cancel may claim routed v1")
-assert((routedCancel["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed cancel should preserve canonical raw v2 source_event")
+assert(routedCancel["source_event"] as? String == "daemon:5", "typed routed cancel should use bounded string source identity")
 writeJSON("routed-cancel", routedCancel)
 
 print("PASS input event v2 builder and routed payload contract")
@@ -345,6 +400,7 @@ SWIFT
 
 swiftc \
   "$ROOT/src/shared/types.swift" \
+  "$ROOT/src/shared/input-event.swift" \
   "$TMP/json-value.swift" \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \

@@ -18,6 +18,11 @@ Allowed daemon-side surface work:
 - cheap canvas lifecycle and visibility operations;
 - native frame and display-topology mutation;
 - generic input/hit-region registration and consumption decisions;
+- exact `input_region.event` delivery through canonical routed-v1 payloads;
+  raw and routed serializers must share the input descriptor in
+  `src/shared/input-event.swift`, and incomplete routed input must resolve to
+  the tested fail-open decision without leaving capture state active; successful
+  delivery keeps typed destination and diagnostic metadata until final serialization;
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and apps can subscribe to.
 

@@ -1,41 +1,6 @@
 import Foundation
 import CoreGraphics
 
-private let aosInputRegionPointerPhases: [String: String] = [
-    "left_mouse_down": "down",
-    "left_mouse_dragged": "drag",
-    "left_mouse_up": "up",
-    "right_mouse_down": "down",
-    "right_mouse_dragged": "drag",
-    "right_mouse_up": "up",
-    "middle_mouse_down": "down",
-    "middle_mouse_dragged": "drag",
-    "middle_mouse_up": "up",
-    "other_mouse_down": "down",
-    "other_mouse_dragged": "drag",
-    "other_mouse_up": "up",
-    "mouse_moved": "move",
-    "scroll_wheel": "scroll",
-    "pointer_cancel": "cancel",
-    "mouse_cancel": "cancel",
-]
-
-private let aosInputRegionDownPhases: Set<String> = [
-    "left_mouse_down",
-    "right_mouse_down",
-    "middle_mouse_down",
-    "other_mouse_down",
-]
-
-private let aosInputRegionTerminalPhases: Set<String> = [
-    "left_mouse_up",
-    "right_mouse_up",
-    "middle_mouse_up",
-    "other_mouse_up",
-    "pointer_cancel",
-    "mouse_cancel",
-]
-
 struct AOSNativeCursorSuppressionReconcileResult: Equatable {
     let hideNativeCursor: Bool
     let showNativeCursor: Bool
@@ -109,14 +74,14 @@ struct AOSInputRegionRecord: Equatable {
         consumePolicy != "never"
     }
 
-    func shouldConsume(eventType: String, captured: Bool) -> Bool {
+    func shouldConsume(phase: AOSInputEventPhase, captured: Bool) -> Bool {
         switch consumePolicy {
         case "never":
             return false
         case "down_only":
-            return aosInputRegionDownPhases.contains(eventType)
+            return phase == .down
         case "captured":
-            return captured || aosInputRegionDownPhases.contains(eventType)
+            return captured || phase == .down
         default:
             return true
         }
@@ -131,136 +96,190 @@ struct AOSInputRegionRoute: Equatable {
     let shouldConsume: Bool
 }
 
-func aosInputRegionRoutedInputPayload(
-    event: String,
-    data: [String: Any],
-    route: AOSInputRegionRoute,
-    desktopWorld: [String: Any]?,
-    sourceSequence: String?,
-    sourceSequencePayload: [String: Any]?,
-    gestureID: String?
-) -> [String: Any] {
-    let eventKind = (data["event_kind"] as? String) ?? aosInputRegionEventKind(event)
-    let sourceEvent: Any = (data["input_schema_version"] as? Int) == 2
-        ? data
-        : (sourceSequence ?? event)
-    var routed: [String: Any] = [
-        "event_kind": eventKind,
-        "type": event,
-        "phase": route.phase,
-        "delivery_role": route.captured ? "captured" : "owned",
-        "sequence": sourceSequencePayload ?? ["source": "daemon", "value": sourceSequence ?? event],
-        "gesture_id": gestureID ?? sourceSequence ?? "\(event):\(route.region.id)",
-        "coordinate_authority": "daemon",
-        "source_origin": "daemon",
-        "source_event": sourceEvent,
-        "region_id": route.region.id,
-        "owner_canvas_id": route.region.ownerCanvasID,
-    ]
-    if let sourceSequencePayload {
-        routed["source_sequence"] = sourceSequencePayload
-    }
-    if let desktopWorld {
-        routed["desktop_world"] = desktopWorld
-    }
-    if let captureID = route.captureID {
-        routed["capture_id"] = captureID
-    }
-    if let button = data["button"] {
-        routed["button"] = button
-    } else if eventKind == "pointer" {
-        routed["button"] = aosInputRegionButton(event)
-    }
-    if let buttons = data["buttons"] {
-        routed["buttons"] = buttons
-    } else if eventKind == "pointer" {
-        routed["buttons"] = aosInputRegionButtons(event: event, phase: route.phase)
-    }
-    if let scroll = data["scroll"] {
-        routed["scroll"] = scroll
-    }
-    if let key = data["key"] {
-        routed["key"] = key
-    }
-    if let cancelReason = data["cancel_reason"] {
-        routed["cancel_reason"] = cancelReason
-    }
-    if aosInputRegionCanClaimRoutedSchemaVersion(routed) {
-        routed["routed_schema_version"] = 1
-    }
-    return routed
+private enum AOSInputRegionDeliveryRole: String {
+    case owned
+    case captured
 }
 
-private func aosInputRegionEventKind(_ event: String) -> String {
-    switch event {
-    case "scroll_wheel":
-        return "scroll"
-    case "key_down", "key_up":
-        return "key"
-    case "pointer_cancel", "mouse_cancel":
-        return "cancel"
-    default:
-        return "pointer"
-    }
+private enum AOSInputCoordinateAuthority: String {
+    case daemon
 }
 
-private func aosInputRegionButton(_ event: String) -> String {
-    if event.hasPrefix("left_") { return "left" }
-    if event.hasPrefix("right_") { return "right" }
-    if event.hasPrefix("middle_") { return "middle" }
-    if event.hasPrefix("other_") { return "other:0" }
-    return "none"
+private enum AOSInputSourceOrigin: String {
+    case daemon
 }
 
-private func aosInputRegionButtons(event: String, phase: String) -> [String: Any] {
-    let pressed = phase == "down" || phase == "drag"
-    return [
-        "left": event.hasPrefix("left_") && pressed,
-        "right": event.hasPrefix("right_") && pressed,
-        "middle": event.hasPrefix("middle_") && pressed,
-        "other_pressed": event.hasPrefix("other_") && pressed ? [0] : [],
-    ]
-}
+struct AOSInputRegionRoutedInput {
+    private let eventKind: AOSInputEventKind
+    private let type: String
+    private let phase: AOSInputEventPhase
+    private let deliveryRole: AOSInputRegionDeliveryRole
+    private let sequenceValue: String
+    private let gestureID: String
+    private let desktopWorld: CGPoint
+    private let sourceEvent: String
+    private let regionID: String
+    private let ownerCanvasID: String
+    private let captureID: String?
+    private let button: String?
+    private let buttons: [String: Any]?
+    private let scroll: (dx: Double, dy: Double)?
+    private let cancelReason: String?
 
-private func aosInputRegionCanClaimRoutedSchemaVersion(_ routed: [String: Any]) -> Bool {
-    guard routed["type"] is String,
-          routed["delivery_role"] is String,
-          routed["sequence"] is [String: Any],
-          routed["gesture_id"] is String,
-          routed["desktop_world"] is [String: Any],
-          routed["coordinate_authority"] is String,
-          routed["source_origin"] is String,
-          routed["source_event"] != nil else {
-        return false
-    }
-
-    if let deliveryRole = routed["delivery_role"] as? String,
-       deliveryRole == "owned" || deliveryRole == "captured",
-       !(routed["region_id"] is String && routed["owner_canvas_id"] is String) {
-        return false
-    }
-    if (routed["delivery_role"] as? String) == "captured" && !(routed["capture_id"] is String) {
-        return false
-    }
-
-    switch routed["event_kind"] as? String {
-    case "pointer":
-        guard let phase = routed["phase"] as? String,
-              ["down", "move", "drag", "up", "enter", "hover", "leave", "hover_cancel"].contains(phase),
-              routed["button"] != nil,
-              routed["buttons"] is [String: Any] else {
-            return false
+    init?(
+        event: AOSCanonicalInputEvent,
+        route: AOSInputRegionRoute,
+        desktopWorld: CGPoint?,
+        sourceSequence: String?,
+        gestureID: String?
+    ) {
+        let descriptor = event.descriptor
+        guard descriptor.kind != .key,
+              let phase = descriptor.phase,
+              route.phase == phase.rawValue,
+              let desktopWorld,
+              desktopWorld.x.isFinite,
+              desktopWorld.y.isFinite,
+              !route.region.id.isEmpty,
+              !route.region.ownerCanvasID.isEmpty else {
+            return nil
         }
-        return true
-    case "scroll":
-        return (routed["phase"] as? String) == "scroll" && routed["scroll"] is [String: Any]
-    case "key":
-        return routed["key"] is [String: Any]
-    case "cancel":
-        return (routed["phase"] as? String) == "cancel" && routed["cancel_reason"] is String
-    default:
-        return false
+
+        let deliveryRole: AOSInputRegionDeliveryRole = route.captured ? .captured : .owned
+        let captureID: String?
+        if deliveryRole == .captured {
+            guard let candidate = route.captureID, !candidate.isEmpty else { return nil }
+            captureID = candidate
+        } else {
+            captureID = nil
+        }
+
+        let button: String?
+        let buttons: [String: Any]?
+        let scroll: (dx: Double, dy: Double)?
+        let canonicalCancelReason: String?
+        switch event {
+        case .pointer:
+            button = descriptor.button?.rawValue
+            buttons = descriptor.buttonState?.jsonObject
+            scroll = nil
+            canonicalCancelReason = nil
+        case .scroll(_, _, let dx, let dy):
+            button = nil
+            buttons = nil
+            scroll = (dx, dy)
+            canonicalCancelReason = nil
+        case .cancel(_, let reason):
+            button = nil
+            buttons = nil
+            scroll = nil
+            canonicalCancelReason = reason.rawValue
+        case .key:
+            return nil
+        }
+
+        let canonicalSequenceValue = (sourceSequence?.isEmpty == false ? sourceSequence : nil) ?? descriptor.type
+        let fallbackIdentity = "\(descriptor.type):\(route.region.id)"
+        let canonicalGestureID = (gestureID?.isEmpty == false ? gestureID : nil) ?? fallbackIdentity
+        guard !canonicalSequenceValue.isEmpty, !canonicalGestureID.isEmpty else { return nil }
+
+        self.eventKind = descriptor.kind
+        self.type = descriptor.type
+        self.phase = phase
+        self.deliveryRole = deliveryRole
+        self.sequenceValue = canonicalSequenceValue
+        self.gestureID = canonicalGestureID
+        self.desktopWorld = desktopWorld
+        self.sourceEvent = canonicalSequenceValue
+        self.regionID = route.region.id
+        self.ownerCanvasID = route.region.ownerCanvasID
+        self.captureID = captureID
+        self.button = button
+        self.buttons = buttons
+        self.scroll = scroll
+        self.cancelReason = canonicalCancelReason
     }
+
+    var jsonObject: [String: Any] {
+        var result: [String: Any] = [
+            "routed_schema_version": 1,
+            "event_kind": eventKind.rawValue,
+            "type": type,
+            "phase": phase.rawValue,
+            "delivery_role": deliveryRole.rawValue,
+            "sequence": ["source": "daemon", "value": sequenceValue],
+            "gesture_id": gestureID,
+            "desktop_world": ["x": Double(desktopWorld.x), "y": Double(desktopWorld.y)],
+            "coordinate_authority": AOSInputCoordinateAuthority.daemon.rawValue,
+            "source_origin": AOSInputSourceOrigin.daemon.rawValue,
+            "source_event": sourceEvent,
+            "region_id": regionID,
+            "owner_canvas_id": ownerCanvasID,
+        ]
+        if let captureID { result["capture_id"] = captureID }
+        if let button { result["button"] = button }
+        if let buttons { result["buttons"] = buttons }
+        if let scroll { result["scroll"] = ["dx": scroll.dx, "dy": scroll.dy, "unit": "point"] }
+        if let cancelReason { result["cancel_reason"] = cancelReason }
+        return result
+    }
+}
+
+func aosInputRegionEventEnvelope(routedInput: AOSInputRegionRoutedInput) -> [String: Any] {
+    return [
+        "type": "input_region.event",
+        "routed_input": routedInput.jsonObject,
+    ]
+}
+
+struct AOSInputRegionDelivery {
+    let ownerCanvasID: String
+    let phase: AOSInputEventPhase
+    let regionID: String
+    let consume: Bool
+    private let routedInput: AOSInputRegionRoutedInput
+
+    init(
+        routedInput: AOSInputRegionRoutedInput,
+        route: AOSInputRegionRoute,
+        phase: AOSInputEventPhase
+    ) {
+        self.ownerCanvasID = route.region.ownerCanvasID
+        self.phase = phase
+        self.regionID = route.region.id
+        self.consume = route.shouldConsume
+        self.routedInput = routedInput
+    }
+
+    var payload: [String: Any] {
+        aosInputRegionEventEnvelope(routedInput: routedInput)
+    }
+}
+
+enum AOSInputRegionDeliveryDecision {
+    case deliver(AOSInputRegionDelivery)
+    case failOpen
+}
+
+func aosInputRegionDeliveryDecision(
+    event: AOSCanonicalInputEvent?,
+    route: AOSInputRegionRoute,
+    desktopWorld: CGPoint?,
+    sourceSequence: String?,
+    gestureID: String?
+) -> AOSInputRegionDeliveryDecision {
+    guard let event,
+          let phase = event.descriptor.phase,
+          let routedInput = AOSInputRegionRoutedInput(
+            event: event,
+            route: route,
+            desktopWorld: desktopWorld,
+            sourceSequence: sourceSequence,
+            gestureID: gestureID
+          ) else {
+        return .failOpen
+    }
+    return .deliver(AOSInputRegionDelivery(routedInput: routedInput, route: route, phase: phase))
 }
 
 final class AOSInputRegionRegistry {
@@ -324,8 +343,13 @@ final class AOSInputRegionRegistry {
         return snapshot
     }
 
-    func route(eventType: String, point: CGPoint?, sourceSequence: String? = nil, gestureID: String? = nil) -> AOSInputRegionRoute? {
-        guard let phase = aosInputRegionPointerPhases[eventType] else { return nil }
+    func clearCapture() {
+        captureRegionID = nil
+        captureID = nil
+    }
+
+    func route(event: AOSInputEventDescriptor, point: CGPoint?, sourceSequence: String? = nil, gestureID: String? = nil) -> AOSInputRegionRoute? {
+        guard let phase = event.phase else { return nil }
 
         if let capturedID = captureRegionID, let capturedRegion = regions[capturedID] {
             let stableCaptureID = captureID ?? AOSInputRegionRegistry.defaultCaptureID(
@@ -335,12 +359,12 @@ final class AOSInputRegionRegistry {
             )
             let route = AOSInputRegionRoute(
                 region: capturedRegion,
-                phase: phase,
+                phase: phase.rawValue,
                 captured: true,
                 captureID: stableCaptureID,
-                shouldConsume: capturedRegion.shouldConsume(eventType: eventType, captured: true)
+                shouldConsume: capturedRegion.shouldConsume(phase: phase, captured: true)
             )
-            if aosInputRegionTerminalPhases.contains(eventType) {
+            if event.isTerminal {
                 captureRegionID = nil
                 captureID = nil
             }
@@ -350,7 +374,7 @@ final class AOSInputRegionRegistry {
         guard let point,
               let region = pickRegion(at: point) else { return nil }
 
-        if aosInputRegionDownPhases.contains(eventType), region.shouldConsumeOnDown {
+        if event.isDown, region.shouldConsumeOnDown {
             captureRegionID = region.id
             captureID = AOSInputRegionRegistry.defaultCaptureID(
                 regionID: region.id,
@@ -361,11 +385,40 @@ final class AOSInputRegionRegistry {
 
         return AOSInputRegionRoute(
             region: region,
-            phase: phase,
+            phase: phase.rawValue,
             captured: false,
             captureID: captureID,
-            shouldConsume: region.shouldConsume(eventType: eventType, captured: false)
+            shouldConsume: region.shouldConsume(phase: phase, captured: false)
         )
+    }
+
+    func resolveDelivery(
+        descriptor: AOSInputEventDescriptor,
+        event: AOSCanonicalInputEvent?,
+        point: CGPoint?,
+        desktopWorld: CGPoint?,
+        sourceSequence: String? = nil,
+        gestureID: String? = nil
+    ) -> AOSInputRegionDeliveryDecision? {
+        guard let route = route(
+            event: descriptor,
+            point: point,
+            sourceSequence: sourceSequence,
+            gestureID: gestureID
+        ) else {
+            return nil
+        }
+        let decision = aosInputRegionDeliveryDecision(
+            event: event,
+            route: route,
+            desktopWorld: desktopWorld,
+            sourceSequence: sourceSequence,
+            gestureID: gestureID
+        )
+        if case .failOpen = decision {
+            clearCapture()
+        }
+        return decision
     }
 
     static func defaultCaptureID(regionID: String, sourceSequence: String?, gestureID: String?) -> String {

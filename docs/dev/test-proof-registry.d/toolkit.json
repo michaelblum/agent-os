@@ -22,17 +22,59 @@
     {
       "id": "toolkit-runtime-input-events-proof",
       "path_patterns": [
-        "tests/toolkit/runtime-input-events.test.mjs"
+        "tests/lib/input-event-fixtures.mjs",
+        "tests/toolkit/panel-chrome.test.mjs",
+        "tests/toolkit/passive-component-semantics.test.mjs",
+        "tests/toolkit/runtime-gesture-stream.test.mjs",
+        "tests/toolkit/runtime-input-events.test.mjs",
+        "tests/toolkit/stage-affordance.test.mjs",
+        "tests/toolkit/surface-inspector-mouse-effects.test.mjs"
       ],
-      "fixture_patterns": [],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/input-event-v2/**/*.json"
+      ],
       "owner": "toolkit",
       "harness_level": "model_unit",
       "proof_kind": "input_identity_contract",
-      "contract": "Toolkit input normalization publishes one complete source, ownership, scope, and envelope identity projection across canonical and bounded bridge inputs.",
-      "worth": "This prevents apps from reintroducing transport-field normalization or losing input ownership when routed event shapes change.",
-      "command": "node --test tests/toolkit/runtime-input-events.test.mjs",
+      "contract": "Toolkit input normalization uses the checked browser-safe validator generated from the canonical input schema, accepts only exact input-region and identity-complete canvas-origin forms, and gives consumers one normalized projection.",
+      "worth": "This prevents toolkit consumers or app policy from reviving retired wrapper and top-level compatibility or losing input ownership when routed event shapes change.",
+      "command": "node --test tests/toolkit/runtime-input-events.test.mjs tests/toolkit/runtime-gesture-stream.test.mjs tests/toolkit/stage-affordance.test.mjs tests/toolkit/panel-chrome.test.mjs tests/toolkit/surface-inspector-mouse-effects.test.mjs tests/toolkit/passive-component-semantics.test.mjs",
       "replaces": [],
-      "guard": "pure normalization unit; no live daemon or input tap",
+      "guard": "generated-artifact check plus pure parser and normalization units over every frozen input-event-v2 fixture; no live daemon or input tap",
+      "status": "active"
+    },
+    {
+      "id": "toolkit-spatial-telemetry-canonical-input-smoke",
+      "path_patterns": [
+        "tests/spatial-telemetry-smoke.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "canonical_canvas_delivery_smoke",
+      "contract": "Spatial Telemetry receives and records canonical raw-v2 input delivered directly to its live canvas through an isolated daemon.",
+      "worth": "This proves the live component boundary accepts canonical raw-v2 input without claiming coverage of daemon subscription fanout.",
+      "command": "bash tests/spatial-telemetry-smoke.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and skips when Accessibility is unavailable",
+      "status": "active"
+    },
+    {
+      "id": "toolkit-input-event-validator-generation-proof",
+      "path_patterns": [
+        "tests/schemas/input-event-v2.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/input-event-v2/**/*.json"
+      ],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "generated_schema_validator_contract",
+      "contract": "The browser-safe input validator is compiled from the canonical input-event-v2 schema with Ajv standalone, has no runtime compiler dependency, and agrees with frozen valid and invalid fixtures.",
+      "worth": "This catches stale generated validation or schema disagreement; implementation-source routing remains owned by workflow-rules.json.",
+      "command": "node --test tests/schemas/input-event-v2.test.mjs",
+      "replaces": [],
+      "guard": "compiled-artifact and schema units; no daemon, input tap, or canvas",
       "status": "active"
     },
     {

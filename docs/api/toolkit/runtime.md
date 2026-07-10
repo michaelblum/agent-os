@@ -87,24 +87,32 @@ Input regions are daemon-owned hit areas that toolkit surfaces can register when
 - `removeInputRegion(id)` emits `input_region.remove`.
 - `inputRegionContainsRect(rect)` is a deterministic local predicate for rectangle hit checks in tests and routing helpers.
 
-Daemon input region events arrive as `input_region.event` bridge messages; that
-name is the bridge channel, not a payload schema version. Current daemon
-deliveries keep top-level fields for existing owned consumers and include a
-canonical `routed_input` payload matching `shared/schemas/input-event-v2`:
+Daemon input region events arrive as the exact bridge envelope
+`{type:"input_region.event", routed_input}`. The bridge name is not a payload
+schema version. `routed_input` is the canonical routed-v1 payload matching
+`shared/schemas/input-event-v2`:
 `routed_schema_version`, `delivery_role`, `region_id`, `owner_canvas_id`,
 stable `capture_id` for captured drags, `source_origin`,
-`source_event`/`source_sequence`, `desktop_world`, and
+bounded string `source_event`, canonical `sequence`, `desktop_world`, and
 `coordinate_authority`. A `routed_schema_version: 1` claim must include the
 required routed fields for its `event_kind` and `delivery_role`; incomplete
 claims are errors.
 
 Consumers should call `normalizeCanvasInputMessage(msg)` from
 `packages/toolkit/runtime/input-events.js` instead of parsing
-`input_region.event` directly. Its preferred path is canonical raw
-input-event-v2 payloads and routed-v1 envelopes. It also accepts explicitly
-bounded bridges for native raw event-name fanout, unversioned `input_event`
-wrappers, top-level-only `input_region.event` compatibility, and canvas-origin
-synthetic messages. Normalized output adds camelCase fields such as
+`input_region.event` directly. The normalizer delegates versioned payloads to
+the browser-safe standalone validator compiled from
+`shared/schemas/input-event-v2.schema.json` with Ajv; no schema interpreter or
+compiler runs in the canvas. Generation checks reject stale artifacts. It accepts canonical raw input-event-v2
+payloads, direct routed-v1 envelopes, exact `input_region.event.routed_input`
+envelopes, and canvas-origin messages that can be resolved into routed v1.
+Canvas-origin `other_mouse_*` messages require a producer-supplied button id
+and normalize it to `other:<id>`; messages without that identity are rejected.
+Unversioned event names, `input_event` wrappers, nested bridge payloads, and
+top-level-only input-region events return `null`; malformed payloads that claim
+a supported schema version fail validation. The `input_event` name remains the
+daemon subscription topic, not a wrapper schema. Normalized output adds
+camelCase fields such as
 `gestureId`, `captureId`, `deliveryRole`, `regionId`, `ownerCanvasId`,
 `sourceCanvasId`, `sourceOrigin`, `sourceSequence`, and `sourceEvent`. Every
 normalized input also carries one toolkit-owned `inputIdentity` projection with

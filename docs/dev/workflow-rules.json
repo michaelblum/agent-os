@@ -125,7 +125,9 @@
       "patterns": [
         "packages/toolkit/components/**",
         "packages/toolkit/panel/**",
-        "packages/toolkit/runtime/**"
+        "packages/toolkit/runtime/**",
+        "packages/toolkit/package.json",
+        "packages/toolkit/package-lock.json"
       ],
       "classes": [
         "toolkit",
@@ -179,7 +181,8 @@
       "id": "schemas",
       "summary": "Shared schema contracts changed.",
       "patterns": [
-        "shared/schemas/**"
+        "shared/schemas/**",
+        "scripts/generate-input-event-validator.mjs"
       ],
       "classes": [
         "schema"
