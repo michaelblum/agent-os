@@ -4,6 +4,23 @@
   "summary": "Proof-worth registry entries owned by sigil-runtime.",
   "entries": [
     {
+      "id": "sigil-renderer-extraction-contract-proof",
+      "path_patterns": [
+        "tests/renderer/annotation-reticle.test.mjs",
+        "tests/renderer/sigil-status-menu.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "renderer_extraction_contract",
+      "contract": "Sigil annotation, target-surface, debug, and status-menu behavior remains wired through the modules that own each extracted responsibility.",
+      "worth": "This catches stale main-module assumptions and missing delegation after renderer responsibilities move into narrower owners.",
+      "command": "node --test tests/renderer/annotation-reticle.test.mjs tests/renderer/sigil-status-menu.test.mjs",
+      "replaces": [],
+      "guard": "deterministic renderer module tests; no live daemon",
+      "status": "active"
+    },
+    {
       "id": "sigil-utility-canvas-transaction-proof",
       "path_patterns": [
         "tests/renderer/sigil-avatar-parking.test.mjs",

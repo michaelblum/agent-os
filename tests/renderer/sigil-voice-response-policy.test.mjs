@@ -122,13 +122,16 @@ test('Sigil voice response module does not import daemon schemas', async () => {
   assert.doesNotMatch(source, /shared\/schemas|src\/daemon|daemon-event|VoiceRegistry/)
 })
 
-test('Sigil main delegates voice response menu and event routing to voice runtime', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+test('Sigil delegates voice response events and menu actions through their runtime owners', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const statusRuntime = await readFile(new URL('../../apps/sigil/renderer/live-modules/status-menu-runtime.js', import.meta.url), 'utf8')
+  const voiceRuntime = await readFile(new URL('../../apps/sigil/renderer/live-modules/voice-runtime.js', import.meta.url), 'utf8')
 
-  assert.match(source, /createSigilVoiceRuntime/)
-  assert.match(source, /voiceRuntime\.responseBackendMenuItems\(\)/)
-  assert.match(source, /voiceRuntime\.handleMenuAction\(id\)/)
-  assert.match(source, /voiceRuntime\.handleVoiceEvent\(msg\)\.handled/)
-  assert.doesNotMatch(source, /createSigilVoiceResponsePolicy/)
-  assert.doesNotMatch(source, /sigilVoiceResponseBackendMenuItems\(voiceResponsePolicy\.snapshot\(\)\)/)
+  assert.match(main, /createSigilVoiceRuntime/)
+  assert.match(main, /voiceRuntime\.handleVoiceEvent\(msg\)\.handled/)
+  assert.match(statusRuntime, /voiceRuntime\.responseBackendMenuItems\(\)/)
+  assert.match(statusRuntime, /voiceRuntime\.handleMenuAction\(id\)/)
+  assert.match(voiceRuntime, /createSigilVoiceResponsePolicy/)
+  assert.match(voiceRuntime, /sigilVoiceResponseBackendMenuItems\(voiceResponsePolicy\.snapshot\(\)\)/)
+  assert.doesNotMatch(main, /createSigilVoiceResponsePolicy/)
 })

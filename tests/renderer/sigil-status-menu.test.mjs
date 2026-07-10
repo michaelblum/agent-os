@@ -73,12 +73,15 @@ test('Sigil status menu routes fixed actions through injected handlers', async (
   })
 })
 
-test('Sigil main delegates status menu shape and fixed routing to status-menu module', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+test('Sigil status runtime owns menu shape and fixed routing behind main delegation', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const runtime = await readFile(new URL('../../apps/sigil/renderer/live-modules/status-menu-runtime.js', import.meta.url), 'utf8')
 
-  assert.match(source, /buildSigilStatusMenuItems/)
-  assert.match(source, /routeSigilStatusMenuAction/)
-  assert.match(source, /normalizeStatusMenuActionId/)
-  assert.doesNotMatch(source, /id: 'sigil\.status\.console'/)
-  assert.doesNotMatch(source, /if \(id === 'sigil\.status\.reload'\)/)
+  assert.match(main, /createSigilStatusMenuRuntime/)
+  assert.match(main, /statusMenuRuntime\.handleStatusMenuAction\(msg\)/)
+  assert.match(runtime, /buildSigilStatusMenuItems/)
+  assert.match(runtime, /routeSigilStatusMenuAction/)
+  assert.match(runtime, /normalizeStatusMenuActionId/)
+  assert.doesNotMatch(main, /id: 'sigil\.status\.console'/)
+  assert.doesNotMatch(runtime, /if \(id === 'sigil\.status\.reload'\)/)
 })

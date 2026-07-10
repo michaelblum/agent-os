@@ -38,6 +38,22 @@
       "status": "active"
     },
     {
+      "id": "sigil-voice-response-renderer-proof",
+      "path_patterns": [
+        "tests/renderer/sigil-voice-response-policy.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "model_unit",
+      "proof_kind": "voice_response_contract",
+      "contract": "Sigil voice response policy, voice runtime, status-menu runtime, and main renderer preserve their event and menu delegation boundaries.",
+      "worth": "This catches voice response behavior or ownership drift without requiring a live microphone, daemon, or speech provider.",
+      "command": "node --test tests/renderer/sigil-voice-response-policy.test.mjs",
+      "replaces": [],
+      "guard": "renderer module unit; no live daemon or speech provider",
+      "status": "active"
+    },
+    {
       "id": "voice-bind-proof",
       "path_patterns": [
         "tests/voice-bind.sh"

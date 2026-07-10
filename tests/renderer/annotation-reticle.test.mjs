@@ -513,13 +513,14 @@ test('Sigil reticle preserves browser DOM element target adapter identity', () =
 
 test('Sigil reticle requests live browser DOM target for scoped local browser windows', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const debugSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/debug-api.js'), 'utf8')
 
   assert.match(source, /function annotationReticleBrowserDomBridgeEvidence\(pointer = null, anchorCandidate = null\)/)
   assert.match(source, /function annotationReticleBrowserContentRectFromAxElement\(payload = \{\}, windowPayload = \{\}\)/)
   assert.match(source, /annotationReticleBrowserContentRectFromAxElement\(axElementEvent, scopedWindowEvent\)/)
   assert.match(source, /annotationReticleBrowserContentRectFromAxElement\(axElementEvent, \{ \.\.\.scopedWindowEvent, bounds: anchorRect \}\)/)
   assert.match(source, /annotationReticleBrowserDomBridge: null/)
-  assert.match(source, /annotationReticleBrowserDomBridge: liveJs\.annotationReticleBrowserDomBridge/)
+  assert.match(debugSource, /annotationReticleBrowserDomBridge: deps\.liveJs\.annotationReticleBrowserDomBridge/)
   assert.match(source, /function recordAnnotationReticleBrowserDomBridge\(stage, evidence = \{\}\)/)
   assert.match(source, /annotationReticleBrowserSessionFromWindow\(scopedWindowEvent\)/)
   assert.match(source, /annotationReticleBrowserContentRectFromWindow\(scopedWindowEvent\)/)
@@ -817,10 +818,12 @@ test('reticle acquisition resets on radial interior return', () => {
 
 test('Sigil applies annotation item-click lifecycle guard to avatar and target-surface releases', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
-  const uses = source.match(/annotationReticleReleaseDisposition\(result\)/g) || []
+  const targetSurfaceSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/target-surface-events.js'), 'utf8')
+  const uses = [source, targetSurfaceSource]
+    .flatMap((candidate) => candidate.match(/annotationReticleReleaseDisposition\(result\)/g) || [])
 
   assert.equal(uses.length, 3)
-  assert.match(source, /function handleRadialTargetSurfaceEvent[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
+  assert.match(targetSurfaceSource, /function handleRadialTargetSurfaceEvent[\s\S]*deps\.annotationReticleReleaseDisposition\(result\)[\s\S]*deps\.exitAnnotationReticle\(annotationDisposition\.reason\)/)
   assert.match(source, /case 'RADIAL': \{[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
 })
 
@@ -843,18 +846,19 @@ test('Sigil routes the radial reticle item to Selection Mode instead of drag-thr
 test('Sigil records and recovers delayed radial camera target-surface clicks', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const dispatchSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/radial-item-action-dispatch.js'), 'utf8')
+  const targetSurfaceSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/target-surface-events.js'), 'utf8')
 
   assert.match(source, /type: event\.type/)
   assert.match(source, /radialTargetSurfaceReceiptEvidence/)
   assert.match(source, /applyRadialTargetSurfaceDragPayload/)
-  assert.match(source, /payload\.kind === 'radial_item_pointer_move' \|\| payload\.kind === 'radial_surface_pointer_move'/)
-  assert.match(source, /handleLeftMouseUp\(receipt\.worldPoint\.x, receipt\.worldPoint\.y\)/)
-  assert.match(source, /payload\.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID \|\| payload\.itemAction === 'annotationSnapshot'/)
-  assert.match(source, /reason: 'radial-camera-target-surface-recovery'/)
+  assert.match(targetSurfaceSource, /payload\.kind === 'radial_item_pointer_move' \|\| payload\.kind === 'radial_surface_pointer_move'/)
+  assert.match(targetSurfaceSource, /deps\.handleLeftMouseUp\(receipt\.worldPoint\.x, receipt\.worldPoint\.y\)/)
+  assert.match(targetSurfaceSource, /payload\.itemId === deps\.annotationCameraItemId \|\| payload\.itemAction === 'annotationSnapshot'/)
+  assert.match(targetSurfaceSource, /reason: 'radial-camera-target-surface-recovery'/)
   assert.match(dispatchSource, /requestAnnotationSnapshot\(reason\)/)
   assert.match(dispatchSource, /context\.reason === 'radial-camera-target-surface-recovery'/)
   assert.match(source, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
-  assert.match(source, /reason: 'camera-click-after-radial-cleanup'/)
+  assert.match(targetSurfaceSource, /reason: 'camera-click-after-radial-cleanup'/)
   assert.match(source, /radialTargetSurfaceActive: radialTargetSurface\.snapshot\(\)\.interactive/)
   assert.match(source, /pointerInsideRadialTargetSurface: pointInRadialTargetSurface/)
 })
@@ -883,8 +887,7 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   const selectionRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/selection-mode-runtime.js'), 'utf8')
   const contextRecordingRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/context-recording-runtime.js'), 'utf8')
   const commandRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/ux-tree-command-registry.js'), 'utf8')
-  const debugStart = source.indexOf('window.__sigilDebug = {')
-  const debugBlock = source.slice(debugStart)
+  const debugSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/debug-api.js'), 'utf8')
 
   assert.match(selectionRuntimeSource, /createSelectionModeContextSession/)
   assert.match(selectionRuntimeSource, /function enter\(pointer = null, reason = 'selection-mode-enter'\)/)
@@ -905,13 +908,14 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
   assert.doesNotMatch(source, deletedSelectionModeCursorPattern)
-  assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
-  assert.doesNotMatch(debugBlock, deletedSelectionModeCursorPattern)
-  assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
-  assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)
-  assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)
-  assert.match(debugBlock, /appendActiveContextKeyframe\(options = \{\}\)/)
-  assert.match(debugBlock, /exportContextRecording\(\)/)
+  assert.match(source, /window\.__sigilDebug = createSigilDebugApi\(/)
+  assert.match(debugSource, /selectionMode: deps\.liveJs\.selectionMode/)
+  assert.doesNotMatch(debugSource, deletedSelectionModeCursorPattern)
+  assert.match(debugSource, /activeContext: deps\.liveJs\.activeContext/)
+  assert.match(debugSource, /contextRecording: deps\.liveJs\.contextRecording/)
+  assert.match(debugSource, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*deps\.createSelectionModeContextFromDebugInput\(input\)/)
+  assert.match(debugSource, /appendActiveContextKeyframe\(options = \{\}\) \{[\s\S]*deps\.appendContextRecordingKeyframe/)
+  assert.match(debugSource, /exportContextRecording\(\) \{[\s\S]*deps\.contextRecordingRuntime\.exportContextRecording\(\)/)
 })
 
 test('annotation reticle overlay model exposes current scope hover and live anchors', () => {
