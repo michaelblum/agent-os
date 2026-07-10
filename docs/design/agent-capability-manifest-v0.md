@@ -28,8 +28,8 @@ The canonical repo-development manifest lives at
 inspect it through the read-only discovery surface:
 
 ```bash
-./aos dev capabilities list --json
-./aos dev capabilities explain dev.github.issue_comment --json
+node scripts/aos-dev-workflow.mjs capabilities list --json
+node scripts/aos-dev-workflow.mjs capabilities explain dev.github.issue_comment --json
 ```
 
 ## Concept Model
@@ -84,7 +84,7 @@ agent primitive.
 
 ## Initial Candidates
 
-`./aos dev gh` is the reference example. It regularizes GitHub work through an
+`node scripts/aos-dev-gh.mjs` is the reference example. It regularizes GitHub work through an
 AOS developer control surface while still using the authenticated local `gh`
 CLI underneath.
 
@@ -92,40 +92,38 @@ Other candidates to inventory next:
 
 - focused Node schema tests;
 - package-local Node tests;
-- Swift build through `./aos dev build`;
+- Swift build through `node scripts/aos-dev-build.mjs build`;
 - readiness and permission-reset checks;
 - screenshot or capture helpers;
 - browser/Playwright runs.
 
-## Relationship To Future `./aos dev run`
+## Relationship To Future Capability Runner
 
-Do not build `./aos dev run` until the manifest has been useful on paper. A
-future runner should read capability manifests, enforce cwd/timeout/mutability
-metadata, and preserve audit output. It should not become a thin rename for
-arbitrary Bash.
+Do not build a new public runner command until the manifest has been useful on
+paper. A future runner should read capability manifests, enforce
+cwd/timeout/mutability metadata, and preserve audit output. It should not become
+a thin rename for arbitrary Bash.
 
 The first implementation is read-only:
 
 ```bash
-./aos dev capabilities list --json
-./aos dev capabilities explain dev.github.issue_comment --json
+node scripts/aos-dev-workflow.mjs capabilities list --json
+node scripts/aos-dev-workflow.mjs capabilities explain dev.github.issue_comment --json
 ```
 
 Execution can come later, once the schema and real capability inventory have
 settled.
 
-Current owners for this design are the schema, canonical manifest, command
-source manifest, generated help/API docs, tests, and live readback:
+Current owners for this design are the schema, canonical manifest, API docs,
+tests, and direct maintainer script readback:
 
 - [`shared/schemas/aos-agent-capability-manifest-v0.schema.json`](../../shared/schemas/aos-agent-capability-manifest-v0.schema.json)
 - [`docs/dev/agent-capabilities.json`](../dev/agent-capabilities.json)
-- [`manifests/commands/source/aos/22-dev-04-authority.json`](../../manifests/commands/source/aos/22-dev-04-authority.json)
 - [`docs/api/aos.md`](../api/aos.md)
 - [`tests/schemas/aos-agent-capability-manifest-v0.test.mjs`](../../tests/schemas/aos-agent-capability-manifest-v0.test.mjs)
-- [`tests/dev-workflow-router.sh`](../../tests/dev-workflow-router.sh)
-- `./aos help dev --json`
-- `./aos dev capabilities list --json`
-- `./aos dev capabilities explain <capability-id> --json`
+- [`tests/aos-dev-gh-contract.test.mjs`](../../tests/aos-dev-gh-contract.test.mjs)
+- `node scripts/aos-dev-workflow.mjs capabilities list --json`
+- `node scripts/aos-dev-workflow.mjs capabilities explain <capability-id> --json`
 
 The retired dock/persona routing layer is not an active owner for this manifest.
 Do not restore dock directories, dock profile schemas, work-card routing, or the

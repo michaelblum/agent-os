@@ -1,0 +1,84 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by visual-harness.",
+  "entries": [
+    {
+      "id": "visual-harness-boundary-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Generic visual primitives and app-specific visual compositions stay separated.",
+      "worth": "This prevents shared visual helpers from absorbing product-specific launch behavior.",
+      "command": "bash tests/visual-harness-boundary.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "visual-harness-canonical-url-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Canonical aos:// URL generation and resolved URL equivalence remain deterministic.",
+      "worth": "This keeps visual harness checks representative of the current content-root path.",
+      "command": "bash tests/visual-harness-canonical-url-primitives.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "visual-harness-content-preflight-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Stale live content-root detection remains deterministic before visual proof runs.",
+      "worth": "This catches stale runtime content before visual checks produce misleading evidence.",
+      "command": "bash tests/visual-harness-content-preflight.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "harness-composability-contract-proof",
+      "path_patterns": [
+        "tests/lib/visual-harness.sh",
+        "tests/lib/sigil/visual-harness.sh",
+        "tests/lib/sigil/radial-menu.sh",
+        "tests/harness-composability-contracts.sh",
+        "tests/visual-harness-*.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "visual-harness",
+      "harness_level": "visual_harness",
+      "proof_kind": "harness_boundary",
+      "contract": "Shared harness guards fail fast and release cleanly.",
+      "worth": "This prevents visual helper composition from leaving hidden daemon or canvas state behind.",
+      "command": "bash tests/harness-composability-contracts.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    }
+  ]
+}

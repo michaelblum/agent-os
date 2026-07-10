@@ -139,6 +139,10 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) 
   if (clean.status === 'dirty') {
     const canvasIDs = (clean.canvases ?? []).map((canvas) => canvas.id).filter(Boolean);
     if (canvasIDs.length) notes.push(`Stale canvas cleanup recommended: ${canvasIDs.join(', ')}.`);
+    const foregroundDevOwnerPIDs = (clean.foreground_dev_owners ?? []).map((owner) => owner.pid).filter(Boolean);
+    if (foregroundDevOwnerPIDs.length) {
+      notes.push(`Default foreground dev daemon cleanup recommended: ${foregroundDevOwnerPIDs.join(', ')}.`);
+    }
     if (clean.stale_daemons?.length) {
       notes.push(`Stale daemon cleanup recommended: ${clean.stale_daemons.map((daemon) => daemon.pid).join(', ')}.`);
     }
@@ -146,6 +150,26 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) 
   }
   notes.push(...snapshot.notes);
   return notes;
+}
+
+function readinessSummary(verdict) {
+  const summary = {
+    ready: verdict.ready,
+    status: verdict.status,
+    phase: verdict.phase,
+    diagnosis: verdict.diagnosis,
+    ready_for_testing: verdict.ready_for_testing,
+    ready_source: verdict.ready_source,
+    blocked_capabilities: verdict.blocked_capabilities,
+  };
+  if (verdict.tcc_staleness) {
+    summary.tcc_staleness = {
+      id: verdict.tcc_staleness.id,
+      diagnosis: verdict.tcc_staleness.diagnosis,
+    };
+  }
+  if (verdict.terminal_handoff) summary.terminal_handoff = verdict.terminal_handoff;
+  return summary;
 }
 
 async function buildStatusResponse() {
@@ -168,6 +192,7 @@ async function buildStatusResponse() {
   });
   return {
     status: notes.length ? 'degraded' : 'ok',
+    readiness: readinessSummary(verdict),
     identity: identity(runtime, facts.permissionsFacts),
     runtime,
     runtime_verdict: verdict,
@@ -176,6 +201,7 @@ async function buildStatusResponse() {
     daemon_snapshot: snapshot.snapshot,
     stale_resources: {
       status: clean.status,
+      foreground_dev_owners: (clean.foreground_dev_owners ?? []).map((owner) => owner.pid).filter(Boolean),
       stale_daemons: clean.stale_daemons?.length ?? 0,
       canvases: (clean.canvases ?? []).map((canvas) => canvas.id).filter(Boolean),
       notes: clean.notes ?? [],
@@ -203,7 +229,7 @@ function printText(response) {
   const daemonState = response.runtime.socket_reachable
     ? 'reachable'
     : (response.runtime.daemon_running ? 'running' : 'down');
-  let line = `status=${response.status} mode=${response.runtime.mode} daemon=${daemonState} pid=${response.runtime.daemon_pid ?? '?'} tap=${tapValue} focused_app=${focusedApp} displays=${displays} windows=${windows} channels=${channels} stale_canvases=${staleCanvasCount}`;
+  let line = `status=${response.status} readiness=${response.readiness.status} ready=${response.readiness.ready} mode=${response.runtime.mode} daemon=${daemonState} pid=${response.runtime.daemon_pid ?? '?'} tap=${tapValue} focused_app=${focusedApp} displays=${displays} windows=${windows} channels=${channels} stale_canvases=${staleCanvasCount}`;
   if (response.git) {
     line += ` branch=${response.git.branch} ahead=${response.git.ahead_of_origin_main ?? '?'} dirty=${response.git.dirty_files}`;
   }

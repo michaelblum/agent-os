@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by build-tooling.",
+  "entries": [
+    {
+      "id": "build-rebuild-policy-proof",
+      "path_patterns": [
+        "tests/build-rebuild-policy.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "build-tooling",
+      "harness_level": "shell_router",
+      "proof_kind": "build_policy",
+      "contract": "Repo-mode builds are content-based, stay raw direct swiftc output, do not post-sign or gate on spctl, and emit the manual TCC handoff only after real rebuilds.",
+      "worth": "This protects raw rebuild and 137 recovery behavior without touching the real repo-mode binary or macOS TCC state.",
+      "command": "bash tests/build-rebuild-policy.sh",
+      "replaces": [],
+      "guard": "uses a temporary fake repo and fake toolchain",
+      "status": "active"
+    }
+  ]
+}

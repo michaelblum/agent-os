@@ -124,6 +124,13 @@ inspect refs, dry-run/act, save a fresh capture, then compare saved refs or
 record evidence. Do not imply saved workspaces recapture automatically or hold a
 daemon-scoped current workspace.
 
+`show wait` and `content wait` are readiness waits, not generic assertions.
+They are appropriate for proving that a named canvas bridge, manifest, JS
+predicate, or content root is available before the next command. They should
+stay bounded, return structured timeout JSON, and report the pending condition
+they were waiting on. Use saved refs, explicit command JSON postconditions, or
+Work Record verification for behavior assertions after an action.
+
 ## Diagnostics And Evidence Trace
 
 AOS does not currently expose a Playwright-style `trace`, `video`, or
@@ -221,13 +228,15 @@ command spelling. Keep public diagnostics on deliberate command families such
 as `log`, `inspect`, `introspect`, `daemon-snapshot`, and the
 overlay/display-oriented `show` surface.
 
-`aos dev` is a hidden maintainer workflow router for this repo. It remains
-directly addressable through `./aos help dev --json`, but it is marked
-`consumer_discovery: false`, omitted from root consumer help, and owned by
-`docs/dev/command-surface.md` plus the generated command inventory. Useful
-maintainer helpers should stay there until a deliberate migration moves them
-out of the public `aos` tree or promotes a specific workflow into a real public
-surface with manifest, route, docs, tests, and compatibility policy.
+Retained local maintainer skills are the agent-facing interface for repo
+workflow routing, orientation, and repo-binary builds. They call deterministic
+scripts under `scripts/aos-dev-*.mjs`.
+
+`aos dev` is retired from the AOS command surface. Do not add hidden `dev`
+forms, external `dev` routes, or maintainer guidance that calls
+`./aos dev ...`. If a maintainer helper becomes product behavior, promote it as
+a deliberate public command with manifest, route, docs, tests, and
+compatibility policy.
 
 ## Desktop Control Inventory
 

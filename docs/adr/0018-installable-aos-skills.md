@@ -110,12 +110,15 @@ The registry source of truth is `skills/registry.json`.
 | `aos-verification` | installable | Teaches recapture, ref diff/expect, gates, and Work Record evidence loops. |
 | `aos-operator-annotations` | installable | Teaches pending annotation list/read/consume/link behavior and safe consume-once boundaries. |
 | `aos-work-records` | installable | Teaches Work Record read/verify/status/recovery and report-only defaults. |
-| `aos-recipes` | installable | Teaches source-backed recipe list/explain/dry-run/run and keeps `aos ops` as compatibility wording. |
+| `aos-recipes` | installable | Teaches source-backed recipe list/explain/dry-run/run through `aos recipe`. |
 | `aos-command-surface-maintenance` | installable | Teaches source manifest/help/docs/test synchronization for command-surface edits. |
 | `agent-sync` | retired | Keep tombstone. Do not install or recreate native Codex custom-agent sync. |
 | `aos-agent-workspace` | retired | Tombstone for the broad saved workspace skill; superseded by `aos-desktop`, `aos-saved-workspace`, `aos-canvas-vision`, `aos-focus-sessions`, and `aos-verification`. |
 | `browser-adapter` | retired | Tombstone for the broad browser adapter skill; superseded by `aos-browser`. |
 | `caveman` | retained_local | Local communication compression skill, outside the AOS installable skill product. |
+| `aos-maintainer-routing` | retained_local | Local maintainer validation-routing skill backed by `scripts/aos-dev-workflow.mjs`; outside the AOS installable skill product. |
+| `aos-repo-binary-build` | retained_local | Local maintainer repo-binary build skill backed by `scripts/aos-dev-build.mjs` and `build.sh`; outside the AOS installable skill product. |
+| `aos-maintainer-orientation` | retained_local | Local maintainer orientation skill backed by `scripts/aos-dev-situation.mjs`; outside the AOS installable skill product. |
 | `issue-hygiene-sweep` | retained_local | Repo/GitHub audit helper, outside the AOS installable skill product. |
 | `plan-retirement-audit` | retained_local | Repo docs audit helper, outside the AOS installable skill product. |
 | `symphony-talent-design` | private_ignored | Private brand/design skill, not part of the AOS skill pack. |
@@ -124,7 +127,7 @@ The registry source of truth is `skills/registry.json`.
 
 | Surface | Action |
 | --- | --- |
-| `aos ops` wording | Retain only as compatibility alias for `aos recipe` until the ADR 0013 removal gate is satisfied. |
+| `aos ops` wording | Removal gate satisfied; retired from active command manifests, help, docs, skills, and tests. |
 | Markdown guides that say `Use this recipe` | Clean up in a terminology pass when they are not executable `aos recipe` packages. |
 | Wiki `workflow` page-kind/plugin labels | Clarify as wiki registry/page-kind behavior, not AOS Execution Model Workflow execution, unless a migration becomes feasible. |
 | `skills/aos-agent-workspace` | Retire as a tombstone; use the narrower installable desktop, saved workspace, canvas/vision, focus-session, and verification skills. |
@@ -150,6 +153,9 @@ rg -n "aos-agent-workspace|browser-adapter|aos ops|# Recipe:|playbook|workflow" 
   supports both bounded writes and `--dry-run` planning.
 - Installable AOS skill work must update registry status, backing references,
   validator coverage, and the relevant durable docs together.
+- Retained-local maintainer skills may teach repo workflow ergonomics without
+  changing the installable AOS product pack. Their deterministic behavior
+  belongs in repo scripts and tests, not in the skill body.
 - Retired broad root skills stay as short tombstones with replacement pointers;
   installable skills must stay concise or explicitly split detailed references
   out of `SKILL.md`.
@@ -170,4 +176,4 @@ git diff --check
 ```
 
 Command-surface changes should also run the command-manifest and help gates
-named by `./aos dev recommend --json --paths ...`.
+named by `node scripts/aos-dev-workflow.mjs recommend --json --paths ...`.

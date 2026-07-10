@@ -57,7 +57,7 @@ test('radial menu workbench subject exposes reusable facets and logical items', 
   assert.deepEqual(
     subject.state.logical_items.map((item) => [item.id, item.action]),
     [
-      ['context-menu', 'contextMenu'],
+      ['avatar-controls', 'avatarControls'],
       ['agent-terminal', 'agentTerminal'],
       ['annotation-mode', 'annotationMode'],
       ['annotation-camera', 'annotationSnapshot'],
@@ -103,7 +103,7 @@ test('radial menu visual descriptors validate and serialize as non-avatar contra
   assert.equal(selected.state_path, 'radial_menu.sigil.radial.main.selected_item_id')
   assert.equal(selected.route, 'aos.radial_menu.config.patch')
   assert.deepEqual(selected.options.map((option) => option.value), [
-    'context-menu',
+    'avatar-controls',
     'agent-terminal',
     'annotation-mode',
     'annotation-camera',

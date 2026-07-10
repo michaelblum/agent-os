@@ -622,12 +622,17 @@ process.exit(0);
   };
   await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'legacy-sigil', exclusive: true }));
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
+  const customSigilDocs = path.join(tmp, 'custom-sigil-docs');
+  await fs.mkdir(customSigilDocs);
   await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
     content: {
       roots: {
         toolkit: path.join(repoRoot, 'packages/toolkit'),
         toolkit_old_branch: path.join(repoRoot, 'packages/toolkit'),
         sigil_old_branch: path.join(repoRoot, 'apps/sigil'),
+        toolkit_abandoned_worktree: path.join(tmp, 'missing-worktree', 'packages/toolkit'),
+        sigil_abandoned_worktree: path.join(tmp, 'missing-worktree', 'apps/sigil'),
+        sigil_custom_docs: customSigilDocs,
         custom_sigil_docs: path.join(repoRoot, 'docs'),
       },
     },
@@ -651,13 +656,22 @@ process.exit(0);
   assert.equal(activeState.active_experience, 'sigil');
   const activeConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
   assert.equal(activeConfig.content.roots.toolkit, path.join(repoRoot, 'packages/toolkit'));
+  assert.equal(activeConfig.content.roots.sigil_custom_docs, customSigilDocs);
   assert.equal(activeConfig.content.roots.custom_sigil_docs, path.join(repoRoot, 'docs'));
+  assert.equal(activeConfig.content.roots.toolkit_abandoned_worktree, undefined);
+  assert.equal(activeConfig.content.roots.sigil_abandoned_worktree, undefined);
   assert.equal(activeConfig.content.roots.toolkit_old_branch, undefined);
   assert.equal(activeConfig.content.roots.sigil_old_branch, undefined);
   assert.deepEqual(activatePayload.steps.find((step) => step.id === 'content-root:reconcile')?.removed, [
+    'sigil_abandoned_worktree',
     'sigil_old_branch',
+    'toolkit_abandoned_worktree',
     'toolkit_old_branch',
   ]);
+  assert.equal(
+    activatePayload.steps.find((step) => step.id === 'service:restart')?.reason,
+    'content-roots-reconciled',
+  );
   await assert.rejects(fs.stat(path.join(tmp, 'experience-state.json')));
 
   const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {
@@ -677,17 +691,15 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
-  const toolkitRoot = scopedRootName('toolkit');
-  const sigilRoot = scopedRootName('sigil');
   assert(calls.some((args) => args.join('\0') === ['content', 'status', '--json'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === [
     'content',
     'wait',
     '--root',
-    toolkitRoot,
+    'toolkit',
     '--root',
-    sigilRoot,
+    'sigil',
     '--auto-start',
     '--allow-start',
     '--timeout',
@@ -779,4 +791,123 @@ process.exit(0);
   assert(!calls.some((args) => args.join('\0') === ['config', 'set', 'content.roots.toolkit', path.join(repoRoot, 'packages/toolkit')].join('\0')), calls);
   assert(!calls.some((args) => args.join('\0') === ['config', 'set', 'content.roots.sigil', path.join(repoRoot, 'apps/sigil')].join('\0')), calls);
   assert(!calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
+});
+
+test('Sigil activation restarts service when live content server still exposes stale branch roots', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-live-stale-roots-'));
+  const fakeAos = path.join(tmp, 'fake-aos.mjs');
+  const logPath = path.join(tmp, 'aos-calls.jsonl');
+  const customSigilDocs = path.join(tmp, 'custom-sigil-docs');
+  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
+  await fs.mkdir(customSigilDocs, { recursive: true });
+
+  const liveRoots = {
+    toolkit: path.join(repoRoot, 'packages/toolkit'),
+    sigil: path.join(repoRoot, 'apps/sigil'),
+    toolkit_abandoned_worktree: path.join(tmp, 'missing-worktree', 'packages/toolkit'),
+    sigil_custom_docs: customSigilDocs,
+  };
+
+  await fs.writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
+if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
+  console.log(${JSON.stringify(JSON.stringify({ roots: liveRoots }))});
+}
+process.exit(0);
+`, { mode: 0o755 });
+  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
+    content: {
+      roots: {
+        toolkit: path.join(repoRoot, 'packages/toolkit'),
+        sigil: path.join(repoRoot, 'apps/sigil'),
+      },
+    },
+    status_item: {
+      enabled: true,
+      toggle_id: 'avatar-main',
+      toggle_url: 'aos://sigil/renderer/index.html?toolkit-root=toolkit',
+      toggle_at: [200, 200, 300, 300],
+      toggle_track: 'union',
+      icon: 'sigil',
+    },
+  }));
+
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_PATH: fakeAos,
+      AOS_STATE_ROOT: tmp,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+      FAKE_AOS_LOG: logPath,
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const payload = JSON.parse(activate.stdout);
+  assert.equal(
+    payload.steps.find((step) => step.id === 'service:restart')?.reason,
+    'content-roots-live-stale',
+  );
+
+  const config = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
+  assert.deepEqual(Object.keys(config.content.roots).sort(), ['sigil', 'toolkit']);
+  const calls = (await fs.readFile(logPath, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert(calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
+});
+
+test('branch-scoped experience content roots require explicit opt-in isolated state', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-branch-roots-'));
+
+  const canonical = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: tmp,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(canonical.status, 0, `${canonical.stdout}${canonical.stderr}`);
+  const canonicalPayload = JSON.parse(canonical.stdout);
+  assert.equal(canonicalPayload.content_roots.find((root) => root.id === 'toolkit')?.key, 'toolkit');
+  assert.equal(canonicalPayload.content_roots.find((root) => root.id === 'sigil')?.key, 'sigil');
+
+  const branchScoped = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: tmp,
+      AOS_CONTENT_ROOT_SCOPE: 'branch',
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(branchScoped.status, 0, `${branchScoped.stdout}${branchScoped.stderr}`);
+  const branchPayload = JSON.parse(branchScoped.stdout);
+  assert.equal(branchPayload.content_roots.find((root) => root.id === 'toolkit')?.key, scopedRootName('toolkit'));
+  assert.equal(branchPayload.content_roots.find((root) => root.id === 'sigil')?.key, scopedRootName('sigil'));
+
+  const rejected = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: '',
+      AOS_CONTENT_ROOT_SCOPE: 'branch',
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_BYPASS_PREFLIGHT: '1',
+    },
+    encoding: 'utf8',
+  });
+  assert.notEqual(rejected.status, 0, `${rejected.stdout}${rejected.stderr}`);
+  const failure = JSON.parse(rejected.stderr);
+  assert.equal(failure.code, 'BRANCH_SCOPED_CONTENT_ROOTS_REQUIRE_STATE_ROOT');
 });

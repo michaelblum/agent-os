@@ -17,7 +17,6 @@ root = Path("manifests/commands/source")
 assert (root / "aos").is_dir(), "missing AOS command source directory"
 assert (root / "external").is_dir(), "missing external command source directory"
 
-source_dev_forms = []
 for family in ["aos", "external"]:
     files = sorted((root / family).glob("*.json"))
     assert files, f"missing {family} source files"
@@ -35,17 +34,14 @@ for family in ["aos", "external"]:
             assert line_count < 1000, f"{file} has {line_count} lines; split command source further"
         for command in data["commands"]:
             assert command["path"], file
+            assert command["path"][0] != "dev", f"{file} must not reintroduce the retired dev command family"
             if family == "aos":
                 assert command["path"][:len(data["path_prefix"])] == data["path_prefix"], file
-                if command["path"] == ["dev"]:
-                    assert command.get("consumer_discovery") is False, f"{file} dev must remain hidden from consumer discovery"
-                    source_dev_forms.extend(form["id"] for form in command.get("forms", []))
 
 registry = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
-generated_dev = [command for command in registry["commands"] if command["path"] == ["dev"]]
-assert len(generated_dev) == 1, "generated registry must contain one merged dev command"
-assert generated_dev[0].get("consumer_discovery") is False, "generated dev command must remain hidden from consumer discovery"
-assert sorted(form["id"] for form in generated_dev[0].get("forms", [])) == sorted(source_dev_forms), "generated dev forms drifted from source fragments"
+assert all(command["path"][0] != "dev" for command in registry["commands"]), "generated registry must not contain the retired dev command family"
+external = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))
+assert all(command["path"][0] != "dev" for command in external["commands"]), "external registry must not contain retired dev routes"
 
 print("PASS command manifest source generation")
 PY

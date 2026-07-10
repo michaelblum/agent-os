@@ -10,7 +10,7 @@
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",
-        "scripts/aos-ops.mjs"
+        "scripts/aos-recipe.mjs"
       ],
       "cwd": "repo",
       "env": {

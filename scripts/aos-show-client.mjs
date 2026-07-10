@@ -5,11 +5,21 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
+import { guardAgentOSWorktreeDefaultRuntime, guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
 
 const ORIGINAL_PARENT_PID = process.ppid;
 const WINDOW_LEVELS = new Set(['automatic', 'floating', 'status_bar', 'screen_saver']);
 const AUTO_PROJECT_MODES = new Set(['cursor_trail', 'highlight_focused', 'label_elements']);
+const RUNTIME_COUPLED_SHOW_ACTIONS = new Set([
+  'audit',
+  'create',
+  'eval',
+  'post',
+  'remove',
+  'remove_all',
+  'to_front',
+  'update',
+]);
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -225,6 +235,11 @@ function diagnosticVerdict(operationId, timeoutMs) {
   return guardedLiveOperation({ operationId, allowStart: false, mode: runtimeMode(), prefix: aosPath() }).preflight;
 }
 
+function requireDefaultRepoRuntimePolicy(operationId) {
+  const guard = guardAgentOSWorktreeDefaultRuntime({ operationId, mode: runtimeMode() });
+  if (!guard.ok) failure(guard.failure);
+}
+
 async function oneShot(action, data, {
   autoStart = false,
   emptyListOnNoDaemon = false,
@@ -232,6 +247,9 @@ async function oneShot(action, data, {
   retryNoResponse = 0,
   allowStart = false,
 } = {}) {
+  if (RUNTIME_COUPLED_SHOW_ACTIONS.has(action)) {
+    requireDefaultRepoRuntimePolicy(`show.${action}`);
+  }
   const connection = autoStart ? await connectWithAutoStart({ allowStart }) : { socket: await connectOnce() };
   let socket = connection?.socket ?? null;
   if (!socket) {
@@ -597,6 +615,7 @@ async function waitCommand(args) {
   }
 
   if (!id) error('wait requires --id <name>', 'MISSING_ARG');
+  requireDefaultRepoRuntimePolicy('show.wait');
   let condition = "window.headsup && typeof window.headsup.receive === 'function'";
   if (manifest) condition += ` && window.headsup.manifest && window.headsup.manifest.name === ${JSON.stringify(manifest)}`;
   if (js) condition += ` && (${js})`;
@@ -616,12 +635,22 @@ async function waitCommand(args) {
     }));
   }
   let daemonStarted = false;
+  const observed = {
+    connection_attempts: 0,
+    eval_attempts: 0,
+    no_response_count: 0,
+    last_state: 'not_connected',
+  };
   const connectForWait = async () => {
     const budget = remainingMs(deadline);
     if (budget <= 0) return { socket: null };
+    observed.connection_attempts += 1;
     if (permitStart && !daemonStarted) {
       const socket = await connectOnce(Math.min(1000, budget));
-      if (socket) return { socket };
+      if (socket) {
+        observed.last_state = 'connected';
+        return { socket };
+      }
       if (autoStartDisabled()) {
         process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
         return { socket: null };
@@ -629,7 +658,9 @@ async function waitCommand(args) {
       startDaemon();
       daemonStarted = true;
     }
-    return { socket: await connectOnce(Math.min(1000, budget)) };
+    const socket = await connectOnce(Math.min(1000, budget));
+    observed.last_state = socket ? 'connected' : 'not_connected';
+    return { socket };
   };
   let connection = await connectForWait();
   let socket = connection?.socket ?? null;
@@ -640,8 +671,11 @@ async function waitCommand(args) {
       socket = connection?.socket ?? null;
       continue;
     }
+    observed.eval_attempts += 1;
     const response = await sendEnvelope(socket, 'eval', { id, js: evalJS }, Math.min(1500, remainingMs(deadline)));
     if (!response) {
+      observed.no_response_count += 1;
+      observed.last_state = 'no_response';
       socket.end();
       await sleep(Math.min(100, remainingMs(deadline)));
       connection = await connectForWait();
@@ -655,13 +689,16 @@ async function waitCommand(args) {
       else process.stdout.write('ready\n');
       return;
     }
+    observed.last_state = 'condition_not_ready';
+    observed.last_result = body?.result ?? null;
+    observed.last_error = body?.error ?? body?.code ?? null;
     await sleep(Math.min(100, remainingMs(deadline)));
   }
   socket?.end();
   if (asJSON) {
     failure(runtimeFailurePayload({
       operationId: 'show.wait',
-      condition: { id, manifest, js_predicate: Boolean(js) },
+      condition: { id, manifest, js_predicate: Boolean(js), observed },
       timeoutMs,
       verdict: diagnosticVerdict('show.wait', timeoutMs),
       prefix: aosPath(),
@@ -729,6 +766,7 @@ async function auditCommand(args) {
 
 async function listenCommand(args) {
   if (args.length > 0) unknownArg(args[0]);
+  requireDefaultRepoRuntimePolicy('show.listen');
   const connection = await connectWithAutoStart({ managed: true });
   const socket = connection?.socket ?? null;
   const daemon = connection?.daemon ?? null;

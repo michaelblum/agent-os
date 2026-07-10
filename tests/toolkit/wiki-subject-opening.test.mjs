@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  createMarkdownOpenDocumentFromWikiPage,
   createMarkdownOpenRequestFromWikiSelection,
   createWikiSubjectOpenRequest,
   createWikiSubjectSelectionPayload,
@@ -76,6 +77,29 @@ test('wiki subject opener preserves existing wiki handle opening behavior', () =
 
   const markdown = createMarkdownOpenRequestFromWikiSelection(selection);
   assert.equal(markdown.markdown_document.path, 'aos/concepts/runtime-modes.md');
+});
+
+test('wiki markdown page builder emits canonical markdown document open messages', () => {
+  assert.deepEqual(
+    createMarkdownOpenDocumentFromWikiPage({
+      path: '/aos/concepts/runtime-modes.md',
+      content: '# Runtime Modes',
+    }),
+    {
+      type: 'markdown_document.open',
+      path: 'aos/concepts/runtime-modes.md',
+      source: {
+        kind: 'wiki',
+        path: 'aos/concepts/runtime-modes.md',
+        page: {
+          path: 'aos/concepts/runtime-modes.md',
+          frontmatter: {},
+        },
+      },
+      content: '# Runtime Modes',
+    },
+  );
+  assert.equal(createMarkdownOpenDocumentFromWikiPage({ path: '' }), null);
 });
 
 test('wiki subject opener does not depend on legacy graph descriptor summaries', () => {

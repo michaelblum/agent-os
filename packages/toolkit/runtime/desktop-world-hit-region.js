@@ -209,6 +209,18 @@ export function createDesktopWorldHitRegionController(options = {}) {
     }
   }
 
+  function handleLifecycle(message = {}) {
+    if (typeof surface.handleLifecycle !== 'function') return false
+    if (!surface.handleLifecycle(message)) return false
+    const snapshot = surface.snapshot()
+    state.ready = snapshot.ready
+    state.creating = snapshot.creating
+    state.interactive = snapshot.interactive
+    state.frame = snapshot.frame || offscreenFrame(initialSize)
+    if (!state.ready) state.worldRect = null
+    return true
+  }
+
   function snapshot() {
     return {
       id: state.id,
@@ -231,6 +243,7 @@ export function createDesktopWorldHitRegionController(options = {}) {
     disable,
     refreshPayload,
     remove,
+    handleLifecycle,
     snapshot,
   }
 }

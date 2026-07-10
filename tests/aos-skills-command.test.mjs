@@ -42,10 +42,12 @@ function parseBlockedStdout(result) {
 test('aos skills list reports installable root skills with digests', () => {
   const payload = parseStdout(runAos(['skills', 'list', '--json']));
   assert.equal(payload.schema_version, 'aos.skills.list.v0');
-  assert.equal(payload.summary.total, 19);
+  assert.equal(payload.summary.total, 22);
   assert.equal(payload.summary.installable, 12);
   assert.equal(payload.summary.needs_split, 0);
+  assert.equal(payload.summary.retained_local, 6);
   assert.equal(payload.summary.retired, 3);
+  assert.equal(payload.summary.private_ignored, 1);
   const orientation = payload.skills.find((skill) => skill.name === 'aos-core-orientation');
   assert.ok(orientation);
   assert.equal(orientation.installable, true);
@@ -121,7 +123,7 @@ test('aos skills install writes the default installable pack', async () => {
 
     const checked = parseStdout(runAos(['skills', 'check', '--target', 'path', '--path', target, '--json']));
     assert.equal(checked.summary.ok, 12);
-    assert.equal(checked.summary.unsupported_target, 7);
+    assert.equal(checked.summary.unsupported_target, 10);
   } finally {
     await rm(target, { recursive: true, force: true });
   }

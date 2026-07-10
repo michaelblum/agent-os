@@ -1,0 +1,18 @@
+{
+  "$schema": "../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth ratchet registry for touched executable tests, helpers, fixtures, and proof assets. V0 seeds only the enforced dev-workflow and recent wait/proof families. Entries are split into owner fragments under docs/dev/test-proof-registry.d/.",
+  "fragments": [
+    "test-proof-registry.d/dev-workflow.json",
+    "test-proof-registry.d/command-surface.json",
+    "test-proof-registry.d/recipe.json",
+    "test-proof-registry.d/build-tooling.json",
+    "test-proof-registry.d/visual-harness.json",
+    "test-proof-registry.d/skills.json",
+    "test-proof-registry.d/voice-io.json",
+    "test-proof-registry.d/toolkit.json",
+    "test-proof-registry.d/runtime-readiness.json",
+    "test-proof-registry.d/sigil-runtime.json",
+    "test-proof-registry.d/agent-workspace.json"
+  ]
+}

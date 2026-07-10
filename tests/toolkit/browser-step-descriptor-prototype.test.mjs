@@ -28,6 +28,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 const workRecordFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
 const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
 const subjectSchemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
+const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
 
 function fixture(root, relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
@@ -162,7 +163,7 @@ test('browser Step Descriptor prototype simulates one gated step through the har
   assert.equal(result.verifier.status, 'passed');
   assert.equal(result.verifier.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.subject.state.record_id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(result.subject.state.record_id, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(result.subject.state.verifier_status, 'passed');
   assert.equal(result.record.execution_map.replay_policy.mode, 'report_only');
   assert.equal(result.record.execution_map.replay_policy.replay_requires_workflow_gate, true);

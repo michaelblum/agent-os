@@ -101,7 +101,7 @@ Readiness and hygiene:
 
 - `./aos ready` passed before and after verification:
   `ready=true mode=repo daemon=reachable tap=active`.
-- `./aos dev build` passed; repo binary was already up to date.
+- `node scripts/aos-dev-build.mjs build` passed; repo binary was already up to date.
 - `git diff --check` initially failed only on
   `.docks/foreman/AGENTS.md:78` blank-line-at-EOF. After the hygiene fix,
   `git diff --check` passed.

@@ -34,6 +34,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const workRecordFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
 const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
+const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
 
 function fixture(root, relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
@@ -159,13 +160,13 @@ test('Step Descriptor Workbench V0 simulates exactly one gated saved-evidence st
   assert.equal(result.status, 'passed');
   assert.equal(result.reason, 'record_verified');
   assert.equal(result.workflow_gate_ref, workflowGate().ref);
-  assert.equal(result.record_id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(result.record_id, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(snapshot.status, 'simulated');
   assert.equal(snapshot.gate_status.status, 'ready');
   assert.equal(snapshot.verifier_summary.status, 'passed');
   assert.equal(snapshot.verifier_summary.profile_id, 'aos.verifier.work-record.v0.report-only');
   assert.equal(snapshot.verifier_summary.mutates_record, false);
-  assert.equal(snapshot.work_record_summary.id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.work_record_summary.id, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(snapshot.work_record_summary.origin_kind, 'workflow');
   assert.equal(snapshot.work_record_summary.steps, 1);
   assert.equal(snapshot.work_record_summary.replay_policy.mode, 'report_only');
@@ -187,7 +188,7 @@ test('Step Descriptor Workbench V0 hands off emitted records to the existing rea
 
   assert.equal(openResult.type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult);
   assert.equal(openResult.status, 'opened');
-  assert.equal(openResult.record_id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(openResult.record_id, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(openResult.read_only, true);
   assert.equal(openResult.work_record_canvas_id, STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID);
   assert.equal(snapshot.work_record_open.open_message.type, 'work_record.open');
@@ -206,6 +207,10 @@ test('Step Descriptor Workbench V0 exposes stable semantic refs and no replay/re
   const refs = stepDescriptorWorkbenchSemanticRefs();
   const indexHtml = await repoText('packages/toolkit/components/step-descriptor-workbench/index.html');
   const indexJs = await repoText('packages/toolkit/components/step-descriptor-workbench/index.js');
+  const modelJs = await repoText('packages/toolkit/components/step-descriptor-workbench/model.js');
+  const harnessJs = await repoText('packages/toolkit/workbench/step-descriptor-harness.js');
+  const prototypeJs = await repoText('packages/toolkit/workbench/browser-step-descriptor-prototype.js');
+  const workRecordModelJs = await repoText('packages/toolkit/components/work-record-workbench/model.js');
   const launch = await repoText('packages/toolkit/components/step-descriptor-workbench/launch.sh');
 
   assert.equal(shell.manifest.name, STEP_DESCRIPTOR_WORKBENCH_MANIFEST);
@@ -229,4 +234,8 @@ test('Step Descriptor Workbench V0 exposes stable semantic refs and no replay/re
   assert.match(launch, /--manifest step-descriptor-workbench/);
   assert.match(launch, /step_descriptor_workbench\.load/);
   assert.doesNotMatch(indexJs, /data-action="[^"]*(replay|repair|macro)[^"]*"/i);
+  assert.doesNotMatch(modelJs, /workbench\/work-record\.js/);
+  assert.doesNotMatch(harnessJs, /from '\.\/work-record\.js'/);
+  assert.doesNotMatch(prototypeJs, /from '\.\/work-record\.js'/);
+  assert.doesNotMatch(workRecordModelJs, /workbench\/work-record\.js/);
 });

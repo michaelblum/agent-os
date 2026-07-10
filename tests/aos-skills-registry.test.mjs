@@ -18,7 +18,7 @@ const repoRoot = path.resolve(__dirname, '..');
 test('root skill registry covers current direct skill packages', async () => {
   const result = await validateSkillRegistry({ repoRoot });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.summary.skills, 19);
+  assert.equal(result.summary.skills, 22);
 
   const byName = new Map(result.skills.map((skill) => [skill.name, skill]));
   const installablePack = [
@@ -45,6 +45,17 @@ test('root skill registry covers current direct skill packages', async () => {
   assert.equal(byName.get('aos-agent-workspace')?.claims_durable_behavior, true);
   assert.equal(byName.get('browser-adapter')?.status, 'retired');
   assert.equal(byName.get('browser-adapter')?.claims_durable_behavior, true);
+  for (const name of [
+    'aos-maintainer-orientation',
+    'aos-maintainer-routing',
+    'aos-repo-binary-build',
+  ]) {
+    const skill = byName.get(name);
+    assert.equal(skill?.status, 'retained_local', name);
+    assert.equal(skill?.installable, false, name);
+    assert.deepEqual(skill?.target_support, [], name);
+    assert.equal(skill?.claims_durable_behavior, false, name);
+  }
   assert.equal(byName.get('symphony-talent-design')?.status, 'private_ignored');
   assert.deepEqual(result.supported_targets, ['agents', 'claude', 'codex', 'path']);
 });
@@ -74,6 +85,20 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const annotations = await readFile(path.join(repoRoot, 'skills', 'aos-operator-annotations', 'SKILL.md'), 'utf8');
   assert.match(annotations, /experience menu invoke/);
   assert.match(annotations, /status-item\/operator annotation flow/);
+
+  const routing = await readFile(path.join(repoRoot, 'skills', 'aos-maintainer-routing', 'SKILL.md'), 'utf8');
+  assert.match(routing, /node scripts\/aos-dev-workflow\.mjs recommend --json --paths/);
+  assert.doesNotMatch(routing, /\.\/aos dev/);
+
+  const build = await readFile(path.join(repoRoot, 'skills', 'aos-repo-binary-build', 'SKILL.md'), 'utf8');
+  assert.match(build, /node scripts\/aos-dev-build\.mjs build --no-restart --json/);
+  assert.match(build, /bash build\.sh --force --no-restart/);
+  assert.match(build, /binary_rebuilt: true/);
+
+  const orientation = await readFile(path.join(repoRoot, 'skills', 'aos-maintainer-orientation', 'SKILL.md'), 'utf8');
+  assert.match(orientation, /node scripts\/aos-dev-situation\.mjs --json/);
+  assert.match(orientation, /Failed sources mean partial orientation/);
+  assert.doesNotMatch(orientation, /\.\/aos dev/);
 
   const retiredWorkspace = await readFile(path.join(repoRoot, 'skills', 'aos-agent-workspace', 'SKILL.md'), 'utf8');
   assert.match(retiredWorkspace, /retired as installable guidance/);
@@ -129,7 +154,7 @@ test('CLI emits structured validation JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schema_version, 'aos.skills.validation.v0');
   assert.equal(payload.ok, true);
-  assert.equal(payload.summary.skills, 19);
+  assert.equal(payload.summary.skills, 22);
 });
 
 test('validator rejects unsafe targets, missing durable backing, and untracked body bloat', async () => {

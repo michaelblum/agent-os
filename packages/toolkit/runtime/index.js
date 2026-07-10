@@ -10,6 +10,13 @@ export { submitGateContinuation } from './gate.js'
 export { subscribe, unsubscribe } from './subscribe.js'
 export { CANVAS_LIFECYCLE_STATES, spawnChild, warmCanvas, waitForCanvasReady, canvasInfo, waitForCanvasStatusReady, mutateSelf, removeSelf, removeCanvas, suspendCanvas, resumeCanvas, setInteractive, evalCanvas, writeClipboardText, move } from './canvas.js'
 export { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from './canvas-lifecycle.js'
+export {
+  createCanvasHostRuntime,
+  createCanvasResponseError,
+} from './canvas-host-runtime.js'
+export {
+  createUtilitySurfaceManager,
+} from './utility-surface-manager.js'
 export { DesktopWorldSurfaceAdapter } from './desktop-world-surface.js'
 export { DesktopWorldSurface2D } from './desktop-world-surface-2d.js'
 export {
@@ -29,6 +36,7 @@ export {
   removeInputRegion,
   inputRegionContainsRect,
 } from './input-region.js'
+export { createManagedInputRegionSet } from './managed-input-region-set.js'
 export {
   createDesktopWorldInteractionRouter,
   pointerPhase,
@@ -39,6 +47,18 @@ export {
   desktopWorldHitRegionFrame,
   resolveDesktopWorldHitRegionOwnerCanvasId,
 } from './desktop-world-hit-region.js'
+export {
+  createSemanticChildTargetSurface,
+  projectSemanticChildTargets,
+  semanticChildNativeFrameRect,
+  semanticChildSurfaceOffscreenFrame,
+  semanticChildTargetsWorldRect,
+  semanticChildWorldRectForCenter,
+} from './semantic-child-target-surface.js'
+export {
+  createRenderPerformanceSampler,
+  finiteOrNull,
+} from './render-performance-sampler.js'
 export {
   actionList,
   applySemanticTargetAttributes,

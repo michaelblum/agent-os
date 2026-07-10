@@ -83,7 +83,7 @@ harness choice with fewer fake fixtures that erase the variable under test.
 
 ## Gaps
 
-- `./aos dev recommend` can now point users toward the ladder, but it still
+- `node scripts/aos-dev-workflow.mjs recommend` can now point users toward the ladder, but it still
   routes by changed paths rather than by defect variable. Foreman should keep
   naming the risk under test in runtime-heavy work cards.
 - No machine-readable registry of test helpers exists yet. A registry may be

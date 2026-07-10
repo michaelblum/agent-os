@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Minimal proof-worth registry fixture.",
+  "entries": [
+    {
+      "id": "example-router-proof",
+      "path_patterns": [
+        "tests/example-router.sh"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/example-router/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "router_contract",
+      "contract": "Example router contract.",
+      "worth": "Protects an example routing decision.",
+      "command": "bash tests/example-router.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    }
+  ]
+}

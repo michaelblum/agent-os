@@ -186,6 +186,43 @@ deduplicated placement/interactivity updates; deduplicated child
 as labels, actions, active item state, and child URL selection remains in the
 app or higher toolkit layer.
 
+`packages/toolkit/runtime/semantic-child-target-surface.js` provides
+`createSemanticChildTargetSurface`, a higher-level child WebView helper for
+semantic hit surfaces rendered over parent-owned visuals. It wraps
+`createDesktopWorldHitRegionController` and adds generic target projection,
+offscreen disable payloads, payload refresh, and message-type injection.
+Apps supply the target resolver, bounds resolver, payload shape, labels,
+actions, and command routing.
+
+`packages/toolkit/runtime/canvas-host-runtime.js` provides
+`createCanvasHostRuntime`, the browser-side host bridge used by app renderers
+that talk to the daemon through `window.webkit.messageHandlers.headsup`. It
+owns bridge installation, inbound message fanout, request/response
+correlation, timeouts, subscribe/unsubscribe, status menu publication, canvas
+lifecycle helpers, input-region calls, position storage, capture requests, and
+generic AOS action dispatch. App wrappers should only supply globals, request
+id prefixes, and logger labels.
+
+`packages/toolkit/runtime/utility-surface-manager.js` provides
+`createUtilitySurfaceManager` for reusable utility canvas lifecycle mechanics:
+ensure-visible, toggle, warm precreate, resume, suspend, duplicate-create
+recovery, concurrent open-promise dedupe, state-map updates, lifecycle
+snapshot reconciliation, and change hooks. The toolkit manager does not know
+about app-specific terminal parking, status menus, workbenches, telemetry
+panels, or product labels.
+
+`packages/toolkit/runtime/managed-input-region-set.js` provides
+`createManagedInputRegionSet` for descriptor-owned daemon input regions. Each
+descriptor supplies an id, owner canvas resolver, enabled predicate, frame
+resolver, and optional payload factory. The helper owns register/update/remove,
+redundant update suppression, `NOT_FOUND` update recovery via register retry,
+remove-all cleanup, and snapshots.
+
+`packages/toolkit/runtime/render-performance-sampler.js` provides
+`createRenderPerformanceSampler` for throttled render telemetry. Consumers
+inject a telemetry state accessor, source label, target canvas id, visibility
+predicate, renderer stats, render-loop work classifier, and post function.
+
 ## Runtime API
 
 Convenience re-export:
@@ -212,6 +249,11 @@ import {
   emitLifecycleComplete,
   onReady,
   submitGateContinuation,
+  createCanvasHostRuntime,
+  createManagedInputRegionSet,
+  createRenderPerformanceSampler,
+  createSemanticChildTargetSurface,
+  createUtilitySurfaceManager,
   MENU_ACTIVATION_PHASES,
   createMenuActivationRequest,
   advanceMenuActivation,

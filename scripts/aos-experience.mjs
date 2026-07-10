@@ -92,9 +92,46 @@ function norm(value) {
   return path.resolve(repoRoot, value);
 }
 
-function rootsLive(roots) {
-  const live = runContentStatus();
+function isDirectory(value) {
+  try {
+    return fs.statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function rootsLive(roots, live = runContentStatus()) {
   return roots.every((root) => live[root.key] && norm(live[root.key]) === norm(root.path));
+}
+
+function ownedExperienceRootAliases(roots) {
+  return roots
+    .filter((root) => root.branch_scoped || root.declared_branch_scoped)
+    .map((root) => ({
+      id: root.id,
+      prefix: `${root.id}_`,
+      path: norm(root.path),
+    }));
+}
+
+function staleExperienceRootKeys(roots, currentRoots) {
+  if (!currentRoots || typeof currentRoots !== 'object') return [];
+
+  const keepKeys = new Set(roots.map((root) => root.key));
+  const owned = ownedExperienceRootAliases(roots);
+  const stale = [];
+
+  for (const [key, value] of Object.entries(currentRoots)) {
+    if (keepKeys.has(key) || typeof value !== 'string') continue;
+    const root = owned.find((candidate) => (
+      key.startsWith(candidate.prefix)
+      && (norm(value) === candidate.path || !isDirectory(value))
+    ));
+    if (!root) continue;
+    stale.push(key);
+  }
+
+  return stale.sort();
 }
 
 function nestedGet(object, keyPath) {
@@ -377,10 +414,20 @@ function ensureContentRoots(roots, steps, allowStart) {
     requireSuccess(runAos(['config', 'set', `content.roots.${root.key}`, root.path]), `set content root ${root.key}`);
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
   }
-  if (!rootsLive(roots)) {
+  const liveRoots = runContentStatus();
+  const liveStaleRoots = staleExperienceRootKeys(roots, liveRoots);
+  const rootsChanged = removedRoots.length > 0;
+  const rootsAreLive = rootsLive(roots, liveRoots);
+  if (rootsChanged || liveStaleRoots.length > 0 || !rootsAreLive) {
     requireLivePermission('experience.content-roots', allowStart);
     runAos(['service', 'restart', '--mode', mode]);
-    steps.push({ id: 'service:restart', status: 'success', reason: 'content-roots-not-live' });
+    steps.push({
+      id: 'service:restart',
+      status: 'success',
+      reason: rootsChanged
+        ? 'content-roots-reconciled'
+        : (liveStaleRoots.length > 0 ? 'content-roots-live-stale' : 'content-roots-not-live'),
+    });
   }
   const args = ['content', 'wait'];
   for (const root of roots) args.push('--root', root.key);
@@ -394,30 +441,13 @@ function reconcileExperienceContentRoots(roots) {
   const currentRoots = config.content?.roots;
   if (!currentRoots || typeof currentRoots !== 'object') return [];
 
-  const keepKeys = new Set(roots.map((root) => root.key));
-  const owned = roots
-    .filter((root) => root.branch_scoped)
-    .map((root) => ({
-      id: root.id,
-      prefix: `${root.id}_`,
-      path: norm(root.path),
-    }));
-  const removed = [];
-
-  for (const [key, value] of Object.entries(currentRoots)) {
-    if (keepKeys.has(key)) continue;
-    const root = owned.find((candidate) => (
-      key.startsWith(candidate.prefix)
-      && typeof value === 'string'
-      && norm(value) === candidate.path
-    ));
-    if (!root) continue;
+  const removed = staleExperienceRootKeys(roots, currentRoots);
+  for (const key of removed) {
     delete currentRoots[key];
-    removed.push(key);
   }
 
   if (removed.length > 0) writeRuntimeConfig(config);
-  return removed.sort();
+  return removed;
 }
 
 function prepareStatusItemSurface(manifest, roots, steps, allowStart, previousConfig, rollbackSnapshot) {

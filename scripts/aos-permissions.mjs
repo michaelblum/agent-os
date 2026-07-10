@@ -68,6 +68,7 @@ function permissionsFromFacts() {
     screen_recording: Boolean(facts.permissions?.screen_recording),
     listen_access: Boolean(facts.permissions?.listen_access),
     post_access: Boolean(facts.permissions?.post_access),
+    microphone: Boolean(facts.permissions?.microphone),
   };
 }
 
@@ -93,6 +94,7 @@ function runCheck() {
     screen_recording: Boolean(facts.permissions.screen_recording),
     listen_access: Boolean(facts.permissions.listen_access),
     post_access: Boolean(facts.permissions.post_access),
+    microphone: Boolean(facts.permissions.microphone),
   };
   const daemon = daemonViewFromHealth(facts.daemonHealth);
   const evaluation = readyEvaluationSnake(evaluateReadyForTesting(daemon.comparable, cli, facts.setup));
@@ -224,7 +226,7 @@ function printSetupResult(response, json) {
     printJSON(response, { omit: true });
     return;
   }
-  process.stdout.write(`completed=${response.completed} accessibility=${response.permissions.accessibility} screen_recording=${response.permissions.screen_recording} listen_access=${response.permissions.listen_access} post_access=${response.permissions.post_access}\n`);
+  process.stdout.write(`completed=${response.completed} accessibility=${response.permissions.accessibility} screen_recording=${response.permissions.screen_recording} listen_access=${response.permissions.listen_access} post_access=${response.permissions.post_access} microphone=${response.permissions.microphone}\n`);
   const evaluation = readyEvaluationSnake(evaluateReadyForTesting(null, response.permissions, response.setup));
   process.stdout.write(`ready_for_testing=${evaluation.ready_for_testing}\n`);
   if (response.restarted_services.length) {
@@ -311,11 +313,13 @@ function runSetup(args) {
   if (!finalPermissions.screen_recording) notes.push('Screen Recording permission is still not granted.');
   if (!finalPermissions.listen_access) notes.push('Input Monitoring listen access is still not granted.');
   if (!finalPermissions.post_access) notes.push('Input Monitoring post access is still not granted.');
+  if (!finalPermissions.microphone) notes.push('Microphone permission is still not granted.');
 
   const completedByCLI = finalPermissions.accessibility
     && finalPermissions.screen_recording
     && finalPermissions.listen_access
     && finalPermissions.post_access
+    && finalPermissions.microphone
     && notes.length === 0;
   let finalSetup = setupFacts();
   let restartedServices = [];

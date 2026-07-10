@@ -1,10 +1,50 @@
 #!/usr/bin/env bash
-# Shared content-root helpers for one singleton daemon with many worktrees.
+# Content-root helpers for local launchers and explicit isolated/scoped runtime
+# proofs. The default single-checkout workflow uses canonical root names.
+
+aos_content_root_scope() {
+  local raw="${AOS_CONTENT_ROOT_SCOPE:-${AOS_VISUAL_CONTENT_ROOT_SCOPE:-}}"
+  case "$raw" in
+    ""|canonical|single)
+      printf '%s\n' canonical
+      ;;
+    branch|scoped|parallel|worktree)
+      printf '%s\n' branch
+      ;;
+    *)
+      echo "FAIL: unknown content root scope: $raw" >&2
+      return 2
+      ;;
+  esac
+}
+
+aos_content_root_has_explicit_state_root() {
+  local default_state_root
+  if [[ -z "${AOS_STATE_ROOT:-}" ]]; then
+    return 1
+  fi
+  if [[ "${AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL:-}" == "1" ]]; then
+    return 1
+  fi
+  default_state_root="${HOME:-}/.config/aos"
+  [[ "${AOS_STATE_ROOT%/}" != "${default_state_root%/}" ]]
+}
 
 aos_content_root_key_for() {
   local prefix="$1"
   local repo_root="$2"
-  local branch suffix
+  local branch scope suffix
+
+  scope="$(aos_content_root_scope)" || return $?
+  if [[ "$scope" != "branch" ]]; then
+    printf '%s\n' "$prefix"
+    return
+  fi
+
+  if ! aos_content_root_has_explicit_state_root; then
+    echo "FAIL: branch-scoped content roots require explicit non-default AOS_STATE_ROOT; agent-os default runtime uses canonical root names." >&2
+    return 2
+  fi
 
   branch="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
   if [[ -z "$branch" || "$branch" == "main" ]]; then

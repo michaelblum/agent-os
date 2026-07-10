@@ -1,8 +1,12 @@
 # Worktree Session Scope Idea Capture
 
 **Date:** 2026-05-02
-**Status:** Design guidance with one active implementation slice. This is not a
-full session-control-plane plan and should not add command surface by itself.
+**Status:** Historical design note superseded by
+`docs/adr/0020-single-owner-local-runtime.md`. This is not live operating
+guidance and should not add command surface by itself. The default local AOS
+runtime uses canonical content-root names from the primary checkout. Branch
+scope requires explicit isolated `AOS_STATE_ROOT` plus
+`AOS_CONTENT_ROOT_SCOPE=branch`.
 
 ## Prompt
 
@@ -64,14 +68,17 @@ The useful non-disruptive work is smaller:
 
 ## Active Content-Root Slice
 
-The first implemented slice is scoped content roots:
+The first historical slice was scoped content roots:
 
-- `scripts/aos-content-scope.sh` derives branch-scoped root names such as
-  `sigil_codex_example` and `toolkit_codex_example`.
+- `scripts/aos-content-scope.sh` used to derive branch-scoped root names such as
+  `sigil_codex_example` and `toolkit_codex_example` by default; it now does so
+  only for explicit branch-scope isolation.
 - Sigil renderer code resolves sibling toolkit URLs from the Sigil root it was
   loaded from, or from explicit `toolkit-root` / `sigil-root` query parameters.
-- Topic worktree launchers should register scoped roots and open surfaces from
-  those roots instead of overwriting canonical `toolkit` and `sigil`.
+- Topic worktree launchers used to register scoped roots and open surfaces from
+  those roots instead of overwriting canonical `toolkit` and `sigil`. Current
+  policy keeps default launchers canonical and requires explicit isolated state
+  plus `AOS_CONTENT_ROOT_SCOPE=branch` for branch-scoped proofs.
 
 This does not solve every parallel-session problem. Canvas IDs, status-item
 ownership, cleanup policy, and TTL-backed session records remain separate

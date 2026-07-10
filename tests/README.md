@@ -4,7 +4,7 @@ Use the smallest loop that matches the change. Start with the manifest-backed
 router when the right loop is not obvious:
 
 ```bash
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 ```
 
 Do not rebuild `./aos` by default before every verification step.
@@ -88,6 +88,16 @@ contract, or would need private test plumbing that already exists one level up.
   manual tests under `tests/manual/`. Escalate to this level only with a clear
   human-needed question and artifact path.
 
+## Proof-Worth Ratchet
+
+New or touched executable tests, test helpers, fixtures, and proof reports must
+be covered by `docs/dev/test-proof-registry.json`. Start from the primitive
+contract, choose the cheapest harness level that preserves the defect variable,
+name the replacement proof for any older asset, then add the registry entry
+with the exact command and guard posture.
+`node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
+changed proof assets; untouched legacy tests remain runnable debt.
+
 For cross-backend agent workspace saved-ref regressions, use:
 
 ```bash
@@ -116,7 +126,8 @@ validation.
 
 ## Rebuild `./aos` First
 
-Rebuild with `./aos dev build` when both of these are true:
+Rebuild with `node scripts/aos-dev-build.mjs build --no-restart --json` when
+both of these are true:
 
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
@@ -125,14 +136,13 @@ The build gate is content-based for Swift runtime inputs. Touching a Swift file
 without changing its content, or editing build tooling alone, should not replace
 the TCC-owning `./aos` binary. Passing `--force`, changing Swift runtime input
 content, changing build mode, or missing output can still rebuild it. A real
-rebuild emits `Rebuilt: ./aos` and plays the configured rebuild alert sound.
+rebuild emits `Rebuilt: ./aos` without playing the TCC alert.
 
-After a real rebuild, the user must manually reset/regrant the repo-mode macOS
-TCC permissions for the rebuilt `./aos` binary before Accessibility, Screen
-Recording, Input Monitoring, input-tap, daemon readiness, capture, or native
-input proof is valid. Agents should stop at that handoff and run only non-TCC
-checks until the user confirms permissions are reset, then verify with
-`./aos ready --post-permission`.
+After a real rebuild, continue with non-TCC checks as needed. The stop point is
+the first live readiness check that reports `post_rebuild_tcc_stale`: it plays
+the three-chime handoff alert, returns a terminal handoff, and agents must end
+the turn. After the user manually resets/regrants TCC and replies `finished`,
+verify with `./aos ready --post-permission`.
 
 GDI is not allowed to perform this rebuild; return native/binary work to
 Foreman instead.
@@ -170,6 +180,7 @@ Examples:
 
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
+- `node --test tests/bundled-whisper-stt.test.mjs`
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
 
@@ -398,10 +409,11 @@ Visual URL helpers own the canonical `aos://...` launch/update contract. Runtime
 evidence may contain resolved localhost URLs; compare those with
 `aos_visual_assert_url_equivalent` instead of raw string equality. Reload
 URL-backed canvases with `aos_visual_update_canvas_url`, which rejects resolved
-localhost inputs by default. In the single-worktree dev workflow, visual helpers
+localhost inputs by default. In the single-checkout dev workflow, visual helpers
 use canonical `sigil` and `toolkit` root keys; branch-scoped keys are for
-explicit overrides or true parallel worktree/session isolation. Use
-`aos_visual_assert_canvas_worktree` for owner metadata and
+explicit isolated proofs with `AOS_STATE_ROOT` and
+`AOS_VISUAL_CONTENT_ROOT_SCOPE=branch`. Use `aos_visual_assert_canvas_worktree`
+for owner metadata and
 `aos_visual_assert_sigil_renderer_fresh` when a live Sigil smoke must prove the
 loaded page is newer than or equal to the commit under test.
 
@@ -530,29 +542,6 @@ Manual Sigil harnesses can pass `manual-visible` to
 `aos_visual_launch_sigil_with_inspector` to place the avatar on a visible
 non-main display when available. This avoids repeated false debugging of Sigil
 state while tracked union canvases are still unreliable on some display slices.
-
-Examples:
-
-- `bash tests/capture-region-perception.sh`
-- `bash tests/capture-canvas-surface.sh`
-- `bash tests/capture-union-canvas-surface.sh`
-- `bash tests/capture-parallel.sh`
-- `bash tests/spatial-telemetry-smoke.sh`
-- `bash tests/display-debug-battery-layout.sh`
-- `bash tests/surface-inspector-move-abs.sh`
-- `bash tests/surface-inspector-cross-display-drag.sh`
-- `bash tests/surface-inspector-tint.sh`
-- `bash tests/panel-tabs-activation.sh`
-- `bash tests/voice-session-leases.sh`
-- `bash tests/say-voice-slot.sh`
-- `bash tests/voice-bind.sh`
-- `bash tests/voice-final-response.sh`
-- `bash tests/voice-telemetry.sh`
-- `bash tests/final-response-hook.sh`
-- `bash tests/config-surface.sh`
-- `bash tests/cli-error-log.sh`
-- `bash tests/sigil-avatar-interactions.sh`
-- `bash tests/sigil-workbench-launch.sh`
 
 ## Recovery
 

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "dictation_opened",
+  "ts": 1783570001.125,
+  "data": {
+    "source": "phrase",
+    "transcript": "not part of this event"
+  }
+}

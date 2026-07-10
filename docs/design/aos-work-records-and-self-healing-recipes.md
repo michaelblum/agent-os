@@ -305,8 +305,8 @@ subject executable or inspectable. Tracked in #237.
 - #211 and #215 define wiki-backed workbench/workflow subjects. Work records
   should attach to those subjects later as run/evidence layers.
 - #129 `aos recipe` recipes are source-backed executable recipes. The older
-  `aos ops` spelling is a compatibility alias until old callers are removed.
-  They can become
+  `aos ops` spelling is retired and must not be used as a compatibility path.
+  Recipes can become
   one execution backend or compiled projection, not the whole work-record model.
 - #161 and #163 can supply friction telemetry and semantic target-resolution
   evidence.

@@ -1,4 +1,9 @@
-import { expectedBinaryPath, invocationName } from './aos-cli.mjs';
+import {
+  agentOSWorktreePolicy,
+  expectedBinaryPath,
+  explicitStateRootOverride,
+  invocationName,
+} from './aos-cli.mjs';
 
 export function permissionRequirements(permissions) {
   return [
@@ -25,6 +30,12 @@ export function permissionRequirements(permissions) {
       granted: Boolean(permissions.post_access),
       required_for: ['synthetic events', 'mouse/keyboard actions', 'AX element actions'],
       setup_trigger: 'CGRequestPostEventAccess prompt',
+    },
+    {
+      id: 'microphone',
+      granted: Boolean(permissions.microphone),
+      required_for: ['voice dictation', 'local STT capture'],
+      setup_trigger: 'AVCaptureDevice.requestAccess(for:.audio) prompt',
     },
   ];
 }
@@ -61,6 +72,7 @@ export function missingPermissionIDsFor(daemon, cli) {
   if (!cli.screen_recording) missing.push('screen_recording');
   if (!listen) missing.push('listen_access');
   if (!post) missing.push('post_access');
+  if (!cli.microphone) missing.push('microphone');
   return missing;
 }
 
@@ -77,6 +89,61 @@ export function disagreementFor(daemon, cli) {
     disagreement.post_access = { cli: cli.post_access, daemon: daemon.inputTap.postAccess };
   }
   return Object.keys(disagreement).length ? disagreement : undefined;
+}
+
+export function passiveLiveViewsFor(daemon, cli) {
+  return {
+    cli_passive: {
+      accessibility: Boolean(cli.accessibility),
+      screen_recording: Boolean(cli.screen_recording),
+      listen_access: Boolean(cli.listen_access),
+      post_access: Boolean(cli.post_access),
+      microphone: Boolean(cli.microphone),
+    },
+    daemon_live: daemon ? {
+      accessibility: daemon.permissions.accessibility,
+      listen_access: daemon.inputTap.listenAccess,
+      post_access: daemon.inputTap.postAccess,
+      input_tap_status: daemon.inputTap.status,
+      input_tap_attempts: daemon.inputTap.attempts,
+    } : undefined,
+  };
+}
+
+export function postRebuildTccStalenessFor(facts, mode, prefix = invocationName()) {
+  const disagreement = disagreementFor(facts.daemon, facts.permissions);
+  if (!disagreement) return undefined;
+  const staleFields = Object.entries(disagreement)
+    .filter(([, value]) => value.cli === true && value.daemon === false)
+    .map(([field]) => field);
+  if (!staleFields.length) return undefined;
+  const targetPath = facts.binary_identity?.path ?? expectedBinaryPath(mode);
+  return {
+    id: 'post_rebuild_tcc_stale',
+    diagnosis: 'daemon_tcc_grant_stale_or_missing',
+    reason: 'TCC has a stale registration for a previous aos binary; passive checks pass, but live privileged access fails after a rebuild.',
+    stale_fields: staleFields,
+    ...passiveLiveViewsFor(facts.daemon, facts.permissions),
+    disagreement,
+    binary_identity: {
+      path: targetPath,
+      exists: facts.binary_identity?.exists,
+      mtime: facts.binary_identity?.mtime,
+      mtime_ms: facts.binary_identity?.mtime_ms,
+      size_bytes: facts.binary_identity?.size_bytes,
+      cdhash: facts.binary_identity?.cdhash,
+    },
+    remedy: {
+      type: 'manual_tcc_reset',
+      summary: 'Play the stale-TCC handoff alert, end the current turn, and wait for the user to manually reset/regrant macOS TCC permissions for the rebuilt aos binary.',
+      commands: [
+        `${prefix} ready --post-permission`,
+      ],
+      human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
+      target_path: targetPath,
+      next_user_signal: 'finished',
+    },
+  };
 }
 
 export function inputTapRecoveryGuidance(status, attempts) {
@@ -152,6 +219,7 @@ export function permissionPanel(id) {
   if (id === 'accessibility') return 'Accessibility';
   if (id === 'screen_recording') return 'Screen Recording';
   if (id === 'listen_access' || id === 'post_access' || id === 'input_monitoring_listen' || id === 'input_monitoring_post') return 'Input Monitoring';
+  if (id === 'microphone') return 'Microphone';
   return id;
 }
 
@@ -192,6 +260,21 @@ export function permissionResetSafeSequenceLines(blockers, mode, prefix = invoca
   return lines;
 }
 
+export function staleTccTerminalHandoff(tccStaleness, prefix = invocationName()) {
+  if (!tccStaleness || tccStaleness.id !== 'post_rebuild_tcc_stale') return undefined;
+  return {
+    type: 'manual_tcc_reset',
+    reason: 'post_rebuild_tcc_stale',
+    terminal: true,
+    alert: 'three_chimes',
+    instruction: 'End the current turn. Do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes until the user says finished.',
+    next_user_signal: 'finished',
+    human_action: tccStaleness.remedy.human_action,
+    target_path: tccStaleness.remedy.target_path,
+    resume_command: `${prefix} ready --post-permission`,
+  };
+}
+
 export function staleGrantGuidance(mode, service) {
   const lower = service.toLowerCase();
   const panel = lower.includes('input monitoring') ? 'Input Monitoring' : lower.includes('screen') ? 'Screen Recording' : 'Accessibility';
@@ -202,11 +285,34 @@ export function staleGrantGuidance(mode, service) {
   return `${panel} -> ${entry} (enable)`;
 }
 
+export function foregroundDevRuntimeAllowed(env = process.env) {
+  if (env.AOS_ALLOW_FOREGROUND_DEV === '1') return true;
+  return explicitStateRootOverride(env);
+}
+
+export function defaultRootForegroundDevBlocked(runtime, env = process.env) {
+  return runtime?.ownership_kind === 'foreground_dev'
+    && !foregroundDevRuntimeAllowed(env);
+}
+
 export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport }, mode) {
   const blockers = [];
   const daemonPath = expectedBinaryPath(mode);
   const currentPath = expectedBinaryPath(mode);
   const staleDaemons = cleanReport?.stale_daemons || [];
+  const worktreePolicy = agentOSWorktreePolicy({ mode });
+
+  if (!worktreePolicy.allowed) {
+    blockers.push({
+      kind: 'runtime',
+      id: worktreePolicy.id,
+      scope: 'repo',
+      message: worktreePolicy.message,
+      target_path: daemonPath,
+      worktree: worktreePolicy.worktree,
+      blocks: ['see', 'do', 'show', 'tell', 'listen', 'content', 'experience', 'service'],
+    });
+  }
 
   if (!runtime.socket_reachable) {
     blockers.push({
@@ -250,6 +356,24 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
     });
   }
 
+  if (defaultRootForegroundDevBlocked(runtime)) {
+    const ownerProcess = runtime.owner_process;
+    const ownerCommand = ownerProcess?.command_line
+      ? ` command=${ownerProcess.command_line}`
+      : ownerProcess?.command_line_unavailable_reason
+        ? ` command=unavailable (${ownerProcess.command_line_unavailable_reason})`
+        : '';
+    blockers.push({
+      kind: 'runtime',
+      id: 'daemon_foreground_dev_default',
+      scope: 'daemon',
+      message: `Default AOS runtime is owned by a foreground dev daemon pid=${runtime.owner_pid ?? 'unknown'}. The shared one-screen runtime must be launchd-managed; foreground dev daemons require an isolated AOS_STATE_ROOT.${ownerCommand}`,
+      target_path: daemonPath,
+      owner_process: ownerProcess,
+      blocks: ['see', 'do', 'show', 'tell', 'listen'],
+    });
+  }
+
   if (staleDaemons.length) {
     blockers.push({
       kind: 'runtime',
@@ -278,6 +402,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'accessibility',
       scope: 'daemon',
+      reason: permissions.accessibility ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Accessibility'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
@@ -297,6 +422,18 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
     });
   }
 
+  if (!permissions.microphone) {
+    blockers.push({
+      kind: 'permission',
+      id: 'microphone',
+      scope: 'cli',
+      message: 'CLI lacks Microphone permission for voice dictation.',
+      target_path: currentPath,
+      settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+      blocks: ['listen'],
+    });
+  }
+
   if (daemon?.inputTap && daemon.inputTap.status !== 'active') {
     blockers.push({
       kind: 'runtime',
@@ -313,6 +450,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'input_monitoring_listen',
       scope: 'daemon',
+      reason: permissions.listen_access ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Input Monitoring listen access'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
@@ -325,6 +463,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
       kind: 'permission',
       id: 'input_monitoring_post',
       scope: 'daemon',
+      reason: permissions.post_access ? 'post_rebuild_tcc_stale' : 'daemon_permission_missing',
       message: staleGrantGuidance(mode, 'Input Monitoring post access'),
       target_path: daemonPath,
       settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
@@ -353,6 +492,7 @@ export function isRepairableRuntimeBlockerID(id) {
 
 export function readyAutoRepairReason(response, { postPermission = false } = {}) {
   if (response.ready) return null;
+  if ((response.blockers ?? []).some((blocker) => blocker.kind === 'permission')) return null;
   const blockerIDs = new Set((response.blockers ?? []).map((blocker) => blocker.id));
   const hasRepairableRuntimeBlocker = (response.blockers ?? [])
     .some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
@@ -370,32 +510,68 @@ export function hasRestartableReadyRuntimeBlocker(response) {
   return blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
 }
 
-export function readyPhase(ready, blockers) {
-  if (ready) return 'ready';
-  if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'stale_daemons')) return 'runtime_blocked';
-  if (blockers.some((b) => b.kind === 'permission')) return 'human_required';
-  if (blockers.some((b) => b.id === 'input_tap_not_active')) return 'runtime_blocked';
-  if (blockers.some((b) => b.kind === 'setup')) return 'setup_required';
-  return 'degraded';
+function compactPrimaryBlocker(blocker) {
+  if (!blocker) return undefined;
+  const compact = {
+    kind: blocker.kind,
+    id: blocker.id,
+  };
+  if (blocker.scope !== undefined) compact.scope = blocker.scope;
+  if (blocker.reason !== undefined) compact.reason = blocker.reason;
+  return compact;
 }
 
-export function readyDiagnosis(ready, blockers, daemon, permissions) {
-  if (ready) return 'ready';
-  if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'daemon_ownership_mismatch';
-  if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'daemon_unmanaged';
-  if (blockers.some((b) => b.id === 'stale_daemons')) return 'stale_daemons';
-  if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'daemon_socket_unreachable';
+function decisionFor(phase, diagnosis, actionReason, blocker) {
+  return {
+    phase,
+    diagnosis,
+    action_reason: actionReason,
+    primary_blocker: compactPrimaryBlocker(blocker),
+  };
+}
+
+export function readyDecision(ready, blockers, daemon, permissions) {
+  if (ready) return decisionFor('ready', 'ready', 'ready', undefined);
+  const find = (predicate) => blockers.find(predicate);
+  let blocker = find((b) => b.id === 'agent_os_worktree_default_runtime');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, blocker.id, blocker);
+  blocker = find((b) => b.id === 'daemon_ownership_mismatch');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_repair', blocker);
+  blocker = find((b) => b.id === 'daemon_unmanaged');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'daemon_foreground_dev_default');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'stale_daemons');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'daemon_unreachable');
+  if (blocker) return decisionFor('runtime_blocked', 'daemon_socket_unreachable', 'runtime_repair', blocker);
+  const staleTccBlocker = find((b) => b.reason === 'post_rebuild_tcc_stale');
+  const daemonPermissionBlocker = find((b) => b.kind === 'permission' && b.scope === 'daemon');
   if (daemon && ((daemon.permissions.accessibility === false && permissions.accessibility)
       || daemon.inputTap.listenAccess === false
       || daemon.inputTap.postAccess === false)) {
-    return 'daemon_tcc_grant_stale_or_missing';
+    return decisionFor(
+      'human_required',
+      'daemon_tcc_grant_stale_or_missing',
+      staleTccBlocker ? 'post_rebuild_tcc_stale' : 'permission',
+      staleTccBlocker ?? daemonPermissionBlocker,
+    );
   }
-  if (blockers.some((b) => b.id === 'input_tap_not_active')) return 'input_tap_not_active';
-  if (blockers.some((b) => b.kind === 'setup')) return 'permissions_onboarding_required';
-  return 'not_ready';
+  blocker = find((b) => b.kind === 'permission');
+  if (blocker) return decisionFor('human_required', 'not_ready', 'permission', blocker);
+  blocker = find((b) => b.id === 'input_tap_not_active');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_repair', blocker);
+  blocker = find((b) => b.kind === 'setup');
+  if (blocker) return decisionFor('setup_required', 'permissions_onboarding_required', 'setup', blocker);
+  return decisionFor('degraded', 'not_ready', 'recheck', undefined);
+}
+
+export function readyPhase(ready, blockers) {
+  return readyDecision(ready, blockers, null, {}).phase;
+}
+
+export function readyDiagnosis(ready, blockers, daemon, permissions) {
+  return readyDecision(ready, blockers, daemon, permissions).diagnosis;
 }
 
 function appendAction(actions, seen, action) {
@@ -405,17 +581,80 @@ function appendAction(actions, seen, action) {
   actions.push(action);
 }
 
-export function readyNextActions(blockers, setup, mode, prefix = invocationName()) {
+function appendRuntimeCleanupActions(actions, seen, blockers, prefix) {
+  const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
+  const hasDefaultForegroundDevDaemon = blockers.some((b) => b.id === 'daemon_foreground_dev_default');
+  const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
+  const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
+  let label = 'clean stale daemon processes and stale runtime resources';
+  if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
+  else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
+  appendAction(actions, seen, {
+    type: 'command',
+    label,
+    command: `${prefix} clean`,
+  });
+  if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
+    appendAction(actions, seen, {
+      type: 'command',
+      label: hasStaleDaemons
+        ? 'run automated repair only after cleanup has removed stale daemon owners'
+        : 'run automated repair: restart/recheck, then print human instructions if needed',
+      command: `${prefix} ready --repair`,
+    });
+  }
+}
+
+export function readyNextActions(decision, blockers, setup, mode, prefix = invocationName()) {
   const actions = [];
   const seen = new Set();
   if (!blockers.length) return actions;
 
-  const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
-  const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
-  const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
+  const primary = decision.action_reason;
 
-  if (hasPermissionBlocker) {
+  if (primary === 'post_rebuild_tcc_stale') {
+    appendAction(actions, seen, {
+      type: 'manual_tcc_reset',
+      label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
+      reason: 'post_rebuild_tcc_stale',
+      terminal: true,
+      next_user_signal: 'finished',
+    });
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 'after the user says finished, run the bounded post-permission readiness check',
+      command: `${prefix} ready --post-permission`,
+      after_user_signal: 'finished',
+    });
+    return actions;
+  }
+
+  if (primary === 'agent_os_worktree_default_runtime') {
+    appendAction(actions, seen, {
+      type: 'manual',
+      label: 'run AOS from the primary agent-os checkout, or set an explicit AOS_STATE_ROOT for isolated runtime tests',
+      reason: 'agent_os_worktree_default_runtime',
+    });
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 're-check readiness from the primary checkout or isolated runtime',
+      command: `${prefix} ready`,
+    });
+    return actions;
+  }
+
+  if (primary === 'runtime_cleanup') {
+    appendRuntimeCleanupActions(actions, seen, blockers, prefix);
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 're-check readiness',
+      command: `${prefix} ready`,
+    });
+    return actions;
+  }
+
+  if (primary === 'permission') {
     appendAction(actions, seen, {
       type: 'command',
       label: 'stop the managed daemon and run or classify targeted reset for this runtime identity',
@@ -433,26 +672,13 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     });
   }
 
-  if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker) {
-    if (hasStaleDaemons || hasUnmanagedDaemon) {
-      appendAction(actions, seen, {
-        type: 'command',
-        label: hasUnmanagedDaemon
-          ? 'clean the unmanaged daemon that owns the repo socket'
-          : 'clean stale daemon processes and stale runtime resources',
-        command: `${prefix} clean`,
-      });
-    }
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
-      appendAction(actions, seen, {
-        type: 'command',
-        label: blockers.some((b) => b.id === 'stale_daemons')
-          ? 'run automated repair only after cleanup has removed stale daemon owners'
-          : 'run automated repair: restart/recheck, then print human instructions if needed',
-        command: `${prefix} ready --repair`,
-      });
-    }
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon && !hasStaleDaemons) {
+  if (primary === 'runtime_repair') {
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 'run automated repair: restart/recheck, then print human instructions if needed',
+      command: `${prefix} ready --repair`,
+    });
+    if (!hasStaleDaemons) {
       appendAction(actions, seen, {
         type: 'command',
         label: 'restart the managed daemon and re-check readiness',
@@ -461,7 +687,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     }
   }
 
-  if (!setup.setup_completed && !hasPermissionBlocker) {
+  if (primary === 'setup') {
     appendAction(actions, seen, {
       type: 'command',
       label: 'run permission onboarding',
@@ -477,8 +703,14 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   return actions;
 }
 
-export function readyNotes({ runtime, daemon, permissions, setup, cleanReport }, mode, prefix = invocationName()) {
+export function readyNotes({ runtime, daemon, permissions, setup, cleanReport }, mode, prefix = invocationName(), tccStaleness = undefined) {
   const notes = [];
+  if (tccStaleness) {
+    notes.push(tccStaleness.reason);
+    notes.push(tccStaleness.remedy.summary);
+    notes.push(`After the user says ${tccStaleness.remedy.next_user_signal}, run '${prefix} ready --post-permission'.`);
+    return notes;
+  }
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
   else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
   if (runtime.ownership_state === 'mismatch') {
@@ -496,6 +728,19 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
     notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner};${command}. Do not loop service start/restart or ready repair while this owner controls the repo socket.`);
     notes.push(`Run '${prefix} clean' once for cleanup-owned stale resources; if the owner remains, return the owner PID and command line to Foreman/human.`);
   }
+  if (defaultRootForegroundDevBlocked(runtime)) {
+    const owner = runtime.owner_pid ?? 'unknown';
+    const command = runtime.owner_process?.command_line
+      ? ` command=${runtime.owner_process.command_line}`
+      : runtime.owner_process?.command_line_unavailable_reason
+        ? ` command unavailable: ${runtime.owner_process.command_line_unavailable_reason}`
+        : ' command unavailable';
+    notes.push(`Default AOS runtime is owned by a foreground dev daemon: owner pid=${owner};${command}. Run '${prefix} clean' or rerun foreground development under an isolated AOS_STATE_ROOT.`);
+  }
+  const worktreePolicy = agentOSWorktreePolicy({ mode });
+  if (!worktreePolicy.allowed) {
+    notes.push(`${worktreePolicy.message} worktree=${worktreePolicy.worktree?.repo_root ?? 'unknown'} git_dir=${worktreePolicy.worktree?.git_dir ?? 'unknown'} common_git_dir=${worktreePolicy.worktree?.git_common_dir ?? 'unknown'}.`);
+  }
   if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
     notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
   }
@@ -509,6 +754,7 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (!permissions.accessibility) notes.push('Accessibility permission is not granted (CLI view).');
   if (daemon?.permissions.accessibility === false) notes.push('Accessibility permission is not granted (daemon view).');
   if (!permissions.screen_recording) notes.push('Screen Recording permission is not granted.');
+  if (!permissions.microphone) notes.push('Microphone permission is not granted.');
   if (!setup.setup_completed && setup.recommended_command) notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
   if (cleanReport?.stale_daemons?.length) {
     notes.push(`Stale daemon cleanup required before readiness: ${cleanReport.stale_daemons.map((item) => item.pid).join(', ')}. Run '${prefix} clean'.`);
@@ -521,17 +767,23 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   const blockers = readyBlockers(facts, mode);
   const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
   const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
+  const tccStaleness = postRebuildTccStalenessFor(facts, mode, prefix);
+  const decision = readyDecision(ready, blockers, facts.daemon, facts.permissions);
+  const selectedTccStaleness = tccStaleness?.diagnosis === decision.diagnosis ? tccStaleness : undefined;
+  const terminalHandoff = staleTccTerminalHandoff(selectedTccStaleness, prefix);
   return {
     ready,
     status: ready ? 'ok' : 'degraded',
-    phase: readyPhase(ready, blockers),
-    diagnosis: readyDiagnosis(ready, blockers, facts.daemon, facts.permissions),
+    phase: decision.phase,
+    diagnosis: decision.diagnosis,
     ready_source: evaluation.readySource,
     ready_for_testing: evaluation.readyForTesting,
     blockers,
     blocked_capabilities: blockedCapabilities,
-    notes: readyNotes(facts, mode, prefix),
-    next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
+    tcc_staleness: tccStaleness,
+    terminal_handoff: terminalHandoff,
+    notes: readyNotes(facts, mode, prefix, selectedTccStaleness),
+    next_actions: readyNextActions(decision, blockers, facts.setup, mode, prefix),
     ownership: {
       state: facts.runtime.ownership_state,
       kind: facts.runtime.ownership_kind,
@@ -544,6 +796,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
     },
     cleanup: {
       status: facts.cleanReport?.status,
+      foreground_dev_owners: facts.cleanReport?.foreground_dev_owners ?? [],
       stale_daemons: facts.cleanReport?.stale_daemons ?? [],
       stale_locks: facts.cleanReport?.stale_locks ?? [],
       canvases: facts.cleanReport?.canvases ?? [],
@@ -558,6 +811,7 @@ export function permissionCheckNotes(cli, setup, daemon, mode) {
   if (!cli.screen_recording) notes.push('Screen Recording permission is not granted.');
   if (!cli.listen_access) notes.push('Input Monitoring listen access is not granted (CLI view).');
   if (!cli.post_access) notes.push('Input Monitoring post access is not granted (CLI view).');
+  if (!cli.microphone) notes.push('Microphone permission is not granted.');
   if (!setup.marker_exists) {
     notes.push('Permission onboarding has not been completed for this runtime identity.');
   } else if (!setup.bundle_matches_current && !setup.setup_completed) {
@@ -588,6 +842,9 @@ export function permissionRecoveryNotes(missing, mode, prefix = invocationName()
   if (missing.includes('listen_access') || missing.includes('post_access')) {
     notes.push('Daemon-owned Input Monitoring permission is stale or missing.');
   }
+  if (missing.includes('microphone')) {
+    notes.push('Microphone permission is still not granted.');
+  }
   notes.push(`Run '${prefix} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
   notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --post-permission'.`);
   return notes;
@@ -598,6 +855,7 @@ export const SETUP_PROMPT_ORDER = [
   ['screen_recording', 'screen-recording'],
   ['listen_access', 'listen-event'],
   ['post_access', 'post-event'],
+  ['microphone', 'microphone'],
 ];
 
 export function planPermissionSetup({ initialPermissions, initialSetup, initialMissing, once = false, mode = 'repo', prefix = invocationName() }) {
@@ -611,7 +869,8 @@ export function planPermissionSetup({ initialPermissions, initialSetup, initialM
   const allCLIGranted = initialPermissions.accessibility
     && initialPermissions.screen_recording
     && initialPermissions.listen_access
-    && initialPermissions.post_access;
+    && initialPermissions.post_access
+    && initialPermissions.microphone;
 
   if (once && allCLIGranted && initialMissing.length === 0) {
     return { branch: 'record_marker_without_prompts', status: 'ok', completed: true, promptOrder: [], writeMarker: true, restartServices: true, notes: [] };

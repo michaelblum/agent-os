@@ -25,7 +25,6 @@ Start here:
 
 ```bash
 ./aos ready
-./aos dev recommend --json
 ./aos help <command> [--json]
 ./aos introspect review
 ```
@@ -43,19 +42,22 @@ state-file inspection unless the AOS surface is missing or broken, the task is
 testing that lower-level adapter, or the AOS control surface itself is under
 repair. Treat those bypasses as scoped diagnostics and say why they were needed.
 
-Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
-changes through the manifest-backed developer workflow before choosing a build,
-test, canvas reload, or readiness loop. Use `./aos dev build`
-instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
-itself under repair. The build path avoids rebuilding the TCC-owning repo-mode
-binary unless Swift runtime input content changed, the output is missing or in
-the wrong mode, or the caller passes `--force`. When it does rebuild, it emits a
-`Rebuilt: ./aos` marker and plays the configured system rebuild alert; stop
-before TCC-backed proof until the user manually resets/regrants the needed
-macOS permissions and `./aos ready --post-permission` is green. Use
-`./aos dev gh` for GitHub operations from repo
-sessions; it shells out to the authenticated local `gh` CLI and does not fall
-back to connector-backed GitHub tools.
+For reusable maintainer workflows, use retained local skills plus their direct
+backing scripts:
+
+```bash
+node scripts/aos-dev-situation.mjs --json
+node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>
+node scripts/aos-dev-build.mjs build --no-restart --json
+```
+
+`skills/aos-maintainer-orientation/SKILL.md`,
+`skills/aos-maintainer-routing/SKILL.md`, and
+`skills/aos-repo-binary-build/SKILL.md` teach those workflows. `aos dev` is
+retired from the AOS command surface; do not add or document `./aos dev ...`
+forms. For repo GitHub workflows, use `node scripts/aos-dev-gh.mjs`; it shells
+out to the authenticated local `gh` CLI and does not fall back to
+connector-backed GitHub tools.
 
 ## Contract
 
@@ -111,7 +113,6 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
-| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
 | `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
@@ -684,63 +685,52 @@ primitive when bounded regions are enough and reserve
 `daemon_native_full_screen_input_capture` as the authoritative future primitive
 for full-screen capture.
 
-### Repo Development Workflow
+### Repo Maintainer Scripts
 
-`aos dev` is the developer workflow router for this repo. `classify` and
-`recommend` are read-only and do not start the daemon.
-It is self-hosting plumbing, not a consumer state model: use it to route repo
-checks, not to infer runtime state, workspace selection, or public command
-availability.
+Repo-development workflows are local maintainer tooling, not public AOS CLI
+commands. `classify` reports changed files, matched rules, classes, actions,
+and whether the set is hot-swappable or TCC-sensitive. `recommend` adds ordered
+commands and verification steps. For agent-facing guidance, prefer
+`skills/aos-maintainer-routing/SKILL.md` and the direct backing scripts:
 
 ```bash
-./aos dev classify --json
-./aos dev recommend --json
-./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
-./aos dev capabilities list --json
-./aos dev capabilities explain dev.github.issue_comment --json
-./aos dev capabilities explain dev.github.pr_checks --json
-./aos dev build
-./aos dev gh context --json
-./aos dev gh issue list --state open --limit 50 --milestone v0 --json
-./aos dev gh label list --limit 50 --search governance --json
-./aos dev gh pr list --state all --limit 30 --json
-./aos dev gh issue comment 298 --body-file /tmp/comment.md
-./aos dev gh issue create --title "Follow-up tracker" --body-file /tmp/issue.md
-./aos dev gh issue close 298 --reason completed
-./aos dev gh issue edit 298 --remove-label lane:active --add-label lane:parked
-./aos dev gh pr merge 410 --merge --match-head-commit abc123
-./aos dev gh ci inspect --pr 298 --json
-./aos dev gh review-comments --pr 298 --json
+node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>
+node scripts/aos-dev-workflow.mjs classify --json --paths <changed-paths>
+node scripts/aos-dev-workflow.mjs capabilities list --json
+node scripts/aos-dev-workflow.mjs capabilities explain dev.github.issue_comment --json
 ```
 
-`classify` reports changed files, matched rules, classes, actions, and whether
-the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
-and verification steps. The rules live in `docs/dev/workflow-rules.json` and
-are validated by `shared/schemas/dev-workflow-rules.schema.json`.
+The rules live in `docs/dev/workflow-rules.json` and are validated by
+`shared/schemas/dev-workflow-rules.schema.json`.
 
-`build` wraps the repo `build.sh`, forces `--no-restart` unless the caller has
-already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
-in JSON mode. Rebuild detection is content-based for Swift runtime inputs, not
+For repo binary checks, prefer `skills/aos-repo-binary-build/SKILL.md` and:
+
+```bash
+node scripts/aos-dev-build.mjs build --no-restart --json
+```
+
+Rebuild detection is content-based for Swift runtime inputs, not
 mtime-based, and build-tooling edits alone do not replace the TCC-owning binary.
 Repo-mode builds do not post-sign the local binary; packaged app signing is
 owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
 build does not reset permissions, open System Settings, show a human-needed
 surface, write completed-build markers, or inject provider input.
-Repo-mode binary rebuilds are TCC-sensitive and intentionally rare; successful
-rebuilds play a system alert sound and require a user reset/regrant checkpoint
-before TCC-backed proof.
+Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
+successful rebuild marker (`Rebuilt: ./aos`) invalidates prior TCC-backed proof
+for that binary and requires a user reset/regrant checkpoint before further
+TCC-backed daemon, capture, input, or native proof.
 After the user confirms the reset, verify with `./aos ready --post-permission`.
 
-`capabilities` is read-only discovery over
+The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
 capabilities, including whether a capability uses a typed AOS surface or an
 explicit raw-process adapter. It does not execute capabilities, grant
 permissions, or select an agent role.
 
-`dev gh` is the repo GitHub control surface. It deliberately uses the real
-`gh` executable from `PATH`, the user's existing `gh` authentication, and the
-local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
-Direct operations such as `issue list`, `issue view`, `issue comment`,
+`node scripts/aos-dev-gh.mjs` is the repo GitHub helper. It deliberately uses
+the real `gh` executable from `PATH`, the user's existing `gh` authentication,
+and the local git checkout to infer `owner/repo` unless `--repo owner/name` is
+supplied. Direct operations such as `issue list`, `issue view`, `issue comment`,
 `issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
 `pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
 behavior. List operations expose the repo-safe inventory filters used most
@@ -831,10 +821,9 @@ If the content root is not live, make that explicit before reloading:
 aos content wait --root toolkit --auto-start
 ```
 
-Topic worktrees should use branch-scoped root names from
-`scripts/aos-content-scope.sh` or pass explicit root query parameters where the
-surface supports them. Do not overwrite canonical `content.roots.toolkit` or
-`content.roots.sigil` from a topic worktree just to refresh a canvas.
+Do not refresh the shared runtime from a linked git worktree. Switch branches in
+the primary checkout for shared-runtime work, or set an explicit isolated
+`AOS_STATE_ROOT` for alternate-checkout runtime proof.
 
 For inline `--html` or `--file` canvases, `show update --html ...` or
 `show update --file ...` replaces the content in place. `--file` is resolved by
@@ -844,9 +833,9 @@ manifest or observable JavaScript condition.
 
 ### 3. Load Toolkit Content Through the Content Server
 
-Use the canonical `toolkit` root for `main` or installed examples. Topic
-worktrees should use branch-scoped root names so one singleton daemon can serve
-multiple sessions without root collisions.
+Use the canonical `toolkit` root from the primary checkout. Do not use linked
+git worktrees or branch-scoped roots to share the singleton daemon across
+parallel agents.
 
 ```bash
 aos set content.roots.toolkit packages/toolkit
@@ -1118,9 +1107,8 @@ unless a future command explicitly implements a non-dry-run path.
 primitive verbs such as `status`, `show`, and `see`, and it can also run
 repo-owned helper scripts through typed `shell` blocks. It keeps primitive
 command and script references visible so agents can inspect what will run.
-`aos ops` remains a compatibility alias while old callers are retired; see
-[ADR-0013](../adr/0013-aos-execution-model-v0.md) for the AOS Execution Model
-and alias removal gate.
+The old `aos ops` command surface is retired; use `aos recipe` for every
+source-backed executable recipe workflow.
 
 | Subcommand | Purpose |
 | --- | --- |
@@ -2290,6 +2278,11 @@ Consumers should assume:
 - `aos ready` is the front-door managed-daemon readiness gate
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
+- the default `~/.config/aos/{repo|installed}` runtime is single-owner,
+  launchd-managed, and tied to the primary agent-os checkout. Linked git
+  worktrees cannot use the default repo runtime; runtime-coupled tests from an
+  alternate checkout must set an isolated `AOS_STATE_ROOT`.
+  Default-root foreground dev ownership is a cleanup-required readiness blocker.
 
 This is runtime state in the
 [user-facing state model](./aos-capabilities.md#user-facing-state-model). It is
@@ -2331,19 +2324,21 @@ Consumers:
   and returns structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
-  input tap, because those states commonly appear after a human refreshes macOS
-  privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
-  should use `./aos permissions reset-runtime --mode repo` before Settings: it
-  stops the managed daemon, verifies `running=false`, then either runs a real
-  targeted TCC reset for a targetable runtime identity or reports targeted reset
-  unavailable for the bare repo binary. Manual Settings removal is fallback only
-  if that command reports targeted reset is unavailable or failed.
+  input tap with no permission blocker, because those states commonly appear
+  after a human refreshes macOS privacy grants. When passive CLI grants are
+  green but the live daemon reports denied Accessibility/Input Monitoring,
+  `ready` must not restart/recheck in a loop. It reports
+  `post_rebuild_tcc_stale`, plays the handoff alert once per binary identity,
+  returns a terminal handoff, and the agent ends the turn until the user replies
+  `finished` after manually resetting/regranting TCC.
   `--post-permission` is the explicit
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
-  longer safe recovery path, but stale daemon owners are cleaned before service
-  start/restart and unmanaged socket owners are reported as PID/command facts
+  longer safe recovery path, but linked-worktree blockers stop before service
+  start/restart, stale daemon owners and default-root foreground dev owners are
+  cleaned before service start/restart, and unmanaged socket owners are reported
+  as PID/command facts
   instead of restart loops. For restartable daemon states, repair may restart,
   wait/recheck, then report plain-English human instructions when macOS privacy
   settings still require manual action. It does not open Settings or show
@@ -2369,12 +2364,14 @@ Consumers:
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
   The top-level `permissions` object is the CLI-side view and includes
-  `accessibility`, `screen_recording`, `listen_access`, and `post_access`.
+  `accessibility`, `screen_recording`, `listen_access`, `post_access`, and
+  `microphone`. Microphone gates voice dictation / local STT capture and is not
+  mirrored in the daemon-side view.
   The daemon-side Accessibility and Input Monitoring view remains under
   `daemon_view` / `runtime.input_tap`; daemon Screen Recording is not reported.
 - `aos permissions setup --once` checks the full CLI permission set
   (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
-  post). If the CLI grant is present but the daemon reports stale or missing
+  post, Microphone). If the CLI grant is present but the daemon reports stale or missing
   daemon-owned grants, setup returns degraded with the same reset-runtime
   guidance instead of silently declaring onboarding complete.
 - The permissions onboarding marker is mode-scoped and proves the operator has
@@ -2386,6 +2383,16 @@ Consumers:
   `runtime_verdict` as the shared readiness/action-plan contract:
   `ready`, `phase`, `diagnosis`, `blockers`, `blocked_capabilities`, `notes`,
   `next_actions`, `ownership`, and `cleanup`.
+- When passive CLI permission checks are granted but the live daemon view
+  reports denied Accessibility or Input Monitoring after a rebuild,
+  `runtime_verdict.tcc_staleness` names the condition as
+  `post_rebuild_tcc_stale`, includes side-by-side `cli_passive` and
+  `daemon_live` booleans, includes the current runtime binary identity
+  (`path`, `mtime`, `cdhash` when available), and carries the manual reset
+  remedy. `aos ready --json` also exposes the same object at top-level
+  `tcc_staleness` plus a top-level `terminal_handoff` telling agents to stop
+  the current turn, wait for the user signal `finished`, and then run
+  `./aos ready --post-permission`.
 - When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
   `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
   The process command line is either present as `command_line` or explicitly
@@ -2393,15 +2400,28 @@ Consumers:
   `command_line_unavailable_reason`.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
-- `aos status` text mode includes `tap=<status>` in the one-line summary.
+- `aos status --json` also exposes top-level `readiness`, a compact projection
+  of `runtime_verdict` with `ready`, `status`, `phase`, `diagnosis`,
+  `ready_for_testing`, `ready_source`, `blocked_capabilities`, and any
+  `tcc_staleness` / `terminal_handoff` summary. This lets agents distinguish
+  recovered TCC/runtime readiness from unrelated overall status degradations
+  such as stale resource cleanup notes.
+- `aos status --json` exposes `stale_resources.foreground_dev_owners` as the
+  PID list for default-root foreground dev owners reported by `aos clean`.
+- `aos status` text mode includes `readiness=<status>`, `ready=<bool>`, and
+  `tap=<status>` in the one-line summary.
 - `aos doctor --json` exposes top-level `ready_for_testing` and
   `ready_source`.
 - `aos service install`, `start`, and `restart` block-and-poll for up to 5s
   after launchctl kickstart and exit non-zero with `reason: "input_tap_not_active"`
   or `"socket_unreachable"` when the daemon is not fully ready.
 - Service readiness JSON includes `runtime_ownership`, sourced from native
-  `__runtime status-facts --json`; foreground `aos serve` development owners
-  are accepted only when that broker reports `ownership_kind: "foreground_dev"`.
+  `__runtime status-facts --json`. A broker classification of
+  `ownership_kind: "foreground_dev"` is acceptable for isolated development
+  state roots, but default-root readiness reports
+  `daemon_foreground_dev_default` and routes through `aos clean`. A linked git
+  worktree without explicit `AOS_STATE_ROOT` reports
+  `agent_os_worktree_default_runtime` and must not touch the default runtime.
 - `aos do click/type/...` preflight exits with `INPUT_TAP_NOT_ACTIVE` when
   the daemon is reachable but its tap is inactive.
 
@@ -2486,9 +2506,8 @@ Minimal setup:
 aos set content.roots.toolkit packages/toolkit
 ```
 
-In topic worktrees, use `scripts/aos-content-scope.sh` or a branch-aware launch
-script to derive a root such as `toolkit_codex_example` instead of overwriting
-canonical `toolkit`.
+Alternate-checkout runtime proofs must use an explicit isolated
+`AOS_STATE_ROOT`; the default repo runtime does not serve linked git worktrees.
 
 Then:
 

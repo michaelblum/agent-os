@@ -43,6 +43,7 @@ import {
   createResizeController,
   createSplitPane,
   createMaximizeController,
+  avoidAnchorPanelOverlap,
   dragFrameFromPointer,
   mountPanel,
   mountChrome,
@@ -198,6 +199,13 @@ placement policy:
   the same placement helpers;
 - minimize defaults to a passive stage chip plus daemon input regions, with the
   explicit WebView chip retained as fallback.
+
+`avoidAnchorPanelOverlap({ anchorRect, panelRect, viewport, margin })` is the
+shared placement helper for moving a visual anchor away from an opened panel
+when their final frames overlap. It evaluates left, right, above, and below
+candidates, clamps them to the viewport, and returns the closest zero-overlap
+center when available. Product code supplies the anchor size/current position
+and consumes the returned center; toolkit does not own app-specific visuals.
 
 ```js
 const windowPolicy = createPanelWindowController({

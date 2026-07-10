@@ -30,8 +30,9 @@ and control surfaces before reaching for raw host process execution.
 The practical layers are:
 
 - `see`, `do`, `show`, `tell`, and `listen` are the base harness shell.
-- `./aos dev ...` is the AOS developer shell for repo workflow, builds, audits,
-  and regularized integrations such as GitHub.
+- Retained local maintainer skills plus direct `node scripts/aos-dev-*.mjs`
+  backing scripts are the agent-facing AOS developer shell for repo workflow,
+  builds, audits, orientation, and regularized integrations.
 - Raw Bash, Node, npm, Python, and arbitrary process execution are
   developer/testing escape hatches. They are useful for building the platform,
   but they should not become the default interface that user-facing agents
@@ -58,11 +59,14 @@ repo files, running tests, restarting canvases, reading logs, or committing a
 checkpoint. Treat these as elevated privileges, not as capabilities that normal
 app agents automatically inherit.
 
-For repo workflow routing, prefer `./aos dev recommend --json` before choosing
-between a Swift rebuild, package-local test, schema test, canvas reload, or
-readiness loop. The source of truth is `docs/dev/workflow-rules.json`; update
-that manifest and `shared/schemas/dev-workflow-rules.schema.json` when routing
-policy changes.
+For repo workflow routing, use `skills/aos-maintainer-routing/SKILL.md` and
+the backing command `node scripts/aos-dev-workflow.mjs recommend --json --paths
+...` before choosing between a Swift rebuild, package-local test, schema test,
+canvas reload, or readiness loop. The source of truth is
+`docs/dev/workflow-rules.json`; update that manifest and
+`shared/schemas/dev-workflow-rules.schema.json` when routing policy changes.
+Do not add `./aos dev ...` entrypoints for maintainer routing; `aos dev` is
+retired from the AOS command surface.
 
 ### Testing
 

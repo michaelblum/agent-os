@@ -8,7 +8,7 @@ FAILS=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; FAILS=$((FAILS + 1)); }
 
-if OUT="$(./aos dev classify --json --paths src/main.swift,packages/toolkit/runtime/canvas.js,shared/schemas/input-event-v2.schema.json,docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --paths src/main.swift,packages/toolkit/runtime/canvas.js,shared/schemas/input-event-v2.schema.json,docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -23,8 +23,8 @@ assert "docs-only" in summary["rule_ids"], summary
 assert summary["requires_swift_build"] is True, summary
 assert summary["tcc_identity_sensitive"] is True, summary
 assert summary["hot_swappable"] is False, summary
-assert any(item["command"] == "./aos dev build" for item in summary["commands"]), summary
-assert any(item["command"] == "./aos ready" for item in summary["verification"]), summary
+assert any(item["command"] == "node scripts/aos-dev-build.mjs build --no-restart --json" for item in summary["commands"]), summary
+assert any(item["command"] == "./aos ready --post-permission" for item in summary["verification"]), summary
 PY
 then
     pass "dev classify aggregates manifest-backed workflow classes"
@@ -32,7 +32,7 @@ else
     fail "dev classify did not report expected aggregate classes"
 fi
 
-if OUT="$(./aos dev recommend --json --files docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -48,7 +48,112 @@ else
     fail "dev recommend docs-only routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/dev-workflow-router.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+assert data["proof_worth"]["changed_asset_count"] == 1, data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("bash tests/dev-workflow-router.sh") == 1, data
+router = next(item for item in data["next_commands"] if item["command"] == "bash tests/dev-workflow-router.sh")
+assert "dev-workflow-manifest" in router["source_rules"], router
+assert "proof:dev-workflow-router-contract" in router["source_rules"], router
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend accepts registered changed tests and deduplicates registry commands"
+else
+    fail "dev recommend proof-worth registered test routing drifted"
+fi
+
+PROOF_TEMP="tests/.proof-worth-unregistered-temp.sh"
+rm -f "$PROOF_TEMP"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$PROOF_TEMP"
+set +e
+OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files "$PROOF_TEMP" 2>/dev/null)"
+RC=$?
+set -e
+if [[ "$RC" -eq 0 ]]; then
+    fail "dev recommend should fail for existing unregistered proof assets"
+elif OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+assert data["code"] == "MISSING_PROOF_WORTH", data
+assert data["proof_worth"]["status"] == "failed", data
+failure = data["proof_worth"]["failures"][0]
+assert failure["path"] == "tests/.proof-worth-unregistered-temp.sh", data
+assert failure["reason"] == "missing_registry_entry", data
+PY
+then
+    pass "dev recommend fails existing unregistered proof assets"
+else
+    fail "dev recommend unregistered proof-worth failure shape drifted"
+fi
+
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files "$PROOF_TEMP" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "failed", data
+assert data["proof_worth"]["failures"][0]["reason"] == "missing_registry_entry", data
+PY
+then
+    pass "dev classify reports proof-worth metadata without failing"
+else
+    fail "dev classify proof-worth metadata behavior drifted"
+fi
+rm -f "$PROOF_TEMP"
+
+DELETED_PROOF="tests/.proof-worth-deleted-temp.sh"
+rm -f "$DELETED_PROOF"
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files "$DELETED_PROOF" 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+asset = data["proof_worth"]["assets"][0]
+assert asset["path"] == "tests/.proof-worth-deleted-temp.sh", data
+assert asset["deleted"] is True, data
+assert asset["coverage"] == "deleted_unregistered_cleanup", data
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend treats deleted unregistered proof assets as cleanup"
+else
+    fail "dev recommend deleted proof cleanup behavior drifted"
+fi
+
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/manual/native-ax-saved-ref-live-proof.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+assert data["proof_worth"]["commands"] == [], data
+guarded = data["proof_worth"]["guarded"]
+assert guarded and guarded[0]["entry"] == "native-ax-saved-ref-live-proof", data
+assert "real-input approval" in guarded[0]["guard"], data
+assert all(item["command"] != "bash tests/manual/native-ax-saved-ref-live-proof.sh" for item in data["next_commands"]), data
+assert all(item["command"] != "bash <changed-test>" for item in data["verification"]), data
+PY
+then
+    pass "dev recommend reports guarded manual proofs without default verification"
+else
+    fail "dev recommend guarded proof behavior drifted"
+fi
+
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -72,7 +177,7 @@ else
     fail "dev recommend visual harness primitive routing drifted"
 fi
 
-if OUT="$(./aos dev classify --json --files unknown/path.txt 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files unknown/path.txt 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -86,7 +191,7 @@ else
     fail "dev classify fallback routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files scripts/aos-do-native.mjs 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files scripts/aos-do-native.mjs 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -110,7 +215,7 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -134,7 +239,7 @@ else
     fail "dev recommend command source/generator routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -158,7 +263,7 @@ else
     fail "dev recommend package CLI command routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files scripts/sign-aos-runtime 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files scripts/sign-aos-runtime 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -182,7 +287,7 @@ else
     fail "dev recommend runtime signing command routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files packages/gateway/dist/doctor-cli.js 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files packages/gateway/dist/doctor-cli.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -216,7 +321,7 @@ const targets = [...new Set(
     .flatMap((command) => command.argv_prefix || [])
     .filter((arg) => /^(scripts|packages)\//.test(arg))
 )].sort();
-const result = spawnSync('./aos', ['dev', 'classify', '--json', '--files', ...targets], { encoding: 'utf8' });
+const result = spawnSync(process.execPath, ['scripts/aos-dev-workflow.mjs', 'classify', '--json', '--files', ...targets], { encoding: 'utf8' });
 if (result.stderr) process.stderr.write(result.stderr);
 if (result.stdout) process.stdout.write(result.stdout);
 process.exit(result.status ?? 1);
@@ -244,7 +349,7 @@ else
     fail "dev classify external manifest implementation target routing drifted"
 fi
 
-if OUT="$(./aos dev classify --json --files apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs classify --json --files apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -260,7 +365,7 @@ else
     fail "dev classify app local-contract routing drifted"
 fi
 
-if OUT="$(./aos dev recommend --json --files docs/api/aos.md 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files docs/api/aos.md 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -275,7 +380,7 @@ else
     fail "dev recommend command-contract docs routing drifted"
 fi
 
-if ERR="$(./aos dev recommend --json --base definitely-not-a-ref 2>&1 >/dev/null)"; then
+if ERR="$(node scripts/aos-dev-workflow.mjs recommend --json --base definitely-not-a-ref 2>&1 >/dev/null)"; then
     fail "dev recommend should reject invalid --base refs"
 elif echo "$ERR" | grep -q '"code" : "INVALID_BASE_REF"'; then
     pass "dev recommend rejects invalid --base refs"
@@ -283,7 +388,7 @@ else
     fail "dev recommend invalid --base error mismatch: $ERR"
 fi
 
-if ERR="$(./aos dev recommend --base --json 2>&1 >/dev/null)"; then
+if ERR="$(node scripts/aos-dev-workflow.mjs recommend --base --json 2>&1 >/dev/null)"; then
     fail "dev recommend should reject missing --base values before a flag"
 elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
     pass "dev recommend treats flag-after---base as missing value"
@@ -299,832 +404,20 @@ else
     fail "dev audit missing --repo error mismatch: $ERR"
 fi
 
-if OUT="$(./aos help dev --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-forms = {form["id"]: form for form in data["forms"]}
-assert set(forms) == {
-    "dev-audit",
-    "dev-build",
-    "dev-capabilities",
-    "dev-classify",
-    "dev-drift-lint",
-    "dev-gh",
-    "dev-recommend",
-    "dev-situation",
-}, forms
-tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
-assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
-recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
-assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= recommend_tokens, recommend_tokens
-audit_tokens = {arg.get("token") for arg in forms["dev-audit"]["args"]}
-assert {"--manifest", "--repo", "--json"} <= audit_tokens, audit_tokens
-capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args"]}
-assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capability_tokens, capability_tokens
-gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
-assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
-PY
-then
-    pass "dev help exposes exact current workflow router forms"
+if ERR="$(./aos help dev --json 2>&1 >/dev/null)"; then
+    fail "aos help dev should not resolve after dev command removal"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+    pass "public help rejects removed dev command"
 else
-    fail "dev help workflow router forms drifted"
+    fail "aos help dev returned unexpected error: $ERR"
 fi
 
-if OUT="$(./aos dev capabilities list --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-ids = {item["id"] for item in data["capabilities"]}
-assert data["status"] == "success", data
-assert data["manifest"] == "docs/dev/agent-capabilities.json", data
-assert "dev.github.issue_list" in ids, ids
-assert "dev.github.pr_list" in ids, ids
-assert "dev.github.issue_comment" in ids, ids
-assert "dev.github.issue_create" in ids, ids
-assert "dev.github.issue_close" in ids, ids
-assert "dev.github.issue_edit" in ids, ids
-assert "dev.github.label_list" in ids, ids
-assert "dev.github.pr_comment" in ids, ids
-assert "dev.github.pr_create" in ids, ids
-assert "dev.github.pr_merge" in ids, ids
-assert "dev.github.pr_checks" in ids, ids
-assert "dev.build.aos" in ids, ids
-assert "dev.test.schema_node" in ids, ids
-assert all("adapter_kind" in item for item in data["capabilities"]), data
-PY
-then
-    pass "dev capabilities list discovers canonical manifest"
+if ERR="$(./aos dev classify --json 2>&1 >/dev/null)"; then
+    fail "aos dev classify should not dispatch after dev command removal"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+    pass "public dispatch rejects removed dev command"
 else
-    fail "dev capabilities list did not expose expected manifest entries"
-fi
-
-if ERR="$(./aos dev capabilities list --role --json 2>&1 >/dev/null)"; then
-    fail "dev capabilities list should reject missing --role values before a flag"
-elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
-    pass "dev capabilities list treats flag-after---role as missing value"
-else
-    fail "dev capabilities list missing --role error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.issue_comment --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.issue_comment", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is True, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns full capability metadata"
-else
-    fail "dev capabilities explain did not return expected capability metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.pr_comment --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.pr_comment", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is True, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns PR comment metadata"
-else
-    fail "dev capabilities explain did not return expected PR comment metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.pr_create --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.pr_create", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is True, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns PR create metadata"
-else
-    fail "dev capabilities explain did not return expected PR create metadata"
-fi
-
-if OUT="$(./aos dev capabilities explain dev.github.issue_create --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-capability = data["capability"]
-assert capability["id"] == "dev.github.issue_create", data
-assert capability["adapter"]["kind"] == "aos_cli", data
-assert capability["mutability"]["class"] == "external_write", data
-assert capability["mutability"]["requires_body_file"] is True, data
-assert capability["execution"]["raw_process"] is False, data
-PY
-then
-    pass "dev capabilities explain returns issue create metadata"
-else
-    fail "dev capabilities explain did not return expected issue create metadata"
-fi
-
-TMPDIR="$(mktemp -d)"
-OLD_PATH="$PATH"
-export GH_ARGS_LOG="$TMPDIR/gh-args.log"
-export GH_BODY_LOG="$TMPDIR/gh-body.log"
-trap 'PATH="$OLD_PATH"; rm -rf "$TMPDIR"' EXIT
-cat > "$TMPDIR/gh" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >> "$GH_ARGS_LOG"
-cmd="$*"
-if [[ "$cmd" == "auth status" ]]; then
-    echo "Logged in to github.com"
-    exit 0
-fi
-if [[ "$cmd" == "repo view michaelblum/agent-os --json nameWithOwner,defaultBranchRef" ]]; then
-    echo '{"nameWithOwner":"michaelblum/agent-os","defaultBranchRef":{"name":"main"}}'
-    exit 0
-fi
-if [[ "$cmd" == "pr view --repo michaelblum/agent-os --json number,url,headRefName,baseRefName,state" ]]; then
-    echo '{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","headRefName":"codex/example","baseRefName":"main","state":"OPEN"}'
-    exit 0
-fi
-if [[ "$cmd" == issue\ comment\ 298\ --repo\ michaelblum/agent-os\ --body-file\ * ]]; then
-    body_file="${cmd##* --body-file }"
-    cat "$body_file" >> "$GH_BODY_LOG"
-    printf '\n---\n' >> "$GH_BODY_LOG"
-    echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"
-    exit 0
-fi
-if [[ "$cmd" == issue\ create\ --repo\ michaelblum/agent-os\ --title\ Strategic\ follow-up\ --body-file\ *\ --label\ governance\ --label\ follow-up\ --assignee\ @me\ --milestone\ v1 ]]; then
-    echo "https://github.com/michaelblum/agent-os/issues/411"
-    exit 0
-fi
-if [[ "$cmd" == "issue close 411 --repo michaelblum/agent-os --reason completed" ]]; then
-    echo "✓ Closed issue michaelblum/agent-os#411"
-    exit 0
-fi
-if [[ "$cmd" == issue\ edit\ 407\ --repo\ michaelblum/agent-os\ --remove-label\ lane:active\ --add-label\ lane:parked\ --add-assignee\ @me\ --remove-assignee\ old-owner\ --milestone\ v1\ --title\ Parked\ ledger\ --body-file\ * ]]; then
-    echo "https://github.com/michaelblum/agent-os/issues/407"
-    exit 0
-fi
-if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments" ]]; then
-    echo '{"number":298,"title":"Governance ledger","state":"OPEN","url":"https://github.com/michaelblum/agent-os/issues/298","labels":[],"comments":[]}'
-    exit 0
-fi
-if [[ "$cmd" == issue\ view\ 298\ --repo\ michaelblum/agent-os\ --json\ number,title,state,url,body,labels,comments\ --template\ * ]]; then
-    echo "#298 Governance ledger"
-    echo "https://github.com/michaelblum/agent-os/issues/298"
-    exit 0
-fi
-if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os" ]]; then
-    echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2
-    exit 1
-fi
-if [[ "$cmd" == issue\ view\ 298\ --repo\ michaelblum/agent-os\ --json\ *projectCards* ]]; then
-    echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2
-    exit 1
-fi
-if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --milestone v0 --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
-    echo '[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]'
-    exit 0
-fi
-if [[ "$cmd" == "label list --repo michaelblum/agent-os --limit 10 --search governance --sort name --order desc --json name,description,color,isDefault,url" ]]; then
-    echo '[{"name":"governance","description":"Governance and coordination","color":"5319e7","isDefault":false,"url":"https://github.com/michaelblum/agent-os/labels/governance"}]'
-    exit 0
-fi
-if [[ "$cmd" == "pr view 298 --repo michaelblum/agent-os --json number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews" ]]; then
-    echo '{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}'
-    exit 0
-fi
-if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author" ]]; then
-    echo '[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]'
-    exit 0
-fi
-if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
-    echo '[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]'
-    exit 0
-fi
-if [[ "$cmd" == "pr checks 299 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
-    echo '[{"name":"lint","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/988","workflow":"CI"}]'
-    echo "checks failed" >&2
-    exit 1
-fi
-if [[ "$cmd" == pr\ create\ --repo\ michaelblum/agent-os\ --base\ main\ --head\ foreman/dev-gh-pr-create-v0\ --title\ Add\ PR\ create\ --body-file\ * ]]; then
-    body_file="${cmd##* --body-file }"
-    cat "$body_file" >> "$GH_BODY_LOG"
-    printf '\n---\n' >> "$GH_BODY_LOG"
-    echo "https://github.com/michaelblum/agent-os/pull/433"
-    exit 0
-fi
-if [[ "$cmd" == "pr view https://github.com/michaelblum/agent-os/pull/433 --repo michaelblum/agent-os --json number,url,state,headRefName,baseRefName" ]]; then
-    echo '{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"foreman/dev-gh-pr-create-v0","baseRefName":"main"}'
-    exit 0
-fi
-if [[ "$cmd" == pr\ merge\ 410\ --repo\ michaelblum/agent-os\ --merge\ --match-head-commit\ abc123\ --body-file\ * ]]; then
-    echo "Merged pull request #410"
-    exit 0
-fi
-if [[ "$cmd" == "run view 987 --repo michaelblum/agent-os --log-failed" ]]; then
-    echo "unit failed log"
-    exit 0
-fi
-if [[ "$cmd" == "run view 988 --repo michaelblum/agent-os --log-failed" ]]; then
-    echo "lint failed log"
-    exit 0
-fi
-if [[ "$1" == "api" && "${2:-}" == "graphql" ]]; then
-    echo '{"data":{"repository":{"pullRequest":{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","reviewThreads":{"nodes":[{"isResolved":false,"isOutdated":false,"path":"src/example.swift","line":12,"startLine":null,"comments":{"nodes":[{"id":"c1","url":"https://github.com/comment","body":"Please fix this.","createdAt":"2026-05-13T00:00:00Z","author":{"login":"reviewer"}}]}}]}}}}}'
-    exit 0
-fi
-echo "unexpected fake gh invocation: $cmd" >&2
-exit 64
-SH
-chmod +x "$TMPDIR/gh"
-export PATH="$TMPDIR:$PATH"
-
-if OUT="$(./aos dev gh context --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["authority"] == "gh_cli", data
-assert data["tool"] == "gh", data
-assert data["repository"] == "michaelblum/agent-os", data
-assert data["default_branch"] == "main", data
-assert data["current_pr"]["number"] == 298, data
-assert data["gh"]["available"] is True, data
-assert data["gh"]["authenticated"] is True, data
-PY
-then
-    pass "dev gh context uses local gh authority"
-else
-    fail "dev gh context did not report expected local gh state"
-fi
-
-if ERR="$(node scripts/aos-dev-gh.mjs context --repo --json 2>&1 >/dev/null)"; then
-    fail "dev gh context should reject missing --repo values before a flag"
-elif echo "$ERR" | grep -q -- '--repo requires a GitHub repository'; then
-    pass "dev gh context treats flag-after---repo as missing value"
-else
-    fail "dev gh context missing --repo error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue view 298 extra --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue view should reject extra positional args"
-elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
-    pass "dev gh issue view rejects extra positional args"
-else
-    fail "dev gh issue view extra positional error mismatch: $ERR"
-fi
-
-: > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh issue view 298 2>/dev/null)" &&
-   echo "$OUT" | grep -q "#298 Governance ledger" &&
-   grep -q "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments --template" "$GH_ARGS_LOG" &&
-   ! grep -q "projectCards" "$GH_ARGS_LOG"; then
-    pass "dev gh issue view avoids deprecated projectCards on non-json output"
-else
-    fail "dev gh issue view did not force safe non-json fields"
-fi
-
-if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --milestone v0 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data[0]["number"] == 399, data
-assert data[0]["state"] == "CLOSED", data
-PY
-then
-    pass "dev gh issue list forwards filtered inventory queries"
-else
-    fail "dev gh issue list did not forward expected filtered query"
-fi
-
-if ERR="$(./aos dev gh issue list --limit --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue list should reject missing --limit values before a flag"
-elif echo "$ERR" | grep -q -- '--limit requires a numeric result limit'; then
-    pass "dev gh issue list treats flag-after---limit as missing value"
-else
-    fail "dev gh issue list missing --limit error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue view 298 --state all --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue view should reject list-only flags with a targeted error"
-elif echo "$ERR" | grep -q -- '--state is only valid for list subcommands'; then
-    pass "dev gh issue view rejects list-only flags with a targeted error"
-else
-    fail "dev gh issue view list-only flag error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue list --base main --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue list should reject PR-only flags"
-elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --base'; then
-    pass "dev gh issue list rejects PR-only flags"
-else
-    fail "dev gh issue list PR-only flag error mismatch: $ERR"
-fi
-
-BODY="$TMPDIR/comment.md"
-printf 'accepted state\n' > "$BODY"
-: > "$GH_ARGS_LOG"
-: > "$GH_BODY_LOG"
-if OUT="$(./aos dev gh issue comment 298 --body-file "$BODY" 2>/dev/null)" &&
-   grep -q "issue comment 298 --repo michaelblum/agent-os --body-file $BODY" "$GH_ARGS_LOG" &&
-   grep -q "accepted state" "$GH_BODY_LOG" &&
-   echo "$OUT" | grep -q "issuecomment-test"; then
-    pass "dev gh issue comment shells out to gh with body-file"
-else
-    fail "dev gh issue comment did not shell out through expected gh invocation"
-fi
-
-: > "$GH_ARGS_LOG"
-: > "$GH_BODY_LOG"
-if OUT="$(printf 'stdin accepted\n' | ./aos dev gh issue comment 298 --body-file - 2>/dev/null)" &&
-   grep -q "issue comment 298 --repo michaelblum/agent-os --body-file " "$GH_ARGS_LOG" &&
-   ! grep -q -- "--body-file -" "$GH_ARGS_LOG" &&
-   grep -q "stdin accepted" "$GH_BODY_LOG" &&
-   echo "$OUT" | grep -q "issuecomment-test"; then
-    pass "dev gh issue comment materializes stdin body-file"
-else
-    fail "dev gh issue comment did not materialize stdin body-file"
-fi
-
-: > "$GH_ARGS_LOG"
-: > "$GH_BODY_LOG"
-if OUT="$(printf 'dev stdin accepted\n' | ./aos dev gh issue comment 298 --body-file /dev/stdin 2>/dev/null)" &&
-   grep -q "issue comment 298 --repo michaelblum/agent-os --body-file " "$GH_ARGS_LOG" &&
-   ! grep -q -- "--body-file /dev/stdin" "$GH_ARGS_LOG" &&
-   grep -q "dev stdin accepted" "$GH_BODY_LOG" &&
-   echo "$OUT" | grep -q "issuecomment-test"; then
-    pass "dev gh issue comment materializes /dev/stdin body-file"
-else
-    fail "dev gh issue comment did not materialize /dev/stdin body-file"
-fi
-
-if ERR="$(./aos dev gh issue comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
-    fail "dev gh issue comment should reject extra positional args"
-elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
-    pass "dev gh issue comment rejects extra positional args"
-else
-    fail "dev gh issue comment extra positional error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue comment 298 --body-file --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue comment should reject missing --body-file values before a flag"
-elif echo "$ERR" | grep -q -- '--body-file requires a path or -'; then
-    pass "dev gh issue comment treats flag-after---body-file as missing value"
-else
-    fail "dev gh issue comment missing --body-file error mismatch: $ERR"
-fi
-
-: > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh issue create --title "Strategic follow-up" --body-file "$BODY" --label governance --label follow-up --assignee @me --milestone v1 2>/dev/null)" &&
-   grep -q "issue create --repo michaelblum/agent-os --title Strategic follow-up --body-file $BODY --label governance --label follow-up --assignee @me --milestone v1" "$GH_ARGS_LOG" &&
-   echo "$OUT" | grep -q "issues/411"; then
-    pass "dev gh issue create shells out to gh with title and body-file"
-else
-    fail "dev gh issue create did not shell out through expected gh invocation"
-fi
-
-if ERR="$(./aos dev gh issue create --body-file "$BODY" 2>&1 >/dev/null)"; then
-    fail "dev gh issue create should require --title"
-elif echo "$ERR" | grep -q -- 'dev gh issue create requires --title <title>'; then
-    pass "dev gh issue create requires an explicit title"
-else
-    fail "dev gh issue create missing title error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue create --title "Strategic follow-up" --body-file --json 2>&1 >/dev/null)"; then
-    fail "dev gh issue create should reject missing --body-file values before a flag"
-elif echo "$ERR" | grep -q -- '--body-file requires a path or -'; then
-    pass "dev gh issue create treats flag-after---body-file as missing value"
-else
-    fail "dev gh issue create missing --body-file error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue create --title "Strategic follow-up" --body-file "$TMPDIR/missing-issue-body.md" 2>&1 >/dev/null)"; then
-    fail "dev gh issue create should reject missing body files"
-elif echo "$ERR" | grep -q -- 'Missing issue body file:'; then
-    pass "dev gh issue create rejects missing body files"
-else
-    fail "dev gh issue create missing body file error mismatch: $ERR"
-fi
-
-: > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh issue close 411 --reason completed 2>/dev/null)" &&
-   grep -q "issue close 411 --repo michaelblum/agent-os --reason completed" "$GH_ARGS_LOG" &&
-   echo "$OUT" | grep -q "Closed issue"; then
-    pass "dev gh issue close shells out with explicit reason"
-else
-    fail "dev gh issue close did not shell out through expected gh invocation"
-fi
-
-if ERR="$(./aos dev gh issue close current --reason completed 2>&1 >/dev/null)"; then
-    fail "dev gh issue close should require a numeric issue"
-elif echo "$ERR" | grep -q -- 'Issue number must be numeric for close: current'; then
-    pass "dev gh issue close rejects non-numeric issues"
-else
-    fail "dev gh issue close non-numeric issue error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue close 411 --body-file "$BODY" 2>&1 >/dev/null)"; then
-    fail "dev gh issue close should reject body files"
-elif echo "$ERR" | grep -q -- 'dev gh issue close does not accept --body-file'; then
-    pass "dev gh issue close rejects body files"
-else
-    fail "dev gh issue close body-file error mismatch: $ERR"
-fi
-
-: > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh issue edit 407 --remove-label lane:active --add-label lane:parked --add-assignee @me --remove-assignee old-owner --milestone v1 --title "Parked ledger" --body-file "$BODY" 2>/dev/null)" &&
-   grep -q "issue edit 407 --repo michaelblum/agent-os --remove-label lane:active --add-label lane:parked --add-assignee @me --remove-assignee old-owner --milestone v1 --title Parked ledger --body-file $BODY" "$GH_ARGS_LOG" &&
-   echo "$OUT" | grep -q "issues/407"; then
-    pass "dev gh issue edit shells out with explicit lifecycle flags"
-else
-    fail "dev gh issue edit did not shell out through expected gh invocation"
-fi
-
-if ERR="$(./aos dev gh issue edit 2>&1 >/dev/null)"; then
-    fail "dev gh issue edit should require an issue number"
-elif echo "$ERR" | grep -q -- 'dev gh issue edit requires exactly one issue number'; then
-    pass "dev gh issue edit requires an issue number"
-else
-    fail "dev gh issue edit missing issue error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue edit current --add-label lane:parked 2>&1 >/dev/null)"; then
-    fail "dev gh issue edit should require a numeric issue"
-elif echo "$ERR" | grep -q -- 'Issue number must be numeric for edit: current'; then
-    pass "dev gh issue edit rejects non-numeric issues"
-else
-    fail "dev gh issue edit non-numeric issue error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue edit 407 2>&1 >/dev/null)"; then
-    fail "dev gh issue edit should reject no-op edits"
-elif echo "$ERR" | grep -q -- 'dev gh issue edit requires at least one edit flag'; then
-    pass "dev gh issue edit rejects no-op edits"
-else
-    fail "dev gh issue edit no-op error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh issue edit 407 --body-file "$TMPDIR/missing-issue-edit-body.md" 2>&1 >/dev/null)"; then
-    fail "dev gh issue edit should reject missing body files"
-elif echo "$ERR" | grep -q -- 'Missing issue body file:'; then
-    pass "dev gh issue edit rejects missing body files"
-else
-    fail "dev gh issue edit missing body file error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev gh label list --limit 10 --search governance --sort name --order desc --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data[0]["name"] == "governance", data
-assert data[0]["isDefault"] is False, data
-PY
-then
-    pass "dev gh label list forwards filtered label inventory queries"
-else
-    fail "dev gh label list did not forward expected filtered query"
-fi
-
-if ERR="$(./aos dev gh label list --limit --json 2>&1 >/dev/null)"; then
-    fail "dev gh label list should reject missing --limit values before a flag"
-elif echo "$ERR" | grep -q -- '--limit requires a numeric result limit'; then
-    pass "dev gh label list treats flag-after---limit as missing value"
-else
-    fail "dev gh label list missing --limit error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh label list --label bug --json 2>&1 >/dev/null)"; then
-    fail "dev gh label list should reject issue-list label filters"
-elif echo "$ERR" | grep -q -- '--label is only valid for issue create and issue/PR list subcommands'; then
-    pass "dev gh label list rejects issue-list label filters"
-else
-    fail "dev gh label list label filter error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
-    fail "dev gh pr comment should reject extra positional args"
-elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
-    pass "dev gh pr comment rejects extra positional args"
-else
-    fail "dev gh pr comment extra positional error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev gh pr list --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data[0]["number"] == 404, data
-assert data[0]["headRefName"] == "gdi/example", data
-assert data[0]["isDraft"] is True, data
-PY
-then
-    pass "dev gh pr list forwards filtered PR inventory queries"
-else
-    fail "dev gh pr list did not forward expected filtered query"
-fi
-
-if ERR="$(./aos dev gh pr list --base --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr list should reject missing --base values before a flag"
-elif echo "$ERR" | grep -q -- '--base requires a base branch name'; then
-    pass "dev gh pr list treats flag-after---base as missing value"
-else
-    fail "dev gh pr list missing --base error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev gh pr view 298 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["number"] == 298, data
-assert data["reviewDecision"] == "CHANGES_REQUESTED", data
-PY
-then
-    pass "dev gh pr view includes reviewDecision in JSON output"
-else
-    fail "dev gh pr view did not request reviewDecision JSON"
-fi
-
-: > "$GH_ARGS_LOG"
-: > "$GH_BODY_LOG"
-if OUT="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file "$BODY" --json 2>/dev/null)" &&
-   OUT="$OUT" python3 - <<'PY' &&
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["authority"] == "gh_cli", data
-assert data["number"] == 433, data
-assert data["url"] == "https://github.com/michaelblum/agent-os/pull/433", data
-assert data["state"] == "OPEN", data
-assert data["head"] == "foreman/dev-gh-pr-create-v0", data
-assert data["base"] == "main", data
-PY
-   grep -q "pr create --repo michaelblum/agent-os --base main --head foreman/dev-gh-pr-create-v0 --title Add PR create --body-file $BODY" "$GH_ARGS_LOG" &&
-   grep -q "pr view https://github.com/michaelblum/agent-os/pull/433 --repo michaelblum/agent-os --json number,url,state,headRefName,baseRefName" "$GH_ARGS_LOG" &&
-   grep -q "accepted state" "$GH_BODY_LOG" &&
-   ! grep -q "accepted state" "$GH_ARGS_LOG"; then
-    pass "dev gh pr create shells out with body-file and returns JSON readback"
-else
-    fail "dev gh pr create did not dispatch through expected body-file flow"
-fi
-
-if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --body-file "$BODY" --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr create should require --title"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "MISSING_ARG", data
-assert data["error"] == "dev gh pr create requires --title <title>", data
-PY
-then
-    pass "dev gh pr create requires structured --title"
-else
-    fail "dev gh pr create missing title error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr create --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file "$BODY" --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr create should require --base"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "MISSING_ARG", data
-assert data["error"] == "dev gh pr create requires --base <branch>", data
-PY
-then
-    pass "dev gh pr create requires structured --base"
-else
-    fail "dev gh pr create missing base error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr create --base main --title "Add PR create" --body-file "$BODY" --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr create should require --head"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "MISSING_ARG", data
-assert data["error"] == "dev gh pr create requires --head <branch>", data
-PY
-then
-    pass "dev gh pr create requires structured --head"
-else
-    fail "dev gh pr create missing head error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr create should require --body-file"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "MISSING_ARG", data
-assert data["error"] == "dev gh pr create requires --body-file <path|->", data
-PY
-then
-    pass "dev gh pr create requires structured --body-file"
-else
-    fail "dev gh pr create missing body-file error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr create --base main --head foreman/dev-gh-pr-create-v0 --title "Add PR create" --body-file --json 2>&1 >/dev/null)"; then
-    fail "dev gh pr create should reject missing --body-file values before a flag"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "MISSING_ARG", data
-assert data["error"] == "--body-file requires a path or -", data
-PY
-then
-    pass "dev gh pr create treats flag-after---body-file as structured missing value"
-else
-    fail "dev gh pr create missing body-file value error mismatch: $ERR"
-fi
-
-: > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh pr merge 410 --merge --match-head-commit abc123 --body-file "$BODY" 2>/dev/null)" &&
-   grep -q "pr merge 410 --repo michaelblum/agent-os --merge --match-head-commit abc123 --body-file $BODY" "$GH_ARGS_LOG" &&
-   echo "$OUT" | grep -q "Merged pull request #410"; then
-    pass "dev gh pr merge shells out with explicit strategy and head guard"
-else
-    fail "dev gh pr merge did not shell out through expected gh invocation"
-fi
-
-if ERR="$(./aos dev gh pr merge 410 --match-head-commit abc123 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should require an explicit merge strategy"
-elif echo "$ERR" | grep -q -- 'dev gh pr merge requires one of --squash, --merge, or --rebase'; then
-    pass "dev gh pr merge requires an explicit strategy"
-else
-    fail "dev gh pr merge missing strategy error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr merge 410 --merge --squash 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should reject multiple merge strategies"
-elif echo "$ERR" | grep -q -- 'dev gh pr merge accepts exactly one merge strategy'; then
-    pass "dev gh pr merge rejects multiple strategies"
-else
-    fail "dev gh pr merge multiple strategy error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr merge current --merge 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should require a numeric PR"
-elif echo "$ERR" | grep -q -- 'PR number must be numeric for merge: current'; then
-    pass "dev gh pr merge rejects non-numeric PR identifiers"
-else
-    fail "dev gh pr merge non-numeric PR error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr merge 410 --merge --auto 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should reject --auto"
-elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --auto'; then
-    pass "dev gh pr merge rejects --auto"
-else
-    fail "dev gh pr merge --auto error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr merge 410 --merge --delete-branch 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should reject --delete-branch"
-elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --delete-branch'; then
-    pass "dev gh pr merge rejects --delete-branch"
-else
-    fail "dev gh pr merge --delete-branch error mismatch: $ERR"
-fi
-
-if ERR="$(./aos dev gh pr merge 410 --merge --body-file "$TMPDIR/missing-pr-merge-body.md" 2>&1 >/dev/null)"; then
-    fail "dev gh pr merge should reject missing body files"
-elif echo "$ERR" | grep -q -- 'Missing PR merge body file:'; then
-    pass "dev gh pr merge rejects missing body files"
-else
-    fail "dev gh pr merge missing body file error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then
-    fail "dev gh ci inspect --json without inferable PR should fail"
-elif OUT="$OUT" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "error", data
-assert data["authority"] == "gh_cli", data
-assert data["exit_code"] == 64, data
-assert data["command"] == "gh pr view --repo michaelblum/agent-os --json number,url", data
-assert "unexpected fake gh invocation" in data["stderr"], data
-PY
-then
-    pass "dev gh ci inspect --json preserves JSON errors while inferring PR"
-else
-    fail "dev gh ci inspect --json did not emit parseable JSON error"
-fi
-
-if ERR="$(./aos dev gh ci inspect --pr --json 2>&1 >/dev/null)"; then
-    fail "dev gh ci inspect should reject missing --pr values before a flag"
-elif echo "$ERR" | grep -q -- '--pr requires a PR number'; then
-    pass "dev gh ci inspect treats flag-after---pr as missing value"
-else
-    fail "dev gh ci inspect missing --pr error mismatch: $ERR"
-fi
-
-if OUT="$(./aos dev gh ci inspect --pr 298 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["checks"][0]["name"] == "unit", data
-assert data["failed_logs"][0]["source"] == "github_actions", data
-assert data["failed_logs"][0]["run_id"] == "987", data
-assert "unit failed log" in data["failed_logs"][0]["stdout"], data
-PY
-then
-    pass "dev gh ci inspect captures failed GitHub Actions logs"
-else
-    fail "dev gh ci inspect did not capture failed Actions logs"
-fi
-
-if OUT="$(./aos dev gh ci inspect --pr 299 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["checks_exit_code"] == 1, data
-assert "checks failed" in data["checks_stderr"], data
-assert data["checks"][0]["name"] == "lint", data
-assert data["failed_logs"][0]["source"] == "github_actions", data
-assert data["failed_logs"][0]["run_id"] == "988", data
-assert "lint failed log" in data["failed_logs"][0]["stdout"], data
-PY
-then
-    pass "dev gh ci inspect captures logs when pr checks exits non-zero with JSON"
-else
-    fail "dev gh ci inspect skipped logs after non-zero pr checks"
-fi
-
-if OUT="$(./aos dev gh review-comments --json 2>/dev/null)"; then
-    fail "dev gh review-comments --json without inferable PR should fail"
-elif OUT="$OUT" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "error", data
-assert data["authority"] == "gh_cli", data
-assert data["exit_code"] == 64, data
-assert data["command"] == "gh pr view --repo michaelblum/agent-os --json number,url", data
-assert "unexpected fake gh invocation" in data["stderr"], data
-PY
-then
-    pass "dev gh review-comments --json preserves JSON errors while inferring PR"
-else
-    fail "dev gh review-comments --json did not emit parseable JSON error"
-fi
-
-if OUT="$(./aos dev gh review-comments --pr 298 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-assert data["thread_count"] == 1, data
-assert data["unresolved_count"] == 1, data
-assert data["threads"][0]["comments"][0]["author"] == "reviewer", data
-PY
-then
-    pass "dev gh review-comments reads thread-level review state through gh GraphQL"
-else
-    fail "dev gh review-comments did not return thread-level review state"
+    fail "aos dev classify returned unexpected error: $ERR"
 fi
 
 echo

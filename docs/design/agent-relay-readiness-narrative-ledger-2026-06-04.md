@@ -104,7 +104,7 @@ relay policy under #407 settled the default workflow:
 - no automatic GitHub publication;
 - GitHub issues as durable workstream ledgers, not one issue per work card.
 
-PR #412 then expanded `./aos dev gh` so Foreman can perform the common GitHub
+PR #412 then expanded `node scripts/aos-dev-gh.mjs` so Foreman can perform the common GitHub
 ledger loop without falling back to raw `gh` for ordinary issue and PR
 operations.
 
@@ -119,7 +119,7 @@ At the handoff that preceded this note, live checks observed:
   permissions.
 - #409 and #410 settled the TCC/readiness broker work that was safe to land in
   that tranche.
-- #412 settled the immediate Foreman-owned `./aos dev gh` control-surface gap:
+- #412 settled the immediate Foreman-owned `node scripts/aos-dev-gh.mjs` control-surface gap:
   issue create, issue close, label list, and guarded PR merge are available.
 - #411 was created as a separate readiness diagnosis/remediation spec. Query
   GitHub for its current title, labels, and state.
@@ -152,7 +152,7 @@ issues before treating it as remaining work.
 
 #411 was created for the design question around separating readiness diagnosis
 from remediation and whether plain `ready` should auto-act on the default path.
-Use `./aos dev gh issue view 411 --json` for its current title, labels, and
+Use `node scripts/aos-dev-gh.mjs issue view 411 --json` for its current title, labels, and
 state.
 
 ### Live Sigil and live-drag correction
@@ -198,7 +198,7 @@ Use this hierarchy for rediscovery:
 
 1. Live Git state: `git status`, current branch, `origin/main` alignment,
    local/remote branches, and stashes.
-2. Live GitHub state: issue and PR list/view JSON through `./aos dev gh`.
+2. Live GitHub state: issue and PR list/view JSON through `node scripts/aos-dev-gh.mjs`.
 3. Live AOS state: `./aos ready --json` and `./aos status --json`.
 4. Accepted commits on `main`.
 5. Historical notes, work cards, reports, and issue comments as rationale only.

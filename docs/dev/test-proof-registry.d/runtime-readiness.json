@@ -1,0 +1,167 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by runtime-readiness.",
+  "entries": [
+    {
+      "id": "content-wait-contract",
+      "path_patterns": [
+        "tests/content-wait.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "wait_contract",
+      "contract": "Content-root wait success, parser rejection, autostart, and missing-root timeout shape stay bounded.",
+      "worth": "This protects the canonical content wait surface without touching the shared repo daemon.",
+      "command": "bash tests/content-wait.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT",
+      "status": "active"
+    },
+    {
+      "id": "worktree-runtime-policy-contract",
+      "path_patterns": [
+        "tests/agent-os-worktree-runtime-policy.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "shell_router",
+      "proof_kind": "runtime_policy",
+      "contract": "Linked git worktrees cannot use the default repo runtime without an explicit isolated AOS_STATE_ROOT.",
+      "worth": "This protects the single-checkout runtime ownership model from alternate-checkout agent work.",
+      "command": "bash tests/agent-os-worktree-runtime-policy.sh",
+      "replaces": [],
+      "guard": "creates a disposable linked worktree and does not execute its native ./aos binary",
+      "status": "active"
+    },
+    {
+      "id": "content-wait-listener-lifecycle",
+      "path_patterns": [
+        "tests/content-wait-listener-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "wait_contract",
+      "contract": "Content wait polling does not accumulate socket listeners while status is unresolved.",
+      "worth": "This catches listener leaks with a fake socket instead of a live daemon loop.",
+      "command": "node --test tests/content-wait-listener-lifecycle.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "show-wait-timeout-boundary",
+      "path_patterns": [
+        "tests/show-wait-timeout-boundary.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "wait_contract",
+      "contract": "Show wait bounds daemon read stalls by caller timeout and emits structured pending-condition JSON.",
+      "worth": "This proves timeout behavior without needing a real canvas or live repo daemon.",
+      "command": "node --test tests/show-wait-timeout-boundary.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "show-wait-isolated-smoke",
+      "path_patterns": [
+        "tests/show-wait.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "wait_contract",
+      "contract": "Show wait observes a URL-backed toolkit canvas readiness predicate through an isolated daemon.",
+      "worth": "This is the focused live smoke for the user-visible wait path without sharing the repo runtime.",
+      "command": "bash tests/show-wait.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT",
+      "status": "active"
+    },
+    {
+      "id": "guarded-live-operation-contract",
+      "path_patterns": [
+        "tests/guarded-live-operation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "live_guard_contract",
+      "contract": "Live-start operations fail closed without explicit allow-start authority.",
+      "worth": "This keeps content wait, show wait, launch, and experience activation from mutating runtime state accidentally.",
+      "command": "bash tests/guarded-live-operation.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and asserts live start is blocked",
+      "status": "active"
+    },
+    {
+      "id": "ready-stale-daemon-hygiene",
+      "path_patterns": [
+        "tests/ready-stale-daemon-hygiene.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "readiness_contract",
+      "contract": "Ready, status, doctor, and clean classify stale daemons consistently.",
+      "worth": "This keeps readiness proof bounded to mock and temporary daemon state instead of broad live cleanup.",
+      "command": "bash tests/ready-stale-daemon-hygiene.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT plus temporary mock processes",
+      "status": "active"
+    },
+    {
+      "id": "aos-readiness-composition-proof",
+      "path_patterns": [
+        "tests/aos-readiness-composition.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "readiness_contract",
+      "contract": "Readiness verdict composition, blocker priority, TCC staleness telemetry, and next-action ordering stay deterministic.",
+      "worth": "This catches readiness priority regressions without touching live TCC or daemon state.",
+      "command": "node --test tests/aos-readiness-composition.test.mjs",
+      "replaces": [],
+      "guard": "model fixtures only; no live TCC mutation",
+      "status": "active"
+    },
+    {
+      "id": "wait-surface-housecleaning-report",
+      "path_patterns": [
+        "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "proof_report",
+      "proof_kind": "proof_report",
+      "contract": "The wait/surface housecleaning report remains an evidence pointer, not a deletion authority by itself.",
+      "worth": "This protects test cleanup decisions from deleting a proof before its replacement command is green and routed.",
+      "command": "git diff --check docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md",
+      "replaces": [],
+      "guard": "report-only; run the named replacement proof before deleting a test",
+      "status": "manual_only"
+    },
+    {
+      "id": "test-harness-ladder-prep-report",
+      "path_patterns": [
+        "docs/dev/reports/test-harness-ladder-prep-protocol-v0.md"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "proof_report",
+      "proof_kind": "proof_report",
+      "contract": "The test harness ladder prep report remains an evidence pointer for harness selection, not a standing command source.",
+      "worth": "This keeps harness cleanup and promotion decisions tied to current routed proofs instead of stale report prose.",
+      "command": "git diff --check docs/dev/reports/test-harness-ladder-prep-protocol-v0.md",
+      "replaces": [],
+      "guard": "report-only; use current workflow routing before adding, moving, or deleting test helpers",
+      "status": "manual_only"
+    }
+  ]
+}

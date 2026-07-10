@@ -42,8 +42,8 @@ export function devGhSubcommandsFor(group) {
 }
 
 export function formatDevGhHelp(_pathParts = [], options = {}) {
-  const invocation = options.invocation ?? './aos';
-  const commandLabel = `${invocation} dev gh`;
+  const invocation = options.invocation ?? 'node scripts/aos-dev-gh.mjs';
+  const commandLabel = invocation;
   const commandNames = DEV_GH_COMMAND_PATHS.map(devGhPathKey);
   const width = Math.max(...commandNames.map((name) => name.length));
   const lines = [

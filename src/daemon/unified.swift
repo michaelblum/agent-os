@@ -3244,16 +3244,17 @@ class UnifiedDaemon {
         sendingSession: [String: Any]?,
         source: [String: Any]? = nil
     ) -> [String: Any] {
-        let rendered = renderSpeechText(rawText: rawText, purpose: purpose, config: currentConfig)
+        let routeConfig = loadConfig()
+        let rendered = renderSpeechText(rawText: rawText, purpose: purpose, config: routeConfig)
         let sessionVoice = sendingSession?["voice"] as? [String: Any]
-        let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice ?? SpeechEngine.resolvedDefaultVoiceID
-        if currentConfig.voice.enabled {
+        let voiceID = sessionVoice?["id"] as? String ?? routeConfig.voice.voice ?? SpeechEngine.resolvedDefaultVoiceID
+        if routeConfig.voice.enabled {
             announce(rendered.text, voiceID: voiceID)
         }
         var route: [String: Any] = [
             "audience": "human",
             "route": "voice",
-            "delivered": currentConfig.voice.enabled,
+            "delivered": routeConfig.voice.enabled,
             "rendered": rendered.dictionary()
         ]
         if let purpose {
@@ -3277,7 +3278,7 @@ class UnifiedDaemon {
         if let source, !source.isEmpty {
             route["source"] = source
         }
-        if !currentConfig.voice.enabled {
+        if !routeConfig.voice.enabled {
             route["reason"] = "voice.enabled is false"
         }
         recordVoiceTelemetry(

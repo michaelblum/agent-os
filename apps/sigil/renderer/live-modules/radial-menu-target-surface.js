@@ -1,6 +1,11 @@
 import { toolkitSpecifier } from './content-roots.js';
 
-const { createDesktopWorldHitRegionController } = await import(toolkitSpecifier('runtime/desktop-world-hit-region.js'));
+const {
+    createSemanticChildTargetSurface,
+    projectSemanticChildTargets,
+    semanticChildSurfaceOffscreenFrame,
+    semanticChildTargetsWorldRect,
+} = await import(toolkitSpecifier('runtime/semantic-child-target-surface.js'));
 const { normalizeSemanticTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js'));
 
 const DEFAULT_TARGET_MIN_SIZE = 56;
@@ -21,10 +26,6 @@ function labelForItem(item = {}) {
 
 function actionForItem(item = {}) {
     return String(item.action || item.id || 'unknown');
-}
-
-function offscreenFrame(size = [1, 1]) {
-    return [-10000, -10000, Math.max(1, Math.round(size[0] || 1)), Math.max(1, Math.round(size[1] || 1))];
 }
 
 export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
@@ -89,36 +90,9 @@ export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
 }
 
 export function radialMenuWorldRect(targets = [], options = {}) {
-    if (!Array.isArray(targets) || targets.length === 0) return null;
-    const padding = Math.max(0, finite(options.padding, DEFAULT_FRAME_PADDING));
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const target of targets) {
-        const radius = finite(target.radius, finite(target.size, DEFAULT_TARGET_MIN_SIZE) / 2);
-        minX = Math.min(minX, target.center.x - radius);
-        minY = Math.min(minY, target.center.y - radius);
-        maxX = Math.max(maxX, target.center.x + radius);
-        maxY = Math.max(maxY, target.center.y + radius);
-    }
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null;
-    return {
-        x: Math.floor(minX - padding),
-        y: Math.floor(minY - padding),
-        w: Math.ceil((maxX - minX) + padding * 2),
-        h: Math.ceil((maxY - minY) + padding * 2),
-    };
-}
-
-function localizeTargets(targets, worldRect) {
-    return targets.map((target) => ({
-        ...target,
-        x: Math.round(target.center.x - worldRect.x),
-        y: Math.round(target.center.y - worldRect.y),
-        size: Math.round(target.size),
-        radius: Math.round(target.radius),
-    }));
+    return semanticChildTargetsWorldRect(targets, {
+        padding: Math.max(0, finite(options.padding, DEFAULT_FRAME_PADDING)),
+    });
 }
 
 export function createRadialMenuTargetSurface({
@@ -132,7 +106,7 @@ export function createRadialMenuTargetSurface({
     if (!runtime) throw new Error('RadialMenuTargetSurface requires runtime');
     if (!url) throw new Error('RadialMenuTargetSurface requires url');
 
-    const controller = createDesktopWorldHitRegionController({
+    const surface = createSemanticChildTargetSurface({
         runtime,
         url,
         id,
@@ -140,69 +114,17 @@ export function createRadialMenuTargetSurface({
         fallbackOwnerCanvasId: 'avatar-main',
         windowLevel: 'screen_saver',
         messageType: 'radial_menu.surface.update',
-    });
-    const state = {
-        id: controller.id,
-        parent: controller.parent,
-        ready: false,
-        creating: false,
-        interactive: false,
-        frame: offscreenFrame([1, 1]),
-        targets: [],
-        pendingSnapshot: null,
-        pendingDisplays: [],
-    };
-
-    function syncControllerState() {
-        const snapshot = controller.snapshot();
-        state.ready = snapshot.ready;
-        state.creating = snapshot.creating;
-        state.interactive = snapshot.interactive;
-        state.frame = snapshot.frame || offscreenFrame([1, 1]);
-    }
-
-    async function ensureCreated() {
-        if (state.ready || state.creating) return state.id;
-        state.creating = true;
-        try {
-            await controller.ensureCreated();
-            syncControllerState();
-            return state.id;
-        } finally {
-            state.creating = false;
-            syncControllerState();
-        }
-    }
-
-    function applySnapshot(snapshot, displays = []) {
-        if (!state.ready) return false;
-        const targets = radialMenuTargetsFromSnapshot(snapshot, {
+        returnDisableChange: false,
+        resolveTargets: (snapshot, options) => radialMenuTargetsFromSnapshot(snapshot, {
             targetMinSize,
-            surfaceId: state.id,
-            parentCanvasId: state.parent,
-        });
-        if (targets.length === 0) {
-            state.targets = [];
-            const changed = controller.disable({ payload: {
-                phase: snapshot?.phase || 'idle',
-                activeItemId: null,
-                bounds: { x: 0, y: 0, w: 1, h: 1 },
-                items: [],
-            } });
-            syncControllerState();
-            return changed && state.interactive;
-        }
-
-        const worldRect = radialMenuWorldRect(targets, { padding: framePadding });
-        if (!worldRect) return false;
-        state.targets = localizeTargets(targets, worldRect);
-        const changed = controller.sync({
-            worldRect,
-            displays,
-            interactive: true,
-            payload: {
-            phase: snapshot.phase,
-            activeItemId: snapshot.activeItemId || null,
+            surfaceId: options.surfaceId,
+            parentCanvasId: options.parentCanvasId,
+        }),
+        resolveWorldRect: (targets) => radialMenuWorldRect(targets, { padding: framePadding }),
+        projectTargets: projectSemanticChildTargets,
+        buildPayload: ({ input, targets, worldRect }) => ({
+            phase: input.phase,
+            activeItemId: input.activeItemId || null,
             bounds: {
                 x: 0,
                 y: 0,
@@ -211,11 +133,47 @@ export function createRadialMenuTargetSurface({
                 worldX: worldRect.x,
                 worldY: worldRect.y,
             },
-            items: state.targets,
-            },
-        });
-        syncControllerState();
-        return changed;
+            items: targets,
+        }),
+        buildDisabledPayload: (snapshot) => ({
+            phase: snapshot?.phase || 'idle',
+            activeItemId: null,
+            bounds: { x: 0, y: 0, w: 1, h: 1 },
+            items: [],
+        }),
+    });
+    const state = {
+        id: surface.id,
+        parent: surface.parent,
+        ready: false,
+        creating: false,
+        interactive: false,
+        frame: semanticChildSurfaceOffscreenFrame([1, 1]),
+        targets: [],
+        pendingSnapshot: null,
+        pendingDisplays: [],
+    };
+
+    function syncSurfaceState() {
+        const snapshot = surface.snapshot();
+        state.ready = snapshot.ready;
+        state.creating = snapshot.creating;
+        state.interactive = snapshot.interactive;
+        state.frame = snapshot.frame || semanticChildSurfaceOffscreenFrame([1, 1]);
+        state.targets = snapshot.targets || [];
+    }
+
+    async function ensureCreated() {
+        if (state.ready || state.creating) return state.id;
+        state.creating = true;
+        try {
+            await surface.ensureCreated();
+            syncSurfaceState();
+            return state.id;
+        } finally {
+            state.creating = false;
+            syncSurfaceState();
+        }
     }
 
     function sync(snapshot, options = {}) {
@@ -223,36 +181,50 @@ export function createRadialMenuTargetSurface({
         state.pendingDisplays = Array.isArray(options.displays) ? options.displays : [];
         if (!state.ready) {
             void ensureCreated()
-                .then(() => applySnapshot(state.pendingSnapshot, state.pendingDisplays))
+                .then(() => {
+                    surface.sync(state.pendingSnapshot, { displays: state.pendingDisplays });
+                    syncSurfaceState();
+                })
                 .catch((error) => {
                     console.warn('[sigil] radial menu target surface create failed:', error);
                 });
             return false;
         }
-        return applySnapshot(state.pendingSnapshot, state.pendingDisplays);
+        const changed = surface.sync(state.pendingSnapshot, { displays: state.pendingDisplays });
+        syncSurfaceState();
+        return changed;
     }
 
     function disable() {
         state.pendingSnapshot = null;
         if (!state.ready) return false;
-        return applySnapshot(null, state.pendingDisplays);
+        const changed = surface.sync(null, { displays: state.pendingDisplays });
+        syncSurfaceState();
+        return changed;
     }
 
     function refreshPayload() {
-        return controller.refreshPayload?.() || false;
+        return surface.refreshPayload?.() || false;
     }
 
     async function remove() {
         if (!state.ready && !state.creating) return;
         try {
-            await controller.remove();
+            await surface.remove();
         } finally {
             state.ready = false;
             state.creating = false;
             state.interactive = false;
             state.targets = [];
-            state.frame = offscreenFrame([1, 1]);
+            state.frame = semanticChildSurfaceOffscreenFrame([1, 1]);
         }
+    }
+
+    function handleLifecycle(msg = {}) {
+        if (typeof surface.handleLifecycle !== 'function') return false;
+        const handled = surface.handleLifecycle(msg);
+        if (handled) syncSurfaceState();
+        return handled;
     }
 
     function snapshot() {
@@ -282,6 +254,7 @@ export function createRadialMenuTargetSurface({
         disable,
         refreshPayload,
         remove,
+        handleLifecycle,
         snapshot,
     };
 }

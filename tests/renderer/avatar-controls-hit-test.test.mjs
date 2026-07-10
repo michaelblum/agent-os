@@ -7,9 +7,11 @@ import {
   avatarControlsContentProps,
   findAvatarControlsElementAt,
   avatarControlsMarkup,
-  resolveAvatarPanelAvoidancePosition,
   resolveAvatarControlsOrigin,
 } from '../../apps/sigil/avatar-controls/surface.js'
+import {
+  resolveAvatarPanelAvoidancePosition,
+} from '../../apps/sigil/avatar-controls/panel-avoidance.js'
 import {
   applyAvatarControlsDescriptorUpdate,
   avatarControlsControlDescriptors,

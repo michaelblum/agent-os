@@ -80,11 +80,21 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('swift-core')?.tcc_identity_sensitive, true);
   assert.equal(
     rules.get('swift-core')?.commands?.[0]?.command,
-    './aos dev build',
+    'node scripts/aos-dev-build.mjs build --no-restart --json',
   );
   assert.equal(
     rules.get('swift-core')?.verification?.[0]?.command,
     './aos ready --post-permission',
+  );
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('bash build.sh --force --no-restart') && note.includes('exits 137'),
+    ),
+  );
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('direct build.sh swiftc output only') && note.includes('spctl launch gate'),
+    ),
   );
   assert.deepEqual(
     rules.get('repo-build-tooling')?.commands?.map((step) => step.command),
@@ -92,6 +102,16 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('build.sh'));
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-rebuild-policy.sh'));
+  assert.ok(
+    rules.get('repo-build-tooling')?.notes?.some((note) =>
+      note.includes('bash build.sh --force --no-restart') && note.includes('post-build codesign'),
+    ),
+  );
+  assert.ok(
+    rules.get('repo-build-tooling')?.notes?.some((note) =>
+      note.includes('spctl rejection is expected') && note.includes('launchability'),
+    ),
+  );
   assert.deepEqual(
     rules.get('root-skill-packages')?.commands?.map((step) => step.command),
     [
@@ -128,6 +148,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/source/**'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('scripts/generate-command-manifests.mjs'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/command-manifest-generation.sh'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
@@ -144,12 +165,23 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*'));
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
+  assert.deepEqual(
+    rules.get('dev-gh-helper')?.commands?.map((step) => step.command),
+    [
+      'node --test tests/aos-dev-gh-contract.test.mjs',
+      'node --test tests/aos-dev-gh-help-parity.test.mjs',
+    ],
+  );
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('scripts/aos-dev-gh.mjs'));
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('scripts/aos-dev-gh-spec.mjs'));
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('tests/aos-dev-gh-contract.test.mjs'));
   assert.equal(rules.has('aos-agent-runner'), false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
   assert.deepEqual(
     rules.get('dev-workflow-manifest')?.commands?.map((step) => step.command),
     [
+      'node --test tests/schemas/dev-test-proof-registry.test.mjs',
       'node --test tests/schemas/dev-workflow-rules.test.mjs',
       'node --test tests/schemas/dev-active-profile.test.mjs',
       'node --test tests/schemas/dev-workflow-profiles.test.mjs',
@@ -162,9 +194,14 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-workflow.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-situation.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-drift-lint.mjs'));
-  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/lib/dev-test-proof-registry.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-situation.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-drift-lint.sh'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.d/**'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/dev-test-proof-registry.schema.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('shared/schemas/fixtures/dev-test-proof-registry/**'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-test-proof-registry.test.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-active-profile.test.mjs'));

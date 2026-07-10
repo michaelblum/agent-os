@@ -41,7 +41,7 @@ After the readiness command's bounded restart/recheck, direct status returned:
 status=ok mode=repo daemon=reachable pid=65507 tap=active focused_app=Code displays=2 windows=57 channels=0 stale_canvases=0 branch=gdi/aos-runtime-resource-accumulation-forensics-v0 ahead=0 dirty=0
 ```
 
-End state after `./aos dev build` and one canonical readiness recheck:
+End state after `node scripts/aos-dev-build.mjs build` and one canonical readiness recheck:
 
 ```text
 ready=false phase=human_required diagnosis=daemon_tcc_grant_stale_or_missing mode=repo daemon=reachable tap=retrying blocked=do,inspect,listen,see

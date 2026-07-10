@@ -113,6 +113,9 @@ Default section order:
 
 - Do not discard or overwrite user changes to satisfy workflow hygiene.
 - Do not invent new scoping models for runtime resources.
+- Do not create or use linked git worktrees for agent-os agent work. The
+  default repo runtime belongs to the primary checkout; runtime-coupled tests
+  from any alternate checkout must use an explicit isolated `AOS_STATE_ROOT`.
 - Treat `_dev` demos as non-canonical.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
@@ -132,6 +135,8 @@ Default section order:
 - `experiences/AGENTS.md` governs experience manifests and app activation
   material.
 - `manifests/AGENTS.md` governs command and capability manifests.
+- `packaging/AGENTS.md` governs repo runtime packaging metadata such as
+  `Info.plist`, entitlements, and signing experiment inputs.
 - `packages/AGENTS.md` governs reusable JavaScript/package layers. Its current
   child is `packages/toolkit/AGENTS.md`, which further indexes `contracts/`,
   `controls/`, `panel/`, and `runtime/`.

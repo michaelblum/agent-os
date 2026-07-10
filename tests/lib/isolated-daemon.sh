@@ -177,8 +177,8 @@ aos_test_start_daemon() {
 
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  # Isolated daemon tests still need the branch-scoped content roots used by
-  # component launch scripts, otherwise launches may restart the test daemon.
+  # Isolated daemon tests register branch-scoped aliases only when the caller
+  # explicitly requests branch scope; canonical roots are the default.
   # shellcheck source=/dev/null
   source "$repo_root/scripts/aos-content-scope.sh"
 

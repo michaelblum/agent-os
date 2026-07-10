@@ -140,6 +140,36 @@ test('DesktopWorldHitRegion disable moves offscreen and marks non-interactive', 
   assert.equal(controller.snapshot().interactive, false)
 })
 
+test('DesktopWorldHitRegion reconciles ready state from child lifecycle events', () => {
+  const calls = []
+  const controller = createDesktopWorldHitRegionController({
+    runtime: fakeRuntime(calls),
+    id: 'hit-region-lifecycle',
+    url: 'aos://toolkit/hit-region.html',
+    fallbackOwnerCanvasId: 'owner-lifecycle',
+    initialSize: [20, 20],
+  })
+
+  assert.equal(controller.handleLifecycle({
+    canvas_id: 'hit-region-lifecycle',
+    canvas: {
+      at: [-10000, -10000, 20, 20],
+      interactive: false,
+    },
+  }), true)
+  assert.equal(controller.snapshot().ready, true)
+
+  assert.equal(controller.sync({ worldRect: { x: 50, y: 60, w: 20, h: 20 } }), true)
+  assert.deepEqual(calls.at(-1), ['update', {
+    id: 'hit-region-lifecycle',
+    frame: [50, 60, 20, 20],
+    interactive: true,
+  }])
+
+  assert.equal(controller.handleLifecycle({ canvas_id: 'hit-region-lifecycle', action: 'removed' }), true)
+  assert.equal(controller.snapshot().ready, false)
+})
+
 test('DesktopWorldHitRegion duplicate create reconciles stale daemon placement offscreen', async () => {
   const calls = []
   const runtime = {

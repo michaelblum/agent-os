@@ -41,6 +41,10 @@ Candidate reusable artifact reporting:
    input defects, and isolated daemons for shared repo-daemon singleton defects.
 6. If new helper code is still needed, keep it local until a second caller or a
    clear platform boundary proves it should be promoted.
+7. For a new or touched executable test, helper, fixture, or proof report, add
+   or update the owning fragment under `docs/dev/test-proof-registry.d/` only
+   after the primitive contract, cheapest harness level, replacement proof,
+   exact command, and guard posture are clear.
 
 ## Canonical URL And Fresh Runtime Evidence
 
@@ -61,10 +65,15 @@ generic file.
 - Reload boundary: reload URL-backed canvases with
   `aos show update --url 'aos://...'`; do not copy a resolved localhost URL
   back into launch or update inputs.
-- Root scoping: the single-worktree dev workflow defaults to canonical
-  `sigil` and `toolkit` content-root keys, even on feature branches. Use
-  branch-scoped keys only for explicit overrides or true parallel
-  worktree/session isolation.
+- Root scoping: the single-checkout dev workflow defaults to canonical
+  `sigil` and `toolkit` content-root keys, even on feature branches. Do not use
+  linked git worktrees or branch-scoped keys to share the default agent-os
+  runtime across agents.
+- Runtime ownership: the default local runtime is single-owner. Use the
+  launchd-managed daemon for `~/.config/aos/{repo|installed}`. Foreground
+  `aos serve` development daemons must use an isolated `AOS_STATE_ROOT`; a
+  default-root foreground dev owner is a readiness blocker and should be cleaned
+  before service start/restart.
 - Namespace boundary: a content-root key is a served namespace, not proof of a
   Git worktree. Use show-list owner metadata to prove
   `owner.worktree_root` matches the expected repo root.
@@ -83,6 +92,11 @@ generic file.
   Use shared repo-daemon live canvas tests, with `tests/lib/live-canvas-serial.sh`,
   when singleton canvas namespace, live content roots, or the current repo
   daemon is the variable under test.
+- Alternate-checkout isolated runtime proof: when an agent needs a foreground
+  daemon from any alternate checkout, set `AOS_STATE_ROOT` to a temporary
+  isolated directory and keep all content roots, canvases, and status-item
+  mutations in that state root. Do not branch-scope the active shared experience
+  or create linked worktrees as a substitute for runtime isolation.
 - Real pointer input versus renderer state mutation: renderer or toolkit tests
   can cover deterministic state transitions. If the failure happens through
   mouse movement, keyboard input, input taps, status-item clicks, or
@@ -92,6 +106,25 @@ generic file.
   status-item owner/click harness is representative. Directly creating
   `avatar-main` with `show create --html` or changing renderer state with
   `show eval` skips the ownership and click path and is not enough by itself.
+
+## Wait And Retry Posture
+
+Use `show wait` and `content wait` only for readiness conditions that have a
+named canvas, manifest, JS predicate, or content root. Every live wait must have
+an explicit timeout and, when JSON is requested, enough pending-condition detail
+to explain what was still missing. Do not layer open-ended sleeps around these
+commands.
+
+Dogfood AOS for real input dwell, animation settling, and OS event delivery
+wherever AOS can observe the condition: use canvas readiness, semantic target
+state, saved captures/refs, input-region events, lifecycle readback, or Work
+Record verification. A fixed sleep is a temporary low-level harness escape hatch
+only when the condition is not yet observable through AOS; keep it inside a
+named helper or guarded scenario, bound it tightly, and treat promotion to an
+AOS-observed predicate as the cleanup target. If a test needs to prove behavior
+after an action, use the canonical observe-act loop: capture/save refs, dry-run
+the action when supported, act once, recapture, and verify with refs diff/expect
+or a Work Record verifier.
 
 ## Reporting Hooks
 

@@ -1,0 +1,165 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by dev-workflow.",
+  "entries": [
+    {
+      "id": "dev-test-proof-registry-schema",
+      "path_patterns": [
+        "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/**",
+        "tests/schemas/dev-test-proof-registry.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-test-proof-registry/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The proof-worth registry schema, canonical registry, fixtures, and evaluator smoke coverage stay aligned.",
+      "worth": "Without this proof, the ratchet can silently stop enforcing the metadata it depends on.",
+      "command": "node --test tests/schemas/dev-test-proof-registry.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-rules-schema",
+      "path_patterns": [
+        "tests/schemas/dev-workflow-rules.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-workflow-rules/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The dev workflow rules manifest and fixtures validate and preserve V0 routing contracts.",
+      "worth": "This catches stale routing rules before agents trust a bad recommendation packet.",
+      "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-active-profile-schema",
+      "path_patterns": [
+        "tests/schemas/dev-active-profile.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "The active development profile selector points at a defined workflow profile.",
+      "worth": "This keeps developer routing profile selection explicit instead of implied by stale defaults.",
+      "command": "node --test tests/schemas/dev-active-profile.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-profiles-schema",
+      "path_patterns": [
+        "tests/schemas/dev-workflow-profiles.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/dev-workflow-profiles/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "schema_contract",
+      "contract": "Workflow profile manifests and fixtures remain schema-valid.",
+      "worth": "This prevents profile metadata drift from changing the dev routing context silently.",
+      "command": "node --test tests/schemas/dev-workflow-profiles.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-workflow-router-contract",
+      "path_patterns": [
+        "tests/dev-workflow-router.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "router_contract",
+      "contract": "The maintainer classify/recommend router, direct script help, and proof-worth ratchet behavior agree.",
+      "worth": "This is the cheapest end-to-end proof that changed paths route to actionable validation instead of stale broad loops.",
+      "command": "bash tests/dev-workflow-router.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-audit-contract",
+      "path_patterns": [
+        "tests/dev-audit.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "dev_grammar_contract",
+      "contract": "The dev grammar verifier reports evidence-backed pass and fail claims for manifest, help, and recommendation routing.",
+      "worth": "This keeps the hidden maintainer router self-auditing instead of trusting stale help or manifest assumptions.",
+      "command": "bash tests/dev-audit.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "dev-situation-contract",
+      "path_patterns": [
+        "tests/dev-situation.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/dev-situation/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "orientation_packet_contract",
+      "contract": "The maintainer situation packet preserves sourced repo, GitHub, readiness, successor-note, and partial-failure state without synthesizing missing facts.",
+      "worth": "This protects the operator orientation surface agents use before choosing a workflow route.",
+      "command": "bash tests/dev-situation.sh",
+      "replaces": [],
+      "guard": "uses fake AOS and temporary Git repositories",
+      "status": "active"
+    },
+    {
+      "id": "dev-drift-lint-contract",
+      "path_patterns": [
+        "tests/dev-drift-lint.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/dev-drift-lint/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "shell_router",
+      "proof_kind": "docs_drift_contract",
+      "contract": "The durable-status tripwire distinguishes dated historical claims from unmarked standing lifecycle claims.",
+      "worth": "This prevents stale issue, stash, runtime, and role claims from becoming active instructions through docs drift.",
+      "command": "bash tests/dev-drift-lint.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "agent-capability-manifest-schema-proof",
+      "path_patterns": [
+        "tests/schemas/aos-agent-capability-manifest-v0.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/aos-agent-capability-manifest-v0/**"
+      ],
+      "owner": "dev-workflow",
+      "harness_level": "schema",
+      "proof_kind": "capability_manifest_contract",
+      "contract": "Developer capability manifest schema, canonical capability set, raw-process constraints, and GitHub capability metadata stay aligned.",
+      "worth": "This keeps typed developer capabilities explicit instead of falling back to raw process assumptions.",
+      "command": "node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    }
+  ]
+}

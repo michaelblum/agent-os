@@ -45,6 +45,8 @@ import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-sub
 import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 
 const repo = new URL('../../', import.meta.url);
+const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
+const WORKFLOW_BROWSER_RECORD_REF_KEY = 'work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
 
 async function repoText(path) {
   return readFile(new URL(path, repo), 'utf8');
@@ -211,7 +213,7 @@ test('wiki subject browser derives deterministic search entries from subject gra
   const { catalogEntry, state } = await subjectBrowserFixtureState();
 
   assert.deepEqual(state.subject_index_entries.map((entry) => entry.subject_id), [
-    'work-record:aos-browser-click-status-2026-05-06',
+    WORKFLOW_BROWSER_RECORD_ID,
     'wiki:aos/concepts/runtime-modes.md',
   ]);
   assert.ok(state.subject_index_entries.every((entry) => entry.type === SUBJECT_BROWSER_INDEX_ENTRY_TYPE));
@@ -247,7 +249,7 @@ test('wiki subject browser derives deterministic search entries from subject gra
   applySubjectNavigationQuery(state, 'work_record.execution_map.view');
   const workRecordSnapshot = wikiSubjectBrowserSnapshot(state);
   assert.deepEqual(workRecordSnapshot.subject_index_entries.map((entry) => entry.subject_id), [
-    'work-record:aos-browser-click-status-2026-05-06',
+    WORKFLOW_BROWSER_RECORD_ID,
   ]);
 
   const legacyRawCapabilitySubject = {
@@ -342,14 +344,14 @@ test('wiki subject browser composes search and graph-index filters deterministic
     createSubjectIndexNavigationEntries(index, {
       filters: { relationship_type: 'origin_subject' },
     }).map((entry) => entry.subject_id),
-    ['work-record:aos-browser-click-status-2026-05-06'],
+    [WORKFLOW_BROWSER_RECORD_ID],
   );
   assert.deepEqual(
     createSubjectIndexNavigationEntries(index, {
       query: 'browser',
       filters: { health: 'valid' },
     }).map((entry) => entry.subject_id),
-    ['work-record:aos-browser-click-status-2026-05-06'],
+    [WORKFLOW_BROWSER_RECORD_ID],
   );
   assert.deepEqual(
     createSubjectIndexNavigationEntries(index, {
@@ -490,7 +492,7 @@ test('wiki subject browser focus preserves index filters trail and catalog openi
   applySubjectIndexFilter(state, 'health', 'valid');
   applySubjectNavigationQuery(state, 'browser');
   const entry = state.subject_index_entries.find((candidate) => (
-    candidate.subject_id === 'work-record:aos-browser-click-status-2026-05-06'
+    candidate.subject_id === WORKFLOW_BROWSER_RECORD_ID
   ));
   const request = createWikiSubjectBrowserOpenRequestFromCatalogEntry(state.catalog_entries[0]);
   applySubjectOpenRequested(state, request);
@@ -509,7 +511,7 @@ test('wiki subject browser focus preserves index filters trail and catalog openi
   assert.equal(snapshot.subject_index_result_count, 1);
   assert.equal(snapshot.focused_subject_details.subject_id, entry.subject_id);
   assert.equal(snapshot.navigation_history.length, 1);
-  assert.equal(snapshot.navigation_trail[0].entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.navigation_trail[0].entry_handle, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(snapshot.last_subject_open_request.opener.id, 'work-record-workbench');
 });
 
@@ -593,19 +595,19 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
     host.entry.value === WORK_RECORD_WORKBENCH_URL
   )));
   assert.equal(request.type, SUBJECT_OPEN_REQUEST_TYPE);
-  assert.equal(request.entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(request.entry_handle, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(request.host.entry.value, WORK_RECORD_WORKBENCH_URL);
   assert.equal(request.open_message.type, 'work_record.open');
-  assert.equal(request.open_message.record.id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(request.open_message.record.id, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(snapshot.last_subject_open_request.opener.id, 'work-record-workbench');
   assert.equal(snapshot.subject_index_filter_count, 1);
   assert.equal(snapshot.navigation_history.length, 1);
   assert.equal(snapshot.navigation_trail[0].source_kind, 'catalog');
   assert.equal(snapshot.navigation_trail[0].catalog_entry_id, entry.id);
-  assert.equal(snapshot.navigation_trail[0].entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.navigation_trail[0].entry_handle, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(
     snapshot.navigation_trail[0].open_ref,
-    'wiki-subject-browser-v0:navigation-trail:open:work-record-aos-browser-click-status-2026-05-06',
+    `wiki-subject-browser-v0:navigation-trail:open:${WORKFLOW_BROWSER_RECORD_REF_KEY}`,
   );
   assert.equal(WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID, 'wiki-subject-browser-v0-work-record');
 });
@@ -694,9 +696,9 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(launch, /wiki-subject-browser-v0:subject-filters/);
   assert.match(launch, /wiki-subject-browser-v0:subject-filter:health/);
   assert.match(launch, /wiki-subject-browser-v0:subject-details/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-list:inspect:work-record-aos-browser-click-status-2026-05-06/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:inspect:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:open:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-workflow-browser-live-action-status-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /ARTIFACT_BUNDLE_FIXTURE/);
   assert.match(launch, /createArtifactBundleSubjectCatalogEntry/);
   assert.match(launch, /example-design-pass\/subject\.json/);

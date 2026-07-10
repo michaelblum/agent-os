@@ -66,6 +66,7 @@ import {
     createAvatarDoubleClickTracker,
     selectionModeKeyName,
 } from './selection-mode-input.js';
+import { createSigilVoiceRuntime } from './voice-runtime.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
@@ -88,8 +89,6 @@ import {
     currentToolkitRoot,
     sigilUrl,
     toolkitSpecifier,
-    toolkitUrl,
-    withQuery,
 } from './content-roots.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
@@ -107,6 +106,30 @@ import {
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
+import {
+    createSigilAvatarParkingController,
+    nativePointFromMessageOrigin,
+    statusCollapseFrameFromOrigin,
+} from './avatar-parking.js';
+import {
+    RENDER_PERFORMANCE_CANVAS_ID,
+    createSigilRenderPerformanceSampler,
+    finiteOrNull,
+} from './render-performance-telemetry.js';
+import {
+    AGENT_TERMINAL_CANVAS_ID,
+    AGENT_TERMINAL_PARK_SCALE,
+    AGENT_TERMINAL_URL,
+    STATUS_PARK_SCALE,
+    WIKI_WORKBENCH_CANVAS_ID,
+    WIKI_WORKBENCH_DEFAULT_PATH,
+    WIKI_WORKBENCH_DEFAULT_URL,
+} from './utility-canvas-config.js';
+import { createSigilUtilityCanvasRuntime } from './utility-canvas-runtime.js';
+import { createSigilStatusMenuRuntime } from './status-menu-runtime.js';
+import { createSigilDebugApi } from './debug-api.js';
+import { createSigilTargetSurfaceEventRuntime } from './target-surface-events.js';
+import { createSigilWikiWorkbenchRuntime } from './wiki-workbench-runtime.js';
 import { createSigilOperatorAnnotationReceiver } from './operator-annotation-receiver.js';
 import {
     configureTransparentSigilRenderer,
@@ -116,6 +139,12 @@ import {
     createSigilAvatarControls,
     resolveAvatarPanelAvoidancePosition,
 } from '../../avatar-controls/surface.js';
+import {
+    avatarNativeFrame,
+    panelFrameToAvatarControlsBounds as resolvePanelFrameToAvatarControlsBounds,
+    panelNativeFrameFromLifecycle,
+    resolveAvatarPanelLifecycleAvoidance,
+} from './avatar-panel-geometry.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 import { copyTextToClipboard } from './clipboard-utils.js';
@@ -143,8 +172,6 @@ const {
 const {
     OPERATOR_ANNOTATION_START_EVENT,
     operatorAnnotationMenuFromLocation,
-    operatorAnnotationStatusMenuItems,
-    routeOperatorAnnotationMenuAction,
 } = await import(toolkitSpecifier('runtime/operator-annotation-menu.js'));
 
 const host = createHostRuntime();
@@ -233,6 +260,10 @@ const liveJs = {
     },
     activeContext: createDefaultActiveContextState(),
     contextRecording: createDefaultContextRecordingState(),
+    voiceDictation: null,
+    voiceDictationEvents: [],
+    voiceResponse: null,
+    voiceResponseActions: [],
     annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleBrowserDomBridge: null,
     annotationReticleEvents: [],
@@ -246,26 +277,10 @@ const liveJs = {
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
-const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
-const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
-const AGENT_TERMINAL_URL = sigilUrl('agent-terminal/index.html', {
-    query: {
-        port: 17761,
-        session: 'sigil-agent-terminal-agent-os',
-    },
-});
-const AGENT_TERMINAL_PARK_SCALE = 0.24;
-const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
-const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/runtime-modes.md';
+let utilityRuntime = null;
+let statusMenuRuntime = null;
 const SIGIL_CONTENT_ROOT = currentSigilRoot();
 const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
-const WIKI_WORKBENCH_URL = toolkitUrl('components/wiki-subject-browser/index.html');
-const WIKI_WORKBENCH_DEFAULT_URL = withQuery(WIKI_WORKBENCH_URL, {
-    wiki: WIKI_WORKBENCH_DEFAULT_PATH,
-    transition: 'fade-in',
-});
-const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
-const STATUS_PARK_SCALE = 0.2;
 
 window.liveJs = liveJs;
 window.state = state;
@@ -347,8 +362,6 @@ let radialGestureVisuals = null;
 let selectionModeCommentEditor = null;
 let selectionModeCommentEditorEl = null;
 let lastSelectionModeEffectActive = false;
-let lastRenderPerformanceFrameAt = null;
-let lastRenderPerformanceSampleAt = 0;
 const sessionVitality = createSessionVitalityController({
     now: () => performance.now(),
 });
@@ -387,106 +400,34 @@ const selectionModeNativeFrameResolver = createSelectionModeNativeFrameResolver(
 });
 
 function nativeFrameForAvatar() {
-    if (!liveJs.avatarPos.valid) return null;
-    const center = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
-    const size = Math.max(1, Math.round(liveJs.avatarHitRadius * 2));
-    const half = size / 2;
-    return [
-        Math.round(center.x - half),
-        Math.round(center.y - half),
-        size,
-        size,
-    ];
-}
-
-function rectFromFrame(frame) {
-    if (!Array.isArray(frame) || frame.length < 4) return null;
-    const rect = {
-        x: Number(frame[0]),
-        y: Number(frame[1]),
-        w: Number(frame[2]),
-        h: Number(frame[3]),
-    };
-    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
-    if (rect.w <= 0 || rect.h <= 0) return null;
-    return rect;
-}
-
-function frameFromRectDictionary(rect) {
-    if (!rect || typeof rect !== 'object') return null;
-    return rectFromFrame([
-        rect.x,
-        rect.y,
-        rect.w ?? rect.width,
-        rect.h ?? rect.height,
-    ]);
-}
-
-function rectContainsRect(outer, inner) {
-    return !!(outer && inner
-        && inner.x >= outer.x
-        && inner.y >= outer.y
-        && inner.x + inner.w <= outer.x + outer.w
-        && inner.y + inner.h <= outer.y + outer.h);
-}
-
-function nativeVisibleViewportForRect(rect) {
-    const displays = liveJs.displays || [];
-    return displays.map((display) => (
-        frameFromRectDictionary(display.nativeVisibleBounds)
-        || frameFromRectDictionary(display.native_visible_bounds)
-        || frameFromRectDictionary(display.visibleBounds)
-        || frameFromRectDictionary(display.visible_bounds)
-        || frameFromRectDictionary(display.nativeBounds)
-        || frameFromRectDictionary(display.native_bounds)
-        || frameFromRectDictionary(display.bounds)
-    )).find((viewport) => rectContainsRect(viewport, rect))
-        || displays.map((display) => (
-            frameFromRectDictionary(display.nativeVisibleBounds)
-            || frameFromRectDictionary(display.native_visible_bounds)
-            || frameFromRectDictionary(display.visibleBounds)
-            || frameFromRectDictionary(display.visible_bounds)
-            || frameFromRectDictionary(display.nativeBounds)
-            || frameFromRectDictionary(display.native_bounds)
-            || frameFromRectDictionary(display.bounds)
-        )).find((viewport) => {
-            const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
-            return viewport
-                && center.x >= viewport.x
-                && center.y >= viewport.y
-                && center.x < viewport.x + viewport.w
-                && center.y < viewport.y + viewport.h;
-        })
-        || null;
-}
-
-function panelNativeFrameFromLifecycle(message = {}) {
-    const canvas = message.canvas || {};
-    return rectFromFrame(canvas.placement?.final_settled_frame)
-        || rectFromFrame(canvas.placement?.policy_adjusted_frame)
-        || rectFromFrame(canvas.at)
-        || rectFromFrame(message.at);
+    return avatarNativeFrame({
+        avatarPos: liveJs.avatarPos,
+        avatarHitRadius: liveJs.avatarHitRadius,
+        displays: liveJs.displays,
+        desktopWorldToNativePoint,
+    });
 }
 
 function panelFrameToAvatarControlsBounds(frame) {
-    const nativeRect = Array.isArray(frame) ? rectFromFrame(frame) : frameFromRectDictionary(frame);
-    if (!nativeRect) return null;
-    return nativeToDesktopWorldRect(nativeRect, liveJs.displays) || nativeRect;
+    return resolvePanelFrameToAvatarControlsBounds(frame, {
+        displays: liveJs.displays,
+        nativeToDesktopWorldRect,
+    });
 }
 
 function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
-    if (!avatarControls.isOpen() || !liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
-    const panelRect = panelNativeFrameFromLifecycle(message);
-    const avatarRect = rectFromFrame(nativeFrameForAvatar());
-    const viewport = nativeVisibleViewportForRect(panelRect);
-    const next = resolveAvatarPanelAvoidancePosition({
-        avatarRect,
-        panelRect,
-        viewport,
-        margin: 12,
+    const resolved = resolveAvatarPanelLifecycleAvoidance(message, {
+        avatarControlsOpen: avatarControls.isOpen(),
+        avatarVisible: liveJs.avatarVisible,
+        avatarPos: liveJs.avatarPos,
+        avatarHitRadius: liveJs.avatarHitRadius,
+        displays: liveJs.displays,
+        desktopWorldToNativePoint,
+        nativeToDesktopWorldPoint,
+        resolveAvatarPanelAvoidancePosition,
     });
-    if (!next || next.overlap !== 0) return false;
-    const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
+    if (!resolved) return false;
+    const { panelRect, avatarRect, viewport, next, desktopPoint } = resolved;
     setAvatarPosition(desktopPoint.x, desktopPoint.y);
     hideTrailSprites();
     interactionTrace.record('sigil-avatar-panel:avoid-overlap', {
@@ -555,6 +496,22 @@ function recordInteraction(stage, data = {}) {
         avatarPos: liveJs.avatarPos,
     });
 }
+
+const voiceRuntime = createSigilVoiceRuntime({
+    liveState: liveJs,
+    recordInteraction,
+    scheduleRenderFrame,
+    isRendererSuspended: () => rendererSuspended,
+});
+const renderPerformanceSampler = createSigilRenderPerformanceSampler({
+    liveState: liveJs,
+    isPrimarySurfaceSegment,
+    isPanelVisible: () => isUtilityCanvasVisible(RENDER_PERFORMANCE_CANVAS_ID),
+    getRendererInfo: () => state.renderer?.info,
+    getRenderLoopWork: () => liveJs.renderLoop?.work,
+    post: (message) => host.post('canvas.send', message),
+    warn: (...args) => console.warn(...args),
+});
 
 function runBootStep(stage, fn) {
     recordBoot(stage);
@@ -1046,18 +1003,34 @@ sigilInputRegions = createSigilInputRegionAdapter({
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
-const UTILITY_CANVAS_IDS = new Set([
-    '__log__',
-    'surface-inspector',
-    'surface-inspector',
-    'sigil-interaction-trace',
-    RENDER_PERFORMANCE_CANVAS_ID,
-    WIKI_WORKBENCH_CANVAS_ID,
-    AGENT_TERMINAL_CANVAS_ID,
-    LEGACY_CODEX_TERMINAL_CANVAS_ID,
-    SIGIL_AVATAR_PANEL_CANVAS_ID,
-]);
-
+const avatarParking = createSigilAvatarParkingController({
+    liveState: liveJs,
+    renderState: state,
+    terminalScale: AGENT_TERMINAL_PARK_SCALE,
+    statusScale: STATUS_PARK_SCALE,
+    nativePointToDesktop: (nativePoint) => {
+        if (!nativePoint) return null;
+        return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
+    },
+    setAvatarVisibility,
+    animateVisibility,
+    setAvatarHover,
+    emitAvatarMark,
+});
+utilityRuntime = createSigilUtilityCanvasRuntime({
+    host,
+    liveState: liveJs,
+    avatarParking,
+    avatarPanel: {
+        id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+        url: SIGIL_AVATAR_PANEL_URL,
+        frame: SIGIL_AVATAR_PANEL_FRAME,
+        usesExternalPanel: () => avatarControls.usesExternalPanel(),
+    },
+    publishStatusMenuItems,
+    nativePointFromMessageOrigin,
+    statusCollapseFrameFromOrigin,
+});
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
     defaultAvatarDirty = true;
@@ -1071,605 +1044,60 @@ state._onAppearanceChanged = () => {
     if (!rendererSuspended) scheduleRenderFrame();
 };
 
-function mainDisplayVisibleBounds() {
-    const displays = liveJs.displays || [];
-    const display = displays.find((entry) => entry.index === 0 || entry.is_main || entry.isMain)
-        || displays[0];
-    return display?.visibleBounds || display?.visible_bounds || display?.bounds || liveJs.visibleBounds;
-}
-
-function utilityFrame(kind) {
-    const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
-    if (kind === 'log-console') {
-        const width = Math.min(520, Math.max(420, visible.w * 0.32));
-        const height = Math.min(320, Math.max(260, visible.h * 0.32));
-        return [
-            Math.round(visible.x + 20),
-            Math.round(visible.y + visible.h - height - 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'sigil-interaction-trace') {
-        const width = Math.min(760, Math.max(620, visible.w * 0.42));
-        const height = Math.min(620, Math.max(480, visible.h * 0.58));
-        return [
-            Math.round(visible.x + 20),
-            Math.round(visible.y + 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'render-performance') {
-        const width = Math.min(560, Math.max(460, visible.w * 0.36));
-        const height = Math.min(560, Math.max(460, visible.h * 0.52));
-        return [
-            Math.round(visible.x + visible.w - width - 20),
-            Math.round(visible.y + visible.h - height - 20),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-    if (kind === 'wiki-workbench') {
-        const width = Math.min(1180, Math.max(840, visible.w * 0.72));
-        const height = Math.min(760, Math.max(560, visible.h * 0.74));
-        return [
-            Math.round(visible.x + (visible.w - width) / 2),
-            Math.round(visible.y + 48),
-            Math.round(width),
-            Math.round(height),
-        ];
-    }
-
-    const width = Math.min(360, Math.max(320, visible.w * 0.26));
-    const height = Math.min(520, Math.max(420, visible.h * 0.55));
-    return [
-        Math.round(visible.x + visible.w - width - 20),
-        Math.round(visible.y + 20),
-        Math.round(width),
-        Math.round(height),
-    ];
-}
-
 function utilityConfig(kind) {
-    if (kind === 'log-console') {
-        return {
-            id: '__log__',
-            url: toolkitUrl('components/log-console/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'sigil-interaction-trace') {
-        return {
-            id: 'sigil-interaction-trace',
-            url: sigilUrl('diagnostics/interaction-trace/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'render-performance') {
-        return {
-            id: RENDER_PERFORMANCE_CANVAS_ID,
-            url: toolkitUrl('components/render-performance/index.html'),
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'wiki-workbench') {
-        return {
-            id: WIKI_WORKBENCH_CANVAS_ID,
-            url: WIKI_WORKBENCH_DEFAULT_URL,
-            frame: utilityFrame(kind),
-        };
-    }
-    if (kind === 'agent-terminal' || kind === 'codex-terminal') {
-        const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
-        const previousWidth = Math.min(920, Math.max(720, visible.w * 0.58));
-        const width = Math.round(previousWidth * 2 / 3);
-        const height = Math.min(620, Math.max(480, visible.h * 0.58));
-        const defaultFrame = [
-            Math.round(visible.x + visible.w - width - 28),
-            Math.round(visible.y + visible.h - height - 28),
-            Math.round(width),
-            Math.round(height),
-        ];
-        return {
-            id: AGENT_TERMINAL_CANVAS_ID,
-            url: AGENT_TERMINAL_URL,
-            frame: defaultFrame,
-        };
-    }
-    return {
-        id: 'surface-inspector',
-        url: toolkitUrl('components/surface-inspector/index.html'),
-        frame: utilityFrame(kind),
-    };
-}
-
-function agentTerminalFrame() {
-    return utilityConfig('agent-terminal').frame;
+    return utilityRuntime.utilityConfig(kind);
 }
 
 function agentTerminalState() {
-    return liveJs.utilityCanvases.get(AGENT_TERMINAL_CANVAS_ID)
-        || liveJs.utilityCanvases.get(LEGACY_CODEX_TERMINAL_CANVAS_ID)
-        || null;
+    return utilityRuntime?.agentTerminalState() || null;
 }
 
 function isAgentTerminalCanvasId(id) {
-    return id === AGENT_TERMINAL_CANVAS_ID || id === LEGACY_CODEX_TERMINAL_CANVAS_ID;
+    return utilityRuntime?.isAgentTerminalCanvasId(id) || false;
 }
 
 function isAgentTerminalVisible() {
-    const current = agentTerminalState();
-    return liveJs.avatarParking?.mode === 'terminal' || (!!current && current.suspended !== true);
+    return utilityRuntime?.isAgentTerminalVisible() || false;
 }
 
 function isUtilityCanvasVisible(id) {
-    const current = liveJs.utilityCanvases.get(id);
-    return !!current && current.suspended !== true;
+    return utilityRuntime?.isUtilityCanvasVisible(id) || false;
 }
 
 function publishStatusMenuItems() {
-    if (!isPrimarySurfaceSegment()) return;
-    const operatorAnnotationItems = operatorAnnotationStatusMenuItems(sigilOperatorAnnotationMenu);
-    host.setStatusMenuItems([
-        ...operatorAnnotationItems,
-        ...(operatorAnnotationItems.length ? [{ type: 'separator' }] : []),
-        {
-            id: 'sigil.status.console',
-            title: 'Console Log',
-            checked: isUtilityCanvasVisible('__log__'),
-        },
-        {
-            id: 'sigil.status.surface_inspector',
-            title: 'Surface Inspector',
-            checked: isUtilityCanvasVisible('surface-inspector'),
-        },
-        {
-            id: 'sigil.status.annotation_mode',
-            title: 'Annotation Mode',
-            checked: isUtilityCanvasVisible('surface-inspector') && !!annotationReticle.active,
-        },
-        { type: 'separator' },
-        {
-            id: 'sigil.status.reload',
-            title: 'Reload',
-            key_equivalent: 'r',
-        },
-        {
-            id: 'sigil.status.remove',
-            title: 'Remove',
-        },
-        { type: 'separator' },
-        {
-            id: 'aos.app.quit',
-            title: 'Quit AOS',
-        },
-    ]);
+    return statusMenuRuntime?.publishStatusMenuItems();
 }
 
-async function reloadFromStatusMenu() {
-    try {
-        await Promise.allSettled([
-            hitTarget.remove(),
-            radialTargetSurface.remove(),
-            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
-        ]);
-    } catch (error) {
-        console.warn('[sigil] status menu reload cleanup failed:', error);
-    } finally {
-        window.location.reload();
-    }
-}
-
-async function handleStatusMenuAction(msg = {}) {
-    if (!isPrimarySurfaceSegment()) return true;
-    const id = String(msg.id || msg.action_id || '').trim();
-    if (!id) return false;
-    const operatorRoute = routeOperatorAnnotationMenuAction(msg, sigilOperatorAnnotationMenu, host);
-    if (operatorRoute.handled) return true;
-    if (id === 'sigil.status.console') {
-        await toggleUtilityCanvas('log-console');
-        return true;
-    }
-    if (id === 'sigil.status.surface_inspector') {
-        await toggleUtilityCanvas('surface-inspector');
-        return true;
-    }
-    if (id === 'sigil.status.annotation_mode') {
-        await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
-        host.post('canvas.send', {
-            target: 'surface-inspector',
-            message: {
-                type: 'canvas_inspector.annotation_toggle',
-                reason: 'status_item_menu',
-            },
-        });
-        publishStatusMenuItems();
-        return true;
-    }
-    if (id === 'sigil.status.reload') {
-        void reloadFromStatusMenu();
-        return true;
-    }
-    if (id === 'sigil.status.remove') {
-        await Promise.allSettled([
-            hitTarget.remove(),
-            radialTargetSurface.remove(),
-            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
-        ]);
-        host.post('canvas.remove', { id: 'avatar-main' });
-        return true;
-    }
-    if (id === 'aos.app.quit') {
-        await host.aosAction({ action: 'app.quit', source: 'status_item_menu' });
-        return true;
-    }
-    return false;
-}
-
-function finiteOrNull(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-}
-
-function postRenderPerformanceSample({ frameStartedAt, renderStartedAt, renderEndedAt }) {
-    liveJs.renderPerformanceTelemetry.attempted += 1;
-    if (!isPrimarySurfaceSegment()) {
-        liveJs.renderPerformanceTelemetry.skipped = 'secondary-segment';
-        return;
-    }
-    if (!isUtilityCanvasVisible(RENDER_PERFORMANCE_CANVAS_ID)) {
-        liveJs.renderPerformanceTelemetry.skipped = 'panel-hidden';
-        lastRenderPerformanceFrameAt = null;
-        return;
-    }
-    const now = renderEndedAt;
-    const frameMs = lastRenderPerformanceFrameAt == null ? null : now - lastRenderPerformanceFrameAt;
-    lastRenderPerformanceFrameAt = now;
-    if (now - lastRenderPerformanceSampleAt < 500) {
-        liveJs.renderPerformanceTelemetry.skipped = 'throttled';
-        return;
-    }
-    if (!Number.isFinite(frameMs) || frameMs <= 0) {
-        liveJs.renderPerformanceTelemetry.skipped = 'invalid-frame';
-        return;
-    }
-    lastRenderPerformanceSampleAt = now;
-    const info = state.renderer?.info;
-    try {
-        host.post('canvas.send', {
-            target: RENDER_PERFORMANCE_CANVAS_ID,
-            message: {
-                type: 'render-performance/sample',
-                payload: {
-                    source: 'sigil-avatar',
-                    targetFps: liveJs.renderLoop?.work?.visualOnly ? 30 : 60,
-                    frameMs,
-                    updateMs: renderStartedAt - frameStartedAt,
-                    renderMs: renderEndedAt - renderStartedAt,
-                    drawCalls: finiteOrNull(info?.render?.calls),
-                    triangles: finiteOrNull(info?.render?.triangles),
-                    points: finiteOrNull(info?.render?.points),
-                    lines: finiteOrNull(info?.render?.lines),
-                    geometries: finiteOrNull(info?.memory?.geometries),
-                    textures: finiteOrNull(info?.memory?.textures),
-                },
-            },
-        });
-        liveJs.renderPerformanceTelemetry.sent += 1;
-        liveJs.renderPerformanceTelemetry.skipped = null;
-        liveJs.renderPerformanceTelemetry.lastError = null;
-    } catch (error) {
-        liveJs.renderPerformanceTelemetry.lastError = String(error?.message || error);
-        console.warn('[sigil] render-performance sample failed:', error);
-    }
+function handleStatusMenuAction(msg = {}) {
+    return statusMenuRuntime.handleStatusMenuAction(msg);
 }
 
 function isAgentTerminalParkedAtStatus() {
-    return liveJs.avatarParking?.mode === 'status';
+    return utilityRuntime?.isAgentTerminalParkedAtStatus() || false;
 }
 
-function nativePointFromMessageOrigin(msg) {
-    const x = Number(msg?.origin_x ?? msg?.payload?.origin_x);
-    const y = Number(msg?.origin_y ?? msg?.payload?.origin_y);
-    if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-    return null;
+function collapseAgentTerminalToStatus(msg) {
+    return utilityRuntime.collapseAgentTerminalToStatus(msg);
 }
 
-function nativePointToDesktop(nativePoint) {
-    if (!nativePoint) return null;
-    return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
+function restoreAgentTerminalFromStatus() {
+    return utilityRuntime.restoreAgentTerminalFromStatus();
 }
 
-function parkAvatarAtNativePoint(nativePoint, mode, scale = AGENT_TERMINAL_PARK_SCALE) {
-    const desktopPoint = nativePointToDesktop(nativePoint);
-    if (!desktopPoint) return;
-    if (!liveJs.avatarParking && liveJs.avatarPos.valid) {
-        liveJs._avatarParkingRestore = {
-            pos: { ...liveJs.avatarPos },
-            scale: state.appScale,
-            visible: liveJs.avatarVisible,
-        };
-    }
-    liveJs.avatarParking = { mode, nativePoint: { ...nativePoint }, scale };
-    liveJs.avatarPos = { x: desktopPoint.x, y: desktopPoint.y, valid: true };
-    state.appScale = scale;
-    setAvatarVisibility(true);
-    setAvatarHover(false);
-    emitAvatarMark();
+function prewarmAgentTerminalCanvas() {
+    return utilityRuntime.prewarmAgentTerminalCanvas();
 }
 
-function parkAvatarInTerminal(frameLike) {
-    const frame = Array.isArray(frameLike) ? frameLike : agentTerminalState()?.at;
-    if (!Array.isArray(frame) || frame.length < 4) return;
-    parkAvatarAtNativePoint({
-        x: Number(frame[0]) + 23,
-        y: Number(frame[1]) + 21,
-    }, 'terminal', AGENT_TERMINAL_PARK_SCALE);
+function prewarmAvatarPanelCanvas() {
+    return utilityRuntime.prewarmAvatarPanelCanvas();
 }
 
-function parkAvatarAtStatus(msg) {
-    const origin = nativePointFromMessageOrigin(msg);
-    if (!origin) return;
-    parkAvatarAtNativePoint(origin, 'status', STATUS_PARK_SCALE);
+function toggleUtilityCanvas(kind) {
+    return utilityRuntime.toggleUtilityCanvas(kind);
 }
 
-function clearAvatarParking({ restoreVisible = true } = {}) {
-    const restore = liveJs._avatarParkingRestore;
-    const restorePos = restore?.pos;
-    liveJs.avatarParking = null;
-    liveJs._avatarParkingRestore = null;
-    if (restorePos?.valid) {
-        liveJs.avatarPos = { ...restorePos };
-    }
-    if (restoreVisible) {
-        state.appScale = restore?.scale > 0.05 ? restore.scale : 1;
-        animateVisibility(true);
-    } else {
-        animateVisibility(false);
-    }
-}
-
-function animateUtilityCanvasFrame(id, from, to, durationMs = 180) {
-    if (!Array.isArray(from) || !Array.isArray(to) || from.length < 4 || to.length < 4) return Promise.resolve();
-    return new Promise((resolve) => {
-        const startedAt = performance.now();
-        function step(now) {
-            const t = Math.min(1, (now - startedAt) / durationMs);
-            const eased = 1 - Math.pow(1 - t, 3);
-            const frame = from.map((value, index) => value + (to[index] - value) * eased);
-            host.canvasUpdate({ id, frame });
-            if (t >= 1) {
-                resolve();
-                return;
-            }
-            requestAnimationFrame(step);
-        }
-        requestAnimationFrame(step);
-    });
-}
-
-async function collapseAgentTerminalToStatus(msg) {
-    const current = agentTerminalState();
-    const origin = nativePointFromMessageOrigin(msg);
-    if (!current || !origin) return false;
-    const targetId = isAgentTerminalCanvasId(current.id) ? current.id : AGENT_TERMINAL_CANVAS_ID;
-    liveJs.pendingAgentTerminalCollapse = 'status';
-    liveJs.pendingAgentTerminalStatusPoint = { ...origin };
-    parkAvatarAtStatus(msg);
-    const from = Array.isArray(current.at) ? current.at.map(Number) : agentTerminalFrame();
-    const to = [origin.x - 14, origin.y - 14, 28, 28];
-    await animateUtilityCanvasFrame(targetId, from, to, 180);
-    await host.canvasSuspend(targetId);
-    host.canvasUpdate({ id: targetId, frame: from });
-    liveJs.utilityCanvases.set(targetId, { ...current, id: targetId, suspended: true, at: from });
-    return true;
-}
-
-async function restoreAgentTerminalFromStatus() {
-    const current = agentTerminalState();
-    if (!current) return false;
-    const targetId = isAgentTerminalCanvasId(current.id) ? current.id : AGENT_TERMINAL_CANVAS_ID;
-    liveJs.pendingAgentTerminalCollapse = null;
-    liveJs.pendingAgentTerminalStatusPoint = null;
-    const frame = Array.isArray(current.at) ? current.at : agentTerminalFrame();
-    host.canvasUpdate({ id: targetId, frame });
-    await host.canvasResume(targetId);
-    liveJs.utilityCanvases.set(targetId, { ...current, id: targetId, suspended: false, at: frame });
-    parkAvatarInTerminal(frame);
-    return true;
-}
-
-async function prewarmAgentTerminalCanvas() {
-    if (liveJs._agentTerminalPrewarmStarted) return;
-    liveJs._agentTerminalPrewarmStarted = true;
-    liveJs.prewarmingAgentTerminal = true;
-    const frame = agentTerminalFrame();
-    try {
-        await host.canvasCreate({
-            id: AGENT_TERMINAL_CANVAS_ID,
-            url: AGENT_TERMINAL_URL,
-            frame,
-            interactive: true,
-            focus: false,
-            suspended: true,
-        });
-        liveJs.utilityCanvases.set(AGENT_TERMINAL_CANVAS_ID, {
-            id: AGENT_TERMINAL_CANVAS_ID,
-            suspended: true,
-            at: frame,
-        });
-    } catch (error) {
-        // Existing sessions are common after launcher/reload; use lifecycle snapshots.
-        if (!/ID_COLLISION|DUPLICATE/i.test(String(error?.message || error))) {
-            console.warn('[sigil] agent terminal prewarm failed:', error);
-        }
-    } finally {
-        liveJs.prewarmingAgentTerminal = false;
-    }
-}
-
-async function prewarmAvatarPanelCanvas() {
-    // One-World Phase 3: embedded path active; no panel canvas to prewarm.
-    if (!avatarControls.usesExternalPanel()) return;
-    if (liveJs._avatarPanelPrewarmStarted) return;
-    liveJs._avatarPanelPrewarmStarted = true;
-    try {
-        await host.canvasCreate({
-            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
-            url: SIGIL_AVATAR_PANEL_URL,
-            frame: SIGIL_AVATAR_PANEL_FRAME,
-            interactive: true,
-            focus: false,
-            suspended: true,
-            window_level: 'floating',
-        });
-        liveJs.utilityCanvases.set(SIGIL_AVATAR_PANEL_CANVAS_ID, {
-            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
-            suspended: true,
-            at: SIGIL_AVATAR_PANEL_FRAME,
-        });
-    } catch (error) {
-        if (!/ID_COLLISION|DUPLICATE|already exists/i.test(String(error?.message || error))) {
-            console.warn('[sigil] avatar panel prewarm failed:', error);
-        }
-    }
-}
-
-async function toggleUtilityCanvas(kind) {
-    const config = utilityConfig(kind);
-    const current = liveJs.utilityCanvases.get(config.id);
-    try {
-        if (current && current.suspended !== true) {
-            await host.canvasSuspend(config.id);
-            liveJs.utilityCanvases.set(config.id, { ...current, suspended: true });
-            if (isAgentTerminalCanvasId(config.id) && liveJs.avatarParking?.mode === 'terminal') {
-                clearAvatarParking({ restoreVisible: true });
-            }
-            return;
-        }
-        if (current) {
-            const frame = Array.isArray(current.at) ? current.at : config.frame;
-            host.canvasUpdate({ id: config.id, frame });
-            await host.canvasResume(config.id);
-            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
-            if (isAgentTerminalCanvasId(config.id)) {
-                parkAvatarInTerminal(frame);
-            }
-            return;
-        }
-        await host.canvasCreate({
-            id: config.id,
-            url: config.url,
-            frame: config.frame,
-            interactive: true,
-            focus: true,
-        });
-        liveJs.utilityCanvases.set(config.id, {
-            id: config.id,
-            suspended: false,
-            at: config.frame,
-        });
-        if (isAgentTerminalCanvasId(config.id)) {
-            parkAvatarInTerminal(config.frame);
-        }
-    } catch (error) {
-        if (!current) {
-            try {
-                await host.canvasResume(config.id);
-                liveJs.utilityCanvases.set(config.id, {
-                    id: config.id,
-                    suspended: false,
-                    at: config.frame,
-                });
-                return;
-            } catch (_) {
-                // Fall through to the original warning below.
-            }
-        }
-        console.warn('[sigil] utility toggle failed:', kind, error);
-    } finally {
-        publishStatusMenuItems();
-    }
-}
-
-async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
-    const config = utilityConfig(kind);
-    const existingPromise = liveJs.utilityCanvasOpenPromises.get(config.id);
-    if (existingPromise) return existingPromise;
-
-    const promise = (async () => {
-        const current = liveJs.utilityCanvases.get(config.id);
-        const frame = Array.isArray(current?.at) ? current.at : config.frame;
-        try {
-            if (current) {
-                host.canvasUpdate({ id: config.id, frame });
-                if (current.suspended === true) await host.canvasResume(config.id);
-                liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
-                return { id: config.id, frame, created: false };
-            }
-            await host.canvasCreate({
-                id: config.id,
-                url: config.url,
-                frame,
-                interactive: true,
-                focus,
-            });
-            liveJs.utilityCanvases.set(config.id, {
-                id: config.id,
-                suspended: false,
-                at: frame,
-            });
-            return { id: config.id, frame, created: true };
-        } catch (error) {
-            const message = String(error?.message || error);
-            if (!current && /ID_COLLISION|DUPLICATE|already exists/i.test(message)) {
-                host.canvasUpdate({ id: config.id, frame });
-                await host.canvasResume(config.id);
-                liveJs.utilityCanvases.set(config.id, {
-                    id: config.id,
-                    suspended: false,
-                    at: frame,
-                });
-                return { id: config.id, frame, created: false, recovered: true };
-            }
-            throw error;
-        }
-    })();
-
-    liveJs.utilityCanvasOpenPromises.set(config.id, promise);
-    try {
-        return await promise;
-    } finally {
-        if (liveJs.utilityCanvasOpenPromises.get(config.id) === promise) {
-            liveJs.utilityCanvasOpenPromises.delete(config.id);
-        }
-        publishStatusMenuItems();
-    }
-}
-
-async function fetchWikiMarkdownDocument(path = WIKI_WORKBENCH_DEFAULT_PATH) {
-    const wikiPath = String(path || WIKI_WORKBENCH_DEFAULT_PATH).replace(/^\/+/, '');
-    const response = await fetch(`/wiki/${wikiPath}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`wiki fetch failed for ${wikiPath}: ${response.status}`);
-    const content = await response.text();
-    return {
-        type: 'markdown_document.open',
-        path: wikiPath,
-        source: {
-            kind: 'wiki',
-            path: wikiPath,
-            page: {
-                path: wikiPath,
-                frontmatter: {},
-            },
-        },
-        content,
-    };
-}
-
-function sendCanvasMessage(target, message) {
-    host.post('canvas.send', { target, message });
+function ensureUtilityCanvasVisible(kind, options) {
+    return utilityRuntime.ensureUtilityCanvasVisible(kind, options);
 }
 
 function sendActivationUpdate(activation, phase, extra = {}) {
@@ -1679,28 +1107,14 @@ function sendActivationUpdate(activation, phase, extra = {}) {
     return update;
 }
 
+const wikiWorkbenchRuntime = createSigilWikiWorkbenchRuntime({
+    ensureUtilityCanvasVisible,
+    post: (type, payload) => host.post(type, payload),
+    sendActivationUpdate,
+});
+
 async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation = null) {
-    let currentActivation = activation;
-    const canvas = await ensureUtilityCanvasVisible('wiki-workbench', { focus: true });
-    if (currentActivation) {
-        currentActivation = sendActivationUpdate(currentActivation, 'surface_transition', {
-            target_surface: currentActivation.target_surface,
-            result: {
-                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
-            },
-        });
-    }
-    const message = await fetchWikiMarkdownDocument(path);
-    sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
-    if (currentActivation) {
-        sendActivationUpdate(currentActivation, 'completed', {
-            result: {
-                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
-                subject: message.source,
-            },
-        });
-    }
-    return { canvas, message };
+    return wikiWorkbenchRuntime.open(path, activation);
 }
 
 function projectStageLocalToScene(localX, localY, yOffset = 0) {
@@ -1853,11 +1267,45 @@ const annotationReticle = createSigilAnnotationReticleController({
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
     getAnnotationCandidates: () => annotationReticleCandidateList(),
 });
-let radialTargetSurfaceDragActive = false;
 liveJs.annotationReticle = annotationReticle.snapshot();
 liveJs.annotationReticleOverlay = null;
+statusMenuRuntime = createSigilStatusMenuRuntime({
+    host,
+    voiceRuntime,
+    operatorAnnotationMenu: sigilOperatorAnnotationMenu,
+    utilityRuntime,
+    annotationReticle,
+    hitTarget,
+    radialTargetSurface,
+    avatarPanelCanvasId: SIGIL_AVATAR_PANEL_CANVAS_ID,
+    isPrimarySurfaceSegment,
+});
 const radialActivationTransition = createRadialActivationTransitionController({
     now: () => state.globalTime,
+});
+const targetSurfaceEvents = createSigilTargetSurfaceEventRuntime({
+    liveJs,
+    hitTarget,
+    radialTargetSurface,
+    avatarControls,
+    interactionTrace,
+    nativeToDesktopWorldPoint,
+    normalizeCanvasOriginInputMessage,
+    handleInputEvent,
+    isRecentDaemonPointerEcho,
+    radialTargetSurfaceReceiptEvidence,
+    applyRadialTargetSurfaceDragPayload,
+    handleLeftMouseUp,
+    getRadialGestureMenu: () => radialGestureMenu,
+    exitAnnotationReticle,
+    clearGestureState,
+    beginRadialGestureDismissal,
+    fastTravel,
+    setInteractionState,
+    annotationCameraItemId: SIGIL_ANNOTATION_CAMERA_ITEM_ID,
+    executeRadialItemCommand,
+    annotationReticleReleaseDisposition,
+    queueFastTravel,
 });
 function sigilUxTreeSnapshot() {
     return createSigilUxTree({
@@ -4123,23 +3571,25 @@ function handleInputEvent(msg) {
         rememberDaemonPointerEvent(msg);
     }
 
-        if (handleSelectionModeInput(msg)) return;
+    if (voiceRuntime.handleInput(msg).handled) return;
 
-        if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
-            if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
-                cancelInteraction('escape');
-                return;
-            }
-            if (msg.type === 'right_mouse_down') {
-                cancelInteraction('right-click');
-                return;
-            }
+    if (handleSelectionModeInput(msg)) return;
+
+    if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+        if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
+            cancelInteraction('escape');
+            return;
         }
+        if (msg.type === 'right_mouse_down') {
+            cancelInteraction('right-click');
+            return;
+        }
+    }
 
-        if (
-            avatarControls.isOpen()
-            && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
-            && typeof msg.x === 'number'
+    if (
+        avatarControls.isOpen()
+        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
+        && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
@@ -4219,208 +3669,11 @@ function handleInputEvent(msg) {
     }
 }
 
-function pointFromHitPayload(payload = {}) {
-    const localX = Number(payload.offsetX);
-    const localY = Number(payload.offsetY);
-    const frame = hitTarget.hit.frame;
-    if (Number.isFinite(localX) && Number.isFinite(localY) && Array.isArray(frame) && frame.length >= 4) {
-        const nativePoint = {
-            x: Number(frame[0]) + localX,
-            y: Number(frame[1]) + localY,
-        };
-        return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
-    }
-
-    const screenX = Number(payload.x ?? payload.screenX);
-    const screenY = Number(payload.y ?? payload.screenY);
-    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
-        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
-    }
-    return null;
-}
-
 function nativeFrameFromDesktopRect(rect) {
     if (!rect) return null;
     const native = desktopWorldToNativePoint({ x: rect.x, y: rect.y }, liveJs.displays);
     if (!native) return null;
     return [native.x, native.y, rect.w, rect.h];
-}
-
-function handleHitCanvasEvent(payload = {}) {
-    const sourceCanvasId = payload.sourceCanvasId ?? payload.source_canvas_id ?? hitTarget.hit.id;
-    const ownerCanvasId = payload.ownerCanvasId ?? payload.owner_canvas_id ?? payload.parent_canvas_id ?? null;
-    if (payload.source !== 'sigil-hit' && payload.source_origin !== 'canvas' && sourceCanvasId !== hitTarget.hit.id) return;
-    interactionTrace.record('hit-canvas', {
-        kind: payload.kind,
-        sourceCanvasId,
-        ownerCanvasId,
-        offsetX: payload.offsetX,
-        offsetY: payload.offsetY,
-        dx: payload.dx,
-        dy: payload.dy,
-        avatarControlsOpen: avatarControls.isOpen(),
-        hitFrame: hitTarget.hit.frame,
-    });
-    if (payload.kind === 'right_mouse_down' || payload.kind === 'right_mouse_up' || payload.kind === 'right_mouse_dragged') {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'right-button-daemon-authority' });
-        return;
-    }
-    const isLeftHitEvent = payload.kind === 'left_mouse_down'
-        || payload.kind === 'left_mouse_dragged'
-        || payload.kind === 'left_mouse_up';
-    if (payload.kind === 'left_mouse_down' || payload.kind === 'left_mouse_dragged' || payload.kind === 'left_mouse_up') {
-        if (!avatarControls.isOpen()) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'controls-closed' });
-            return;
-        }
-    }
-    const point = pointFromHitPayload(payload);
-    if (!point) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'no-point' });
-        return;
-    }
-    if (isLeftHitEvent && !avatarControls.containsDesktopPoint(point)) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-controls', point });
-        return;
-    }
-    if (isLeftHitEvent && isRecentDaemonPointerEcho(payload.kind, point)) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'daemon-echo', point });
-        return;
-    }
-    const normalized = normalizeCanvasOriginInputMessage({ type: 'canvas_message', id: sourceCanvasId, payload }, {
-        desktopWorld: point,
-        sourceCanvasId,
-        ownerCanvasId,
-        sourceEvent: payload.kind,
-        native: Array.isArray(hitTarget.hit.frame)
-            ? {
-                x: Number(hitTarget.hit.frame[0]) + Number(payload.offsetX ?? 0),
-                y: Number(hitTarget.hit.frame[1]) + Number(payload.offsetY ?? 0),
-            }
-            : null,
-    });
-    if (!normalized) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'normalization-failed', point });
-        return;
-    }
-    handleInputEvent({
-        ...normalized,
-        envelope_type: normalized.envelopeType,
-    });
-}
-
-function handleRadialTargetSurfaceEvent(payload = {}) {
-    if (payload.source !== 'sigil-radial-menu-surface') return;
-    const receipt = radialTargetSurfaceReceiptEvidence(payload);
-    interactionTrace.record('radial-surface', {
-        kind: payload.kind,
-        ...receipt,
-    });
-    if (payload.kind === 'radial_surface_ready') {
-        radialTargetSurface.refreshPayload();
-        return;
-    }
-    if (payload.kind === 'radial_item_pointer_down') {
-        radialTargetSurfaceDragActive = false;
-        return;
-    }
-    if (payload.kind === 'radial_item_pointer_move' || payload.kind === 'radial_surface_pointer_move') {
-        if ((Number(payload.buttons) & 1) === 1) {
-            radialTargetSurfaceDragActive = applyRadialTargetSurfaceDragPayload(payload, receipt) || radialTargetSurfaceDragActive;
-        }
-        return;
-    }
-    if (payload.kind === 'radial_item_pointer_enter' || payload.kind === 'radial_item_pointer_leave') {
-        if ((Number(payload.buttons) & 1) === 1) {
-            applyRadialTargetSurfaceDragPayload(payload, receipt);
-        }
-        return;
-    }
-    if (payload.kind === 'radial_item_pointer_up') {
-        if (radialTargetSurfaceDragActive && receipt.worldPoint) {
-            radialTargetSurfaceDragActive = false;
-            handleLeftMouseUp(receipt.worldPoint.x, receipt.worldPoint.y);
-        }
-        return;
-    }
-    if (payload.kind === 'radial_cancel') {
-        const radialSnapshot = liveJs.radialGestureMenu;
-        const result = radialGestureMenu.cancel('radial-surface-cancel');
-        exitAnnotationReticle('radial-surface-cancel');
-        clearGestureState();
-        beginRadialGestureDismissal(result, radialSnapshot);
-        fastTravel.clearGesture('radial-surface-cancel');
-        setInteractionState('IDLE', 'radial-surface-cancel');
-        return;
-    }
-    if (payload.kind !== 'radial_item_click') return;
-    if (liveJs.currentState !== 'RADIAL' || !liveJs.radialGestureMenu) {
-        if (payload.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID || payload.itemAction === 'annotationSnapshot') {
-            const recoveryItem = {
-                id: payload.itemId || SIGIL_ANNOTATION_CAMERA_ITEM_ID,
-                action: payload.itemAction || 'annotationSnapshot',
-            };
-            const commandResult = executeRadialItemCommand(recoveryItem, null, {
-                input: {
-                    kind: 'click',
-                    source: 'sigil.radial-target-surface',
-                    item_id: payload.itemId,
-                    canvas_id: radialTargetSurface.id,
-                },
-                source: 'sigil.radial-target-surface',
-                pointer: receipt.worldPoint || liveJs.pointerPos,
-                reason: 'radial-camera-target-surface-recovery',
-            });
-            interactionTrace.record('radial-surface:recovered', {
-                reason: 'camera-click-after-radial-cleanup',
-                requested: commandResult.handler_result?.requested || null,
-                command_id: commandResult.command_id,
-                executed: commandResult.executed,
-                ...receipt,
-            });
-            clearGestureState();
-            fastTravel.clearGesture('radial-surface-camera-recovery');
-            setInteractionState('IDLE', 'radial-surface-camera-recovery');
-            return;
-        }
-        interactionTrace.record('radial-surface:ignored', {
-            reason: 'state-not-radial',
-            itemId: payload.itemId,
-            ...receipt,
-        });
-        return;
-    }
-    const item = liveJs.radialGestureMenu.items?.find((candidate) => candidate.id === payload.itemId);
-    if (!item?.center) {
-        interactionTrace.record('radial-surface:ignored', {
-            reason: 'missing-item',
-            itemId: payload.itemId,
-            ...receipt,
-        });
-        return;
-    }
-    const result = radialGestureMenu.release({ ...item.center, valid: true }, {
-        input: {
-            kind: 'click',
-            source: 'sigil.radial-target-surface',
-            pointer: { x: item.center.x, y: item.center.y },
-            item_id: payload.itemId,
-            canvas_id: radialTargetSurface.id,
-        },
-        source: 'sigil.radial-target-surface',
-    });
-    const annotationDisposition = annotationReticleReleaseDisposition(result);
-    if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
-    const radialSnapshot = liveJs.radialGestureMenu;
-    clearGestureState();
-    beginRadialGestureDismissal(result, radialSnapshot);
-    if (result?.committed?.type === 'fastTravel') {
-        queueFastTravel(item.center.x, item.center.y);
-        setInteractionState('IDLE', 'radial-surface-fast-travel');
-        return;
-    }
-    fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
-    setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
 }
 
 function originFromMessage(msg = {}) {
@@ -4531,6 +3784,8 @@ function handleHostMessage(rawMsg) {
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
+    if (voiceRuntime.handleVoiceEvent(msg).handled) return;
+
     if (msg.type === 'agent.session.telemetry' || msg.type === 'agent.session.lifecycle') {
         handleSessionTelemetryEnvelope(msg);
         return;
@@ -4552,6 +3807,14 @@ function handleHostMessage(rawMsg) {
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (canvasId === hitTarget.hit.id && hitTarget.handleLifecycle(msg)) {
+            syncHitTargetToAvatar();
+            scheduleRenderFrame();
+        }
+        if (canvasId === radialTargetSurface.id && radialTargetSurface.handleLifecycle(msg)) {
+            syncRadialTargetSurface();
+            scheduleRenderFrame();
+        }
         if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID && msg.action === 'removed') {
             avatarControls.close('panel-removed');
         } else if (
@@ -4565,54 +3828,7 @@ function handleHostMessage(rawMsg) {
             structuralFrameDirty = true;
             avoidAvatarPanelOverlapFromLifecycle(msg);
         }
-        if (UTILITY_CANVAS_IDS.has(canvasId)) {
-            if (msg.action === 'removed') {
-                liveJs.utilityCanvases.delete(canvasId);
-            } else {
-                liveJs.utilityCanvases.set(canvasId, {
-                    ...(msg.canvas || {}),
-                    id: canvasId,
-                    suspended: msg.suspended ?? msg.canvas?.suspended ?? false,
-                    at: msg.at ?? msg.canvas?.at ?? null,
-                });
-            }
-            if (isAgentTerminalCanvasId(canvasId)) {
-                const suspended = msg.suspended ?? msg.canvas?.suspended;
-                if (msg.action === 'removed') {
-                    clearAvatarParking({ restoreVisible: true });
-                    liveJs.pendingAgentTerminalCollapse = null;
-                    liveJs.pendingAgentTerminalStatusPoint = null;
-                    liveJs.prewarmingAgentTerminal = false;
-                } else if (liveJs.prewarmingAgentTerminal) {
-                    if (suspended === true) {
-                        liveJs.utilityCanvases.set(canvasId, {
-                            ...(agentTerminalState() || {}),
-                            id: canvasId,
-                            suspended: true,
-                            at: agentTerminalFrame(),
-                        });
-                    }
-                } else if (suspended === true) {
-                    if (liveJs.pendingAgentTerminalCollapse === 'status' || isAgentTerminalParkedAtStatus()) {
-                        const statusPoint = liveJs.pendingAgentTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
-                        parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
-                    } else if (liveJs.avatarParking?.mode === 'terminal') {
-                        clearAvatarParking({ restoreVisible: true });
-                    }
-                } else {
-                    if (liveJs.pendingAgentTerminalCollapse === 'status') {
-                        const statusPoint = liveJs.pendingAgentTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
-                        parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
-                    } else {
-                        liveJs.pendingAgentTerminalCollapse = null;
-                        liveJs.pendingAgentTerminalStatusPoint = null;
-                        const frame = msg.at ?? msg.canvas?.at;
-                        parkAvatarInTerminal(frame);
-                    }
-                }
-            }
-            publishStatusMenuItems();
-        }
+        utilityRuntime.handleCanvasLifecycle(msg);
         return;
     }
 
@@ -4781,12 +3997,12 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) {
-        handleHitCanvasEvent(msg.payload || {});
+        targetSurfaceEvents.handleHitCanvasEvent(msg.payload || {});
         return;
     }
 
     if (msg.type === 'canvas_message' && msg.id === radialTargetSurface.id) {
-        handleRadialTargetSurfaceEvent(msg.payload || {});
+        targetSurfaceEvents.handleRadialTargetSurfaceEvent(msg.payload || {});
         return;
     }
 
@@ -4830,6 +4046,10 @@ function startPrimarySurfaceServices() {
         'window_entered',
         'element_focused',
         'canvas_inspector.semantic_targets',
+        'wake_detected',
+        'dictation_opened',
+        'dictation_closed_send',
+        'dictation_closed_cancel',
     ], { snapshot: true });
     startMarkHeartbeat();
     emitRadialMenuObjectRegistry();
@@ -4934,7 +4154,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     fastTravel.clear?.();
     const renderStartedAt = performance.now();
     state.renderer.clear(true, true, true);
-    postRenderPerformanceSample({
+    renderPerformanceSampler.postSample({
         frameStartedAt,
         renderStartedAt,
         renderEndedAt: performance.now(),
@@ -5160,7 +4380,7 @@ function animate() {
     }
     const renderStartedAt = performance.now();
     state.renderer.render(state.scene, state.camera);
-    postRenderPerformanceSample({
+    renderPerformanceSampler.postSample({
         frameStartedAt,
         renderStartedAt,
         renderEndedAt: performance.now(),
@@ -5181,179 +4401,56 @@ function animate() {
     }
 }
 
-window.__sigilDebug = {
-    dispatch(msg) {
-        handleHostMessage(msg);
-        return liveJs.currentState;
-    },
-    dispatchDesktop(msg) {
-        handleInputEvent(msg);
-        return liveJs.currentState;
-    },
-    stellationResourceSmoke(options) {
-        return runPrimaryStellationResourceSmoke(options);
-    },
-    snapshot() {
-        return {
-            runtime: {
-                ...SIGIL_RENDERER_RUNTIME,
-                contentRoots: {
-                    sigil: SIGIL_CONTENT_ROOT,
-                    toolkit: TOOLKIT_CONTENT_ROOT,
-                },
-                utilityUrls: {
-                    wikiWorkbench: WIKI_WORKBENCH_DEFAULT_URL,
-                    agentTerminal: AGENT_TERMINAL_URL,
-                },
-                bootFirstFrameAt: window.__sigilBootFirstFrameAt,
-                bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
+window.__sigilDebug = createSigilDebugApi({
+    liveJs,
+    state,
+    handleHostMessage,
+    handleInputEvent,
+    runPrimaryStellationResourceSmoke,
+    runtimeSnapshot: ({ includeUtilityUrls = true } = {}) => ({
+        ...SIGIL_RENDERER_RUNTIME,
+        contentRoots: {
+            sigil: SIGIL_CONTENT_ROOT,
+            toolkit: TOOLKIT_CONTENT_ROOT,
+        },
+        ...(includeUtilityUrls ? {
+            utilityUrls: {
+                wikiWorkbench: WIKI_WORKBENCH_DEFAULT_URL,
+                agentTerminal: AGENT_TERMINAL_URL,
             },
-            state: liveJs.currentState,
-            avatarPos: liveJs.avatarPos,
-            travel: liveJs.travel,
-            fastTravel: fastTravel.exportSnapshot(),
-            radialGestureMenu: liveJs.radialGestureMenu,
-            radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
-            radialActivationTransition: radialActivationTransition.snapshot(),
-            annotationReticle: liveJs.annotationReticle,
-            selectionMode: liveJs.selectionMode,
-            selectionModeOverlay: liveJs.selectionModeOverlay,
-            uxCommandRuntime: liveJs.uxCommandRuntime,
-            activeContext: liveJs.activeContext,
-            contextRecording: liveJs.contextRecording,
-            annotationReticleOverlay: liveJs.annotationReticleOverlay,
-            annotationReticleBrowserDomBridge: liveJs.annotationReticleBrowserDomBridge,
-            annotationReticleEvents: liveJs.annotationReticleEvents,
-            avatarHover: liveJs.avatarHover,
-            avatarHoverProgress: liveJs.avatarHoverProgress,
-            avatarControls: avatarControls?.snapshot?.(),
-            fastTravelEffect: state.transitionFastTravelEffect,
-            fastTravelEvents: liveJs.fastTravelEvents,
-            interactionTrace: {
-                count: interactionTrace.snapshot().count,
-                enabled: interactionTrace.snapshot().enabled,
-            },
-            avatarVisible: liveJs.avatarVisible,
-            renderLoop: liveJs.renderLoop,
-            sessionVitality: liveJs.sessionVitality,
-            hitTargetId: hitTarget.hit.id,
-            hitTargetReady: hitTarget.hit.ready,
-            hitTargetFrame: hitTarget.hit.frame,
-            hitTargetInteractive: hitTarget.hit.interactive,
-            inputRegions: sigilInputRegions?.snapshot?.() ?? null,
-            radialTargetSurface: radialTargetSurface.snapshot(),
-            uxTree: sigilUxTreeSnapshot(),
-            uxTreeReadiness: sigilUxTreeReadiness(),
-            transition: visibilityTransition.active?.effect ?? null,
-            surface: desktopWorldSurface ? {
-                segment: desktopWorldSurface.segment,
-                isPrimary: desktopWorldSurface.isPrimary,
-                latency: desktopWorldSurface.stateLatencySnapshot(),
-            } : null,
-            surfaceTransportProbe: surfaceTransportProbe.snapshot(),
-        };
-    },
-    surfaceTransportProbe: {
-        enable() {
-            return surfaceTransportProbe.setEnabled(true);
-        },
-        disable() {
-            return surfaceTransportProbe.setEnabled(false);
-        },
-        reset() {
-            surfaceTransportProbe.reset();
-            return surfaceTransportProbe.snapshot();
-        },
-        snapshot(options) {
-            return surfaceTransportProbe.snapshot(options);
-        },
-        mark(name, payload) {
-            surfaceTransportProbe.mark(name, payload);
-            return surfaceTransportProbe.snapshot();
-        },
-    },
+        } : {}),
+        bootFirstFrameAt: window.__sigilBootFirstFrameAt,
+        bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
+    }),
+    fastTravel,
+    radialGestureVisuals,
+    radialActivationTransition,
+    avatarControls,
+    interactionTrace,
+    hitTarget,
+    sigilInputRegions: () => sigilInputRegions,
+    radialTargetSurface,
+    sigilUxTreeSnapshot,
+    sigilUxTreeReadiness,
+    visibilityTransition,
+    desktopWorldSurface,
+    surfaceTransportProbe,
     avatarDefinition,
     importAvatarDefinitionText,
-    utilityConfig(kind) {
-        return utilityConfig(kind);
-    },
-    uxTree() {
-        return sigilUxTreeSnapshot();
-    },
-    uxTreeShadow(input) {
-        return sigilUxTreeShadowResolver().resolve(input || {});
-    },
-    uxTreeReadiness() {
-        return sigilUxTreeReadiness();
-    },
-    uxTreeCommand(input, registry = {}) {
-        return executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
-            input: input || {},
-            registry,
-            context: { source: 'debug-api' },
-        });
-    },
-    openWikiWorkbench(path) {
-        return openWikiWorkbench(path || WIKI_WORKBENCH_DEFAULT_PATH);
-    },
-    fastTravelPreview() {
-        return fastTravel.preview();
-    },
-    interactionTrace() {
-        return interactionTrace.snapshot({
-            runtime: {
-                ...SIGIL_RENDERER_RUNTIME,
-                contentRoots: {
-                    sigil: SIGIL_CONTENT_ROOT,
-                    toolkit: TOOLKIT_CONTENT_ROOT,
-                },
-                bootFirstFrameAt: window.__sigilBootFirstFrameAt,
-                bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
-            },
-            snapshot: this.snapshot(),
-        });
-    },
-    clearInteractionTrace() {
-        interactionTrace.clear();
-        return interactionTrace.snapshot();
-    },
-    armInteractionTrace(label = 'manual') {
-        return interactionTrace.arm(label);
-    },
-    stopInteractionTrace(reason = 'manual') {
-        return interactionTrace.stop(reason);
-    },
-    latestInteractionTraceCapture() {
-        return interactionTrace.latestCapture();
-    },
-    setInteractionTraceEnabled(value) {
-        return interactionTrace.setEnabled(value);
-    },
-    createSelectionModeContext(input = {}) {
-        return createSelectionModeContextFromDebugInput(input);
-    },
-    enterSelectionMode(pointer = liveJs.pointerPos) {
-        return enterSelectionMode(pointer, 'debug-api');
-    },
-    cancelSelectionMode(reason = 'debug-api') {
-        return exitSelectionMode(reason);
-    },
-    commitSelectionMode(reason = 'debug-api') {
-        return commitSelectionMode(reason);
-    },
-    setSelectionModeNodeComment(nodeId = '', text = '', options = {}) {
-        return setSelectionModeNodeComment(nodeId, text, options);
-    },
-    appendActiveContextKeyframe(options = {}) {
-        return appendContextRecordingKeyframe(liveJs.activeContext?.context_keyframe, options);
-    },
-    appendContextRecordingEvent(event = {}) {
-        return appendContextRecordingEvent(event);
-    },
-    exportContextRecording() {
-        return contextRecordingRuntime.exportContextRecording();
-    },
-};
+    utilityConfig,
+    sigilUxTreeShadowResolver,
+    executeSigilUxTreeCommand,
+    openWikiWorkbench,
+    defaultWikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
+    createSelectionModeContextFromDebugInput,
+    enterSelectionMode,
+    exitSelectionMode,
+    commitSelectionMode,
+    setSelectionModeNodeComment,
+    appendContextRecordingKeyframe,
+    appendContextRecordingEvent,
+    contextRecordingRuntime,
+});
 
 export async function boot() {
     recordBoot('boot:start');

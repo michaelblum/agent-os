@@ -57,6 +57,16 @@ test('show wait bounds daemon read stalls by caller timeout', async () => {
 
     assert.notEqual(exitCode, 0);
     assert.match(stderr, /CANVAS_WAIT_TIMEOUT/);
+    const payload = JSON.parse(stderr);
+    assert.equal(payload.status, 'failure');
+    assert.equal(payload.code, 'CANVAS_WAIT_TIMEOUT');
+    assert.equal(payload.operation_id, 'show.wait');
+    assert.equal(payload.pending_condition.id, 'never-ready');
+    assert.equal(payload.pending_condition.observed.last_state, 'no_response');
+    assert.equal(payload.pending_condition.observed.eval_attempts, 1);
+    assert.equal(payload.pending_condition.observed.no_response_count, 1);
+    assert.equal(payload.timeout_ms, 200);
+    assert.equal(typeof payload.next_action, 'string');
     assert.ok(elapsed < 900, `show wait exceeded caller timeout boundary: ${elapsed}ms`);
   } finally {
     await new Promise((resolve) => server.close(resolve));

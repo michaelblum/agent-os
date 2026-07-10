@@ -29,8 +29,7 @@ Agent-os has two separate surfaces that must not be collapsed:
   runtime behavior.
 
 `Recipe` now means the executable source-backed procedure. The old `aos ops`
-noun is only a compatibility alias for `aos recipe`; do not add new current
-guidance that makes `aos ops` canonical.
+command surface is retired; current guidance must use `aos recipe`.
 
 ## Good Guide/SOP Fit
 

@@ -19,7 +19,7 @@ remains required before claiming the full action loop complete.
 
 - Preflight:
   - `./aos ready --json` returned ready.
-  - `./aos dev build --no-restart --json` returned `binary_rebuilt:false` and
+  - `node scripts/aos-dev-build.mjs build --no-restart --json` returned `binary_rebuilt:false` and
     `binary_resigned:false`.
 - Activated fixture:
   - `./aos experience activate operator-fixture --json --allow-start`

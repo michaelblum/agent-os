@@ -15,10 +15,15 @@ function error(message, code = 'UNKNOWN_FLAG') {
 
 function usage() {
   return [
-    'Usage: aos dev build [--release] [--force] [--no-restart] [--json]',
+    'Usage: node scripts/aos-dev-build.mjs build [--release] [--force] [--no-restart] [--json]',
     '',
     'Wraps repo-root build.sh and always passes --no-restart unless already supplied.',
     'Running this command may rebuild the repo-mode ./aos binary.',
+    'If repo ./aos is missing or exits 137, recover directly with:',
+    '  bash build.sh --force --no-restart',
+    'That path must remain raw build.sh swiftc output: no post-build codesign,',
+    'explicit signing identifier, app bundle, entitlements, allowlist assumption,',
+    'or spctl launch gate.',
     '',
     'Options:',
     '  --release     Build optimized release binary',
@@ -39,7 +44,7 @@ function buildCommand(args) {
   const passthrough = args.filter((arg) => !['--help', '-h', '--json'].includes(arg));
   for (const arg of passthrough) {
     if (!['--release', '--force', '--no-restart'].includes(arg)) {
-      error(`Unknown dev build argument: ${arg}`, 'UNKNOWN_FLAG');
+      error(`Unknown maintainer build argument: ${arg}`, 'UNKNOWN_FLAG');
     }
   }
   const repoRoot = process.env.REPO_ROOT || process.cwd();
@@ -77,4 +82,4 @@ function buildCommand(args) {
 
 const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'build') buildCommand(rest);
-else error(`Unknown dev build command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
+else error(`Unknown maintainer build command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');

@@ -5,25 +5,43 @@
   "label": "GitHub Capabilities",
   "summary": "Typed GitHub capabilities for repo-development sessions.",
   "applies_to": {
-    "roles": ["coordinator", "worker", "observer"],
-    "entry_paths": ["aos_developer", "testing"]
+    "roles": [
+      "coordinator",
+      "worker",
+      "observer"
+    ],
+    "entry_paths": [
+      "aos_developer",
+      "testing"
+    ]
   },
   "capabilities": [
     {
       "id": "dev.github.context",
       "label": "GitHub Context",
-      "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
+      "summary": "Inspect local git and gh authentication context through repo-local maintainer scripts.",
       "status": "active",
-      "roles": ["coordinator", "worker", "observer"],
-      "entry_paths": ["aos_developer"],
+      "roles": [
+        "coordinator",
+        "worker",
+        "observer"
+      ],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
-        "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "context", "--json"]
+        "kind": "node",
+        "command": [
+          "node",
+          "scripts/aos-dev-gh.mjs",
+          "context",
+          "--json"
+        ]
       },
       "mutability": {
         "class": "read_only",
         "side_effects": [],
-        "requires_explicit_assignment": false,
+        "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
       },
@@ -31,7 +49,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "allowed",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [],
@@ -53,17 +71,28 @@
     {
       "id": "dev.github.issue_comment",
       "label": "GitHub Issue Comment",
-      "summary": "Write a GitHub issue comment through a body file using the local gh CLI via ./aos dev gh.",
+      "summary": "Write a GitHub issue comment through a body file using the local gh CLI via node scripts/aos-dev-gh.mjs.",
       "status": "active",
-      "roles": ["coordinator"],
-      "entry_paths": ["aos_developer"],
+      "roles": [
+        "coordinator"
+      ],
+      "entry_paths": [
+        "aos_developer"
+      ],
       "adapter": {
-        "kind": "aos_cli",
-        "command": ["./aos", "dev", "gh", "issue", "comment"]
+        "kind": "node",
+        "command": [
+          "node",
+          "scripts/aos-dev-gh.mjs",
+          "issue",
+          "comment"
+        ]
       },
       "mutability": {
         "class": "external_write",
-        "side_effects": ["github_issue_comment"],
+        "side_effects": [
+          "github_issue_comment"
+        ],
         "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": true
@@ -72,7 +101,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [

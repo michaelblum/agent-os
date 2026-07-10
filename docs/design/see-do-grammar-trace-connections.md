@@ -161,9 +161,9 @@ language.
 
 ## Codebase Poke: Existing Record, Replay, Script, And Trace Surfaces
 
-Update 2026-05-27: ADR-0013 now defines AOS Execution Model V0. Read `aos recipe`
-as the canonical source-backed executable recipe surface; `aos ops` is only a
-compatibility alias with a removal gate.
+Update 2026-07-09: ADR-0013 defines AOS Execution Model V0. Read `aos recipe`
+as the canonical source-backed executable recipe surface; the old `aos ops`
+surface is retired and must not be used as a compatibility path.
 
 No general AOS workflow recorder/replayer appears to exist yet. The closest
 concrete pieces are adjacent, not unified:

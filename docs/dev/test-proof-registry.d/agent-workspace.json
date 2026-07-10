@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by agent-workspace.",
+  "entries": [
+    {
+      "id": "cross-backend-saved-ref-manual-proof",
+      "path_patterns": [
+        "tests/manual/cross-backend-saved-ref-regression-proof.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/aos-skills/cold-agent-forward-proof-v0.json"
+      ],
+      "owner": "agent-workspace",
+      "harness_level": "guarded_live",
+      "proof_kind": "saved_ref_contract",
+      "contract": "Cross-backend saved-ref regression proof preserves browser, AOS canvas, native AX, summary, and cleanup evidence.",
+      "worth": "This proof is valuable but too environment-sensitive for broad default loops.",
+      "command": "AOS_SAVED_REF_PROOF_MODE=guarded-live bash tests/manual/cross-backend-saved-ref-regression-proof.sh",
+      "replaces": [
+        "tests/agent-workspace-cross-backend-proof.sh"
+      ],
+      "guard": "requires explicit guarded-live approval, isolated proof root, and permission/runtime readiness",
+      "status": "manual_only"
+    },
+    {
+      "id": "native-ax-saved-ref-live-proof",
+      "path_patterns": [
+        "tests/manual/native-ax-saved-ref-live-proof.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "agent-workspace",
+      "harness_level": "real_input",
+      "proof_kind": "saved_ref_contract",
+      "contract": "Native AX saved-ref live proof exercises the real native accessibility boundary.",
+      "worth": "This catches native-boundary failures that deterministic saved-ref fixtures cannot observe.",
+      "command": "bash tests/manual/native-ax-saved-ref-live-proof.sh",
+      "replaces": [
+        "tests/agent-workspace-cross-backend-proof.sh"
+      ],
+      "guard": "requires explicit real-input approval, native AX permissions, and a user-safe desktop state",
+      "status": "manual_only"
+    }
+  ]
+}

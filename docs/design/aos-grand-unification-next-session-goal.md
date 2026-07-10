@@ -37,11 +37,11 @@ git worktree list
 git branch --format='%(refname:short)' | sort
 ./aos ready
 ./aos show list --json
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 gh issue view 291 --json number,title,state,url,body
 ```
 
-Use focused `./aos dev recommend --json --files ...` arguments after editing so
+Use focused `node scripts/aos-dev-workflow.mjs recommend --json --files ...` arguments after editing so
 the router sees the intended slice.
 
 ## Read First
@@ -68,7 +68,7 @@ Then inspect the likely live canvas test surface:
 - `tests/canvas-stats-injection.sh`
 - `tests/canvas-lifecycle-metadata-smoke.sh`
 - `tests/lib/visual-harness.sh`
-- adjacent tests selected by `./aos dev recommend`
+- adjacent tests selected by `node scripts/aos-dev-workflow.mjs recommend`
 
 ## Current Checkpoint
 
@@ -116,7 +116,7 @@ accidental parallel execution. Do not redesign daemon isolation.
 6. If router rules should steer changed live canvas tests toward serial focused
    commands, update `docs/dev/workflow-rules.json` and schema/fixtures only as
    needed.
-7. Run `./aos dev recommend --json --files ...`, then focused tests,
+7. Run `node scripts/aos-dev-workflow.mjs recommend --json --files ...`, then focused tests,
    router-selected tests, `git diff --check`, `./aos ready`, and `./aos show
    list --json` cleanup verification.
 8. Commit focused reversible slices.

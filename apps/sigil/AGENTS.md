@@ -61,11 +61,11 @@ canvas:
     --track union
 ```
 
-For topic worktrees, do not overwrite canonical `content.roots.toolkit` or
-`content.roots.sigil`. Use branch-scoped content roots from
-`scripts/aos-content-scope.sh` or a branch-aware launch script, then launch
-surfaces from the scoped Sigil root and pass the matching `toolkit-root` when a
-Sigil surface opens toolkit panels.
+Do not run Sigil against the default repo runtime from a linked git worktree.
+Switch branches in the primary checkout for shared-runtime Sigil work. If an
+alternate checkout needs runtime-coupled proof, set an explicit isolated
+`AOS_STATE_ROOT` and keep all content roots, canvases, and status-item mutation
+inside that isolated state root.
 
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
 
@@ -96,9 +96,18 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 |------|------|
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
+| `renderer/live-modules/avatar-panel-geometry.js` | Testable renderer-side adapter for avatar native-frame and panel lifecycle geometry. Keep conversion functions injected from toolkit spatial helpers instead of reimplementing DesktopWorld transforms here. |
 | `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar and avatar-controls region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
+| `renderer/live-modules/avatar-parking.js` | Sigil avatar parking controller for terminal/status collapse. Keep parking point math and restore bookkeeping here; terminal lifecycle transactions and host canvas mutations belong in `utility-canvas-runtime.js`. |
+| `renderer/live-modules/render-performance-telemetry.js` | Sigil render-performance sample throttling, payload construction, and telemetry bookkeeping. Keep renderer facts injected from `main.js`; keep the sampler testable and free of canvas lifecycle ownership. |
+| `renderer/live-modules/status-menu.js` | Sigil status-item menu construction and fixed action routing. Keep menu shape and action ids here; keep canvas mutations and app side effects injected from `main.js` or narrower owners. |
+| `renderer/live-modules/utility-canvas-config.js` | Sigil utility canvas ids, content URLs, and default frame geometry. Keep reusable frame/config math here with injected display bounds. |
+| `renderer/live-modules/utility-canvas-runtime.js` | Sigil utility-surface lifecycle owner. Keep terminal collapse/restore host mutations transactional, preserve local state on IPC failure, and cover state transitions through direct fake-host tests. |
+| `renderer/live-modules/wiki-workbench-runtime.js` | Sigil wiki-workbench opening adapter. Keep generic wiki-to-Markdown open payloads in `packages/toolkit/workbench/`; keep Sigil activation, target canvas id, and host posting injected here. |
+| `renderer/live-modules/voice-dictation.js` | Sigil compatibility wrapper over toolkit dictation controls. Keep reusable dictation state, event normalization, and text-target behavior in `packages/toolkit/controls/`; Sigil owns only app policy and presentation around those events. |
+| `renderer/live-modules/voice-runtime.js` | Sigil voice orchestration adapter. It wires toolkit-backed dictation, Sigil response policy, live renderer state, interaction trace, status-menu backend selection, and render scheduling without putting those guts back into `main.js`. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
-| `avatar-controls/` | Live avatar controls implementation and agent playbook for surface diagnostics. |
+| `avatar-controls/` | Live avatar controls implementation and agent playbook for surface diagnostics. Pure avatar-panel avoidance geometry lives in `avatar-controls/panel-avoidance.js`; DOM, descriptor, compact panel, and lifecycle behavior stays in the surface modules. |
 | `agent-terminal/` | Canonical Sigil Agent Terminal entrypoint. Launch with `apps/sigil/agent-terminal/launch.sh`; the entrypoint wraps the toolkit-owned Agent Terminal surface at `packages/toolkit/components/agent-terminal/` with `surface=sigil` so Sigil can add avatar controls. |
 | `codex-terminal/` | Historical compatibility and bridge/server path for the Agent Terminal evolved from the Codex-only MVP. The rendered terminal surface now lives in toolkit; the remaining decomposition step is moving this bridge/server substrate out of Sigil when that slice is small enough. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | legacy configuration surface | Decommissioned avatar configuration surface, retained for reference only. Do not launch it, route users to it, or use the old product name in new user-facing copy. |
@@ -187,16 +196,17 @@ Canvases load via `aos://sigil/renderer/index.html` and other Sigil content-root
 
 Sigil now depends on toolkit runtime modules at load time for shared spatial
 helpers, so repo-mode workflows must ensure both content roots are configured.
-Use canonical roots only on `main`:
+Use canonical roots in the primary checkout, including feature branches:
 
 ```bash
 ./aos set content.roots.toolkit packages/toolkit
 ./aos set content.roots.sigil apps/sigil
 ```
 
-Topic worktrees must use branch-scoped sibling roots such as
-`sigil_codex_example` and `toolkit_codex_example` so multiple sessions can share
-the singleton daemon without loading each other's HTML, JS, or CSS.
+Linked git worktrees must not share the singleton daemon. Branch-scoped Sigil
+and toolkit roots are allowed only inside explicit isolated runtime proofs under
+`AOS_STATE_ROOT` with `AOS_CONTENT_ROOT_SCOPE=branch`, not for the active shared
+status-item experience.
 
 ## Dependencies
 

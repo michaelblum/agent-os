@@ -290,7 +290,7 @@
     {
       "name": "aos-recipes",
       "path": "skills/aos-recipes",
-      "description": "Use AOS source-backed executable recipes without confusing them with skills or workflows. Trigger when an agent needs to list, explain, dry-run, or run an AOS recipe, or when old docs mention aos ops and need the direct aos recipe surface.",
+      "description": "Use AOS source-backed executable recipes without confusing them with skills or workflows. Trigger when an agent needs to list, explain, dry-run, or run an AOS recipe.",
       "status": "installable",
       "installable": true,
       "invocation": "enabled",
@@ -304,15 +304,14 @@
       "references": [
         "docs/api/aos.md",
         "manifests/commands/source/aos/06-recipe.json",
-        "manifests/commands/source/aos/05-ops.json",
         "recipes/AGENTS.md",
-        "tests/ops-contract.sh"
+        "tests/recipe-contract.sh"
       ],
       "claims_durable_behavior": true,
       "backing": [
         "docs/api/aos.md",
         "recipes/AGENTS.md",
-        "tests/ops-contract.sh"
+        "tests/recipe-contract.sh"
       ]
     },
     {
@@ -428,6 +427,64 @@
       "target_support": [],
       "ownership": "Local communication compression skill, outside the AOS installable skill product.",
       "references": [],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "aos-maintainer-routing",
+      "path": "skills/aos-maintainer-routing",
+      "description": "Route AOS maintainer validation through deterministic repo workflow rules. Use inside agent-os when choosing proof or test commands for changed files, proof-worth assets, command surfaces, docs, skills, or implementation paths; call node scripts/aos-dev-workflow.mjs recommend.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "Repo maintainer validation-routing helper, outside the AOS installable skill product.",
+      "references": [
+        "docs/dev/workflow-rules.json",
+        "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/",
+        "scripts/aos-dev-workflow.mjs",
+        "tests/dev-workflow-router.sh",
+        "tests/aos-dev-gh-contract.test.mjs"
+      ],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "aos-repo-binary-build",
+      "path": "skills/aos-repo-binary-build",
+      "description": "Run the raw repo-local AOS binary build workflow safely. Use inside agent-os when ./aos is missing, exits 137, Swift or native runtime inputs changed, build verification is requested, or TCC/Cylance-sensitive repo binary rebuild handling matters; call node scripts/aos-dev-build.mjs build or bash build.sh --force --no-restart when ./aos is dead.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "Repo maintainer binary-build helper, outside the AOS installable skill product.",
+      "references": [
+        "build.sh",
+        "scripts/aos-dev-build.mjs",
+        "scripts/AGENTS.md",
+        "docs/dev/command-surface.md",
+        "tests/help-contract.sh"
+      ],
+      "claims_durable_behavior": false,
+      "backing": []
+    },
+    {
+      "name": "aos-maintainer-orientation",
+      "path": "skills/aos-maintainer-orientation",
+      "description": "Collect AOS maintainer session orientation from live repo, GitHub, and runtime facts. Use inside agent-os at the start of maintainer work, successor handoffs, PR or review resumption, dirty-state checks, or when current branch, GitHub, and AOS readiness need a sourced summary; call node scripts/aos-dev-situation.mjs --json.",
+      "status": "retained_local",
+      "installable": false,
+      "invocation": "enabled",
+      "target_support": [],
+      "ownership": "Repo maintainer orientation helper, outside the AOS installable skill product.",
+      "references": [
+        "scripts/aos-dev-situation.mjs",
+        "scripts/aos-dev-gh.mjs",
+        "docs/dev/README.md",
+        "docs/dev/command-surface.md",
+        "tests/dev-situation.sh"
+      ],
       "claims_durable_behavior": false,
       "backing": []
     },

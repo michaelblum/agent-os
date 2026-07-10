@@ -8,7 +8,7 @@ Unified binary for macOS perception, display, action, and voice.
 ## Build
 
 ```bash
-./aos dev build
+node scripts/aos-dev-build.mjs build --no-restart --json
 ```
 
 Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/` and the
@@ -19,21 +19,36 @@ tooling does not by itself rebuild the TCC-owning binary; use `--force` only
 when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
-`Rebuilt: ./aos` marker and plays the configured rebuild alert sound. Treat that
-as a human-attention event for TCC-sensitive sessions: stop before TCC-backed
-proof, ask the human to manually reset/regrant the needed macOS permissions, and
-run `./aos ready --post-permission` after they confirm.
+`Rebuilt: ./aos` marker and the rebuild/TCC alert. Continue with non-TCC checks
+as needed, but do not treat TCC-backed daemon, capture, input, or native proof as
+conclusive until the user has manually reset/regranted TCC for the rebuilt
+binary. If a later live TCC-backed readiness check reports
+`post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
+prints a terminal handoff, and the agent must end the current turn. The next
+user response is the signal that they manually reset/regranted TCC; resume with
+`./aos ready --post-permission`.
 
 When you are unsure which loop applies, ask the router first:
 
 ```bash
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 ```
 
-Use raw `bash build.sh` only when `./aos` is missing or the build surface itself
-is being repaired. `scripts/aos-after-build` still exists for serialized
-automation around an in-flight build, but the normal developer control surface is
-`./aos dev build`.
+Use raw `bash build.sh` only when `./aos` is missing, exits `137`, cannot run
+post-build verification, or the build surface itself is being repaired. The
+recovery command for a killed or missing repo binary is:
+
+```bash
+bash build.sh --force --no-restart
+```
+
+That direct script path must remain the raw repo-mode build: direct `swiftc`
+output at `./aos`, no post-build `codesign`, no explicit signing identifier, no
+entitlements, no app bundle, and no allowlist assumption. `spctl` rejection is
+expected for this local shape; `./aos` launchability is the gate.
+`scripts/aos-after-build` still exists for serialized automation around an
+in-flight build, but the normal maintainer build surface is
+`node scripts/aos-dev-build.mjs build --no-restart --json`.
 
 Examples that usually do **not** need `bash build.sh`:
 
@@ -63,9 +78,9 @@ In this repo, invoke the CLI as `./aos`, not `aos`.
 Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will work:
 
 ```bash
-./aos permissions setup --once   # One-time Accessibility, Screen Recording, and Input Monitoring flow
+./aos permissions setup --once   # One-time Accessibility, Screen Recording, Input Monitoring, and Microphone flow
 ./aos ready                      # Primary readiness gate
-./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring
+./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring/Microphone
 ./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
 ./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed
@@ -73,16 +88,12 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 
 Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
 
-If readiness or permissions setup says repo-mode Accessibility/Input Monitoring
-must be reset, use `./aos permissions reset-runtime --mode repo` first. It stops
-the managed daemon, verifies `running=false`, and either runs a real targeted
-TCC reset for a targetable runtime identity or reports targeted reset
-unavailable for the bare repo binary. Then run
-`./aos permissions setup --once` to request fresh macOS prompts. If the grant
-remains stale or macOS does not prompt, the human physically removes and re-adds
-the repo-mode `aos` runtime in System Settings, then says `finished` in the
-waiting session. The session then runs `./aos ready --post-permission` to
-verify.
+If readiness reports `post_rebuild_tcc_stale`, stop immediately after the
+three-chime handoff. Do not run reset-runtime, setup, service restart, another
+ready probe, or any other TCC-backed command in the same turn. The human
+physically removes and re-adds the repo-mode `aos` runtime in System Settings,
+then says `finished` in the waiting session. The session then runs
+`./aos ready --post-permission` to verify.
 Service-wide TCC reset affects other apps and is a break-glass capability only;
 do not use `--allow-service-reset --emergency-ack-other-apps` unless Michael
 explicitly asks for emergency recovery.
@@ -269,8 +280,8 @@ aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifes
 ```
 
 Use canonical root names in the single-checkout local workflow. Branch-scoped
-sibling roots via `scripts/aos-content-scope.sh` are for explicit parallel
-session overrides, not the default local relay loop.
+sibling roots via `scripts/aos-content-scope.sh` are for explicit isolated
+runtime proofs under `AOS_STATE_ROOT`, not the default local relay loop.
 
 Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 

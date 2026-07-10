@@ -150,7 +150,7 @@ Acceptance evidence:
 
 - a machine-checkable guard fails on new public command policy in Swift;
 - allowlists are narrow and cite broker primitive reasons;
-- `./aos dev recommend` routes the guard for command-surface or Swift broker
+- `node scripts/aos-dev-workflow.mjs recommend` routes the guard for command-surface or Swift broker
   changes;
 - tests demonstrate at least one fixture or pattern that would catch a policy
   regression.

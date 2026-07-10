@@ -21,6 +21,7 @@ const artifactBundleFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
 );
+const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(fixtureRoot, name), 'utf8'));
@@ -29,6 +30,16 @@ function fixture(name) {
 function artifactBundleFixture() {
   return JSON.parse(fs.readFileSync(artifactBundleFixturePath, 'utf8'));
 }
+
+test('subject catalog keeps browser import graph off the Node-heavy Work Record facade', () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'packages/toolkit/workbench/subject-catalog.js'),
+    'utf8',
+  );
+
+  assert.match(source, /from '\.\/work-record-subject\.js'/);
+  assert.doesNotMatch(source, /from '\.\/work-record\.js'/);
+});
 
 test('subject catalog creates an openable non-wiki Work Record entry from canonical descriptor fields', () => {
   const record = fixture('workflow-browser-click-status.json');
@@ -41,7 +52,7 @@ test('subject catalog creates an openable non-wiki Work Record entry from canoni
   });
 
   assert.equal(entry.type, 'aos.subject_catalog.entry');
-  assert.equal(entry.entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(entry.entry_handle, WORKFLOW_BROWSER_RECORD_ID);
   assert.equal(entry.subject.subject_type, 'aos.work_record');
   assert.deepEqual(entry.capabilities, ['inspectable', 'verifier-target', 'exportable']);
   assert.ok(entry.contracts.includes('work_record.execution_map.view'));
@@ -104,7 +115,7 @@ test('subject catalog open request carries stable payload for existing Work Reco
   assert.equal(request.opener.id, 'work-record-workbench');
   assert.equal(request.opener.message_type, 'work_record.open');
   assert.equal(request.open_message.type, 'work_record.open');
-  assert.equal(request.open_message.record.id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(request.open_message.record.id, WORKFLOW_BROWSER_RECORD_ID);
 });
 
 test('subject catalog does not use legacy views controls or dotted raw capabilities for opening', () => {

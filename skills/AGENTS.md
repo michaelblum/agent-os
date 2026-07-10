@@ -6,6 +6,8 @@
 
 `skills/` contains local root skill packages used by agents working in this
 repo, plus the root skill registry for AOS installable skill productization.
+Maintainer workflow skills may be retained local packages without becoming
+part of the installable AOS desktop product pack.
 
 ## Ownership
 
@@ -58,6 +60,10 @@ repo, plus the root skill registry for AOS installable skill productization.
   `aos-verification/`.
 - `browser-adapter/` is a retired tombstone for the broad browser adapter
   skill; installable browser guidance now lives in `aos-browser/`.
+- `aos-maintainer-routing/`, `aos-repo-binary-build/`, and
+  `aos-maintainer-orientation/` are retained local maintainer workflow skills
+  backed by deterministic repo scripts; they are not installable AOS product
+  skills.
 - `caveman/`, `issue-hygiene-sweep/`, and `plan-retirement-audit/` are
   retained local helper skills outside the AOS installable skill product.
 - `symphony-talent-design/` is private brand/design skill material and is not

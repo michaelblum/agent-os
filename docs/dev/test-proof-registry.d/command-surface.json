@@ -1,0 +1,119 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth registry entries owned by command-surface.",
+  "entries": [
+    {
+      "id": "command-manifest-generation-proof",
+      "path_patterns": [
+        "tests/command-manifest-generation.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "command_contract",
+      "contract": "Source command manifests and generated compatibility artifacts stay in sync.",
+      "worth": "This is the cheapest proof that command metadata edits did not bypass generation.",
+      "command": "bash tests/command-manifest-generation.sh",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "external-command-manifest-schema-proof",
+      "path_patterns": [
+        "tests/schemas/aos-external-command-manifest-v0.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "schema",
+      "proof_kind": "command_contract",
+      "contract": "External command manifest schema, script targets, and help-manifest route coverage remain valid.",
+      "worth": "This catches command schema drift without rebuilding or starting runtime services.",
+      "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
+      "id": "external-command-dispatch-proof",
+      "path_patterns": [
+        "tests/external-command-dispatch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "command_contract",
+      "contract": "Manifest-backed command routes dispatch through their external scripts and wrappers.",
+      "worth": "This catches route drift where generated command manifests still validate but runtime dispatch reaches the wrong implementation.",
+      "command": "bash tests/external-command-dispatch.sh",
+      "replaces": [],
+      "guard": "uses bounded CLI dispatch and isolated state for daemon-sensitive checks",
+      "status": "active"
+    },
+    {
+      "id": "external-parser-flags-proof",
+      "path_patterns": [
+        "tests/external-parser-flags.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "command_contract",
+      "contract": "External command wrappers reject malformed flags and arguments before falling through to native primitives.",
+      "worth": "This keeps parser failures explicit and prevents unknown input from reaching lower-level command adapters.",
+      "command": "bash tests/external-parser-flags.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and disables daemon autostart",
+      "status": "active"
+    },
+    {
+      "id": "help-contract-proof",
+      "path_patterns": [
+        "tests/help-contract.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "help_contract",
+      "contract": "Discoverable help, public command docs, parser errors, and generated command registry metadata stay aligned.",
+      "worth": "This is the broad command-surface guard that catches stale help or docs after manifest and adapter changes.",
+      "command": "bash tests/help-contract.sh",
+      "replaces": [],
+      "guard": "read-only help and parser checks",
+      "status": "active"
+    },
+    {
+      "id": "dev-gh-contract-proof",
+      "path_patterns": [
+        "tests/aos-dev-gh-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "model_unit",
+      "proof_kind": "command_contract",
+      "contract": "Repo-local GitHub helper command wrapping, argument rejection, CI inspection, and review-comment GraphQL behavior stay non-interactive and allowlisted.",
+      "worth": "This keeps GitHub workflow helper behavior out of the general router catch-all and prevents unsupported gh forms from slipping into maintainer automation.",
+      "command": "node --test tests/aos-dev-gh-contract.test.mjs",
+      "replaces": [],
+      "guard": "uses a fake gh executable and no network",
+      "status": "active"
+    },
+    {
+      "id": "dev-gh-help-parity-proof",
+      "path_patterns": [
+        "tests/aos-dev-gh-help-parity.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "shell_router",
+      "proof_kind": "help_contract",
+      "contract": "Repo-local GitHub helper subcommands stay dispatchable and discoverable through direct script help.",
+      "worth": "This keeps the sanctioned GitHub workflow subset discoverable without exposing unsupported gh prompts or hidden paths.",
+      "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
+      "replaces": [],
+      "guard": "read-only help and source inspection",
+      "status": "active"
+    }
+  ]
+}

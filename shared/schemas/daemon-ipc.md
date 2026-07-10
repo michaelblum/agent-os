@@ -194,4 +194,14 @@ Bare `{"action":"subscribe"}` (non-envelope format) is still accepted for backwa
 
 ## Event Envelope Note
 
-The event envelope (`daemon-event.schema.json` v1) uses `service` values `perceive|display|act|voice` in its enum today. The live daemon additionally emits `system`, `coordination`, and `wiki` event services. The request-side namespaces defined here (`see|do|show|tell|listen|session|voice|system`) differ from the event-side service values. Reconciling both sides is deferred to a v2 event envelope.
+The event envelope (`daemon-event.schema.json` v1) uses `service` values
+`perceive|display|act|voice` in its enum today. The `voice` service is reserved
+for generic trigger and dictation lifecycle events:
+`wake_detected`, `dictation_opened`, `dictation_closed_send`, and
+`dictation_closed_cancel`. These are pushed events, not request actions, and do
+not imply microphone capture, transcription, playback, or Sigil behavior.
+
+The live daemon additionally emits `system`, `coordination`, and `wiki` event
+services. The request-side namespaces defined here
+(`see|do|show|tell|listen|session|voice|system`) differ from the event-side
+service values. Reconciling both sides is deferred to a v2 event envelope.

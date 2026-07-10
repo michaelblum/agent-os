@@ -38,6 +38,12 @@ source root. This file is a routing map, not a replacement for those sources.
   `skills/aos-verification/SKILL.md` for act/recapture/assert loops. Retired
   tombstones such as `skills/aos-agent-workspace/SKILL.md` and
   `skills/browser-adapter/SKILL.md` exist only to point at current guidance.
+- Retained local maintainer skills are also registered in
+  `skills/registry.json` but are not part of the installable AOS desktop
+  product pack. Use `skills/aos-maintainer-orientation/SKILL.md`,
+  `skills/aos-maintainer-routing/SKILL.md`, and
+  `skills/aos-repo-binary-build/SKILL.md` for repo maintainer workflows backed
+  by deterministic `scripts/aos-dev-*.mjs` commands.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - AOS TCC capability broker boundary:
   `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.

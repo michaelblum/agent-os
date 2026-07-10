@@ -42,11 +42,11 @@ The V0 model is:
 live under `docs/guides/`; they may guide a run, but they are not executable
 Recipes and are not Work Record origins.
 
-`aos recipe` is the canonical public command surface. `aos ops` remains only as
-a compatibility alias for the current implementation. The removal gate for the
-alias is: no repo docs, scripts, generated indexes, packaged resources, tests,
-or known external callers require the old noun. Internal filenames and schema
-IDs that still contain `ops` are compatibility names, not public taxonomy.
+`aos recipe` is the canonical public command surface. The old `aos ops`
+command surface is retired; do not add manifests, docs, examples, or tests that
+teach it as a callable command. Recipe implementation files, environment
+variables, and schema IDs use recipe-owned names; do not add new `ops` recipe
+implementation vocabulary.
 
 The existing gated descriptor contract is named `aos.step_descriptor`. It is a
 neutral V0 sketch for one Workflow-gated step/evidence bridge; it is not

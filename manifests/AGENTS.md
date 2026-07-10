@@ -49,8 +49,9 @@ developer command surfaces.
   command manifest changes.
 - Use `bash tests/command-manifest-generation.sh` for command source/generator
   drift checks.
-- Use `./aos dev recommend --json --paths <changed-paths>` to confirm source
-  manifests and generator edits route to command-surface verification.
+- Use `node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>`
+  to confirm source manifests and generator edits route to command-surface
+  verification.
 
 ## Child DOX Index
 

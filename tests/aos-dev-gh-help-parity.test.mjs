@@ -17,8 +17,8 @@ function sortedKeys(paths) {
   return paths.map(devGhPathKey).sort();
 }
 
-function runAos(args) {
-  return spawnSync('./aos', args, {
+function runGhHelper(args) {
+  return spawnSync(process.execPath, ['scripts/aos-dev-gh.mjs', ...args], {
     cwd: repoRoot,
     encoding: 'utf8',
   });
@@ -28,7 +28,7 @@ function combinedOutput(result) {
   return `${result.stdout || ''}${result.stderr || ''}`;
 }
 
-test('dev gh allowlist matches the script dispatch branches', async () => {
+test('GitHub helper allowlist matches the script dispatch branches', async () => {
   const source = await fs.readFile(devGhScriptPath, 'utf8');
   const allowlist = sortedKeys(dispatchableDevGhCommandPaths());
   const dispatched = sortedKeys(actualDispatchPathsFromSource(source));
@@ -37,8 +37,8 @@ test('dev gh allowlist matches the script dispatch branches', async () => {
   assert.ok(allowlist.includes('label list'), 'label list is the canary for non-pr child discovery');
 });
 
-test('dev gh root help enumerates the allowlist and documents deltas', () => {
-  const result = runAos(['dev', 'gh', '--help']);
+test('GitHub helper root help enumerates the allowlist and documents deltas', () => {
+  const result = runGhHelper(['--help']);
   const output = combinedOutput(result);
 
   assertDeltaDoc(result, output);
@@ -49,25 +49,21 @@ test('dev gh root help enumerates the allowlist and documents deltas', () => {
   }
 });
 
-test('dev gh catch-all help returns the delta doc for real and unknown paths', () => {
+test('GitHub helper catch-all help returns the delta doc for real and unknown paths', () => {
   for (const pathParts of dispatchableDevGhCommandPaths()) {
-    const label = `./aos dev gh ${pathParts.join(' ')} --help`;
-    const result = runAos(['dev', 'gh', ...pathParts, '--help']);
+    const label = `node scripts/aos-dev-gh.mjs ${pathParts.join(' ')} --help`;
+    const result = runGhHelper([...pathParts, '--help']);
     assertDeltaDoc(result, combinedOutput(result), label);
-
-    const helpLabel = `./aos help dev gh ${pathParts.join(' ')}`;
-    const helpResult = runAos(['help', 'dev', 'gh', ...pathParts]);
-    assertDeltaDoc(helpResult, combinedOutput(helpResult), helpLabel);
   }
 
-  const unknownResult = runAos(['dev', 'gh', 'pr', 'definitely-not-real', '--help']);
+  const unknownResult = runGhHelper(['pr', 'definitely-not-real', '--help']);
   assertDeltaDoc(unknownResult, combinedOutput(unknownResult), 'unknown subcommand help');
 });
 
-function assertDeltaDoc(result, output, label = 'dev gh help') {
+function assertDeltaDoc(result, output, label = 'GitHub helper help') {
   assert.equal(result.status, 0, `${label}\n${output}`);
   assert.doesNotMatch(output, /UNKNOWN_COMMAND/, label);
-  assert.match(output, /^\.\/aos dev gh — sanctioned GitHub workflow subset/m, label);
+  assert.match(output, /^node scripts\/aos-dev-gh\.mjs — sanctioned GitHub workflow subset/m, label);
   assert.match(output, /Non-interactive only: commands fail instead of prompting\./, label);
   assert.match(output, /Body-writing commands use --body-file <path\|->; stdin is accepted via - or \/dev\/stdin\./, label);
   assert.match(output, /pr merge requires exactly one explicit strategy: --squash, --merge, or --rebase\./, label);

@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import {
   SIGIL_AVATAR_INPUT_REGION_ID,
   SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
@@ -293,4 +294,12 @@ test('non-primary segments do not register regions', () => {
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
   assert.equal(adapter.snapshot().regions.avatarControls.registered, false)
   assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
+})
+
+test('Sigil input-region adapter delegates region state to toolkit managed set', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/input-regions.js', import.meta.url), 'utf8')
+
+  assert.match(source, /createManagedInputRegionSet/)
+  assert.doesNotMatch(source, /function syncRegion/)
+  assert.doesNotMatch(source, /const regions = new Map/)
 })

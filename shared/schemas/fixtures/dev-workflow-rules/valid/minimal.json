@@ -14,7 +14,7 @@
       "commands": [
         {
           "id": "dev-build",
-          "command": "./aos dev build --no-restart",
+          "command": "node scripts/aos-dev-build.mjs build --no-restart --json",
           "reason": "Swift changes require a build."
         }
       ],

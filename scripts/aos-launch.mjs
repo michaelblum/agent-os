@@ -4,6 +4,10 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
+import {
+  branchScopedContentRootsEnabled,
+  scopedRootName,
+} from './lib/experience-manifest.mjs';
 
 class LaunchFailure extends Error {
   constructor(message, code) {
@@ -106,18 +110,6 @@ function validateManifest(manifest, manifestPath) {
   }
 }
 
-function branchName() {
-  const result = run('git', ['-C', repoRoot, 'branch', '--show-current']);
-  return result.status === 0 ? result.stdout.trim() : '';
-}
-
-function scopedRootName(prefix) {
-  const branch = branchName();
-  if (!branch || branch === 'main') return prefix;
-  const suffix = branch.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'worktree';
-  return `${prefix}_${suffix}`;
-}
-
 function resolveRepoPath(relPath, fieldName) {
   if (typeof relPath !== 'string' || !relPath || path.isAbsolute(relPath)) {
     throw new LaunchFailure(`${fieldName} must be a repo-relative path`, 'INVALID_APP_MANIFEST');
@@ -130,13 +122,17 @@ function resolveRepoPath(relPath, fieldName) {
 }
 
 function resolveContentRoots(manifest) {
+  const useBranchScopedRoots = branchScopedContentRootsEnabled(process.env);
   return manifest.content_roots.map((root) => {
     if (!root.id || !root.path) throw new LaunchFailure('content_roots entries require id and path', 'INVALID_APP_MANIFEST');
+    const declaredBranchScoped = root.branch_scoped !== false;
+    const activeBranchScoped = useBranchScopedRoots && declaredBranchScoped;
     return {
       id: root.id,
-      key: root.branch_scoped === false ? root.id : scopedRootName(root.id),
+      key: activeBranchScoped ? scopedRootName(root.id, repoRoot) : root.id,
       path: resolveRepoPath(root.path, `content_roots.${root.id}.path`),
-      branch_scoped: root.branch_scoped !== false,
+      branch_scoped: activeBranchScoped,
+      declared_branch_scoped: declaredBranchScoped,
     };
   });
 }
@@ -446,6 +442,6 @@ try {
   const roots = resolveContentRoots(manifest);
   launch(manifest, entry, roots, args.json, args.dryRun, args.allowStart);
 } catch (err) {
-  if (err instanceof LaunchFailure) fail(err.message, err.code);
+  if (err instanceof LaunchFailure || err?.code) fail(err.message, err.code);
   fail(err?.message || String(err), 'INTERNAL');
 }

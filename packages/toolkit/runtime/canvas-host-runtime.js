@@ -1,0 +1,234 @@
+function defaultRequestId(prefix) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`
+}
+
+function decodeBase64Json(value, { atobFn = null } = {}) {
+  const decoded = typeof atobFn === 'function'
+    ? atobFn(value)
+    : Buffer.from(String(value || ''), 'base64').toString('utf8')
+  return JSON.parse(decoded)
+}
+
+function postToHost(globalObject, handlerName, body) {
+  globalObject?.webkit?.messageHandlers?.[handlerName]?.postMessage?.(body)
+}
+
+export function createCanvasResponseError(msg = {}) {
+  const code = msg.code || 'ERROR'
+  const message = msg.message || 'unknown'
+  const error = new Error(`${code}: ${message}`)
+  error.code = code
+  error.status = msg.status || 'error'
+  error.responseMessage = message
+  return error
+}
+
+export function createCanvasHostRuntime(options = {}) {
+  const {
+    globalObject = globalThis.window || globalThis,
+    bridgeGlobalName = 'headsup',
+    messageHandlerName = 'headsup',
+    requestIdPrefix = 'canvas',
+    requestId = () => defaultRequestId(requestIdPrefix),
+    logger = console,
+    loggerLabel = 'canvas-host',
+    atobFn = globalObject?.atob?.bind?.(globalObject) || globalThis.atob,
+    defaultTimeoutMs = 5000,
+    initializeStatusItemReady = true,
+  } = options
+
+  const handlers = []
+  const pending = new Map()
+  let installed = false
+
+  function logError(message, error) {
+    logger?.error?.(`[${loggerLabel}] ${message}`, error)
+  }
+
+  function resolvePending(msg) {
+    if (msg?.type !== 'canvas.response' || !msg.request_id) return
+    const entry = pending.get(msg.request_id)
+    if (!entry) return
+    pending.delete(msg.request_id)
+    clearTimeout(entry.timer)
+    if (msg.status === 'ok') {
+      entry.resolve(msg)
+      return
+    }
+    entry.reject(createCanvasResponseError(msg))
+  }
+
+  function dispatch(msg) {
+    resolvePending(msg)
+    for (const handler of handlers.slice()) {
+      try {
+        handler(msg)
+      } catch (error) {
+        logError('host handler failed:', error)
+      }
+    }
+  }
+
+  function install() {
+    if (installed) return
+    installed = true
+    globalObject[bridgeGlobalName] = globalObject[bridgeGlobalName] || {}
+    if (initializeStatusItemReady) {
+      globalObject[bridgeGlobalName].statusItemReady = false
+    }
+    globalObject[bridgeGlobalName].receive = function receive(b64) {
+      let msg
+      try {
+        msg = decodeBase64Json(b64, { atobFn })
+      } catch (error) {
+        logError('host bridge decode failed:', error)
+        return
+      }
+      dispatch(msg)
+    }
+  }
+
+  function onMessage(handler) {
+    if (typeof handler === 'function') handlers.push(handler)
+    install()
+    return () => {
+      const index = handlers.indexOf(handler)
+      if (index >= 0) handlers.splice(index, 1)
+    }
+  }
+
+  function post(type, payload) {
+    install()
+    const body = payload === undefined ? { type } : { type, payload }
+    postToHost(globalObject, messageHandlerName, body)
+  }
+
+  function subscribe(events, subscribeOptions = {}) {
+    const list = Array.isArray(events) ? events : [events]
+    const payload = { events: list }
+    if (subscribeOptions.snapshot !== undefined) payload.snapshot = !!subscribeOptions.snapshot
+    post('subscribe', payload)
+    return () => unsubscribe(list)
+  }
+
+  function unsubscribe(events) {
+    const list = Array.isArray(events) ? events : [events]
+    post('unsubscribe', { events: list })
+  }
+
+  function request(type, payload = {}, requestOptions = {}) {
+    install()
+    const timeoutMs = requestOptions.timeoutMs ?? defaultTimeoutMs
+    const mapResult = requestOptions.mapResult || ((msg) => msg)
+    const request_id = requestId(type, payload)
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(request_id)
+        reject(new Error(`TIMEOUT: ${type} (${timeoutMs}ms)`))
+      }, timeoutMs)
+      pending.set(request_id, {
+        timer,
+        resolve(msg) {
+          resolve(mapResult(msg))
+        },
+        reject,
+      })
+      post(type, { ...payload, request_id })
+    })
+  }
+
+  return {
+    install,
+    onMessage,
+    post,
+    subscribe,
+    unsubscribe,
+    request,
+    setStatusMenuItems(items = []) {
+      post('set_menu_items', { items })
+    },
+    aosAction(opts = {}) {
+      return request('aos.action', opts)
+    },
+    canvasCreate(opts = {}) {
+      return request('canvas.create', opts, {
+        mapResult(msg) {
+          return { id: msg.id ?? opts.id }
+        },
+      })
+    },
+    canvasUpdate(opts = {}) {
+      post('canvas.update', opts)
+    },
+    canvasRemove(opts = {}) {
+      return request('canvas.remove', opts, {
+        mapResult() {
+          return undefined
+        },
+      })
+    },
+    inputRegionRegister(region) {
+      return request('input_region.register', region)
+    },
+    inputRegionUpdate(region) {
+      return request('input_region.update', region)
+    },
+    inputRegionRemove(id) {
+      return request('input_region.remove', { id }, {
+        mapResult() {
+          return undefined
+        },
+      })
+    },
+    canvasSuspend(id) {
+      return request('canvas.suspend', { id }, {
+        mapResult() {
+          return undefined
+        },
+      })
+    },
+    canvasResume(id) {
+      return request('canvas.resume', { id }, {
+        mapResult() {
+          return undefined
+        },
+      })
+    },
+    positionGet(key, opts = {}) {
+      return request('position.get', { key }, {
+        timeoutMs: opts.timeoutMs ?? defaultTimeoutMs,
+        mapResult(msg) {
+          if (!msg.position || typeof msg.position !== 'object') return null
+          return {
+            x: Number(msg.position.x),
+            y: Number(msg.position.y),
+          }
+        },
+      })
+    },
+    positionSet(key, position) {
+      if (!position) return
+      post('position.set', { key, x: position.x, y: position.y })
+    },
+    captureRegion(region, opts = {}) {
+      return request('capture.region', {
+        ...region,
+        format: opts.format ?? 'jpg',
+        quality: opts.quality ?? 'med',
+        exclude_canvas_ids: opts.excludeCanvasIds ?? [],
+      }, {
+        timeoutMs: opts.timeoutMs ?? 1500,
+        mapResult(msg) {
+          if (typeof msg.base64 !== 'string' || typeof msg.mime_type !== 'string') {
+            throw new Error('capture.region returned no image payload')
+          }
+          return {
+            base64: msg.base64,
+            mimeType: msg.mime_type,
+            region: msg.region ?? region,
+          }
+        },
+      })
+    },
+  }
+}

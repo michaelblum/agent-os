@@ -11,6 +11,16 @@ export { createTextField, renderTextFieldHtml } from './text-field.js';
 export { createSelect } from './select.js';
 export { createCheckboxGroup, renderCheckboxHtml } from './checkbox-group.js';
 export { createTextarea, renderTextareaHtml } from './textarea.js';
+export {
+  DICTATION_TIMEOUT_MS,
+  VOICE_DICTATION_EVENT_NAMES,
+  applyDictationTextValue,
+  buildDictationTextValue,
+  createDictationController,
+  isHoldToDictateInput,
+  isVoiceDictationEvent,
+  normalizeVoiceDictationEvent,
+} from './dictation.js';
 export { createSlider, renderSliderHtml } from './slider.js';
 export { createColorField, renderColorFieldHtml } from './color-field.js';
 export { createTimerBar } from './timer-bar.js';

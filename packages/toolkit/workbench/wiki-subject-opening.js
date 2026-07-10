@@ -174,3 +174,33 @@ export function createMarkdownOpenRequestFromWikiSelection(selection = {}) {
     },
   };
 }
+
+export function createMarkdownOpenDocumentFromWikiPage({
+  path = '',
+  content = '',
+  page = null,
+  frontmatter = null,
+  source = null,
+} = {}) {
+  const wikiPath = pathText(path);
+  if (!wikiPath) return null;
+  const pageShape = page && typeof page === 'object'
+    ? { ...page, path: pathText(page.path) || wikiPath }
+    : {
+      path: wikiPath,
+      frontmatter: frontmatter && typeof frontmatter === 'object' ? { ...frontmatter } : {},
+    };
+  const sourceShape = source && typeof source === 'object'
+    ? { ...source, kind: source.kind || 'wiki', path: pathText(source.path) || wikiPath, page: pageShape }
+    : {
+      kind: 'wiki',
+      path: wikiPath,
+      page: pageShape,
+    };
+  return {
+    type: 'markdown_document.open',
+    path: wikiPath,
+    source: sourceShape,
+    content: String(content ?? ''),
+  };
+}

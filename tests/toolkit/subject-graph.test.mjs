@@ -18,6 +18,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(fixtureRoot, name), 'utf8'));
@@ -46,7 +47,7 @@ test('subject graph index derives deterministic subject nodes facets hosts and t
   assert.equal(index.schema_version, SUBJECT_GRAPH_INDEX_SCHEMA_VERSION);
   assert.deepEqual(index.nodes.map((node) => node.subject_id), [
     'wiki:aos/concepts/runtime-modes.md',
-    'work-record:aos-browser-click-status-2026-05-06',
+    WORKFLOW_BROWSER_RECORD_ID,
   ]);
 
   assert.equal(index.metadata.subject_count, 2);
@@ -66,7 +67,7 @@ test('subject graph index derives deterministic subject nodes facets hosts and t
   assert.equal(wikiNode.source.path, 'aos/concepts/runtime-modes.md');
 
   const workRecordNode = index.nodes.find((node) => (
-    node.subject_id === 'work-record:aos-browser-click-status-2026-05-06'
+    node.subject_id === WORKFLOW_BROWSER_RECORD_ID
   ));
   assert.equal(workRecordNode.subject_type, 'aos.work_record');
   assert.equal(workRecordNode.source_record.kind, 'catalog_entry');

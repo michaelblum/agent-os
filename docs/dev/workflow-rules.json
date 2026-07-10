@@ -43,8 +43,8 @@
       "commands": [
         {
           "id": "dev-build",
-          "command": "./aos dev build",
-          "reason": "Swift source changes require a current repo-mode ./aos binary. The dev wrapper preserves the signing/TCC warning surface."
+          "command": "node scripts/aos-dev-build.mjs build --no-restart --json",
+          "reason": "Swift source changes require a current repo-mode ./aos binary. The repo-local build wrapper preserves the signing/TCC warning surface."
         }
       ],
       "verification": [
@@ -53,6 +53,10 @@
           "command": "./aos ready --post-permission",
           "reason": "After a real rebuild and user TCC reset/regrant, verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
         }
+      ],
+      "notes": [
+        "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because the normal post-build verification cannot run through a broken ./aos artifact.",
+        "Repo-mode rebuilds must stay raw: direct build.sh swiftc output only, no post-build codesign, explicit signing identifier, entitlements, app bundle, allowlist assumption, or spctl launch gate."
       ]
     },
     {
@@ -79,7 +83,11 @@
           "reason": "Verify content-based rebuilds, no repo-mode post-signing, and rebuild alert/TCC handoff behavior."
         }
       ],
-      "verification": []
+      "verification": [],
+      "notes": [
+        "The raw recovery command for a missing or launch-killed repo ./aos is `bash build.sh --force --no-restart`; do not repair by adding post-build codesign or an spctl acceptance gate.",
+        "spctl rejection is expected for the repo-local raw binary shape; launchability of ./aos is the operational gate."
+      ]
     },
     {
       "id": "root-skill-packages",
@@ -219,7 +227,7 @@
         {
           "id": "command-manifest-generation",
           "command": "bash tests/command-manifest-generation.sh",
-          "reason": "Source command manifests and generated compatibility artifacts must stay in sync."
+          "reason": "Source command manifests and generated command artifacts must stay in sync."
         },
         {
           "id": "external-command-manifest-schema",
@@ -234,7 +242,7 @@
         {
           "id": "dev-gh-help-parity",
           "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
-          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
+          "reason": "Repo-local GitHub helper subcommands must stay dispatchable through direct script help."
         },
         {
           "id": "help-contract",
@@ -278,12 +286,44 @@
         {
           "id": "dev-gh-help-parity",
           "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
-          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
+          "reason": "Repo-local GitHub helper subcommands must stay dispatchable through direct script help."
         },
         {
           "id": "help-contract",
           "command": "bash tests/help-contract.sh",
           "reason": "Command implementation changes must stay aligned with discoverable help and parser contracts."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "dev-gh-helper",
+      "summary": "Repo-local GitHub helper implementation or contract changed.",
+      "patterns": [
+        "scripts/aos-dev-gh.mjs",
+        "scripts/aos-dev-gh-spec.mjs",
+        "tests/aos-dev-gh-contract.test.mjs",
+        "tests/aos-dev-gh-help-parity.test.mjs"
+      ],
+      "classes": [
+        "command_contract",
+        "dev_workflow"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "dev-gh-contract",
+          "command": "node --test tests/aos-dev-gh-contract.test.mjs",
+          "reason": "Verify the repo-local GitHub helper wraps only the sanctioned non-interactive gh subset."
+        },
+        {
+          "id": "dev-gh-help-parity",
+          "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
+          "reason": "Verify the repo-local GitHub helper allowlist and direct script help stay aligned."
         }
       ],
       "verification": []
@@ -295,13 +335,16 @@
         "docs/dev/workflow-rules.json",
         "docs/dev/agent-capabilities.json",
         "docs/dev/active-profile.json",
+        "docs/dev/test-proof-registry.json",
+        "docs/dev/test-proof-registry.d/**",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "scripts/aos-dev-workflow.mjs",
         "scripts/aos-dev-situation.mjs",
         "scripts/aos-dev-drift-lint.mjs",
-        "manifests/commands/aos-commands.json",
-        "manifests/commands/aos-external-commands.json",
+        "scripts/lib/dev-test-proof-registry.mjs",
+        "shared/schemas/dev-test-proof-registry.schema.json",
+        "shared/schemas/fixtures/dev-test-proof-registry/**",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
         "shared/schemas/dev-active-profile.schema.json",
@@ -312,6 +355,7 @@
         "tests/dev-audit.sh",
         "tests/dev-situation.sh",
         "tests/dev-drift-lint.sh",
+        "tests/schemas/dev-test-proof-registry.test.mjs",
         "tests/schemas/dev-workflow-rules.test.mjs",
         "tests/schemas/dev-active-profile.test.mjs",
         "tests/schemas/dev-workflow-profiles.test.mjs"
@@ -326,6 +370,11 @@
       "hot_swappable": true,
       "tcc_identity_sensitive": false,
       "commands": [
+        {
+          "id": "dev-test-proof-registry-schema-test",
+          "command": "node --test tests/schemas/dev-test-proof-registry.test.mjs",
+          "reason": "Validate the proof-worth registry, fixtures, and focused evaluator behavior."
+        },
         {
           "id": "dev-workflow-schema-test",
           "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
@@ -344,12 +393,12 @@
         {
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
-          "reason": "Verify the router parser, external help manifest, and manifest-backed recommendations agree."
+          "reason": "Verify the maintainer workflow parser, proof-worth ratchet, and manifest-backed recommendations agree."
         },
         {
           "id": "dev-audit-test",
           "command": "bash tests/dev-audit.sh",
-          "reason": "Verify the dev grammar verifier reports evidence-backed pass and fail claims."
+          "reason": "Verify the maintainer workflow audit reports evidence-backed pass and fail claims."
         },
         {
           "id": "dev-situation-test",
