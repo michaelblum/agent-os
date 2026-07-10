@@ -31,6 +31,9 @@ trap cleanup EXIT
 aos_test_start_daemon "$STATE_ROOT" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
+TARGETED_KEY_HELPER="$STATE_ROOT/post-key-to-pid"
+swiftc tests/lib/post-key-to-pid.swift -o "$TARGETED_KEY_HELPER"
+
 SOCKET_PATH="$(aos_test_socket_path "$STATE_ROOT")"
 OBSERVER_LOG="$STATE_ROOT/input-events.ndjson"
 OBSERVER_READY="$STATE_ROOT/input-observer.ready"
@@ -56,7 +59,8 @@ if ! python3 tests/lib/canvas_lifecycle_stress.py \
   --state-root "$STATE_ROOT" \
   --daemon-pid "$DAEMON_PID" \
   --cycles 25 \
-  --concurrent-input
+  --concurrent-input \
+  --targeted-key-helper "$TARGETED_KEY_HELPER"
 then
   tail -120 "$STATE_ROOT/daemon.stderr" >&2 || true
   exit 1
@@ -79,7 +83,6 @@ events = [record["event"] for record in records if record.get("observer") == "in
 assert events, records
 assert all(event.get("input_schema_version") == 2 for event in events), events
 assert any(event.get("event_kind") == "pointer" for event in events), events
-assert any(event.get("event_kind") == "key" for event in events), events
 print(json.dumps({
     "canonical_input_events": len(events),
     "pointer_events": sum(event.get("event_kind") == "pointer" for event in events),

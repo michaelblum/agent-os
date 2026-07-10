@@ -313,6 +313,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         }
         segments = []
         lastDelta = nil
+        ttlDeadline = nil
     }
 
     func updatePosition(cgRect: CGRect) {
@@ -463,12 +464,14 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             orphan.window.orderOut(nil)
             orphan.webView.stopLoading()
             DispatchQueue.main.async {
-                orphan.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
-                orphan.webView.navigationDelegate = nil
-                orphan.webView.uiDelegate = nil
-                orphan.webView.removeFromSuperview()
-                orphan.window.contentView = nil
-                orphan.window.close()
+                autoreleasepool {
+                    orphan.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+                    orphan.webView.navigationDelegate = nil
+                    orphan.webView.uiDelegate = nil
+                    orphan.webView.removeFromSuperview()
+                    orphan.window.contentView = nil
+                    orphan.window.close()
+                }
             }
         }
 
@@ -491,6 +494,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         )
         window.backgroundColor = .clear
         window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)

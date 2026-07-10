@@ -2880,7 +2880,14 @@ class UnifiedDaemon {
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
-            let canvasDiagnostics = canvasManager.diagnosticsSnapshot()
+            let canvasDiagnostics: [String: Any]
+            if Thread.isMainThread {
+                canvasDiagnostics = canvasManager.diagnosticsSnapshot()
+            } else {
+                canvasDiagnostics = DispatchQueue.main.sync {
+                    canvasManager.diagnosticsSnapshot()
+                }
+            }
             canvasSubscriptionLock.lock()
             var subscriptionEventCounts: [String: Int] = [:]
             for events in canvasEventSubscriptions.values {

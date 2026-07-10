@@ -184,13 +184,14 @@
       "id": "canvas-lifecycle-concurrent-input-proof",
       "path_patterns": [
         "tests/canvas-lifecycle-concurrent-input.sh",
-        "tests/lib/input-event-observer.mjs"
+        "tests/lib/input-event-observer.mjs",
+        "tests/lib/post-key-to-pid.swift"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
       "harness_level": "real_input",
       "proof_kind": "canvas_lifecycle_concurrent_input_contract",
-      "contract": "Canvas create, lookup, and retirement stay transactional while canonical pointer and key events continue through a persistent v1 see.observe subscription.",
+      "contract": "Canvas create, lookup, and retirement stay transactional while canonical pointer events continue through persistent v1 see.observe and non-text key events remain targeted to the harness-owned daemon sink.",
       "worth": "This reproduces the AppKit/WebKit release race class that deterministic lifecycle commands cannot expose alone.",
       "command": "AOS_REAL_INPUT_OK=1 bash tests/canvas-lifecycle-concurrent-input.sh",
       "replaces": [],
