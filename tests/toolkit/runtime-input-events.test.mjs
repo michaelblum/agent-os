@@ -1,12 +1,29 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile, readdir } from 'node:fs/promises'
 import * as runtimeFacade from '../../packages/toolkit/runtime/index.js'
+import { parseCanonicalInputEvent } from '../../packages/toolkit/runtime/input-event-schema.js'
 import {
   createCanvasOriginInputEvent,
   isCanvasInputEventType,
   normalizeCanvasInputMessage,
   normalizeCanvasOriginInputMessage,
 } from '../../packages/toolkit/runtime/input-events.js'
+
+const fixtureRoot = new URL('../../shared/schemas/fixtures/input-event-v2/', import.meta.url)
+
+async function inputFixtures(kind) {
+  const directory = new URL(`${kind}/`, fixtureRoot)
+  const names = (await readdir(directory)).filter((name) => name.endsWith('.json')).sort()
+  return Promise.all(names.map(async (name) => ({
+    name,
+    payload: JSON.parse(await readFile(new URL(name, directory), 'utf8')),
+  })))
+}
+
+function clone(value) {
+  return structuredClone(value)
+}
 
 function inputIdentity(overrides = {}) {
   return {
@@ -32,34 +49,57 @@ test('isCanvasInputEventType recognizes daemon raw input event names', () => {
   assert.equal(isCanvasInputEventType(''), false)
 })
 
-test('normalizeCanvasInputMessage preserves raw daemon-delivered input messages', () => {
-  assert.deepEqual(
-    normalizeCanvasInputMessage({ type: 'mouse_moved', x: 120, y: 340 }),
-    {
-      type: 'mouse_moved',
-      x: 120,
-      y: 340,
-      envelopeType: null,
-      inputIdentity: inputIdentity(),
-    },
-  )
+test('normalizeCanvasInputMessage rejects unversioned raw input names', () => {
+  assert.equal(normalizeCanvasInputMessage({ type: 'mouse_moved', x: 120, y: 340 }), null)
 })
 
-test('normalizeCanvasInputMessage unwraps input_event payload envelopes', () => {
-  assert.deepEqual(
-    normalizeCanvasInputMessage({
-      type: 'input_event',
-      payload: { type: 'mouse_moved', x: 120, y: 340 },
-    }),
-    {
-      type: 'mouse_moved',
-      payload: { type: 'mouse_moved', x: 120, y: 340 },
-      x: 120,
-      y: 340,
-      envelopeType: 'input_event',
-      inputIdentity: inputIdentity({ envelopeType: 'input_event' }),
-    },
-  )
+test('normalizeCanvasInputMessage rejects retired input_event wrappers', () => {
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_event',
+    payload: { type: 'mouse_moved', x: 120, y: 340 },
+  }), null)
+})
+
+test('canonical parser matches every frozen valid and invalid schema fixture', async () => {
+  for (const fixture of await inputFixtures('valid')) {
+    assert.equal(parseCanonicalInputEvent(fixture.payload), fixture.payload, fixture.name)
+    assert.ok(normalizeCanvasInputMessage(fixture.payload), fixture.name)
+  }
+  for (const fixture of await inputFixtures('invalid')) {
+    assert.throws(() => parseCanonicalInputEvent(fixture.payload), undefined, fixture.name)
+    assert.throws(() => normalizeCanvasInputMessage(fixture.payload), undefined, fixture.name)
+  }
+})
+
+test('canonical parser rejects schema-invalid scalar, enum, identity, and nested values', async () => {
+  const raw = (await inputFixtures('valid')).find((fixture) => fixture.name === 'pointer-left-down.json').payload
+  const routed = (await inputFixtures('valid')).find((fixture) => fixture.name === 'routed-captured-drag.json').payload
+  const cases = [
+    ['raw sequence source', () => { const value = clone(raw); value.sequence.source = 'legacy'; return value }],
+    ['raw sequence value', () => { const value = clone(raw); value.sequence.value = -1; return value }],
+    ['raw sequence fields', () => { const value = clone(raw); value.sequence.legacy = true; return value }],
+    ['raw coordinate authority', () => { const value = clone(raw); value.coordinate_authority = 'webview'; return value }],
+    ['raw source origin', () => { const value = clone(raw); value.source_origin = 'bridge'; return value }],
+    ['raw device', () => { const value = clone(raw); value.device = 'trackpad'; return value }],
+    ['raw button', () => { const value = clone(raw); value.button = 'primary'; return value }],
+    ['raw display id', () => { const value = clone(raw); value.display_id = 0; return value }],
+    ['raw topology', () => { const value = clone(raw); value.topology_version = -1; return value }],
+    ['raw timestamp', () => { const value = clone(raw); value.timestamp_monotonic_ms = Infinity; return value }],
+    ['raw gesture id', () => { const value = clone(raw); value.gesture_id = ''; return value }],
+    ['raw point fields', () => { const value = clone(raw); value.native.legacy = 1; return value }],
+    ['raw buttons fields', () => { const value = clone(raw); value.buttons.legacy = true; return value }],
+    ['routed delivery role', () => { const value = clone(routed); value.delivery_role = 'legacy'; return value }],
+    ['routed coordinate authority', () => { const value = clone(routed); value.coordinate_authority = 'webview'; return value }],
+    ['routed source origin', () => { const value = clone(routed); value.source_origin = 'bridge'; return value }],
+    ['routed sequence source', () => { const value = clone(routed); value.sequence.source = 'legacy'; return value }],
+    ['routed point fields', () => { const value = clone(routed); value.desktop_world.legacy = 1; return value }],
+    ['routed button', () => { const value = clone(routed); value.button = 'primary'; return value }],
+    ['routed capture id', () => { const value = clone(routed); value.capture_id = ''; return value }],
+    ['routed owner id', () => { const value = clone(routed); value.owner_canvas_id = ''; return value }],
+  ]
+  for (const [name, create] of cases) {
+    assert.throws(() => parseCanonicalInputEvent(create()), undefined, name)
+  }
 })
 
 test('normalizeCanvasInputMessage adapts raw v2 pointer coordinates for current routers', () => {
@@ -118,8 +158,8 @@ test('normalizeCanvasInputMessage adapts raw v2 pointer coordinates for current 
   )
 })
 
-test('normalizeCanvasInputMessage unwraps v2 input_event envelopes', () => {
-  const normalized = normalizeCanvasInputMessage({
+test('normalizeCanvasInputMessage rejects input_event wrappers around canonical payloads', () => {
+  assert.equal(normalizeCanvasInputMessage({
     type: 'input_event',
     payload: {
       input_schema_version: 2,
@@ -135,13 +175,7 @@ test('normalizeCanvasInputMessage unwraps v2 input_event envelopes', () => {
       scroll: { dx: 0, dy: -4, unit: 'point' },
       modifiers: { shift: false, ctrl: false, cmd: false, opt: false, fn: false, caps_lock: false },
     },
-  })
-
-  assert.equal(normalized.type, 'scroll_wheel')
-  assert.equal(normalized.x, 20)
-  assert.equal(normalized.y, 40)
-  assert.equal(normalized.eventKind, 'scroll')
-  assert.equal(normalized.envelopeType, 'input_event')
+  }), null)
 })
 
 test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
@@ -187,8 +221,6 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
 test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', () => {
   const normalized = normalizeCanvasInputMessage({
     type: 'input_region.event',
-    region_id: 'menu-hit',
-    owner_canvas_id: 'panel',
     routed_input: {
       routed_schema_version: 1,
       event_kind: 'pointer',
@@ -227,6 +259,65 @@ test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', (
     deliveryRole: 'captured',
     envelopeType: 'input_region.event',
   }))
+})
+
+test('normalizeCanvasInputMessage rejects noncanonical input_region.event shapes', () => {
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_region.event',
+    region_id: 'menu-hit',
+    owner_canvas_id: 'panel',
+    phase: 'down',
+  }), null)
+
+  const routedInput = {
+    routed_schema_version: 1,
+    event_kind: 'pointer',
+    type: 'left_mouse_down',
+    phase: 'down',
+    delivery_role: 'owned',
+    sequence: { source: 'daemon', value: 34 },
+    gesture_id: 'g-34',
+    desktop_world: { x: 44, y: 55 },
+    coordinate_authority: 'daemon',
+    source_origin: 'daemon',
+    source_event: 'daemon:34',
+    region_id: 'menu-hit',
+    owner_canvas_id: 'panel',
+    button: 'left',
+    buttons: { left: true, right: false, middle: false, other_pressed: [] },
+  }
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_region.event',
+    payload: { routed_input: routedInput },
+  }), null)
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_region.event',
+    data: { routed_input: routedInput },
+  }), null)
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_region.event',
+    routed_input: routedInput,
+    region_id: 'menu-hit',
+  }), null)
+  assert.equal(normalizeCanvasInputMessage({
+    type: 'input_region.event',
+    routed_input: routedInput,
+    phase: 'down',
+  }), null)
+})
+
+test('normalizeCanvasInputMessage validates direct routed input_region.event claims', () => {
+  assert.throws(
+    () => normalizeCanvasInputMessage({
+      type: 'input_region.event',
+      routed_input: {
+        routed_schema_version: 1,
+        event_kind: 'pointer',
+        type: 'left_mouse_down',
+      },
+    }),
+    /canonical input payload is not schema-valid/,
+  )
 })
 
 test('createCanvasOriginInputEvent builds stable child canvas source identity', () => {
@@ -291,6 +382,34 @@ test('createCanvasOriginInputEvent builds canonical routed cancel events', () =>
   assert.equal(Object.hasOwn(event, 'buttons'), false)
 })
 
+test('createCanvasOriginInputEvent requires and preserves canonical other-button identity', () => {
+  const base = {
+    type: 'canvas_message',
+    id: 'other-button-hit',
+    payload: {
+      source_canvas_id: 'other-button-hit',
+      owner_canvas_id: 'owner-canvas',
+      kind: 'other_mouse_down',
+    },
+  }
+  assert.equal(createCanvasOriginInputEvent(base, { desktopWorld: { x: 3, y: 5 } }), null)
+  assert.equal(createCanvasOriginInputEvent({
+    ...base,
+    payload: { ...base.payload, button: 'other' },
+  }, { desktopWorld: { x: 3, y: 5 } }), null)
+
+  const event = createCanvasOriginInputEvent({
+    ...base,
+    payload: { ...base.payload, button: 4 },
+  }, {
+    desktopWorld: { x: 3, y: 5 },
+  })
+
+  assert.equal(event.button, 'other:4')
+  assert.deepEqual(event.buttons.other_pressed, [4])
+  assert.equal(event.source_sequence.value, 'other-button-hit:owner-canvas:mouse:other:4')
+})
+
 test('normalizeCanvasInputMessage rejects incomplete version-claiming payloads', () => {
   assert.throws(
     () => normalizeCanvasInputMessage({
@@ -300,7 +419,7 @@ test('normalizeCanvasInputMessage rejects incomplete version-claiming payloads',
       phase: 'scroll',
       sequence: { source: 'daemon', value: 1 },
     }),
-    /input-event-v2 payload missing required field/,
+    /canonical input payload is not schema-valid/,
   )
 
   assert.throws(
@@ -319,7 +438,7 @@ test('normalizeCanvasInputMessage rejects incomplete version-claiming payloads',
       button: 'left',
       buttons: { left: true, right: false, middle: false, other_pressed: [] },
     }),
-    /routed-v1 input payload missing required field/,
+    /canonical input payload is not schema-valid/,
   )
 
   assert.throws(
@@ -340,7 +459,7 @@ test('normalizeCanvasInputMessage rejects incomplete version-claiming payloads',
       button: 'left',
       buttons: { left: true, right: false, middle: false, other_pressed: [] },
     }),
-    /source_event object must be a raw input-event-v2 payload/,
+    /canonical input payload is not schema-valid/,
   )
 })
 

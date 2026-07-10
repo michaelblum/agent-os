@@ -87,6 +87,19 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   assert.equal(stream.snapshot().active, null)
 })
 
+test('createPointerGestureStream rejects unversioned canvas input', () => {
+  const stream = createPointerGestureStream({ kind: 'drag' })
+  const frames = []
+  stream.subscribe((frame) => frames.push(frame))
+
+  assert.equal(stream.handleCanvasInput({
+    type: 'left_mouse_down',
+    desktop_world: { x: 10, y: 20 },
+  }, { now: 1000 }), null)
+  assert.deepEqual(frames, [])
+  assert.equal(stream.snapshot().active, null)
+})
+
 test('createPointerGestureStream ignores orphan canvas move before a start', () => {
   const stream = createPointerGestureStream({ kind: 'drag' })
   const frames = []

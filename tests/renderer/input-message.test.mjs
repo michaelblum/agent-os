@@ -3,27 +3,62 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { normalizeMessage } from '../../apps/sigil/renderer/live-modules/input-message.js'
 
-test('normalizeMessage delegates input_event payload unwrapping to toolkit normalization', () => {
+test('normalizeMessage delegates canonical raw v2 input to toolkit normalization', () => {
   const msg = normalizeMessage({
-    type: 'input_event',
-    payload: {
-      type: 'left_mouse_down',
-      x: 120,
-      y: 240,
-    },
+    input_schema_version: 2,
+    event_kind: 'pointer',
+    type: 'left_mouse_down',
+    phase: 'down',
+    device: 'mouse',
+    timestamp_monotonic_ms: 1,
+    sequence: { source: 'daemon', value: 1 },
+    native: { x: 120, y: 240 },
+    display_id: 1,
+    topology_version: 1,
+    button: 'left',
+    buttons: { left: true, right: false, middle: false, other_pressed: [] },
+    modifiers: { shift: false, ctrl: false, cmd: false, opt: false, fn: false, caps_lock: false },
   })
 
   assert.equal(msg.type, 'left_mouse_down')
-  assert.equal(msg.envelope_type, 'input_event')
+  assert.equal(msg.input_schema_version, 2)
+  assert.equal(msg.envelope_type, null)
   assert.equal(msg.x, 120)
   assert.equal(msg.y, 240)
 })
 
-test('Sigil input normalizer does not keep a duplicate input_event unwrap branch', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/input-message.js', import.meta.url), 'utf8')
+test('normalizeMessage rejects retired input_event wrappers', () => {
+  assert.equal(normalizeMessage({
+    type: 'input_event',
+    payload: { type: 'left_mouse_down', x: 120, y: 240 },
+  }), null)
+})
 
-  assert.doesNotMatch(source, /msg\?\.type === 'input_event' && payload/)
-  assert.match(source, /normalizeCanvasInputMessage\(msg\)/)
+test('normalizeMessage rejects unversioned raw input names', () => {
+  assert.equal(normalizeMessage({
+    type: 'left_mouse_down',
+    x: 120,
+    y: 240,
+  }), null)
+})
+
+test('normalizeMessage rejects noncanonical input region events', () => {
+  assert.equal(normalizeMessage({
+    type: 'input_region.event',
+    region_id: 'legacy-region',
+    phase: 'down',
+  }), null)
+})
+
+test('Sigil global routing identifies input by canonical schema claims', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const classifier = main.match(/function isCanonicalInputMessage\(msg = \{\}\) \{[\s\S]*?\n\}/)?.[0] || ''
+  const globalFilter = main.match(/function shouldProcessGlobalDaemonEvent\(msg = \{\}\) \{[\s\S]*?\n\}/)?.[0] || ''
+
+  assert.match(classifier, /msg\.input_schema_version === 2/)
+  assert.match(classifier, /msg\.routed_schema_version === 1/)
+  assert.match(globalFilter, /isCanonicalInputMessage\(msg\)/)
+  assert.doesNotMatch(globalFilter, /input_event/)
 })
 
 test('normalizeMessage preserves non-input envelope type precedence', () => {

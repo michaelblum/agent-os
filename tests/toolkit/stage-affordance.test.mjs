@@ -7,6 +7,18 @@ import {
   isStageAffordanceInputEvent,
   stageAffordanceRegionId,
 } from '../../packages/toolkit/panel/stage-affordance.js';
+import { canonicalInputRegionEvent } from '../lib/input-event-fixtures.mjs';
+
+function inputRegionEvent(regionId, phase = 'down') {
+  return canonicalInputRegionEvent({
+    type: phase === 'down' ? 'left_mouse_down' : (phase === 'up' ? 'left_mouse_up' : 'left_mouse_dragged'),
+    phase,
+    x: 20,
+    y: 30,
+    regionId,
+    ownerCanvasId: 'panel-a',
+  });
+}
 
 test('stage affordance sets up stage layer, input regions, and exposes inspector state', async (t) => {
   const previousWindow = globalThis.window;
@@ -56,7 +68,7 @@ test('stage affordance sets up stage layer, input regions, and exposes inspector
     async removeRegion(id) { calls.push(['remove', id]); },
     subscribeEvents(events, options) { calls.push(['subscribe', events, options]); },
     unsubscribeEvents(events) { calls.push(['unsubscribe', events]); },
-    onInputRegionEvent(event) { events.push(['input', event.message.region_id]); },
+    onInputRegionEvent(event) { events.push(['input', event.input.regionId]); },
     onSourceRemoved() { events.push(['removed']); },
   });
 
@@ -90,11 +102,7 @@ test('stage affordance sets up stage layer, input regions, and exposes inspector
   assert.equal(calls[2][1].coordinate_space, 'native');
   assert.equal(calls[2][1].metadata.toolkit_affordance_id, 'chip-a');
 
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'chip-a:restore',
-    phase: 'down',
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(inputRegionEvent('chip-a:restore'))).toString('base64'));
   window.headsup.receive(Buffer.from(JSON.stringify({
     type: 'canvas_lifecycle',
     payload: { action: 'removed', canvas_id: 'panel-a' },
@@ -230,14 +238,8 @@ test('stage affordance input event matcher only accepts owned region events', ()
   const state = {
     regionIds: ['chip-a:restore', 'chip-a:close'],
   };
-  assert.equal(isStageAffordanceInputEvent(state, {
-    type: 'input_region.event',
-    region_id: 'chip-a:restore',
-  }), true);
-  assert.equal(isStageAffordanceInputEvent(state, {
-    type: 'input_region.event',
-    region_id: 'other:restore',
-  }), false);
+  assert.equal(isStageAffordanceInputEvent(state, inputRegionEvent('chip-a:restore')), true);
+  assert.equal(isStageAffordanceInputEvent(state, inputRegionEvent('other:restore')), false);
   assert.equal(isStageAffordanceInputEvent(state, {
     type: 'canvas_lifecycle',
     region_id: 'chip-a:restore',

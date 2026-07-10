@@ -266,7 +266,8 @@ export function createPointerGestureStream(options = {}) {
   }
 
   function handleCanvasInput(message = {}, extra = {}) {
-    const input = normalizeCanvasInputMessage(message) || message
+    const input = normalizeCanvasInputMessage(message)
+    if (!input) return null
     const phase = extra.phase || CANVAS_PHASES[input?.type]
     if (!phase) return null
     const current = canvasPoint(input, extra)

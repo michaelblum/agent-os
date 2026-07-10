@@ -1010,11 +1010,10 @@ export function createMinimizeController({
       ])
     }
     const pointFromRegionMessage = (message = {}) => {
-      const normalized = normalizeCanvasInputMessage(message) || message
-      const native = normalized.native || normalized.payload?.native || normalized.data?.native || null
-      const point = native || normalized.desktop_world || normalized.point || normalized.payload?.point || null
-      const x = finiteNumber(point?.x ?? normalized.x ?? normalized.screenX ?? normalized.payload?.x, NaN)
-      const y = finiteNumber(point?.y ?? normalized.y ?? normalized.screenY ?? normalized.payload?.y, NaN)
+      if (message?.envelopeType !== 'input_region.event') return null
+      const point = message.desktop_world || message.native || null
+      const x = finiteNumber(point?.x ?? message.x, NaN)
+      const y = finiteNumber(point?.y ?? message.y, NaN)
       return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
     }
     const finishBodyGesture = (activeRecord, { restoreIfClick = false } = {}) => {
@@ -1118,10 +1117,10 @@ export function createMinimizeController({
       sendStageMessage: timedSendStageMessage,
       registerRegion: timedRegisterRegion,
       removeRegion,
-      onInputRegionEvent({ message }) {
-        const normalized = normalizeCanvasInputMessage(message) || message
-        const phase = normalized.phase || message.phase || message.payload?.phase || message.data?.phase
-        const regionId = normalized.regionId || normalized.region_id || message.region_id || message.payload?.region_id || message.data?.region_id
+      onInputRegionEvent({ input }) {
+        if (input?.envelopeType !== 'input_region.event') return
+        const phase = input.phase
+        const regionId = input.regionId
         if (!phase) return
         const activeRecord = activeStageChip?.chipId === chipId ? activeStageChip : record
         if (regionId === regionIds.close) {
@@ -1132,7 +1131,7 @@ export function createMinimizeController({
           return
         }
         if (regionId === regionIds.restore || regionId === regionIds.body) {
-          handleBodyGesture(activeRecord, message, phase)
+          handleBodyGesture(activeRecord, input, phase)
         }
       },
       onSourceRemoved() {
