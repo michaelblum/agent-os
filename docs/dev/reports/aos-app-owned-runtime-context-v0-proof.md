@@ -139,7 +139,7 @@ bash tests/external-command-dispatch.sh
 node scripts/generate-command-manifests.mjs --check
 bash tests/command-manifest-generation.sh
 git diff --check
-./aos dev build --no-restart --json
+node scripts/aos-dev-build.mjs build --no-restart --json
 ```
 
 The final build gate returned:

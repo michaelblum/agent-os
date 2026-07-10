@@ -11,7 +11,7 @@ enforcement for AOS binary/TCC policy.
 
 Repo-mode Swift rebuilds can invalidate or stale the macOS
 Accessibility/Input Monitoring grant for `./aos`. Today GDI often spends a full
-extra loop after `./aos dev build`:
+extra loop after `node scripts/aos-dev-build.mjs build`:
 
 - waits for build output;
 - runs or interprets readiness;
@@ -39,7 +39,7 @@ Every long-running GDI goal that may rebuild `./aos` should include an explicit
 pause condition:
 
 ```text
-After any successful `./aos dev build`, immediately issue `/goal pause` and
+After any successful `node scripts/aos-dev-build.mjs build`, immediately issue `/goal pause` and
 wait. Do not run readiness/status/helper loops before pausing. After the human
 returns, run only `./aos ready --post-permission` before resuming verification.
 ```
@@ -72,7 +72,7 @@ review, not provider per-tool hooks.
 
 ### 4. Optional Wrapper Fallback
 
-A wrapper around `./aos dev build` can still be useful for manual/non-Codex
+A wrapper around `node scripts/aos-dev-build.mjs build` can still be useful for manual/non-Codex
 invocations, but it is not the primary solution. Do not make GDI depend on
 remembering a special wrapper command when a Codex hook can enforce the rule for
 the actual tool call.

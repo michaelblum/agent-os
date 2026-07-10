@@ -246,7 +246,7 @@ Commands run:
 
 ```bash
 git status --short --branch
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 rg -n "JSON|stdout|stderr|unstructured|Browser as a target|No DOM|position state|lastPositions|say|tell human|monorepo|packages/toolkit|DesktopWorld|Feedback Loop" ARCHITECTURE.md
 rg -n "screen:|ax:|Subject Entry Handle|subject_entry_handle|Work Record|Subject|target dialect|State ID" CONTEXT.md
 rg -n "helpCommand|printFullRegistryText|outJSONFlag|--json|do-click|do press|browser:<|canvas:<|state-id|screen:" src/shared/command-help.swift src/shared/command-registry-data.swift src/shared/helpers.swift src/browser/target-parser.swift src/perceive/capture-pipeline.swift

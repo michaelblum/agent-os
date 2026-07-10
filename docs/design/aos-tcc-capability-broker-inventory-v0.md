@@ -91,7 +91,7 @@ No external release boundary was found. If a packaged app or published external 
 
 - Manifest route guard: fail if public paths other than an allowlisted bootstrap set route to `$AOS_PATH` or use `argv_prefix` entries beginning with `__`. Initial allowlist should include `serve` and narrowly named private primitives only when invoked by external scripts.
 - Help contract tests: ensure public usage and descriptions for `ready`, `status`, `doctor`, and `permissions` come from `manifests/commands/aos-commands.json` and not Swift `Usage:` strings.
-- No-build policy test: `./aos dev recommend --json --paths scripts/aos-ready.mjs manifests/commands/aos-external-commands.json manifests/commands/aos-commands.json` should recommend hot-swappable command-surface tests and not Swift build.
+- No-build policy test: `node scripts/aos-dev-workflow.mjs recommend --json --paths scripts/aos-ready.mjs manifests/commands/aos-external-commands.json manifests/commands/aos-commands.json` should recommend hot-swappable command-surface tests and not Swift build.
 - Swift policy `rg` guard: allowlist private primitive diagnostics, then fail on new public route usage strings, recovery headings, `Next:`, `Human action needed:`, `Run './aos`, `service restart`, or public command grammar inside `src/commands/operator.swift`.
 - Primitive schema tests: add fixtures for `__permissions facts`, `__daemon health`, `__runtime status-facts`, and legacy daemon health payloads.
 - Cutover tests: assert `status`, `ready`, `doctor`, and `permissions` routes execute `/usr/bin/env node scripts/aos-*.mjs` in the external manifest and that no direct public manifest route points to `__status`, `__ready`, `__doctor`, or `__permissions`.

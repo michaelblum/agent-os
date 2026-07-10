@@ -84,6 +84,22 @@
       "status": "active"
     },
     {
+      "id": "dev-gh-contract-proof",
+      "path_patterns": [
+        "tests/aos-dev-gh-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "command-surface",
+      "harness_level": "model_unit",
+      "proof_kind": "command_contract",
+      "contract": "Repo-local GitHub helper command wrapping, argument rejection, CI inspection, and review-comment GraphQL behavior stay non-interactive and allowlisted.",
+      "worth": "This keeps GitHub workflow helper behavior out of the general router catch-all and prevents unsupported gh forms from slipping into maintainer automation.",
+      "command": "node --test tests/aos-dev-gh-contract.test.mjs",
+      "replaces": [],
+      "guard": "uses a fake gh executable and no network",
+      "status": "active"
+    },
+    {
       "id": "dev-gh-help-parity-proof",
       "path_patterns": [
         "tests/aos-dev-gh-help-parity.test.mjs"

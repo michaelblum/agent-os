@@ -297,6 +297,38 @@
       "verification": []
     },
     {
+      "id": "dev-gh-helper",
+      "summary": "Repo-local GitHub helper implementation or contract changed.",
+      "patterns": [
+        "scripts/aos-dev-gh.mjs",
+        "scripts/aos-dev-gh-spec.mjs",
+        "tests/aos-dev-gh-contract.test.mjs",
+        "tests/aos-dev-gh-help-parity.test.mjs"
+      ],
+      "classes": [
+        "command_contract",
+        "dev_workflow"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "dev-gh-contract",
+          "command": "node --test tests/aos-dev-gh-contract.test.mjs",
+          "reason": "Verify the repo-local GitHub helper wraps only the sanctioned non-interactive gh subset."
+        },
+        {
+          "id": "dev-gh-help-parity",
+          "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
+          "reason": "Verify the repo-local GitHub helper allowlist and direct script help stay aligned."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "dev-workflow-manifest",
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [

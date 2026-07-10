@@ -28,3 +28,4 @@ Use this skill to choose verification for changes in this repo.
 - `docs/dev/test-proof-registry.d/`
 - `scripts/aos-dev-workflow.mjs`
 - `tests/dev-workflow-router.sh`
+- `tests/aos-dev-gh-contract.test.mjs`

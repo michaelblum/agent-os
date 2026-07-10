@@ -70,7 +70,8 @@ Largest active source/test hotspots:
 - New cleanup PRs should be net-negative lines unless they extract active
   runtime behavior into a smaller owner module.
 - Do not add a new test unless it replaces broader proof, guards a named
-  regression, or is routed by `./aos dev recommend`.
+  regression, or is routed by the retained-local maintainer routing skill backed
+  by `node scripts/aos-dev-workflow.mjs recommend`.
 - Active source files over 1,500 lines require a split plan. Files over 3,000
   lines require active decomposition work before feature growth.
 - Test files over 800 lines require an owner/contract split or a deletion
@@ -89,9 +90,9 @@ Largest active source/test hotspots:
      risk.
 
 2. **Test routing audit**
-   - Build a manifest of all tests, whether `./aos dev recommend` can route
-     them, whether they are deterministic/isolated/live/manual, and what active
-     contract owns them.
+   - Build a manifest of all tests, whether the retained-local routing script can
+     route them, whether they are deterministic/isolated/live/manual, and what
+     active contract owns them.
    - Delete tests that prove retired paths, duplicate a smaller deterministic
      contract, or are not referenced by any current manifest/doc/owner.
    - Quarantine real-input/manual proofs behind explicit env guards.
@@ -127,7 +128,7 @@ Largest active source/test hotspots:
    - Add a generated or hand-maintained index of active docs versus historical
      docs.
    - Move or delete the highest-confidence stale archive/report material.
-   - Gate with doc-link checks and `./aos dev recommend`.
+   - Gate with doc-link checks and `node scripts/aos-dev-workflow.mjs recommend`.
 
 3. **Test manifest pass**
    - Add a script or report that classifies tests by owner, harness level, and
@@ -153,6 +154,6 @@ Largest active source/test hotspots:
   fits the Playwright-like loop.
 - Every deleted test names replacement proof or a retired contract.
 - Every retired surface fails closed or is unreachable from current help/docs.
-- Final gates include `./aos dev recommend --json --paths <changed paths>`,
+- Final gates include `node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>`,
   routed commands, `git diff --check`, and `./aos ready --json` when live
   runtime surfaces were touched.

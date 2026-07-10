@@ -523,12 +523,17 @@ function argValue(args, flag) {
   return args[index + 1];
 }
 
-function recoverMutatingCreateTransient(step, argv, output) {
+function ownedCanvasIDs(ownedResources) {
+  return new Set(ownedResources.filter((resource) => resource.type === 'canvas').map((resource) => resource.id));
+}
+
+function recoverMutatingCreateTransient(step, argv, output, ownedResources) {
   if (!step.mutates || !transientIPCFailure(output)) return output;
   if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show') return output;
-  if (argv[0] !== 'create') return output;
+  if (step.formID !== 'show-create' || argv[0] !== 'create') return output;
   const id = argValue(argv, '--id');
   if (!id) return output;
+  if (!ownedCanvasIDs(ownedResources).has(id)) return output;
   const exists = runProcess(aosPath(), ['show', 'exists', '--id', id], step.timeoutMs);
   const parsed = parseJSON(exists.stdout);
   if (exists.exitCode === 0 && parsed?.exists === true) {
@@ -538,7 +543,7 @@ function recoverMutatingCreateTransient(step, argv, output) {
       stdout: '{"status":"success"}\n',
       stderr: output.stderr,
       attempts: output.attempts,
-      recovered: 'verified-created-resource',
+      recovered: 'verified-created-owned-resource',
     };
   }
   return output;
@@ -578,10 +583,8 @@ function executeStep(step, runID, resources, options = {}) {
   let output;
   if (step.kind === 'aos_command') {
     output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs, !step.mutates);
-    output = recoverMutatingCreateTransient(step, argv, output);
-    if (options.cleanupOwnedResources) {
-      output = recoverCleanupRemoveTransient(step, argv, output, options.cleanupOwnedResources);
-    }
+    output = recoverMutatingCreateTransient(step, argv, output, options.ownedResources ?? []);
+    output = recoverCleanupRemoveTransient(step, argv, output, options.ownedResources ?? []);
   } else if (step.kind === 'shell') {
     output = runProcess(step.scriptPath, argv, step.timeoutMs, step.cwdPath);
     output.attempts = 1;
@@ -659,7 +662,7 @@ function runCleanup(cleanupPlan, runID, resources, ownedResources) {
   const steps = [];
   let failed = false;
   for (const step of cleanupPlan) {
-    const execution = executeStep(step, runID, resources, { cleanupOwnedResources: ownedResources });
+    const execution = executeStep(step, runID, resources, { ownedResources });
     steps.push(execution.result);
     if (execution.code) failed = true;
   }
@@ -683,7 +686,7 @@ function runRecipe(recipe, plan, asJSON) {
   let failureCode = null;
   let failureError = null;
   for (const step of mainPlan) {
-    const execution = executeStep(step, runID, resources);
+    const execution = executeStep(step, runID, resources, { ownedResources });
     stepResults.push(execution.result);
     if (execution.code) {
       failureCode = execution.code;

@@ -12,7 +12,7 @@ runtime surfaces.
 
 Do not use this report to delete tests blindly. Use it as the first pass for a
 follow-up cleanup commit: delete only after the replacement proof named here is
-green and routed by `./aos dev recommend`.
+green and routed by `node scripts/aos-dev-workflow.mjs recommend`.
 
 ## Keep As Canonical Contract
 
@@ -72,7 +72,7 @@ real input, permissions, user idle state, or the shared repo daemon:
 Do not delete in this pass. Candidates must first meet all criteria:
 
 - covered by a deterministic unit/schema contract and one canonical live smoke;
-- not returned by `./aos dev recommend --json --paths <changed paths>`;
+- not returned by `node scripts/aos-dev-workflow.mjs recommend --json --paths <changed paths>`;
 - not referenced by docs, manifests, or launch scripts;
 - not preserving a defect variable named in
   `docs/guides/test-harness-ladder-and-prep.md`.

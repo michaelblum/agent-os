@@ -27,7 +27,7 @@ Preflight passed:
 - `git rev-parse HEAD`
 - `./aos ready --json`
 - `./aos permissions check --json`
-- `./aos dev build --no-restart --json`
+- `node scripts/aos-dev-build.mjs build --no-restart --json`
 - `./aos help see annotation --json`
 - `./aos help see refs --json`
 - `./aos help do --json`
@@ -156,7 +156,7 @@ All required verification commands passed. Outputs were saved under:
 - `bash tests/external-command-dispatch.sh`
 - `bash tests/command-manifest-generation.sh`
 - `git diff --check`
-- `./aos dev build --no-restart --json`
+- `node scripts/aos-dev-build.mjs build --no-restart --json`
 
 The final build gate also returned `binary_rebuilt:false` and
 `binary_resigned:false`.

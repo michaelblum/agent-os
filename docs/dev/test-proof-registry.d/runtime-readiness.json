@@ -130,6 +130,22 @@
       "replaces": [],
       "guard": "report-only; run the named replacement proof before deleting a test",
       "status": "manual_only"
+    },
+    {
+      "id": "test-harness-ladder-prep-report",
+      "path_patterns": [
+        "docs/dev/reports/test-harness-ladder-prep-protocol-v0.md"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "proof_report",
+      "proof_kind": "proof_report",
+      "contract": "The test harness ladder prep report remains an evidence pointer for harness selection, not a standing command source.",
+      "worth": "This keeps harness cleanup and promotion decisions tied to current routed proofs instead of stale report prose.",
+      "command": "git diff --check docs/dev/reports/test-harness-ladder-prep-protocol-v0.md",
+      "replaces": [],
+      "guard": "report-only; use current workflow routing before adding, moving, or deleting test helpers",
+      "status": "manual_only"
     }
   ]
 }

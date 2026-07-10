@@ -17,7 +17,7 @@ Start ref: `8f9fafc8c2b304000ad05135313c802eb68bd569`
   CGEvent drag; 31 publishState/s background (from render loop, 100% structural).
 - Stacked subscriber count confirmed: N=1 with Surface Inspector + avatar +
   panel all active; Surface Inspector does not subscribe to `input_event`.
-- Swift rebuild completed (`./aos dev build` passed, warnings only).
+- Swift rebuild completed (`node scripts/aos-dev-build.mjs build` passed, warnings only).
 - TCC permissions re-granted after rebuild; daemon `ready: true`.
 
 ## Readiness Snapshot (GDI round)
@@ -390,7 +390,7 @@ The focused Node test run passed 57/57 tests.
 Passed (Foreman live session):
 
 ```bash
-./aos dev build    # completed; warnings only, no errors
+node scripts/aos-dev-build.mjs build    # completed; warnings only, no errors
 ```
 
 Passed (Foreman live session, native-rate measurement round):

@@ -139,7 +139,7 @@ For this decision record:
 
 ```bash
 git diff --check
-./aos dev recommend --json --paths docs/AGENTS.md docs/proposals/2026-07-09-voice-io-local-decision-record.md
+node scripts/aos-dev-workflow.mjs recommend --json --paths docs/AGENTS.md,docs/proposals/2026-07-09-voice-io-local-decision-record.md
 ```
 
 For downstream slices, use the slice-specific validators in the voice I/O

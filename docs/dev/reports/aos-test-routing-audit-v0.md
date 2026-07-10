@@ -27,7 +27,7 @@ tests or the newer isolated `tests/wiki-integration.sh` path in
 
 Trimmed the unowned examples list from `tests/README.md` so test selection flows
 through the harness ladder, specific family inventories, and
-`./aos dev recommend`.
+`node scripts/aos-dev-workflow.mjs recommend`.
 
 ## Next Cuts
 

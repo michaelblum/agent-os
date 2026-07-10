@@ -563,6 +563,19 @@ FAKE_AOS="$TMP/recovery-narrow/aos"
 cat >"$FAKE_AOS" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+state_dir="${FAKE_AOS_STATE_DIR:-/tmp/aos-recipe-fake-state}"
+arg_value() {
+  local flag="$1"
+  shift
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = "$flag" ] && [ "$#" -gt 1 ]; then
+      printf '%s\n' "$2"
+      return 0
+    fi
+    shift
+  done
+  return 1
+}
 if [ "${1:-}" = "help" ] && [ "${2:-}" = "--json" ]; then
   cat <<'JSON'
 {
@@ -570,6 +583,13 @@ if [ "${1:-}" = "help" ] && [ "${2:-}" = "--json" ]; then
     {
       "path": ["show"],
       "forms": [
+        {
+          "id": "show-create",
+          "execution": {
+            "mutates_state": true,
+            "supports_dry_run": false
+          }
+        },
         {
           "id": "show-remove",
           "execution": {
@@ -585,10 +605,28 @@ JSON
   exit 0
 fi
 if [ "${1:-}" = "show" ] && [ "${2:-}" = "exists" ]; then
+  id="$(arg_value --id "$@" || true)"
+  if [ -n "$id" ] && [ -f "$state_dir/removed-$id" ]; then
+    printf '{"exists":false}\n'
+    exit 0
+  fi
+  if [[ "$id" == *create-owned* || "$id" == *create-unowned* ]]; then
+    printf '{"exists":true}\n'
+    exit 0
+  fi
   printf '{"exists":false}\n'
   exit 0
 fi
+if [ "${1:-}" = "show" ] && [ "${2:-}" = "create" ]; then
+  printf 'IPC failure while creating\n' >&2
+  exit 1
+fi
 if [ "${1:-}" = "show" ] && [ "${2:-}" = "remove" ]; then
+  id="$(arg_value --id "$@" || true)"
+  if [ -n "$id" ]; then
+    mkdir -p "$state_dir"
+    touch "$state_dir/removed-$id"
+  fi
   printf 'IPC failure while removing\n' >&2
   exit 1
 fi
@@ -596,6 +634,7 @@ printf 'unexpected fake aos call: %s\n' "$*" >&2
 exit 2
 SH
 chmod +x "$FAKE_AOS"
+export FAKE_AOS_STATE_DIR="$TMP/recovery-narrow/fake-state"
 cat >"$TMP/recovery-narrow/recovery-narrow.json" <<'JSON'
 {
   "id": "fixture/recovery-narrow",
@@ -658,7 +697,120 @@ else
     fail "transient remove recovery scope drifted: $ERR"
 fi
 
-# --- 19. timeout failure still runs owned cleanup. ---
+# --- 19. transient show create recovery is limited to owned canvas resources. ---
+cat >"$TMP/recovery-narrow/recovery-create-unowned.json" <<'JSON'
+{
+  "id": "fixture/recovery-create-unowned",
+  "version": 1,
+  "summary": "Verify transient create recovery rejects unowned pre-existing canvases.",
+  "scope": "source",
+  "mutates": true,
+  "resources": {
+    "canvas_id": "owned-${run_id}-create-unowned"
+  },
+  "owned_resources": [
+    {
+      "name": "canvas",
+      "type": "canvas",
+      "id": "${resources.canvas_id}",
+      "ttl_seconds": 30
+    }
+  ],
+  "steps": [
+    {
+      "id": "main-create",
+      "command": { "path": ["show"], "form_id": "show-create" },
+      "argv": ["create", "--id", "create-unowned-${run_id}", "--html", "<html></html>"],
+      "timeout_ms": 10000,
+      "mutates": true
+    },
+    {
+      "id": "cleanup-remove",
+      "command": { "path": ["show"], "form_id": "show-remove" },
+      "argv": ["remove", "--id", "${resources.canvas_id}"],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "finally": true,
+      "cleanup_resources": ["canvas"],
+      "assertions": [{ "path": ["status"], "equals": "success" }]
+    }
+  ]
+}
+JSON
+if ERR="$(AOS_PATH="$FAKE_AOS" AOS_RECIPE_ROOTS="$TMP/recovery-narrow" node scripts/aos-recipe.mjs run fixture/recovery-create-unowned --json 2>&1 >/dev/null)"; then
+    fail "unowned create recovery fixture should fail"
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["ERR"])
+assert data["status"] == "failure", data
+assert data["code"] == "COMMAND_FAILED", data
+assert data["steps"][0]["id"] == "main-create", data
+assert data["steps"][0]["status"] == "failure", data
+assert "recovered" not in data["steps"][0].get("observed", {}), data
+assert data["cleanup"]["status"] == "success", data
+PY
+then
+    pass "transient create recovery rejects unowned canvas ids"
+else
+    fail "transient unowned create recovery scope drifted: $ERR"
+fi
+
+cat >"$TMP/recovery-narrow/recovery-create-owned.json" <<'JSON'
+{
+  "id": "fixture/recovery-create-owned",
+  "version": 1,
+  "summary": "Verify transient create recovery accepts declared owned canvases.",
+  "scope": "source",
+  "mutates": true,
+  "resources": {
+    "canvas_id": "create-owned-${run_id}"
+  },
+  "owned_resources": [
+    {
+      "name": "canvas",
+      "type": "canvas",
+      "id": "${resources.canvas_id}",
+      "ttl_seconds": 30
+    }
+  ],
+  "steps": [
+    {
+      "id": "main-create",
+      "command": { "path": ["show"], "form_id": "show-create" },
+      "argv": ["create", "--id", "${resources.canvas_id}", "--html", "<html></html>"],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "assertions": [{ "path": ["status"], "equals": "success" }]
+    },
+    {
+      "id": "cleanup-remove",
+      "command": { "path": ["show"], "form_id": "show-remove" },
+      "argv": ["remove", "--id", "${resources.canvas_id}"],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "finally": true,
+      "cleanup_resources": ["canvas"],
+      "assertions": [{ "path": ["status"], "equals": "success" }]
+    }
+  ]
+}
+JSON
+if OUT="$(AOS_PATH="$FAKE_AOS" AOS_RECIPE_ROOTS="$TMP/recovery-narrow" node scripts/aos-recipe.mjs run fixture/recovery-create-owned --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["steps"][0]["observed"]["recovered"] == "verified-created-owned-resource", data
+assert data["cleanup"]["steps"][0]["observed"]["recovered"] == "verified-removed-resource", data
+PY
+then
+    pass "transient create recovery is owned-resource only"
+else
+    fail "transient owned create recovery behavior drifted"
+fi
+
+# --- 20. timeout failure still runs owned cleanup. ---
 mkdir -p "$TMP/timeout-cleanup"
 cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
 {

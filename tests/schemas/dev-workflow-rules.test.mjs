@@ -165,6 +165,16 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*'));
   assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
   assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
+  assert.deepEqual(
+    rules.get('dev-gh-helper')?.commands?.map((step) => step.command),
+    [
+      'node --test tests/aos-dev-gh-contract.test.mjs',
+      'node --test tests/aos-dev-gh-help-parity.test.mjs',
+    ],
+  );
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('scripts/aos-dev-gh.mjs'));
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('scripts/aos-dev-gh-spec.mjs'));
+  assert.ok(rules.get('dev-gh-helper')?.patterns?.includes('tests/aos-dev-gh-contract.test.mjs'));
   assert.equal(rules.has('aos-agent-runner'), false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');

@@ -35,6 +35,9 @@ cat > "$FAKE_AOS" <<SH
 set -euo pipefail
 cmd="\$*"
 printf '%s\n' "\$cmd" >> "$FAKE_LOG"
+if [[ "\${FAKE_GH_SLEEP:-0}" == "1" ]]; then
+  sleep 1
+fi
 case "\$cmd" in
   "ready --json")
     printf '%s\n' '{"status":"ok","ready":true,"phase":"ready"}'
@@ -59,6 +62,9 @@ cat > "$FAKE_GH" <<SH
 set -euo pipefail
 cmd="\$*"
 printf '%s\n' "\$cmd" >> "$FAKE_LOG"
+if [[ "\${FAKE_GH_SLEEP:-0}" == "1" ]]; then
+  sleep 1
+fi
 case "\$cmd" in
   "context --json")
     printf '%s\n' '{"status":"success","authority":"gh_cli","repository":"michaelblum/agent-os","default_branch":"main"}'
@@ -435,6 +441,27 @@ then
     pass "dev situation marks source failure partial without synthesizing missing runtime facts"
 else
     fail "dev situation partial-failure behavior drifted"
+fi
+
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" AOS_DEV_SITUATION_TIMEOUT_MS=1000 AOS_DEV_SITUATION_DEADLINE_MS=150 FAKE_GH_SLEEP=1 node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+sources = {item["id"]: item for item in data["sources"]}
+failed = [item for item in data["sources"] if item["status"] == "failed"]
+assert data["status"] == "partial", data
+assert failed, data
+assert any(item["exit_code"] == 124 for item in failed), failed
+assert any("deadline" in item.get("note", "") for item in failed), failed
+assert sources["github_context"]["exit_code"] == 124, sources["github_context"]
+assert sources["github_open_issues"]["exit_code"] == 124, sources["github_open_issues"]
+assert data["github"]["context"] is None, data["github"]
+PY
+then
+    pass "dev situation enforces global deadline across sequential probes"
+else
+    fail "dev situation global deadline behavior drifted"
 fi
 
 echo
