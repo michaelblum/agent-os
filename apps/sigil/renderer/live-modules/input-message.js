@@ -1,6 +1,7 @@
 import { toolkitSpecifier } from './content-roots.js';
 
 export const {
+    isCanvasInputEventType,
     normalizeCanvasInputMessage,
     normalizeCanvasOriginInputMessage,
 } = await import(toolkitSpecifier('runtime/input-events.js', {
@@ -15,6 +16,12 @@ export function normalizeMessage(msg = {}) {
             envelope_type: toolkitMessage.envelopeType,
         };
     }
+
+    if (
+        msg?.type === 'input_event'
+        || msg?.type === 'input_region.event'
+        || isCanvasInputEventType(msg?.type)
+    ) return null;
 
     const payload = (msg?.payload && typeof msg.payload === 'object' && msg.payload !== null) ? msg.payload : null;
     const merged = payload ? { ...payload, ...msg } : { ...msg };

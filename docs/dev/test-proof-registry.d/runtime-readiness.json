@@ -148,6 +148,22 @@
       "status": "manual_only"
     },
     {
+      "id": "daemon-input-region-envelope-proof",
+      "path_patterns": [
+        "tests/daemon-input-surface-ownership.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "input_region_contract",
+      "contract": "Daemon input-region routing retains typed destination and diagnostic metadata through posting, serializes an exact two-key envelope at the boundary, and clears capture while failing open when canonical delivery is impossible.",
+      "worth": "This protects native input from duplicate transport fields, silent consumption, and stranded capture without launching the shared daemon.",
+      "command": "bash tests/daemon-input-surface-ownership.sh",
+      "replaces": [],
+      "guard": "compiles shared Swift input models, executes deliver/fail-open capture behavior, and validates generated payloads; no live daemon or input tap",
+      "status": "active"
+    },
+    {
       "id": "wait-surface-housecleaning-report",
       "path_patterns": [
         "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"

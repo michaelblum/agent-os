@@ -13,8 +13,13 @@ Good runtime responsibilities:
 - subscribe/unsubscribe helpers for daemon event streams;
 - canvas mutation helpers that wrap daemon create/update/remove/eval/suspend;
 - DesktopWorld coordinate adapters and generic interaction routing helpers.
-- input-event normalization and the canonical `inputIdentity` source,
-  ownership, scope, and envelope projection consumed by app policy;
+- schema-owned raw-v2 and routed-v1 parsing through the checked Ajv standalone
+  `input-event-validator.generated.js` artifact; never interpret JSON Schema on
+  the input hot path,
+  canvas-origin input normalization, and the
+  canonical `inputIdentity` source, ownership, scope, and envelope projection
+  consumed by app policy; unversioned names and `input_event` wrappers are not
+  compatibility inputs;
 - generic mounted-surface menu projection consumption from
   `packages/toolkit/contracts/`, operator annotation menu filtering/routing,
   and selection evidence helpers that stay app-neutral and consume manifest

@@ -4,11 +4,14 @@ import fs from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import validateGeneratedInputEvent from '../../packages/toolkit/runtime/input-event-validator.generated.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/input-event-v2.schema.json');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/input-event-v2');
+const generatorPath = path.join(repoRoot, 'scripts/generate-input-event-validator.mjs');
+const generatedValidatorPath = path.join(repoRoot, 'packages/toolkit/runtime/input-event-validator.generated.js');
 
 async function jsonFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -45,15 +48,32 @@ if errors:
   );
 }
 
+test('browser-safe input validator is compiled from the canonical schema', async () => {
+  const result = spawnSync('node', [generatorPath, '--check'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+
+  const source = await fs.readFile(generatedValidatorPath, 'utf8');
+  assert.match(source, /Compiled with Ajv standalone/);
+  assert.doesNotMatch(source, /^\s*import\s/m);
+  assert.doesNotMatch(source, /\brequire\s*\(/);
+  assert.doesNotMatch(source, /json-schema-validator/);
+});
+
 test('valid input-event v2 fixtures match the canonical schema', async () => {
   const fixtures = await jsonFiles(path.join(fixtureRoot, 'valid'));
   assert.ok(fixtures.length >= 1, 'expected valid fixtures');
   for (const fixture of fixtures) {
+    const instance = JSON.parse(await fs.readFile(fixture, 'utf8'));
     const result = runJsonschema(fixture);
     assert.equal(
       result.status,
       0,
       `${path.relative(repoRoot, fixture)} should validate\n${result.stdout}${result.stderr}`,
+    );
+    assert.equal(
+      validateGeneratedInputEvent(instance),
+      true,
+      `${path.relative(repoRoot, fixture)} should pass generated validation: ${JSON.stringify(validateGeneratedInputEvent.errors)}`,
     );
   }
 });
@@ -62,8 +82,10 @@ test('invalid input-event v2 fixtures are rejected by the canonical schema', asy
   const fixtures = await jsonFiles(path.join(fixtureRoot, 'invalid'));
   assert.ok(fixtures.length >= 1, 'expected invalid fixtures');
   for (const fixture of fixtures) {
+    const instance = JSON.parse(await fs.readFile(fixture, 'utf8'));
     const result = runJsonschema(fixture);
     assert.notEqual(result.status, 0, `${path.relative(repoRoot, fixture)} should fail validation`);
+    assert.equal(validateGeneratedInputEvent(instance), false, `${path.relative(repoRoot, fixture)} should fail generated validation`);
   }
 });
 

@@ -30,6 +30,26 @@ import {
   restoredPanelFrameForChip,
   workAreaForPoint,
 } from '../../packages/toolkit/panel/placement.js';
+import {
+  canonicalInputRegionEvent,
+  canonicalRawPointerInput,
+} from '../lib/input-event-fixtures.mjs';
+
+function canonicalPointerInput(type, x, y) {
+  return canonicalRawPointerInput({ type, x, y });
+}
+
+function inputRegionEvent(regionId, phase, x = 0, y = 0) {
+  const type = phase === 'down' ? 'left_mouse_down' : (phase === 'up' ? 'left_mouse_up' : 'left_mouse_dragged');
+  return canonicalInputRegionEvent({
+    type,
+    phase,
+    x,
+    y,
+    regionId,
+    ownerCanvasId: 'panel-a',
+  });
+}
 
 test('stock panel defaults make hosted documents fill the WebView viewport', async () => {
   const css = await readFile(new URL('../../packages/toolkit/panel/defaults.css', import.meta.url), 'utf8');
@@ -994,22 +1014,16 @@ test('createMinimizeController creates a stage chip and input regions before sus
   assert.deepEqual(calls[5], ['suspend', 'panel-a']);
   assert.deepEqual(maximize.getState(), { maximized: false, restoreFrame: null });
 
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:restore',
-    phase: 'down',
-    native: { x: 32, y: 52 },
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:restore', 'down', 32, 52),
+  )).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
 
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:restore',
-    phase: 'up',
-    native: { x: 32, y: 52 },
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:restore', 'up', 32, 52),
+  )).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(calls.slice(6).map((entry) => entry[0]), [
@@ -1388,11 +1402,9 @@ test('createMinimizeController close region removes the stage chip and source pa
   });
 
   await controller.minimize({ title: 'Panel' });
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:close',
-    phase: 'down',
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:close', 'down'),
+  )).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(calls.slice(5).map((entry) => entry[0]), [
@@ -1437,25 +1449,16 @@ test('createMinimizeController drags the stage chip body without restoring the s
   });
 
   await controller.minimize({ title: 'Panel' });
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:body',
-    phase: 'down',
-    native: { x: 40, y: 55 },
-  })).toString('base64'));
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:body',
-    phase: 'drag',
-    native: { x: 64, y: 75 },
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:body', 'down', 40, 55),
+  )).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:body', 'drag', 64, 75),
+  )).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
-  window.headsup.receive(Buffer.from(JSON.stringify({
-    type: 'input_region.event',
-    region_id: 'aos-chip-panel-a-rs:body',
-    phase: 'up',
-    native: { x: 64, y: 75 },
-  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify(
+    inputRegionEvent('aos-chip-panel-a-rs:body', 'up', 64, 75),
+  )).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
 
   const upserts = calls.filter((entry) => entry[0] === 'stage' && entry[1].type === 'desktop_world_stage.layer.upsert');
@@ -2016,10 +2019,10 @@ test('wireDrag follows daemon input events while the cursor leaves the canvas', 
   const sendInput = (message) => {
     window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
   };
-  sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 500, y: 1040 } });
+  sendInput(canonicalPointerInput('left_mouse_dragged', 500, 1040));
   assert.deepEqual(moves, [{ screenX: 500, screenY: 1040, offsetX: 24, offsetY: 10 }]);
 
-  sendInput({ type: 'input_event', payload: { type: 'left_mouse_up', x: 500, y: 1040 } });
+  sendInput(canonicalPointerInput('left_mouse_up', 500, 1040));
   assert.equal(controller.getState().active, false);
   assert.equal('dragging' in header.dataset, false);
   assert.deepEqual(emitted.map((message) => message.type), [
@@ -2093,7 +2096,7 @@ test('wireDrag does not use DOM pointermove coordinates for global panel placeme
   const sendInput = (message) => {
     window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
   };
-  sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 1360, y: 1570 } });
+  sendInput(canonicalPointerInput('left_mouse_dragged', 1360, 1570));
   header.dispatch('pointerup', { pointerId: 7, screenX: 1360, screenY: 80 });
 
   assert.equal(starts.length, 1);

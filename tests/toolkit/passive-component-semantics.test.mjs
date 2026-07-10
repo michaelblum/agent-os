@@ -6,6 +6,7 @@ import LogConsole from '../../packages/toolkit/components/log-console/index.js'
 import ObjectTransformPanel from '../../packages/toolkit/components/object-transform-panel/index.js'
 import RenderPerformance from '../../packages/toolkit/components/render-performance/index.js'
 import SpatialTelemetry from '../../packages/toolkit/components/spatial-telemetry/index.js'
+import { canonicalRawPointerInput } from '../lib/input-event-fixtures.mjs'
 
 class FakeElement {
   constructor(tagName = 'div') {
@@ -188,6 +189,15 @@ test('SpatialTelemetry exposes root region, labeled tables, and log semantics', 
   assert.match(root.innerHTML, /<table class="telemetry-table" aria-label="Canvas geometry">/)
   assert.match(root.innerHTML, /<table class="telemetry-table" aria-label="Cursor position">/)
   assert.match(root.innerHTML, /class="event-log" role="log" aria-label="Telemetry events" aria-live="polite"/)
+
+  telemetry.onMessage(canonicalRawPointerInput({
+    type: 'mouse_moved',
+    x: 140,
+    y: 170,
+  }))
+
+  assert.deepEqual(window.__spatialTelemetryState.raw.cursor, { x: 140, y: 170, valid: true })
+  assert.deepEqual(window.__spatialTelemetryState.snapshot.cursorRow.worldPoint, { x: 140, y: 170 })
 })
 
 test('ObjectTransformPanel exposes root region, object list, and triplet fields', (t) => {

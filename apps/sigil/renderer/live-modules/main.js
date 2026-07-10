@@ -602,6 +602,10 @@ function isPrimarySurfaceSegment() {
     return !desktopWorldSurface || desktopWorldSurface.isPrimary;
 }
 
+function isCanonicalInputMessage(msg = {}) {
+    return msg.input_schema_version === 2 || msg.routed_schema_version === 1;
+}
+
 function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (isPrimarySurfaceSegment()) return true;
     if (
@@ -612,7 +616,7 @@ function shouldProcessGlobalDaemonEvent(msg = {}) {
         || msg.type === OPERATOR_ANNOTATION_START_EVENT
     ) return false;
     if (msg.type === 'display_geometry') return false;
-    if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
+    if (isCanonicalInputMessage(msg)) return false;
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) return false;
     if (msg.type === 'canvas_message' && msg.id === radialTargetSurface.id) return false;
     return true;
@@ -3768,9 +3772,9 @@ function handleSessionTelemetryEnvelope(envelope = {}) {
 
 function handleHostMessage(rawMsg) {
     const msg = normalizeMessage(rawMsg);
+    if (!msg) return;
     if (
-        msg?.type === 'input_event'
-        || msg?.envelope_type === 'input_event'
+        isCanonicalInputMessage(msg)
         || msg?.type === 'right_mouse_down'
         || msg?.type === 'right_mouse_up'
         || msg?.type === 'left_mouse_down'

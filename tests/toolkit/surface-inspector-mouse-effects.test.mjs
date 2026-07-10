@@ -11,6 +11,7 @@ import {
   sweepMouseEffectsState,
 } from '../../packages/toolkit/components/surface-inspector/mouse-effects.js'
 import { createPointerGestureStream } from '../../packages/toolkit/runtime/gesture-stream.js'
+import { canonicalRoutedPointerInput } from '../lib/input-event-fixtures.mjs'
 
 const displays = [
   {
@@ -35,6 +36,17 @@ function minimapLayout() {
   return computeMinimapLayout(displays, [
     { id: 'surface-inspector', at: [1172, 442, 320, 480] },
   ], 300, { selfId: 'surface-inspector' })
+}
+
+function routedPointer(type, x, y) {
+  return canonicalRoutedPointerInput({
+    type,
+    x,
+    y,
+    regionId: 'surface-inspector-region',
+    ownerCanvasId: 'surface-inspector',
+    gestureId: 'surface-inspector-drag',
+  })
 }
 
 test('left drag release collapses the line tail toward the mouse-up point', () => {
@@ -69,15 +81,15 @@ test('passive gesture subscriber renders the same drag overlay from gesture fram
     applyMouseEffectsGestureFrame(state, frame, frame.coordinates.desktop_world, frame.timing.t)
   })
 
-  stream.handleCanvasInput({ type: 'left_mouse_down', desktop_world: { x: 1200, y: 260 } }, { now: 1000 })
-  stream.handleCanvasInput({ type: 'left_mouse_dragged', desktop_world: { x: 1450, y: 410 } }, { now: 1120 })
+  stream.handleCanvasInput(routedPointer('left_mouse_down', 1200, 260), { now: 1000 })
+  stream.handleCanvasInput(routedPointer('left_mouse_dragged', 1450, 410), { now: 1120 })
 
   const activeHtml = renderMouseEffectsOverlay(state, layout, 1160)
   assert.match(activeHtml, /mouse-events active/)
   assert.match(activeHtml, /minimap-pointer-line/)
   assert.match(activeHtml, /minimap-pointer-arrow/)
 
-  stream.handleCanvasInput({ type: 'left_mouse_up', desktop_world: { x: 1480, y: 430 } }, { now: 1200 })
+  stream.handleCanvasInput(routedPointer('left_mouse_up', 1480, 430), { now: 1200 })
   const releaseHtml = renderMouseEffectsOverlay(state, layout, 1240)
   assert.match(releaseHtml, /mouse-events release/)
   assert.match(releaseHtml, /--line-origin:100%/)

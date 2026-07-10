@@ -67,7 +67,7 @@ test('surface transport probe samples canonical input identity fields for handle
 
   probe.recordInputEvent({
     type: 'left_mouse_down',
-    envelope_type: 'input_event',
+    envelope_type: null,
     canvas_id: 'avatar-main',
     input_schema_version: 2,
     event_kind: 'pointer',
@@ -82,7 +82,7 @@ test('surface transport probe samples canonical input identity fields for handle
     routedInput: {
       routed_schema_version: 1,
       event_kind: 'pointer',
-      sequence: { source: 'daemon-region', value: 'drag-1' },
+      sequence: { source: 'daemon', value: 'drag-1' },
       coordinate_authority: 'daemon',
       source_origin: 'daemon',
       owner_canvas_id: 'avatar-main',
@@ -106,7 +106,7 @@ test('surface transport probe samples canonical input identity fields for handle
   const snapshot = probe.snapshot();
   assert.equal(snapshot.input_events.length, 3);
   assert.deepEqual(snapshot.input_events.map((event) => event.envelope_type), [
-    'input_event',
+    null,
     'input_region.event',
     'aos_routed_input',
   ]);

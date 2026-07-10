@@ -94,18 +94,16 @@ semantic_label?, priority?, consume_policy?, metadata?,
 remove_on_owner_suspend?, enabled?}`. `coordinate_space` is `native` or
 `desktop_world`; the daemon stores native coordinates and returns them in
 snapshots. `consume_policy` is `always`, `captured`, `down_only`, or `never`.
-When native pointer input routes to a region, the owner canvas receives
-`{type:"input_region.event", routed_input, region_id, owner_canvas_id,
-semantic_label, phase, source_event, source_sequence, source_origin, captured,
-capture_id, should_consume, native, desktop_world, metadata}`. The top-level
-fields are the V0 compatibility surface; `routed_input` is the canonical
+When native pointer input routes to a region, the owner canvas receives exactly
+`{type:"input_region.event", routed_input}`. `routed_input` is the canonical
 `aos_routed_input` payload from `shared/schemas/input-event-v2` and carries
 `delivery_role`, stable `capture_id` for captured drags, `region_id`,
-`owner_canvas_id`, `source_event`/`source_sequence`, `source_origin`,
+`owner_canvas_id`, bounded string `source_event`, canonical `sequence`, `source_origin`,
 `desktop_world`, and `coordinate_authority`.
 `input_region.event` is the bridge message type. `routed_schema_version: 1` is
 the routed payload version and must validate for the declared routed event kind
-and delivery role.
+and delivery role. If the daemon cannot construct that canonical routed payload,
+it does not post or consume the region event.
 Canvases can subscribe to `input_region` with `snapshot:true` to receive
 `input_region.snapshot` plus live register/update/remove notifications.
 

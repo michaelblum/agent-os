@@ -1,6 +1,7 @@
 // stage-affordance.js — bind passive DesktopWorld stage visuals to daemon input regions.
 
 import { registerInputRegion, removeInputRegion } from '../runtime/input-region.js'
+import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { createResourceScope } from '../runtime/resource-scope.js'
 import { wireBridge } from '../runtime/bridge.js'
 import { subscribe, unsubscribe } from '../runtime/subscribe.js'
@@ -69,9 +70,9 @@ function normalizeRegion(region = {}, common = {}) {
   }
 }
 
-function inputRegionEventRegionId(message = {}) {
-  if (message?.type !== 'input_region.event') return null
-  return message.region_id || message.payload?.region_id || message.data?.region_id || null
+function normalizedInputRegionEvent(message = {}) {
+  const input = normalizeCanvasInputMessage(message)
+  return input?.envelopeType === 'input_region.event' ? input : null
 }
 
 function lifecycleCanvasRemoved(message = {}) {
@@ -121,7 +122,7 @@ function normalizeStageEnsureStatus(result, { id, url } = {}) {
 }
 
 export function isStageAffordanceInputEvent(state = {}, message = {}) {
-  const regionId = inputRegionEventRegionId(message)
+  const regionId = normalizedInputRegionEvent(message)?.regionId
   if (!regionId) return false
   const regionIds = state.regionIds || []
   return regionIds.includes(regionId)
@@ -229,9 +230,9 @@ export function createStageAffordance({
         onSourceRemoved?.({ affordance: api, message, state: state() })
         return
       }
-      if (!isStageAffordanceInputEvent(state(), message)) return
-      const phase = message.phase || message.payload?.phase || message.data?.phase
-      onInputRegionEvent?.({ affordance: api, message, phase, state: state() })
+      const input = normalizedInputRegionEvent(message)
+      if (!input || !state().regionIds.includes(input.regionId)) return
+      onInputRegionEvent?.({ affordance: api, message, input, phase: input.phase, state: state() })
     })
   }
 

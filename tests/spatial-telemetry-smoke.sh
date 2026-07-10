@@ -52,7 +52,8 @@ if not snapshot["displayRows"]:
     raise SystemExit("FAIL: subscribe snapshots are missing displays")
 PY
 
-./aos show post --id spatial-telemetry --event '{"type":"input_event","payload":{"type":"mouse_move","x":140,"y":170}}' >/dev/null
+# This is direct live-canvas delivery; subscription fanout is outside this smoke's claim.
+./aos show post --id spatial-telemetry --event '{"input_schema_version":2,"event_kind":"pointer","type":"mouse_moved","phase":"move","device":"mouse","timestamp_monotonic_ms":1,"sequence":{"source":"daemon","value":1},"native":{"x":140,"y":170},"display_id":1,"topology_version":1,"button":"none","buttons":{"left":false,"right":false,"middle":false,"other_pressed":[]},"modifiers":{"shift":false,"ctrl":false,"cmd":false,"opt":false,"fn":false,"caps_lock":false}}' >/dev/null
 ./aos show post --id spatial-telemetry --event '{"type":"canvas_object.marks","payload":{"canvas_id":"demo-canvas","objects":[{"id":"demo-mark","x":90,"y":110,"name":"Demo Mark","rect":true,"ellipse":false,"cross":true}]}}' >/dev/null
 
 python3 - <<'PY'
@@ -67,9 +68,12 @@ state = json.loads(payload["result"])
 snapshot = state["snapshot"]
 
 cursor = snapshot["cursorRow"]
-per_display_points = list((cursor or {}).get("perDisplay", {}).values())
-if cursor is None or not any(round(point["x"]) == 140 and round(point["y"]) == 170 for point in per_display_points):
-    raise SystemExit(f"FAIL: cursor row did not update from input_event: {cursor}")
+canonical_summary = "input_event mouse_moved @ 140,170"
+if not any(event.get("summary") == canonical_summary for event in state["events"]):
+    raise SystemExit(f"FAIL: canonical raw-v2 input was not normalized and recorded: {state['events']}")
+
+if cursor is None:
+    raise SystemExit("FAIL: live input subscription did not produce a cursor row")
 
 marks = snapshot["markRows"]
 if not any(row["id"] == "demo-mark" and row["canvasId"] == "demo-canvas" for row in marks):
