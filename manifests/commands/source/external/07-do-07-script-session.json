@@ -34,6 +34,7 @@
         "session"
       ],
       "cwd": "repo",
+      "stdio": "inherit",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

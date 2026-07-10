@@ -184,17 +184,18 @@
     {
       "id": "native-action-event-source-contract",
       "path_patterns": [
-        "tests/click-count-contract.test.mjs"
+        "tests/click-count-contract.test.mjs",
+        "tests/aos-do-session-streaming.test.mjs"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "native_action_event_source_contract",
-      "contract": "Mouse, drag, key, typing, and modifier release actions reuse one session-owned CoreGraphics event source without fixed post-click timing delays.",
-      "worth": "This keeps event-posting lifetime explicit across one-shot and persistent action sessions without encoding test-derived sleeps in product handlers.",
-      "command": "node --test tests/click-count-contract.test.mjs",
+      "contract": "Mouse, drag, key, typing, and modifier release actions prepare an action-owned CoreGraphics receipt tap before mutation, acknowledge the exact terminal event, and expose public streaming session stdin without fixed timing delays.",
+      "worth": "This gives one-shot and persistent actions the same explicit delivery boundary while proving the public session route preserves NDJSON streaming.",
+      "command": "node --test tests/click-count-contract.test.mjs tests/aos-do-session-streaming.test.mjs",
       "replaces": [],
-      "guard": "source ownership contract only; the guarded concurrent lane proves live input delivery",
+      "guard": "static ownership plus public-wrapper streaming contract; the guarded concurrent lane proves live receipt delivery",
       "status": "active"
     },
     {

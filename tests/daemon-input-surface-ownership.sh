@@ -239,6 +239,22 @@ let rawPointer = inputEventData(type: "left_mouse_down", x: 25, y: 25, flags: fl
 assert(rawPointer["input_schema_version"] as? Int == 2, "complete pointer events may claim input v2")
 writeJSON("raw-pointer", rawPointer)
 
+let receiptMarker = aosInputReceiptMarker(processID: 42, counter: 7)
+let receiptID = aosInputReceiptID(marker: receiptMarker)
+assert(receiptID?.hasPrefix("aos-input-") == true, "owned event receipt marker should expose canonical identity")
+assert(aosInputReceiptID(marker: 7) == nil, "unowned event source data must not become a receipt identity")
+let receiptPointer = inputEventData(
+    type: "left_mouse_down",
+    x: 25,
+    y: 25,
+    flags: flags,
+    gestureIDOverride: receiptID
+)
+assert(receiptPointer["gesture_id"] as? String == receiptID, "receipt identity should survive canonical pointer projection")
+writeJSON("receipt-pointer", receiptPointer)
+let concurrentNaturalMove = inputEventData(type: "mouse_moved", x: 26, y: 26, flags: flags)
+assert(concurrentNaturalMove["gesture_id"] as? String != receiptID, "receipt identity must not capture concurrent natural pointer state")
+
 for pointerType in [
     "left_mouse_down",
     "left_mouse_up",
@@ -404,6 +420,7 @@ swiftc \
   "$ROOT/src/display/canvas-generation.swift" \
   "$ROOT/src/shared/types.swift" \
   "$ROOT/src/shared/input-event.swift" \
+  "$ROOT/src/shared/input-event-receipt.swift" \
   "$TMP/json-value.swift" \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \

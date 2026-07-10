@@ -385,6 +385,14 @@ if (!verb) error('do native wrapper requires a primitive', 'MISSING_ARG');
 validate(verb, args);
 
 const dispatchArgs = verb === 'set-value' ? normalizeSetValueArgs(args) : args;
+if (verb === 'session') {
+  const result = spawnSync(aosPath(), ['__do', verb, ...dispatchArgs], {
+    env: process.env,
+    stdio: 'inherit',
+  });
+  if (result.error) error(result.error.message, 'SESSION_LAUNCH_FAILED');
+  process.exit(result.status ?? 1);
+}
 const result = spawnSync(aosPath(), ['__do', verb, ...dispatchArgs], {
   encoding: 'utf8',
   env: process.env,

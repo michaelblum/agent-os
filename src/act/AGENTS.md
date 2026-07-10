@@ -22,8 +22,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   and invocation.
 - `actions.swift`, `session.swift`, `targeting.swift`, and adjacent helpers own
   session-mode action execution and reusable act-module mechanics.
-- `SessionState` owns the process-lifetime CoreGraphics event source used by
-  one-shot and persistent action sessions.
+- `SessionState` owns the CoreGraphics posting source and terminal-event receipt
+  boundary used by one-shot and persistent action sessions.
 
 ## Local Contracts
 
@@ -33,6 +33,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   primitives and leave product behavior to higher layers.
 - Keep exact window lifecycle behavior fail-closed: prerequisites must be
   checked before live mutation, and live mutations must have bounded readback.
+- Prepare the terminal-event receipt tap before posting a CGEvent action and do
+  not report success until the exact terminal event has been observed.
 
 ## Work Guidance
 

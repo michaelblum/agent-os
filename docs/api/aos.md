@@ -1866,7 +1866,8 @@ responses and session responses report an additive `execution` object:
     "strategy": "cgevent_click",
     "backend": "cgevent",
     "fallback_used": false,
-    "state_id": "see_abc123def456"
+    "state_id": "see_abc123def456",
+    "terminal_event_receipt": "aos-input-41a0000100000001"
   }
 }
 ```
@@ -1875,7 +1876,9 @@ responses and session responses report an additive `execution` object:
 family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), and
 `fallback_used` is reserved for paths that intentionally degrade from a
 preferred semantic strategy. `duration_ms` remains the top-level timing field on
-session responses.
+session responses. Successful CoreGraphics actions include an opaque
+`terminal_event_receipt` after the action process observes its exact terminal
+event at the session event tap; callers must not parse or construct this value.
 
 Direct AX `press`, `focus`, and `set-value --pid ... --role ...` responses also
 include a top-level `conformance` block from the external wrapper. The wrapper

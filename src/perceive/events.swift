@@ -24,7 +24,7 @@ private final class AOSInputEventIdentityState {
     private var nextValue: UInt64 = 0
     private var activePointerGestureID: String?
 
-    func identity(for type: String) -> (sequence: UInt64, gestureID: String?) {
+    func identity(for type: String, gestureIDOverride: String? = nil) -> (sequence: UInt64, gestureID: String?) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -33,7 +33,10 @@ private final class AOSInputEventIdentityState {
         let descriptor = AOSInputEventDescriptor(type: type)
         var gestureID: String?
 
-        if descriptor?.kind == .pointer || descriptor?.kind == .scroll {
+        if let gestureIDOverride,
+           (descriptor?.kind == .pointer || descriptor?.kind == .scroll) {
+            gestureID = gestureIDOverride
+        } else if descriptor?.kind == .pointer || descriptor?.kind == .scroll {
             if descriptor?.phase == .down {
                 gestureID = "g-\(sequence)"
                 activePointerGestureID = gestureID
@@ -86,9 +89,13 @@ func inputEventData(
     flags: [String: Bool]? = nil,
     scrollDX: Double? = nil,
     scrollDY: Double? = nil,
-    cancelReason: String? = nil
+    cancelReason: String? = nil,
+    gestureIDOverride: String? = nil
 ) -> [String: Any] {
-    let identity = aosInputEventIdentityState.identity(for: type)
+    let identity = aosInputEventIdentityState.identity(
+        for: type,
+        gestureIDOverride: gestureIDOverride
+    )
     let descriptor = AOSInputEventDescriptor(type: type)
     let canonicalEvent = AOSCanonicalInputEvent(
         type: type,

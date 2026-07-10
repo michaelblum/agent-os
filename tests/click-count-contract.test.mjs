@@ -32,25 +32,30 @@ test('handleClick rejects non-positive counts before posting click events', () =
   const clickCount = body.indexOf('let clickCount = req.count ?? 1');
   const invalidCount = body.indexOf('guard clickCount > 0 else');
   const invalidCode = body.indexOf('code: "INVALID_COUNT"');
-  const eventSource = body.indexOf('let source = state.eventSource');
+  const eventOwner = body.indexOf('let owner = state.eventPostingOwner');
   const clickRange = body.indexOf('for i in 1...clickCount');
 
   assert.ok(clickCount >= 0, 'handleClick should normalize missing count to one');
   assert.ok(invalidCount > clickCount, 'handleClick should validate the normalized count');
   assert.ok(invalidCode > invalidCount, 'invalid click counts should return a structured error');
-  assert.ok(eventSource > invalidCode, 'invalid count should be rejected before the session event source is used');
+  assert.ok(eventOwner > invalidCode, 'invalid count should be rejected before the event owner is used');
   assert.ok(clickRange > invalidCode, 'invalid count should be rejected before the trapping range loop');
 });
 
-test('CGEvent actions use one session-owned source without fixed completion sleeps', () => {
+test('CGEvent actions await terminal receipts without fixed completion sleeps', () => {
   const models = source('src/act/act-models.swift');
   const actions = source('src/act/actions.swift');
+  const posting = source('src/act/event-posting.swift');
   const session = source('src/act/session.swift');
 
-  assert.match(models, /let eventSource:\s*CGEventSource\?/);
-  assert.match(models, /self\.eventSource = CGEventSource\(stateID:\s*\.hidSystemState\)/);
+  assert.match(models, /let eventPostingOwner:\s*AOSCGEventPostingOwner/);
+  assert.match(models, /var terminal_event_receipt:\s*String\?/);
   assert.doesNotMatch(actions, /CGEventSource\(stateID:\s*\.hidSystemState\)/);
-  assert.match(actions, /let source = state\.eventSource/);
-  assert.match(session, /keyboardEventSource:\s*state\.eventSource/);
+  assert.match(posting, /guard ensureReceiptTap\(\) else \{ return nil \}/);
+  assert.match(actions, /owner\.post\(up,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
+  assert.match(actions, /CGEVENT_DELIVERY_UNCONFIRMED/);
+  assert.match(posting, /event\.setIntegerValueField\(\.eventSourceUserData,\s*value:\s*receipt\.marker\)/);
+  assert.match(posting, /tracker\.consume\(receipt\.marker,\s*eventType:\s*event\.type\)/);
+  assert.match(session, /keyboardEventSource:\s*state\.eventPostingOwner\.source/);
   assert.doesNotMatch(actions, /usleep\(50_000\)/);
 });

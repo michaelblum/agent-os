@@ -14,7 +14,7 @@ private var _activeSessionState: SessionState?
 func releaseAllModifiers(_ state: SessionState) {
     for mod in state.modifiers {
         if let entry = modifierMap[mod] {
-            if let event = CGEvent(keyboardEventSource: state.eventSource, virtualKey: entry.keyCode, keyDown: false) {
+            if let event = CGEvent(keyboardEventSource: state.eventPostingOwner.source, virtualKey: entry.keyCode, keyDown: false) {
                 event.post(tap: .cghidEventTap)
             }
         }
