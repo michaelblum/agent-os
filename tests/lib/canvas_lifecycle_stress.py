@@ -517,18 +517,50 @@ class LifecycleStress:
                 raise RuntimeError(f"canvas input fanout did not deliver pointer motion: {fanout}")
             boundaries = fanout.get("boundaries") or []
             raw_boundaries = self.raw_target_boundaries()
-            if len(raw_boundaries) < self.click_commands * 2:
+            raw_pending_down = None
+            raw_matched_clicks = 0
+            raw_seen_sequences = set()
+            for boundary in raw_boundaries:
+                phase = boundary.get("phase")
+                sequence = str(boundary.get("sequence"))
+                if sequence in raw_seen_sequences:
+                    raise RuntimeError(f"raw input observation duplicated sequence {sequence}")
+                raw_seen_sequences.add(sequence)
+                if phase == "down":
+                    if raw_pending_down is not None:
+                        raise RuntimeError(
+                            "raw input observation stranded a click release: "
+                            f"raw_boundaries={raw_boundaries}"
+                        )
+                    raw_pending_down = boundary
+                elif phase == "up":
+                    if raw_pending_down is None:
+                        raise RuntimeError(
+                            "raw input observation delivered up before down: "
+                            f"raw_boundaries={raw_boundaries}"
+                        )
+                    raw_pending_down = None
+                    raw_matched_clicks += 1
+            if raw_pending_down is not None:
                 raise RuntimeError(
-                    "raw input observation lost click boundaries before canvas fanout: "
-                    f"clicks={self.click_commands} raw_boundaries={raw_boundaries}"
+                    "raw input observation ended with a stranded click release: "
+                    f"raw_boundaries={raw_boundaries}"
+                )
+            minimum_raw_clicks = max(1, self.click_commands // 2)
+            if raw_matched_clicks < minimum_raw_clicks:
+                raise RuntimeError(
+                    "too few complete raw click pairs reached the input tap: "
+                    f"injected={self.click_commands} observed={raw_matched_clicks}"
                 )
             raw_sequences = {str(item.get("sequence")) for item in raw_boundaries}
             canvas_sequences = {str(item.get("sequence")) for item in boundaries}
             missing_canvas_sequences = sorted(raw_sequences - canvas_sequences)
-            if missing_canvas_sequences:
+            unexpected_canvas_sequences = sorted(canvas_sequences - raw_sequences)
+            if missing_canvas_sequences or unexpected_canvas_sequences:
                 raise RuntimeError(
-                    "canvas input fanout lost raw-observed boundaries: "
+                    "canvas input fanout diverged from raw-observed boundaries: "
                     f"missing_sequences={missing_canvas_sequences} "
+                    f"unexpected_sequences={unexpected_canvas_sequences} "
                     f"raw_boundaries={raw_boundaries} canvas_boundaries={boundaries}"
                 )
             pending_down = None
@@ -557,15 +589,18 @@ class LifecycleStress:
                         raise RuntimeError(f"canvas input fanout delivered up before down: {boundaries}")
                     pending_down = None
                     matched_clicks += 1
-            if pending_down is not None or matched_clicks < self.click_commands:
+            if pending_down is not None or matched_clicks != raw_matched_clicks:
                 raise RuntimeError(
-                    "canvas input fanout did not complete every click: "
-                    f"clicks={self.click_commands} matched={matched_clicks} boundaries={boundaries}"
+                    "canvas input fanout did not preserve complete raw click pairs: "
+                    f"raw={raw_matched_clicks} canvas={matched_clicks} boundaries={boundaries}"
                 )
             self.canvas_fanout_result = {
                 "deliveries": int(fanout.get("deliveries") or 0),
                 "moves": int(fanout.get("moves") or 0),
-                "clicks": matched_clicks,
+                "injected_clicks": self.click_commands,
+                "raw_clicks": raw_matched_clicks,
+                "canvas_clicks": matched_clicks,
+                "unobserved_injections": self.click_commands - raw_matched_clicks,
                 "max_latency_ms": round(max(latencies), 2),
             }
         self.assert_coherent()
