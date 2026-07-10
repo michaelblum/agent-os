@@ -17,7 +17,6 @@ import {
   readyDecision,
   readyEvaluationSnake,
   readyNextActions,
-  readySurfaceProjection,
   runtimeVerdict,
   runSetupPromptPlan,
   statusReadinessProjection,
@@ -720,12 +719,11 @@ test('missing microphone blocks listen and makes ready_for_testing capability-co
   assert.equal(verdict.notes.some((note) => note.includes('Microphone permission is not granted')), true);
 });
 
-test('shared readiness projectors feed the ready, status, doctor, and permissions builders', () => {
+test('shared readiness projectors preserve status, doctor, and permissions field shapes', () => {
   const current = facts();
   const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
   const verdict = runtimeVerdict(current, 'repo', './aos');
 
-  assert.deepEqual(readySurfaceProjection(verdict), { ready_source: 'daemon' });
   assert.deepEqual(statusReadinessProjection(verdict), {
     ready: true,
     status: 'ok',

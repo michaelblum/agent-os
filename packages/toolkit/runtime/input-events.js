@@ -479,7 +479,7 @@ function pointFromV2Event(event) {
   return { x, y }
 }
 
-export function projectInputIdentity(message = {}) {
+function projectInputIdentity(message = {}) {
   return {
     sourceOrigin: message.sourceOrigin ?? message.source_origin ?? null,
     sourceCanvasId: message.sourceCanvasId ?? message.source_canvas_id ?? null,

@@ -77,12 +77,6 @@ export function readyEvaluationSnake(evaluation) {
   };
 }
 
-export function readySurfaceProjection(verdict) {
-  return {
-    ready_source: verdict.ready_source,
-  };
-}
-
 export function statusReadinessProjection(verdict) {
   const projection = {
     ready: verdict.ready,

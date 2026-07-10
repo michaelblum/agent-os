@@ -29,7 +29,6 @@ export {
   isCanvasInputEventType,
   normalizeCanvasInputMessage,
   normalizeCanvasOriginInputMessage,
-  projectInputIdentity,
 } from './input-events.js'
 export {
   registerInputRegion,

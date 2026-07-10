@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import * as runtimeFacade from '../../packages/toolkit/runtime/index.js'
 import {
   createCanvasOriginInputEvent,
   isCanvasInputEventType,
   normalizeCanvasInputMessage,
   normalizeCanvasOriginInputMessage,
-  projectInputIdentity,
 } from '../../packages/toolkit/runtime/input-events.js'
 
 function inputIdentity(overrides = {}) {
@@ -19,6 +19,11 @@ function inputIdentity(overrides = {}) {
     ...overrides,
   }
 }
+
+test('runtime facade keeps the input identity projector private', () => {
+  assert.equal(runtimeFacade.normalizeCanvasInputMessage, normalizeCanvasInputMessage)
+  assert.equal(Object.hasOwn(runtimeFacade, 'projectInputIdentity'), false)
+})
 
 test('isCanvasInputEventType recognizes daemon raw input event names', () => {
   assert.equal(isCanvasInputEventType('mouse_moved'), true)
@@ -111,26 +116,6 @@ test('normalizeCanvasInputMessage adapts raw v2 pointer coordinates for current 
       inputIdentity: inputIdentity(),
     },
   )
-})
-
-test('toolkit projects one complete input identity and scope view', () => {
-  const identity = projectInputIdentity({
-    source_origin: 'canvas',
-    source_canvas_id: 'child-hit',
-    owner_canvas_id: 'parent-canvas',
-    region_id: 'child-region',
-    delivery_role: 'owned',
-    envelope_type: 'input_region.event',
-  })
-
-  assert.deepEqual(identity, inputIdentity({
-    sourceOrigin: 'canvas',
-    sourceCanvasId: 'child-hit',
-    ownerCanvasId: 'parent-canvas',
-    regionId: 'child-region',
-    deliveryRole: 'owned',
-    envelopeType: 'input_region.event',
-  }))
 })
 
 test('normalizeCanvasInputMessage unwraps v2 input_event envelopes', () => {

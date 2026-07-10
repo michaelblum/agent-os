@@ -16,8 +16,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   into a hand-maintained source of truth.
 - `lib/` owns shared JavaScript helpers for scripts.
 - `lib/aos-readiness.mjs` owns the effective permission view, readiness
-  decision model, and pure ready/status/doctor/permissions projections; command
-  builders consume those projections instead of assembling readiness fields.
+  decision model, and reusable status/doctor/permissions projections. The
+  ready builder maps its single top-level `ready_source` field directly from the
+  verdict and is covered by a bounded command proof.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the
