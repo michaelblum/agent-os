@@ -10,6 +10,8 @@ export const VOICE_DICTATION_EVENT_NAMES = new Set([
 const VOICE_SOURCE_VALUES = new Set(['hotkey', 'phrase']);
 const VOICE_CLOSE_REASONS = new Set(['key_release', 'phrase', 'explicit_trigger', 'timeout']);
 const CANONICAL_VOICE_EVENT_FIELDS = new Set(['v', 'service', 'event', 'ts', 'data', 'ref']);
+const LEGACY_VOICE_OPEN_FIELDS = new Set(['type', 'source', 'ts', 'ref']);
+const LEGACY_VOICE_CLOSE_FIELDS = new Set(['type', 'reason', 'ts', 'ref']);
 
 function defaultNowMs() {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -40,6 +42,13 @@ function keyName(msg = {}) {
 function finiteNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function legacyVoiceTimestamp(value) {
+  if (value === undefined) return defaultTimestampSeconds();
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return finiteNumber(value);
 }
 
 function isObjectRecord(value) {
@@ -96,22 +105,23 @@ export function parseCanonicalVoiceDictationEvent(message = {}) {
 
 export function adaptLegacyVoiceDictationBridgeEvent(message = {}) {
   if (!isObjectRecord(message) || !VOICE_DICTATION_EVENT_NAMES.has(message.type)) return null;
-  const payload = message.payload && typeof message.payload === 'object' ? message.payload : message;
-  const rawData = payload.data && typeof payload.data === 'object'
-    ? payload.data
-    : {
-      ...(payload.source ? { source: payload.source } : {}),
-      ...(payload.reason ? { reason: payload.reason } : {}),
-    };
+  const isOpenEvent = message.type === 'wake_detected' || message.type === 'dictation_opened';
+  const payloadField = isOpenEvent ? 'source' : 'reason';
+  const allowedFields = isOpenEvent ? LEGACY_VOICE_OPEN_FIELDS : LEGACY_VOICE_CLOSE_FIELDS;
+  if (!Object.keys(message).every((field) => allowedFields.has(field))) return null;
+  if (message.ref !== undefined && typeof message.ref !== 'string') return null;
+  const timestamp = legacyVoiceTimestamp(message.ts);
+  if (timestamp === null) return null;
+  const rawData = { [payloadField]: message[payloadField] };
   const data = validateVoiceEventData(message.type, rawData);
   if (!data) return null;
   return {
     v: 1,
     service: 'voice',
     event: message.type,
-    ts: finiteNumber(payload.ts) ?? defaultTimestampSeconds(),
+    ts: timestamp,
     data,
-    ...(typeof payload.ref === 'string' ? { ref: payload.ref } : {}),
+    ...(typeof message.ref === 'string' ? { ref: message.ref } : {}),
   };
 }
 

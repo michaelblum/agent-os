@@ -79,8 +79,9 @@ normalization belongs in `normalizeVoiceDictationEvent()` and
 `isVoiceDictationEvent()`. `parseCanonicalVoiceDictationEvent()` accepts only
 strict version-1 envelopes with exact event payloads, while
 `adaptLegacyVoiceDictationBridgeEvent()` is the explicit boundary for the flat
-canvas-event bridge shape. Both return the same narrow canonical envelope or
-`null`.
+canvas-event bridge shape: `type`, exactly one event-specific `source` or
+`reason`, and optional `ts` and `ref`. Nested payloads and additional fields are
+rejected. Both return the same narrow canonical envelope or `null`.
 
 Text targets should use `buildDictationTextValue()` or
 `applyDictationTextValue()` for insert, append, and replace behavior. Toolkit

@@ -479,10 +479,28 @@ function pointFromV2Event(event) {
   return { x, y }
 }
 
+export function projectInputIdentity(message = {}) {
+  return {
+    sourceOrigin: message.sourceOrigin ?? message.source_origin ?? null,
+    sourceCanvasId: message.sourceCanvasId ?? message.source_canvas_id ?? null,
+    ownerCanvasId: message.ownerCanvasId ?? message.owner_canvas_id ?? null,
+    regionId: message.regionId ?? message.region_id ?? null,
+    deliveryRole: message.deliveryRole ?? message.delivery_role ?? null,
+    envelopeType: message.envelopeType ?? message.envelope_type ?? null,
+  }
+}
+
+function withInputIdentity(message) {
+  return {
+    ...message,
+    inputIdentity: projectInputIdentity(message),
+  }
+}
+
 function normalizeV2InputEvent(event, envelopeType = null) {
   validateVersionedInputEvent(event)
   const point = pointFromV2Event(event)
-  return {
+  return withInputIdentity({
     ...event,
     ...(point || {}),
     envelopeType,
@@ -497,7 +515,7 @@ function normalizeV2InputEvent(event, envelopeType = null) {
     sourceOrigin: event.source_origin ?? null,
     sourceSequence: event.source_sequence ?? event.sequence ?? null,
     sourceEvent: event.source_event ?? null,
-  }
+  })
 }
 
 function normalizeInputRegionEnvelope(msg) {
@@ -530,16 +548,17 @@ function normalizeInputRegionEnvelope(msg) {
     gesture_id: payload.gesture_id || payload.gestureId || String(sourceEvent || type),
     desktop_world: desktopWorld,
     coordinate_authority: payload.coordinate_authority || 'daemon',
-    source_origin: payload.source_origin || 'daemon',
+    source_origin: payload.source_origin || payload.sourceOrigin || 'daemon',
+    source_canvas_id: payload.source_canvas_id || payload.sourceCanvasId,
     source_sequence: sourceSequence,
     source_event: sourceEvent,
-    region_id: payload.region_id,
-    owner_canvas_id: payload.owner_canvas_id,
+    region_id: payload.region_id || payload.regionId,
+    owner_canvas_id: payload.owner_canvas_id || payload.ownerCanvasId,
     capture_id: payload.capture_id,
     button: payload.button || 'none',
     buttons: payload.buttons || { left: false, right: false, middle: false, other_pressed: [] },
   }
-  return {
+  return withInputIdentity({
     ...msg,
     ...compat,
     ...pointFromV2Event(compat),
@@ -550,12 +569,13 @@ function normalizeInputRegionEnvelope(msg) {
     deliveryRole: compat.delivery_role ?? null,
     regionId: compat.region_id ?? null,
     ownerCanvasId: compat.owner_canvas_id ?? null,
+    sourceCanvasId: compat.source_canvas_id ?? null,
     sourceOrigin: compat.source_origin ?? null,
     sourceSequence: compat.source_sequence ?? compat.sequence ?? null,
     sourceEvent: compat.source_event ?? null,
     native,
     inputRegionEventType: msg.type,
-  }
+  })
 }
 
 export function normalizeCanvasInputMessage(msg) {
@@ -592,19 +612,19 @@ export function normalizeCanvasInputMessage(msg) {
     if (payload.input_schema_version === 2 || payload.routed_schema_version === 1) {
       return normalizeV2InputEvent(payload, msg.type)
     }
-    return {
+    return withInputIdentity({
       ...msg,
       ...payload,
       type: payload.type ?? msg.type,
       envelopeType: 'input_event',
-    }
+    })
   }
 
   if (isCanvasInputEventType(msg.type)) {
-    return {
+    return withInputIdentity({
       ...msg,
       envelopeType: null,
-    }
+    })
   }
 
   return null

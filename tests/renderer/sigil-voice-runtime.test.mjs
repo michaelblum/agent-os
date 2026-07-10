@@ -4,7 +4,6 @@ import assert from 'node:assert/strict'
 import {
   createSigilVoiceRuntime,
   isSigilTextEntryActive,
-  normalizeSigilVoiceInputSourceIdentity,
 } from '../../apps/sigil/renderer/live-modules/voice-runtime.js'
 
 function createRuntimeHarness(options = {}) {
@@ -40,23 +39,6 @@ test('Sigil voice runtime classifies focused text-entry elements', () => {
   assert.equal(isSigilTextEntryActive({ body, documentElement, activeElement: body }), false)
   assert.equal(isSigilTextEntryActive({ body, documentElement, activeElement: textInput }), true)
   assert.equal(isSigilTextEntryActive({ body, documentElement, activeElement: commentChild }, commentRoot), true)
-})
-
-test('Sigil voice runtime normalizes daemon and canvas input identity fields', () => {
-  assert.deepEqual(
-    normalizeSigilVoiceInputSourceIdentity({
-      source_origin: 'canvas',
-      source_canvas_id: 'panel',
-      owner_canvas_id: 'avatar-main',
-      envelope_type: 'input_region.event',
-    }),
-    {
-      sourceOrigin: 'canvas',
-      sourceCanvasId: 'panel',
-      ownerCanvasId: 'avatar-main',
-      envelopeType: 'input_region.event',
-    },
-  )
 })
 
 test('Sigil voice runtime initializes live snapshots and backend menu items', () => {
@@ -98,7 +80,7 @@ test('Sigil voice runtime declines new dictation while higher-priority input own
   }
   const { runtime } = createRuntimeHarness({
     getInputContext(message) {
-      return { ...context, sourceIdentity: normalizeSigilVoiceInputSourceIdentity(message) }
+      return { ...context, sourceIdentity: message.inputIdentity }
     },
   })
   const input = { type: 'key_down', key_code: 49 }
@@ -117,9 +99,9 @@ test('Sigil voice runtime declines new dictation while higher-priority input own
   context.currentState = 'FAST_TRAVEL'
   assert.equal(runtime.handleInput(input).reason, 'higher_priority_mode_active')
   context.currentState = 'IDLE'
-  assert.equal(runtime.handleInput({ ...input, sourceOrigin: 'canvas' }).reason, 'non_global_source')
-  assert.equal(runtime.handleInput({ ...input, envelope_type: 'input_region.event' }).reason, 'non_global_source')
-  assert.equal(runtime.handleInput({ ...input, sourceCanvasId: 'panel' }).reason, 'non_global_source')
+  assert.equal(runtime.handleInput({ ...input, inputIdentity: { sourceOrigin: 'canvas' } }).reason, 'non_global_source')
+  assert.equal(runtime.handleInput({ ...input, inputIdentity: { envelopeType: 'input_region.event' } }).reason, 'non_global_source')
+  assert.equal(runtime.handleInput({ ...input, inputIdentity: { sourceCanvasId: 'panel' } }).reason, 'non_global_source')
   assert.equal(runtime.handleInput(input).handled, true)
 })
 
@@ -127,13 +109,17 @@ test('Sigil voice runtime accepts release for active dictation after input owner
   const context = { selectionModeActive: false }
   const { liveState, runtime } = createRuntimeHarness({
     getInputContext(message) {
-      return { ...context, sourceIdentity: normalizeSigilVoiceInputSourceIdentity(message) }
+      return { ...context, sourceIdentity: message.inputIdentity }
     },
   })
 
   assert.equal(runtime.handleInput({ type: 'key_down', key_code: 49 }).policy, 'global_hotkey')
   context.selectionModeActive = true
-  const released = runtime.handleInput({ type: 'key_up', key_code: 49, sourceOrigin: 'canvas' })
+  const released = runtime.handleInput({
+    type: 'key_up',
+    key_code: 49,
+    inputIdentity: { sourceOrigin: 'canvas' },
+  })
   assert.equal(released.handled, true)
   assert.equal(released.policy, 'dictation_active')
   assert.equal(liveState.voiceDictation.phase, 'CANCEL')
@@ -144,7 +130,7 @@ test('Sigil voice runtime does not replace phrase dictation with protected-input
     getInputContext(message) {
       return {
         textInputActive: true,
-        sourceIdentity: normalizeSigilVoiceInputSourceIdentity(message),
+        sourceIdentity: message.inputIdentity,
       }
     },
   })

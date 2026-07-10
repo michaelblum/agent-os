@@ -294,6 +294,21 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
   ].sort());
 });
 
+test('proof-worth evaluator routes toolkit input identity normalization', async () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/toolkit/runtime-input-events.test.mjs'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/toolkit/runtime-input-events.test.mjs',
+  ]);
+});
+
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {
   const registry = {
     entries: [

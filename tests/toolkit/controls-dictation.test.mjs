@@ -192,6 +192,11 @@ test('legacy flat canvas events normalize only through the explicit adapter', ()
   assert.deepEqual(normalizeVoiceDictationEvent({ type: 'dictation_opened', source: 'phrase' }).data, { source: 'phrase' })
   assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'invalid' }), null)
   assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_closed_send', data: {} }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', payload: { source: 'phrase' } }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', extra: true }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', reason: 'timeout' }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', ts: {} }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', ref: 1 }), null)
 })
 
 test('dictation text values can insert, append, replace, and apply to text targets', () => {

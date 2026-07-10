@@ -15,6 +15,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   Keep it generated from command manifests and external routes; do not turn it
   into a hand-maintained source of truth.
 - `lib/` owns shared JavaScript helpers for scripts.
+- `lib/aos-readiness.mjs` owns the effective permission view, readiness
+  decision model, and pure ready/status/doctor/permissions projections; command
+  builders consume those projections instead of assembling readiness fields.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the

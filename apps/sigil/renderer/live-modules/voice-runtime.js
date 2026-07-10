@@ -32,15 +32,6 @@ export function isSigilTextEntryActive(doc = globalThis.document, commentEditorR
     ].join(','));
 }
 
-export function normalizeSigilVoiceInputSourceIdentity(message = {}) {
-    return {
-        sourceOrigin: message.sourceOrigin ?? message.source_origin ?? null,
-        sourceCanvasId: message.sourceCanvasId ?? message.source_canvas_id ?? null,
-        ownerCanvasId: message.ownerCanvasId ?? message.owner_canvas_id ?? null,
-        envelopeType: message.envelopeType ?? message.envelope_type ?? null,
-    };
-}
-
 function sourceIdentityAllowsGlobalHotkey(identity = {}) {
     if (identity.sourceOrigin === 'canvas') return false;
     if (identity.envelopeType === 'input_region.event') return false;

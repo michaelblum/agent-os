@@ -22,6 +22,7 @@ import {
   inputMonitoringSubGuidance,
   inputTapRecoveryGuidance,
   permissionRequirements,
+  readyEvaluationSnake,
   runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
@@ -125,8 +126,7 @@ async function buildDoctorResponse() {
     runtime: facts.runtime,
     runtime_verdict: verdict,
     aos_service: service,
-    ready_for_testing: evaluation.readyForTesting,
-    ready_source: evaluation.readySource,
+    ...readyEvaluationSnake(evaluation),
     notes,
   };
 }

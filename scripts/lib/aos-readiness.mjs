@@ -77,6 +77,32 @@ export function readyEvaluationSnake(evaluation) {
   };
 }
 
+export function readySurfaceProjection(verdict) {
+  return {
+    ready_source: verdict.ready_source,
+  };
+}
+
+export function statusReadinessProjection(verdict) {
+  const projection = {
+    ready: verdict.ready,
+    status: verdict.status,
+    phase: verdict.phase,
+    diagnosis: verdict.diagnosis,
+    ready_for_testing: verdict.ready_for_testing,
+    ready_source: verdict.ready_source,
+    blocked_capabilities: verdict.blocked_capabilities,
+  };
+  if (verdict.tcc_staleness) {
+    projection.tcc_staleness = {
+      id: verdict.tcc_staleness.id,
+      diagnosis: verdict.tcc_staleness.diagnosis,
+    };
+  }
+  if (verdict.terminal_handoff) projection.terminal_handoff = verdict.terminal_handoff;
+  return projection;
+}
+
 export function missingPermissionIDsFor(daemon, cli) {
   return permissionRequirements(effectivePermissionView(daemon, cli))
     .filter((requirement) => !requirement.granted)

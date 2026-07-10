@@ -17,8 +17,10 @@ import {
   readyDecision,
   readyEvaluationSnake,
   readyNextActions,
+  readySurfaceProjection,
   runtimeVerdict,
   runSetupPromptPlan,
+  statusReadinessProjection,
 } from '../scripts/lib/aos-readiness.mjs';
 
 function setup(overrides = {}) {
@@ -718,15 +720,25 @@ test('missing microphone blocks listen and makes ready_for_testing capability-co
   assert.equal(verdict.notes.some((note) => note.includes('Microphone permission is not granted')), true);
 });
 
-test('one shared readiness verdict feeds camelCase and snake_case public surfaces', () => {
-  const verdict = evaluateReadyForTesting(daemon(), permissions(), setup());
-  const readySurface = { ready_source: verdict.readySource };
-  const doctorSurface = { ready_for_testing: verdict.readyForTesting, ready_source: verdict.readySource };
-  const permissionsSurface = readyEvaluationSnake(verdict);
+test('shared readiness projectors feed the ready, status, doctor, and permissions builders', () => {
+  const current = facts();
+  const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
+  const verdict = runtimeVerdict(current, 'repo', './aos');
 
-  assert.deepEqual(readySurface, { ready_source: 'daemon' });
-  assert.deepEqual(doctorSurface, { ready_for_testing: true, ready_source: 'daemon' });
-  assert.deepEqual(permissionsSurface, { ready_for_testing: true, ready_source: 'daemon' });
+  assert.deepEqual(readySurfaceProjection(verdict), { ready_source: 'daemon' });
+  assert.deepEqual(statusReadinessProjection(verdict), {
+    ready: true,
+    status: 'ok',
+    phase: 'ready',
+    diagnosis: 'ready',
+    ready_for_testing: true,
+    ready_source: 'daemon',
+    blocked_capabilities: [],
+  });
+  assert.deepEqual(readyEvaluationSnake(evaluation), {
+    ready_for_testing: true,
+    ready_source: 'daemon',
+  });
 });
 
 test('setup planner prompts missing permissions in deterministic order', () => {

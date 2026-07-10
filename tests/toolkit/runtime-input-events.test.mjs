@@ -5,7 +5,20 @@ import {
   isCanvasInputEventType,
   normalizeCanvasInputMessage,
   normalizeCanvasOriginInputMessage,
+  projectInputIdentity,
 } from '../../packages/toolkit/runtime/input-events.js'
+
+function inputIdentity(overrides = {}) {
+  return {
+    sourceOrigin: null,
+    sourceCanvasId: null,
+    ownerCanvasId: null,
+    regionId: null,
+    deliveryRole: null,
+    envelopeType: null,
+    ...overrides,
+  }
+}
 
 test('isCanvasInputEventType recognizes daemon raw input event names', () => {
   assert.equal(isCanvasInputEventType('mouse_moved'), true)
@@ -22,6 +35,7 @@ test('normalizeCanvasInputMessage preserves raw daemon-delivered input messages'
       x: 120,
       y: 340,
       envelopeType: null,
+      inputIdentity: inputIdentity(),
     },
   )
 })
@@ -38,6 +52,7 @@ test('normalizeCanvasInputMessage unwraps input_event payload envelopes', () => 
       x: 120,
       y: 340,
       envelopeType: 'input_event',
+      inputIdentity: inputIdentity({ envelopeType: 'input_event' }),
     },
   )
 })
@@ -93,8 +108,29 @@ test('normalizeCanvasInputMessage adapts raw v2 pointer coordinates for current 
       sourceOrigin: null,
       sourceSequence: { source: 'daemon', value: 12 },
       sourceEvent: null,
+      inputIdentity: inputIdentity(),
     },
   )
+})
+
+test('toolkit projects one complete input identity and scope view', () => {
+  const identity = projectInputIdentity({
+    source_origin: 'canvas',
+    source_canvas_id: 'child-hit',
+    owner_canvas_id: 'parent-canvas',
+    region_id: 'child-region',
+    delivery_role: 'owned',
+    envelope_type: 'input_region.event',
+  })
+
+  assert.deepEqual(identity, inputIdentity({
+    sourceOrigin: 'canvas',
+    sourceCanvasId: 'child-hit',
+    ownerCanvasId: 'parent-canvas',
+    regionId: 'child-region',
+    deliveryRole: 'owned',
+    envelopeType: 'input_region.event',
+  }))
 })
 
 test('normalizeCanvasInputMessage unwraps v2 input_event envelopes', () => {
@@ -154,6 +190,13 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
   assert.equal(normalized.ownerCanvasId, 'avatar-main')
   assert.equal(normalized.sourceOrigin, 'daemon')
   assert.deepEqual(normalized.sourceSequence, { source: 'daemon', value: 18 })
+  assert.deepEqual(normalized.inputIdentity, inputIdentity({
+    sourceOrigin: 'daemon',
+    ownerCanvasId: 'avatar-main',
+    regionId: 'avatar',
+    deliveryRole: 'captured',
+    envelopeType: 'aos_routed_input',
+  }))
 })
 
 test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', () => {
@@ -192,6 +235,13 @@ test('normalizeCanvasInputMessage unwraps input_region.event routed payloads', (
   assert.equal(normalized.ownerCanvasId, 'panel')
   assert.equal(normalized.captureId, 'daemon:32:menu-hit')
   assert.equal(normalized.sourceEvent, 'daemon:33')
+  assert.deepEqual(normalized.inputIdentity, inputIdentity({
+    sourceOrigin: 'daemon',
+    ownerCanvasId: 'panel',
+    regionId: 'menu-hit',
+    deliveryRole: 'captured',
+    envelopeType: 'input_region.event',
+  }))
 })
 
 test('createCanvasOriginInputEvent builds stable child canvas source identity', () => {
@@ -363,4 +413,12 @@ test('normalizeCanvasOriginInputMessage exposes canvas-origin aliases for router
   assert.deepEqual(normalized.desktop_world, { x: 44, y: 55 })
   assert.deepEqual(normalized.childLocal, { x: 4, y: 5 })
   assert.deepEqual(normalized.scroll, { dx: 0, dy: -24, unit: 'point' })
+  assert.deepEqual(normalized.inputIdentity, inputIdentity({
+    sourceOrigin: 'canvas',
+    sourceCanvasId: 'child-hit',
+    ownerCanvasId: 'parent-canvas',
+    regionId: 'child-hit',
+    deliveryRole: 'owned',
+    envelopeType: 'aos_routed_input',
+  }))
 })

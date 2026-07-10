@@ -20,6 +20,7 @@ import {
   permissionFixLines,
   permissionResetSafeSequenceLines,
   readyAutoRepairReason,
+  readySurfaceProjection,
   runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
@@ -52,7 +53,7 @@ function buildReadyResponse(startup, actionTrace, mode, prefix) {
     phase: verdict.phase,
     diagnosis: verdict.diagnosis,
     mode,
-    ready_source: verdict.ready_source,
+    ...readySurfaceProjection(verdict),
     startup,
     runtime: facts.runtime,
     runtime_verdict: verdict,

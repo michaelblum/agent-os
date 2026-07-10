@@ -69,7 +69,6 @@ import {
 import {
     createSigilVoiceRuntime,
     isSigilTextEntryActive,
-    normalizeSigilVoiceInputSourceIdentity,
 } from './voice-runtime.js';
 import {
     createDefaultSelectionModeState,
@@ -511,7 +510,7 @@ const voiceRuntime = createSigilVoiceRuntime({
         selectionModeActive: liveJs.selectionMode?.active === true,
         avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
         textInputActive: isSigilTextEntryActive(document, selectionModeCommentEditorEl),
-        sourceIdentity: normalizeSigilVoiceInputSourceIdentity(message),
+        sourceIdentity: message.inputIdentity,
     }),
 });
 const renderPerformanceSampler = createSigilRenderPerformanceSampler({
