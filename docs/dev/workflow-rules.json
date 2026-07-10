@@ -51,7 +51,7 @@
         {
           "id": "ready",
           "command": "./aos ready --post-permission",
-          "reason": "After a real rebuild and user TCC reset/regrant, verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
+          "reason": "After a real rebuild, verify the raw binary and managed daemon with one bounded check; reset/regrant only if readiness reports post_rebuild_tcc_stale."
         }
       ],
       "notes": [
@@ -80,7 +80,7 @@
         {
           "id": "build-rebuild-policy-test",
           "command": "bash tests/build-rebuild-policy.sh",
-          "reason": "Verify content-based rebuilds, no repo-mode post-signing, and rebuild alert/TCC handoff behavior."
+          "reason": "Verify content-based rebuilds, no repo-mode post-signing, and conditional stale-TCC handoff behavior."
         }
       ],
       "verification": [],

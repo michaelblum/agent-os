@@ -29,15 +29,24 @@ Use this skill for repo-mode `./aos` build checks and rebuilds.
    ```
 
 4. If JSON reports `binary_rebuilt: false`, continue with the recommended non-rebuild checks.
-5. If JSON reports `binary_rebuilt: true` or stdout contains `Rebuilt: ./aos`, stop before TCC-backed daemon, capture, input, or native proof. Ask the user to reset/regrant the needed macOS permissions, then resume with:
+5. If JSON reports `binary_rebuilt: true` or stdout contains `Rebuilt: ./aos`, keep the raw artifact and run one bounded readiness check before TCC-backed daemon, capture, input, or native proof:
 
    ```bash
    ./aos ready --post-permission --json
    ```
 
+   Continue when readiness is healthy. Stop and ask the user to reset/regrant
+   permissions only when readiness explicitly reports
+   `post_rebuild_tcc_stale`.
+
 ## Boundaries
 
-Do not add post-build signing, entitlements, app-bundle wrapping, `spctl` acceptance gates, allowlist assumptions, or automated TCC resets. Treat endpoint-security kills as inconclusive runtime policy, not proof that the build logic is wrong.
+Do not add post-build signing, an explicit organization identifier,
+entitlements, app-bundle wrapping, `spctl` acceptance gates, allowlist
+assumptions, or automated TCC resets. Do not infer exit `137` from empty output,
+a timeout, or a failed readiness wrapper; capture the actual process exit status
+and diagnose the same artifact first. Treat confirmed endpoint-security kills as
+runtime policy, not proof that the build logic is wrong.
 
 ## References
 

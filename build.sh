@@ -88,7 +88,7 @@ play_rebuild_alert() {
         return 0
     fi
 
-    echo "Alert: repo-mode ./aos binary rebuilt; user must manually reset/regrant needed macOS TCC permissions before TCC-backed proof."
+    echo "Alert: repo-mode ./aos binary rebuilt; verify with ./aos ready --post-permission. Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale."
 
     if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
         "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true

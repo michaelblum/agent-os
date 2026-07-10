@@ -100,8 +100,8 @@ TOUCHED_OUT="$TMP/touched.out"
 CHANGED_OUT="$TMP/changed.out"
 
 PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
-# Scenario: first repo-mode build compiles, emits the rebuild/TCC handoff, and
-# does not run any post-build signing hook.
+# Scenario: first repo-mode build compiles, emits the bounded readiness reminder,
+# and does not run any post-build signing hook.
 if ! grep -qx 'swiftc' "$LOG"; then
     echo "FAIL: first build did not compile" >&2
     cat "$LOG" >&2
@@ -135,8 +135,9 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     cat "$FIRST_OUT" >&2
     exit 1
 fi
-if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$FIRST_OUT"; then
-    echo "FAIL: first build did not report the manual TCC reset handoff" >&2
+if ! grep -q 'verify with ./aos ready --post-permission' "$FIRST_OUT" ||
+   ! grep -q 'Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale' "$FIRST_OUT"; then
+    echo "FAIL: first build did not report the conditional stale-TCC handoff" >&2
     cat "$FIRST_OUT" >&2
     exit 1
 fi
@@ -209,8 +210,9 @@ if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
-if ! grep -q 'user must manually reset/regrant needed macOS TCC permissions' "$CHANGED_OUT"; then
-    echo "FAIL: changed runtime input content did not report the manual TCC reset handoff" >&2
+if ! grep -q 'verify with ./aos ready --post-permission' "$CHANGED_OUT" ||
+   ! grep -q 'Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale' "$CHANGED_OUT"; then
+    echo "FAIL: changed runtime input content did not report the conditional stale-TCC handoff" >&2
     cat "$CHANGED_OUT" >&2
     exit 1
 fi

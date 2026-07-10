@@ -716,10 +716,10 @@ owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
 build does not reset permissions, open System Settings, show a human-needed
 surface, write completed-build markers, or inject provider input.
 Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
-successful rebuild marker (`Rebuilt: ./aos`) invalidates prior TCC-backed proof
-for that binary and requires a user reset/regrant checkpoint before further
-TCC-backed daemon, capture, input, or native proof.
-After the user confirms the reset, verify with `./aos ready --post-permission`.
+successful rebuild marker (`Rebuilt: ./aos`) requires one bounded
+`./aos ready --post-permission` check before further TCC-backed daemon, capture,
+input, or native proof. Continue when that check is healthy; request a user
+reset/regrant only when it explicitly reports `post_rebuild_tcc_stale`.
 
 The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
