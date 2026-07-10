@@ -1,13 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
+import * as controlsFacade from '../../packages/toolkit/controls/index.js'
+
 import {
+  adaptLegacyVoiceDictationBridgeEvent,
   applyDictationTextValue,
   buildDictationTextValue,
   createDictationController,
   isHoldToDictateInput,
   normalizeVoiceDictationEvent,
+  parseCanonicalVoiceDictationEvent,
 } from '../../packages/toolkit/controls/dictation.js'
+
+test('controls facade exports strict voice parsing boundaries', () => {
+  assert.equal(controlsFacade.parseCanonicalVoiceDictationEvent, parseCanonicalVoiceDictationEvent)
+  assert.equal(controlsFacade.adaptLegacyVoiceDictationBridgeEvent, adaptLegacyVoiceDictationBridgeEvent)
+})
 
 function createHarness(options = {}) {
   let now = 1000
@@ -142,16 +151,52 @@ test('controller consumes generic voice dictation envelopes without re-emitting 
   assert.equal(harness.voiceEvents.length, 0)
 })
 
-test('normalizes the existing flat canvas event bridge shape for voice events', () => {
-  const event = normalizeVoiceDictationEvent({
+test('canonical voice event parsing follows the frozen daemon schema', () => {
+  const cases = [
+    ['wake_detected', { source: 'hotkey' }],
+    ['dictation_opened', { source: 'phrase' }],
+    ['dictation_closed_send', { reason: 'key_release' }],
+    ['dictation_closed_cancel', { reason: 'timeout' }],
+  ]
+
+  for (const [event, data] of cases) {
+    assert.deepEqual(
+      parseCanonicalVoiceDictationEvent({ v: 1, service: 'voice', event, ts: 1.25, data, ref: 'voice-1' }),
+      { v: 1, service: 'voice', event, ts: 1.25, data, ref: 'voice-1' },
+    )
+  }
+
+  const base = { v: 1, service: 'voice', event: 'dictation_opened', ts: 1, data: { source: 'hotkey' } }
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, v: undefined }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, ts: '1' }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, ts: Number.POSITIVE_INFINITY }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, data: { source: 'invalid' } }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, data: { source: 'hotkey', extra: true } }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, ref: 123 }), null)
+  assert.equal(parseCanonicalVoiceDictationEvent({ ...base, extra: true }), null)
+  assert.equal(normalizeVoiceDictationEvent({ ...base, type: 'dictation_opened' }), null)
+})
+
+test('legacy flat canvas events normalize only through the explicit adapter', () => {
+  const event = adaptLegacyVoiceDictationBridgeEvent({
     type: 'dictation_closed_cancel',
     reason: 'timeout',
+    ts: '2',
+    ref: 'legacy-1',
   })
 
   assert.deepEqual(
-    { service: event.service, event: event.event, data: event.data },
-    { service: 'voice', event: 'dictation_closed_cancel', data: { reason: 'timeout' } },
+    event,
+    { v: 1, service: 'voice', event: 'dictation_closed_cancel', ts: 2, data: { reason: 'timeout' }, ref: 'legacy-1' },
   )
+  assert.deepEqual(normalizeVoiceDictationEvent({ type: 'dictation_opened', source: 'phrase' }).data, { source: 'phrase' })
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'invalid' }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_closed_send', data: {} }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', payload: { source: 'phrase' } }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', extra: true }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', reason: 'timeout' }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', ts: {} }), null)
+  assert.equal(adaptLegacyVoiceDictationBridgeEvent({ type: 'dictation_opened', source: 'phrase', ref: 1 }), null)
 })
 
 test('dictation text values can insert, append, replace, and apply to text targets', () => {

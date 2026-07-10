@@ -1,5 +1,6 @@
 import {
     createSigilVoiceDictationController,
+    isSpacebarDictationInput,
     isVoiceDictationEvent,
 } from './voice-dictation.js';
 import {
@@ -17,6 +18,43 @@ function ensureList(target, key) {
     return target[key];
 }
 
+export function isSigilTextEntryActive(doc = globalThis.document, commentEditorRoot = null) {
+    const active = doc?.activeElement;
+    if (!active || active === doc?.body || active === doc?.documentElement) return false;
+    if (commentEditorRoot?.contains?.(active)) return true;
+    if (active.isContentEditable) return true;
+    return typeof active.matches === 'function' && active.matches([
+        'input:not([type="checkbox"]):not([type="radio"])',
+        'textarea',
+        'select',
+        '[role="textbox"]',
+        '[contenteditable="true"]',
+    ].join(','));
+}
+
+function sourceIdentityAllowsGlobalHotkey(identity = {}) {
+    if (identity.sourceOrigin === 'canvas') return false;
+    if (identity.envelopeType === 'input_region.event') return false;
+    return !identity.sourceCanvasId && !identity.ownerCanvasId;
+}
+
+function voiceInputDecision(message, snapshot, context = {}) {
+    if (!isSpacebarDictationInput(message)) return { canHandle: false, reason: 'not_spacebar' };
+    if (snapshot.spacebarHeld || snapshot.holdKeyDown) {
+        return { canHandle: true, reason: 'dictation_active' };
+    }
+    if (context.textInputActive) return { canHandle: false, reason: 'text_input_active' };
+    if (context.selectionModeActive) return { canHandle: false, reason: 'selection_mode_active' };
+    if (context.avatarControlsOpen || context.panelOpen) return { canHandle: false, reason: 'panel_active' };
+    if (context.currentState === 'RADIAL' || context.currentState === 'FAST_TRAVEL') {
+        return { canHandle: false, reason: 'higher_priority_mode_active' };
+    }
+    if (!sourceIdentityAllowsGlobalHotkey(context.sourceIdentity)) {
+        return { canHandle: false, reason: 'non_global_source' };
+    }
+    return { canHandle: true, reason: 'global_hotkey' };
+}
+
 export function createSigilVoiceRuntime({
     liveState,
     recordInteraction = () => {},
@@ -26,6 +64,7 @@ export function createSigilVoiceRuntime({
     maxEvents = 32,
     createDictationController = createSigilVoiceDictationController,
     createResponsePolicy = createSigilVoiceResponsePolicy,
+    getInputContext = () => ({}),
 } = {}) {
     if (!liveState || typeof liveState !== 'object') {
         throw new TypeError('createSigilVoiceRuntime requires liveState');
@@ -87,7 +126,16 @@ export function createSigilVoiceRuntime({
     }
 
     function handleInput(message = {}) {
-        return voiceDictation.handleInput(message);
+        const snapshot = voiceDictation.snapshot();
+        if (!isSpacebarDictationInput(message)) {
+            return { handled: false, reason: 'not_spacebar', snapshot };
+        }
+        const context = typeof getInputContext === 'function' ? getInputContext(message) || {} : {};
+        const decision = voiceInputDecision(message, snapshot, context);
+        if (!decision.canHandle) {
+            return { handled: false, reason: decision.reason, snapshot };
+        }
+        return { ...voiceDictation.handleInput(message), policy: decision.reason };
     }
 
     function handleVoiceEvent(message = {}) {

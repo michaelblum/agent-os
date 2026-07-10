@@ -21,6 +21,7 @@ import {
   inputMonitoringSubGuidance,
   inputTapRecoveryGuidance,
   runtimeVerdict,
+  statusReadinessProjection,
 } from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
@@ -152,26 +153,6 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) 
   return notes;
 }
 
-function readinessSummary(verdict) {
-  const summary = {
-    ready: verdict.ready,
-    status: verdict.status,
-    phase: verdict.phase,
-    diagnosis: verdict.diagnosis,
-    ready_for_testing: verdict.ready_for_testing,
-    ready_source: verdict.ready_source,
-    blocked_capabilities: verdict.blocked_capabilities,
-  };
-  if (verdict.tcc_staleness) {
-    summary.tcc_staleness = {
-      id: verdict.tcc_staleness.id,
-      diagnosis: verdict.tcc_staleness.diagnosis,
-    };
-  }
-  if (verdict.terminal_handoff) summary.terminal_handoff = verdict.terminal_handoff;
-  return summary;
-}
-
 async function buildStatusResponse() {
   const facts = brokerFacts({
     failureCode: 'STATUS_PRIMITIVE_FAILED',
@@ -192,7 +173,7 @@ async function buildStatusResponse() {
   });
   return {
     status: notes.length ? 'degraded' : 'ok',
-    readiness: readinessSummary(verdict),
+    readiness: statusReadinessProjection(verdict),
     identity: identity(runtime, facts.permissionsFacts),
     runtime,
     runtime_verdict: verdict,

@@ -14,12 +14,14 @@ export { createTextarea, renderTextareaHtml } from './textarea.js';
 export {
   DICTATION_TIMEOUT_MS,
   VOICE_DICTATION_EVENT_NAMES,
+  adaptLegacyVoiceDictationBridgeEvent,
   applyDictationTextValue,
   buildDictationTextValue,
   createDictationController,
   isHoldToDictateInput,
   isVoiceDictationEvent,
   normalizeVoiceDictationEvent,
+  parseCanonicalVoiceDictationEvent,
 } from './dictation.js';
 export { createSlider, renderSliderHtml } from './slider.js';
 export { createColorField, renderColorFieldHtml } from './color-field.js';

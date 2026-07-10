@@ -12,11 +12,27 @@
       "owner": "toolkit",
       "harness_level": "model_unit",
       "proof_kind": "voice_dictation_contract",
-      "contract": "Toolkit controls dictation controller mirrors the Sigil voice dictation envelope contract for control-surface consumers.",
-      "worth": "This prevents toolkit control state from drifting away from the renderer voice dictation bridge.",
+      "contract": "Toolkit controls dictation state, strict canonical voice-envelope parsing, and explicit legacy bridge adaptation stay aligned for control-surface consumers.",
+      "worth": "This prevents permissive envelope parsing or toolkit control state from drifting away from the frozen voice schema and renderer bridge.",
       "command": "node --test tests/toolkit/controls-dictation.test.mjs",
       "replaces": [],
       "guard": "controller unit; no live daemon",
+      "status": "active"
+    },
+    {
+      "id": "toolkit-runtime-input-events-proof",
+      "path_patterns": [
+        "tests/toolkit/runtime-input-events.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit",
+      "harness_level": "model_unit",
+      "proof_kind": "input_identity_contract",
+      "contract": "Toolkit input normalization publishes one complete source, ownership, scope, and envelope identity projection across canonical and bounded bridge inputs.",
+      "worth": "This prevents apps from reintroducing transport-field normalization or losing input ownership when routed event shapes change.",
+      "command": "node --test tests/toolkit/runtime-input-events.test.mjs",
+      "replaces": [],
+      "guard": "pure normalization unit; no live daemon or input tap",
       "status": "active"
     },
     {

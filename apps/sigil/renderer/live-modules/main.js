@@ -66,7 +66,10 @@ import {
     createAvatarDoubleClickTracker,
     selectionModeKeyName,
 } from './selection-mode-input.js';
-import { createSigilVoiceRuntime } from './voice-runtime.js';
+import {
+    createSigilVoiceRuntime,
+    isSigilTextEntryActive,
+} from './voice-runtime.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
@@ -502,6 +505,13 @@ const voiceRuntime = createSigilVoiceRuntime({
     recordInteraction,
     scheduleRenderFrame,
     isRendererSuspended: () => rendererSuspended,
+    getInputContext: (message) => ({
+        currentState: liveJs.currentState,
+        selectionModeActive: liveJs.selectionMode?.active === true,
+        avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
+        textInputActive: isSigilTextEntryActive(document, selectionModeCommentEditorEl),
+        sourceIdentity: message.inputIdentity,
+    }),
 });
 const renderPerformanceSampler = createSigilRenderPerformanceSampler({
     liveState: liveJs,

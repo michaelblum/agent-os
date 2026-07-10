@@ -5,6 +5,7 @@ import { setupState } from '../scripts/lib/aos-facts.mjs';
 import { guardedLiveOperation } from '../scripts/lib/aos-live-operation.mjs';
 import {
   disagreementFor,
+  effectivePermissionView,
   evaluateReadyForTesting,
   hasRestartableReadyRuntimeBlocker,
   inputMonitoringSubGuidance,
@@ -18,6 +19,7 @@ import {
   readyNextActions,
   runtimeVerdict,
   runSetupPromptPlan,
+  statusReadinessProjection,
 } from '../scripts/lib/aos-readiness.mjs';
 
 function setup(overrides = {}) {
@@ -119,7 +121,7 @@ function nextActionsFor(current, blockers = readyBlockers(current, 'repo')) {
   return readyNextActions(decision, blockers, current.setup, 'repo', './aos');
 }
 
-test('daemon-active ready path uses daemon source with setup complete and screen recording granted', () => {
+test('daemon-active ready path uses daemon source with the full capability permission set granted', () => {
   const result = evaluateReadyForTesting(daemon(), permissions(), setup());
   assert.deepEqual(result, { readyForTesting: true, readySource: 'daemon' });
   assert.deepEqual(readyEvaluationSnake(result), { ready_for_testing: true, ready_source: 'daemon' });
@@ -315,6 +317,63 @@ test('legacy daemon health without access fields falls back to CLI permission vi
   assert.deepEqual(result, { readyForTesting: true, readySource: 'cli' });
   assert.deepEqual(missingPermissionIDsFor(legacyDaemon, cli), []);
   assert.equal(disagreementFor(legacyDaemon, cli), undefined);
+});
+
+test('ready_for_testing requires each capability permission independently', () => {
+  const cases = [
+    ['accessibility', daemon({ permissions: { accessibility: false } }), permissions()],
+    ['screen_recording', daemon(), permissions({ screen_recording: false })],
+    ['listen_access', daemon({ inputTap: { listenAccess: false } }), permissions()],
+    ['post_access', daemon({ inputTap: { postAccess: false } }), permissions()],
+    ['microphone', daemon(), permissions({ microphone: false })],
+  ];
+
+  for (const [name, daemonView, cliView] of cases) {
+    assert.deepEqual(
+      evaluateReadyForTesting(daemonView, cliView, setup()),
+      { readyForTesting: false, readySource: 'daemon' },
+      name,
+    );
+  }
+});
+
+test('daemon readiness facts override or fall back to CLI facts per field', () => {
+  const partialDaemon = daemon({
+    inputTap: { listenAccess: false, postAccess: undefined },
+    permissions: { accessibility: undefined },
+  });
+  assert.deepEqual(
+    evaluateReadyForTesting(partialDaemon, permissions(), setup()),
+    { readyForTesting: false, readySource: 'daemon' },
+  );
+
+  const daemonWithoutPost = daemon({ inputTap: { postAccess: undefined } });
+  assert.deepEqual(
+    evaluateReadyForTesting(daemonWithoutPost, permissions({ post_access: false }), setup()),
+    { readyForTesting: false, readySource: 'daemon' },
+  );
+});
+
+test('effective permission view is the shared daemon-first readiness projection', () => {
+  const daemonView = daemon({
+    inputTap: { listenAccess: false, postAccess: undefined },
+    permissions: { accessibility: undefined },
+  });
+  const cliView = permissions({ post_access: false, microphone: false });
+
+  assert.deepEqual(effectivePermissionView(daemonView, cliView), {
+    accessibility: true,
+    screen_recording: true,
+    listen_access: false,
+    post_access: false,
+    microphone: false,
+    source: 'daemon',
+  });
+  assert.deepEqual(missingPermissionIDsFor(daemonView, cliView), [
+    'listen_access',
+    'post_access',
+    'microphone',
+  ]);
 });
 
 test('missing setup marker blocks readiness even when permissions are granted', () => {
@@ -642,14 +701,15 @@ test('permissionRequirements keeps public output shape stable', () => {
   );
 });
 
-test('missing microphone blocks listen without changing daemon readiness source', () => {
+test('missing microphone blocks listen and makes ready_for_testing capability-consistent', () => {
   const current = facts({ permissions: { microphone: false } });
   const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
   const verdict = runtimeVerdict(current, 'repo', './aos');
 
-  assert.deepEqual(evaluation, { readyForTesting: true, readySource: 'daemon' });
+  assert.deepEqual(evaluation, { readyForTesting: false, readySource: 'daemon' });
   assert.equal(verdict.ready, false);
   assert.equal(verdict.phase, 'human_required');
+  assert.equal(verdict.ready_for_testing, false);
   assert.deepEqual(verdict.blocked_capabilities, ['listen']);
   assert.deepEqual(missingPermissionIDsFor(current.daemon, current.permissions), ['microphone']);
   assert.equal(
@@ -659,15 +719,24 @@ test('missing microphone blocks listen without changing daemon readiness source'
   assert.equal(verdict.notes.some((note) => note.includes('Microphone permission is not granted')), true);
 });
 
-test('one shared readiness verdict feeds camelCase and snake_case public surfaces', () => {
-  const verdict = evaluateReadyForTesting(daemon(), permissions(), setup());
-  const readySurface = { ready_source: verdict.readySource };
-  const doctorSurface = { ready_for_testing: verdict.readyForTesting, ready_source: verdict.readySource };
-  const permissionsSurface = readyEvaluationSnake(verdict);
+test('shared readiness projectors preserve status, doctor, and permissions field shapes', () => {
+  const current = facts();
+  const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
+  const verdict = runtimeVerdict(current, 'repo', './aos');
 
-  assert.deepEqual(readySurface, { ready_source: 'daemon' });
-  assert.deepEqual(doctorSurface, { ready_for_testing: true, ready_source: 'daemon' });
-  assert.deepEqual(permissionsSurface, { ready_for_testing: true, ready_source: 'daemon' });
+  assert.deepEqual(statusReadinessProjection(verdict), {
+    ready: true,
+    status: 'ok',
+    phase: 'ready',
+    diagnosis: 'ready',
+    ready_for_testing: true,
+    ready_source: 'daemon',
+    blocked_capabilities: [],
+  });
+  assert.deepEqual(readyEvaluationSnake(evaluation), {
+    ready_for_testing: true,
+    ready_source: 'daemon',
+  });
 });
 
 test('setup planner prompts missing permissions in deterministic order', () => {

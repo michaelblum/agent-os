@@ -106,7 +106,11 @@ bounded bridges for native raw event-name fanout, unversioned `input_event`
 wrappers, top-level-only `input_region.event` compatibility, and canvas-origin
 synthetic messages. Normalized output adds camelCase fields such as
 `gestureId`, `captureId`, `deliveryRole`, `regionId`, `ownerCanvasId`,
-`sourceCanvasId`, `sourceOrigin`, `sourceSequence`, and `sourceEvent`.
+`sourceCanvasId`, `sourceOrigin`, `sourceSequence`, and `sourceEvent`. Every
+normalized input also carries one toolkit-owned `inputIdentity` projection with
+`sourceOrigin`, `sourceCanvasId`, `ownerCanvasId`, `regionId`, `deliveryRole`,
+and `envelopeType`; app policy should consume that projection instead of
+re-normalizing transport fields.
 
 Child hit WebViews that forward DOM input through `canvas_message` should use
 the same source identity contract instead of app-local booleans. The runtime

@@ -107,6 +107,7 @@ assert payload.get("ready") is False, payload
 assert payload.get("status") == "degraded", payload
 assert payload.get("phase") == "runtime_blocked", payload
 assert payload.get("diagnosis") == "stale_daemons", payload
+assert payload.get("ready_source") == payload.get("runtime_verdict", {}).get("ready_source"), payload
 assert any(item.get("id") == "stale_daemons" and str(pid) in item.get("message", "") for item in blockers), payload
 assert any(item.get("command") == "./aos clean" for item in actions), payload
 PY
@@ -170,6 +171,7 @@ import os
 payload = json.loads(os.environ["READY_AFTER"])
 assert payload.get("ready") is True, payload
 assert payload.get("diagnosis") == "ready", payload
+assert payload.get("ready_source") == payload.get("runtime_verdict", {}).get("ready_source"), payload
 PY
 
 echo "PASS"

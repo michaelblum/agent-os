@@ -257,6 +257,7 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     changedFiles: [
       'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',
       'tests/renderer/sigil-voice-dictation.test.mjs',
+      'tests/renderer/sigil-voice-runtime.test.mjs',
       'tests/toolkit/controls-dictation.test.mjs',
       'tests/voice-bind.sh',
       'tests/voice-cursor-rotation.sh',
@@ -287,9 +288,25 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     'bash tests/voice-session-allocation.sh',
     'bash tests/voice-telemetry.sh',
     'node --test tests/renderer/sigil-voice-dictation.test.mjs',
+    'node --test tests/renderer/sigil-voice-runtime.test.mjs',
     'node --test tests/schemas/daemon-event.test.mjs',
     'node --test tests/toolkit/controls-dictation.test.mjs',
   ].sort());
+});
+
+test('proof-worth evaluator routes toolkit input identity normalization', async () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/toolkit/runtime-input-events.test.mjs'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/toolkit/runtime-input-events.test.mjs',
+  ]);
 });
 
 test('proof-worth evaluator fails touched retired entries but allows their deletion', () => {

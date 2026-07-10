@@ -13,6 +13,8 @@ Good runtime responsibilities:
 - subscribe/unsubscribe helpers for daemon event streams;
 - canvas mutation helpers that wrap daemon create/update/remove/eval/suspend;
 - DesktopWorld coordinate adapters and generic interaction routing helpers.
+- input-event normalization and the canonical `inputIdentity` source,
+  ownership, scope, and envelope projection consumed by app policy;
 - generic mounted-surface menu projection consumption from
   `packages/toolkit/contracts/`, operator annotation menu filtering/routing,
   and selection evidence helpers that stay app-neutral and consume manifest

@@ -9,6 +9,9 @@ export const VOICE_DICTATION_EVENT_NAMES = new Set([
 
 const VOICE_SOURCE_VALUES = new Set(['hotkey', 'phrase']);
 const VOICE_CLOSE_REASONS = new Set(['key_release', 'phrase', 'explicit_trigger', 'timeout']);
+const CANONICAL_VOICE_EVENT_FIELDS = new Set(['v', 'service', 'event', 'ts', 'data', 'ref']);
+const LEGACY_VOICE_OPEN_FIELDS = new Set(['type', 'source', 'ts', 'ref']);
+const LEGACY_VOICE_CLOSE_FIELDS = new Set(['type', 'reason', 'ts', 'ref']);
 
 function defaultNowMs() {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -41,6 +44,36 @@ function finiteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function legacyVoiceTimestamp(value) {
+  if (value === undefined) return defaultTimestampSeconds();
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return finiteNumber(value);
+}
+
+function isObjectRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateVoiceEventData(eventName, data) {
+  if (!isObjectRecord(data)) return null;
+  const keys = Object.keys(data);
+  if (eventName === 'wake_detected' || eventName === 'dictation_opened') {
+    if (keys.length !== 1 || keys[0] !== 'source' || !VOICE_SOURCE_VALUES.has(data.source)) return null;
+    return { source: data.source };
+  }
+  if (eventName === 'dictation_closed_send' || eventName === 'dictation_closed_cancel') {
+    if (keys.length !== 1 || keys[0] !== 'reason' || !VOICE_CLOSE_REASONS.has(data.reason)) return null;
+    return { reason: data.reason };
+  }
+  return null;
+}
+
+function hasCanonicalEnvelopeIdentity(message) {
+  if (!isObjectRecord(message)) return false;
+  return ['v', 'service', 'event'].some((field) => Object.hasOwn(message, field));
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -52,37 +85,51 @@ export function isHoldToDictateInput(msg = {}) {
   return key === ' ' || key === 'space' || key === 'spacebar';
 }
 
-export function normalizeVoiceDictationEvent(msg = {}) {
-  if (msg?.service === 'voice' && VOICE_DICTATION_EVENT_NAMES.has(msg.event)) {
-    return {
-      v: msg.v ?? 1,
-      service: 'voice',
-      event: msg.event,
-      ts: Number(msg.ts) || defaultTimestampSeconds(),
-      data: (msg.data && typeof msg.data === 'object') ? msg.data : {},
-      ref: msg.ref,
-    };
-  }
+export function parseCanonicalVoiceDictationEvent(message = {}) {
+  if (!isObjectRecord(message)) return null;
+  if (message.v !== 1 || message.service !== 'voice' || !VOICE_DICTATION_EVENT_NAMES.has(message.event)) return null;
+  if (!Object.keys(message).every((field) => CANONICAL_VOICE_EVENT_FIELDS.has(field))) return null;
+  if (typeof message.ts !== 'number' || !Number.isFinite(message.ts)) return null;
+  if (message.ref !== undefined && typeof message.ref !== 'string') return null;
+  const data = validateVoiceEventData(message.event, message.data);
+  if (!data) return null;
+  return {
+    v: 1,
+    service: 'voice',
+    event: message.event,
+    ts: message.ts,
+    data,
+    ...(typeof message.ref === 'string' ? { ref: message.ref } : {}),
+  };
+}
 
-  if (VOICE_DICTATION_EVENT_NAMES.has(msg?.type)) {
-    const payload = (msg.payload && typeof msg.payload === 'object') ? msg.payload : msg;
-    const data = (payload.data && typeof payload.data === 'object')
-      ? payload.data
-      : {
-        ...(payload.source ? { source: payload.source } : {}),
-        ...(payload.reason ? { reason: payload.reason } : {}),
-      };
-    return {
-      v: 1,
-      service: 'voice',
-      event: msg.type,
-      ts: Number(payload.ts) || defaultTimestampSeconds(),
-      data,
-      ref: payload.ref,
-    };
-  }
+export function adaptLegacyVoiceDictationBridgeEvent(message = {}) {
+  if (!isObjectRecord(message) || !VOICE_DICTATION_EVENT_NAMES.has(message.type)) return null;
+  const isOpenEvent = message.type === 'wake_detected' || message.type === 'dictation_opened';
+  const payloadField = isOpenEvent ? 'source' : 'reason';
+  const allowedFields = isOpenEvent ? LEGACY_VOICE_OPEN_FIELDS : LEGACY_VOICE_CLOSE_FIELDS;
+  if (!Object.keys(message).every((field) => allowedFields.has(field))) return null;
+  if (message.ref !== undefined && typeof message.ref !== 'string') return null;
+  const timestamp = legacyVoiceTimestamp(message.ts);
+  if (timestamp === null) return null;
+  const rawData = { [payloadField]: message[payloadField] };
+  const data = validateVoiceEventData(message.type, rawData);
+  if (!data) return null;
+  return {
+    v: 1,
+    service: 'voice',
+    event: message.type,
+    ts: timestamp,
+    data,
+    ...(typeof message.ref === 'string' ? { ref: message.ref } : {}),
+  };
+}
 
-  return null;
+export function normalizeVoiceDictationEvent(message = {}) {
+  if (hasCanonicalEnvelopeIdentity(message)) {
+    return parseCanonicalVoiceDictationEvent(message);
+  }
+  return adaptLegacyVoiceDictationBridgeEvent(message);
 }
 
 export function isVoiceDictationEvent(msg = {}) {

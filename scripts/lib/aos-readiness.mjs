@@ -40,19 +40,33 @@ export function permissionRequirements(permissions) {
   ];
 }
 
+export function effectivePermissionView(daemon, cli = {}) {
+  const daemonViewAvailable = Boolean(daemon && [
+    daemon.permissions?.accessibility,
+    daemon.inputTap?.listenAccess,
+    daemon.inputTap?.postAccess,
+  ].some((value) => value !== undefined));
+  return {
+    accessibility: daemon?.permissions?.accessibility ?? cli.accessibility,
+    screen_recording: cli.screen_recording,
+    listen_access: daemon?.inputTap?.listenAccess ?? cli.listen_access,
+    post_access: daemon?.inputTap?.postAccess ?? cli.post_access,
+    microphone: cli.microphone,
+    source: daemonViewAvailable ? 'daemon' : 'cli',
+  };
+}
+
 export function evaluateReadyForTesting(daemon, permissions, setup) {
   if (daemon && daemon.inputTap.status !== 'active') {
     return { readyForTesting: false, readySource: 'daemon' };
   }
-  if (daemon && daemon.permissions.accessibility !== undefined) {
-    return {
-      readyForTesting: Boolean(daemon.permissions.accessibility && permissions.screen_recording && setup.setup_completed),
-      readySource: 'daemon',
-    };
-  }
+  const effective = effectivePermissionView(daemon, permissions);
   return {
-    readyForTesting: Boolean(permissions.accessibility && permissions.screen_recording && setup.setup_completed),
-    readySource: 'cli',
+    readyForTesting: Boolean(
+      permissionRequirements(effective).every((requirement) => requirement.granted)
+      && setup.setup_completed
+    ),
+    readySource: effective.source,
   };
 }
 
@@ -63,17 +77,30 @@ export function readyEvaluationSnake(evaluation) {
   };
 }
 
+export function statusReadinessProjection(verdict) {
+  const projection = {
+    ready: verdict.ready,
+    status: verdict.status,
+    phase: verdict.phase,
+    diagnosis: verdict.diagnosis,
+    ready_for_testing: verdict.ready_for_testing,
+    ready_source: verdict.ready_source,
+    blocked_capabilities: verdict.blocked_capabilities,
+  };
+  if (verdict.tcc_staleness) {
+    projection.tcc_staleness = {
+      id: verdict.tcc_staleness.id,
+      diagnosis: verdict.tcc_staleness.diagnosis,
+    };
+  }
+  if (verdict.terminal_handoff) projection.terminal_handoff = verdict.terminal_handoff;
+  return projection;
+}
+
 export function missingPermissionIDsFor(daemon, cli) {
-  const missing = [];
-  const accessibility = daemon?.permissions.accessibility ?? cli.accessibility;
-  const listen = daemon?.inputTap.listenAccess ?? cli.listen_access;
-  const post = daemon?.inputTap.postAccess ?? cli.post_access;
-  if (!accessibility) missing.push('accessibility');
-  if (!cli.screen_recording) missing.push('screen_recording');
-  if (!listen) missing.push('listen_access');
-  if (!post) missing.push('post_access');
-  if (!cli.microphone) missing.push('microphone');
-  return missing;
+  return permissionRequirements(effectivePermissionView(daemon, cli))
+    .filter((requirement) => !requirement.granted)
+    .map((requirement) => requirement.id);
 }
 
 export function disagreementFor(daemon, cli) {
