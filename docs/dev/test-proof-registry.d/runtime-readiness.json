@@ -164,6 +164,40 @@
       "status": "active"
     },
     {
+      "id": "canvas-lifecycle-stress-proof",
+      "path_patterns": [
+        "tests/canvas-lifecycle-stress.sh",
+        "tests/lib/canvas_lifecycle_stress.py"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "canvas_lifecycle_contract",
+      "contract": "Interactive and passive canvas creation, lookup, and transactional retirement preserve daemon identity, coherent lifecycle state, and native-window ownership.",
+      "worth": "This deterministically catches lifecycle regressions and orphan native windows without requiring injected user input.",
+      "command": "bash tests/canvas-lifecycle-stress.sh",
+      "replaces": [],
+      "guard": "uses an isolated AOS_STATE_ROOT and requires a current raw native build",
+      "status": "active"
+    },
+    {
+      "id": "canvas-lifecycle-concurrent-input-proof",
+      "path_patterns": [
+        "tests/canvas-lifecycle-concurrent-input.sh",
+        "tests/lib/input-event-observer.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "real_input",
+      "proof_kind": "canvas_lifecycle_concurrent_input_contract",
+      "contract": "Canvas create, lookup, and retirement stay transactional while canonical pointer and key events continue through a persistent v1 see.observe subscription.",
+      "worth": "This reproduces the AppKit/WebKit release race class that deterministic lifecycle commands cannot expose alone.",
+      "command": "AOS_REAL_INPUT_OK=1 bash tests/canvas-lifecycle-concurrent-input.sh",
+      "replaces": [],
+      "guard": "requires explicit AOS_REAL_INPUT_OK=1, native input permissions, and an isolated AOS_STATE_ROOT; incidental user mouse or keyboard input is permitted",
+      "status": "manual_only"
+    },
+    {
       "id": "wait-surface-housecleaning-report",
       "path_patterns": [
         "docs/dev/reports/aos-wait-surface-test-housecleaning-v0.md"
