@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--cycles", type=int, default=25)
     parser.add_argument("--concurrent-input", action="store_true")
     parser.add_argument("--targeted-key-helper")
+    parser.add_argument("--observer-log")
     return parser.parse_args()
 
 
@@ -39,6 +40,8 @@ class LifecycleStress:
         self.unregistered_app_window_baseline = 0
         if options.concurrent_input and not options.targeted_key_helper:
             raise ValueError("--targeted-key-helper is required with --concurrent-input")
+        if options.concurrent_input and not options.observer_log:
+            raise ValueError("--observer-log is required with --concurrent-input")
 
     def lock_pid(self):
         try:
@@ -372,6 +375,27 @@ class LifecycleStress:
                 f"baseline={self.hidden_window_baseline} windows={hidden}"
             )
 
+    def raw_target_boundaries(self):
+        time.sleep(0.1)
+        records = []
+        for line in pathlib.Path(self.options.observer_log).read_text().splitlines():
+            if not line:
+                continue
+            record = json.loads(line)
+            event = record.get("event") if record.get("observer") == "input_event" else None
+            point = (event or {}).get("native") or {}
+            phase = (event or {}).get("phase")
+            if (
+                phase in {"down", "up"}
+                and abs(float(point.get("x", -10000)) - 900) <= 8
+                and abs(float(point.get("y", -10000)) - 500) <= 8
+            ):
+                records.append({
+                    "phase": phase,
+                    "sequence": (event.get("sequence") or {}).get("value"),
+                })
+        return records
+
     def execute(self):
         input_thread = None
         self.assert_removed_ttl_metadata()
@@ -492,10 +516,20 @@ class LifecycleStress:
             if int(fanout.get("moves") or 0) < 1:
                 raise RuntimeError(f"canvas input fanout did not deliver pointer motion: {fanout}")
             boundaries = fanout.get("boundaries") or []
-            if len(boundaries) < self.click_commands * 2:
+            raw_boundaries = self.raw_target_boundaries()
+            if len(raw_boundaries) < self.click_commands * 2:
                 raise RuntimeError(
-                    "canvas input fanout lost click boundaries: "
-                    f"clicks={self.click_commands} boundaries={boundaries}"
+                    "raw input observation lost click boundaries before canvas fanout: "
+                    f"clicks={self.click_commands} raw_boundaries={raw_boundaries}"
+                )
+            raw_sequences = {str(item.get("sequence")) for item in raw_boundaries}
+            canvas_sequences = {str(item.get("sequence")) for item in boundaries}
+            missing_canvas_sequences = sorted(raw_sequences - canvas_sequences)
+            if missing_canvas_sequences:
+                raise RuntimeError(
+                    "canvas input fanout lost raw-observed boundaries: "
+                    f"missing_sequences={missing_canvas_sequences} "
+                    f"raw_boundaries={raw_boundaries} canvas_boundaries={boundaries}"
                 )
             pending_down = None
             seen_sequences = set()

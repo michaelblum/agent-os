@@ -268,6 +268,10 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         }
     }
 
+    // The CLI process is short-lived. Keep its event source alive long enough
+    // for the final release to enter the session tap before process teardown.
+    usleep(50_000)
+
     state.updateCursor(clickPoint)
     return okResponse("click", state: state, start: start, backend: "cgevent", strategy: "cgevent_click", stateID: req.state_id)
 }

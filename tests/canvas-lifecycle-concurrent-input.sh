@@ -55,12 +55,14 @@ done
 [[ -f "$OBSERVER_READY" ]] || { echo "FAIL: canonical input observer did not become ready" >&2; exit 1; }
 
 DAEMON_PID="$(aos_test_lock_pid "$STATE_ROOT")"
+CYCLES="${AOS_CANVAS_LIFECYCLE_CYCLES:-25}"
 if ! python3 tests/lib/canvas_lifecycle_stress.py \
   --state-root "$STATE_ROOT" \
   --daemon-pid "$DAEMON_PID" \
-  --cycles 25 \
+  --cycles "$CYCLES" \
   --concurrent-input \
-  --targeted-key-helper "$TARGETED_KEY_HELPER"
+  --targeted-key-helper "$TARGETED_KEY_HELPER" \
+  --observer-log "$OBSERVER_LOG"
 then
   tail -120 "$STATE_ROOT/daemon.stderr" >&2 || true
   exit 1
