@@ -86,11 +86,12 @@ test('Sigil avatar parking controller clears and restores previous avatar state'
 })
 
 test('Sigil main delegates avatar parking math and restore bookkeeping', async () => {
-  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const utilityRuntime = await readFile(new URL('../../apps/sigil/renderer/live-modules/utility-canvas-runtime.js', import.meta.url), 'utf8')
 
-  assert.match(source, /createSigilAvatarParkingController/)
-  assert.match(source, /avatarParking\.parkInTerminal/)
-  assert.match(source, /statusCollapseFrameFromOrigin/)
-  assert.doesNotMatch(source, /function nativePointToDesktop/)
-  assert.doesNotMatch(source, /function parkAvatarAtNativePoint/)
+  assert.match(main, /createSigilAvatarParkingController/)
+  assert.match(main, /statusCollapseFrameFromOrigin/)
+  assert.match(utilityRuntime, /avatarParking\.parkInTerminal/)
+  assert.doesNotMatch(main, /function nativePointToDesktop/)
+  assert.doesNotMatch(main, /function parkAvatarAtNativePoint/)
 })

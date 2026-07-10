@@ -512,12 +512,13 @@ export function hasRestartableReadyRuntimeBlocker(response) {
 
 function compactPrimaryBlocker(blocker) {
   if (!blocker) return undefined;
-  return {
+  const compact = {
     kind: blocker.kind,
     id: blocker.id,
-    scope: blocker.scope,
-    reason: blocker.reason,
   };
+  if (blocker.scope !== undefined) compact.scope = blocker.scope;
+  if (blocker.reason !== undefined) compact.reason = blocker.reason;
+  return compact;
 }
 
 function decisionFor(phase, diagnosis, actionReason, blocker) {
@@ -532,7 +533,6 @@ function decisionFor(phase, diagnosis, actionReason, blocker) {
 export function readyDecision(ready, blockers, daemon, permissions) {
   if (ready) return decisionFor('ready', 'ready', 'ready', undefined);
   const find = (predicate) => blockers.find(predicate);
-  const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
   let blocker = find((b) => b.id === 'agent_os_worktree_default_runtime');
   if (blocker) return decisionFor('runtime_blocked', blocker.id, blocker.id, blocker);
   blocker = find((b) => b.id === 'daemon_ownership_mismatch');
@@ -557,21 +557,12 @@ export function readyDecision(ready, blockers, daemon, permissions) {
       staleTccBlocker ?? daemonPermissionBlocker,
     );
   }
-  blocker = find((b) => b.id === 'input_tap_not_active');
-  if (blocker) {
-    return decisionFor(hasPermissionBlocker ? 'human_required' : 'runtime_blocked', blocker.id, 'runtime_repair', blocker);
-  }
-  blocker = find((b) => b.kind === 'setup');
-  if (blocker) {
-    return decisionFor(
-      hasPermissionBlocker ? 'human_required' : 'setup_required',
-      'permissions_onboarding_required',
-      hasPermissionBlocker ? 'permission' : 'setup',
-      hasPermissionBlocker ? find((b) => b.kind === 'permission') : blocker,
-    );
-  }
   blocker = find((b) => b.kind === 'permission');
   if (blocker) return decisionFor('human_required', 'not_ready', 'permission', blocker);
+  blocker = find((b) => b.id === 'input_tap_not_active');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_repair', blocker);
+  blocker = find((b) => b.kind === 'setup');
+  if (blocker) return decisionFor('setup_required', 'permissions_onboarding_required', 'setup', blocker);
   return decisionFor('degraded', 'not_ready', 'recheck', undefined);
 }
 
@@ -619,9 +610,6 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
   const seen = new Set();
   if (!blockers.length) return actions;
 
-  const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
-  const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
-  const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
   const primary = decision.action_reason;
 
@@ -684,7 +672,7 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
     });
   }
 
-  if (primary === 'runtime_repair' && hasRepairableRuntimeBlocker && !hasPermissionBlocker && !hasUnmanagedDaemon) {
+  if (primary === 'runtime_repair') {
     appendAction(actions, seen, {
       type: 'command',
       label: 'run automated repair: restart/recheck, then print human instructions if needed',
@@ -699,7 +687,7 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
     }
   }
 
-  if (primary === 'setup' || (!setup.setup_completed && !hasPermissionBlocker)) {
+  if (primary === 'setup') {
     appendAction(actions, seen, {
       type: 'command',
       label: 'run permission onboarding',

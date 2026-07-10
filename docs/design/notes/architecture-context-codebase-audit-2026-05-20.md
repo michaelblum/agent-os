@@ -47,15 +47,15 @@ The failure side remains broadly true through `exitError`, but the success side
 is too broad. `./aos help` intentionally emits human-readable text by default
 and only emits registry JSON when `--json` is supplied. The command registry
 also marks some command families as JSON only behind an explicit `--json` flag,
-for example `aos ops explain|dry-run|run`.
+for example `aos recipe explain|dry-run|run`.
 
 Evidence:
 
 - `ARCHITECTURE.md`, command contract section.
 - `src/shared/command-help.swift`, `helpCommand` chooses text output when
   `--json` is absent.
-- `src/shared/command-registry-data.swift`, `ops` forms use `[--json]` and
-  `outJSONFlag`.
+- `manifests/commands/source/external/26-recipe.json`, recipe forms use
+  `[--json]` and JSON-flag output contracts.
 - `./aos help` prints text output.
 
 Suggested direction: rewrite the contract as "agent-facing command forms expose

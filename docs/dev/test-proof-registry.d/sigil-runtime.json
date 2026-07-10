@@ -4,6 +4,23 @@
   "summary": "Proof-worth registry entries owned by sigil-runtime.",
   "entries": [
     {
+      "id": "sigil-utility-canvas-transaction-proof",
+      "path_patterns": [
+        "tests/renderer/sigil-avatar-parking.test.mjs",
+        "tests/renderer/sigil-utility-canvas-runtime.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "sigil-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "utility_canvas_transaction_contract",
+      "contract": "Sigil terminal collapse, restore, prewarm, parking, and lifecycle reconciliation preserve local state across host success and failure.",
+      "worth": "This catches partial terminal state commits and retry-latch drift without requiring a live daemon, status item, animation clock, or macOS permissions.",
+      "command": "node --test tests/renderer/sigil-utility-canvas-runtime.test.mjs tests/renderer/sigil-avatar-parking.test.mjs",
+      "replaces": [],
+      "guard": "deterministic renderer modules with fake host and injected animation clock; no live daemon",
+      "status": "active"
+    },
+    {
       "id": "real-input-surface-harness-helper",
       "path_patterns": [
         "tests/lib/real-input-surface-harness.sh"

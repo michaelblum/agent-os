@@ -139,6 +139,35 @@ test('daemon input tap inactive blocks readiness and yields runtime recovery act
   );
 });
 
+test('permission recovery owns mixed input-tap and microphone blockers', () => {
+  const current = facts({
+    daemon: { inputTap: { status: 'inactive', attempts: 3 } },
+    permissions: { microphone: false },
+  });
+  const blockers = readyBlockers(current, 'repo');
+  const decision = readyDecision(false, blockers, current.daemon, current.permissions);
+
+  assert.deepEqual(decision, {
+    phase: 'human_required',
+    diagnosis: 'not_ready',
+    action_reason: 'permission',
+    primary_blocker: {
+      kind: 'permission',
+      id: 'microphone',
+      scope: 'cli',
+    },
+  });
+  assert.deepEqual(
+    readyNextActions(decision, blockers, current.setup, 'repo', './aos').map((action) => action.command),
+    [
+      './aos permissions reset-runtime --mode repo',
+      './aos permissions setup --once',
+      './aos ready --post-permission',
+      './aos ready',
+    ],
+  );
+});
+
 test('daemon accessibility false overrides granted CLI accessibility as stale daemon grant', () => {
   const current = facts({ daemon: { permissions: { accessibility: false } } });
   const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
