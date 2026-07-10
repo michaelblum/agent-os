@@ -17,13 +17,13 @@ export function primaryRuntimeBlocker(verdict) {
 
 export function runtimeHandoffText(blockerID, prefix = invocationName()) {
   if (blockerID === 'agent_os_worktree_default_runtime') return 'Run AOS from the primary agent-os checkout, or set AOS_STATE_ROOT for an isolated runtime. Do not use linked worktrees with the default repo runtime.';
-  if (blockerID === 'daemon_unmanaged') return 'Return the unmanaged owner PID and command line to Foreman; do not loop service restart.';
+  if (blockerID === 'daemon_unmanaged') return 'Return the unmanaged owner PID and command line to the operator; do not loop service restart.';
   if (blockerID === 'daemon_foreground_dev_default') return `Run ${prefix} clean once, then re-check readiness; foreground dev daemons must use an isolated AOS_STATE_ROOT.`;
   if (blockerID === 'stale_daemons') return `Run ${prefix} clean once, then re-check readiness after stale owners are removed.`;
-  if (blockerID === 'daemon_unreachable' || blockerID === 'socket_unreachable') return 'Return the daemon/socket blocker to Foreman unless live-start permission was explicitly supplied.';
-  if (blockerID === 'input_tap_not_active') return 'Return input_tap_not_active to Foreman; do not run TCC reset unless the verdict also names a permission blocker.';
-  if (['accessibility', 'screen_recording', 'listen_access', 'post_access'].includes(blockerID)) return 'Return the permission blocker to Foreman for the TCC handoff path.';
-  return 'Return this runtime blocker to Foreman with the runtime_verdict.';
+  if (blockerID === 'daemon_unreachable' || blockerID === 'socket_unreachable') return 'Return the daemon/socket blocker to the operator unless live-start permission was explicitly supplied.';
+  if (blockerID === 'input_tap_not_active') return 'Return input_tap_not_active to the operator; do not run TCC reset unless the verdict also names a permission blocker.';
+  if (['accessibility', 'screen_recording', 'listen_access', 'post_access'].includes(blockerID)) return 'Return the permission blocker to the operator for the TCC handoff path.';
+  return 'Return this runtime blocker to the operator with the runtime_verdict.';
 }
 
 export function runtimeFailurePayload({

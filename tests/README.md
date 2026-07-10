@@ -144,8 +144,8 @@ the three-chime handoff alert, returns a terminal handoff, and agents must end
 the turn. After the user manually resets/regrants TCC and replies `finished`,
 verify with `./aos ready --post-permission`.
 
-GDI is not allowed to perform this rebuild; return native/binary work to
-Foreman instead.
+Run this rebuild only from the primary checkout. If the current task cannot
+mutate the native binary, return the work to the maintainer.
 
 Use raw `bash build.sh` only when `./aos` is missing or the build command itself
 is being repaired.

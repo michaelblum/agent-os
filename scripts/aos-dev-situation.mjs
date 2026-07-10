@@ -355,13 +355,13 @@ function buildSituation(options) {
   setTrace(trace, 'git.remote_branches', ['git_remote_branches']);
   setTrace(trace, 'git.stashes', ['git_stashes']);
 
-  const successorNote = readSuccessorNote(repoRoot, 'foreman', {
+  const successorNote = readSuccessorNote(repoRoot, 'maintainer', {
     gitBranch: gitPayload.branch,
     gitHead: gitPayload.head,
   });
   sources.push({
     id: 'successor_note',
-    command: `read ${successorNoteRelativePath('foreman')}`,
+    command: `read ${successorNoteRelativePath('maintainer')}`,
     status: 'success',
     exit_code: 0,
     note: successorNote.status,
