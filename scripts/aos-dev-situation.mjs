@@ -39,16 +39,32 @@ function situationDeadlineMs() {
   return parsed > 0 ? parsed : 30000;
 }
 
-function createDeadline() {
-  const deadlineMs = situationDeadlineMs();
+function createDeadline(deadlineMs = situationDeadlineMs(), label = 'packet') {
   return {
     deadlineMs,
+    label,
     expiresAt: Date.now() + deadlineMs,
   };
 }
 
 function remainingDeadlineMs(deadline) {
   return Math.max(0, deadline.expiresAt - Date.now());
+}
+
+function createCollectorBudgets() {
+  const packetMs = situationDeadlineMs();
+  const gitMs = Math.floor(packetMs * 0.3);
+  const githubMs = Math.floor(packetMs * 0.4);
+  const runtimeMs = Math.max(1, packetMs - gitMs - githubMs);
+  return {
+    git: gitMs,
+    github: githubMs,
+    runtime: runtimeMs,
+  };
+}
+
+function deadlineDescription(deadline) {
+  return `maintainer situation ${deadline.label} deadline ${deadline.deadlineMs}ms`;
 }
 
 function parseArgs(args) {
@@ -94,7 +110,7 @@ function run(command, args, cwd, deadline) {
     return {
       exitCode: 124,
       stdout: '',
-      stderr: `${commandString(command, args)} skipped because maintainer situation deadline ${deadline.deadlineMs}ms was exhausted\n`,
+      stderr: `${commandString(command, args)} skipped because ${deadlineDescription(deadline)} was exhausted\n`,
     };
   }
   const timeoutMs = Math.min(commandTimeoutMs(), remainingMs);
@@ -108,7 +124,7 @@ function run(command, args, cwd, deadline) {
     return {
       exitCode: 124,
       stdout: result.stdout ?? '',
-      stderr: `${commandString(command, args)} timed out after ${timeoutMs}ms within maintainer situation deadline ${deadline?.deadlineMs ?? timeoutMs}ms\n${result.stderr ?? ''}`,
+      stderr: `${commandString(command, args)} timed out after ${timeoutMs}ms within ${deadline ? deadlineDescription(deadline) : `maintainer situation deadline ${timeoutMs}ms`}\n${result.stderr ?? ''}`,
     };
   }
   if (result.error) {
@@ -252,11 +268,39 @@ function limitedCount(value, limit) {
   };
 }
 
+function collectGitSources(sources, repoRoot, deadline) {
+  return {
+    gitStatus: runSource(sources, 'git_status', '/usr/bin/git', ['status', '--short', '--branch'], repoRoot, 'git', deadline),
+    gitHead: runSource(sources, 'git_head', '/usr/bin/git', ['rev-parse', 'HEAD'], repoRoot, 'git', deadline),
+    gitOriginMain: runSource(sources, 'git_origin_main', '/usr/bin/git', ['rev-parse', 'origin/main'], repoRoot, 'git', deadline),
+    gitAheadBehind: runSource(sources, 'git_ahead_behind', '/usr/bin/git', ['rev-list', '--left-right', '--count', 'origin/main...HEAD'], repoRoot, 'git', deadline),
+    gitLocalBranches: runSource(sources, 'git_local_branches', '/usr/bin/git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads'], repoRoot, 'git', deadline),
+    gitRemoteBranches: runSource(sources, 'git_remote_branches', '/usr/bin/git', ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'], repoRoot, 'git', deadline),
+    gitStashes: runSource(sources, 'git_stashes', '/usr/bin/git', ['stash', 'list'], repoRoot, 'git', deadline),
+  };
+}
+
+function collectGitHubSources(sources, repoRoot, options, ghExecutable, ghBaseArgs, ghLabel, deadline) {
+  return {
+    ghContext: runSource(sources, 'github_context', ghExecutable, [...ghBaseArgs, 'context', '--json'], repoRoot, ghLabel, deadline),
+    ghOpenIssues: runSource(sources, 'github_open_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'open', '--limit', String(options.issueLimit), '--json'], repoRoot, ghLabel, deadline),
+    ghRecentIssues: runSource(sources, 'github_recent_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'all', '--limit', String(options.recentIssueLimit), '--json'], repoRoot, ghLabel, deadline),
+    ghOpenPRs: runSource(sources, 'github_open_prs', ghExecutable, [...ghBaseArgs, 'pr', 'list', '--state', 'open', '--limit', String(options.prLimit), '--json'], repoRoot, ghLabel, deadline),
+  };
+}
+
+function collectRuntimeSources(sources, repoRoot, aosPath, aosLabel, deadline) {
+  return {
+    ready: runSource(sources, 'aos_ready', aosPath, ['ready', '--json'], repoRoot, aosLabel, deadline),
+    status: runSource(sources, 'aos_status', aosPath, ['status', '--json'], repoRoot, aosLabel, deadline),
+  };
+}
+
 function buildSituation(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const sources = [];
   const trace = {};
-  const deadline = createDeadline();
+  const budgets = createCollectorBudgets();
   const aosPath = process.env.AOS_DEV_SITUATION_AOS_PATH || process.env.AOS_PATH || path.join(repoRoot, 'aos');
   const aosLabel = './aos';
   const ghPath = process.env.AOS_DEV_SITUATION_GH_PATH || path.join(repoRoot, 'scripts', 'aos-dev-gh.mjs');
@@ -264,20 +308,22 @@ function buildSituation(options) {
   const ghBaseArgs = process.env.AOS_DEV_SITUATION_GH_PATH ? [] : [ghPath];
   const ghLabel = process.env.AOS_DEV_SITUATION_GH_PATH ? ghPath : 'node scripts/aos-dev-gh.mjs';
 
-  const gitStatus = runSource(sources, 'git_status', '/usr/bin/git', ['status', '--short', '--branch'], repoRoot, 'git', deadline);
-  const gitHead = runSource(sources, 'git_head', '/usr/bin/git', ['rev-parse', 'HEAD'], repoRoot, 'git', deadline);
-  const gitOriginMain = runSource(sources, 'git_origin_main', '/usr/bin/git', ['rev-parse', 'origin/main'], repoRoot, 'git', deadline);
-  const gitAheadBehind = runSource(sources, 'git_ahead_behind', '/usr/bin/git', ['rev-list', '--left-right', '--count', 'origin/main...HEAD'], repoRoot, 'git', deadline);
-  const gitLocalBranches = runSource(sources, 'git_local_branches', '/usr/bin/git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads'], repoRoot, 'git', deadline);
-  const gitRemoteBranches = runSource(sources, 'git_remote_branches', '/usr/bin/git', ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'], repoRoot, 'git', deadline);
-  const gitStashes = runSource(sources, 'git_stashes', '/usr/bin/git', ['stash', 'list'], repoRoot, 'git', deadline);
-
-  const ghContext = runSource(sources, 'github_context', ghExecutable, [...ghBaseArgs, 'context', '--json'], repoRoot, ghLabel, deadline);
-  const ghOpenIssues = runSource(sources, 'github_open_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'open', '--limit', String(options.issueLimit), '--json'], repoRoot, ghLabel, deadline);
-  const ghRecentIssues = runSource(sources, 'github_recent_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'all', '--limit', String(options.recentIssueLimit), '--json'], repoRoot, ghLabel, deadline);
-  const ghOpenPRs = runSource(sources, 'github_open_prs', ghExecutable, [...ghBaseArgs, 'pr', 'list', '--state', 'open', '--limit', String(options.prLimit), '--json'], repoRoot, ghLabel, deadline);
-  const ready = runSource(sources, 'aos_ready', aosPath, ['ready', '--json'], repoRoot, aosLabel, deadline);
-  const status = runSource(sources, 'aos_status', aosPath, ['status', '--json'], repoRoot, aosLabel, deadline);
+  const {
+    gitStatus,
+    gitHead,
+    gitOriginMain,
+    gitAheadBehind,
+    gitLocalBranches,
+    gitRemoteBranches,
+    gitStashes,
+  } = collectGitSources(sources, repoRoot, createDeadline(budgets.git, 'git collector'));
+  const {
+    ghContext,
+    ghOpenIssues,
+    ghRecentIssues,
+    ghOpenPRs,
+  } = collectGitHubSources(sources, repoRoot, options, ghExecutable, ghBaseArgs, ghLabel, createDeadline(budgets.github, 'github collector'));
+  const { ready, status } = collectRuntimeSources(sources, repoRoot, aosPath, aosLabel, createDeadline(budgets.runtime, 'runtime collector'));
 
   const statusFacts = gitStatus.source.status === 'success' ? parseStatus(gitStatus.result.stdout) : null;
   const aheadBehind = gitAheadBehind.source.status === 'success' ? parseAheadBehind(gitAheadBehind.result.stdout) : null;

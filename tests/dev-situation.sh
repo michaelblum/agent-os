@@ -35,9 +35,6 @@ cat > "$FAKE_AOS" <<SH
 set -euo pipefail
 cmd="\$*"
 printf '%s\n' "\$cmd" >> "$FAKE_LOG"
-if [[ "\${FAKE_GH_SLEEP:-0}" == "1" ]]; then
-  sleep 1
-fi
 case "\$cmd" in
   "ready --json")
     printf '%s\n' '{"status":"ok","ready":true,"phase":"ready"}'
@@ -457,9 +454,12 @@ assert any("deadline" in item.get("note", "") for item in failed), failed
 assert sources["github_context"]["exit_code"] == 124, sources["github_context"]
 assert sources["github_open_issues"]["exit_code"] == 124, sources["github_open_issues"]
 assert data["github"]["context"] is None, data["github"]
+assert sources["aos_ready"]["status"] == "success", sources["aos_ready"]
+assert sources["aos_status"]["status"] == "success", sources["aos_status"]
+assert data["summary"]["runtime_ready"] is True, data["summary"]
 PY
 then
-    pass "dev situation enforces global deadline across sequential probes"
+    pass "dev situation isolates runtime probes from a slow GitHub collector"
 else
     fail "dev situation global deadline behavior drifted"
 fi

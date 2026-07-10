@@ -22,115 +22,111 @@ function createFixture(t) {
   const ghPath = path.join(tmp, 'gh');
   const argsLog = path.join(tmp, 'gh-args.log');
   const bodyLog = path.join(tmp, 'gh-body.log');
-  const script = [
-    '#!/usr/bin/env bash',
-    'set -euo pipefail',
-    'printf \'%s\\n\' "$*" >> "$GH_ARGS_LOG"',
-    'cmd="$*"',
-    'if [[ "$cmd" == "auth status" ]]; then',
-    '  echo "Logged in to github.com"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "repo view michaelblum/agent-os --json nameWithOwner,defaultBranchRef" ]]; then',
-    '  echo \'{"nameWithOwner":"michaelblum/agent-os","defaultBranchRef":{"name":"main"}}\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr view --repo michaelblum/agent-os --json number,url,headRefName,baseRefName,state" ]]; then',
-    '  echo \'{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","headRefName":"codex/example","baseRefName":"main","state":"OPEN"}\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == issue\\ comment\\ 298\\ --repo\\ michaelblum/agent-os\\ --body-file\\ * ]]; then',
-    '  body_file="${cmd##* --body-file }"',
-    '  cat "$body_file" >> "$GH_BODY_LOG"',
-    '  printf "\\n---\\n" >> "$GH_BODY_LOG"',
-    '  echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == issue\\ create\\ --repo\\ michaelblum/agent-os\\ --title\\ Strategic\\ follow-up\\ --body-file\\ *\\ --label\\ governance\\ --label\\ follow-up\\ --assignee\\ @me\\ --milestone\\ v1 ]]; then',
-    '  echo "https://github.com/michaelblum/agent-os/issues/411"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "issue close 411 --repo michaelblum/agent-os --reason completed" ]]; then',
-    '  echo "Closed issue michaelblum/agent-os#411"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == issue\\ edit\\ 407\\ --repo\\ michaelblum/agent-os\\ --remove-label\\ lane:active\\ --add-label\\ lane:parked\\ --add-assignee\\ @me\\ --remove-assignee\\ old-owner\\ --milestone\\ v1\\ --title\\ Parked\\ ledger\\ --body-file\\ * ]]; then',
-    '  echo "https://github.com/michaelblum/agent-os/issues/407"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments" ]]; then',
-    '  echo \'{"number":298,"title":"Governance ledger","state":"OPEN","url":"https://github.com/michaelblum/agent-os/issues/298","labels":[],"comments":[]}\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == issue\\ view\\ 298\\ --repo\\ michaelblum/agent-os\\ --json\\ number,title,state,url,body,labels,comments\\ --template\\ * ]]; then',
-    '  echo "#298 Governance ledger"',
-    '  echo "https://github.com/michaelblum/agent-os/issues/298"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os" ]]; then',
-    '  echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2',
-    '  exit 1',
-    'fi',
-    'if [[ "$cmd" == issue\\ view\\ 298\\ --repo\\ michaelblum/agent-os\\ --json\\ *projectCards* ]]; then',
-    '  echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2',
-    '  exit 1',
-    'fi',
-    'if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --milestone v0 --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then',
-    '  echo \'[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "label list --repo michaelblum/agent-os --limit 10 --search governance --sort name --order desc --json name,description,color,isDefault,url" ]]; then',
-    '  echo \'[{"name":"governance","description":"Governance and coordination","color":"5319e7","isDefault":false,"url":"https://github.com/michaelblum/agent-os/labels/governance"}]\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr view 298 --repo michaelblum/agent-os --json number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews" ]]; then',
-    '  echo \'{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author" ]]; then',
-    '  echo \'[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then',
-    '  echo \'[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr checks 299 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then',
-    '  echo \'[{"name":"lint","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/988","workflow":"CI"}]\'',
-    '  echo "checks failed" >&2',
-    '  exit 1',
-    'fi',
-    'if [[ "$cmd" == pr\\ create\\ --repo\\ michaelblum/agent-os\\ --base\\ main\\ --head\\ foreman/dev-gh-pr-create-v0\\ --title\\ Add\\ PR\\ create\\ --body-file\\ * ]]; then',
-    '  body_file="${cmd##* --body-file }"',
-    '  cat "$body_file" >> "$GH_BODY_LOG"',
-    '  printf "\\n---\\n" >> "$GH_BODY_LOG"',
-    '  echo "https://github.com/michaelblum/agent-os/pull/433"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "pr view https://github.com/michaelblum/agent-os/pull/433 --repo michaelblum/agent-os --json number,url,state,headRefName,baseRefName" ]]; then',
-    '  echo \'{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"foreman/dev-gh-pr-create-v0","baseRefName":"main"}\'',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == pr\\ merge\\ 410\\ --repo\\ michaelblum/agent-os\\ --merge\\ --match-head-commit\\ abc123\\ --body-file\\ * ]]; then',
-    '  echo "Merged pull request #410"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "run view 987 --repo michaelblum/agent-os --log-failed" ]]; then',
-    '  echo "unit failed log"',
-    '  exit 0',
-    'fi',
-    'if [[ "$cmd" == "run view 988 --repo michaelblum/agent-os --log-failed" ]]; then',
-    '  echo "lint failed log"',
-    '  exit 0',
-    'fi',
-    'if [[ "${1:-}" == "api" && "${2:-}" == "graphql" ]]; then',
-    '  echo \'{"data":{"repository":{"pullRequest":{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","reviewThreads":{"nodes":[{"isResolved":false,"isOutdated":false,"path":"src/example.swift","line":12,"startLine":null,"comments":{"nodes":[{"id":"c1","url":"https://github.com/comment","body":"Please fix this.","createdAt":"2026-05-13T00:00:00Z","author":{"login":"reviewer"}}]}}]}}}}}\'',
-    '  exit 0',
-    'fi',
-    'echo "unexpected fake gh invocation: $cmd" >&2',
-    'exit 64',
-    '',
-  ].join('\n');
+  const script = `#!/usr/bin/env node
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(process.env.GH_ARGS_LOG, JSON.stringify(argv) + '\\n');
+
+function out(line) {
+  process.stdout.write(line + '\\n');
+}
+
+function err(line) {
+  process.stderr.write(line + '\\n');
+}
+
+function ok(line) {
+  if (line != null) out(line);
+  process.exit(0);
+}
+
+function fail(line, code = 1) {
+  err(line);
+  process.exit(code);
+}
+
+function matches(pattern) {
+  return argv.length === pattern.length && pattern.every((item, index) => item === '*' || argv[index] === item);
+}
+
+function appendBodyFile() {
+  const index = argv.indexOf('--body-file');
+  if (index < 0 || index + 1 >= argv.length) fail('missing fake body file', 64);
+  fs.appendFileSync(process.env.GH_BODY_LOG, fs.readFileSync(argv[index + 1], 'utf8') + '\\n---\\n');
+}
+
+if (matches(['auth', 'status'])) ok('Logged in to github.com');
+if (matches(['repo', 'view', 'michaelblum/agent-os', '--json', 'nameWithOwner,defaultBranchRef'])) {
+  ok('{"nameWithOwner":"michaelblum/agent-os","defaultBranchRef":{"name":"main"}}');
+}
+if (matches(['pr', 'view', '--repo', 'michaelblum/agent-os', '--json', 'number,url,headRefName,baseRefName,state'])) {
+  ok('{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","headRefName":"codex/example","baseRefName":"main","state":"OPEN"}');
+}
+if (matches(['issue', 'comment', '298', '--repo', 'michaelblum/agent-os', '--body-file', '*'])) {
+  appendBodyFile();
+  ok('https://github.com/michaelblum/agent-os/issues/298#issuecomment-test');
+}
+if (matches(['issue', 'create', '--repo', 'michaelblum/agent-os', '--title', 'Strategic follow-up', '--body-file', '*', '--label', 'governance', '--label', 'follow-up', '--assignee', '@me', '--milestone', 'v1'])) {
+  ok('https://github.com/michaelblum/agent-os/issues/411');
+}
+if (matches(['issue', 'close', '411', '--repo', 'michaelblum/agent-os', '--reason', 'completed'])) {
+  ok('Closed issue michaelblum/agent-os#411');
+}
+if (matches(['issue', 'edit', '407', '--repo', 'michaelblum/agent-os', '--remove-label', 'lane:active', '--add-label', 'lane:parked', '--add-assignee', '@me', '--remove-assignee', 'old-owner', '--milestone', 'v1', '--title', 'Parked ledger', '--body-file', '*'])) {
+  ok('https://github.com/michaelblum/agent-os/issues/407');
+}
+if (matches(['issue', 'view', '298', '--repo', 'michaelblum/agent-os', '--json', 'number,title,state,url,body,labels,comments'])) {
+  ok('{"number":298,"title":"Governance ledger","state":"OPEN","url":"https://github.com/michaelblum/agent-os/issues/298","labels":[],"comments":[]}');
+}
+if (matches(['issue', 'view', '298', '--repo', 'michaelblum/agent-os', '--json', 'number,title,state,url,body,labels,comments', '--template', '*'])) {
+  ok('#298 Governance ledger\\nhttps://github.com/michaelblum/agent-os/issues/298');
+}
+if (matches(['issue', 'view', '298', '--repo', 'michaelblum/agent-os'])) {
+  fail('GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)');
+}
+if (argv[0] === 'issue' && argv[1] === 'view' && argv.includes('projectCards')) {
+  fail('GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)');
+}
+if (matches(['issue', 'list', '--repo', 'michaelblum/agent-os', '--state', 'all', '--limit', '20', '--label', 'bug', '--label', 'docs', '--search', 'semantic target', '--milestone', 'v0', '--json', 'number,title,state,url,createdAt,updatedAt,labels,assignees,author'])) {
+  ok('[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]');
+}
+if (matches(['label', 'list', '--repo', 'michaelblum/agent-os', '--limit', '10', '--search', 'governance', '--sort', 'name', '--order', 'desc', '--json', 'name,description,color,isDefault,url'])) {
+  ok('[{"name":"governance","description":"Governance and coordination","color":"5319e7","isDefault":false,"url":"https://github.com/michaelblum/agent-os/labels/governance"}]');
+}
+if (matches(['pr', 'view', '298', '--repo', 'michaelblum/agent-os', '--json', 'number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews'])) {
+  ok('{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}');
+}
+if (matches(['pr', 'list', '--repo', 'michaelblum/agent-os', '--state', 'all', '--limit', '30', '--author', 'michaelblum', '--base', 'main', '--head', 'gdi/example', '--draft', '--json', 'number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author'])) {
+  ok('[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]');
+}
+if (matches(['pr', 'checks', '298', '--repo', 'michaelblum/agent-os', '--json', 'name,state,bucket,link,startedAt,completedAt,workflow'])) {
+  ok('[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]');
+}
+if (matches(['pr', 'checks', '299', '--repo', 'michaelblum/agent-os', '--json', 'name,state,bucket,link,startedAt,completedAt,workflow'])) {
+  out('[{"name":"lint","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/988","workflow":"CI"}]');
+  fail('checks failed');
+}
+if (matches(['pr', 'create', '--repo', 'michaelblum/agent-os', '--base', 'main', '--head', 'foreman/dev-gh-pr-create-v0', '--title', 'Add PR create', '--body-file', '*'])) {
+  appendBodyFile();
+  ok('https://github.com/michaelblum/agent-os/pull/433');
+}
+if (matches(['pr', 'view', 'https://github.com/michaelblum/agent-os/pull/433', '--repo', 'michaelblum/agent-os', '--json', 'number,url,state,headRefName,baseRefName'])) {
+  ok('{"number":433,"url":"https://github.com/michaelblum/agent-os/pull/433","state":"OPEN","headRefName":"foreman/dev-gh-pr-create-v0","baseRefName":"main"}');
+}
+if (matches(['pr', 'merge', '410', '--repo', 'michaelblum/agent-os', '--merge', '--match-head-commit', 'abc123', '--body-file', '*'])) {
+  ok('Merged pull request #410');
+}
+if (matches(['run', 'view', '987', '--repo', 'michaelblum/agent-os', '--log-failed'])) {
+  ok('unit failed log');
+}
+if (matches(['run', 'view', '988', '--repo', 'michaelblum/agent-os', '--log-failed'])) {
+  ok('lint failed log');
+}
+if (argv[0] === 'api' && argv[1] === 'graphql') {
+  ok('{"data":{"repository":{"pullRequest":{"number":298,"url":"https://github.com/michaelblum/agent-os/pull/298","reviewThreads":{"nodes":[{"isResolved":false,"isOutdated":false,"path":"src/example.swift","line":12,"startLine":null,"comments":{"nodes":[{"id":"c1","url":"https://github.com/comment","body":"Please fix this.","createdAt":"2026-05-13T00:00:00Z","author":{"login":"reviewer"}}]}}]}}}}}');
+}
+fail('unexpected fake gh invocation: ' + argv.join(' '), 64);
+`;
   fs.writeFileSync(ghPath, script);
   fs.chmodSync(ghPath, 0o755);
   fs.writeFileSync(argsLog, '');
@@ -170,6 +166,20 @@ function bodyFile(fixture, text = 'body text\n') {
   const file = path.join(fixture.tmp, `body-${Math.random().toString(16).slice(2)}.md`);
   fs.writeFileSync(file, text);
   return file;
+}
+
+function readArgvLog(fixture) {
+  return fs.readFileSync(fixture.argsLog, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+function hasArgv(invocations, expected) {
+  return invocations.some((argv) => (
+    argv.length === expected.length &&
+    expected.every((item, index) => item === '*' || argv[index] === item)
+  ));
 }
 
 test('GitHub helper direct help and capability metadata stay discoverable', () => {
@@ -282,9 +292,60 @@ test('GitHub helper wraps issue, label, PR, CI, and review-comment commands thro
   assert.equal(comments.unresolved_count, 1);
   assert.equal(comments.threads[0].comments[0].author, 'reviewer');
 
-  const argsLog = fs.readFileSync(fixture.argsLog, 'utf8');
-  assert.match(argsLog, /pr create --repo michaelblum\/agent-os --base main --head foreman\/dev-gh-pr-create-v0 --title Add PR create --body-file/);
-  assert.doesNotMatch(argsLog, /projectCards/);
+  const argvLog = readArgvLog(fixture);
+  assert.equal(hasArgv(argvLog, [
+    'issue',
+    'list',
+    '--repo',
+    'michaelblum/agent-os',
+    '--state',
+    'all',
+    '--limit',
+    '20',
+    '--label',
+    'bug',
+    '--label',
+    'docs',
+    '--search',
+    'semantic target',
+    '--milestone',
+    'v0',
+    '--json',
+    'number,title,state,url,createdAt,updatedAt,labels,assignees,author',
+  ]), true);
+  assert.equal(hasArgv(argvLog, [
+    'issue',
+    'create',
+    '--repo',
+    'michaelblum/agent-os',
+    '--title',
+    'Strategic follow-up',
+    '--body-file',
+    body,
+    '--label',
+    'governance',
+    '--label',
+    'follow-up',
+    '--assignee',
+    '@me',
+    '--milestone',
+    'v1',
+  ]), true);
+  assert.equal(hasArgv(argvLog, [
+    'pr',
+    'create',
+    '--repo',
+    'michaelblum/agent-os',
+    '--base',
+    'main',
+    '--head',
+    'foreman/dev-gh-pr-create-v0',
+    '--title',
+    'Add PR create',
+    '--body-file',
+    body,
+  ]), true);
+  assert.equal(JSON.stringify(argvLog).includes('projectCards'), false);
   const bodyLog = fs.readFileSync(fixture.bodyLog, 'utf8');
   assert.match(bodyLog, /file body/);
   assert.match(bodyLog, /stdin accepted/);
