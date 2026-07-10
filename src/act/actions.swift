@@ -189,7 +189,7 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     let points = bezierPath(from: from, to: target, steps: steps, overshoot: overshoot, jitter: jitter)
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     for pt in points {
         if let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
                                mouseCursorPosition: pt, mouseButton: .left) {
@@ -244,7 +244,7 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let upType: CGEventType = isRight ? .rightMouseUp : .leftMouseUp
     let cgButton: CGMouseButton = isRight ? .right : .left
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     let flags = currentFlags(state)
 
     for i in 1...clickCount {
@@ -267,10 +267,6 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             usleep(sampleDelay(profile.timing.click_dwell))
         }
     }
-
-    // The CLI process is short-lived. Keep its event source alive long enough
-    // for the final release to enter the session tap before process teardown.
-    usleep(50_000)
 
     state.updateCursor(clickPoint)
     return okResponse("click", state: state, start: start, backend: "cgevent", strategy: "cgevent_click", stateID: req.state_id)
@@ -307,7 +303,7 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         if moveResult.status == "error" { return moveResult }
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     let flags = currentFlags(state)
 
     // Mouse down at origin
@@ -393,7 +389,7 @@ func handleScroll(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         weightSum += w
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     for i in 0..<eventCount {
         let fraction = weights[i] / weightSum
         let evDy = Int32(Double(totalDy) * fraction)
@@ -422,7 +418,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
     // Check if this is a modifier key
     if let mod = modifierMap[lower] {
         state.modifiers.insert(canonicalModifier(lower))
-        let source = CGEventSource(stateID: .hidSystemState)
+        let source = state.eventSource
         if let event = CGEvent(keyboardEventSource: source, virtualKey: mod.keyCode, keyDown: true) {
             event.flags = currentFlags(state)
             event.post(tap: .cghidEventTap)
@@ -435,7 +431,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
         return errorResponse("key_down", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     if let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
         event.flags = currentFlags(state)
         event.post(tap: .cghidEventTap)
@@ -461,7 +457,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         for alias in aliases {
             state.modifiers.remove(alias)
         }
-        let source = CGEventSource(stateID: .hidSystemState)
+        let source = state.eventSource
         if let event = CGEvent(keyboardEventSource: source, virtualKey: mod.keyCode, keyDown: false) {
             event.flags = currentFlags(state)
             event.post(tap: .cghidEventTap)
@@ -474,7 +470,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("key_up", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     if let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
         event.flags = currentFlags(state)
         event.post(tap: .cghidEventTap)
@@ -500,7 +496,7 @@ func handleKeyTap(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     var flags = comboFlags
     flags.insert(currentFlags(state))
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
 
     // Key down
     if let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
@@ -535,7 +531,7 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let charsPerSecond = Double(wpm) * 5.0 / 60.0
     let baseIntervalMs = max(1.0, 1000.0 / charsPerSecond)
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let source = state.eventSource
     let flags = currentFlags(state)
 
     for char in text {

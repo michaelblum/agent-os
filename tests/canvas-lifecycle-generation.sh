@@ -8,6 +8,7 @@ TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aos-canvas-lifecycle-generation.XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 swiftc \
+  src/display/canvas-generation.swift \
   src/display/canvas-lifecycle.swift \
   tests/lib/canvas-lifecycle-generation.swift \
   -o "$TMP_DIR/canvas-lifecycle-generation"

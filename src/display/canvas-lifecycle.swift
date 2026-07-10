@@ -1,11 +1,6 @@
 import AppKit
 import Foundation
 
-struct CanvasLifecycleGeneration: Hashable {
-    let canvasID: String
-    let value: UInt64
-}
-
 final class CanvasLifecycleCompletionTracker {
     private final class Waiter {
         let id = UUID()

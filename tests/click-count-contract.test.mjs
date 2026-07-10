@@ -32,12 +32,25 @@ test('handleClick rejects non-positive counts before posting click events', () =
   const clickCount = body.indexOf('let clickCount = req.count ?? 1');
   const invalidCount = body.indexOf('guard clickCount > 0 else');
   const invalidCode = body.indexOf('code: "INVALID_COUNT"');
-  const eventSource = body.indexOf('CGEventSource(stateID: .hidSystemState)');
+  const eventSource = body.indexOf('let source = state.eventSource');
   const clickRange = body.indexOf('for i in 1...clickCount');
 
   assert.ok(clickCount >= 0, 'handleClick should normalize missing count to one');
   assert.ok(invalidCount > clickCount, 'handleClick should validate the normalized count');
   assert.ok(invalidCode > invalidCount, 'invalid click counts should return a structured error');
-  assert.ok(eventSource > invalidCode, 'invalid count should be rejected before any CGEvent source is created');
+  assert.ok(eventSource > invalidCode, 'invalid count should be rejected before the session event source is used');
   assert.ok(clickRange > invalidCode, 'invalid count should be rejected before the trapping range loop');
+});
+
+test('CGEvent actions use one session-owned source without fixed completion sleeps', () => {
+  const models = source('src/act/act-models.swift');
+  const actions = source('src/act/actions.swift');
+  const session = source('src/act/session.swift');
+
+  assert.match(models, /let eventSource:\s*CGEventSource\?/);
+  assert.match(models, /self\.eventSource = CGEventSource\(stateID:\s*\.hidSystemState\)/);
+  assert.doesNotMatch(actions, /CGEventSource\(stateID:\s*\.hidSystemState\)/);
+  assert.match(actions, /let source = state\.eventSource/);
+  assert.match(session, /keyboardEventSource:\s*state\.eventSource/);
+  assert.doesNotMatch(actions, /usleep\(50_000\)/);
 });

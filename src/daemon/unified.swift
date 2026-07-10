@@ -2051,8 +2051,7 @@ class UnifiedDaemon {
         let enabled = (payload["enabled"] as? Bool) ?? true
         let region = AOSInputRegionRecord(
             id: id,
-            ownerCanvasID: ownerCanvasID,
-            ownerCanvasGeneration: ownerTarget.value,
+            ownerCanvasGeneration: ownerTarget,
             nativeFrame: nativeFrame,
             coordinateSpace: coordinateSpace,
             semanticLabel: semanticLabel,
@@ -3678,10 +3677,7 @@ class UnifiedDaemon {
             return false
         case .deliver(let delivery):
             canvasManager.postMessageAsync(
-                to: CanvasLifecycleGeneration(
-                    canvasID: delivery.ownerCanvasID,
-                    value: delivery.ownerCanvasGeneration
-                ),
+                to: delivery.ownerCanvasGeneration,
                 payload: delivery.payload
             )
             if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {

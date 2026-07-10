@@ -165,6 +165,7 @@ struct ContextSnapshot: Codable {
 /// Mutable state maintained across a session's lifetime.
 class SessionState {
     var cursor: CursorPosition
+    let eventSource: CGEventSource?
     var modifiers: Set<String> = []
     var context: SessionContext = SessionContext()
     var profileName: String
@@ -180,6 +181,7 @@ class SessionState {
         // Get current cursor position from CGEvent
         let pos = CGEvent(source: nil)?.location ?? .zero
         self.cursor = CursorPosition(x: pos.x, y: pos.y)
+        self.eventSource = CGEventSource(stateID: .hidSystemState)
         self.profile = profile
         self.profileName = profileName
     }

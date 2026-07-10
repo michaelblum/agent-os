@@ -12,10 +12,9 @@ private var _activeSessionState: SessionState?
 /// Release all held modifier keys by posting key-up CGEvents for each.
 /// Callable from signal handlers and normal shutdown paths.
 func releaseAllModifiers(_ state: SessionState) {
-    let source = CGEventSource(stateID: .hidSystemState)
     for mod in state.modifiers {
         if let entry = modifierMap[mod] {
-            if let event = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: false) {
+            if let event = CGEvent(keyboardEventSource: state.eventSource, virtualKey: entry.keyCode, keyDown: false) {
                 event.post(tap: .cghidEventTap)
             }
         }

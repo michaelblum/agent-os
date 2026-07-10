@@ -182,10 +182,27 @@
       "status": "active"
     },
     {
+      "id": "native-action-event-source-contract",
+      "path_patterns": [
+        "tests/click-count-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "native_action_event_source_contract",
+      "contract": "Mouse, drag, key, typing, and modifier release actions reuse one session-owned CoreGraphics event source without fixed post-click timing delays.",
+      "worth": "This keeps event-posting lifetime explicit across one-shot and persistent action sessions without encoding test-derived sleeps in product handlers.",
+      "command": "node --test tests/click-count-contract.test.mjs",
+      "replaces": [],
+      "guard": "source ownership contract only; the guarded concurrent lane proves live input delivery",
+      "status": "active"
+    },
+    {
       "id": "canvas-lifecycle-stress-proof",
       "path_patterns": [
         "tests/canvas-lifecycle-stress.sh",
-        "tests/lib/canvas_lifecycle_stress.py"
+        "tests/lib/canvas_lifecycle_stress.py",
+        "tests/lib/canvas_lifecycle_support.py"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
@@ -202,6 +219,8 @@
       "id": "canvas-lifecycle-concurrent-input-proof",
       "path_patterns": [
         "tests/canvas-lifecycle-concurrent-input.sh",
+        "tests/lib/canvas_lifecycle_concurrent_input.py",
+        "tests/lib/canvas_lifecycle_support.py",
         "tests/lib/input-event-observer.mjs",
         "tests/lib/post-key-to-pid.swift"
       ],

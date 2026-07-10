@@ -18,6 +18,8 @@ tests.
 
 - Keep tests deterministic by default. Live input, daemon, or TCC-dependent
   checks must advertise prerequisites through env vars or scenario docs.
+- Keep deterministic canvas lifecycle stress and guarded concurrent-input
+  stress in separate scenario drivers over shared lifecycle support.
 - Do not weaken assertions to match stale behavior; update the owning contract
   or source when behavior intentionally changes.
 - Preserve cleanup for canvases, daemon state, temporary files, and live

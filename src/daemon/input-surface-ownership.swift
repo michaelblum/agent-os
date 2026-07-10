@@ -32,8 +32,7 @@ final class AOSNativeCursorSuppressionReconciler {
 
 struct AOSInputRegionRecord: Equatable {
     let id: String
-    let ownerCanvasID: String
-    let ownerCanvasGeneration: UInt64
+    let ownerCanvasGeneration: CanvasLifecycleGeneration
     let nativeFrame: CGRect
     let coordinateSpace: String
     let semanticLabel: String
@@ -43,10 +42,11 @@ struct AOSInputRegionRecord: Equatable {
     let removeOnOwnerSuspend: Bool
     let enabled: Bool
 
+    var ownerCanvasID: String { ownerCanvasGeneration.canvasID }
+
     init(
         id: String,
-        ownerCanvasID: String,
-        ownerCanvasGeneration: UInt64 = 0,
+        ownerCanvasGeneration: CanvasLifecycleGeneration,
         nativeFrame: CGRect,
         coordinateSpace: String = "native",
         semanticLabel: String = "",
@@ -57,7 +57,6 @@ struct AOSInputRegionRecord: Equatable {
         enabled: Bool = true
     ) {
         self.id = id
-        self.ownerCanvasID = ownerCanvasID
         self.ownerCanvasGeneration = ownerCanvasGeneration
         self.nativeFrame = nativeFrame
         self.coordinateSpace = coordinateSpace
@@ -237,7 +236,7 @@ func aosInputRegionEventEnvelope(routedInput: AOSInputRegionRoutedInput) -> [Str
 
 struct AOSInputRegionDelivery {
     let ownerCanvasID: String
-    let ownerCanvasGeneration: UInt64
+    let ownerCanvasGeneration: CanvasLifecycleGeneration
     let phase: AOSInputEventPhase
     let regionID: String
     let consume: Bool

@@ -56,11 +56,10 @@ done
 
 DAEMON_PID="$(aos_test_lock_pid "$STATE_ROOT")"
 CYCLES="${AOS_CANVAS_LIFECYCLE_CYCLES:-25}"
-if ! python3 tests/lib/canvas_lifecycle_stress.py \
+if ! python3 tests/lib/canvas_lifecycle_concurrent_input.py \
   --state-root "$STATE_ROOT" \
   --daemon-pid "$DAEMON_PID" \
   --cycles "$CYCLES" \
-  --concurrent-input \
   --targeted-key-helper "$TARGETED_KEY_HELPER" \
   --observer-log "$OBSERVER_LOG"
 then

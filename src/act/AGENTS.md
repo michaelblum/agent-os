@@ -22,6 +22,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   and invocation.
 - `actions.swift`, `session.swift`, `targeting.swift`, and adjacent helpers own
   session-mode action execution and reusable act-module mechanics.
+- `SessionState` owns the process-lifetime CoreGraphics event source used by
+  one-shot and persistent action sessions.
 
 ## Local Contracts
 
