@@ -13,6 +13,7 @@ import {
   planPermissionSetup,
   readyAutoRepairReason,
   readyBlockers,
+  readyDecision,
   readyEvaluationSnake,
   readyNextActions,
   runtimeVerdict,
@@ -111,6 +112,13 @@ function withEnv(overrides, fn) {
   }
 }
 
+function nextActionsFor(current, blockers = readyBlockers(current, 'repo')) {
+  const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
+  const ready = Boolean(current.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
+  const decision = readyDecision(ready, blockers, current.daemon, current.permissions);
+  return readyNextActions(decision, blockers, current.setup, 'repo', './aos');
+}
+
 test('daemon-active ready path uses daemon source with setup complete and screen recording granted', () => {
   const result = evaluateReadyForTesting(daemon(), permissions(), setup());
   assert.deepEqual(result, { readyForTesting: true, readySource: 'daemon' });
@@ -126,7 +134,7 @@ test('daemon input tap inactive blocks readiness and yields runtime recovery act
   assert.equal(evaluation.readySource, 'daemon');
   assert.equal(blockers.some((blocker) => blocker.id === 'input_tap_not_active'), true);
   assert.deepEqual(
-    readyNextActions(blockers, current.setup, 'repo', './aos').map((action) => action.command),
+    nextActionsFor(current, blockers).map((action) => action.command),
     ['./aos ready --repair', './aos service restart --mode repo', './aos ready'],
   );
 });
@@ -223,6 +231,7 @@ test('stale daemon cleanup outranks stale-TCC terminal handoff in mixed readines
     },
   });
   const verdict = runtimeVerdict(current, 'repo', './aos');
+  const rawActions = nextActionsFor(current);
 
   assert.equal(verdict.ready, false);
   assert.equal(verdict.diagnosis, 'stale_daemons');
@@ -234,6 +243,8 @@ test('stale daemon cleanup outranks stale-TCC terminal handoff in mixed readines
     './aos ready',
   ]);
   assert.equal(verdict.next_actions.some((action) => action.type === 'manual_tcc_reset'), false);
+  assert.deepEqual(rawActions.map((action) => action.command), ['./aos clean', './aos ready --repair', './aos ready']);
+  assert.equal(rawActions.some((action) => action.type === 'manual_tcc_reset'), false);
   assert.equal(verdict.notes.some((note) => note.includes('Stale daemon cleanup required')), true);
 });
 
@@ -252,6 +263,7 @@ test('linked-worktree runtime policy outranks stale-TCC terminal handoff', () =>
     },
   });
   const verdict = runtimeVerdict(current, 'repo', './aos');
+  const rawActions = nextActionsFor(current);
 
   assert.equal(verdict.ready, false);
   assert.equal(verdict.diagnosis, 'agent_os_worktree_default_runtime');
@@ -259,6 +271,8 @@ test('linked-worktree runtime policy outranks stale-TCC terminal handoff', () =>
   assert.equal(verdict.terminal_handoff, undefined);
   assert.deepEqual(verdict.next_actions.map((action) => action.type), ['manual', 'command']);
   assert.equal(verdict.next_actions.some((action) => action.type === 'manual_tcc_reset'), false);
+  assert.deepEqual(rawActions.map((action) => action.type), ['manual', 'command']);
+  assert.equal(rawActions.some((action) => action.type === 'manual_tcc_reset'), false);
 }));
 
 test('legacy daemon health without access fields falls back to CLI permission view', () => {
@@ -281,7 +295,7 @@ test('missing setup marker blocks readiness even when permissions are granted', 
 
   assert.equal(evaluation.readyForTesting, false);
   assert.equal(blockers.some((blocker) => blocker.id === 'permissions_onboarding'), true);
-  assert.equal(readyNextActions(blockers, current.setup, 'repo', './aos').some((action) => action.command === 'aos permissions setup --once'), true);
+  assert.equal(nextActionsFor(current, blockers).some((action) => action.command === 'aos permissions setup --once'), true);
 });
 
 test('stale and unmanaged runtime blockers produce cleanup or repair next actions', () => {
@@ -289,7 +303,7 @@ test('stale and unmanaged runtime blockers produce cleanup or repair next action
   const staleBlockers = readyBlockers(stale, 'repo');
   assert.equal(staleBlockers.some((blocker) => blocker.id === 'stale_daemons'), true);
   assert.deepEqual(
-    readyNextActions(staleBlockers, stale.setup, 'repo', './aos').map((action) => action.command),
+    nextActionsFor(stale, staleBlockers).map((action) => action.command),
     ['./aos clean', './aos ready --repair', './aos ready'],
   );
 
@@ -310,7 +324,7 @@ test('stale and unmanaged runtime blockers produce cleanup or repair next action
   assert.match(unmanagedBlocker.message, /owner pid=2222/);
   assert.match(unmanagedBlocker.message, /command=\.\/aos serve --idle-timeout 5m/);
   assert.deepEqual(
-    readyNextActions(unmanagedBlockers, unmanaged.setup, 'repo', './aos').map((action) => action.command),
+    nextActionsFor(unmanaged, unmanagedBlockers).map((action) => action.command),
     ['./aos clean', './aos ready'],
   );
 });

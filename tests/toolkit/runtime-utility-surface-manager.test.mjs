@@ -100,7 +100,7 @@ test('UtilitySurfaceManager recovers duplicate create with update and resume', a
   assert.equal(manager.isVisible('tool-inspector'), true)
 })
 
-test('UtilitySurfaceManager recovers duplicate toggle and prewarm creates only as collisions', async () => {
+test('UtilitySurfaceManager recovers duplicate toggle and ensureVisible creates as visible collisions', async () => {
   const calls = []
   const manager = createUtilitySurfaceManager({
     host: {
@@ -133,21 +133,57 @@ test('UtilitySurfaceManager recovers duplicate toggle and prewarm creates only a
   assert.equal(manager.isVisible('tool-monitor'), true)
   manager.handleLifecycle({ action: 'removed', canvas_id: 'tool-monitor' })
 
-  assert.deepEqual(await manager.prewarm('monitor'), {
+  assert.deepEqual(await manager.ensureVisible('monitor'), {
     id: 'tool-monitor',
     frame: [10, 20, 300, 200],
     created: false,
     recovered: true,
   })
-  assert.equal(manager.isVisible('tool-monitor'), false)
+  assert.equal(manager.isVisible('tool-monitor'), true)
   assert.deepEqual(calls.map((call) => call[0]), [
     'create',
     'update',
     'resume',
     'create',
     'update',
-    'suspend',
+    'resume',
   ])
+})
+
+test('UtilitySurfaceManager treats prewarm duplicate collisions as passive observations', async () => {
+  const calls = []
+  const manager = createUtilitySurfaceManager({
+    host: {
+      canvasCreate(payload) {
+        calls.push(['create', payload])
+        return Promise.reject(new Error('ID_COLLISION: exists'))
+      },
+      canvasUpdate(payload) {
+        calls.push(['update', payload])
+      },
+      canvasResume(id) {
+        calls.push(['resume', id])
+        return Promise.resolve()
+      },
+      canvasSuspend(id) {
+        calls.push(['suspend', id])
+        return Promise.resolve()
+      },
+    },
+    resolveConfig: configFor,
+    logger: { warn() {} },
+  })
+
+  assert.deepEqual(await manager.prewarm('monitor'), {
+    id: 'tool-monitor',
+    frame: [10, 20, 300, 200],
+    created: false,
+    recovered: true,
+    passive: true,
+  })
+  assert.equal(manager.current('tool-monitor'), null)
+  assert.equal(manager.isVisible('tool-monitor'), false)
+  assert.deepEqual(calls.map((call) => call[0]), ['create'])
 })
 
 test('UtilitySurfaceManager does not recover non-collision create failures', async () => {

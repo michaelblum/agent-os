@@ -510,36 +510,77 @@ export function hasRestartableReadyRuntimeBlocker(response) {
   return blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
 }
 
-export function readyPhase(ready, blockers) {
-  if (ready) return 'ready';
-  if (blockers.some((b) => b.id === 'agent_os_worktree_default_runtime')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'daemon_foreground_dev_default')) return 'runtime_blocked';
-  if (blockers.some((b) => b.id === 'stale_daemons')) return 'runtime_blocked';
-  if (blockers.some((b) => b.kind === 'permission')) return 'human_required';
-  if (blockers.some((b) => b.id === 'input_tap_not_active')) return 'runtime_blocked';
-  if (blockers.some((b) => b.kind === 'setup')) return 'setup_required';
-  return 'degraded';
+function compactPrimaryBlocker(blocker) {
+  if (!blocker) return undefined;
+  return {
+    kind: blocker.kind,
+    id: blocker.id,
+    scope: blocker.scope,
+    reason: blocker.reason,
+  };
 }
 
-export function readyDiagnosis(ready, blockers, daemon, permissions) {
-  if (ready) return 'ready';
-  if (blockers.some((b) => b.id === 'agent_os_worktree_default_runtime')) return 'agent_os_worktree_default_runtime';
-  if (blockers.some((b) => b.id === 'daemon_ownership_mismatch')) return 'daemon_ownership_mismatch';
-  if (blockers.some((b) => b.id === 'daemon_unmanaged')) return 'daemon_unmanaged';
-  if (blockers.some((b) => b.id === 'daemon_foreground_dev_default')) return 'daemon_foreground_dev_default';
-  if (blockers.some((b) => b.id === 'stale_daemons')) return 'stale_daemons';
-  if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'daemon_socket_unreachable';
+function decisionFor(phase, diagnosis, actionReason, blocker) {
+  return {
+    phase,
+    diagnosis,
+    action_reason: actionReason,
+    primary_blocker: compactPrimaryBlocker(blocker),
+  };
+}
+
+export function readyDecision(ready, blockers, daemon, permissions) {
+  if (ready) return decisionFor('ready', 'ready', 'ready', undefined);
+  const find = (predicate) => blockers.find(predicate);
+  const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
+  let blocker = find((b) => b.id === 'agent_os_worktree_default_runtime');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, blocker.id, blocker);
+  blocker = find((b) => b.id === 'daemon_ownership_mismatch');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_repair', blocker);
+  blocker = find((b) => b.id === 'daemon_unmanaged');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'daemon_foreground_dev_default');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'stale_daemons');
+  if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
+  blocker = find((b) => b.id === 'daemon_unreachable');
+  if (blocker) return decisionFor('runtime_blocked', 'daemon_socket_unreachable', 'runtime_repair', blocker);
+  const staleTccBlocker = find((b) => b.reason === 'post_rebuild_tcc_stale');
+  const daemonPermissionBlocker = find((b) => b.kind === 'permission' && b.scope === 'daemon');
   if (daemon && ((daemon.permissions.accessibility === false && permissions.accessibility)
       || daemon.inputTap.listenAccess === false
       || daemon.inputTap.postAccess === false)) {
-    return 'daemon_tcc_grant_stale_or_missing';
+    return decisionFor(
+      'human_required',
+      'daemon_tcc_grant_stale_or_missing',
+      staleTccBlocker ? 'post_rebuild_tcc_stale' : 'permission',
+      staleTccBlocker ?? daemonPermissionBlocker,
+    );
   }
-  if (blockers.some((b) => b.id === 'input_tap_not_active')) return 'input_tap_not_active';
-  if (blockers.some((b) => b.kind === 'setup')) return 'permissions_onboarding_required';
-  return 'not_ready';
+  blocker = find((b) => b.id === 'input_tap_not_active');
+  if (blocker) {
+    return decisionFor(hasPermissionBlocker ? 'human_required' : 'runtime_blocked', blocker.id, 'runtime_repair', blocker);
+  }
+  blocker = find((b) => b.kind === 'setup');
+  if (blocker) {
+    return decisionFor(
+      hasPermissionBlocker ? 'human_required' : 'setup_required',
+      'permissions_onboarding_required',
+      hasPermissionBlocker ? 'permission' : 'setup',
+      hasPermissionBlocker ? find((b) => b.kind === 'permission') : blocker,
+    );
+  }
+  blocker = find((b) => b.kind === 'permission');
+  if (blocker) return decisionFor('human_required', 'not_ready', 'permission', blocker);
+  return decisionFor('degraded', 'not_ready', 'recheck', undefined);
+}
+
+export function readyPhase(ready, blockers) {
+  return readyDecision(ready, blockers, null, {}).phase;
+}
+
+export function readyDiagnosis(ready, blockers, daemon, permissions) {
+  return readyDecision(ready, blockers, daemon, permissions).diagnosis;
 }
 
 function appendAction(actions, seen, action) {
@@ -549,21 +590,42 @@ function appendAction(actions, seen, action) {
   actions.push(action);
 }
 
-export function readyNextActions(blockers, setup, mode, prefix = invocationName(), { diagnosis = null } = {}) {
+function appendRuntimeCleanupActions(actions, seen, blockers, prefix) {
+  const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
+  const hasDefaultForegroundDevDaemon = blockers.some((b) => b.id === 'daemon_foreground_dev_default');
+  const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
+  const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
+  let label = 'clean stale daemon processes and stale runtime resources';
+  if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
+  else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
+  appendAction(actions, seen, {
+    type: 'command',
+    label,
+    command: `${prefix} clean`,
+  });
+  if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
+    appendAction(actions, seen, {
+      type: 'command',
+      label: hasStaleDaemons
+        ? 'run automated repair only after cleanup has removed stale daemon owners'
+        : 'run automated repair: restart/recheck, then print human instructions if needed',
+      command: `${prefix} ready --repair`,
+    });
+  }
+}
+
+export function readyNextActions(decision, blockers, setup, mode, prefix = invocationName()) {
   const actions = [];
   const seen = new Set();
   if (!blockers.length) return actions;
 
   const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
   const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
-  const hasAgentOSWorktreeBlocker = blockers.some((b) => b.id === 'agent_os_worktree_default_runtime');
   const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
-  const hasDefaultForegroundDevDaemon = blockers.some((b) => b.id === 'daemon_foreground_dev_default');
   const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
-  const hasPostRebuildTccStale = blockers.some((b) => b.reason === 'post_rebuild_tcc_stale');
-  const staleTccOwnsDecision = hasPostRebuildTccStale && (!diagnosis || diagnosis === 'daemon_tcc_grant_stale_or_missing');
+  const primary = decision.action_reason;
 
-  if (staleTccOwnsDecision) {
+  if (primary === 'post_rebuild_tcc_stale') {
     appendAction(actions, seen, {
       type: 'manual_tcc_reset',
       label: 'play the stale-TCC handoff alert, end the turn, and wait for the user to say finished after manual TCC reset/regrant',
@@ -580,7 +642,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     return actions;
   }
 
-  if (hasAgentOSWorktreeBlocker) {
+  if (primary === 'agent_os_worktree_default_runtime') {
     appendAction(actions, seen, {
       type: 'manual',
       label: 'run AOS from the primary agent-os checkout, or set an explicit AOS_STATE_ROOT for isolated runtime tests',
@@ -594,24 +656,8 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     return actions;
   }
 
-  if (hasStaleDaemons || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) {
-    let label = 'clean stale daemon processes and stale runtime resources';
-    if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
-    else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
-    appendAction(actions, seen, {
-      type: 'command',
-      label,
-      command: `${prefix} clean`,
-    });
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
-      appendAction(actions, seen, {
-        type: 'command',
-        label: hasStaleDaemons
-          ? 'run automated repair only after cleanup has removed stale daemon owners'
-          : 'run automated repair: restart/recheck, then print human instructions if needed',
-        command: `${prefix} ready --repair`,
-      });
-    }
+  if (primary === 'runtime_cleanup') {
+    appendRuntimeCleanupActions(actions, seen, blockers, prefix);
     appendAction(actions, seen, {
       type: 'command',
       label: 're-check readiness',
@@ -620,7 +666,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     return actions;
   }
 
-  if (hasPermissionBlocker) {
+  if (primary === 'permission') {
     appendAction(actions, seen, {
       type: 'command',
       label: 'stop the managed daemon and run or classify targeted reset for this runtime identity',
@@ -638,27 +684,13 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     });
   }
 
-  if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) && !hasPermissionBlocker) {
-    if (hasStaleDaemons || hasUnmanagedDaemon || hasDefaultForegroundDevDaemon) {
-      let label = 'clean stale daemon processes and stale runtime resources';
-      if (hasDefaultForegroundDevDaemon) label = 'clean the foreground dev daemon that owns the default repo runtime';
-      else if (hasUnmanagedDaemon) label = 'clean the unmanaged daemon that owns the repo socket';
-      appendAction(actions, seen, {
-        type: 'command',
-        label,
-        command: `${prefix} clean`,
-      });
-    }
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
-      appendAction(actions, seen, {
-        type: 'command',
-        label: blockers.some((b) => b.id === 'stale_daemons')
-          ? 'run automated repair only after cleanup has removed stale daemon owners'
-          : 'run automated repair: restart/recheck, then print human instructions if needed',
-        command: `${prefix} ready --repair`,
-      });
-    }
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon && !hasStaleDaemons) {
+  if (primary === 'runtime_repair' && hasRepairableRuntimeBlocker && !hasPermissionBlocker && !hasUnmanagedDaemon) {
+    appendAction(actions, seen, {
+      type: 'command',
+      label: 'run automated repair: restart/recheck, then print human instructions if needed',
+      command: `${prefix} ready --repair`,
+    });
+    if (!hasStaleDaemons) {
       appendAction(actions, seen, {
         type: 'command',
         label: 'restart the managed daemon and re-check readiness',
@@ -667,7 +699,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
     }
   }
 
-  if (!setup.setup_completed && !hasPermissionBlocker) {
+  if (primary === 'setup' || (!setup.setup_completed && !hasPermissionBlocker)) {
     appendAction(actions, seen, {
       type: 'command',
       label: 'run permission onboarding',
@@ -748,15 +780,14 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
   const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
   const tccStaleness = postRebuildTccStalenessFor(facts, mode, prefix);
-  const phase = readyPhase(ready, blockers);
-  const diagnosis = readyDiagnosis(ready, blockers, facts.daemon, facts.permissions);
-  const selectedTccStaleness = tccStaleness?.diagnosis === diagnosis ? tccStaleness : undefined;
+  const decision = readyDecision(ready, blockers, facts.daemon, facts.permissions);
+  const selectedTccStaleness = tccStaleness?.diagnosis === decision.diagnosis ? tccStaleness : undefined;
   const terminalHandoff = staleTccTerminalHandoff(selectedTccStaleness, prefix);
   return {
     ready,
     status: ready ? 'ok' : 'degraded',
-    phase,
-    diagnosis,
+    phase: decision.phase,
+    diagnosis: decision.diagnosis,
     ready_source: evaluation.readySource,
     ready_for_testing: evaluation.readyForTesting,
     blockers,
@@ -764,7 +795,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
     tcc_staleness: tccStaleness,
     terminal_handoff: terminalHandoff,
     notes: readyNotes(facts, mode, prefix, selectedTccStaleness),
-    next_actions: readyNextActions(blockers, facts.setup, mode, prefix, { diagnosis }),
+    next_actions: readyNextActions(decision, blockers, facts.setup, mode, prefix),
     ownership: {
       state: facts.runtime.ownership_state,
       kind: facts.runtime.ownership_kind,
