@@ -29,7 +29,7 @@ function dieStructured(message, code = 'ERROR', exitCode = 1) {
 }
 
 function invocationDisplayName() {
-  return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
+  return process.env.AOS_INVOCATION_DISPLAY_NAME || 'node scripts/aos-dev-gh.mjs';
 }
 
 function printHelpAndExit(pathParts) {

@@ -525,12 +525,13 @@ function argValue(args, flag) {
 
 function recoverMutatingTransient(step, argv, output) {
   if (!step.mutates || !transientIPCFailure(output)) return output;
-  if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show' || argv[0] !== 'create') return output;
+  if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show') return output;
+  if (argv[0] !== 'create' && argv[0] !== 'remove') return output;
   const id = argValue(argv, '--id');
   if (!id) return output;
   const exists = runProcess(aosPath(), ['show', 'exists', '--id', id], step.timeoutMs);
   const parsed = parseJSON(exists.stdout);
-  if (exists.exitCode === 0 && parsed?.exists === true) {
+  if (argv[0] === 'create' && exists.exitCode === 0 && parsed?.exists === true) {
     return {
       timedOut: false,
       exitCode: 0,
@@ -538,6 +539,16 @@ function recoverMutatingTransient(step, argv, output) {
       stderr: output.stderr,
       attempts: output.attempts,
       recovered: 'verified-created-resource',
+    };
+  }
+  if (argv[0] === 'remove' && exists.exitCode === 0 && parsed?.exists === false) {
+    return {
+      timedOut: false,
+      exitCode: 0,
+      stdout: '{"status":"success"}\n',
+      stderr: output.stderr,
+      attempts: output.attempts,
+      recovered: 'verified-removed-resource',
     };
   }
   return output;

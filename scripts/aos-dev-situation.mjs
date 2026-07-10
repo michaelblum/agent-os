@@ -54,9 +54,9 @@ function parseArgs(args) {
       options.prLimit = parsePositiveInteger(args[i + 1], '--pr-limit');
       i += 2;
     } else if (arg.startsWith('--')) {
-      exitError(`Unknown dev situation flag: ${arg}`, 'UNKNOWN_FLAG');
+      exitError(`Unknown maintainer situation flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
-      exitError(`Unknown dev situation argument: ${arg}`, 'UNKNOWN_ARG');
+      exitError(`Unknown maintainer situation argument: ${arg}`, 'UNKNOWN_ARG');
     }
   }
   return options;
@@ -211,6 +211,10 @@ function buildSituation(options) {
   const trace = {};
   const aosPath = process.env.AOS_DEV_SITUATION_AOS_PATH || process.env.AOS_PATH || path.join(repoRoot, 'aos');
   const aosLabel = './aos';
+  const ghPath = process.env.AOS_DEV_SITUATION_GH_PATH || path.join(repoRoot, 'scripts', 'aos-dev-gh.mjs');
+  const ghExecutable = process.env.AOS_DEV_SITUATION_GH_PATH ? ghPath : process.execPath;
+  const ghBaseArgs = process.env.AOS_DEV_SITUATION_GH_PATH ? [] : [ghPath];
+  const ghLabel = process.env.AOS_DEV_SITUATION_GH_PATH ? ghPath : 'node scripts/aos-dev-gh.mjs';
 
   const gitStatus = runSource(sources, 'git_status', '/usr/bin/git', ['status', '--short', '--branch'], repoRoot, 'git');
   const gitHead = runSource(sources, 'git_head', '/usr/bin/git', ['rev-parse', 'HEAD'], repoRoot, 'git');
@@ -220,10 +224,10 @@ function buildSituation(options) {
   const gitRemoteBranches = runSource(sources, 'git_remote_branches', '/usr/bin/git', ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'], repoRoot, 'git');
   const gitStashes = runSource(sources, 'git_stashes', '/usr/bin/git', ['stash', 'list'], repoRoot, 'git');
 
-  const ghContext = runSource(sources, 'github_context', aosPath, ['dev', 'gh', 'context', '--json'], repoRoot, aosLabel);
-  const ghOpenIssues = runSource(sources, 'github_open_issues', aosPath, ['dev', 'gh', 'issue', 'list', '--state', 'open', '--limit', String(options.issueLimit), '--json'], repoRoot, aosLabel);
-  const ghRecentIssues = runSource(sources, 'github_recent_issues', aosPath, ['dev', 'gh', 'issue', 'list', '--state', 'all', '--limit', String(options.recentIssueLimit), '--json'], repoRoot, aosLabel);
-  const ghOpenPRs = runSource(sources, 'github_open_prs', aosPath, ['dev', 'gh', 'pr', 'list', '--state', 'open', '--limit', String(options.prLimit), '--json'], repoRoot, aosLabel);
+  const ghContext = runSource(sources, 'github_context', ghExecutable, [...ghBaseArgs, 'context', '--json'], repoRoot, ghLabel);
+  const ghOpenIssues = runSource(sources, 'github_open_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'open', '--limit', String(options.issueLimit), '--json'], repoRoot, ghLabel);
+  const ghRecentIssues = runSource(sources, 'github_recent_issues', ghExecutable, [...ghBaseArgs, 'issue', 'list', '--state', 'all', '--limit', String(options.recentIssueLimit), '--json'], repoRoot, ghLabel);
+  const ghOpenPRs = runSource(sources, 'github_open_prs', ghExecutable, [...ghBaseArgs, 'pr', 'list', '--state', 'open', '--limit', String(options.prLimit), '--json'], repoRoot, ghLabel);
   const ready = runSource(sources, 'aos_ready', aosPath, ['ready', '--json'], repoRoot, aosLabel);
   const status = runSource(sources, 'aos_status', aosPath, ['status', '--json'], repoRoot, aosLabel);
 
@@ -347,7 +351,7 @@ function buildSituation(options) {
 }
 
 function printText(payload) {
-  process.stdout.write(`dev situation: ${payload.status}\n`);
+  process.stdout.write(`maintainer situation: ${payload.status}\n`);
   process.stdout.write(`Repo: ${payload.repo}\n`);
   process.stdout.write(`Branch: ${payload.git.branch ?? 'unknown'}\n`);
   process.stdout.write(`Head: ${payload.git.head ?? 'unknown'}\n`);

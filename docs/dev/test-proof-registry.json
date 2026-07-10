@@ -83,7 +83,7 @@
       "owner": "dev-workflow",
       "harness_level": "shell_router",
       "proof_kind": "router_contract",
-      "contract": "The dev classify/recommend router, help form parity, and proof-worth ratchet behavior agree.",
+      "contract": "The maintainer classify/recommend router, direct script help, and proof-worth ratchet behavior agree.",
       "worth": "This is the cheapest end-to-end proof that changed paths route to actionable validation instead of stale broad loops.",
       "command": "bash tests/dev-workflow-router.sh",
       "replaces": [],
@@ -117,7 +117,7 @@
       "owner": "dev-workflow",
       "harness_level": "shell_router",
       "proof_kind": "orientation_packet_contract",
-      "contract": "The dev situation packet preserves sourced repo, GitHub, readiness, successor-note, and partial-failure state without synthesizing missing facts.",
+      "contract": "The maintainer situation packet preserves sourced repo, GitHub, readiness, successor-note, and partial-failure state without synthesizing missing facts.",
       "worth": "This protects the operator orientation surface agents use before choosing a workflow route.",
       "command": "bash tests/dev-situation.sh",
       "replaces": [],
@@ -207,6 +207,24 @@
       "status": "active"
     },
     {
+      "id": "ops-contract-proof",
+      "path_patterns": [
+        "tests/ops-contract.sh"
+      ],
+      "fixture_patterns": [
+        "tests/fixtures/ops/**"
+      ],
+      "owner": "recipe",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "recipe_contract",
+      "contract": "Source-backed recipe schema validation, list/explain/dry-run/run behavior, cleanup, and failure reporting remain intact.",
+      "worth": "This catches recipe-runner drift where command manifests still dispatch but executable recipe safety, cleanup, or JSON contracts regress.",
+      "command": "bash tests/ops-contract.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT and an auto-started repo daemon for bounded canvas cleanup checks",
+      "status": "active"
+    },
+    {
       "id": "help-contract-proof",
       "path_patterns": [
         "tests/help-contract.sh"
@@ -231,7 +249,7 @@
       "owner": "command-surface",
       "harness_level": "shell_router",
       "proof_kind": "help_contract",
-      "contract": "Script-owned dev gh subcommands stay dispatchable and discoverable through real ./aos help.",
+      "contract": "Repo-local GitHub helper subcommands stay dispatchable and discoverable through direct script help.",
       "worth": "This keeps the sanctioned GitHub workflow subset discoverable without exposing unsupported gh prompts or hidden paths.",
       "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
       "replaces": [],

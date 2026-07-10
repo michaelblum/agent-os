@@ -4,7 +4,7 @@
   "schema_version": "2026-05-agent-capability-manifest-v0",
   "id": "agent-os.dev-capabilities",
   "label": "agent-os Developer Capabilities",
-  "summary": "Canonical capability manifest for typed repo-development operations exposed through AOS developer capability routes.",
+  "summary": "Canonical capability manifest for typed repo-development operations exposed through repo-local maintainer capability routes.",
   "applies_to": {
     "entry_paths": [
       "aos_developer",
@@ -15,17 +15,16 @@
     {
       "id": "dev.github.context",
       "label": "GitHub Context",
-      "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
+      "summary": "Inspect local git and gh authentication context through repo-local maintainer scripts.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "context",
           "--json"
         ]
@@ -33,7 +32,7 @@
       "mutability": {
         "class": "read_only",
         "side_effects": [],
-        "requires_explicit_assignment": false,
+        "requires_explicit_assignment": true,
         "requires_human_approval": false,
         "requires_body_file": false
       },
@@ -41,7 +40,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "allowed",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "outputs": [
@@ -62,17 +61,16 @@
     {
       "id": "dev.github.issue_list",
       "label": "GitHub Issue List",
-      "summary": "List GitHub issues through ./aos dev gh with bounded read-only inventory filters.",
+      "summary": "List GitHub issues through node scripts/aos-dev-gh.mjs with bounded read-only inventory filters.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "list"
         ]
@@ -88,7 +86,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -119,17 +117,16 @@
     {
       "id": "dev.github.issue_view",
       "label": "GitHub Issue View",
-      "summary": "Read one GitHub issue through ./aos dev gh.",
+      "summary": "Read one GitHub issue through node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "view"
         ]
@@ -145,7 +142,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -177,17 +174,16 @@
     {
       "id": "dev.github.issue_comment",
       "label": "GitHub Issue Comment",
-      "summary": "Write a GitHub issue comment through a body file using ./aos dev gh.",
+      "summary": "Write a GitHub issue comment through a body file using node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "comment"
         ]
@@ -205,7 +201,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -246,17 +242,16 @@
     {
       "id": "dev.github.issue_create",
       "label": "GitHub Issue Create",
-      "summary": "Create a GitHub issue through a title and body file using ./aos dev gh.",
+      "summary": "Create a GitHub issue through a title and body file using node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "create"
         ]
@@ -274,7 +269,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -323,17 +318,16 @@
     {
       "id": "dev.github.issue_close",
       "label": "GitHub Issue Close",
-      "summary": "Close a GitHub issue through ./aos dev gh with an optional close reason.",
+      "summary": "Close a GitHub issue through node scripts/aos-dev-gh.mjs with an optional close reason.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "close"
         ]
@@ -351,7 +345,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -392,17 +386,16 @@
     {
       "id": "dev.github.issue_edit",
       "label": "GitHub Issue Edit",
-      "summary": "Edit GitHub issue lifecycle metadata through ./aos dev gh with explicit non-interactive flags.",
+      "summary": "Edit GitHub issue lifecycle metadata through node scripts/aos-dev-gh.mjs with explicit non-interactive flags.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "issue",
           "edit"
         ]
@@ -420,7 +413,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -460,17 +453,16 @@
     {
       "id": "dev.github.label_list",
       "label": "GitHub Label List",
-      "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",
+      "summary": "List GitHub repository labels through node scripts/aos-dev-gh.mjs with bounded read-only filters.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "label",
           "list"
         ]
@@ -486,7 +478,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -517,17 +509,16 @@
     {
       "id": "dev.github.pr_list",
       "label": "GitHub PR List",
-      "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",
+      "summary": "List GitHub pull requests through node scripts/aos-dev-gh.mjs with bounded read-only inventory filters.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "list"
         ]
@@ -543,7 +534,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -574,17 +565,16 @@
     {
       "id": "dev.github.pr_view",
       "label": "GitHub PR View",
-      "summary": "Read one GitHub pull request through ./aos dev gh.",
+      "summary": "Read one GitHub pull request through node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "view"
         ]
@@ -600,7 +590,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -632,17 +622,16 @@
     {
       "id": "dev.github.pr_checks",
       "label": "GitHub PR Checks",
-      "summary": "Read GitHub pull request check status through ./aos dev gh.",
+      "summary": "Read GitHub pull request check status through node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "checks"
         ]
@@ -658,7 +647,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -690,17 +679,16 @@
     {
       "id": "dev.github.pr_create",
       "label": "GitHub PR Create",
-      "summary": "Create a GitHub pull request through explicit base/head branches, title, and body file using ./aos dev gh.",
+      "summary": "Create a GitHub pull request through explicit base/head branches, title, and body file using node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "create"
         ]
@@ -718,7 +706,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -777,17 +765,16 @@
     {
       "id": "dev.github.pr_comment",
       "label": "GitHub PR Comment",
-      "summary": "Write a GitHub pull request comment through a body file using ./aos dev gh.",
+      "summary": "Write a GitHub pull request comment through a body file using node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "comment"
         ]
@@ -805,7 +792,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 30,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -846,17 +833,16 @@
     {
       "id": "dev.github.pr_merge",
       "label": "GitHub PR Merge",
-      "summary": "Merge a GitHub pull request through an explicit strategy using ./aos dev gh.",
+      "summary": "Merge a GitHub pull request through an explicit strategy using node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "pr",
           "merge"
         ]
@@ -874,7 +860,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 60,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "inputs": [
@@ -937,18 +923,17 @@
     {
       "id": "dev.github.ci_inspect",
       "label": "GitHub CI Inspect",
-      "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through ./aos dev gh.",
+      "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through node scripts/aos-dev-gh.mjs.",
       "status": "active",
       "entry_paths": [
         "aos_developer",
         "testing"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "ci",
           "inspect"
         ]
@@ -964,7 +949,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 120,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -996,17 +981,16 @@
     {
       "id": "dev.github.review_comments",
       "label": "GitHub Review Comments",
-      "summary": "Read thread-level PR review comment state through ./aos dev gh and gh GraphQL.",
+      "summary": "Read thread-level PR review comment state through node scripts/aos-dev-gh.mjs and gh GraphQL.",
       "status": "active",
       "entry_paths": [
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
-          "gh",
+          "node",
+          "scripts/aos-dev-gh.mjs",
           "review-comments"
         ]
       },
@@ -1021,7 +1005,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 60,
         "network": "required",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "recommended"
       },
       "inputs": [
@@ -1059,10 +1043,10 @@
         "aos_developer"
       ],
       "adapter": {
-        "kind": "aos_cli",
+        "kind": "node",
         "command": [
-          "./aos",
-          "dev",
+          "node",
+          "scripts/aos-dev-build.mjs",
           "build"
         ]
       },
@@ -1080,7 +1064,7 @@
         "cwd_policy": "repo_root",
         "timeout_seconds": 900,
         "network": "forbidden",
-        "raw_process": false,
+        "raw_process": true,
         "audit": "required"
       },
       "outputs": [
@@ -1146,6 +1130,6 @@
     }
   ],
   "metadata": {
-    "role_filter_compatibility": "--role is accepted by ./aos dev capabilities for legacy callers only; current capability routing uses entry_paths and explicit task context, not project-agent personas."
+    "role_filter_compatibility": "--role is accepted by node scripts/aos-dev-workflow.mjs capabilities for legacy callers only; current capability routing uses entry_paths and explicit task context, not project-agent personas."
   }
 }

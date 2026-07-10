@@ -22,9 +22,9 @@ The manifest separates four concepts that should not be conflated:
 - **Adapter**: how the capability is implemented in the current runtime.
 
 For example, `dev.github.issue_comment` can be a typed capability exposed
-through `./aos dev gh issue comment`, backed by the local authenticated `gh`
-CLI. The agent depends on the AOS capability contract, not on a provider
-connector being installed.
+through `node scripts/aos-dev-gh.mjs issue comment`, backed by the local
+authenticated `gh` CLI. The agent depends on the repo capability contract, not
+on a provider connector being installed.
 
 ## Host Shell Boundary
 
@@ -49,13 +49,14 @@ V0 is deliberately small. It records:
 - failure behavior.
 
 V0 does not execute capabilities, grant permissions, or replace current test
-commands. It gives future `./aos dev run` or runtime capability brokers a
-schema to target.
+commands. It gives repo-local maintainer scripts or future runtime capability
+brokers a schema to target.
 
 The canonical repo-development manifest is
-`docs/dev/agent-capabilities.json`. Use `./aos dev capabilities list --json`
-and `./aos dev capabilities explain <capability-id> --json` for read-only
-discovery.
+`docs/dev/agent-capabilities.json`. Use
+`node scripts/aos-dev-workflow.mjs capabilities list --json` and
+`node scripts/aos-dev-workflow.mjs capabilities explain <capability-id> --json`
+for read-only discovery.
 
 ## Classification Heuristic
 

@@ -8,7 +8,7 @@ Unified binary for macOS perception, display, action, and voice.
 ## Build
 
 ```bash
-./aos dev build
+node scripts/aos-dev-build.mjs build --no-restart --json
 ```
 
 Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/` and the
@@ -31,12 +31,12 @@ user response is the signal that they manually reset/regranted TCC; resume with
 When you are unsure which loop applies, ask the router first:
 
 ```bash
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 ```
 
 Use raw `bash build.sh` only when `./aos` is missing, exits `137`, cannot run
-`./aos dev build`, or the build surface itself is being repaired. The recovery
-command for a killed or missing repo binary is:
+post-build verification, or the build surface itself is being repaired. The
+recovery command for a killed or missing repo binary is:
 
 ```bash
 bash build.sh --force --no-restart
@@ -47,7 +47,8 @@ output at `./aos`, no post-build `codesign`, no explicit signing identifier, no
 entitlements, no app bundle, and no allowlist assumption. `spctl` rejection is
 expected for this local shape; `./aos` launchability is the gate.
 `scripts/aos-after-build` still exists for serialized automation around an
-in-flight build, but the normal developer control surface is `./aos dev build`.
+in-flight build, but the normal maintainer build surface is
+`node scripts/aos-dev-build.mjs build --no-restart --json`.
 
 Examples that usually do **not** need `bash build.sh`:
 

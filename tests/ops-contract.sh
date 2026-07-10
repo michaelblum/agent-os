@@ -19,6 +19,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+show_list_json() {
+    local out
+    for _ in 1 2 3; do
+        if out="$(./aos show list --json 2>/dev/null)" && [ -n "$out" ]; then
+            printf '%s\n' "$out"
+            return 0
+        fi
+        /bin/sleep 0.2
+    done
+    return 1
+}
+
 # --- 1. Schema files are valid and fixtures validate/fail as expected. ---
 if python3 - <<'PY'
 import json
@@ -400,7 +412,7 @@ else
     fail "mutating canvas smoke failed"
 fi
 
-if OUT="$(./aos show list 2>/dev/null)" python3 - <<'PY'
+if OUT="$(show_list_json)" && OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])
@@ -619,7 +631,7 @@ else
     fail "timeout cleanup result mismatch: $ERR"
 fi
 
-if OUT="$(./aos show list 2>/dev/null)" python3 - <<'PY'
+if OUT="$(show_list_json)" && OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])

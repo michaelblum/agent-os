@@ -1,6 +1,6 @@
 ---
 name: aos-recipes
-description: Use AOS source-backed executable recipes without confusing them with skills or workflows. Trigger when an agent needs to list, explain, dry-run, or run an AOS recipe, or when old docs mention aos ops and need the direct aos recipe surface.
+description: Use AOS source-backed executable recipes without confusing them with skills or workflows. Trigger when an agent needs to list, explain, dry-run, or run an AOS recipe.
 ---
 
 # AOS Recipes
@@ -13,7 +13,6 @@ recipes execute declared procedure steps.
 1. Inspect `./aos help recipe --json` before relying on arguments.
 2. List recipes, explain the selected id, then dry-run before run.
 3. Use `aos recipe` as the canonical noun.
-4. Treat `aos ops` as a compatibility alias only when old callers require it.
 
 ## Boundaries
 
@@ -31,6 +30,5 @@ or the requested operation would mutate runtime state without authorization.
 
 - `docs/api/aos.md`
 - `manifests/commands/source/aos/06-recipe.json`
-- `manifests/commands/source/aos/05-ops.json`
 - `recipes/AGENTS.md`
 - `tests/ops-contract.sh`

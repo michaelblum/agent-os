@@ -60,7 +60,7 @@ _Avoid_: molecule, opaque script fragment.
 A bounded, reusable, dry-runnable executable procedure made of Blocks and
 discovered through `aos recipe`. Scope: one bounded procedure with explicit
 inputs, outputs, resources, and cleanup behavior where relevant. The historical
-`aos ops` command is only a compatibility alias. Markdown procedures under
+`aos ops` command surface is retired. Markdown procedures under
 `docs/guides/` are Guides/SOPs, not executable Recipes.
 _Avoid_: documentation-only recipe, tutorial, molecule.
 

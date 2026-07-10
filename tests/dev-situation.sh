@@ -29,24 +29,13 @@ export HEAD
 
 FAKE_AOS="$TMPDIR/aos"
 FAKE_LOG="$TMPDIR/fake-aos.log"
+FAKE_GH="$TMPDIR/aos-dev-gh"
 cat > "$FAKE_AOS" <<SH
 #!/usr/bin/env bash
 set -euo pipefail
 cmd="\$*"
 printf '%s\n' "\$cmd" >> "$FAKE_LOG"
 case "\$cmd" in
-  "dev gh context --json")
-    printf '%s\n' '{"status":"success","authority":"gh_cli","repository":"michaelblum/agent-os","default_branch":"main"}'
-    ;;
-  "dev gh issue list --state open --limit 2 --json")
-    printf '%s\n' '[{"number":414,"state":"OPEN"},{"number":411,"state":"OPEN"}]'
-    ;;
-  "dev gh issue list --state all --limit 3 --json")
-    printf '%s\n' '[{"number":414,"state":"OPEN"},{"number":411,"state":"OPEN"},{"number":407,"state":"CLOSED"}]'
-    ;;
-  "dev gh pr list --state open --limit 4 --json")
-    printf '%s\n' '[{"number":415,"state":"OPEN"}]'
-    ;;
   "ready --json")
     printf '%s\n' '{"status":"ok","ready":true,"phase":"ready"}'
     ;;
@@ -65,7 +54,33 @@ esac
 SH
 chmod +x "$FAKE_AOS"
 
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+cat > "$FAKE_GH" <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+cmd="\$*"
+printf '%s\n' "\$cmd" >> "$FAKE_LOG"
+case "\$cmd" in
+  "context --json")
+    printf '%s\n' '{"status":"success","authority":"gh_cli","repository":"michaelblum/agent-os","default_branch":"main"}'
+    ;;
+  "issue list --state open --limit 2 --json")
+    printf '%s\n' '[{"number":414,"state":"OPEN"},{"number":411,"state":"OPEN"}]'
+    ;;
+  "issue list --state all --limit 3 --json")
+    printf '%s\n' '[{"number":414,"state":"OPEN"},{"number":411,"state":"OPEN"},{"number":407,"state":"CLOSED"}]'
+    ;;
+  "pr list --state open --limit 4 --json")
+    printf '%s\n' '[{"number":415,"state":"OPEN"}]'
+    ;;
+  *)
+    echo "unexpected fake gh invocation: \$cmd" >&2
+    exit 64
+    ;;
+esac
+SH
+chmod +x "$FAKE_GH"
+
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -161,7 +176,7 @@ else
     fail "dev situation packet shape or summary drifted"
 fi
 
-if TEXT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 2>/dev/null)" \
+if TEXT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 2>/dev/null)" \
     && grep -q '^Agent execution: retired$' <<< "$TEXT"; then
     pass "dev situation text output names agent execution state"
 else
@@ -223,7 +238,7 @@ else
     fail "successor note writer did not store a valid note"
 fi
 
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -271,7 +286,7 @@ else
 fi
 
 printf '%s\n' '{"role":"foreman"}' > "$REPO/.runtime/dev/successor/foreman.json"
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -302,7 +317,7 @@ cat > "$REPO/.runtime/dev/successor/foreman.json" <<JSON
   "expires_when": "git.head == 0000000"
 }
 JSON
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -352,7 +367,7 @@ else
 fi
 
 cp "$OVERSIZED_NOTE" "$REPO/.runtime/dev/successor/foreman.json"
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -369,32 +384,39 @@ else
     fail "dev situation oversized-note handling drifted"
 fi
 
-if OUT="$(./aos help dev situation --json 2>/dev/null)" python3 - <<'PY'
+if ERR="$(./aos help dev situation --json 2>&1 >/dev/null)"; then
+    fail "aos help dev situation should not resolve after dev command removal"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+    pass "aos help dev situation is retired from the AOS command surface"
+else
+    fail "aos help dev situation returned unexpected error: $ERR"
+fi
+
+if ERR="$(node scripts/aos-dev-situation.mjs --bogus 2>&1 >/dev/null)"; then
+    fail "maintainer situation should reject unknown flags"
+elif ERR="$ERR" python3 - <<'PY'
 import json
 import os
 
-data = json.loads(os.environ["OUT"])
-forms = {form["id"]: form for form in data["forms"]}
-assert set(forms) == {"dev-situation"}, forms
-tokens = {arg.get("token") for arg in forms["dev-situation"]["args"]}
-assert {"--repo", "--issue-limit", "--recent-issue-limit", "--pr-limit", "--json"} <= tokens, tokens
-assert forms["dev-situation"]["execution"]["read_only"] is True, forms["dev-situation"]
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_FLAG", data
+assert "Unknown maintainer situation flag" in data["error"], data
 PY
 then
-    pass "dev situation help route exposes sourced orientation form"
+    pass "maintainer situation rejects unknown flags"
 else
-    fail "dev situation help route drifted"
+    fail "maintainer situation unknown flag error drifted: $ERR"
 fi
 
-if grep -q '^dev gh context --json$' "$FAKE_LOG" \
-    && grep -q '^dev gh issue list --state open --limit 2 --json$' "$FAKE_LOG" \
-    && grep -q '^dev gh pr list --state open --limit 4 --json$' "$FAKE_LOG"; then
-    pass "dev situation dogfoods ./aos dev gh source commands"
+if grep -q '^context --json$' "$FAKE_LOG" \
+    && grep -q '^issue list --state open --limit 2 --json$' "$FAKE_LOG" \
+    && grep -q '^pr list --state open --limit 4 --json$' "$FAKE_LOG"; then
+    pass "maintainer situation uses direct GitHub helper source commands"
 else
-    fail "dev situation did not call expected ./aos dev gh source commands"
+    fail "maintainer situation did not call expected direct GitHub helper source commands"
 fi
 
-if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" FAKE_AOS_FAIL_STATUS=1 node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(AOS_DEV_SITUATION_AOS_PATH="$FAKE_AOS" AOS_DEV_SITUATION_GH_PATH="$FAKE_GH" FAKE_AOS_FAIL_STATUS=1 node scripts/aos-dev-situation.mjs --repo "$REPO" --issue-limit 2 --recent-issue-limit 3 --pr-limit 4 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -413,22 +435,6 @@ then
     pass "dev situation marks source failure partial without synthesizing missing runtime facts"
 else
     fail "dev situation partial-failure behavior drifted"
-fi
-
-if ERR="$(./aos dev situation --bogus 2>&1 >/dev/null)"; then
-    fail "dev situation should reject unknown flags"
-elif ERR="$ERR" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["ERR"])
-assert data["code"] == "UNKNOWN_FLAG", data
-assert "Unknown dev situation flag" in data["error"], data
-PY
-then
-    pass "dev situation rejects unknown flags"
-else
-    fail "dev situation unknown flag error drifted: $ERR"
 fi
 
 echo

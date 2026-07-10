@@ -62,19 +62,36 @@ implementations, consumer discovery, mutability, JSON output, dry-run support,
 and proposed capability groups for public CLI and self-hosting boundary
 decisions.
 
-Registry metadata must distinguish direct maintainability from consumer
+Registry metadata must distinguish private command families from consumer
 discovery. A command with `consumer_discovery: false` remains addressable by
-direct help paths such as `./aos help dev --json`, but root help and the full
-consumer JSON registry filter it out. This keeps maintainer routes reachable
-without advertising them as the normal agent API.
+direct help for tightly scoped private families such as `browser`, but root
+help and the full consumer JSON registry filter it out. Maintainer workflows
+that are only repo-development tooling must not be registered as hidden AOS
+commands.
 
 ## Public CLI And Self-Hosting
 
-`aos dev` is a maintainer-only workflow router for this repository. It owns
-repo-local classification, recommendation, situation, drift lint, build, audit,
-developer capability, and GitHub workflow helpers. It is intentionally hidden
-from root consumer help through `consumer_discovery: false`, but direct help
-must keep resolving so local maintainers can inspect the exact command forms.
+The agent-facing maintainer workflow interface is retained local skills backed
+by deterministic repo scripts:
+
+- `skills/aos-maintainer-orientation/SKILL.md` calls
+  `node scripts/aos-dev-situation.mjs --json`.
+- `skills/aos-maintainer-routing/SKILL.md` calls
+  `node scripts/aos-dev-workflow.mjs recommend --json --paths ...`.
+- `skills/aos-repo-binary-build/SKILL.md` calls
+  `node scripts/aos-dev-build.mjs build --no-restart --json`, with
+  `bash build.sh --force --no-restart` as the raw fallback when `./aos` is
+  dead.
+
+`aos dev` is retired. Do not add `dev` command source fragments under
+`manifests/commands/source/aos/`, do not add external routes under
+`manifests/commands/source/external/`, and do not teach `./aos dev ...` as an
+AOS or maintainer entrypoint. Use retained local skills backed by deterministic
+repo scripts for maintainer workflow behavior.
+
+`aos ops` is retired. Do not add `ops` command source fragments or external
+routes, and do not teach `./aos ops ...` as a compatibility alias. Use
+`./aos recipe ...` for source-backed executable recipes.
 
 AOS should feel Playwright-like through ergonomics: short direct commands,
 stable JSON/help contracts, clear capability groupings, strong examples,
@@ -89,30 +106,9 @@ see refs -> do --dry-run/action -> see capture --save -> see refs --diff
 `post_action.recommended_next_command` for the fresh recapture when they cannot
 safely return post-action state themselves.
 
-Longer term, `aos dev` should be treated as self-hosting plumbing, not durable
-product API. If a workflow moves out of `aos dev`, make the destination
-explicit: either repo-local maintainer tooling outside the public `aos` tree or
-a real public command with source manifests, external routes, docs, tests, and
-compatibility policy.
-
-Current migration matrix, verified against `./aos help dev --json`:
-
-The schema test parses this table against the generated `dev` command forms, so
-form additions, removals, or renames require an explicit row update here.
-
-| Form | Current disposition | Move-out criterion | Public promotion criterion |
-| --- | --- | --- | --- |
-| `dev classify` | Stays hidden maintainer plumbing for changed-path classification. | Move outside public `aos` only if the workflow becomes repo-local CI glue with no command-surface value. | Promote only if non-maintainer consumers need stable change classification and the output contract gets public docs/tests. |
-| `dev recommend` | Stays hidden maintainer plumbing and remains the local verification router. | Move out only if verification routing is fully owned by repo-local scripts and no longer depends on AOS command metadata. | Promote only with a public policy for changed-path recommendation, manifest examples, route/parser tests, and compatibility commitments. |
-| `dev situation` | Stays hidden maintainer readback for repo/GitHub situation summaries. | Move out if it becomes project-specific issue triage outside AOS command maintenance. | Promote only if AOS owns a general status/readback command with stable non-repo semantics. |
-| `dev drift-lint` | Stays hidden maintainer audit for docs/workflow drift. | Move out if it becomes a one-off repo hygiene script unrelated to command contracts. | Promote only if drift findings become a supported public lint contract with schemas and tests. |
-| `dev build` | Stays hidden maintainer build surface for repo-mode AOS and TCC-sensitive binary work. | Move out only after repo-mode build orchestration no longer needs `./aos` command metadata or runtime identity. | Promote only if AOS supports a general public build/lifecycle command, with explicit TCC and restart policy. |
-| `dev audit` | Stays hidden maintainer authority audit. | Move out if the audit is only repo-local documentation hygiene. | Promote only if the audit becomes a supported public command-surface verification contract. |
-| `dev capabilities` | Stays hidden maintainer capability inspection for developer roles and workflow metadata. | Move out if it is only role-doc tooling outside AOS product behavior. | Promote only if capability metadata becomes a public discovery API with stable schemas and consumer docs. |
-| `dev gh` | Stays hidden maintainer GitHub integration; it is not consumer AOS API. | Move out if GitHub workflows become repo-local tooling unrelated to AOS command maintenance. | Promote only if AOS deliberately owns provider integrations as product API, with auth policy, route tests, docs, and compatibility guarantees. |
-
-Until one of those criteria is met, `aos dev` remains direct-help-addressable
-for maintainers and excluded from root consumer discovery.
+If a maintainer workflow becomes a real product command, add it as a public AOS
+command with source manifests, external routes, docs, tests, and compatibility
+policy. Do not stage it behind a hidden `dev` family.
 
 When a form's output changes under a flag, record that in
 `output.conditional_modes` instead of relying on prose or sibling-form
@@ -196,7 +192,7 @@ Manifest placeholders must be values the Swift dispatcher resolves, such as
 For command surface changes, run the workflow recommendation first:
 
 ```bash
-./aos dev recommend --json --paths <changed-paths>
+node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>
 ```
 
 The usual hot-swappable command-surface checks are:

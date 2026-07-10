@@ -4,7 +4,7 @@ Use the smallest loop that matches the change. Start with the manifest-backed
 router when the right loop is not obvious:
 
 ```bash
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 ```
 
 Do not rebuild `./aos` by default before every verification step.
@@ -94,8 +94,9 @@ New or touched executable tests, test helpers, fixtures, and proof reports must
 be covered by `docs/dev/test-proof-registry.json`. Start from the primitive
 contract, choose the cheapest harness level that preserves the defect variable,
 name the replacement proof for any older asset, then add the registry entry
-with the exact command and guard posture. `./aos dev recommend --json` enforces
-this only for changed proof assets; untouched legacy tests remain runnable debt.
+with the exact command and guard posture.
+`node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
+changed proof assets; untouched legacy tests remain runnable debt.
 
 For cross-backend agent workspace saved-ref regressions, use:
 
@@ -125,7 +126,8 @@ validation.
 
 ## Rebuild `./aos` First
 
-Rebuild with `./aos dev build` when both of these are true:
+Rebuild with `node scripts/aos-dev-build.mjs build --no-restart --json` when
+both of these are true:
 
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`

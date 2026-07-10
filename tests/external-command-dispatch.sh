@@ -45,6 +45,17 @@ else
 fi
 rm -f /tmp/aos-gate-records-bogus.out /tmp/aos-gate-records-bogus.err
 
+if ./aos ops list --json >/tmp/aos-ops-list.out 2>/tmp/aos-ops-list.err; then
+    fail "retired ops command succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_COMMAND"' /tmp/aos-ops-list.err; then
+        pass "retired ops command returns UNKNOWN_COMMAND"
+    else
+        fail "retired ops command error drifted: $(cat /tmp/aos-ops-list.err)"
+    fi
+fi
+rm -f /tmp/aos-ops-list.out /tmp/aos-ops-list.err
+
 if ./aos do external-dispatch-bogus >/tmp/aos-do-bogus.out 2>/tmp/aos-do-bogus.err; then
     fail "do unknown subcommand succeeded"
 else
@@ -652,13 +663,12 @@ kill "$ORPHAN_PID" >/dev/null 2>&1 || true
 rm -rf "$ORPHAN_ROOT"
 
 if ./aos dev external-dispatch-bogus >/tmp/aos-dev-bogus.out 2>/tmp/aos-dev-bogus.err; then
-    fail "dev unknown subcommand succeeded"
+    fail "retired dev command family dispatched"
 else
-    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-dev-bogus.err \
-        && grep -q 'Unknown dev subcommand: external-dispatch-bogus' /tmp/aos-dev-bogus.err; then
-        pass "dev unknown subcommands route through external family router"
+    if grep -q '"code" : "UNKNOWN_COMMAND"' /tmp/aos-dev-bogus.err; then
+        pass "retired dev command family is not dispatchable"
     else
-        fail "dev unknown subcommand error drifted: $(cat /tmp/aos-dev-bogus.err)"
+        fail "retired dev command family error drifted: $(cat /tmp/aos-dev-bogus.err)"
     fi
 fi
 rm -f /tmp/aos-dev-bogus.out /tmp/aos-dev-bogus.err

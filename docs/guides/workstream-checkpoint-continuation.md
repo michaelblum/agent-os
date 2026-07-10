@@ -22,7 +22,8 @@ Inspect enough local state to make the choice:
 - current branch, HEAD, dirty status, and branch diff against the workstream
   base;
 - accepted work card, completion report, and acceptance evidence;
-- `./aos dev recommend --json` output for the current diff;
+- `node scripts/aos-dev-workflow.mjs recommend --json` output for the current
+  diff;
 - live readiness when the next meaningful proof depends on AOS runtime state;
 - external publication policy from the work card, issue, or user instruction;
 - concrete gaps named by the accepted note, test result, prototype output, or

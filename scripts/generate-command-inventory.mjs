@@ -220,7 +220,7 @@ function capabilityGroup(command, form) {
   if (top === 'show') return 'Overlay/display';
   if (top === 'browser') return 'Browser companion';
   if (top === 'skills' && second === 'companion') return 'Browser companion';
-  if (top === 'skills' || top === 'recipe' || top === 'ops') return 'Skills and recipes';
+  if (top === 'skills' || top === 'recipe') return 'Skills and recipes';
   if (top === 'gate' || top === 'work-record') return 'Verification/evidence';
   if (top === 'tell' || top === 'listen') return 'Operator messaging';
   if (top === 'say' || top === 'voice') return 'Voice and speech';
@@ -228,7 +228,6 @@ function capabilityGroup(command, form) {
   if (top === 'config' || top === 'set') return 'Storage/config';
   if (top === 'service' || top === 'runtime' || top === 'serve' || top === 'reset' || top === 'clean') return 'Runtime/service';
   if (top === 'daemon-snapshot' || top === 'inspect' || top === 'introspect' || top === 'log') return 'Diagnostics/debug';
-  if (top === 'dev') return 'Developer workflow';
   if (top === 'help') return 'CLI metadata';
   return 'Unclassified';
 }
@@ -238,7 +237,7 @@ function docRefs(command, group) {
   const refs = new Set();
   if (isPublic(command)) refs.add('docs/api/aos.md');
   if (groups.some((item) => CAPABILITY_DOC_GROUPS.has(item))) refs.add('docs/api/aos-capabilities.md');
-  if (!isPublic(command) || group === 'Developer workflow') refs.add('docs/dev/command-surface.md');
+  if (!isPublic(command)) refs.add('docs/dev/command-surface.md');
   if (groups.includes('Diagnostics/debug')) refs.add('docs/dev/command-surface.md');
   return [...refs].join(', ') || 'source manifest only';
 }

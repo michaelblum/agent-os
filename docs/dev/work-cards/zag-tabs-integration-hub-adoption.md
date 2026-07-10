@@ -39,7 +39,7 @@ editing.
 git status --short --branch
 git fetch origin
 git switch -c gdi/zag-tabs-integration-hub-adoption origin/main
-./aos dev recommend --json
+node scripts/aos-dev-workflow.mjs recommend --json
 ```
 
 This slice is pure toolkit JavaScript and deterministic Node tests. Do not run

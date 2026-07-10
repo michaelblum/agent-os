@@ -421,7 +421,7 @@ if (record.health.verdict !== 'valid' || verifier.status !== 'passed') {
 NODE
 }
 
-./aos dev build --no-restart --json >"$BUILD_JSON"
+node scripts/aos-dev-build.mjs build --no-restart --json >"$BUILD_JSON"
 
 run_guarded_live_mode() {
     local browser_dir="$PROOF_ROOT/browser"

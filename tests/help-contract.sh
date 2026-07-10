@@ -43,7 +43,7 @@ else
 fi
 rm -f /tmp/aos-root-help.out /tmp/aos-root-help.err /tmp/aos-root-help-flag.out /tmp/aos-root-help-flag.err /tmp/aos-do-help-flag.json /tmp/aos-do-help-flag.err
 
-if ROOT_JSON="$(./aos help --json 2>/dev/null)" ROOT_TEXT="$(./aos 2>/dev/null)" DIRECT_DEV="$(./aos help dev --json 2>/dev/null)" DIRECT_BROWSER="$(./aos help browser --json 2>/dev/null)" python3 - <<'PY'
+if ROOT_JSON="$(./aos help --json 2>/dev/null)" ROOT_TEXT="$(./aos 2>/dev/null)" DIRECT_BROWSER="$(./aos help browser --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -51,31 +51,45 @@ from pathlib import Path
 root = json.loads(os.environ["ROOT_JSON"])
 manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
 assert all(command["path"] != ["dev"] for command in root["commands"]), root
+assert all(command["path"] != ["ops"] for command in root["commands"]), root
 assert all(command["path"] != ["browser"] for command in root["commands"]), root
+assert all(command["path"] != ["dev"] for command in manifest["commands"]), manifest
+assert all(command["path"] != ["ops"] for command in manifest["commands"]), manifest
 for command in root["commands"]:
     summary = command.get("summary", "")
     assert "not user-facing" not in summary.lower(), command
     assert "internal" not in summary.lower(), command
     assert "debug helper" not in summary.lower(), command
 assert "\n  dev" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
+assert "\n  ops" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
 assert "\n  browser" not in os.environ["ROOT_TEXT"], os.environ["ROOT_TEXT"]
-direct = json.loads(os.environ["DIRECT_DEV"])
-assert direct["path"] == ["dev"], direct
-assert direct["consumer_discovery"] is False, direct
-assert any(form["id"] == "dev-classify" for form in direct["forms"]), direct
 direct_browser = json.loads(os.environ["DIRECT_BROWSER"])
 assert direct_browser["path"] == ["browser"], direct_browser
 assert direct_browser["consumer_discovery"] is False, direct_browser
 assert any(form["id"] == "browser-parse-target" for form in direct_browser["forms"]), direct_browser
-manifest_dev = next(command for command in manifest["commands"] if command["path"] == ["dev"])
-assert manifest_dev["consumer_discovery"] is False, manifest_dev
 manifest_browser = next(command for command in manifest["commands"] if command["path"] == ["browser"])
 assert manifest_browser["consumer_discovery"] is False, manifest_browser
 PY
 then
-    pass "root consumer help excludes internal command groups while direct help resolves"
+    pass "root consumer help excludes internal groups and manifest omits retired dev/ops commands"
 else
     fail "internal command demotion from root consumer help drifted"
+fi
+
+if ERR="$(./aos help dev --json 2>&1 >/dev/null)"; then
+    fail "aos help dev should not resolve after dev command removal"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+    pass "aos help dev returns UNKNOWN_COMMAND"
+else
+    fail "aos help dev returned unexpected error: $ERR"
+fi
+
+if ERR="$(./aos help ops --json 2>&1 >/dev/null)"; then
+    fail "aos help ops should not resolve after ops command removal"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+    pass "aos help ops returns UNKNOWN_COMMAND"
+else
+    fail "aos help ops returned unexpected error: $ERR"
 fi
 
 if ROOT_JSON="$(./aos help --json 2>/dev/null)" python3 - <<'PY'
@@ -125,7 +139,8 @@ for command in ["see", "do", "show", "tell", "listen"]:
     assert re.search(rf"\| `aos {command}` \| Primitive \|", readme), command
 assert re.search(r"\| `aos say` \| Convenience \|.*tell human", readme), readme
 assert re.search(r"\| `aos skills` \| Packaging \|.*Installable AOS root skills", readme), readme
-assert re.search(r"\| `aos recipe` \| Higher-order \|.*`aos ops`", readme), readme
+assert re.search(r"\| `aos recipe` \| Higher-order \|.*Source-backed executable", readme), readme
+assert "`aos ops`" not in readme, readme
 assert re.search(r"\| `aos ready` \| Runtime/ops \|", readme), readme
 assert re.search(r"\| `aos serve` / `aos service` \| Runtime/ops \|", readme), readme
 assert re.search(r"\| `aos status` / `aos doctor` \| Runtime/ops \|.*diagnostics", readme), readme
@@ -799,7 +814,7 @@ else
     fail "see zone define help drifted from parser: $OUT"
 fi
 
-# --- 19. dev build only wraps the build step and disables daemon restart ---
+# --- 19. maintainer build script only wraps the build step and disables daemon restart ---
 if python3 - <<'PY'
 from pathlib import Path
 
@@ -816,15 +831,15 @@ assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
 then
-    pass "dev build reports wrapper source without post-build ritual"
+    pass "maintainer build script reports wrapper source without post-build ritual"
 else
-    fail "dev build wrapper telemetry or readiness boundary regressed"
+    fail "maintainer build script telemetry or readiness boundary regressed"
 fi
 
 if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/tmp/aos-dev-build-help.err \
     && node scripts/aos-dev-build.mjs build -h >/tmp/aos-dev-build-help-short.out 2>/tmp/aos-dev-build-help-short.err \
-    && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help.out \
-    && grep -q 'Usage: aos dev build' /tmp/aos-dev-build-help-short.out \
+    && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help.out \
+    && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help-short.out \
     && grep -q 'bash build.sh --force --no-restart' /tmp/aos-dev-build-help.out \
     && grep -q 'no post-build codesign' /tmp/aos-dev-build-help.out \
     && grep -q 'spctl launch gate' /tmp/aos-dev-build-help.out \
@@ -833,9 +848,9 @@ if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/t
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \
     && ! grep -q '^Signing aos' /tmp/aos-dev-build-help-short.out
 then
-    pass "direct dev build help is non-mutating"
+    pass "direct maintainer build help is non-mutating"
 else
-    fail "direct dev build help triggered build output or failed"
+    fail "direct maintainer build help triggered build output or failed"
 fi
 rm -f /tmp/aos-dev-build-help.out /tmp/aos-dev-build-help.err /tmp/aos-dev-build-help-short.out /tmp/aos-dev-build-help-short.err
 
@@ -856,7 +871,7 @@ else
     fail "native source reintroduced product-specific binary strings"
 fi
 
-# --- 21. dev build-checkpoint remains retired ---
+# --- 21. retired dev command family remains absent ---
 if python3 - <<'PY'
 import json
 from pathlib import Path
@@ -865,11 +880,15 @@ external = Path("manifests/commands/aos-external-commands.json").read_text(encod
 commands = Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8")
 assert "build-checkpoint" not in external
 assert "build-checkpoint" not in commands
+external_manifest = json.loads(external)
+command_manifest = json.loads(commands)
+assert all(command["path"][0] != "dev" for command in external_manifest["commands"])
+assert all(command["path"][0] != "dev" for command in command_manifest["commands"])
 PY
 then
-    pass "dev build-checkpoint is not registered"
+    pass "retired dev command family is not registered"
 else
-    fail "dev build-checkpoint command was re-registered"
+    fail "retired dev command family was re-registered"
 fi
 
 # --- 22. command registry metadata is externally hot-swappable ---
@@ -880,11 +899,11 @@ import sys
 from pathlib import Path
 
 manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
-dev = next(command for command in manifest["commands"] if command["path"] == ["dev"])
-dev["summary"] = "HOT SWAP TEST SUMMARY"
+browser = next(command for command in manifest["commands"] if command["path"] == ["browser"])
+browser["summary"] = "HOT SWAP TEST SUMMARY"
 Path(sys.argv[1]).write_text(json.dumps(manifest), encoding="utf-8")
 PY
-OUT=$(AOS_COMMAND_REGISTRY="$TMP_REGISTRY" ./aos help dev --json 2>/dev/null)
+OUT=$(AOS_COMMAND_REGISTRY="$TMP_REGISTRY" ./aos help browser --json 2>/dev/null)
 rm -f "$TMP_REGISTRY"
 if echo "$OUT" | grep -q 'HOT SWAP TEST SUMMARY'; then
     pass "command registry manifest can change help without Swift changes"

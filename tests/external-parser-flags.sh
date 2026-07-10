@@ -507,8 +507,8 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   cat "$err" >&2
   exit 1
 fi
-check_unknown_arg ops-list-extra ./aos ops list unexpected
-check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot unexpected
+check_unknown_arg recipe-list-extra ./aos recipe list unexpected
+check_unknown_arg recipe-explain-extra ./aos recipe explain runtime/status-snapshot unexpected
 check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
 check_unknown_arg tell-who-extra ./aos tell --who unexpected
 check_code tell-session-id-message-reaches-daemon DAEMON_UNREACHABLE ./aos tell --session-id parser-session "status update"

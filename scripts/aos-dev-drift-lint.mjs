@@ -36,7 +36,7 @@ const lifecycleKeywordLookaheads = lifecycleKeywords.map((keyword) => `(?!${esca
 const claimMarkerPattern = /\b(at the time of writing|as of\s+(?:\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})|observed (?:on|at)\s+\d{4}-\d{2}-\d{2}|historical|former|then-current|at commit\s+[0-9a-f]{7,40}|recorded at write time|snapshot|settlement)\b/i;
 const evidenceHeadingPattern = /\b(\d{4}-\d{2}-\d{2}|as of\s+(?:\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})|observed (?:on|at)\s+\d{4}-\d{2}-\d{2}|at commit\s+[0-9a-f]{7,40})\b/i;
 const pastTensePattern = /\b(was merged|was closed|was observed|was created|was reported|was restored|was dropped|was removed|was settled|was retargeted|had been|reported|observed|created on|closed on|merged on)\b/i;
-const liveQueryPattern = /\b(Query (?:GitHub|Git|live|`?\.\/aos)|run `?git stash list`?|use `?\.\/aos dev gh|Use `?\.\/aos dev gh|GitHub for current|before assuming|before acting)\b/i;
+const liveQueryPattern = /\b(Query (?:GitHub|Git|live|`?\.\/aos)|run `?git stash list`?|use `?node scripts\/aos-dev-gh\.mjs|Use `?node scripts\/aos-dev-gh\.mjs|GitHub for current|before assuming|before acting)\b/i;
 const pastTenseLicensedRuleIds = new Set([
   'lane_label_standing_claim',
   'stash_lifecycle_standing_claim',
@@ -143,7 +143,7 @@ function parseArgs(args) {
       options.allMarkdown = true;
       i += 1;
     } else if (arg.startsWith('--')) {
-      exitError(`Unknown dev drift-lint flag: ${arg}`, 'UNKNOWN_FLAG');
+      exitError(`Unknown maintainer drift-lint flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
       options.files.push(arg);
       i += 1;
@@ -332,7 +332,7 @@ function lint(options) {
 }
 
 function printText(payload) {
-  process.stdout.write(`dev drift-lint: ${payload.status}\n`);
+  process.stdout.write(`maintainer drift-lint: ${payload.status}\n`);
   process.stdout.write(`${payload.detector.notice}\n`);
   process.stdout.write(`Scanned files: ${payload.summary.scanned_file_count}\n`);
   process.stdout.write(`Findings: ${payload.summary.finding_count}\n`);

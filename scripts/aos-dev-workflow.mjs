@@ -85,12 +85,12 @@ function parseCommon(args, allowed, positionalMode = 'collect') {
       options[allowed[arg].replace(/ .*/, '').replaceAll('-', '_')] = args[i + 1];
       i += 2;
     } else if (arg.startsWith('--')) {
-      error(`Unknown dev flag: ${arg}`, 'UNKNOWN_FLAG');
+      error(`Unknown maintainer workflow flag: ${arg}`, 'UNKNOWN_FLAG');
     } else if (positionalMode === 'collect') {
       options.positionals.push(arg);
       i += 1;
     } else {
-      error(`Unknown dev argument: ${arg}`, 'UNKNOWN_ARG');
+      error(`Unknown maintainer workflow argument: ${arg}`, 'UNKNOWN_ARG');
     }
   }
   return options;
@@ -127,7 +127,7 @@ function parseWorkflowOptions(args) {
         break;
       }
       default:
-        if (arg.startsWith('--')) error(`Unknown dev flag: ${arg}`, 'UNKNOWN_FLAG');
+        if (arg.startsWith('--')) error(`Unknown maintainer workflow flag: ${arg}`, 'UNKNOWN_FLAG');
         options.files.push(arg); i += 1;
     }
   }
@@ -148,7 +148,7 @@ function parseAuditOptions(args) {
         if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--manifest requires a path', 'MISSING_ARG');
         options.manifest = args[i + 1]; i += 2; break;
       default:
-        error(`Unknown dev audit flag: ${arg}`, 'UNKNOWN_FLAG');
+        error(`Unknown maintainer workflow audit flag: ${arg}`, 'UNKNOWN_FLAG');
     }
   }
   return options;
@@ -322,7 +322,7 @@ function buildProofWorth(files, repoRoot) {
 function buildClassification(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const manifestPath = resolveUnderRepo(options.manifest, repoRoot, workflowDefaultManifest);
-  const manifest = readJSON(manifestPath, 'MISSING_MANIFEST', 'INVALID_MANIFEST', 'dev workflow manifest');
+  const manifest = readJSON(manifestPath, 'MISSING_MANIFEST', 'INVALID_MANIFEST', 'maintainer workflow manifest');
   const changed = resolveChangedFiles(options, repoRoot);
   const files = unique(changed.files.map((file) => normalizeRepoRelative(file, repoRoot))).filter(Boolean);
   const classified = classifyFiles(files, manifest, repoRoot);
@@ -442,7 +442,7 @@ function parseCapabilitiesOptions(args) {
 function loadCapabilityManifest(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const manifestPath = resolveUnderRepo(options.manifest, repoRoot, capabilitiesDefaultManifest);
-  const manifest = readJSON(manifestPath, 'MISSING_MANIFEST', 'INVALID_MANIFEST', 'dev capability manifest');
+  const manifest = readJSON(manifestPath, 'MISSING_MANIFEST', 'INVALID_MANIFEST', 'maintainer capability manifest');
   return { repoRoot, path: manifestPath, manifest, capabilities: manifest.capabilities || [] };
 }
 
@@ -457,7 +457,7 @@ function filterCapabilities(capabilities, options) {
 function capabilitiesCommand(action, args) {
   const options = parseCapabilitiesOptions(args);
   if (action === 'list') {
-    if (options.positionals.length) error('dev capabilities list does not accept positional arguments', 'UNKNOWN_ARG');
+    if (options.positionals.length) error('maintainer capabilities list does not accept positional arguments', 'UNKNOWN_ARG');
     const loaded = loadCapabilityManifest(options);
     const capabilities = filterCapabilities(loaded.capabilities, options);
     const payload = {
@@ -474,8 +474,8 @@ function capabilitiesCommand(action, args) {
     return;
   }
   if (action === 'explain') {
-    if (options.positionals.length === 0) error('dev capabilities explain requires exactly one capability id', 'MISSING_ARG');
-    if (options.positionals.length > 1) error(`Unknown dev capabilities argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    if (options.positionals.length === 0) error('maintainer capabilities explain requires exactly one capability id', 'MISSING_ARG');
+    if (options.positionals.length > 1) error(`Unknown maintainer capabilities argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const loaded = loadCapabilityManifest(options);
     const capability = loaded.capabilities.find((item) => item.id === options.positionals[0]);
     if (!capability) error(`Unknown capability id: ${options.positionals[0]}`, 'UNKNOWN_CAPABILITY');
@@ -489,13 +489,13 @@ function capabilitiesCommand(action, args) {
     options.json ? printJSON(payload) : printCapabilityExplain(payload);
     return;
   }
-  error(`Unknown dev capabilities subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
+  error(`Unknown maintainer capabilities subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
 }
 
 function subagentCommand(action, args) {
   void action;
   void args;
-  error("dev subagent is retired for agent-os; use repo-root sessions, DOX, and installable AOS skills instead", "RETIRED_SUBAGENT_COMMAND");
+  error("maintainer subagent is retired for agent-os; use repo-root sessions, DOX, and installable AOS skills instead", "RETIRED_SUBAGENT_COMMAND");
 }
 
 function claim(id, claimText, passed, expected, observed, evidence, next) {
@@ -504,66 +504,36 @@ function claim(id, claimText, passed, expected, observed, evidence, next) {
   return out;
 }
 
-function auditFormFlagClaim(id, form, expectedFlags, defaultManifestRequired) {
-  if (!form) {
-    return claim(id, `The external help manifest exposes required flags for ${id}.`, false, expectedFlags.join(','), 'missing form', ['manifests/commands/aos-commands.json'], 'Restore the missing help form.');
-  }
-  const tokens = new Set((form.args || []).map((arg) => arg.token).filter(Boolean));
-  const manifestArg = (form.args || []).find((arg) => arg.token === '--manifest');
-  const manifestDefault = manifestArg?.default_value ?? manifestArg?.default;
-  const hasFlags = expectedFlags.every((flag) => tokens.has(flag));
-  const hasManifestDefault = !defaultManifestRequired || manifestDefault === workflowDefaultManifest;
-  const observed = `${[...tokens].sort().join(',')}; manifest_default=${manifestDefault ?? 'nil'}`;
-  return claim(
-    id,
-    `The external help manifest exposes required flags and defaults for ${form.id}.`,
-    hasFlags && hasManifestDefault,
-    `${expectedFlags.slice().sort().join(',')}${defaultManifestRequired ? `; manifest_default=${workflowDefaultManifest}` : ''}`,
-    observed,
-    ['manifests/commands/aos-commands.json', './aos help dev --json'],
-    'Align InvocationForm args with the parser in scripts/aos-dev-workflow.mjs.',
-  );
-}
-
 function auditRegistryClaims(repoRoot) {
   const registryPath = path.join(repoRoot, 'manifests/commands/aos-commands.json');
   const registry = readJSON(registryPath, 'MISSING_COMMAND_REGISTRY', 'INVALID_COMMAND_REGISTRY', 'command registry');
   const dev = (registry.commands || []).find((command) => command.path?.join(' ') === 'dev');
-  if (!dev) {
-    return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
-  }
-  const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-situation', 'dev-drift-lint', 'dev-build', 'dev-audit', 'dev-capabilities', 'dev-gh'];
-  const observedForms = (dev.forms || []).map((form) => form.id).sort();
+  const externalRegistryPath = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
+  const externalRegistry = readJSON(externalRegistryPath, 'MISSING_EXTERNAL_COMMAND_REGISTRY', 'INVALID_EXTERNAL_COMMAND_REGISTRY', 'external command registry');
+  const externalDev = (externalRegistry.commands || []).filter((command) => command.path?.[0] === 'dev');
   return [
-    claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
-    auditFormFlagClaim('dev-classify-help-flags', forms.get('dev-classify'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
-    auditFormFlagClaim('dev-recommend-help-flags', forms.get('dev-recommend'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
-    auditFormFlagClaim('dev-situation-help-flags', forms.get('dev-situation'), ['--repo', '--issue-limit', '--recent-issue-limit', '--pr-limit', '--json'], false),
-    auditFormFlagClaim('dev-drift-lint-help-flags', forms.get('dev-drift-lint'), ['--paths', '--files', '--all-markdown', '--repo', '--json'], false),
-    auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
-    auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
-    auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
+    claim('dev-help-registry-absent', 'The generated AOS help registry does not expose a dev command.', !dev, 'no command path dev', dev ? `present with ${(dev.forms || []).length} forms` : 'absent', ['manifests/commands/aos-commands.json'], 'Remove dev command source fragments and regenerate command manifests.'),
+    claim('dev-external-routes-absent', 'The generated external command registry does not dispatch dev routes.', externalDev.length === 0, 'no external paths beginning with dev', externalDev.map((command) => command.path.join(' ')).join(',') || 'absent', ['manifests/commands/aos-external-commands.json'], 'Remove external dev routes and use repo-local maintainer scripts directly.'),
   ];
 }
 
 function auditWorkflowManifestClaims(manifest) {
   const rule = (manifest.rules || []).find((item) => item.id === workflowRuleID);
-  if (!rule) return [claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
-  const expectedPatterns = ['docs/dev/workflow-rules.json', 'docs/dev/agent-capabilities.json', 'docs/dev/test-proof-registry.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'scripts/lib/dev-test-proof-registry.mjs', 'manifests/commands/aos-commands.json', 'manifests/commands/aos-external-commands.json', 'shared/schemas/dev-test-proof-registry.schema.json', 'shared/schemas/fixtures/dev-test-proof-registry/**', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-test-proof-registry.test.mjs', 'tests/schemas/dev-workflow-rules.test.mjs'];
+  if (!rule) return [claim('dev-workflow-self-routes', 'The maintainer workflow manifest routes its own scripts, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
+  const expectedPatterns = ['docs/dev/workflow-rules.json', 'docs/dev/agent-capabilities.json', 'docs/dev/test-proof-registry.json', 'scripts/aos-dev-workflow.mjs', 'scripts/aos-dev-situation.mjs', 'scripts/aos-dev-drift-lint.mjs', 'scripts/lib/dev-test-proof-registry.mjs', 'shared/schemas/dev-test-proof-registry.schema.json', 'shared/schemas/fixtures/dev-test-proof-registry/**', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/dev-situation.sh', 'tests/dev-drift-lint.sh', 'tests/schemas/dev-test-proof-registry.test.mjs', 'tests/schemas/dev-workflow-rules.test.mjs'];
   const expectedCommands = ['node --test tests/schemas/dev-test-proof-registry.test.mjs', 'node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh', 'bash tests/dev-situation.sh', 'bash tests/dev-drift-lint.sh'];
   const patterns = rule.patterns || [];
   const commands = (rule.commands || []).map((item) => item.command);
   return [
-    claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', expectedPatterns.every((item) => patterns.includes(item)), expectedPatterns.slice().sort().join(','), patterns.slice().sort().join(','), [workflowDefaultManifest], `Add missing dev workflow source/test patterns to ${workflowDefaultManifest}.`),
-    claim('dev-workflow-self-verifies', 'The dev workflow rule recommends schema, router, and audit verification.', expectedCommands.every((item) => commands.includes(item)), expectedCommands.slice().sort().join(','), commands.slice().sort().join(','), [workflowDefaultManifest], `Add missing verification commands to the ${workflowRuleID} rule.`),
+    claim('dev-workflow-self-routes', 'The maintainer workflow manifest routes its own scripts, registry, and tests.', expectedPatterns.every((item) => patterns.includes(item)), expectedPatterns.slice().sort().join(','), patterns.slice().sort().join(','), [workflowDefaultManifest], `Add missing maintainer workflow source/test patterns to ${workflowDefaultManifest}.`),
+    claim('dev-workflow-self-verifies', 'The maintainer workflow rule recommends schema, router, and audit verification.', expectedCommands.every((item) => commands.includes(item)), expectedCommands.slice().sort().join(','), commands.slice().sort().join(','), [workflowDefaultManifest], `Add missing verification commands to the ${workflowRuleID} rule.`),
   ];
 }
 
 function auditExplicitRecommendationClaims(manifest, repoRoot) {
   const summary = aggregateWorkflow(classifyFiles(['docs/guides/example.md'], manifest, repoRoot));
   const passed = JSON.stringify(summary.rule_ids) === JSON.stringify(['docs-only']) && summary.commands.length === 0 && summary.verification.length === 0;
-  return [claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', passed, 'rule_ids=docs-only; commands=0; verification=0', `rule_ids=${summary.rule_ids.join(',')}; commands=${summary.commands.length}; verification=${summary.verification.length}`, ['./aos dev recommend --json --files docs/guides/example.md'], 'Fix dev workflow matching so explicit file input does not trigger unrelated runtime loops.')];
+  return [claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', passed, 'rule_ids=docs-only; commands=0; verification=0', `rule_ids=${summary.rule_ids.join(',')}; commands=${summary.commands.length}; verification=${summary.verification.length}`, ['node scripts/aos-dev-workflow.mjs recommend --json --files docs/guides/example.md'], 'Fix maintainer workflow matching so explicit file input does not trigger unrelated runtime loops.')];
 }
 
 function auditCommand(args) {
@@ -574,38 +544,38 @@ function auditCommand(args) {
   const selectedManifestRelative = normalizeRepoRelative(selectedManifestPath, repoRoot);
   const claims = [];
   const defaultManifestRelative = normalizeRepoRelative(defaultManifestPath, repoRoot);
-  claims.push(claim('dev-default-manifest-path', 'The dev workflow router default manifest path is canonical.', defaultManifestRelative === workflowDefaultManifest, workflowDefaultManifest, defaultManifestRelative, ['scripts/aos-dev-workflow.mjs:workflowDefaultManifest'], `Update workflowDefaultManifest to use ${workflowDefaultManifest}.`));
+  claims.push(claim('dev-default-manifest-path', 'The maintainer workflow router default manifest path is canonical.', defaultManifestRelative === workflowDefaultManifest, workflowDefaultManifest, defaultManifestRelative, ['scripts/aos-dev-workflow.mjs:workflowDefaultManifest'], `Update workflowDefaultManifest to use ${workflowDefaultManifest}.`));
   const manifestExists = fs.existsSync(selectedManifestPath);
-  claims.push(claim('dev-manifest-readable', 'The selected dev workflow manifest exists on disk.', manifestExists, `exists=true at ${selectedManifestRelative}`, `exists=${manifestExists}`, [selectedManifestRelative], 'Restore the manifest or pass --manifest <path> to a valid rules file.'));
+  claims.push(claim('dev-manifest-readable', 'The selected maintainer workflow manifest exists on disk.', manifestExists, `exists=true at ${selectedManifestRelative}`, `exists=${manifestExists}`, [selectedManifestRelative], 'Restore the manifest or pass --manifest <path> to a valid rules file.'));
   let manifest = null;
   if (manifestExists) {
     try {
       manifest = JSON.parse(fs.readFileSync(selectedManifestPath, 'utf8'));
-      claims.push(claim('dev-manifest-decodes', 'The selected dev workflow manifest decodes as schema version 1.', manifest.schema_version === 1, 'schema_version=1', `schema_version=${manifest.schema_version}`, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
+      claims.push(claim('dev-manifest-decodes', 'The selected maintainer workflow manifest decodes as schema version 1.', manifest.schema_version === 1, 'schema_version=1', `schema_version=${manifest.schema_version}`, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
     } catch (err) {
-      claims.push(claim('dev-manifest-decodes', 'The selected dev workflow manifest decodes as schema version 1.', false, 'valid schema_version=1 manifest', err.message, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
+      claims.push(claim('dev-manifest-decodes', 'The selected maintainer workflow manifest decodes as schema version 1.', false, 'valid schema_version=1 manifest', err.message, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
     }
   } else {
-    claims.push(claim('dev-manifest-decodes', 'The selected dev workflow manifest decodes as schema version 1.', false, 'valid schema_version=1 manifest', `missing: ${selectedManifestPath}`, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
+    claims.push(claim('dev-manifest-decodes', 'The selected maintainer workflow manifest decodes as schema version 1.', false, 'valid schema_version=1 manifest', `missing: ${selectedManifestPath}`, [selectedManifestRelative, 'shared/schemas/dev-workflow-rules.schema.json'], 'Run node --test tests/schemas/dev-workflow-rules.test.mjs.'));
   }
   claims.push(...auditRegistryClaims(repoRoot));
   if (manifest) {
     claims.push(...auditWorkflowManifestClaims(manifest));
     claims.push(...auditExplicitRecommendationClaims(manifest, repoRoot));
   } else {
-    claims.push(claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, `decoded manifest with ${workflowRuleID} rule`, 'manifest did not decode', [selectedManifestRelative], 'Fix the manifest before trusting dev workflow routing.'));
-    claims.push(claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', false, 'docs-only route with no commands or verification', 'manifest did not decode', [selectedManifestRelative], 'Fix the manifest before trusting dev recommend.'));
+    claims.push(claim('dev-workflow-self-routes', 'The maintainer workflow manifest routes its own scripts, registry, and tests.', false, `decoded manifest with ${workflowRuleID} rule`, 'manifest did not decode', [selectedManifestRelative], 'Fix the manifest before trusting maintainer workflow routing.'));
+    claims.push(claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', false, 'docs-only route with no commands or verification', 'manifest did not decode', [selectedManifestRelative], 'Fix the manifest before trusting maintainer workflow recommendations.'));
   }
   const passed = claims.filter((item) => item.status === 'passed').length;
   const failed = claims.length - passed;
   const payload = {
     status: failed === 0 ? 'success' : 'failed',
-    subject: 'dev-grammar',
+    subject: 'maintainer-workflow',
     repo: repoRoot,
     manifest: selectedManifestRelative,
     claims,
     summary: { total: claims.length, passed, failed },
-    next: failed === 0 ? 'No dev grammar repair needed.' : './aos dev build --force --no-restart && bash tests/dev-audit.sh',
+    next: failed === 0 ? 'No maintainer workflow repair needed.' : 'node scripts/aos-dev-build.mjs build --force --no-restart --json && bash tests/dev-audit.sh',
   };
   options.json ? printJSON(payload) : printAuditText(payload);
   process.exit(failed === 0 ? 0 : 1);
@@ -632,7 +602,7 @@ function printRecommendation(payload) {
 }
 
 function printAuditText(payload) {
-  process.stdout.write(`dev audit: ${payload.status}\n`);
+  process.stdout.write(`maintainer workflow audit: ${payload.status}\n`);
   for (const item of payload.claims) {
     const marker = item.status === 'passed' ? 'PASS' : 'FAIL';
     process.stdout.write(`${marker} ${item.id} - ${item.claim}\n`);
@@ -642,7 +612,7 @@ function printAuditText(payload) {
 }
 
 function printCapabilitiesList(payload) {
-  process.stdout.write(`dev capabilities: ${payload.count}\n`);
+  process.stdout.write(`maintainer capabilities: ${payload.count}\n`);
   process.stdout.write(`Manifest: ${payload.manifest}\n`);
   for (const capability of payload.capabilities) {
     process.stdout.write(`- ${capability.id || 'unknown'} (${capability.label || capability.id || 'unknown'}): adapter=${capability.adapter_kind || 'unknown'} mutability=${capability.mutability_class || 'unknown'} raw_process=${capability.raw_process || false}\n`);
@@ -674,12 +644,12 @@ if (subcommand === 'classify') {
   auditCommand(rest);
 } else if (subcommand === 'capabilities') {
   const [action, ...args] = rest;
-  if (!action) error('dev capabilities requires a subcommand', 'MISSING_SUBCOMMAND');
+  if (!action) error('maintainer capabilities requires a subcommand', 'MISSING_SUBCOMMAND');
   capabilitiesCommand(action, args);
 } else if (subcommand === 'subagent') {
   const [action, ...args] = rest;
-  if (!action) error('dev subagent requires a subcommand', 'MISSING_SUBCOMMAND');
+  if (!action) error('maintainer subagent requires a subcommand', 'MISSING_SUBCOMMAND');
   subagentCommand(action, args);
 } else {
-  error(`Unknown dev workflow command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
+  error(`Unknown maintainer workflow command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
 }

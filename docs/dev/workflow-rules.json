@@ -43,8 +43,8 @@
       "commands": [
         {
           "id": "dev-build",
-          "command": "./aos dev build",
-          "reason": "Swift source changes require a current repo-mode ./aos binary. The dev wrapper preserves the signing/TCC warning surface."
+          "command": "node scripts/aos-dev-build.mjs build --no-restart --json",
+          "reason": "Swift source changes require a current repo-mode ./aos binary. The repo-local build wrapper preserves the signing/TCC warning surface."
         }
       ],
       "verification": [
@@ -55,7 +55,7 @@
         }
       ],
       "notes": [
-        "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because ./aos dev build cannot run through a broken ./aos artifact.",
+        "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because the normal post-build verification cannot run through a broken ./aos artifact.",
         "Repo-mode rebuilds must stay raw: direct build.sh swiftc output only, no post-build codesign, explicit signing identifier, entitlements, app bundle, allowlist assumption, or spctl launch gate."
       ]
     },
@@ -227,7 +227,7 @@
         {
           "id": "command-manifest-generation",
           "command": "bash tests/command-manifest-generation.sh",
-          "reason": "Source command manifests and generated compatibility artifacts must stay in sync."
+          "reason": "Source command manifests and generated command artifacts must stay in sync."
         },
         {
           "id": "external-command-manifest-schema",
@@ -242,7 +242,7 @@
         {
           "id": "dev-gh-help-parity",
           "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
-          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
+          "reason": "Repo-local GitHub helper subcommands must stay dispatchable through direct script help."
         },
         {
           "id": "help-contract",
@@ -286,7 +286,7 @@
         {
           "id": "dev-gh-help-parity",
           "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
-          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
+          "reason": "Repo-local GitHub helper subcommands must stay dispatchable through direct script help."
         },
         {
           "id": "help-contract",
@@ -310,8 +310,6 @@
         "scripts/aos-dev-situation.mjs",
         "scripts/aos-dev-drift-lint.mjs",
         "scripts/lib/dev-test-proof-registry.mjs",
-        "manifests/commands/aos-commands.json",
-        "manifests/commands/aos-external-commands.json",
         "shared/schemas/dev-test-proof-registry.schema.json",
         "shared/schemas/fixtures/dev-test-proof-registry/**",
         "shared/schemas/dev-workflow-rules.schema.json",
@@ -362,12 +360,12 @@
         {
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
-          "reason": "Verify the router parser, external help manifest, and manifest-backed recommendations agree."
+          "reason": "Verify the maintainer workflow parser, proof-worth ratchet, and manifest-backed recommendations agree."
         },
         {
           "id": "dev-audit-test",
           "command": "bash tests/dev-audit.sh",
-          "reason": "Verify the dev grammar verifier reports evidence-backed pass and fail claims."
+          "reason": "Verify the maintainer workflow audit reports evidence-backed pass and fail claims."
         },
         {
           "id": "dev-situation-test",

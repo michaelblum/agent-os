@@ -842,98 +842,6 @@
       }
     },
     {
-      "path": ["dev"],
-      "summary": "Validate unknown dev subcommand routing through the external family router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "dev", "UNKNOWN_SUBCOMMAND", "dev subcommand"],
-      "cwd": "repo",
-      "when": {
-        "child_arg_index": 0
-      }
-    },
-    {
-      "path": ["dev", "gh"],
-      "summary": "Run GitHub workflow helpers through the external dev gh command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-gh.mjs"],
-      "help_passthrough": true,
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "situation"],
-      "summary": "Aggregate sourced live orientation facts through the external dev situation command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-situation.mjs"],
-      "cwd": "repo",
-      "env": {
-        "AOS_PATH": "$AOS_PATH",
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "drift-lint"],
-      "summary": "Run the heuristic durable-status drift tripwire through the external dev drift-lint command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-drift-lint.mjs"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "build"],
-      "summary": "Run the AOS build wrapper from the external dev build command.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-build.mjs", "build"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "classify"],
-      "summary": "Classify changed files through the external dev workflow router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "classify"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "recommend"],
-      "summary": "Recommend workflow commands through the external dev workflow router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "recommend"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "audit"],
-      "summary": "Audit dev workflow grammar through the external dev workflow router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "audit"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "capabilities"],
-      "summary": "Inspect dev capability envelopes through the external dev workflow router.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "capabilities"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
       "path": ["runtime"],
       "summary": "Validate runtime subcommand routing through the external subcommand router.",
       "executable": "/usr/bin/env",
@@ -2141,19 +2049,6 @@
       }
     },
     {
-      "path": ["ops"],
-      "summary": "Compatibility route for source-backed executable recipes.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH",
-        "AOS_RECIPE_SURFACE": "ops"
-      }
-    },
-    {
       "path": ["recipe"],
       "summary": "Run source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
@@ -2164,19 +2059,6 @@
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH",
         "AOS_RECIPE_SURFACE": "recipe"
-      }
-    },
-    {
-      "path": ["ops", "list"],
-      "summary": "Compatibility route for listing source-backed executable recipes.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "list"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH",
-        "AOS_RECIPE_SURFACE": "ops"
       }
     },
     {
@@ -2193,19 +2075,6 @@
       }
     },
     {
-      "path": ["ops", "explain"],
-      "summary": "Compatibility route for explaining source-backed executable recipes.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "explain"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH",
-        "AOS_RECIPE_SURFACE": "ops"
-      }
-    },
-    {
       "path": ["recipe", "explain"],
       "summary": "Explain source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
@@ -2219,19 +2088,6 @@
       }
     },
     {
-      "path": ["ops", "dry-run"],
-      "summary": "Compatibility route for dry-running source-backed executable recipes.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "dry-run"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH",
-        "AOS_RECIPE_SURFACE": "ops"
-      }
-    },
-    {
       "path": ["recipe", "dry-run"],
       "summary": "Dry-run source-backed executable recipes through the external recipe command.",
       "executable": "/usr/bin/env",
@@ -2242,19 +2098,6 @@
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH",
         "AOS_RECIPE_SURFACE": "recipe"
-      }
-    },
-    {
-      "path": ["ops", "run"],
-      "summary": "Compatibility route for running source-backed executable recipes.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-ops.mjs", "run"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH",
-        "AOS_RECIPE_SURFACE": "ops"
       }
     },
     {

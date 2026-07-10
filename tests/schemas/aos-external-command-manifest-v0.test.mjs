@@ -81,29 +81,6 @@ function exampleFlags(form) {
   ];
 }
 
-function parseCurrentMigrationMatrixForms(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  const anchor = lines.findIndex((line) => line.startsWith('Current migration matrix'));
-  assert.notEqual(anchor, -1, 'command-surface docs must contain the current migration matrix');
-
-  const header = '| Form | Current disposition | Move-out criterion | Public promotion criterion |';
-  const tableStart = lines.findIndex((line, index) => index > anchor && line.trim() === header);
-  assert.notEqual(tableStart, -1, 'current migration matrix must keep the expected table header');
-
-  const rows = [];
-  for (const line of lines.slice(tableStart + 2)) {
-    if (!line.startsWith('|')) break;
-    const columns = line.split('|').slice(1, -1).map((column) => column.trim());
-    if (columns.length < 1 || columns[0] === '') continue;
-    const form = columns[0].match(/^`([^`]+)`$/)?.[1];
-    assert.ok(form, `current migration matrix form cell must be a single code span: ${columns[0]}`);
-    rows.push(form);
-  }
-
-  assert.ok(rows.length > 0, 'current migration matrix must contain form rows');
-  return rows;
-}
-
 function collectManifestPlaceholders(value, out = new Set()) {
   if (Array.isArray(value)) {
     for (const item of value) collectManifestPlaceholders(item, out);
@@ -160,11 +137,6 @@ test('external command manifest executable targets exist', async () => {
 test('external help passthrough routes stay script-owned', async () => {
   const manifest = await loadJson(manifestPath);
   const passthroughRoutes = manifest.commands.filter((command) => command.help_passthrough === true);
-
-  assert.ok(
-    passthroughRoutes.some((command) => command.path.join(' ') === 'dev gh'),
-    'dev gh must declare script-owned help passthrough',
-  );
 
   for (const command of passthroughRoutes) {
     assert.notEqual(command.executable, '$AOS_PATH', `${command.path.join(' ')} help passthrough must not route to Swift`);
@@ -747,29 +719,30 @@ test('command surface docs describe registry visibility and conditional output m
   const docs = await fs.readFile(path.join(repoRoot, 'docs/dev/command-surface.md'), 'utf8');
 
   assert.match(docs, /consumer_discovery: false/, 'command-surface docs must describe consumer discovery filtering');
-  assert.match(docs, /direct help paths/, 'command-surface docs must keep direct maintainer help reachable');
+  assert.match(docs, /`aos dev` is retired/, 'command-surface docs must document dev removal');
+  assert.match(docs, /`aos ops` is retired/, 'command-surface docs must document ops removal');
+  assert.match(docs, /Do not add `dev` command source fragments/, 'command-surface docs must forbid dev reintroduction');
+  assert.match(docs, /Do not add `ops` command source fragments/, 'command-surface docs must forbid ops reintroduction');
+  assert.match(docs, /retained local skills backed\s+by deterministic repo scripts/, 'command-surface docs must name skill-backed maintainer workflows');
   assert.match(docs, /output\.conditional_modes/, 'command-surface docs must describe conditional output metadata');
   assert.match(docs, /when_flags/, 'command-surface docs must require conditional output flags');
   assert.match(docs, /execution\.mutates_when_flags/, 'command-surface docs must describe conditional mutation metadata');
 });
 
-test('command surface dev migration matrix covers generated dev forms exactly once', async () => {
+test('command surface does not expose retired dev or ops command forms', async () => {
   const registry = await loadJson(registryPath);
-  const docs = await fs.readFile(path.join(repoRoot, 'docs/dev/command-surface.md'), 'utf8');
-  const dev = registry.commands.find((command) => command.path.join(' ') === 'dev');
-  assert.ok(dev, 'generated command registry must include the dev command');
+  const manifest = await loadJson(manifestPath);
 
-  const expectedForms = dev.forms.map((form) => concreteUsagePath(form)?.join(' '));
-  assert.ok(expectedForms.every(Boolean), 'dev registry forms must expose concrete usage paths');
-
-  const documentedForms = parseCurrentMigrationMatrixForms(docs);
-  assert.equal(new Set(documentedForms).size, documentedForms.length, 'current migration matrix must not duplicate form rows');
-  assert.equal(new Set(expectedForms).size, expectedForms.length, 'generated dev forms must not duplicate concrete usage paths');
-  assert.deepEqual(
-    documentedForms.slice().sort(),
-    expectedForms.slice().sort(),
-    'current migration matrix rows must match generated dev command forms',
-  );
+  assert.equal(registry.commands.some((command) => command.path[0] === 'dev'), false, 'registry must not contain retired dev commands');
+  assert.equal(registry.commands.some((command) => command.path[0] === 'ops'), false, 'registry must not contain retired ops commands');
+  assert.equal(manifest.commands.some((command) => command.path[0] === 'dev'), false, 'external manifest must not contain retired dev routes');
+  assert.equal(manifest.commands.some((command) => command.path[0] === 'ops'), false, 'external manifest must not contain retired ops routes');
+  for (const command of registry.commands) {
+    for (const form of command.forms || []) {
+      assert.notEqual(concreteUsagePath(form)?.[0], 'dev', `${form.id} must not expose a dev concrete usage path`);
+      assert.notEqual(concreteUsagePath(form)?.[0], 'ops', `${form.id} must not expose an ops concrete usage path`);
+    }
+  }
 });
 
 test('registry concrete usage forms have external routes', async () => {

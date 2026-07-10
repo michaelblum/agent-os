@@ -124,14 +124,16 @@ test('raw process capabilities remain developer/testing scoped', async () => {
   }
 });
 
-test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async () => {
+test('typed GitHub maintainer capabilities use direct node helpers and explicit assignment', async () => {
   const manifest = await loadJson(canonicalPath);
   const capabilities = new Map(manifest.capabilities.map((capability) => [capability.id, capability]));
 
   const context = capabilities.get('dev.github.context');
-  assert.equal(context.adapter.kind, 'aos_cli');
-  assert.equal(context.execution.raw_process, false);
+  assert.equal(context.adapter.kind, 'node');
+  assert.deepEqual(context.adapter.command.slice(0, 2), ['node', 'scripts/aos-dev-gh.mjs']);
+  assert.equal(context.execution.raw_process, true);
   assert.equal(context.mutability.class, 'read_only');
+  assert.equal(context.mutability.requires_explicit_assignment, true);
 
   for (const id of [
     'dev.github.issue_list',
@@ -142,9 +144,11 @@ test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async
     'dev.github.pr_checks',
   ]) {
     const capability = capabilities.get(id);
-    assert.equal(capability.adapter.kind, 'aos_cli');
-    assert.equal(capability.execution.raw_process, false);
+    assert.equal(capability.adapter.kind, 'node');
+    assert.deepEqual(capability.adapter.command.slice(0, 2), ['node', 'scripts/aos-dev-gh.mjs']);
+    assert.equal(capability.execution.raw_process, true);
     assert.equal(capability.mutability.class, 'read_only');
+    assert.equal(capability.mutability.requires_explicit_assignment, true);
     assert.equal(capability.failure_policy.bubble_up, true);
   }
 
@@ -158,8 +162,9 @@ test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async
     'dev.github.pr_merge',
   ]) {
     const write = capabilities.get(id);
-    assert.equal(write.adapter.kind, 'aos_cli');
-    assert.equal(write.execution.raw_process, false);
+    assert.equal(write.adapter.kind, 'node');
+    assert.deepEqual(write.adapter.command.slice(0, 2), ['node', 'scripts/aos-dev-gh.mjs']);
+    assert.equal(write.execution.raw_process, true);
     assert.equal(write.mutability.class, 'external_write');
     assert.equal(write.mutability.requires_explicit_assignment, true);
     assert.equal(write.failure_policy.bubble_up, true);
@@ -201,7 +206,9 @@ test('canonical manifest includes the initial developer capability set', async (
     assert.ok(capabilities.has(id), `canonical manifest should include ${id}`);
   }
 
-  assert.equal(capabilities.get('dev.build.aos').adapter.kind, 'aos_cli');
+  assert.equal(capabilities.get('dev.build.aos').adapter.kind, 'node');
+  assert.deepEqual(capabilities.get('dev.build.aos').adapter.command.slice(0, 2), ['node', 'scripts/aos-dev-build.mjs']);
+  assert.equal(capabilities.get('dev.build.aos').execution.raw_process, true);
   assert.equal(capabilities.get('dev.build.aos').mutability.class, 'host_write');
   assert.equal(capabilities.get('dev.test.schema_node').adapter.kind, 'node');
   assert.equal(capabilities.get('dev.test.schema_node').execution.raw_process, true);

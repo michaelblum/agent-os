@@ -25,7 +25,6 @@ Start here:
 
 ```bash
 ./aos ready
-./aos dev recommend --json
 ./aos help <command> [--json]
 ./aos introspect review
 ```
@@ -43,20 +42,22 @@ state-file inspection unless the AOS surface is missing or broken, the task is
 testing that lower-level adapter, or the AOS control surface itself is under
 repair. Treat those bypasses as scoped diagnostics and say why they were needed.
 
-Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
-changes through the manifest-backed developer workflow before choosing a build,
-test, canvas reload, or readiness loop. Use `./aos dev build`
-instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
-itself under repair. The build path avoids rebuilding the TCC-owning repo-mode
-binary unless Swift runtime input content changed, the output is missing or in
-the wrong mode, or the caller passes `--force`. When it does rebuild, it emits a
-`Rebuilt: ./aos` marker but does not play the TCC alert. If a later live
-TCC-backed readiness check reports `post_rebuild_tcc_stale`, that command plays
-the three-chime handoff alert and the agent must end the current turn until the
-user manually resets/regrants TCC and replies `finished`. Use
-`./aos dev gh` for GitHub operations from repo
-sessions; it shells out to the authenticated local `gh` CLI and does not fall
-back to connector-backed GitHub tools.
+For reusable maintainer workflows, use retained local skills plus their direct
+backing scripts:
+
+```bash
+node scripts/aos-dev-situation.mjs --json
+node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>
+node scripts/aos-dev-build.mjs build --no-restart --json
+```
+
+`skills/aos-maintainer-orientation/SKILL.md`,
+`skills/aos-maintainer-routing/SKILL.md`, and
+`skills/aos-repo-binary-build/SKILL.md` teach those workflows. `aos dev` is
+retired from the AOS command surface; do not add or document `./aos dev ...`
+forms. For repo GitHub workflows, use `node scripts/aos-dev-gh.mjs`; it shells
+out to the authenticated local `gh` CLI and does not fall back to
+connector-backed GitHub tools.
 
 ## Contract
 
@@ -112,7 +113,6 @@ The current top-level commands are:
 | `aos status` | read-only runtime/session status snapshot |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
-| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
 | `aos work-record` | Work Record discovery, report-only verification, recovery guidance, repair/attempt planning, controlled fixture repair execution, non-executing replacement proposals, explicit-root replacement writing, repair finalization, and external source supersession lookup/indexing |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
@@ -685,61 +685,52 @@ primitive when bounded regions are enough and reserve
 `daemon_native_full_screen_input_capture` as the authoritative future primitive
 for full-screen capture.
 
-### Repo Development Workflow
+### Repo Maintainer Scripts
 
-`aos dev` is the developer workflow router for this repo. `classify` and
-`recommend` are read-only and do not start the daemon.
-It is self-hosting plumbing, not a consumer state model: use it to route repo
-checks, not to infer runtime state, workspace selection, or public command
-availability.
+Repo-development workflows are local maintainer tooling, not public AOS CLI
+commands. `classify` reports changed files, matched rules, classes, actions,
+and whether the set is hot-swappable or TCC-sensitive. `recommend` adds ordered
+commands and verification steps. For agent-facing guidance, prefer
+`skills/aos-maintainer-routing/SKILL.md` and the direct backing scripts:
 
 ```bash
-./aos dev classify --json
-./aos dev recommend --json
-./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
-./aos dev capabilities list --json
-./aos dev capabilities explain dev.github.issue_comment --json
-./aos dev capabilities explain dev.github.pr_checks --json
-./aos dev build
-./aos dev gh context --json
-./aos dev gh issue list --state open --limit 50 --milestone v0 --json
-./aos dev gh label list --limit 50 --search governance --json
-./aos dev gh pr list --state all --limit 30 --json
-./aos dev gh issue comment 298 --body-file /tmp/comment.md
-./aos dev gh issue create --title "Follow-up tracker" --body-file /tmp/issue.md
-./aos dev gh issue close 298 --reason completed
-./aos dev gh issue edit 298 --remove-label lane:active --add-label lane:parked
-./aos dev gh pr merge 410 --merge --match-head-commit abc123
-./aos dev gh ci inspect --pr 298 --json
-./aos dev gh review-comments --pr 298 --json
+node scripts/aos-dev-workflow.mjs recommend --json --paths <changed-paths>
+node scripts/aos-dev-workflow.mjs classify --json --paths <changed-paths>
+node scripts/aos-dev-workflow.mjs capabilities list --json
+node scripts/aos-dev-workflow.mjs capabilities explain dev.github.issue_comment --json
 ```
 
-`classify` reports changed files, matched rules, classes, actions, and whether
-the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
-and verification steps. The rules live in `docs/dev/workflow-rules.json` and
-are validated by `shared/schemas/dev-workflow-rules.schema.json`.
+The rules live in `docs/dev/workflow-rules.json` and are validated by
+`shared/schemas/dev-workflow-rules.schema.json`.
 
-in JSON mode. Rebuild detection is content-based for Swift runtime inputs, not
+For repo binary checks, prefer `skills/aos-repo-binary-build/SKILL.md` and:
+
+```bash
+node scripts/aos-dev-build.mjs build --no-restart --json
+```
+
+Rebuild detection is content-based for Swift runtime inputs, not
 mtime-based, and build-tooling edits alone do not replace the TCC-owning binary.
 Repo-mode builds do not post-sign the local binary; packaged app signing is
 owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
 build does not reset permissions, open System Settings, show a human-needed
 surface, write completed-build markers, or inject provider input.
-Repo-mode binary rebuilds are TCC-sensitive and intentionally rare; successful
-rebuilds play a system alert sound and require a user reset/regrant checkpoint
-before TCC-backed proof.
+Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
+successful rebuild marker (`Rebuilt: ./aos`) invalidates prior TCC-backed proof
+for that binary and requires a user reset/regrant checkpoint before further
+TCC-backed daemon, capture, input, or native proof.
 After the user confirms the reset, verify with `./aos ready --post-permission`.
 
-`capabilities` is read-only discovery over
+The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
 capabilities, including whether a capability uses a typed AOS surface or an
 explicit raw-process adapter. It does not execute capabilities, grant
 permissions, or select an agent role.
 
-`dev gh` is the repo GitHub control surface. It deliberately uses the real
-`gh` executable from `PATH`, the user's existing `gh` authentication, and the
-local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
-Direct operations such as `issue list`, `issue view`, `issue comment`,
+`node scripts/aos-dev-gh.mjs` is the repo GitHub helper. It deliberately uses
+the real `gh` executable from `PATH`, the user's existing `gh` authentication,
+and the local git checkout to infer `owner/repo` unless `--repo owner/name` is
+supplied. Direct operations such as `issue list`, `issue view`, `issue comment`,
 `issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
 `pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
 behavior. List operations expose the repo-safe inventory filters used most
@@ -1116,9 +1107,8 @@ unless a future command explicitly implements a non-dry-run path.
 primitive verbs such as `status`, `show`, and `see`, and it can also run
 repo-owned helper scripts through typed `shell` blocks. It keeps primitive
 command and script references visible so agents can inspect what will run.
-`aos ops` remains a compatibility alias while old callers are retired; see
-[ADR-0013](../adr/0013-aos-execution-model-v0.md) for the AOS Execution Model
-and alias removal gate.
+The old `aos ops` command surface is retired; use `aos recipe` for every
+source-backed executable recipe workflow.
 
 | Subcommand | Purpose |
 | --- | --- |

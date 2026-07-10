@@ -67,29 +67,6 @@ function loadExternalManifest() {
   }
 }
 
-function recipeCommandFromOps(command) {
-  if (!arrayEqual(command.path || [], ['ops'])) return null;
-  return {
-    ...command,
-    path: ['recipe'],
-    summary: 'Recipes — discover, explain, dry-run, and run source-backed executable recipes',
-    forms: (command.forms || []).map((form) => ({
-      ...form,
-      id: String(form.id).replace(/^ops-/, 'recipe-'),
-      usage: String(form.usage).replace('aos ops ', 'aos recipe '),
-      examples: (form.examples || []).map((example) => String(example).replace('aos ops ', 'aos recipe ')),
-    })),
-  };
-}
-
-function withRecipeAlias(registry) {
-  if ((registry.commands || []).some((command) => arrayEqual(command.path || [], ['recipe']))) return registry;
-  const ops = (registry.commands || []).find((command) => arrayEqual(command.path || [], ['ops']));
-  const recipe = ops ? recipeCommandFromOps(ops) : null;
-  if (!recipe) return registry;
-  return { ...registry, commands: [...registry.commands, recipe] };
-}
-
 function invocationDisplayName() {
   if (process.env.AOS_INVOCATION_DISPLAY_NAME) return process.env.AOS_INVOCATION_DISPLAY_NAME;
   return './aos';
@@ -219,7 +196,6 @@ function printFullRegistryText(registry) {
     'status',
     'skills',
     'recipe',
-    'ops',
     'see',
     'do',
     'show',
@@ -390,7 +366,7 @@ function renderConstraintLines(form) {
 const args = process.argv.slice(2);
 const jsonMode = args.includes('--json');
 const pathArgs = args.filter((arg) => !['--json', '--help', '-h'].includes(arg));
-const registry = withRecipeAlias(loadRegistry());
+const registry = loadRegistry();
 
 if (pathArgs.length === 0) {
   if (jsonMode) printFullRegistryJSON(registry);

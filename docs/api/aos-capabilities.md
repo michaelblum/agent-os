@@ -228,13 +228,15 @@ command spelling. Keep public diagnostics on deliberate command families such
 as `log`, `inspect`, `introspect`, `daemon-snapshot`, and the
 overlay/display-oriented `show` surface.
 
-`aos dev` is a hidden maintainer workflow router for this repo. It remains
-directly addressable through `./aos help dev --json`, but it is marked
-`consumer_discovery: false`, omitted from root consumer help, and owned by
-`docs/dev/command-surface.md` plus the generated command inventory. Useful
-maintainer helpers should stay there until a deliberate migration moves them
-out of the public `aos` tree or promotes a specific workflow into a real public
-surface with manifest, route, docs, tests, and compatibility policy.
+Retained local maintainer skills are the agent-facing interface for repo
+workflow routing, orientation, and repo-binary builds. They call deterministic
+scripts under `scripts/aos-dev-*.mjs`.
+
+`aos dev` is retired from the AOS command surface. Do not add hidden `dev`
+forms, external `dev` routes, or maintainer guidance that calls
+`./aos dev ...`. If a maintainer helper becomes product behavior, promote it as
+a deliberate public command with manifest, route, docs, tests, and
+compatibility policy.
 
 ## Desktop Control Inventory
 

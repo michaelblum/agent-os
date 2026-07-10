@@ -71,16 +71,16 @@ test('current execution model surfaces keep Recipe executable-only', async () =>
   assert.doesNotMatch(`${guides}\n${context}\n${adr}`, /documentation-only Recipe|Markdown Recipe/);
 });
 
-test('aos ops remains compatibility vocabulary, not the canonical public surface', async () => {
+test('aos ops is retired, not compatibility vocabulary', async () => {
   const aosApi = await text('docs/api/aos.md');
   const architecture = await text('ARCHITECTURE.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
 
-  assert.match(aosApi, /`aos ops` remains a compatibility alias/);
-  assert.match(architecture, /`aos ops` is a compatibility alias/);
+  assert.match(aosApi, /old `aos ops` command surface is retired/);
+  assert.match(architecture, /old `aos ops` command surface is retired/);
   assert.match(adr, /`aos recipe` is the canonical public command surface/);
-  assert.doesNotMatch(`${aosApi}\n${architecture}\n${adr}`, /`aos ops` is the canonical/);
-  assert.doesNotMatch(`${aosApi}\n${architecture}\n${adr}`, /canonical public command surface[^\n.]*`aos ops`/);
+  assert.match(adr, /old `aos ops`\ncommand surface is retired/);
+  assert.doesNotMatch(`${aosApi}\n${architecture}\n${adr}`, /aos ops[^\n.]*compatibility alias|compatibility alias[^\n.]*aos ops/);
 });
 
 test('current code and docs use Step Descriptor instead of Playbook Step substrate', async () => {

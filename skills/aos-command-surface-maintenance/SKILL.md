@@ -18,7 +18,7 @@ Use this skill when changing command behavior or public command contracts.
 ## Verification
 
 Run the focused command test plus the gates recommended by
-`./aos dev recommend --json --paths ...`. Typical command-surface gates include:
+`node scripts/aos-dev-workflow.mjs recommend --json --paths ...`. Typical command-surface gates include:
 
 - `node scripts/generate-command-manifests.mjs --check`
 - `bash tests/help-contract.sh`
@@ -31,6 +31,10 @@ Run the focused command test plus the gates recommended by
 Stop when a public route would move into Swift without a native-boundary reason,
 help and parser contracts disagree, generated manifests drift, or docs teach a
 wrapper instead of the direct `./aos` surface.
+
+Also stop on any proposal to add a `dev` command family or route. Maintainer
+workflows belong in retained local skills backed by deterministic repo scripts,
+not hidden `./aos dev ...` plumbing.
 
 ## References
 

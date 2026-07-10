@@ -20,7 +20,7 @@ COMBINED_CONTAMINATION="tests/fixtures/dev-drift-lint/combined-contamination.md"
 NARRATIVE="docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md"
 export NARRATIVE
 
-if OUT="$(./aos dev drift-lint --files "$HISTORICAL" --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$HISTORICAL" --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -40,7 +40,7 @@ else
     fail "dev drift-lint over-flagged historical fixture"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$STANDING" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$STANDING" --json 2>/dev/null)"; then
     fail "dev drift-lint should fail unmarked standing status fixture"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -60,7 +60,7 @@ else
     fail "dev drift-lint under-flagged standing status fixture"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$IDENTITY" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$IDENTITY" --json 2>/dev/null)"; then
     fail "dev drift-lint should fail bare issue identity paraphrase fixture"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -76,7 +76,7 @@ else
     fail "dev drift-lint did not report issue identity paraphrase"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$BLOCK_SCOPE" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$BLOCK_SCOPE" --json 2>/dev/null)"; then
     fail "dev drift-lint should not let a prior historical block license a later standing claim"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -94,7 +94,7 @@ else
     fail "dev drift-lint nearby-marker behavior drifted"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$DATED_SAMELINE" --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$DATED_SAMELINE" --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -108,7 +108,7 @@ else
     fail "dev drift-lint over-flagged same-clause dated fixture"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$SAME_LINE_CONTAMINATION" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$SAME_LINE_CONTAMINATION" --json 2>/dev/null)"; then
     fail "dev drift-lint should fail same-line two-sentence contamination"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -128,7 +128,7 @@ else
     fail "dev drift-lint missed same-line contamination"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$SOFT_HEADING_SCOPE" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$SOFT_HEADING_SCOPE" --json 2>/dev/null)"; then
     fail "dev drift-lint should fail fresh status under soft historical heading"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -147,7 +147,7 @@ else
     fail "dev drift-lint missed soft-heading contamination"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$COMBINED_CONTAMINATION" --json 2>/dev/null)"; then
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$COMBINED_CONTAMINATION" --json 2>/dev/null)"; then
     fail "dev drift-lint should fail realistic ledger contamination"
 elif OUT="$OUT" python3 - <<'PY'
 import json
@@ -172,7 +172,7 @@ else
     fail "dev drift-lint missed realistic ledger contamination"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$CODE_SPANS" --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$CODE_SPANS" --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -188,7 +188,7 @@ else
     fail "dev drift-lint flagged code-span or fenced evidence text"
 fi
 
-if OUT="$(./aos dev drift-lint --files "$NARRATIVE" --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(node scripts/aos-dev-drift-lint.mjs --files "$NARRATIVE" --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -205,7 +205,7 @@ else
     fail "dev drift-lint over-flagged narrative ledger historical stash refs"
 fi
 
-if ERR="$(./aos dev drift-lint --bogus 2>&1 >/dev/null)"; then
+if ERR="$(node scripts/aos-dev-drift-lint.mjs --bogus 2>&1 >/dev/null)"; then
     fail "dev drift-lint should reject unknown flags"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -213,7 +213,7 @@ import os
 
 data = json.loads(os.environ["ERR"])
 assert data["code"] == "UNKNOWN_FLAG", data
-assert "Unknown dev drift-lint flag" in data["error"], data
+assert "Unknown maintainer drift-lint flag" in data["error"], data
 PY
 then
     pass "dev drift-lint rejects unknown flags"

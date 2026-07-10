@@ -80,7 +80,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('swift-core')?.tcc_identity_sensitive, true);
   assert.equal(
     rules.get('swift-core')?.commands?.[0]?.command,
-    './aos dev build',
+    'node scripts/aos-dev-build.mjs build --no-restart --json',
   );
   assert.equal(
     rules.get('swift-core')?.verification?.[0]?.command,
@@ -148,6 +148,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/source/**'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('scripts/generate-command-manifests.mjs'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/command-manifest-generation.sh'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('tests/aos-dev-gh-help-parity.test.mjs'));
@@ -184,7 +185,6 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-situation.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-drift-lint.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/lib/dev-test-proof-registry.mjs'));
-  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-situation.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/dev-drift-lint.sh'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/test-proof-registry.json'));
