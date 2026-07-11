@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 source tests/lib/process-cleanup-serial.sh
-trap aos_process_cleanup_release_serial_lock EXIT
-aos_process_cleanup_acquire_serial_lock "tests/external-command-dispatch.sh"
+aos_process_cleanup_reexec_serial "$ROOT/tests/external-command-dispatch.sh" "$@"
 
 FAILS=0
 
@@ -780,7 +781,7 @@ cleanup_isolated_daemon() {
         kill "$pid" 2>/dev/null || true
     fi
 }
-trap 'cleanup_isolated_daemon "$COMM_ROOT"; rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"; aos_process_cleanup_release_serial_lock' EXIT
+trap 'cleanup_isolated_daemon "$COMM_ROOT"; rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"' EXIT
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --who >"$COMM_WHO" 2>/dev/null
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
@@ -805,7 +806,6 @@ else
 fi
 cleanup_isolated_daemon "$COMM_ROOT"
 rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"
-aos_process_cleanup_release_serial_lock
 trap - EXIT
 
 echo

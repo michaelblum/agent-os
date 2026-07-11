@@ -49,7 +49,7 @@
       "worth": "This catches route drift where generated command manifests still validate but runtime dispatch reaches the wrong implementation.",
       "command": "bash tests/external-command-dispatch.sh",
       "replaces": [],
-      "guard": "uses bounded CLI dispatch, isolated state for daemon-sensitive checks, and the shared global process-cleanup serial lock",
+      "guard": "uses bounded CLI dispatch, isolated state for daemon-sensitive checks, and the shared lockf process-cleanup boundary",
       "status": "active"
     },
     {

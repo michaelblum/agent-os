@@ -2,18 +2,39 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT="$ROOT/tests/process-cleanup-serial.sh"
+
+if [[ "${1:-}" == "--worker" ]]; then
+  source "$ROOT/tests/lib/process-cleanup-serial.sh"
+  aos_process_cleanup_reexec_serial "$SCRIPT" "$@"
+  shift
+
+  guard_dir="${1:?guard directory required}"
+  event_log="${2:?event log required}"
+  hold_seconds="${3:?hold duration required}"
+  ready_file="${4:--}"
+  if ! mkdir "$guard_dir" 2>/dev/null; then
+    printf 'overlap pid=%s\n' "$$" >> "$event_log"
+    exit 91
+  fi
+  printf 'start pid=%s\n' "$$" >> "$event_log"
+  [[ "$ready_file" == "-" ]] || touch "$ready_file"
+  sleep "$hold_seconds"
+  printf 'end pid=%s\n' "$$" >> "$event_log"
+  rmdir "$guard_dir"
+  exit 0
+fi
+
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/aos-process-cleanup-serial.XXXXXX")"
-LOCK_DIR="$TMP/process-cleanup.lock"
+LOCK_FILE="$TMP/process-cleanup.lock"
+GUARD_DIR="$TMP/critical-section"
+EVENT_LOG="$TMP/events.log"
 HOLDER_READY="$TMP/holder.ready"
-HOLDER_RELEASE="$TMP/holder.release"
-WAITER_ACQUIRED="$TMP/waiter.acquired"
-HOLDER_PID=""
-WAITER_PID=""
+PIDS=()
 
 cleanup() {
   local status="$?"
-  touch "$HOLDER_RELEASE" 2>/dev/null || true
-  for pid in "$HOLDER_PID" "$WAITER_PID"; do
+  for pid in "${PIDS[@]:-}"; do
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
@@ -24,49 +45,46 @@ cleanup() {
 }
 trap cleanup EXIT
 
-/bin/bash -c '
-  set -euo pipefail
-  export AOS_PROCESS_CLEANUP_LOCK_DIR="$1"
-  source "$2/tests/lib/process-cleanup-serial.sh"
-  aos_process_cleanup_acquire_serial_lock holder
-  trap aos_process_cleanup_release_serial_lock EXIT
-  touch "$3"
-  while [[ ! -f "$4" ]]; do sleep 0.05; done
-' bash "$LOCK_DIR" "$ROOT" "$HOLDER_READY" "$HOLDER_RELEASE" &
-HOLDER_PID="$!"
+for _ in $(seq 1 30); do
+  AOS_PROCESS_CLEANUP_LOCK_FILE="$LOCK_FILE" \
+    "$SCRIPT" --worker "$GUARD_DIR" "$EVENT_LOG" 0.02 - &
+  PIDS+=("$!")
+done
+for pid in "${PIDS[@]}"; do wait "$pid"; done
+PIDS=()
 
+[[ "$(grep -c '^start ' "$EVENT_LOG")" -eq 30 ]]
+[[ "$(grep -c '^end ' "$EVENT_LOG")" -eq 30 ]]
+if grep -q '^overlap ' "$EVENT_LOG"; then
+  echo "FAIL: lockf permitted overlapping critical sections" >&2
+  exit 1
+fi
+
+AOS_PROCESS_CLEANUP_LOCK_FILE="$LOCK_FILE" \
+  "$SCRIPT" --worker "$GUARD_DIR" "$EVENT_LOG" 2 "$HOLDER_READY" &
+HOLDER_PID="$!"
+PIDS=("$HOLDER_PID")
 for _ in $(seq 1 100); do
   [[ -f "$HOLDER_READY" ]] && break
-  sleep 0.05
+  sleep 0.02
 done
-[[ -f "$HOLDER_READY" ]] || { echo "FAIL: holder did not acquire process-cleanup lock" >&2; exit 1; }
+[[ -f "$HOLDER_READY" ]] || { echo "FAIL: timeout holder did not acquire lock" >&2; exit 1; }
 
-/bin/bash -c '
-  set -euo pipefail
-  export AOS_PROCESS_CLEANUP_LOCK_DIR="$1"
-  source "$2/tests/lib/process-cleanup-serial.sh"
-  aos_process_cleanup_acquire_serial_lock waiter
-  trap aos_process_cleanup_release_serial_lock EXIT
-  touch "$3"
-' bash "$LOCK_DIR" "$ROOT" "$WAITER_ACQUIRED" &
-WAITER_PID="$!"
+set +e
+AOS_PROCESS_CLEANUP_LOCK_FILE="$LOCK_FILE" \
+  AOS_PROCESS_CLEANUP_LOCK_TIMEOUT_SECONDS=1 \
+  "$SCRIPT" --worker "$GUARD_DIR" "$EVENT_LOG" 0 - \
+  >"$TMP/timeout.out" 2>"$TMP/timeout.err"
+TIMEOUT_RC=$?
+set -e
+[[ "$TIMEOUT_RC" -eq 75 ]] || {
+  echo "FAIL: expected lockf timeout exit 75, got $TIMEOUT_RC" >&2
+  cat "$TMP/timeout.err" >&2
+  exit 1
+}
 
-sleep 0.25
-[[ ! -f "$WAITER_ACQUIRED" ]] || { echo "FAIL: waiter bypassed active process-cleanup lock" >&2; exit 1; }
-
-touch "$HOLDER_RELEASE"
 wait "$HOLDER_PID"
-HOLDER_PID=""
-wait "$WAITER_PID"
-WAITER_PID=""
-[[ -f "$WAITER_ACQUIRED" ]] || { echo "FAIL: waiter did not acquire released process-cleanup lock" >&2; exit 1; }
+PIDS=()
+/usr/bin/lockf -k -t 0 "$LOCK_FILE" /usr/bin/true
 
-mkdir "$LOCK_DIR"
-printf 'pid=99999999\nlabel=stale-test\n' > "$LOCK_DIR/owner"
-export AOS_PROCESS_CLEANUP_LOCK_DIR="$LOCK_DIR"
-source "$ROOT/tests/lib/process-cleanup-serial.sh"
-aos_process_cleanup_acquire_serial_lock stale-reclaimer
-aos_process_cleanup_release_serial_lock
-[[ ! -d "$LOCK_DIR" ]] || { echo "FAIL: stale process-cleanup lock was not reclaimed" >&2; exit 1; }
-
-echo "PASS: process-cleanup proofs wait, release, and reclaim stale locks."
+echo "PASS: lockf serializes 30 contenders and enforces bounded waiting."
