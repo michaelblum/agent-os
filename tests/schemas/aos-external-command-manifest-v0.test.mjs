@@ -715,6 +715,35 @@ test('registry conditional output modes reference declared form flags', async ()
   }
 });
 
+test('registry conditional execution metadata references declared form flags', async () => {
+  const registry = await loadJson(registryPath);
+  const conditionalFields = ['mutates_when_flags', 'auto_starts_daemon_when_flags'];
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const declaredFlags = new Set(
+        form.args
+          .filter((arg) => arg.kind === 'flag')
+          .map((arg) => arg.token),
+      );
+      for (const field of conditionalFields) {
+        const flags = form.execution?.[field] ?? [];
+        assert.ok(Array.isArray(flags), `${form.id} execution.${field} must be an array`);
+        for (const flag of flags) {
+          assert.ok(declaredFlags.has(flag), `${form.id} execution.${field} references undeclared flag ${flag}`);
+        }
+      }
+      if (form.execution?.auto_starts_daemon_when_flags?.length) {
+        assert.equal(
+          form.execution.auto_starts_daemon,
+          false,
+          `${form.id} conditional daemon startup must not also claim unconditional startup`,
+        );
+      }
+    }
+  }
+});
+
 test('command surface docs describe registry visibility and conditional output metadata', async () => {
   const docs = await fs.readFile(path.join(repoRoot, 'docs/dev/command-surface.md'), 'utf8');
 
@@ -727,6 +756,7 @@ test('command surface docs describe registry visibility and conditional output m
   assert.match(docs, /output\.conditional_modes/, 'command-surface docs must describe conditional output metadata');
   assert.match(docs, /when_flags/, 'command-surface docs must require conditional output flags');
   assert.match(docs, /execution\.mutates_when_flags/, 'command-surface docs must describe conditional mutation metadata');
+  assert.match(docs, /execution\.auto_starts_daemon_when_flags/, 'command-surface docs must describe conditional daemon-start metadata');
 });
 
 test('command surface does not expose retired dev or ops command forms', async () => {

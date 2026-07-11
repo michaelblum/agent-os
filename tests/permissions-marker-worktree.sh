@@ -8,7 +8,6 @@ PREFIX="aos-permissions-marker-worktree"
 STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$STATE_ROOT"
 export AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1
-export AOS_TEST_SKIP_READY_SERVICE_START=1
 
 SOCK="$STATE_ROOT/repo/sock"
 MARKER="$STATE_ROOT/repo/permissions-onboarding.json"

@@ -276,6 +276,9 @@ function printCommandText(command) {
     if (form.execution?.interactive) tags.push('interactive');
     if (form.execution?.streaming) tags.push('streaming');
     if (form.execution?.auto_starts_daemon) tags.push('auto-starts-daemon');
+    if (form.execution?.auto_starts_daemon_when_flags?.length) {
+      tags.push(`auto-starts-with ${form.execution.auto_starts_daemon_when_flags.join('/')}`);
+    }
     if (form.execution?.requires_permissions) tags.push('requires-permissions');
     if (tags.length) lines.push(`    [execution: ${tags.join(', ')}]`);
     lines.push(`    [output: ${renderOutputSummary(form, command.forms || [])}]`);

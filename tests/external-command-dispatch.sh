@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+source tests/lib/process-cleanup-serial.sh
+aos_process_cleanup_reexec_serial "$ROOT/tests/external-command-dispatch.sh" "$@"
+
 FAILS=0
 
 pass() { echo "PASS: $1"; }

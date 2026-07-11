@@ -510,31 +510,11 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
   return blockers;
 }
 
-export function isRepairableRuntimeBlockerID(id) {
+function isRepairableRuntimeBlockerID(id) {
   return id === 'daemon_unreachable'
     || id === 'daemon_ownership_mismatch'
     || id === 'stale_daemons'
     || id === 'input_tap_not_active';
-}
-
-export function readyAutoRepairReason(response, { postPermission = false } = {}) {
-  if (response.ready) return null;
-  if ((response.blockers ?? []).some((blocker) => blocker.kind === 'permission')) return null;
-  const blockerIDs = new Set((response.blockers ?? []).map((blocker) => blocker.id));
-  const hasRepairableRuntimeBlocker = (response.blockers ?? [])
-    .some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
-  if (blockerIDs.has('stale_daemons')) return null;
-  if (blockerIDs.has('daemon_unmanaged')) return null;
-  if (postPermission && hasRepairableRuntimeBlocker) return 'post-permission bounded daemon restart/recheck';
-  if (blockerIDs.has('daemon_ownership_mismatch')) return 'automatic after daemon ownership mismatch';
-  if (blockerIDs.has('input_tap_not_active')) return 'automatic after input tap inactive';
-  return null;
-}
-
-export function hasRestartableReadyRuntimeBlocker(response) {
-  const blockers = response.blockers ?? [];
-  if (blockers.some((blocker) => blocker.id === 'stale_daemons')) return false;
-  return blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
 }
 
 function compactPrimaryBlocker(blocker) {

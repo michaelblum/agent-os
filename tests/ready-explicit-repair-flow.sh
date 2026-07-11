@@ -4,12 +4,15 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-PREFIX="aos-ready-repair"
+source tests/lib/process-cleanup-serial.sh
+aos_process_cleanup_reexec_serial "$ROOT/tests/ready-explicit-repair-flow.sh" "$@"
+
+PREFIX="aos-ready-explicit"
 
 run_case() {
   local name="$1"
   local ready_after="$2"
-  local expect_ready="$3"
+  local expectation="$3"
   shift 3
   local ready_command=(./aos ready)
   if [[ "$#" -gt 0 ]]; then
@@ -43,7 +46,9 @@ path = pathlib.Path(sys.argv[1])
 path.write_text(json.dumps({"completed_at": "2026-05-25T00:00:00Z"}), encoding="utf-8")
 PY
 
-  if [[ "$ready_after" != "never" ]]; then
+  if [[ "$ready_after" == "absent" ]]; then
+    :
+  elif [[ "$ready_after" != "never" ]]; then
     python3 tests/lib/mock-daemon.py \
         --socket "$sock" \
         --tap-status retrying \
@@ -61,15 +66,16 @@ PY
         --accessibility true \
         >"$state_root/mock.stdout" 2>"$state_root/mock.stderr" &
   fi
-  mock_pid=$!
-
-  for _ in $(seq 1 20); do
-    if [[ -S "$sock" ]]; then break; fi
-    sleep 0.1
-  done
-  if ! [[ -S "$sock" ]]; then
-    echo "FAIL: mock daemon did not bind socket $sock"
-    exit 1
+  if [[ "$ready_after" != "absent" ]]; then
+    mock_pid=$!
+    for _ in $(seq 1 20); do
+      if [[ -S "$sock" ]]; then break; fi
+      sleep 0.1
+    done
+    if ! [[ -S "$sock" ]]; then
+      echo "FAIL: mock daemon did not bind socket $sock"
+      exit 1
+    fi
   fi
 
   set +e
@@ -83,7 +89,7 @@ PY
   local rc=$?
   set -e
 
-  python3 - "$out" "$action_log" "$expect_ready" "$rc" <<'PY'
+  python3 - "$out" "$action_log" "$expectation" "$rc" <<'PY'
 import json
 import pathlib
 import sys
@@ -95,35 +101,39 @@ actions = [
     for line in (action_path.read_text(encoding="utf-8") if action_path.exists() else "").splitlines()
     if line.strip()
 ]
-expect_ready = sys.argv[3] == "ready"
+expectation = sys.argv[3]
 rc = int(sys.argv[4])
 trace = response.get("action_trace", [])
 steps = [(item.get("step"), item.get("result")) for item in trace]
 
-assert all(action["action"] in {"start", "restart"} for action in actions), actions
-assert any(action == {"action": "start", "mode": "repo"} for action in actions), actions
-restarted = any(action == {"action": "restart", "mode": "repo"} for action in actions)
-if restarted:
-    assert ("service_restart", "ok") in steps, trace
-
-if expect_ready:
+if expectation == "ready":
+    assert all(action["action"] in {"start", "restart"} for action in actions), actions
+    assert any(action == {"action": "start", "mode": "repo"} for action in actions), actions
+    restarted = any(action == {"action": "restart", "mode": "repo"} for action in actions)
+    if restarted:
+        assert ("service_restart", "ok") in steps, trace
+        assert ("wait_for_recovery", "ready") in steps, trace
     assert rc == 0, response
     assert response.get("ready") is True, response
-    if restarted:
-        assert ("wait_for_recovery", "ready") in steps, trace
 else:
+    assert expectation == "diagnostic", expectation
     assert rc != 0, response
     assert response.get("ready") is False, response
-    assert restarted, actions
-    assert ("wait_for_recovery", "timed_out") in steps, trace
+    assert actions == [], actions
+    assert response.get("startup", {}).get("attempted") is False, response
+    assert response.get("startup", {}).get("status") == "skipped", response
+    assert ("ready_preflight", "diagnosed") in steps, trace
+    assert any(action.get("command", "").endswith("ready --repair") for action in response.get("next_actions", [])), response
+    assert not any(step in {"service_start", "service_restart", "clean"} for step, _ in steps), trace
 PY
 
   trap - RETURN
   cleanup_case
 }
 
-run_case recovery 4 ready
-run_case timeout never timed_out
+run_case plain-absent absent diagnostic
+run_case plain-retry never diagnostic
+run_case post-absent absent diagnostic --post-permission
 run_case repair-recovery 2 ready --repair
 
 run_stale_preflight_case() {
@@ -243,6 +253,7 @@ blockers = response.get("blockers", [])
 assert rc != 0, response
 assert response.get("ready") is False, response
 assert response.get("diagnosis") == "stale_daemons", response
+assert response.get("startup", {}).get("attempted") is False, response
 assert any(item.get("id") == "stale_daemons" and str(stale_pid) in item.get("message", "") for item in blockers), response
 if expect_clean:
     assert ("clean", "ok") in steps, trace

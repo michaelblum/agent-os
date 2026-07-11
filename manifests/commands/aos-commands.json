@@ -7870,7 +7870,7 @@
               "id" : "repair",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Run the longer restart/recheck repair path before reporting blockers and human instructions",
+              "summary" : "Permit readiness to clean, start or restart the runtime, wait for recovery, and produce permission handoffs",
               "token" : "--repair",
               "value_type" : "bool"
             },
@@ -7878,7 +7878,7 @@
               "id" : "post-permission",
               "kind" : "flag",
               "required" : false,
-              "summary" : "Bounded handoff check after the human re-adds macOS permissions",
+              "summary" : "Read-only bounded verification after the human re-adds macOS permissions",
               "token" : "--post-permission",
               "value_type" : "bool"
             }
@@ -7886,13 +7886,20 @@
           "examples" : [
             "aos ready",
             "aos ready --repair",
+            "aos ready --post-permission",
             "aos ready --json"
           ],
           "execution" : {
-            "auto_starts_daemon" : true,
+            "auto_starts_daemon" : false,
+            "auto_starts_daemon_when_flags" : [
+              "--repair"
+            ],
             "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
+            "mutates_state" : false,
+            "mutates_when_flags" : [
+              "--repair"
+            ],
+            "read_only" : true,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false
@@ -7910,7 +7917,7 @@
       "path" : [
         "ready"
       ],
-      "summary" : "Start/check AOS, reconcile common daemon drift, and report the readiness gate"
+      "summary" : "Check AOS readiness without mutation; use --repair for cleanup, start, restart, and recovery"
     },
     {
       "forms" : [

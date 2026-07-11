@@ -296,6 +296,14 @@ exclusive groups) and fails fast with a `harness-contract conflict` diagnostic
 instead of letting incompatible runs invalidate each other mid-run. It does not
 kill other harnesses. Release guards from an `EXIT` trap.
 
+Proofs that invoke the global stale-process scanner or create process fixtures
+visible to it must source `tests/lib/process-cleanup-serial.sh` and call
+`aos_process_cleanup_reexec_serial` before creating fixtures. The helper wraps
+the complete script lifetime with macOS `lockf -k -t 120`, providing ordered,
+kernel-released exclusion across shells and worktrees. Unlike the fail-fast
+live-resource contracts, this bounded lock waits so normal parallel validation
+becomes serial rather than failing or killing a peer's fixture.
+
 Use `aos_harness_repo_service_stop_for_isolated_test` and
 `aos_harness_repo_service_restore_if_needed` when a test intentionally stops the
 repo service. That helper records whether the repo service was running, stops it

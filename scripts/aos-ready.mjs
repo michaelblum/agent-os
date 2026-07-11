@@ -15,11 +15,10 @@ import {
   runNodeScript,
 } from './lib/aos-cli.mjs';
 import { brokerFacts } from './lib/aos-facts.mjs';
+import { nextReadyExecutionStep } from './lib/aos-ready-execution.mjs';
 import {
-  hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
-  readyAutoRepairReason,
   runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
@@ -182,66 +181,16 @@ function runReadyServiceAction(action, mode) {
   return runNodeScript('scripts/aos-service.mjs', [action, '--mode', mode, '--json']);
 }
 
-function decideReadyStartup({ repair, mode, prefix }) {
-  const skipServiceStart = process.env.AOS_TEST_SKIP_READY_SERVICE_START === '1';
-  const skippedStartup = {
+function skippedReadyStartup(mode, prefix) {
+  return {
     attempted: false,
     command: serviceCommandString(mode, prefix, 'start'),
     exit_code: 0,
     status: 'skipped',
   };
+}
 
-  if (skipServiceStart) {
-    return {
-      startup: skippedStartup,
-      actionTrace: [{
-        step: 'service_start',
-        result: 'skipped',
-        detail: 'AOS_TEST_SKIP_READY_SERVICE_START=1',
-      }],
-    };
-  }
-
-  const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
-  if (preflight.blockers.some((blocker) => blocker.id === 'agent_os_worktree_default_runtime')) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'runtime_policy_blocked',
-      detail: 'linked git worktrees cannot use the default agent-os repo runtime',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
-  if (preflight.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'cleanup_required',
-      detail: 'cleanup must run before service start',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
-  if (!repair && preflight.ready) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'ready',
-      detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
+function runReadyStartup(mode, prefix, actionTrace) {
   const result = runReadyServiceAction('start', mode);
   return {
     startup: {
@@ -250,7 +199,7 @@ function decideReadyStartup({ repair, mode, prefix }) {
       exit_code: result.exitCode,
       status: result.exitCode === 0 ? 'ok' : 'degraded',
     },
-    actionTrace: [{
+    actionTrace: [...actionTrace, {
       step: 'service_start',
       result: result.exitCode === 0 ? 'ok' : 'degraded',
       detail: result.exitCode === 0 ? undefined : compactProcessDetail(result),
@@ -376,41 +325,47 @@ function printText(response, mode, prefix) {
 const options = parseArgs(process.argv.slice(2));
 const mode = currentMode();
 const prefix = invocationName();
-const decision = decideReadyStartup({ repair: options.repair, mode, prefix });
-let response = decision.readyResponse ?? buildReadyResponse(decision.startup, decision.actionTrace, mode, prefix);
-
-if (!options.repair && process.env.AOS_TEST_SKIP_READY_SERVICE_START !== '1') {
-  const reason = readyAutoRepairReason(response, { postPermission: options.postPermission });
-  if (reason) {
-    response = runReadyRuntimeRepair(
-      decision.startup,
-      response.action_trace,
+let startup = skippedReadyStartup(mode, prefix);
+let response = buildReadyResponse(startup, [], mode, prefix);
+let stopped = false;
+for (let stepCount = 0; stepCount < 8; stepCount += 1) {
+  const step = nextReadyExecutionStep(response, {
+    repair: options.repair,
+    postPermission: options.postPermission,
+    prefix,
+    mode,
+  });
+  if (step.type === 'stop') {
+    if (step.trace) {
+      response = { ...response, action_trace: [...response.action_trace, step.trace] };
+    }
+    stopped = true;
+    break;
+  }
+  if (step.type === 'start') {
+    const started = runReadyStartup(mode, prefix, response.action_trace);
+    startup = started.startup;
+    response = buildReadyResponse(startup, started.actionTrace, mode, prefix);
+  } else if (step.type === 'clean') {
+    response = runReadyCleanRepair(startup, response.action_trace, mode, prefix);
+  } else if (step.type === 'restart') {
+    response = runReadyRuntimeRepair(startup, response.action_trace, mode, prefix, 20_000, null);
+  } else if (step.type === 'permission_handoff') {
+    response = buildReadyResponse(
+      startup,
+      [...response.action_trace, step.trace],
       mode,
       prefix,
-      options.postPermission ? 20_000 : 10_000,
-      reason,
     );
+  } else {
+    exitError(`Unknown readiness execution step: ${step.type}`, 'READY_EXECUTION_STEP_INVALID');
   }
 }
+if (!stopped) exitError('Readiness execution did not converge.', 'READY_EXECUTION_DID_NOT_CONVERGE');
 
-if (options.repair && !response.ready) {
-  if (response.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
-    response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
-  }
-  if (hasRestartableReadyRuntimeBlocker(response)) {
-    response = runReadyRuntimeRepair(decision.startup, response.action_trace, mode, prefix, 20_000, null);
-  }
-  if (!response.ready && response.blockers.some((blocker) => blocker.kind === 'permission')) {
-    const trace = [...response.action_trace, {
-      step: 'runtime_tcc_reset_handoff',
-      result: 'human_required',
-      detail: `${prefix} permissions reset-runtime --mode ${mode}`,
-    }];
-    response = buildReadyResponse(decision.startup, trace, mode, prefix);
-  }
-}
-
-const handoffAlert = maybePlayTccHandoffAlert(response, mode);
+const handoffAlert = options.repair
+  ? maybePlayTccHandoffAlert(response, mode)
+  : undefined;
 if (handoffAlert) response.tcc_handoff_alert = handoffAlert;
 
 if (options.json) printJSON(response);

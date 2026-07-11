@@ -29,11 +29,12 @@ Start here:
 ./aos introspect review
 ```
 
-`./aos ready` is the primary runtime readiness entrypoint. It starts/checks the
-managed daemon and exits non-zero when AOS is not ready. Use `./aos status` for
-a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
-`clean` when you need deeper diagnostics or explicit cleanup, not as the default
-first move.
+`./aos ready` is the primary runtime readiness entrypoint. Plain `ready` is
+read-only: it checks the managed daemon and exits non-zero when AOS is not ready.
+Use `./aos ready --repair` when readiness may clean, start, or restart the
+runtime. Use `./aos status` for a broader read-only runtime snapshot, and use
+`doctor`, `daemon-snapshot`, and `clean` for deeper diagnostics or explicit
+cleanup rather than as the default first move.
 
 For live repo work, `./aos` is also the first control plane for canvases, Agent
 Terminal surfaces, session communication, input routing, and runtime inspection.
@@ -109,7 +110,7 @@ The current top-level commands are:
 | Command | Role |
 | --- | --- |
 | `aos launch` | manifest-backed source-owned app launcher |
-| `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
+| `aos ready` | read-only front-door readiness gate; `--repair` permits runtime recovery |
 | `aos status` | read-only runtime/session status snapshot |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
@@ -2280,7 +2281,8 @@ Consumers should assume:
 - `aos show`, `aos inspect`, and some graph/focus flows may talk to the daemon
 - a persistent canvas outlives the creating command unless it is connection-scoped
 - `aos serve` is the foreground daemon entry point
-- `aos ready` is the front-door managed-daemon readiness gate
+- `aos ready` is the read-only front-door managed-daemon readiness gate;
+  `aos ready --repair` is its explicit mutation path
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
 - the default `~/.config/aos/{repo|installed}` runtime is single-owner,
@@ -2320,27 +2322,25 @@ when judging whether the daemon can actually observe and inject input.
 ```
 
 Consumers:
-- `aos ready [--json] [--repair] [--post-permission]` first performs a cheap
-  daemon health preflight. When the managed daemon is already reachable, owned
-  by the expected runtime, and reports an active input tap, `ready` exits without
-  kickstarting or restarting the service and records `ready_preflight` in
-  `action_trace`. If the preflight is not ready, `ready` may start the managed
-  daemon, evaluates the existing readiness contract, exits `0` only when ready,
-  and returns structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
-  `action_trace` fields for agents. Plain `ready` performs one short automatic
-  daemon restart/recheck when it detects a daemon ownership mismatch or inactive
-  input tap with no permission blocker, because those states commonly appear
-  after a human refreshes macOS privacy grants. When passive CLI grants are
-  green but the live daemon reports denied Accessibility/Input Monitoring,
-  `ready` must not restart/recheck in a loop. It reports
-  `post_rebuild_tcc_stale`, plays the handoff alert once per binary identity,
-  returns a terminal handoff, and the agent ends the turn until the user replies
-  `finished` after manually resetting/regranting TCC.
-  `--post-permission` is the explicit
-  agent handoff check after the human has re-granted Accessibility or
-  Input Monitoring access; it is bounded and reports the remaining blocker
-  instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
-  longer safe recovery path, but linked-worktree blockers stop before service
+- `aos ready [--json] [--repair] [--post-permission]` evaluates one canonical
+  readiness decision and returns structured `phase`, `diagnosis`, `blockers`,
+  `next_actions`, and `action_trace` fields. Plain `ready` and
+  `ready --post-permission` are read-only: each collects facts once, reports
+  `startup.attempted:false`, and never starts, restarts, cleans, opens Settings,
+  changes permissions, or writes a TCC-alert marker. `--post-permission` labels
+  the bounded verification performed after the human re-grants Accessibility or
+  Input Monitoring; remaining blockers route explicitly to `ready --repair` or
+  direct service/permission commands.
+  `--repair` is the only readiness form allowed to clean, start or restart the
+  runtime, wait for recovery, play the stale-TCC alert, or write its one-shot
+  marker. All readiness forms may report the same read-only `terminal_handoff`
+  and terminal reset actions when the canonical diagnosis requires human work.
+  When passive CLI grants are green but the live daemon reports denied
+  Accessibility/Input
+  Monitoring, repair reports `post_rebuild_tcc_stale`, plays the handoff alert
+  once per binary identity, and the agent ends the turn until the user replies
+  `finished` after manually resetting/regranting TCC. Linked-worktree blockers
+  stop before service
   start/restart, stale daemon owners and default-root foreground dev owners are
   cleaned before service start/restart, and unmanaged socket owners are reported
   as PID/command facts

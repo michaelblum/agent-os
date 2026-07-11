@@ -38,7 +38,8 @@
     {
       "id": "external-command-dispatch-proof",
       "path_patterns": [
-        "tests/external-command-dispatch.sh"
+        "tests/external-command-dispatch.sh",
+        "tests/lib/process-cleanup-serial.sh"
       ],
       "fixture_patterns": [],
       "owner": "command-surface",
@@ -48,7 +49,7 @@
       "worth": "This catches route drift where generated command manifests still validate but runtime dispatch reaches the wrong implementation.",
       "command": "bash tests/external-command-dispatch.sh",
       "replaces": [],
-      "guard": "uses bounded CLI dispatch and isolated state for daemon-sensitive checks",
+      "guard": "uses bounded CLI dispatch, isolated state for daemon-sensitive checks, and the shared lockf process-cleanup boundary",
       "status": "active"
     },
     {
