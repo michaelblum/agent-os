@@ -489,8 +489,8 @@ class StatusItemManager {
                 }
             }
         } else {
-            // Tracked canvas (e.g. union): Sigil owns the entrance animation.
-            // The origin is passed via query params so Sigil can animate from
+            // Tracked canvas (e.g. union): the canvas owner owns its entrance animation.
+            // The origin is passed via query params so the consumer can animate from
             // the icon position to the resolved toggled-surface position.
             _ = canvasManager.handle(req)
             updateIcon()

@@ -143,9 +143,9 @@ export default function IntegrationHub(options = {}) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           provider: 'slack',
-          requester: 'sigil-workbench',
+          requester: 'toolkit-integration-hub',
           text,
-          channel: 'sigil-workbench',
+          channel: 'toolkit-integration-hub',
         }),
       })
       if (!res.ok) throw new Error(`simulate request failed: ${res.status}`)
@@ -240,7 +240,7 @@ export default function IntegrationHub(options = {}) {
         <div class="integration-hub-console-copy">
           <div class="integration-hub-card-kicker">Local Simulation</div>
           <h3>Send a pilot command through the broker</h3>
-          <p>Use this from Sigil to exercise the same routing path Slack will use. Good inputs: <code>status</code>, <code>features</code>, <code>workflows</code>, or <code>wiki sigil</code>.</p>
+          <p>Exercise the same routing path an external provider will use. Good inputs: <code>status</code>, <code>features</code>, <code>workflows</code>, or <code>wiki service catalog</code>.</p>
         </div>
         <label class="integration-hub-console-label" for="integration-hub-command">Command</label>
         <div class="integration-hub-console-row">
@@ -327,7 +327,7 @@ export default function IntegrationHub(options = {}) {
           <div>
             <div class="integration-hub-kicker">Operator Surface</div>
             <h2>Chat broker for Slack first, other transports later</h2>
-            <p>Provider adapters stay outside toolkit and Sigil. The browser only consumes the shared broker snapshot: providers, workflows, jobs, and activity.</p>
+            <p>Provider adapters stay outside toolkit. The browser only consumes the shared broker snapshot: providers, workflows, jobs, and activity.</p>
           </div>
           <div class="integration-hub-hero-stats">
             <div><span>${providerCount}</span><label>providers</label></div>

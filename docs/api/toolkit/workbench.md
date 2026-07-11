@@ -121,6 +121,11 @@ Sessions use schema `aos_annotation_session` version `0.1.0` and carry
 only as current evidence, so absent or stale subjects use `absent` or `stale`
 anchor status rather than preserving old overlay rectangles as truth.
 
+Canonical `entry_source` values are `hotkey`, `status_menu`,
+`surface_inspector`, `radial_menu`, and `unknown`. The retired `sigil_radial`
+value is accepted only as legacy input and normalizes one-way to `radial_menu`;
+new records and serialized output never emit the retired value.
+
 Frames are represented as anchors whose `comment_text` is an empty string.
 Adding comment text updates the anchor at the same subject address or creates a
 new anchor with text. Hover candidates update preview state only, while

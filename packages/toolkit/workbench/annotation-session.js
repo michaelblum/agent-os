@@ -7,8 +7,12 @@ export const ANNOTATION_SESSION_ENTRY_SOURCES = new Set([
   'hotkey',
   'status_menu',
   'surface_inspector',
-  'sigil_radial',
+  'radial_menu',
   'unknown',
+])
+
+const LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES = new Map([
+  ['sigil_radial', 'radial_menu'],
 ])
 
 export const ANNOTATION_ANCHOR_STATUSES = new Set([
@@ -27,6 +31,12 @@ function clone(value) {
 function text(value, fallback = '') {
   const normalized = String(value ?? '').trim()
   return normalized || fallback
+}
+
+function normalizeAnnotationSessionEntrySource(value) {
+  const source = text(value)
+  const canonical = LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES.get(source) || source
+  return ANNOTATION_SESSION_ENTRY_SOURCES.has(canonical) ? canonical : 'unknown'
 }
 
 function isoNow(now = Date.now()) {
@@ -207,7 +217,7 @@ export function createAnnotationSession(input = {}) {
     schema: ANNOTATION_SESSION_SCHEMA,
     version: ANNOTATION_SESSION_VERSION,
     active: Boolean(input.active),
-    entry_source: ANNOTATION_SESSION_ENTRY_SOURCES.has(input.entry_source) ? input.entry_source : 'unknown',
+    entry_source: normalizeAnnotationSessionEntrySource(input.entry_source),
     root: normalizeAnnotationSubjectAddress(input.root),
     committed_scope_stack: Array.isArray(input.committed_scope_stack)
       ? input.committed_scope_stack.map(normalizeAnnotationSubjectAddress).filter(Boolean)

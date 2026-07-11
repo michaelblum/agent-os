@@ -69,7 +69,6 @@ panel/                  Layer 1b — panel primitives
 workbench/              Layer 1c — workbench contracts
   subject.js              shared aos.workbench.subject descriptor helpers
   wiki-subject.js         wiki page → workbench subject projection helpers
-  sigil-subject.js        Sigil domain subject projection helpers
   index.js                re-exports
 
 components/             Layer 2 — reusable Content units

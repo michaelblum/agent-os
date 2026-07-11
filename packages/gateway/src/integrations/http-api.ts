@@ -11,7 +11,6 @@ interface IntegrationHttpServerOptions {
 }
 
 const AOS_SURFACE_ORIGINS = new Set([
-  'aos://sigil',
   'aos://toolkit',
 ]);
 

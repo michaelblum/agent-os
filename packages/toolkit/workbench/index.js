@@ -18,7 +18,6 @@ export * from './visual-object-resource-lifecycle.js';
 export * from './artifact-bundle-subject.js';
 export * from './wiki-subject.js';
 export * from './wiki-subject-opening.js';
-export * from './sigil-subject.js';
 export * from './work-record.js';
 export * from './step-descriptor-harness.js';
 export * from './browser-step-descriptor-prototype.js';
