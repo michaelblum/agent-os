@@ -76,8 +76,8 @@ PY
 aos_test_start_daemon "$ROOT" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-ID_A="sigil-avatar-controls-audit-a"
-ID_B="sigil-avatar-controls-audit-b"
+ID_A="example-controls-audit-a"
+ID_B="example-controls-audit-b"
 
 AOS_SESSION_ID="audit-session" \
 AOS_SESSION_HARNESS="audit-harness" \
@@ -106,8 +106,8 @@ import sys
 import time
 
 id_a, id_b, cwd, state_root = sys.argv[1:]
-avatar_parent_id = "avatar-main"
-radial_id = "sigil-radial-menu-avatar-main"
+parent_id = "example-parent"
+menu_id = "example-menu"
 sock_path = pathlib.Path(state_root) / "repo" / "sock"
 
 def send_envelope(action, data):
@@ -137,9 +137,9 @@ def audit(point):
     ], text=True))
 
 parent_response = send_envelope("create", {
-    "id": avatar_parent_id,
+    "id": parent_id,
     "at": [700, 70, 1, 1],
-    "html": "<!doctype html><html><body>avatar parent</body></html>",
+    "html": "<!doctype html><html><body>fixture parent</body></html>",
 })
 assert parent_response.get("status") in ("ok", "success"), parent_response
 
@@ -151,18 +151,18 @@ for canvas_id, frame in {
         "id": canvas_id,
         "at": frame,
         "geometry": {
-            "logical_surface_key": "sigil.avatar.controls",
+            "logical_surface_key": "example.controls",
         },
     })
     assert update_response.get("status") in ("ok", "success"), update_response
 
 radial_response = send_envelope("create", {
-    "id": radial_id,
-    "parent": avatar_parent_id,
+    "id": menu_id,
+    "parent": parent_id,
     "at": [720, 70, 120, 80],
-    "html": "<!doctype html><html><body>radial target</body></html>",
+    "html": "<!doctype html><html><body>menu target</body></html>",
     "geometry": {
-        "logical_surface_key": "sigil.avatar.radial-menu",
+        "logical_surface_key": "example.menu",
     },
 })
 assert radial_response.get("status") in ("ok", "success"), radial_response
@@ -173,9 +173,9 @@ while time.time() < deadline:
     payload = audit("80,90")
     rows = {row.get("id"): row for row in payload.get("registered_canvases", [])}
     native = rows.get(id_a, {}).get("actual_native_windows") or []
-    radial_native = rows.get(radial_id, {}).get("actual_native_windows") or []
+    menu_native = rows.get(menu_id, {}).get("actual_native_windows") or []
     external = payload.get("external_aos_native_windows") or []
-    if rows.get(id_a) and rows.get(id_b) and rows.get(radial_id) and native and radial_native and external:
+    if rows.get(id_a) and rows.get(id_b) and rows.get(menu_id) and native and menu_native and external:
         break
     time.sleep(0.1)
 
@@ -195,7 +195,7 @@ for canvas_id in (id_a, id_b):
     assert isinstance(requested, list) and len(requested) == 4, row
     assert row.get("requested_frame_source") == "Canvas.desiredCGFrame", row
     assert row.get("native_join_status") == "matched", row
-    assert row.get("logical_surface_key") == "sigil.avatar.controls", row
+    assert row.get("logical_surface_key") == "example.controls", row
     assert row.get("interactive") is True, row
     assert row.get("window_level") == "floating", row
     owner = row.get("owner") or {}
@@ -216,18 +216,18 @@ for canvas_id in (id_a, id_b):
     assert "display_relationship" in first, first
     assert "focus" in first, first
 
-radial_row = rows.get(radial_id)
-if not radial_row:
-    raise SystemExit(f"FAIL: missing registered audit row for {radial_id}: {payload}")
-assert radial_row.get("parent") == avatar_parent_id, radial_row
-assert radial_row.get("logical_surface_key") == "sigil.avatar.radial-menu", radial_row
+menu_row = rows.get(menu_id)
+if not menu_row:
+    raise SystemExit(f"FAIL: missing registered audit row for {menu_id}: {payload}")
+assert menu_row.get("parent") == parent_id, menu_row
+assert menu_row.get("logical_surface_key") == "example.menu", menu_row
 
 duplicates = payload.get("duplicate_logical_surfaces") or []
-avatar_dupe = next((entry for entry in duplicates if entry.get("logical_surface_key") == "sigil.avatar.controls"), None)
-if not avatar_dupe:
+controls_dupe = next((entry for entry in duplicates if entry.get("logical_surface_key") == "example.controls"), None)
+if not controls_dupe:
     raise SystemExit(f"FAIL: missing duplicate logical surface entry: {duplicates}")
-assert sorted(avatar_dupe.get("canvas_ids") or []) == sorted([id_a, id_b]), avatar_dupe
-assert radial_id not in (avatar_dupe.get("canvas_ids") or []), avatar_dupe
+assert sorted(controls_dupe.get("canvas_ids") or []) == sorted([id_a, id_b]), controls_dupe
+assert menu_id not in (controls_dupe.get("canvas_ids") or []), controls_dupe
 
 assert isinstance(payload.get("native_windows"), list), payload
 assert isinstance(payload.get("orphan_native_windows"), list), payload

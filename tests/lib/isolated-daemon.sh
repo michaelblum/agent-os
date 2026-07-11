@@ -190,7 +190,7 @@ aos_test_start_daemon() {
     ./aos set "content.roots.${name}" "$path" >/dev/null
     content_wait_args+=(--root "$name")
     case "$name" in
-      toolkit|sigil|repo)
+      toolkit|repo)
         local scoped_name
         scoped_name="$(aos_content_root_key_for "$name" "$repo_root")"
         if [[ "$scoped_name" != "$name" ]]; then

@@ -22,7 +22,7 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
   const state = { avatar: { shape: { stellationFactor: 0.75 } } };
   const evidence = createVisualObjectResourceLifecycleEvidence({
     updateResult: {
-      descriptor_id: 'sigil-avatar-stellation',
+      descriptor_id: 'example-stellation',
       state_path: 'avatar.shape.stellationFactor',
       route: 'canvas_object.transform.patch',
       sync_outcomes: [{ label: 'updatePrimaryStellation', status: 'called' }],
@@ -45,7 +45,7 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
       iterationLimit: 100,
     },
     poolingBoundary: {
-      owner: 'sigil-renderer',
+      owner: 'example-renderer',
       decision: 'renderer-local',
       rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
     },
@@ -80,7 +80,7 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
     iteration_limit: 100,
   });
   assert.deepEqual(evidence.pooling_boundary, {
-    owner: 'sigil-renderer',
+    owner: 'example-renderer',
     decision: 'renderer-local',
     rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
   });

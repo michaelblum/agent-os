@@ -4,13 +4,13 @@
 
 ## Purpose
 
-`apps/` contains opinionated AOS application consumers built on daemon
-primitives and reusable toolkit policy.
+`apps/` contains frozen application fixtures retained for deterministic
+compatibility proof. Active product consumers live in their owning repositories.
 
 ## Ownership
 
-- Apps own product expression, domain state, theming, content, and special
-  behavior.
+- External apps own product expression, domain state, theming, content, and
+  special behavior.
 - Reusable native capability belongs in `src/` or `shared/`.
 - Reusable surface/windowing policy belongs in `packages/toolkit/`.
 
@@ -18,17 +18,17 @@ primitives and reusable toolkit policy.
 
 - Do not grow app-private platform subsystems when the capability belongs in the
   daemon or toolkit for future apps.
-- Keep app launch, content roots, and verification understandable from the app's
-  nearest child `AGENTS.md`.
+- Frozen fixtures must not expose active launch manifests, recipes, packaging,
+  or live-product verification.
 
 ## Work Guidance
 
-- Follow the app-specific child doc before editing a concrete app.
+- Follow the fixture-specific child doc before changing retained bytes.
 
 ## Verification
 
-- Use app-specific verification from the child doc.
+- Use only deterministic fixture verification named by the child doc.
 
 ## Child DOX Index
 
-- `sigil/AGENTS.md` governs the Sigil avatar presence app.
+- `sigil/AGENTS.md` governs the frozen legacy Sigil fixture.

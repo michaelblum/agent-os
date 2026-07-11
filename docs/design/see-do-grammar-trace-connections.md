@@ -175,7 +175,7 @@ concrete pieces are adjacent, not unified:
   hand-authored TypeScript scripts with SDK access. The SDK exposes desktop
   primitives and smart operations, but it does not expose browser target
   strings or Playwright-backed helpers.
-- Sigil's interaction trace records bounded diagnostic event history for real
+- A consumer interaction trace may record bounded diagnostic event history for real
   user interaction bugs. It stores sanitized stages, input events, menu state,
   hit-target decisions, and routing decisions. It does not replay them.
 - Canvas inspector bundles capture a point-in-time `see` bundle: screenshot,
@@ -237,7 +237,7 @@ follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
 - The canonical employer-brand workflow has a collection stage but no
   collection executor. The planner explicitly refuses to browse/collect.
 - KILOS output schema assumes an artifact bundle returned by "Studio" with
-  `capture_job_id` and `replay_hints`, but current Studio/Sigil code appears to
+  `capture_job_id` and `replay_hints`, but current Studio/consumer code appears to
   be a customization/workbench surface, not a web artifact capture engine.
 - Gateway marks the two KILOS workflows as launch-ready, while
   `docs/api/integration-broker.md` correctly says they are scaffolds, not

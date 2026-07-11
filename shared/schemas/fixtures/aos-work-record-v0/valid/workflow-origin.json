@@ -1,22 +1,22 @@
 {
   "type": "aos.work_record",
   "schema_version": "2026-05-work-record-v0",
-  "id": "work-record:workflow-open-wiki-sigil-2026-05-05",
-  "label": "Open Sigil in the Browser-Hosted Wiki Subject Browser",
+  "id": "work-record:workflow-open-wiki-runtime-modes-2026-05-05",
+  "label": "Open Runtime Modes in the Browser-Hosted Wiki Subject Browser",
   "created_at": "2026-05-05T16:20:00Z",
   "origin": {
     "kind": "workflow",
-    "ref": "workflow:browser-hosted-wiki-open-sigil",
-    "run_id": "run:browser-hosted-wiki-open-sigil:2026-05-05T16-20-00Z",
+    "ref": "workflow:browser-hosted-wiki-open-runtime-modes",
+    "run_id": "run:browser-hosted-wiki-open-runtime-modes:2026-05-05T16-20-00Z",
     "version": "v0",
     "subject_type": "aos.workflow",
-    "description": "Workflow-gated browser for opening the Sigil Subject through the wiki Subject Browser."
+    "description": "Workflow-gated browser for opening the Runtime Modes Subject through the wiki Subject Browser."
   },
   "references": [
     {
       "id": "origin-workflow-subject",
       "relationship": "origin_subject",
-      "ref": "workflow:browser-hosted-wiki-open-sigil",
+      "ref": "workflow:browser-hosted-wiki-open-runtime-modes",
       "subject_type": "aos.workflow",
       "layer": "execution_map",
       "role": "emitter"
@@ -32,7 +32,7 @@
     {
       "id": "subject-under-test",
       "relationship": "input_to",
-      "ref": "wiki:Sigil",
+      "ref": "wiki:Runtime Modes",
       "subject_type": "wiki.entity",
       "facet_key": "wiki",
       "layer": "narrative",
@@ -40,15 +40,15 @@
     }
   ],
   "intent": {
-    "summary": "Open the Sigil wiki Subject through the Browser-Hosted Wiki Subject Browser and verify the resulting page state.",
+    "summary": "Open the Runtime Modes wiki Subject through the Browser-Hosted Wiki Subject Browser and verify the resulting page state.",
     "purpose": "browser_workflow_verification",
-    "acceptance": "The after-capture shows the Sigil Subject heading and the Work Record contains before, action, and after evidence.",
+    "acceptance": "The after-capture shows the Runtime Modes Subject heading and the Work Record contains before, action, and after evidence.",
     "constraints": [
       "Use AOS browser target refs instead of raw Playwright-only selectors.",
       "Treat any replay or repair as gated workflow work."
     ],
     "claim_refs": [
-      "claim:sigil-subject-opened",
+      "claim:runtime-modes-subject-opened",
       "claim:before-action-after-evidence-captured"
     ]
   },
@@ -62,16 +62,16 @@
         "description": "Browser-hosted wiki Subject Browser session."
       },
       {
-        "id": "target:sigil-entry-ref",
-        "target": "browser:wiki-browser/subject-link.sigil",
+        "id": "target:runtime-modes-entry-ref",
+        "target": "browser:wiki-browser/subject-link.runtime-modes",
         "dialect": "browser",
         "state_id": "see_browser000010",
-        "description": "Semantic ref for the Sigil Subject entry link.",
+        "description": "Semantic ref for the Runtime Modes Subject entry link.",
         "candidates": [
           {
             "kind": "role",
             "role": "link",
-            "name": "Sigil"
+            "name": "Runtime Modes"
           }
         ]
       }
@@ -93,18 +93,18 @@
         ]
       },
       {
-        "id": "step:open-sigil-subject",
-        "intent": "Activate the Sigil Subject entry handle.",
+        "id": "step:open-runtime-modes-subject",
+        "intent": "Activate the Runtime Modes Subject entry handle.",
         "action": {
           "verb": "click",
-          "target": "browser:wiki-browser/subject-link.sigil",
+          "target": "browser:wiki-browser/subject-link.runtime-modes",
           "state_id": "see_browser000010",
           "args": {
             "expected_role": "link"
           }
         },
         "postcondition_refs": [
-          "postcondition:sigil-heading-visible"
+          "postcondition:runtime-modes-heading-visible"
         ]
       },
       {
@@ -143,15 +143,15 @@
         }
       },
       {
-        "id": "postcondition:sigil-heading-visible",
+        "id": "postcondition:runtime-modes-heading-visible",
         "kind": "browser_dom",
-        "description": "The after-capture exposes a visible Sigil subject heading.",
-        "target": "browser:wiki-browser/heading.sigil",
+        "description": "The after-capture exposes a visible Runtime Modes subject heading.",
+        "target": "browser:wiki-browser/heading.runtime-modes",
         "state_id": "see_browser000011",
         "check": {
           "kind": "text_contains",
-          "ref": "heading.sigil",
-          "expected": "Sigil"
+          "ref": "heading.runtime-modes",
+          "expected": "Runtime Modes"
         },
         "evidence_refs": [
           "evidence:after-see"
@@ -184,13 +184,13 @@
       {
         "id": "artifact-route:before-see",
         "kind": "see_capture",
-        "destination": "artifacts/work-records/workflow-open-wiki-sigil/before-see.json",
+        "destination": "artifacts/work-records/workflow-open-wiki-runtime-modes/before-see.json",
         "evidence_ref": "evidence:before-see"
       },
       {
         "id": "artifact-route:after-see",
         "kind": "see_capture",
-        "destination": "artifacts/work-records/workflow-open-wiki-sigil/after-see.json",
+        "destination": "artifacts/work-records/workflow-open-wiki-runtime-modes/after-see.json",
         "evidence_ref": "evidence:after-see"
       }
     ],
@@ -210,41 +210,41 @@
       "id": "evidence:before-see",
       "kind": "see_capture",
       "created_at": "2026-05-05T16:20:05Z",
-      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/before-see.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-runtime-modes/before-see.json",
       "state_id": "see_browser000010",
       "target": "browser:wiki-browser",
       "immutable": true,
-      "summary": "Before-capture with the Sigil Subject entry link visible."
+      "summary": "Before-capture with the Runtime Modes Subject entry link visible."
     },
     {
-      "id": "evidence:click-sigil",
+      "id": "evidence:click-runtime-modes",
       "kind": "do_envelope",
       "created_at": "2026-05-05T16:20:10Z",
-      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/do-click.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-runtime-modes/do-click.json",
       "state_id": "see_browser000010",
-      "target": "browser:wiki-browser/subject-link.sigil",
+      "target": "browser:wiki-browser/subject-link.runtime-modes",
       "immutable": true,
-      "summary": "AOS browser click envelope for the Sigil Subject entry link."
+      "summary": "AOS browser click envelope for the Runtime Modes Subject entry link."
     },
     {
       "id": "evidence:after-see",
       "kind": "see_capture",
       "created_at": "2026-05-05T16:20:15Z",
-      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/after-see.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-runtime-modes/after-see.json",
       "state_id": "see_browser000011",
       "target": "browser:wiki-browser",
       "immutable": true,
-      "summary": "After-capture with the Sigil Subject heading visible."
+      "summary": "After-capture with the Runtime Modes Subject heading visible."
     }
   ],
   "claims": [
     {
-      "id": "claim:sigil-subject-opened",
-      "text": "The Sigil wiki Subject was opened in the Browser-Hosted Wiki Subject Browser.",
+      "id": "claim:runtime-modes-subject-opened",
+      "text": "The Runtime Modes wiki Subject was opened in the Browser-Hosted Wiki Subject Browser.",
       "scope": "run",
-      "acceptance": "The browser after-capture exposes a visible Sigil Subject heading.",
+      "acceptance": "The browser after-capture exposes a visible Runtime Modes Subject heading.",
       "postcondition_refs": [
-        "postcondition:sigil-heading-visible"
+        "postcondition:runtime-modes-heading-visible"
       ]
     },
     {
@@ -260,17 +260,17 @@
   ],
   "claim_results": [
     {
-      "id": "claim-result:sigil-subject-opened",
-      "claim_id": "claim:sigil-subject-opened",
+      "id": "claim-result:runtime-modes-subject-opened",
+      "claim_id": "claim:runtime-modes-subject-opened",
       "status": "verified",
       "confidence": 0.96,
-      "reason": "The after-capture evidence shows the expected Sigil heading.",
+      "reason": "The after-capture evidence shows the expected Runtime Modes heading.",
       "evidence_refs": [
         "evidence:after-see"
       ],
       "postcondition_results": [
         {
-          "postcondition_id": "postcondition:sigil-heading-visible",
+          "postcondition_id": "postcondition:runtime-modes-heading-visible",
           "status": "passed",
           "evidence_refs": [
             "evidence:after-see"
@@ -287,7 +287,7 @@
       "reason": "The evidence set contains the required before and after captures plus the action envelope.",
       "evidence_refs": [
         "evidence:before-see",
-        "evidence:click-sigil",
+        "evidence:click-runtime-modes",
         "evidence:after-see"
       ],
       "postcondition_results": [
@@ -311,7 +311,7 @@
     }
   ],
   "verifier_report": {
-    "id": "verifier-report:workflow-open-wiki-sigil",
+    "id": "verifier-report:workflow-open-wiki-runtime-modes",
     "generated_at": "2026-05-05T16:22:00Z",
     "verifier": {
       "id": "aos.verifier.work-record.v0",
@@ -321,7 +321,7 @@
     "claim_results_ref": "claim_results",
     "derived_indexes": {
       "verified": [
-        "claim:sigil-subject-opened",
+        "claim:runtime-modes-subject-opened",
         "claim:before-action-after-evidence-captured"
       ],
       "failed": [],
@@ -329,7 +329,7 @@
     },
     "evidence_refs": [
       "evidence:before-see",
-      "evidence:click-sigil",
+      "evidence:click-runtime-modes",
       "evidence:after-see"
     ],
     "feedback": []
@@ -338,7 +338,7 @@
     "verdict": "valid",
     "reason": "All run Claims verified against immutable evidence.",
     "evaluated_at": "2026-05-05T16:22:00Z",
-    "verifier_report_id": "verifier-report:workflow-open-wiki-sigil",
+    "verifier_report_id": "verifier-report:workflow-open-wiki-runtime-modes",
     "confidence": 0.95,
     "repair_gate_refs": [
       "workflow-gate:browser-step-descriptor-replay-approval"

@@ -23,10 +23,10 @@ The reusable implementation surface is:
   renderer-agnostic update/resource evidence under
   `aos.visual_object.resource_lifecycle.v0`.
 
-Sigil remains the reference implementation and app owner for avatar and radial
-product behavior. Toolkit owns the reusable descriptor/controller/form/evidence
-contracts. The daemon owns native canvas and routing primitives, not Three.js
-objects, Sigil avatar state, or app-specific rendering policy.
+External consumers own product rendering behavior. Toolkit owns the reusable
+descriptor/controller/form/evidence contracts. The daemon owns native canvas
+and routing primitives, not Three.js objects, consumer state, or app-specific
+rendering policy.
 
 ## Retained Limits
 

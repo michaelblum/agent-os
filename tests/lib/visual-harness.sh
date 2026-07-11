@@ -10,8 +10,8 @@ source "$VISUAL_HARNESS_ROOT/scripts/aos-content-scope.sh"
 # Generic visual/canvas primitives.
 #
 # Keep reusable AOS visual workspace, content-root, diagnostics, and bounded
-# command helpers in this section. Product-specific compositions live under
-# app-named subdirectories such as tests/lib/sigil/.
+# command helpers in this section. Product-specific compositions belong in
+# their external product repositories.
 
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
@@ -133,7 +133,6 @@ aos_visual_content_root_key() {
   local env_name value
   case "$prefix" in
     toolkit) env_name="AOS_TOOLKIT_CONTENT_ROOT" ;;
-    sigil) env_name="AOS_SIGIL_CONTENT_ROOT" ;;
     repo) env_name="AOS_REPO_CONTENT_ROOT" ;;
     *) env_name="" ;;
   esac

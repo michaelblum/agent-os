@@ -17,7 +17,7 @@ and below app-specific product expression.
 ## Local Contracts
 
 - Keep generic reusable behavior in packages; keep product-specific behavior in
-  `apps/`.
+  the owning external product repository.
 - Do not move native-bound capability into packages when it belongs in `src/` or
   shared Swift/IPC contracts.
 

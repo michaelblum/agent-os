@@ -68,7 +68,7 @@ The binary exposes platform primitives, not product policy. For surfaces, the
 daemon should provide native lifecycle, display, input, content, and routing
 capabilities that any consumer can build on. The default AOS panel/windowing
 policy belongs in `packages/toolkit/`, not in app code and not as
-Sigil-specific branches inside the daemon. A consumer may use toolkit
+product-specific branches inside the daemon. A consumer may use toolkit
 windowing, customize it, or bypass it for non-panel surfaces.
 
 Examples:
@@ -353,13 +353,11 @@ operator routes before using the toolkit runtime helper
 `routeOperatorAnnotationMenuAction()` to filter and route
 `operator_annotation` menu actions to `aos.operator_annotation.start` on the
 projected operator surface. `operator-fixture` remains the minimal reusable
-contract fixture for this route; `sigil` is the first-party AOS-owned status
-item entry point and projects `annotate-this-thing` onto its mounted
-`avatar-main` surface. Downstream consumers such as Med Ops should consume this
+contract fixture for this route. External consumers should consume this
 AOS-owned primitive through `aos experience status <id> --json`, then
 `aos experience menu invoke <id> --item <item-id> --dry-run --json`, then the
-same invoke command without `--dry-run`, instead of owning a forked Sigil
-surface or scraping third-party macOS menu extras.
+same invoke command without `--dry-run`, instead of scraping third-party macOS
+menu extras.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,
@@ -892,7 +890,7 @@ Shorthand capture is supported:
 aos see main
 aos see external 1
 aos see capture --canvas surface-inspector --perception
-aos see capture --canvas sigil-radial-menu --xray
+aos see capture --canvas example-menu --xray
 aos see capture --region 1172,442,320,480 --perception
 ```
 
@@ -1125,7 +1123,6 @@ aos recipe list --json
 aos recipe explain runtime/status-snapshot --json
 aos recipe dry-run runtime/status-snapshot --json
 aos recipe run runtime/status-snapshot --json
-aos recipe dry-run sigil/start --json
 ```
 
 `recipe dry-run` is static in v1: it does not start daemons, create canvases,
@@ -1190,9 +1187,9 @@ autonomous replay plans, saved workspaces, or live runtime readiness.
 
 ```bash
 aos work-record list --json
-aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record read work-record:workflow-open-service-catalog-2026-05-05 --json
 aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json
-aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record status work-record:workflow-open-service-catalog-2026-05-05 --json
 aos work-record plan-repair work-record:repairable-stale-saved-ref-2026-07-04 --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record plan-attempt shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --authorization workflow-gate-authorization.json --json
@@ -1218,7 +1215,7 @@ aos work-record supersession lookup --source source.json --index-root "$(pwd -P)
 aos work-record supersession validate source-supersession-entry.json --json
 aos work-record gate-request shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --json
 aos work-record gate-check shared/schemas/fixtures/aos-work-record-v0/valid/repairable-stale-saved-ref.json --gate-record gate-record.json --json
-aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json
+aos work-record export work-record:workflow-open-service-catalog-2026-05-05 --json
 ```
 
 For `repair bundle`, `--output-root` must resolve through real, non-symlinked
@@ -1749,7 +1746,7 @@ not inline screenshots, traces, AX dumps, browser payloads, or other heavy UI
 artifacts into model context.
 
 `recipe run` supports read-only recipes, mutating canvas recipes with explicit
-owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.
+owned cleanup, and bounded repo-owned shell helpers for substrate workflows.
 Owned resources that require cleanup, such as canvases, must be cleaned by
 `finally` steps that only target resources declared by the current run. Runtime,
 configuration, process, and surface ownership is reported as local live state
@@ -2137,13 +2134,10 @@ path for future recordings. `annotation-snapshot.json` and
 `surface_inspector_annotation_snapshot` remain compatibility data until a later
 removal gate confirms downstream consumers have migrated.
 
-Sigil radial camera exports now prefer Sigil's renderer-local active context
-provider when present. Reticle commits, live Selection Mode commits, and debug
-compatibility adapters can all publish the latest `aos_context_session` plus an
-active keyframe candidate to that provider, while `ctrl+opt+c` continues to
-derive canonical Surface Inspector context inside the daemon bundle path. The
-provider is not yet daemon-visible; that event/state channel is the explicit
-next removal gate for making active context available to all AOS apps.
+Consumer renderers may publish their latest `aos_context_session` plus an active
+keyframe candidate to a renderer-local context provider, while `ctrl+opt+c`
+continues to derive canonical Surface Inspector context inside the daemon bundle
+path. A daemon-visible provider remains a separate contract decision.
 
 `aos set <key>
 <value>` remains supported as the shorthand write form.

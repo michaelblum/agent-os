@@ -15,17 +15,17 @@ import {
 
 test('UX tree workbench subject exposes read-only commands, bindings, settings, and raw JSON', () => {
   const tree = createUxTree({
-    id: 'sigil.avatar.ux_tree',
-    label: 'Sigil Avatar UX Tree',
-    owner: 'sigil',
+    id: 'example.control.ux_tree',
+    label: 'Example Control UX Tree',
+    owner: 'fixture',
     modes: [{ id: 'global', label: 'Global' }],
-    nodes: [{ id: 'sigil.avatar', label: 'Avatar', role: 'root', node_type: 'avatar' }],
+    nodes: [{ id: 'example.control', label: 'Control', role: 'root', node_type: 'control' }],
     commands: [
       {
-        id: 'sigil.context_menu.open',
+        id: 'example.context_menu.open',
         label: 'Open Context Menu',
         description: '',
-        handler_ref: 'sigil.context_menu.open',
+        handler_ref: 'example.context_menu.open',
         parameters: {},
         safety: { execution: 'allowlisted' },
       },
@@ -33,10 +33,10 @@ test('UX tree workbench subject exposes read-only commands, bindings, settings, 
     bindings: [
       {
         id: 'right-click',
-        node_id: 'sigil.avatar',
+        node_id: 'example.control',
         mode: 'global',
         gesture: 'pointer.right.click',
-        command_id: 'sigil.context_menu.open',
+        command_id: 'example.context_menu.open',
         enabled: true,
         priority: 1,
         consume_policy: 'observe',
@@ -44,18 +44,18 @@ test('UX tree workbench subject exposes read-only commands, bindings, settings, 
     ],
     relations: [
       {
-        id: 'sigil.avatar.opens_context_menu',
+        id: 'example.control.opens_context_menu',
         relation_type: 'opens',
-        from_node_id: 'sigil.avatar',
-        to_node_id: 'sigil.avatar',
+        from_node_id: 'example.control',
+        to_node_id: 'example.control',
       },
     ],
     settings: { radial: { geometry: { menuRadius: 1.8 } } },
   })
   const subject = createUxTreeWorkbenchSubject({
     tree,
-    owner: 'sigil',
-    canvasId: 'sigil-ux-tree',
+    owner: 'fixture',
+    canvasId: 'example-ux-tree',
   })
 
   assert.equal(subject.type, 'aos.workbench.subject')
@@ -75,7 +75,7 @@ test('UX tree workbench subject exposes read-only commands, bindings, settings, 
   assert.equal(subject.state.binding_count, 1)
   assert.equal(subject.state.relation_count, 1)
   assert.equal(subject.state.command_count, 1)
-  assert.equal(subject.state.relations[0].id, 'sigil.avatar.opens_context_menu')
-  assert.equal(subject.state.raw_tree.id, 'sigil.avatar.ux_tree')
+  assert.equal(subject.state.relations[0].id, 'example.control.opens_context_menu')
+  assert.equal(subject.state.raw_tree.id, 'example.control.ux_tree')
   assert.equal(subject.persistence.kind, 'read_only')
 })

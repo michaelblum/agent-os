@@ -31,9 +31,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$EXECUTABLE_SRC" "$EXECUTABLE_DST"
 chmod 755 "$EXECUTABLE_DST"
 
-mkdir -p \
-  "$AOS_RESOURCE_ROOT/apps/sigil" \
-  "$AOS_RESOURCE_ROOT/packages/toolkit/components"
+mkdir -p "$AOS_RESOURCE_ROOT/packages/toolkit/components"
 "$REPO_ROOT/scripts/generate-recipe-index" "$REPO_ROOT" "$AOS_RESOURCE_ROOT/recipes-index.json"
 
 # ── aos-gateway (MCP + broker) ─────────────────────────────────

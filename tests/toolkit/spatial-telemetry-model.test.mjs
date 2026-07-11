@@ -55,12 +55,12 @@ test('buildSpatialTelemetrySnapshot reports display/canvas/mark/cursor spaces', 
       display('ext', { x: -191, y: 982, w: 1920, h: 1080, scale_factor: 1 }),
     ],
     canvases: [
-      { id: 'avatar-main', at: [-191, 0, 1920, 2062], track: 'union', scope: 'global', interactive: false },
-      { id: 'sigil-hit', at: [1220, 784, 80, 80], parent: 'avatar-main', scope: 'global', interactive: false },
+      { id: 'example-parent', at: [-191, 0, 1920, 2062], track: 'union', scope: 'global', interactive: false },
+      { id: 'example-hit', at: [1220, 784, 80, 80], parent: 'example-parent', scope: 'global', interactive: false },
     ],
     cursor: { x: 1105, y: 1864, valid: true },
     marksByCanvas: new Map([
-      ['avatar-main', {
+      ['example-parent', {
         marks: [
           { id: 'avatar', name: 'Avatar', x: 1260, y: 824 },
         ],

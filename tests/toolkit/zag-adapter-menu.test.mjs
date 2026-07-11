@@ -26,14 +26,14 @@ test('generic menu defaults bind neutral data-value and data-aos-menu-item entri
   const root = patchSpreadSupport(document.createElement('div'));
   const alpha = appendMenuItem(document, root, { 'data-value': 'alpha' }, 'Alpha');
   const beta = appendMenuItem(document, root, { 'data-aos-menu-item': '', 'aria-label': 'Beta label' }, 'Beta');
-  const sigil = appendMenuItem(document, root, { 'data-sigil-action': 'toggle-log' }, 'Sigil');
+  const example = appendMenuItem(document, root, { 'data-example-action': 'toggle-log' }, 'Example');
   document.body.appendChild(root);
 
   assert.equal(adapter.bind(root).open, false);
 
   assert.equal(alpha.dataset.aosZagMenuItem, '');
   assert.equal(beta.dataset.aosZagMenuItem, '');
-  assert.equal(sigil.dataset.aosZagMenuItem, undefined);
+  assert.equal(example.dataset.aosZagMenuItem, undefined);
   assert.equal(alpha.getAttribute('role'), 'menuitem');
   assert.equal(beta.getAttribute('role'), 'menuitem');
 
@@ -42,13 +42,13 @@ test('generic menu defaults bind neutral data-value and data-aos-menu-item entri
 
 test('consumer supplied selector and value mapping bind product-owned attributes', () => {
   const { adapter, document } = createMenuAdapter({
-    itemSelector: '[data-sigil-action]',
+    itemSelector: '[data-example-action]',
     getItemValue(element, index = 0) {
-      return element?.dataset?.sigilAction || `fallback-${index}`;
+      return element?.dataset?.exampleAction || `fallback-${index}`;
     },
   });
   const root = patchSpreadSupport(document.createElement('div'));
-  const action = appendMenuItem(document, root, { 'data-sigil-action': 'toggle-log' }, 'Toggle Log');
+  const action = appendMenuItem(document, root, { 'data-example-action': 'toggle-log' }, 'Toggle Log');
   document.body.appendChild(root);
 
   assert.equal(adapter.bindItems(root), 1);

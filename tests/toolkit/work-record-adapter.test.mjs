@@ -45,7 +45,7 @@ test('adapter reads v0 records without rewriting evidence or claim arrays', () =
   assert.equal(normalized.format, 'v0');
   assert.equal(normalized.readOnly, true);
   assert.equal(workRecordIsReadOnly(record), true);
-  assert.equal(normalized.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(normalized.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(workRecordSubjectId(normalized.id), normalized.id);
   assert.equal(normalized.intent.nl, record.intent.summary);
   assert.equal(normalized.evidence.length, record.evidence.length);
@@ -53,7 +53,7 @@ test('adapter reads v0 records without rewriting evidence or claim arrays', () =
   assert.equal(normalized.claimResults.length, record.claim_results.length);
   assert.equal(normalized.health.state, 'valid');
   assert.deepEqual(normalized.raw.evidence, record.evidence);
-  assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/workflow-open-wiki-sigil/before-see.json');
+  assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/workflow-open-wiki-runtime-modes/before-see.json');
 });
 
 test('adapter formats Work Record subject ids through Subject Entry Handles', () => {

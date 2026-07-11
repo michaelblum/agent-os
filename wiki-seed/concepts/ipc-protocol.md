@@ -7,7 +7,8 @@ tags: [protocol, ipc, messaging]
 
 # IPC Protocol
 
-All communication between the aos daemon and its clients (CLI commands, Sigil, gateway) uses newline-delimited JSON (ndjson) over a Unix socket.
+All communication between the aos daemon and its clients (CLI commands,
+external apps, gateway) uses newline-delimited JSON (ndjson) over a Unix socket.
 
 ## Envelope Format
 
@@ -30,7 +31,8 @@ CLI commands use a request/response pattern: send a command, receive a response 
 
 ## Streaming
 
-Long-lived connections (Sigil, observe) receive continuous events. The daemon broadcasts relevant events to all connected clients.
+Long-lived connections (external apps, observe) receive continuous events. The
+daemon broadcasts relevant events to all connected clients.
 
 ## Related
 - [Daemon](../entities/daemon.md)

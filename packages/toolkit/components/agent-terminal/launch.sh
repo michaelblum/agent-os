@@ -21,7 +21,7 @@ BRIDGE_DIR="$REPO_ROOT/packages/toolkit/components/agent-terminal"
 
 usage() {
   printf 'Usage: %s [--new|--new-codex|--new-claude|--pick|--last|--restart]\n' "$0"
-  printf 'Default starts a fresh Codex agent CLI without launching Sigil avatar surfaces.\n'
+  printf 'Default starts a fresh Codex agent CLI without launching consumer surfaces.\n'
 }
 
 RESTART=0

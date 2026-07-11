@@ -75,7 +75,7 @@
             }
           ],
           "examples": [
-            "aos work-record read work-record:workflow-open-wiki-sigil-2026-05-05 --json",
+            "aos work-record read work-record:workflow-open-service-catalog-2026-05-05 --json",
             "aos work-record read shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --json"
           ],
           "execution": {
@@ -131,7 +131,7 @@
             }
           ],
           "examples": [
-            "aos work-record verify work-record:workflow-open-wiki-sigil-2026-05-05 --json",
+            "aos work-record verify work-record:workflow-open-service-catalog-2026-05-05 --json",
             "aos work-record verify shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json --profile aos.verifier.work-record.v0.report-only --json"
           ],
           "execution": {
@@ -187,7 +187,7 @@
             }
           ],
           "examples": [
-            "aos work-record status work-record:workflow-open-wiki-sigil-2026-05-05 --json"
+            "aos work-record status work-record:workflow-open-service-catalog-2026-05-05 --json"
           ],
           "execution": {
             "auto_starts_daemon": false,
@@ -955,7 +955,7 @@
             }
           ],
           "examples": [
-            "aos work-record export work-record:workflow-open-wiki-sigil-2026-05-05 --json"
+            "aos work-record export work-record:workflow-open-service-catalog-2026-05-05 --json"
           ],
           "execution": {
             "auto_starts_daemon": false,

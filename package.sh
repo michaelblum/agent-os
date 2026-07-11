@@ -31,19 +31,7 @@ mkdir -p "$STAGED_APP/Contents/Resources/agent-os"
 # Binaries
 cp aos "$STAGED_APP/Contents/MacOS/aos"
 
-# ── 3. Copy web assets ─────────────────────────────────────────────
-# apps/sigil — HTML surfaces (renderer, chat, diagnostics) + config JSON
-# Exclude: shell scripts, CLAUDE.md, DS_Store
-rsync -am \
-    --include='*/' \
-    --include='*.html' --include='*.js' --include='*.mjs' \
-    --include='*.css' --include='*.json' --include='*.glsl' \
-    --include='*.svg' --include='*.png' --include='*.jpg' \
-    --include='*.woff' --include='*.woff2' --include='*.wasm' \
-    --exclude='*' \
-    apps/sigil/ "$STAGED_APP/Contents/Resources/agent-os/apps/sigil/"
-
-# packages/toolkit — reusable HTML components
+# ── 3. Copy reusable toolkit assets ────────────────────────────────
 rsync -am \
     --include='*/' \
     --include='*.html' --include='*.js' --include='*.mjs' \

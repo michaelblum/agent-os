@@ -119,7 +119,7 @@ Why this candidate:
 
 - it had private DOM pointer lifecycle code with capture and document move/end
   listeners;
-- it is generic toolkit control behavior, not Sigil product policy;
+- it is generic toolkit control behavior, not product policy;
 - it already exposes semantic slider metadata;
 - its preview/change and commit behavior is deterministic and covered by tests.
 
@@ -176,13 +176,8 @@ No Work Recording schema or implementation changed in this proof.
   a passive subscriber. It temporarily owns raw `input_event` drag
   source-normalization until Surface Inspector receives `aos.gesture-frame`
   delivery directly.
-- Sigil fast-travel: keep domain-private but consume normalized gesture frames
-  later through a generic vector/directional gesture adapter.
-- Sigil radial gestures: keep domain-private but consume normalized gesture
-  frames later; radial meaning stays app/toolkit radial policy.
-- Sigil selection-mode pointer tracking: keep domain-private but consume
-  normalized pointer/gesture frames later after selection hover/drag semantics
-  are separated.
+- Product-specific gesture adoption remains domain-private and belongs in the
+  consuming repository after a generic semantic adapter exists.
 - toolkit graph/radial-graph canvas drag paths: keep separate with a clear
   reason for now; object/camera canvas interaction needs a graph-specific
   semantic adapter before migration.

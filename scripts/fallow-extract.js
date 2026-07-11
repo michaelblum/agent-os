@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // fallow-extract.js — turn a fallow JSON dump into an actionable digest.
 // Usage:  node fallow-extract.js <file.json> [pkgPrefix1,pkgPrefix2,...]
-// Default prefixes: packages/toolkit,apps/sigil
+// Default prefix: packages/toolkit
 // Envelope-aware: handles a combined run (dead-code + dupes + health) OR a
 // `dupes`-only run (fallow dupes -f json). For dupes-only files it prints just
 // the WET digest.
 const fs = require("fs");
 const file = process.argv[2] || "/tmp/fallow.json";
-const PREFIXES = (process.argv[3] || "packages/toolkit,apps/sigil").split(",").map(s=>s.trim()).filter(Boolean);
+const PREFIXES = (process.argv[3] || "packages/toolkit").split(",").map(s=>s.trim()).filter(Boolean);
 
 let raw = fs.readFileSync(file, "utf8");
 const i = raw.indexOf("{"); if (i > 0) raw = raw.slice(i);   // strip npm/preamble noise

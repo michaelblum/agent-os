@@ -1,5 +1,8 @@
 # AOS Surface Stack V0 Checkpoint Hygiene Report
 
+> Historical evidence only. Commands and embedded Sigil paths below describe a
+> retired checkpoint and must not be used as current implementation guidance.
+
 **Date:** 2026-05-12
 **Branch:** `codex/docks-session-roots`
 **Status:** checkpoint verification passed after two harness hygiene fixes

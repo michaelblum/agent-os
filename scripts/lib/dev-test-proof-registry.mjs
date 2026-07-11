@@ -140,6 +140,10 @@ export function classifyProofAsset(itemPath) {
     return { kind: 'proof_registry', patternField: 'path_patterns' };
   }
 
+  if (normalized.startsWith('apps/sigil/')) {
+    return { kind: 'fixture', patternField: 'fixture_patterns' };
+  }
+
   if (normalized.startsWith('shared/schemas/fixtures/')) {
     return { kind: 'fixture', patternField: 'fixture_patterns' };
   }
@@ -236,6 +240,23 @@ export function evaluateProofWorth({ changedFiles, repoRoot = process.cwd(), reg
 
     if (!exists) {
       assetOut.coverage = matches.length ? 'deleted_registered_cleanup' : 'deleted_unregistered_cleanup';
+      if (asset.kind === 'fixture') {
+        for (const entry of active) {
+          if (!commandIsRunnable(entry.command)) {
+            assetOut.status = 'failed';
+            assetOut.failure = 'missing_default_command';
+            failures.push({
+              path: itemPath,
+              kind: asset.kind,
+              reason: 'missing_default_command',
+              entries: [entry.id],
+              message: 'Active proof registry entry lacks an exact default command.',
+            });
+            continue;
+          }
+          mergeCommand(commands, entry);
+        }
+      }
       assets.push(assetOut);
       continue;
     }

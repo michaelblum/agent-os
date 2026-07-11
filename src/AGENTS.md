@@ -15,11 +15,12 @@ needs, but public command policy and product UI policy belong above it:
 
 - canvas lifecycle, native frames, display topology, content serving, input
   streams, and lifecycle routing belong here;
-- default windowing semantics, panel chrome, minimize chips, workbench layout,
-  theme decisions, and app-specific surface behavior belong in
-  `packages/toolkit/` or `apps/`;
-- app-specific daemon branches are convergence debt unless a nearby design note
-  names the temporary adapter and removal gate.
+- generic windowing semantics, panel chrome, minimize chips, and reusable
+  workbench layout belong in `packages/toolkit/`;
+- product themes, product UX, and product-specific surface behavior belong in
+  the owning external product repository;
+- product-specific daemon branches are prohibited unless an explicit temporary
+  adapter names its external contract and removal gate.
 
 When a WebView or toolkit implementation is slow, do not move the whole feature
 into Swift by reflex. Identify the missing native primitive first, then keep the

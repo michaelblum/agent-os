@@ -12,7 +12,7 @@ downloads, or vendored weights in the repository.
 
 It is intentionally internal. Public `aos listen` remains the existing
 communication channel/session reader and is not repurposed as dictation input.
-Sigil dictation and daemon `voice.*` event consumption are later slices.
+Consumer dictation and daemon `voice.*` event adoption are separate slices.
 
 ## Proven Contract
 
@@ -55,7 +55,7 @@ Bundled Whisper enablement remains gated on:
 - model size and update strategy
 - packaged runtime location and integrity checks
 - runner implementation, sandbox expectations, and crash behavior
-- microphone capture integration and Sigil dictation state ownership
+- microphone capture integration and consumer-owned dictation state
 
 Until those decisions are closed, tests must continue to use fake weights,
 fixture audio, and synthetic runner behavior.

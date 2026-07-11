@@ -22,54 +22,6 @@
       "status": "active"
     },
     {
-      "id": "sigil-voice-dictation-renderer-proof",
-      "path_patterns": [
-        "tests/renderer/sigil-voice-dictation.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "voice-io",
-      "harness_level": "model_unit",
-      "proof_kind": "voice_dictation_contract",
-      "contract": "Sigil renderer dictation state emits key-driven voice envelopes and consumes generic daemon voice envelopes without re-emitting them.",
-      "worth": "This proves the renderer voice bridge without needing a live daemon, keyboard hook, or status item.",
-      "command": "node --test tests/renderer/sigil-voice-dictation.test.mjs",
-      "replaces": [],
-      "guard": "renderer module unit; no live daemon",
-      "status": "active"
-    },
-    {
-      "id": "sigil-voice-response-renderer-proof",
-      "path_patterns": [
-        "tests/renderer/sigil-voice-response-policy.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "voice-io",
-      "harness_level": "model_unit",
-      "proof_kind": "voice_response_contract",
-      "contract": "Sigil voice response policy, voice runtime, status-menu runtime, and main renderer preserve their event and menu delegation boundaries.",
-      "worth": "This catches voice response behavior or ownership drift without requiring a live microphone, daemon, or speech provider.",
-      "command": "node --test tests/renderer/sigil-voice-response-policy.test.mjs",
-      "replaces": [],
-      "guard": "renderer module unit; no live daemon or speech provider",
-      "status": "active"
-    },
-    {
-      "id": "sigil-voice-runtime-proof",
-      "path_patterns": [
-        "tests/renderer/sigil-voice-runtime.test.mjs"
-      ],
-      "fixture_patterns": [],
-      "owner": "voice-io",
-      "harness_level": "model_unit",
-      "proof_kind": "voice_runtime_contract",
-      "contract": "Sigil voice runtime arbitrates hold-Space input ownership, preserves active dictation release, and coordinates dictation and response state through injected renderer context.",
-      "worth": "This catches input-priority and state-stranding regressions without requiring a live input tap, microphone, daemon, or speech provider.",
-      "command": "node --test tests/renderer/sigil-voice-runtime.test.mjs",
-      "replaces": [],
-      "guard": "renderer module unit; no live daemon or input tap",
-      "status": "active"
-    },
-    {
       "id": "voice-bind-proof",
       "path_patterns": [
         "tests/voice-bind.sh"

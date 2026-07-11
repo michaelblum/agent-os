@@ -14,7 +14,7 @@
     "y": 373
   },
   "coordinate_authority": "daemon",
-  "region_id": "sigil-avatar",
+  "region_id": "example-avatar",
   "button": "left",
   "buttons": {
     "left": true,

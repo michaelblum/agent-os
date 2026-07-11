@@ -43,7 +43,7 @@ Examples currently found in descriptors include:
 - `work_record.execution_map.edit`
 - `canvas_object.transform.patch`
 - `canvas_object.effects.patch`
-- `sigil.radial_item_editor.lock_in`
+- `example.menu_item_editor.lock_in`
 
 The v-next direction is to store these strings in `contracts[]`, while leaving
 `capabilities[]` for the high-level vocabulary above.

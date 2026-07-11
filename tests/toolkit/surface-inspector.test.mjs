@@ -302,8 +302,8 @@ test('computeMinimapLayout fits desktop world by width and height with a lower b
 
 test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
   const canvases = [
-    { id: 'avatar-main', at: [-207, 0, 1920, 2062] },
-    { id: 'sigil-hit', parent: 'avatar-main', at: [1093, 240, 80, 80] },
+    { id: 'example-parent', at: [-207, 0, 1920, 2062] },
+    { id: 'example-hit', parent: 'example-parent', at: [1093, 240, 80, 80] },
     { id: 'surface-inspector', at: [1172, 442, 320, 480] },
   ];
   const layout = computeMinimapLayout(displays, canvases, 300);
@@ -314,24 +314,24 @@ test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
   assert.ok(cursor.x >= 0 && cursor.x <= layout.mapW);
   assert.ok(cursor.y >= 0 && cursor.y <= layout.mapH);
 
-  const avatarHit = layout.canvases.find((entry) => entry.canvas.id === 'sigil-hit');
-  assert.ok(avatarHit);
-  assert.ok(cursor.x >= avatarHit.x);
-  assert.ok(cursor.x <= avatarHit.x + avatarHit.w);
-  assert.ok(cursor.y >= avatarHit.y);
-  assert.ok(cursor.y <= avatarHit.y + avatarHit.h);
+  const exampleHit = layout.canvases.find((entry) => entry.canvas.id === 'example-hit');
+  assert.ok(exampleHit);
+  assert.ok(cursor.x >= exampleHit.x);
+  assert.ok(cursor.x <= exampleHit.x + exampleHit.w);
+  assert.ok(cursor.y >= exampleHit.y);
+  assert.ok(cursor.y <= exampleHit.y + exampleHit.h);
 });
 
 test('resolveCanvasFrames keeps daemon global child canvas rects intact', () => {
   const resolved = resolveCanvasFrames([
-    { id: 'avatar-main', at: [-96, -540, 3520, 2068] },
-    { id: 'sigil-hit', parent: 'avatar-main', at: [974, -286, 80, 80] },
+    { id: 'example-parent', at: [-96, -540, 3520, 2068] },
+    { id: 'example-hit', parent: 'example-parent', at: [974, -286, 80, 80] },
   ]);
   assert.deepEqual(
     resolved.map(({ id, atResolved }) => ({ id, atResolved })),
     [
-      { id: 'avatar-main', atResolved: [-96, -540, 3520, 2068] },
-      { id: 'sigil-hit', atResolved: [974, -286, 80, 80] },
+      { id: 'example-parent', atResolved: [-96, -540, 3520, 2068] },
+      { id: 'example-hit', atResolved: [974, -286, 80, 80] },
     ]
   );
 });
@@ -354,19 +354,19 @@ test('computeMinimapLayout aligns global native child canvas frames with Desktop
     },
   ];
   const layout = computeMinimapLayout(liveDisplays, [
-    { id: 'avatar-main', at: [-185, 0, 1920, 2062] },
-    { id: 'sigil-hit', parent: 'avatar-main', at: [895, 1460, 80, 80] },
+    { id: 'example-parent', at: [-185, 0, 1920, 2062] },
+    { id: 'example-hit', parent: 'example-parent', at: [895, 1460, 80, 80] },
   ], 300);
   assert.ok(layout);
 
   const avatarMark = projectPointToMinimap(layout, { x: 1120, y: 1500 });
-  const avatarHit = layout.canvases.find((entry) => entry.canvas.id === 'sigil-hit');
+  const exampleHit = layout.canvases.find((entry) => entry.canvas.id === 'example-hit');
   assert.ok(avatarMark);
-  assert.ok(avatarHit);
-  assert.ok(avatarMark.x >= avatarHit.x);
-  assert.ok(avatarMark.x <= avatarHit.x + avatarHit.w);
-  assert.ok(avatarMark.y >= avatarHit.y);
-  assert.ok(avatarMark.y <= avatarHit.y + avatarHit.h);
+  assert.ok(exampleHit);
+  assert.ok(avatarMark.x >= exampleHit.x);
+  assert.ok(avatarMark.x <= exampleHit.x + exampleHit.w);
+  assert.ok(avatarMark.y >= exampleHit.y);
+  assert.ok(avatarMark.y <= exampleHit.y + exampleHit.h);
 });
 
 test('Surface Inspector tree uses canonical DesktopWorld canvas frames', () => {
@@ -1224,10 +1224,10 @@ test('Surface Inspector scoped hit regions expose root and nested immediate chil
     },
   ];
   const canvases = [
-    { id: 'avatar-main', at: [0, 0, 1000, 800] },
+    { id: 'root', at: [0, 0, 1000, 800] },
     { id: 'aos-desktop-world-stage', parent: '__log__', at: [0, 0, 1000, 800] },
-    { id: 'window-a', parent: 'avatar-main', at: [20, 30, 400, 300] },
-    { id: 'window-b', parent: 'avatar-main', at: [450, 30, 400, 300] },
+    { id: 'window-a', parent: 'root', at: [20, 30, 400, 300] },
+    { id: 'window-b', parent: 'root', at: [450, 30, 400, 300] },
     { id: 'panel-a', parent: 'window-a', at: [40, 60, 160, 120] },
     { id: 'surface-inspector', at: [700, 400, 300, 300] },
     { id: 'surface-inspector-annotation-action-window-a-pin_frame', parent: 'surface-inspector', at: [360, 80, 32, 32] },
@@ -1518,9 +1518,6 @@ test('Surface Inspector semantic target refresh requests existing live canvases 
 
 test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry points', () => {
   const statusItem = readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8');
-  const sigilMain = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8');
-  const sigilStatusMenu = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/status-menu.js'), 'utf8');
-  const sigilStatusMenuRuntime = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/status-menu-runtime.js'), 'utf8');
   const daemonBundle = readFileSync(path.join(repoRoot, 'src/daemon/surface-inspector-bundle.swift'), 'utf8');
   const unified = readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8');
 
@@ -1528,10 +1525,6 @@ test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry poi
   assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Surface Inspector"/);
   assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Annotation Mode"/);
   assert.doesNotMatch(statusItem, /menuCanvasInspectorAnnotateMode/);
-  assert.match(sigilStatusMenu, /title: 'Surface Inspector'/);
-  assert.match(sigilStatusMenu, /title: 'Annotation Mode'/);
-  assert.match(sigilMain, /status_item\.menu_action/);
-  assert.match(sigilStatusMenuRuntime, /canvas_inspector\.annotation_toggle/);
   assert.doesNotMatch(unified, /canvasInspectorAnnotationModeHandler/);
   assert.match(daemonBundle, /maybeHandleCanvasInspectorAnnotationHotkey/);
   assert.match(daemonBundle, /hotkeyDataMatches\(data, combo: "ctrl\+opt\+a"\)/);

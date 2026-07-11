@@ -155,7 +155,6 @@ None at spec level. Plan-level open items:
 
 ## References
 
-- Scratchpad: `memory/scratchpad/sigil-studio-presentation-design.md` (source of the design intent)
 - Architecture: `ARCHITECTURE.md` §5 (Union Canvas Foundation — coordinate contract, invariants)
 - Umbrella issue: #50 (union canvas foundation)
 - Related issues: #49 (auto-resize on topology change), #48 (renderer reconciliation — out of scope)

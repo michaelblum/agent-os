@@ -13,7 +13,7 @@
     "y": 390
   },
   "coordinate_authority": "toolkit",
-  "region_id": "sigil-avatar",
+  "region_id": "example-avatar",
   "button": "left",
   "buttons": {
     "left": true,

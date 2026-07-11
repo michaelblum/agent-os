@@ -1,36 +1,64 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import default3d from '../../packages/toolkit/runtime/radial-menu/default-3d.json' with { type: 'json' }
-import sigilMenu from '../../apps/sigil/renderer/radial-menu/sigil-radial-menu.json' with { type: 'json' }
 import {
   resolveRadialMenuConfig,
   validateRadialMenuDefinition,
 } from '../../packages/toolkit/runtime/radial-menu-config.js'
+
+const exampleMenu = {
+  kind: 'aos.radial_menu_3d',
+  schema_version: '2026-05-16',
+  id: 'example.radial.main',
+  label: 'Example Radial Menu',
+  extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
+  defaults: {
+    three: {
+      item: {
+        hover: {
+          transform: { scale: { from: 1, to: 2 } },
+        },
+      },
+    },
+  },
+  items: [
+    {
+      id: 'inspect',
+      label: 'Inspect',
+      action: 'inspect',
+      geometry: { type: 'glyph', glyph: 'inspect', radiusScale: 1 },
+      three: { item: { hover: { transform: { rotate: { spin: { axis: 'z', rate: 1.25 } } } } } },
+    },
+    {
+      id: 'open',
+      label: 'Open',
+      action: 'open',
+      geometry: { type: 'glyph', glyph: 'open', radiusScale: 1.1 },
+    },
+  ],
+}
 
 test('radial menu resolver validates the default toolkit 3D menu contract', () => {
   const validation = validateRadialMenuDefinition(default3d)
   assert.equal(validation.ok, true)
 })
 
-test('radial menu resolver cascades toolkit defaults into Sigil override data', () => {
-  const resolved = resolveRadialMenuConfig(sigilMenu, {
+test('radial menu resolver cascades toolkit defaults into consumer override data', () => {
+  const resolved = resolveRadialMenuConfig(exampleMenu, {
     allowExtends: {
       'aos://toolkit/runtime/radial-menu/default-3d.json': default3d,
     },
   })
 
   assert.equal(resolved.kind, 'aos.radial_menu_3d')
-  assert.equal(resolved.id, 'sigil.radial.main')
-  assert.equal(resolved.items.length, 5)
-  assert.equal(resolved.logical_items.length, 5)
+  assert.equal(resolved.id, 'example.radial.main')
+  assert.equal(resolved.items.length, 2)
+  assert.equal(resolved.logical_items.length, 2)
   assert.deepEqual(
     resolved.logical_items.map((item) => [item.id, item.label, item.action]),
     [
-      ['avatar-controls', 'Avatar Controls', 'avatarControls'],
-      ['agent-terminal', 'Agent Terminal', 'agentTerminal'],
-      ['annotation-mode', 'Annotate', 'annotationMode'],
-      ['annotation-camera', 'Snapshot', 'annotationSnapshot'],
-      ['wiki-graph', 'Wiki Graph', 'wikiGraph'],
+      ['inspect', 'Inspect', 'inspect'],
+      ['open', 'Open', 'open'],
     ]
   )
 
@@ -40,15 +68,8 @@ test('radial menu resolver cascades toolkit defaults into Sigil override data', 
     assert.equal(item.logical.close_on_select, true)
   }
 
-  const context = resolved.items.find((item) => item.id === 'avatar-controls')
-  const reticle = resolved.items.find((item) => item.id === 'annotation-mode')
-  const wiki = resolved.items.find((item) => item.id === 'wiki-graph')
-
-  assert.deepEqual(context.three.item.hover.transform.rotate.spin, { axis: 'z', rate: 1.45 })
-  assert.deepEqual(reticle.three.item.hover.transform.rotate.spin, { axis: 'z', rate: 0.35 })
-  assert.equal(wiki.geometry.module_ref, 'sigil.radial.geometry.wiki-brain')
-  assert.equal(wiki.effects[0].ref, 'sigil.radial.effect.nested-neural-tree')
-  assert.equal(wiki.activationTransition.preset, 'wiki-brain-zoom-dissolve')
+  const inspect = resolved.items.find((item) => item.id === 'inspect')
+  assert.deepEqual(inspect.three.item.hover.transform.rotate.spin, { axis: 'z', rate: 1.25 })
 })
 
 test('radial menu resolver merges item overrides by id without replacing defaults wholesale', () => {
@@ -59,20 +80,20 @@ test('radial menu resolver merges item overrides by id without replacing default
     extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
     items: [
       {
-        id: 'avatar-controls',
-        label: 'Avatar Controls',
+        id: 'inspect',
+        label: 'Inspect',
         geometry: {
           radiusScale: 3,
         },
       },
     ],
   }, {
-    base: sigilMenu,
+    base: exampleMenu,
   })
-  const context = resolved.items.find((item) => item.id === 'avatar-controls')
-  assert.equal(context.action, 'avatarControls')
-  assert.equal(context.geometry.type, 'gltf')
-  assert.equal(context.geometry.radiusScale, 3)
+  const inspect = resolved.items.find((item) => item.id === 'inspect')
+  assert.equal(inspect.action, 'inspect')
+  assert.equal(inspect.geometry.type, 'glyph')
+  assert.equal(inspect.geometry.radiusScale, 3)
 })
 
 test('radial menu resolver cascades model, part, and effect defaults into items', () => {

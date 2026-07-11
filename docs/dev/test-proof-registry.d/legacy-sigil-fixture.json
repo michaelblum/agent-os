@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Bounded deterministic proof for the frozen embedded Sigil fixture.",
+  "entries": [
+    {
+      "id": "legacy-sigil-fixture-proof",
+      "path_patterns": [
+        "tests/legacy-sigil-fixture.test.mjs",
+        "tests/schemas/aos-app-v0.test.mjs",
+        "tests/schemas/aos-experience-v0.test.mjs"
+      ],
+      "fixture_patterns": [
+        "apps/sigil/**",
+        "tests/fixtures/legacy-sigil/aos-experience.fixture.json"
+      ],
+      "owner": "legacy-fixture",
+      "harness_level": "schema",
+      "proof_kind": "frozen_fixture_contract",
+      "contract": "The embedded Sigil snapshot remains digest-sealed, schema-valid, non-discoverable, absent from recipes and packaging, and owned by the external product repository.",
+      "worth": "This is the only AOS-owned proof for embedded Sigil bytes; it prevents accidental product authority or launch compatibility from returning without treating product behavior as AOS acceptance.",
+      "command": "node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs",
+      "replaces": [
+        "embedded Sigil renderer, status-item, real-input, and product behavior proofs"
+      ],
+      "guard": "static files and Node scripts only; no AOS binary, daemon, canvas, native input, or TCC",
+      "status": "active"
+    }
+  ]
+}

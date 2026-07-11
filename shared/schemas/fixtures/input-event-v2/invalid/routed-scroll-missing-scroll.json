@@ -14,7 +14,7 @@
     "y": 373
   },
   "coordinate_authority": "daemon",
-  "region_id": "sigil-avatar",
+  "region_id": "example-avatar",
   "source_event": "daemon:48",
   "source_origin": "daemon",
   "owner_canvas_id": "avatar-main",

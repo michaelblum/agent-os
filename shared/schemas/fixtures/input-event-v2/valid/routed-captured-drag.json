@@ -14,7 +14,7 @@
     "y": 390
   },
   "coordinate_authority": "toolkit",
-  "region_id": "sigil-avatar",
+  "region_id": "example-avatar",
   "capture_id": "cap-42",
   "button": "left",
   "buttons": {

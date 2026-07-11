@@ -25,7 +25,7 @@
       "target": {
         "target_id": "command:open",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "file-menu-canvas",
           "surface_id": "file-menu",
           "component_family": "menu",
@@ -41,7 +41,7 @@
       "target": {
         "target_id": "command:open",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "project-card-canvas",
           "surface_id": "project-card",
           "component_family": "card",

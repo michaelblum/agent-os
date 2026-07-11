@@ -73,16 +73,6 @@
       "source_type": "api_doc"
     },
     {
-      "source_path": "docs/design/aos-canon-surface-boundary-alignment-plan.md",
-      "slug": "repo-doc-surface-boundary-alignment",
-      "type": "repo_doc",
-      "name": "Surface Boundary Alignment Plan",
-      "description": "Design plan for aligning daemon, toolkit, and app ownership across AOS surface systems.",
-      "tags": ["repo-docs", "design", "surface-system", "daemon", "toolkit"],
-      "concepts": ["daemon", "toolkit", "DesktopWorld stage", "Sigil", "Surface Inspector"],
-      "source_type": "markdown"
-    },
-    {
       "source_path": "docs/design/aos-grand-unification-plan.md",
       "slug": "repo-doc-grand-unification-plan",
       "type": "repo_doc",
@@ -103,33 +93,13 @@
       "source_type": "markdown"
     },
     {
-      "source_path": "docs/design/aos-surface-stack-v0-integration-ledger.md",
-      "slug": "repo-doc-surface-stack-v0-integration-ledger",
-      "type": "repo_doc",
-      "name": "AOS Surface Stack V0 Integration Ledger",
-      "description": "Accepted surface-stack slice ledger, issue disposition, and current Sigil/toolkit boundary map.",
-      "tags": ["repo-docs", "design", "surface-system", "sigil", "toolkit"],
-      "concepts": ["Sigil", "toolkit", "Surface Inspector", "DesktopWorld stage"],
-      "source_type": "design_note"
-    },
-    {
-      "source_path": "docs/design/display-first-annotation-mode-and-sigil-reticle.md",
-      "slug": "repo-doc-display-first-annotation-mode",
-      "type": "repo_doc",
-      "name": "Display-First Annotation Mode",
-      "description": "Design note for display-first Annotation Mode, Sigil reticle entry, and annotation overlays.",
-      "tags": ["repo-docs", "design", "annotation", "sigil"],
-      "concepts": ["Annotation Mode", "Sigil", "Surface Inspector", "DesktopWorld stage"],
-      "source_type": "markdown"
-    },
-    {
       "source_path": "docs/design/aos-3d-object-graph-platform-contract.md",
       "slug": "repo-doc-3d-object-graph-platform-contract",
       "type": "repo_doc",
       "name": "3D Object Graph Platform Contract",
-      "description": "Platform contract for 3D object graph surfaces, Sigil interactions, and object-level affordances.",
-      "tags": ["repo-docs", "design", "object-graph", "sigil"],
-      "concepts": ["Sigil", "DesktopWorld stage", "toolkit", "Surface Inspector"],
+      "description": "Platform contract for renderer-neutral object graph surfaces and object-level affordances.",
+      "tags": ["repo-docs", "design", "object-graph", "toolkit"],
+      "concepts": ["DesktopWorld stage", "toolkit", "Surface Inspector"],
       "source_type": "markdown"
     },
     {

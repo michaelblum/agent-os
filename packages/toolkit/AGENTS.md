@@ -3,7 +3,13 @@
 # Toolkit Boundary
 
 `packages/toolkit/` is the reusable AOS surface layer between daemon primitives
-and apps. It is where the default opt-in AOS windowing system belongs.
+and external product consumers. It is where the default opt-in AOS windowing
+system belongs.
+
+The toolkit is a package boundary inside `agent-os`, not an independently
+versioned repository. It ships against the same reviewed AOS revision as the
+daemon, CLI, schemas, and command manifests. Consumers must use explicit public
+exports from that revision rather than copy toolkit source into product repos.
 
 Layer intent:
 
@@ -18,10 +24,11 @@ Layer intent:
 - `components/`: reusable content units and stock surfaces built from the lower
   layers.
 
-Toolkit policy must stay generic. If a behavior only makes sense for Sigil or a
-specific product, it belongs in `apps/`. If toolkit code needs native help for
-performance or correctness, add or request a daemon primitive instead of
-inventing private app canvases or pushing toolkit policy into Swift.
+Toolkit policy must stay generic. If a behavior only makes sense for a
+specific external product, it belongs in that product repository. If toolkit
+code needs native help for performance or correctness, add or request a daemon
+primitive instead of inventing private app canvases or pushing toolkit policy
+into Swift.
 
 The shared DesktopWorld stage is toolkit policy running on a daemon
 DesktopWorld canvas primitive. Prefer it for ordinary desktop-wide visuals such

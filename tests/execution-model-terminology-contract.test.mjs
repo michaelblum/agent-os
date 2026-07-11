@@ -254,7 +254,7 @@ test('grand unification plan qualifies screen and AX target-model vocabulary', a
   assert.doesNotMatch(plan, /`ax:<\.\.\.>`: future first-class macOS AX refs/);
 });
 
-test('design target examples keep screen and AX as bridge or model vocabulary', async () => {
+test('design target examples and subject audit preserve current boundaries', async () => {
   const piLessons = await text('docs/design/pi-computer-use-lessons-for-aos-see-do.md');
   const workRecords = await text('docs/design/aos-work-records-and-self-healing-recipes.md');
   const compatibilityAudit = await text('docs/design/aos-subject-model-compatibility-audit.md');
@@ -269,10 +269,9 @@ test('design target examples keep screen and AX as bridge or model vocabulary', 
     assert.doesNotMatch(doc, /^screen:<state-id>\/<x,y>$/m);
   }
 
-  assert.match(compatibilityAudit, /current coordinate fallback as raw `x,y` plus optional\s+`--state-id`/);
-  assert.match(compatibilityAudit, /`screen:<state-id>\/<x,y>` remains target-model\/replay shorthand,\s+not a current CLI target string/);
-  assert.match(compatibilityAudit, /screen coordinate bridge wording/);
-  assert.doesNotMatch(compatibilityAudit, /update docs to `screen:<state-id>\/<x,y>`/);
+  assert.match(compatibilityAudit, /Product-specific domain projections belong in the external product repository/);
+  assert.match(compatibilityAudit, /AOS toolkit owns only generic Subject, Facet, Host, reference, and workbench\s+builders/);
+  assert.doesNotMatch(compatibilityAudit, /apps\/sigil|sigil\.agent|sigil\.radial/i);
 });
 
 test('work record action evidence docs preserve selected action target vocabulary', async () => {

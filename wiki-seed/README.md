@@ -26,10 +26,8 @@ These are copied into the runtime wiki under the `aos/` namespace by the seed co
 
 ## Notes
 
-- App-owned wiki seeds may also live under app-specific paths such as `apps/sigil/seed/wiki/sigil/...`.
+- External products own their app-specific wiki seeds in their product repositories.
 - Domain-specific workflow material should live outside the seed tree unless it is part of a current platform-neutral example.
 - Seeded entity/concept pages should describe current source-of-truth surfaces.
-  Do not add first-class entity pages for parked legacy paths such as old Sigil
-  `workbench/` or `chat/`, or the retired avatar configuration surface, unless
-  a new product decision revives them. Mention those paths only as compatibility
-  notes under their owning current subject.
+  Do not add first-class entity pages for frozen embedded-product paths. Mention
+  them only as historical fixture context under their external owning subject.

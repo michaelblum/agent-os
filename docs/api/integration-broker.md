@@ -19,7 +19,7 @@ Current pilot shape:
 - Slack Socket Mode adapter as the first transport
 - provider-neutral workflow registry
 - persistent local job history
-- local HTTP snapshot API for toolkit/Sigil
+- local HTTP snapshot API for toolkit and external consumers
 
 The broker is intentionally transport-neutral at the contract layer. Slack is a
 runtime adapter, not the schema.
@@ -134,7 +134,7 @@ Current interactive behavior:
 
 The HTTP API is local-only and does not use wildcard CORS. Requests without an
 `Origin` header are accepted for local CLI/server clients. Browser requests must
-come from an AOS-owned surface origin such as `aos://toolkit` or `aos://sigil`,
+come from an AOS-owned surface origin such as `aos://toolkit`,
 or from the same loopback host and port as the broker. Other browser origins are
 rejected before route handling.
 
@@ -144,7 +144,7 @@ Basic readiness check.
 
 ### `GET /api/integrations/snapshot?limit=12`
 
-Returns the canonical snapshot for toolkit/Sigil.
+Returns the canonical snapshot for toolkit and external consumers.
 
 Schema:
 
@@ -232,13 +232,13 @@ Request body:
 ```json
 {
   "provider": "slack",
-  "requester": "sigil-workbench",
+  "requester": "example-workbench",
   "text": "status",
-  "channel": "sigil-workbench"
+  "channel": "example-workbench"
 }
 ```
 
-This endpoint exists so toolkit/Sigil can exercise the broker without a live
+This endpoint exists so toolkit and external consumers can exercise the broker without a live
 Slack session.
 
 ## Pilot Workflows

@@ -1,5 +1,8 @@
 # Architecture Deepening Audit Triage
 
+> Historical evidence only. This dated triage is not executable authority;
+> embedded Sigil routes, tests, and product plans are retired from AOS.
+
 Status: external/read-only audit input, not an accepted spec.
 
 Date recorded: 2026-05-07

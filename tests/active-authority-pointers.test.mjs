@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readdir, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +62,7 @@ async function activeAuthorityPaths() {
   return stdout
     .split(/\r?\n/)
     .filter(Boolean)
+    .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
     .filter((relativePath) => (
       relativePath === 'README.md'
       || relativePath === 'AGENTS.md'
@@ -76,6 +78,40 @@ async function activeAuthorityPaths() {
     ))
     .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
     .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
+    .sort();
+}
+
+async function embeddedProductAuthorityPaths() {
+  const { stdout } = await execFileAsync('git', ['ls-files'], { cwd: repoRoot });
+  return stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
+    .filter((relativePath) => (
+      ['.fallowrc.jsonc', 'AGENTS.md', 'ARCHITECTURE.md', 'CLAUDE.md', 'CONTEXT.md', 'CONTEXT-MAP.md', 'README.md'].includes(relativePath)
+      || relativePath.endsWith('/AGENTS.md')
+      || relativePath.endsWith('/CLAUDE.md')
+      || relativePath.endsWith('/README.md')
+      || relativePath.startsWith('docs/api/')
+      || relativePath.startsWith('docs/guides/')
+      || relativePath.startsWith('docs/design/')
+      || relativePath.startsWith('memory/scratchpad/')
+      || (relativePath.startsWith('shared/schemas/') && relativePath.endsWith('.md'))
+      || relativePath.startsWith('packages/gateway/src/')
+      || relativePath.startsWith('wiki-seed/')
+      || relativePath.startsWith('manifests/commands/source/')
+      || relativePath === 'manifests/commands/aos-commands.json'
+      || relativePath.startsWith('recipes/')
+      || relativePath === 'package.sh'
+      || relativePath === 'scripts/package-aos-runtime'
+    ))
+    .filter((relativePath) => !relativePath.startsWith('apps/sigil/'))
+    .filter((relativePath) => !relativePath.startsWith('docs/archive/'))
+    .filter((relativePath) => !relativePath.startsWith('docs/dev/reports/'))
+    .filter((relativePath) => !relativePath.startsWith('docs/design/fixtures/'))
+    .filter((relativePath) => !/^docs\/design\/2026-/.test(relativePath))
+    .filter((relativePath) => !/-report\.md$|-ledger-\d{4}-\d{2}-\d{2}\.md$/.test(relativePath))
+    .filter((relativePath) => relativePath !== 'docs/design/visual-object-doc-index.md')
     .sort();
 }
 
@@ -165,4 +201,55 @@ test('active authority contains no retired Foreman or GDI role vocabulary', asyn
     }
   }
   assert.deepEqual(violations, [], 'retired project-agent authority returned to an active source');
+});
+
+test('embedded Sigil cannot return as active AOS product authority', async () => {
+  const retiredPaths = [
+    'BROKE.md',
+    'apps/sigil/aos-app.json',
+    'experiences/sigil/aos-experience.json',
+    'packages/host/src/sigil-bridge.ts',
+    'packages/toolkit/workbench/sigil-subject.js',
+    'recipes/sigil',
+  ];
+  for (const relativePath of retiredPaths) {
+    assert.equal(existsSync(path.join(repoRoot, relativePath)), false, `${relativePath} must stay retired`);
+  }
+
+  const forbidden = [
+    /aos:\/\/sigil(?:\/|\b)/i,
+    /\baos\s+launch\s+sigil\b/i,
+    /\baos\s+experience\b[^\n]*\bsigil\b/i,
+    /\baos\s+recipe\b[^\n]*\bsigil\//i,
+    /\bsigil\/start(?:-agent-terminal)?\b/i,
+    /experiences\/sigil\/aos-experience\.json/i,
+    /packages\/host\/src\/sigil-bridge\.ts/i,
+    /packages\/toolkit\/workbench\/sigil-subject\.js/i,
+    /recipes\/sigil\//i,
+    /apps\/sigil\/(?:agent-terminal|avatar-controls|avatar-editor|chat|codex-terminal|diagnostics|radial-item-editor|radial-item-workbench|renderer|scripts|seed|tests|theme|workbench|world)\//i,
+    /\bSigil (?:renderer|avatar|radial|status item|workbench)\b/i,
+    /\bsigil\.(?:avatar|radial|agent)\b/i,
+  ];
+  const violations = [];
+  const authorityPaths = await embeddedProductAuthorityPaths();
+  assert.ok(authorityPaths.includes('docs/design/notes/pre-release-canonical-naming-policy-2026-05-23.md'));
+  assert.ok(authorityPaths.includes('memory/scratchpad/gateway-hardening-followups.md'));
+  for (const relativePath of authorityPaths) {
+    const content = await text(relativePath);
+    for (const pattern of forbidden) {
+      if (pattern.test(content)) violations.push(`${relativePath}: ${pattern}`);
+    }
+  }
+  assert.deepEqual(violations, [], 'embedded Sigil route returned to active docs, help, recipes, or packaging');
+
+  const fallow = await text('.fallowrc.jsonc');
+  assert.doesNotMatch(fallow, /apps\/sigil/i, 'frozen fixture must not be an active fallow entry or workspace');
+
+  const toolkitGuidance = `${await text('packages/toolkit/AGENTS.md')}\n${await text('packages/toolkit/CLAUDE.md')}`;
+  assert.match(toolkitGuidance, /external product consumers/i);
+  assert.doesNotMatch(toolkitGuidance, /apps\/ \(Layer 3\)|between daemon primitives and apps/i);
+
+  const nativeGuidance = `${await text('src/AGENTS.md')}\n${await text('src/daemon/AGENTS.md')}`;
+  assert.match(nativeGuidance, /owning external product repository/i);
+  assert.doesNotMatch(nativeGuidance, /Existing Sigil-specific input ownership logic|packages\/toolkit\/` or `apps\//i);
 });

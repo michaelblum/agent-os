@@ -30,7 +30,7 @@ const workflows: IntegrationWorkflowDescriptor[] = [
       {
         id: 'query',
         label: 'Search query',
-        placeholder: 'sigil',
+        placeholder: 'runtime modes',
         required: true,
       },
       {
@@ -44,7 +44,7 @@ const workflows: IntegrationWorkflowDescriptor[] = [
     command: {
       label: 'wiki',
       usage: 'wiki <query>',
-      examples: ['wiki sigil'],
+      examples: ['wiki runtime modes'],
     },
   },
   {
@@ -132,13 +132,13 @@ describe('slack-ui helpers', () => {
       channel: 'C123',
       thread: '123.456',
       userId: 'U123',
-    }, { query: 'sigil' }) as Record<string, any>;
+    }, { query: 'runtime modes' }) as Record<string, any>;
 
     assert.equal(view.callback_id, SLACK_VIEW_IDS.workflowInput);
     assert.match(view.private_metadata, /wiki-search/);
     assert.equal(view.blocks[0]?.block_id, slackFieldBlockId('query'));
     assert.equal(view.blocks[0]?.element?.action_id, slackFieldActionId('query'));
-    assert.equal(view.blocks[0]?.element?.initial_value, 'sigil');
+    assert.equal(view.blocks[0]?.element?.initial_value, 'runtime modes');
     assert.equal(view.blocks[1]?.element?.type, 'external_select');
     assert.equal(view.submit?.text, 'Search');
   });
@@ -320,7 +320,7 @@ describe('slack-ui helpers', () => {
   });
 
   it('reconstructs workflow commands from descriptor labels', () => {
-    assert.equal(workflowCommandText(workflows[0], 'sigil'), 'wiki sigil');
+    assert.equal(workflowCommandText(workflows[0], 'runtime modes'), 'wiki runtime modes');
     assert.equal(workflowCommandText(workflows[1]), 'status');
   });
 });

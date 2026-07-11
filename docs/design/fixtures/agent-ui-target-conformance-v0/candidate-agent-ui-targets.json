@@ -4,8 +4,8 @@
     {
       "shape": "toolkit_runtime_semantic_target",
       "agent_ui_target": {
-        "ref": "sigil-radial-menu:wiki-graph",
-        "surface": "sigil-radial-menu",
+        "ref": "example-radial-menu:wiki-graph",
+        "surface": "example-radial-menu",
         "role": "button",
         "name": "Wiki Graph",
         "kind": "semantic_target",
@@ -27,7 +27,7 @@
           "legacy_identity_keys": ["id", "ref"],
           "metadata": {},
           "frame": { "x": 10, "y": 21, "width": 55, "height": 45 },
-          "parent_canvas_id": "avatar-main"
+          "parent_canvas_id": "example-root"
         }
       }
     },
@@ -65,10 +65,10 @@
       }
     },
     {
-      "shape": "sigil_compact_surface_control",
+      "shape": "example_compact_surface_control",
       "agent_ui_target": {
-        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
-        "surface": "sigil.avatar.compact_control_surface",
+        "ref": "example.avatar.compact_control_surface:example-menu-opacity",
+        "surface": "example.avatar.compact_control_surface",
         "role": "slider",
         "name": "Face Opacity",
         "kind": "slider",
@@ -83,7 +83,7 @@
         },
         "actions": ["drag", "set-value"],
         "extension": {
-          "descriptor_id": "sigil-menu-opacity",
+          "descriptor_id": "example-menu-opacity",
           "field_id": "face.opacity",
           "options": [],
           "hidden": false,
@@ -92,7 +92,7 @@
           "source": { "path": null, "line_start": null, "line_end": null }
         },
         "provenance": {
-          "source_payload_id": "sigil-menu-opacity",
+          "source_payload_id": "example-menu-opacity",
           "metadata": {},
           "frame": { "x": 24, "y": 84, "width": 180, "height": 28 },
           "parent_canvas_id": ""
@@ -100,10 +100,10 @@
       }
     },
     {
-      "shape": "sigil_compact_surface_tab",
+      "shape": "example_compact_surface_tab",
       "agent_ui_target": {
-        "ref": "sigil.avatar.compact_control_surface:alpha",
-        "surface": "sigil.avatar.compact_control_surface",
+        "ref": "example.avatar.compact_control_surface:alpha",
+        "surface": "example.avatar.compact_control_surface",
         "role": "tab",
         "name": "Alpha",
         "kind": "tab",
@@ -150,12 +150,7 @@
         "actions": [],
         "extension": {
           "annotation_eligible": true,
-          "reveal_eligible": true,
-          "source": {
-            "path": "docs/design/agent-ui-affordance-synthesis-v0.md",
-            "line_start": 17,
-            "line_end": 22
-          }
+          "reveal_eligible": true
         },
         "provenance": {
           "selector": "[data-semantic-target-id=\"decision-17\"]",
@@ -166,8 +161,8 @@
     {
       "shape": "native_perceive_canvas_semantic_target",
       "agent_ui_target": {
-        "ref": "sigil-radial-item-wiki-graph",
-        "surface": "sigil-radial-menu",
+        "ref": "example-radial-item-wiki-graph",
+        "surface": "example-radial-menu",
         "role": "button",
         "name": "Wiki Graph",
         "kind": "semantic_target",
@@ -186,9 +181,9 @@
           "source": { "path": null, "line_start": null, "line_end": null }
         },
         "provenance": {
-          "canvas_id": "sigil-radial-menu",
-          "do_target": "canvas:sigil-radial-menu/sigil-radial-item-wiki-graph",
-          "parent_canvas_id": "avatar-main",
+          "canvas_id": "example-radial-menu",
+          "do_target": "canvas:example-radial-menu/example-radial-item-wiki-graph",
+          "parent_canvas_id": "example-root",
           "source_payload_id": "wiki-graph",
           "bounds": { "x": 40, "y": 24, "width": 56, "height": 56 },
           "frame": { "x": 40, "y": 24, "width": 56, "height": 56 },

@@ -64,10 +64,10 @@ Facets, to another Subject or Facet.
 
 ```json
 {
-  "id": "sigil-narrative-doc",
+  "id": "catalog-narrative-doc",
   "relationship": "narrative_source",
-  "handle": "wiki:Sigil",
-  "subject_id": "wiki:sigil/index.md",
+  "handle": "wiki:aos/concepts/service-catalog.md",
+  "subject_id": "wiki:aos/concepts/service-catalog.md",
   "subject_type": "wiki.entity",
   "facet_key": "wiki",
   "layer": "narrative",
@@ -98,7 +98,7 @@ A Facet is a concrete, addressable projection of one Layer of one Subject.
   "label": "Markdown",
   "source": {
     "kind": "wiki",
-    "path": "sigil/index.md"
+    "path": "aos/concepts/service-catalog.md"
   },
   "source_ref": null,
   "capabilities": ["inspectable", "editable"],
@@ -109,7 +109,7 @@ A Facet is a concrete, addressable projection of one Layer of one Subject.
       "target_dialect": "browser",
       "entry": {
         "kind": "route",
-        "value": "/wiki/sigil/index.md"
+        "value": "/wiki/aos/concepts/service-catalog.md"
       },
       "preferred": true
     },
@@ -149,7 +149,7 @@ Field notes:
   "target_dialect": "browser",
   "entry": {
     "kind": "route",
-    "value": "/subjects/sigil"
+    "value": "/subjects/service-catalog"
   },
   "preferred": true,
   "browser_compatible": true,
@@ -164,20 +164,20 @@ or runtime canvas ids.
 
 ## Example: Wiki Document Subject
 
-A wiki document stays a wiki-oriented Subject. It does not become `sigil.agent`
-because it documents Sigil.
+A wiki document stays a wiki-oriented Subject. It does not become a domain
+Subject merely because it documents that domain.
 
 ```json
 {
   "type": "aos.workbench.subject",
   "schema_version": "2026-05-next",
-  "id": "wiki:sigil/index.md",
+  "id": "wiki:aos/concepts/service-catalog.md",
   "subject_type": "wiki.entity",
-  "label": "Sigil",
+  "label": "Service Catalog",
   "owner": "wiki",
   "source": {
     "kind": "wiki",
-    "path": "sigil/index.md",
+    "path": "aos/concepts/service-catalog.md",
     "namespace": "aos"
   },
   "capabilities": ["inspectable", "editable"],
@@ -190,7 +190,7 @@ because it documents Sigil.
       "label": "Markdown",
       "source": {
         "kind": "wiki",
-        "path": "sigil/index.md"
+        "path": "aos/concepts/service-catalog.md"
       },
       "capabilities": ["inspectable", "editable"],
       "contracts": ["markdown_document.text.patch"],
@@ -200,7 +200,7 @@ because it documents Sigil.
           "target_dialect": "browser",
           "entry": {
             "kind": "route",
-            "value": "/wiki/sigil/index.md"
+            "value": "/wiki/aos/concepts/service-catalog.md"
           },
           "preferred": true
         },
@@ -225,7 +225,7 @@ because it documents Sigil.
           "target_dialect": "browser",
           "entry": {
             "kind": "route",
-            "value": "/wiki/sigil/index.md?facet=outline"
+            "value": "/wiki/aos/concepts/service-catalog.md?facet=outline"
           }
         }
       ]
@@ -234,7 +234,7 @@ because it documents Sigil.
 }
 ```
 
-## Example: Sigil Domain Subject
+## Example: Service Catalog Domain Subject
 
 The domain Subject has its own identity and references the wiki document as the
 source for its narrative Facet.
@@ -243,22 +243,22 @@ source for its narrative Facet.
 {
   "type": "aos.workbench.subject",
   "schema_version": "2026-05-next",
-  "id": "sigil:app",
-  "subject_type": "sigil.agent",
-  "label": "Sigil",
-  "owner": "sigil",
+  "id": "example:service-catalog",
+  "subject_type": "example.service_catalog",
+  "label": "Service Catalog",
+  "owner": "example",
   "source": {
     "kind": "repo",
-    "path": "apps/sigil"
+    "path": "examples/service-catalog"
   },
   "capabilities": ["inspectable", "editable", "exportable"],
-  "contracts": ["sigil.radial_menu.read", "sigil.radial_menu.patch"],
+  "contracts": ["service_catalog.menu.read", "service_catalog.menu.patch"],
   "subject_references": [
     {
-      "id": "sigil-narrative-doc",
+      "id": "catalog-narrative-doc",
       "relationship": "narrative_source",
-      "handle": "wiki:Sigil",
-      "subject_id": "wiki:sigil/index.md",
+      "handle": "wiki:aos/concepts/service-catalog.md",
+      "subject_id": "wiki:aos/concepts/service-catalog.md",
       "subject_type": "wiki.entity",
       "facet_key": "wiki",
       "layer": "narrative",
@@ -270,7 +270,7 @@ source for its narrative Facet.
       "key": "narrative",
       "layer": "narrative",
       "label": "Overview",
-      "source_ref": "sigil-narrative-doc",
+      "source_ref": "catalog-narrative-doc",
       "capabilities": ["inspectable"],
       "hosts": [
         {
@@ -278,7 +278,7 @@ source for its narrative Facet.
           "target_dialect": "browser",
           "entry": {
             "kind": "subject-reference",
-            "value": "sigil-narrative-doc"
+            "value": "catalog-narrative-doc"
           },
           "preferred": true
         }
@@ -287,19 +287,19 @@ source for its narrative Facet.
     {
       "key": "radial-menu-descriptor",
       "layer": "descriptor",
-      "label": "Radial Menu Descriptor",
+      "label": "Menu Descriptor",
       "source": {
         "kind": "repo",
-        "path": "apps/sigil/radial-menu.json"
+        "path": "examples/service-catalog/menu.json"
       },
-      "contracts": ["sigil.radial_menu.read"],
+      "contracts": ["service_catalog.menu.read"],
       "hosts": [
         {
           "kind": "browser",
           "target_dialect": "browser",
           "entry": {
             "kind": "route",
-            "value": "/subjects/sigil/radial-menu"
+            "value": "/subjects/service-catalog/menu"
           }
         }
       ]
@@ -307,16 +307,16 @@ source for its narrative Facet.
     {
       "key": "radial-menu-editor",
       "layer": "controls",
-      "label": "Radial Menu Editor",
+      "label": "Menu Editor",
       "capabilities": ["editable"],
-      "contracts": ["sigil.radial_menu.patch"],
+      "contracts": ["service_catalog.menu.patch"],
       "hosts": [
         {
           "kind": "browser",
           "target_dialect": "browser",
           "entry": {
             "kind": "route",
-            "value": "/subjects/sigil/radial-menu/edit"
+            "value": "/subjects/service-catalog/menu/edit"
           },
           "preferred": true
         },
@@ -325,7 +325,7 @@ source for its narrative Facet.
           "target_dialect": "canvas",
           "entry": {
             "kind": "aos-url",
-            "value": "aos://sigil/radial-menu-workbench"
+            "value": "aos://toolkit/components/subject-browser/index.html"
           }
         }
       ]

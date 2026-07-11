@@ -2,7 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/isolated-daemon.sh"
-source "$(dirname "$0")/lib/real-input-surface-harness.sh"
+source "$(dirname "$0")/lib/subject-family-cleanup.sh"
 
 PREFIX="aos-subject-family-cleanup"
 aos_test_cleanup_prefix "$PREFIX"
@@ -117,8 +117,8 @@ wait_for(
 )
 PY
 
-FIRST_REPORT="$(aos_real_input_surface_cleanup_subject_family subject-root)"
-SECOND_REPORT="$(aos_real_input_surface_cleanup_subject_family subject-root)"
+FIRST_REPORT="$(aos_cleanup_subject_family subject-root)"
+SECOND_REPORT="$(aos_cleanup_subject_family subject-root)"
 
 python3 - "$FIRST_REPORT" "$SECOND_REPORT" <<'PY'
 import json

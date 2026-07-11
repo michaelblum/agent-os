@@ -134,7 +134,6 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     ],
   );
   assert.ok(rules.get('visual-harness-primitives')?.patterns?.includes('tests/lib/visual-harness.sh'));
-  assert.ok(rules.get('visual-harness-primitives')?.patterns?.includes('tests/lib/sigil/visual-harness.sh'));
   assert.deepEqual(
     rules.get('command-surface-manifests')?.commands?.map((step) => step.command),
     [

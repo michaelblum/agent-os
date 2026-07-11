@@ -1,5 +1,10 @@
 # AOS Runtime Resource Accumulation Forensics V0 Report
 
+> Historical evidence only. This report is not executable authority. Embedded
+> Sigil routes and proofs are retired; current product authority is
+> `Ch-osctrl/sigil`, and current AOS contracts live in source, schemas, API
+> documentation, and active tests.
+
 ## Summary
 
 This slice added a repeatable read-only telemetry helper and captured a

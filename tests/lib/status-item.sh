@@ -175,49 +175,6 @@ PY
   "$aos_bin" do click "$center" >/dev/null
 }
 
-click_aos_status_item_real_low_latency_json() {
-  local pid="$1"
-  local bounds status_item_root helper
-
-  if [[ "${AOS_REAL_INPUT_OK:-}" != "1" ]]; then
-    echo "SKIP: this scenario uses real mouse/keyboard input. Re-run with AOS_REAL_INPUT_OK=1 when the keyboard and mouse are idle." >&2
-    return 77
-  fi
-
-  bounds="$(aos_status_item_bounds_json "$pid")" || return 1
-  status_item_root="${VISUAL_HARNESS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-  helper="$status_item_root/tests/lib/real_input_surface_primitives.py"
-  python3 - "$bounds" "$helper" <<'PY'
-import json
-import subprocess
-import sys
-import time
-
-bounds = json.loads(sys.argv[1])
-helper = sys.argv[2]
-center = bounds["center"]
-request_started_ns = time.time_ns()
-completed = subprocess.run(
-    [sys.executable, helper, "click-native-json"],
-    input=json.dumps({"point": {"x": round(center["x"]), "y": round(center["y"])}}),
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-    check=False,
-)
-request_completed_ns = time.time_ns()
-if completed.returncode != 0:
-    raise SystemExit(completed.stderr or completed.stdout or f"click-native-json exited {completed.returncode}")
-payload = json.loads(completed.stdout or "{}")
-payload["boundsLookupCompletedAtMs"] = request_started_ns / 1_000_000
-payload["helperProcessDurationMs"] = (request_completed_ns - request_started_ns) / 1_000_000
-payload["eventDeliveryOverheadMs"] = payload["helperProcessDurationMs"]
-payload["statusItemBounds"] = bounds
-payload["mode"] = "native-cgevent-helper"
-print(json.dumps(payload, sort_keys=True))
-PY
-}
-
 aos_global_status_item_diagnostic_matches_json() {
   local status_item_lib="${BASH_SOURCE[0]}"
 

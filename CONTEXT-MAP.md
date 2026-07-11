@@ -84,17 +84,18 @@ source root. This file is a routing map, not a replacement for those sources.
   Playbooks, verifier health, evidence, claims, postconditions, and artifact
   bundle workbenches.
 
-## Sigil App Behavior
+## External Sigil And Frozen Fixture
 
-- Source root: `apps/sigil/`.
-- Local contract: `apps/sigil/AGENTS.md`.
-- Compatibility pointer: `apps/sigil/CLAUDE.md`.
-- Live app docs discovered in-tree include `apps/sigil/context-menu/README.md`,
-  `apps/sigil/radial-item-editor/README.md`, and
-  `apps/sigil/tests/foundation-acceptance.md`.
-- Use this context for Sigil-owned product expression: avatar behavior, radial
-  menu semantics, agent docs, renderer modules, configuration surfaces, app
-  diagnostics, and Sigil-specific visual state.
+- Active product authority: [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil).
+- Sigil is the first-party reference consumer and may drive product-neutral AOS
+  primitives, toolkit policy, hosts, schemas, and public CLI contracts.
+- Repository and compatibility ownership:
+  `docs/adr/0021-sigil-reference-consumer-and-toolkit-repository-boundary.md`.
+- Frozen compatibility fixture: `apps/sigil/`.
+- Fixture contract: `apps/sigil/AGENTS.md`.
+- The embedded tree is not an app-development, launch, packaging, recipe, or
+  live-proof surface. Use it only through the bounded deterministic fixture
+  proof named by its contract.
 
 ## Gateway And Host Adapter Surfaces
 

@@ -280,7 +280,7 @@ function onboardingBlocks() {
         '',
         '*Common outcomes*',
         '- Launch a ready workflow',
-        '- Explore what Sigil / agent-os knows',
+        '- Explore the local agent-os knowledge index',
         '- Report a bug or request a feature',
       ].join('\n')),
     },

@@ -106,12 +106,12 @@ test('canvas with track:union nests directly under union even if contained in a 
       display('d1', { is_main: true }),
       display('d2', { x: 1920 }),
     ],
-    canvases: [canvas('avatar-main', [100, 100, 20, 20], { track: 'union' })],
+    canvases: [canvas('example-root', [100, 100, 20, 20], { track: 'union' })],
   });
   const main = tree.children.find(c => c.label === 'main');
   assert.equal(main.children.length, 0);
-  const unionChild = tree.children.find(c => c.type === 'canvas' && c.id === 'avatar-main');
-  assert.ok(unionChild, 'avatar-main should be a direct child of union');
+  const unionChild = tree.children.find(c => c.type === 'canvas' && c.id === 'example-root');
+  assert.ok(unionChild, 'example-root should be a direct child of union');
 });
 
 test('canvas spanning multiple displays nests under union', () => {
@@ -257,9 +257,9 @@ test('matches pivot example: multi-display with union-tracked canvas + its mark'
       canvas('surface-inspector', [100, 100, 400, 600]),
       canvas('other-main-canvas', [600, 100, 200, 200]),
       canvas('sidecar-canvas', [2000, 100, 300, 300]),
-      canvas('avatar-main', [0, 0, 20, 20], { track: 'union' }),
+      canvas('example-root', [0, 0, 20, 20], { track: 'union' }),
     ],
-    marksByCanvas: new Map([['avatar-main', { marks: [mark('avatar', 'Avatar')] }]]),
+    marksByCanvas: new Map([['example-root', { marks: [mark('avatar', 'Avatar')] }]]),
   });
 
   assert.equal(tree.type, 'union');
@@ -267,7 +267,7 @@ test('matches pivot example: multi-display with union-tracked canvas + its mark'
   assert.deepEqual(main.children.map(c => c.id), ['surface-inspector', 'other-main-canvas']);
   const ext = tree.children.find(c => c.label === 'extended [1]');
   assert.deepEqual(ext.children.map(c => c.id), ['sidecar-canvas']);
-  const avatar = tree.children.find(c => c.id === 'avatar-main');
+  const avatar = tree.children.find(c => c.id === 'example-root');
   assert.ok(avatar);
   assert.equal(avatar.children.length, 1);
   assert.equal(avatar.children[0].label, 'Avatar');

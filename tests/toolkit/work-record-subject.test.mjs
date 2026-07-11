@@ -68,7 +68,7 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
 test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
   const subject = createWorkRecordSubject(fixture('workflow-origin.json', v0FixtureRoot));
 
-  assert.equal(subject.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(subject.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(subject.subject_type, 'aos.work_record');
   assert.equal(subject.source.kind, 'work_record');
   assert.equal(subject.source.format, 'v0');
@@ -89,7 +89,7 @@ test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
   assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.verifier_report'));
   assert.ok(subjectCanonicalReferences(subject).some((reference) => (
     reference.id === 'subject-under-test'
-      && reference.handle === 'wiki:Sigil'
+      && reference.handle === 'wiki:Runtime Modes'
       && reference.relationship === 'input_to'
   )));
   assert.equal('views' in subject, false);

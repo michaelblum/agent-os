@@ -25,8 +25,6 @@ import {
   run as runPendingAnnotation,
 } from './lib/pending-annotation-fixtures.mjs';
 
-const sigilRoot = path.join(repoRoot, 'apps/sigil');
-
 test('experience status omits pending annotation store internals for non-annotation fixtures', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-no-annotation-'));
   const tempRepoRoot = path.join(tmp, 'repo-root');
@@ -108,37 +106,35 @@ test('experience status omits pending annotation store internals for non-annotat
   ].sort());
 });
 
-test('Sigil experience status reports supported pending annotations when runtime state is current', async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-sigil-annotation-'));
-  const expectedURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
+test('operator fixture status reports supported pending annotations when runtime state is current', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-operator-annotation-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'sigil',
+    active_experience: 'operator-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
     content: {
       roots: {
         toolkit: toolkitRoot,
-        sigil: sigilRoot,
       },
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
+      toggle_id: 'operator-fixture-surface',
       toggle_url: expectedURL,
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   });
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
 
-  const { payload } = await runContext(tmp, 'sigil', baseResponses(tmp, {
+  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
     contentRoots: {
       toolkit: toolkitRoot,
-      sigil: sigilRoot,
     },
     canvases: [{
-      id: 'avatar-main',
+      id: 'operator-fixture-surface',
       url: expectedURL,
       lifecycleState: 'active',
       suspended: false,
@@ -146,11 +142,11 @@ test('Sigil experience status reports supported pending annotations when runtime
   }));
 
   assert.equal(payload.status, 'ok');
-  assert.equal(payload.experience.id, 'sigil');
+  assert.equal(payload.experience.id, 'operator-fixture');
   assert.equal(payload.status_item.target.status, 'current');
   assert.equal(payload.status_item.mounted_surface.status, 'current');
   assert.equal(payload.status_item.menu_projection.status, 'current');
-  assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-this-thing']);
+  assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-visible-target']);
   assert.equal(payload.pending_annotations.supported, true);
   assert.equal(payload.pending_annotations.status, 'initialized');
   assert.equal(payload.pending_annotations.record_count, 0);
@@ -158,37 +154,35 @@ test('Sigil experience status reports supported pending annotations when runtime
   assert.equal(payload.capabilities.annotation.status, 'ready');
 });
 
-test('Sigil experience status fails closed on corrupt pending annotation state', async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-sigil-corrupt-'));
-  const expectedURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
+test('operator fixture status fails closed on corrupt pending annotation state', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-operator-corrupt-'));
+  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'sigil',
+    active_experience: 'operator-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
     content: {
       roots: {
         toolkit: toolkitRoot,
-        sigil: sigilRoot,
       },
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
+      toggle_id: 'operator-fixture-surface',
       toggle_url: expectedURL,
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   });
   await fs.writeFile(path.join(tmp, 'repo', 'pending-annotations'), 'not a directory\n', 'utf8');
 
-  const { payload } = await runContext(tmp, 'sigil', baseResponses(tmp, {
+  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
     contentRoots: {
       toolkit: toolkitRoot,
-      sigil: sigilRoot,
     },
     canvases: [{
-      id: 'avatar-main',
+      id: 'operator-fixture-surface',
       url: expectedURL,
       lifecycleState: 'active',
       suspended: false,

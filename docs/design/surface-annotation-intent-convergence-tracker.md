@@ -2,8 +2,8 @@
 
 Status: planning tracker only. Do not implement this foundation yet.
 GitHub tracker: https://github.com/michaelblum/agent-os/issues/294
-Display-first Annotation Mode direction:
-`docs/design/display-first-annotation-mode-and-sigil-reticle.md`
+Display-first Annotation Mode contract is owned by the neutral toolkit
+annotation-session and overlay APIs documented under `docs/api/toolkit/`.
 
 The Employer Brand pilot has exposed a missing platform layer: direct
 human-in-the-loop intent convergence on a live surface. The current evidence

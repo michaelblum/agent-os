@@ -60,12 +60,12 @@ The AOS version should reuse the underlying ideas while preserving AOS layering:
 - the AOS daemon already owns primitives such as canvases, content serving,
   IPC, pub/sub, capture, and input
 - `packages/toolkit/` should own reusable workbench components
-- apps such as Sigil should be consumers, not owners, of the generic pattern
+- external products should be consumers, not owners, of the generic pattern
 - workflows, reports, slide decks, and visual editors should be first-class
   subjects above the primitive layer
 
-Do not clone Open Design's product shape into Sigil. Learn from its daemon,
-skill, preview, artifact, and project-loop architecture.
+Do not clone Open Design's product shape into another product. Learn from its
+daemon, skill, preview, artifact, and project-loop architecture.
 
 ## Existing AOS Footholds
 
@@ -116,14 +116,12 @@ knowing their private renderer internals.
 Wiki pages are the next natural subject catalog. A wiki document is a Subject
 with a wiki-oriented `subject_type` such as `wiki.concept`, `wiki.entity`,
 `wiki.workflow`, or `wiki.reference`; the wiki path is the source identity of
-that Subject. A domain Subject such as `sigil.agent` may *reference* the wiki
-document as the source of its narrative-Layer Facet, but the domain Subject
-has its own stable identity and `subject_type` — the wiki document does not
-"become" `sigil.agent` when it is referenced. See `CONTEXT.md` (Subject
-Reference) and ADR-0007 for the full model. The live toolkit bridge keeps
-`createWikiPageSubject` wiki-oriented and uses `createSigilAgentSubject` when a
-consumer needs the separate `sigil.agent` domain descriptor. That helper writes
-top-level `subject_references[]`; the only remaining
+that Subject. A consumer-owned domain Subject may *reference* the wiki document
+as the source of its narrative-Layer Facet, but the domain Subject has its own
+stable identity and `subject_type`. See `CONTEXT.md` (Subject Reference) and
+ADR-0007 for the full model. The live toolkit bridge keeps
+`createWikiPageSubject` wiki-oriented; product adapters own separate domain
+descriptors and write top-level `subject_references[]`. The only remaining
 `metadata.subject_references[]` support is the explicit legacy reader adapter
 for archived descriptors.
 
@@ -398,15 +396,15 @@ Reusable workbench components belong in `packages/toolkit/`:
 - execution timeline
 - validation panel
 
-These components should be generic over subject contracts, not hardcoded to
-Sigil.
+These components should be generic over subject contracts, not hardcoded to a
+particular product.
 
 ### Level 3: App Consumers
 
 Apps compose toolkit pieces into product experiences:
 
-- Sigil 3D radial menu item editor
-- Sigil avatar composition editor
+- 3D menu item editor
+- visual composition editor
 - agent terminal/session workbench
 - report builder
 - slide deck builder
@@ -419,7 +417,7 @@ Apps own product decisions, naming, layout, and domain-specific persistence.
 
 ### 3D Radial Menu Item Editor
 
-Use current Sigil radial item work as the first proof.
+Use a neutral 3D radial-item fixture as the first proof.
 
 Minimum slice:
 
@@ -478,7 +476,7 @@ This proves composability and sub-workflow references.
 ## Non-Goals
 
 - Do not create a universal `ItemEditor` class hierarchy.
-- Do not make Sigil the owner of generic workbench primitives.
+- Do not make any product the owner of generic workbench primitives.
 - Do not invent a broad AOS data bus before specific contracts demand it.
 - Do not build a full workflow orchestrator from this note alone.
 - Do not copy Open Design wholesale into agent-os.

@@ -10,14 +10,14 @@ import {
 
 test('normalizeRenderSample accepts common frame timing aliases', () => {
   const sample = normalizeRenderSample({
-    source: 'sigil',
+    source: 'example',
     deltaMs: 20,
     renderMs: 8,
     calls: 42,
     memory: { usedJSHeapSize: 1024 },
   }, { now: 1000 });
 
-  assert.equal(sample.source, 'sigil');
+  assert.equal(sample.source, 'example');
   assert.equal(sample.frameMs, 20);
   assert.equal(sample.fps, 50);
   assert.equal(sample.renderMs, 8);
