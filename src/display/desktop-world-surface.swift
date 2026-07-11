@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import WebKit
 
-protocol CanvasLike: AnyObject {
+protocol CanvasLike: CanvasNativeRetirable {
     var id: String { get }
     var isInteractive: Bool { get set }
     var anchorWindowID: CGWindowID? { get set }
@@ -16,6 +16,7 @@ protocol CanvasLike: AnyObject {
     var focusOnReady: Bool { get set }
     var suspended: Bool { get set }
     var lifecycleState: String { get set }
+    var lifecycleGeneration: UInt64 { get set }
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
     var owner: CanvasOwnerInfo? { get set }
@@ -33,7 +34,8 @@ protocol CanvasLike: AnyObject {
     func loadURL(_ urlString: String)
     func show()
     func grabFocus()
-    func close()
+    func quiesceForRetirement()
+    func finalizeRetirement()
     func updatePosition(cgRect: CGRect)
     func finalizeDragPosition()
     func toInfo() -> CanvasInfo
@@ -43,6 +45,10 @@ protocol CanvasLike: AnyObject {
     func setInputPassthrough(_ enabled: Bool)
     func orderFront()
     func orderOut()
+}
+
+extension CanvasLike {
+    var nativeRetirementID: String { id }
 }
 
 struct DesktopWorldSurfaceSegment: Codable, Equatable {
@@ -110,7 +116,7 @@ func orderSegments(_ unordered: [DesktopWorldSurfaceSegment]) -> [DesktopWorldSu
 }
 
 final class DesktopWorldSurfaceCanvas: CanvasLike {
-    final class Segment {
+    final class Segment: CanvasNativeRetirable {
         let displayID: UInt32
         var index: Int
         var nativeBounds: CGRect
@@ -118,9 +124,13 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let window: CanvasWindow
         let webView: WKWebView
         let messageHandler: CanvasMessageHandler
+        let nativeRetirementID: String
+        private var retirementQuiesced = false
+        private var retirementFinalized = false
 
         init(displayID: UInt32, index: Int, nativeBounds: CGRect, dwBounds: CGRect,
-             window: CanvasWindow, webView: WKWebView, messageHandler: CanvasMessageHandler) {
+             window: CanvasWindow, webView: WKWebView, messageHandler: CanvasMessageHandler,
+             nativeRetirementID: String) {
             self.displayID = displayID
             self.index = index
             self.nativeBounds = nativeBounds
@@ -128,6 +138,31 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             self.window = window
             self.webView = webView
             self.messageHandler = messageHandler
+            self.nativeRetirementID = nativeRetirementID
+        }
+
+        func quiesceForRetirement() {
+            precondition(Thread.isMainThread, "segment quiesce must run on the main thread")
+            guard !retirementQuiesced else { return }
+            retirementQuiesced = true
+            messageHandler.onMessage = nil
+            window.ignoresMouseEvents = true
+            window.isInteractiveCanvas = false
+            window.orderOut(nil)
+            webView.stopLoading()
+        }
+
+        func finalizeRetirement() {
+            precondition(Thread.isMainThread, "segment finalization must run on the main thread")
+            guard !retirementFinalized else { return }
+            retirementFinalized = true
+            quiesceForRetirement()
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+            webView.navigationDelegate = nil
+            webView.uiDelegate = nil
+            webView.removeFromSuperview()
+            window.contentView = nil
+            window.close()
         }
     }
 
@@ -158,6 +193,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var focusOnReady: Bool = false
     var suspended: Bool = false
     var lifecycleState: String = "active"
+    var lifecycleGeneration: UInt64 = 0
     var cascadeFromParent: Bool = true
     var parent: String? = nil
     var owner: CanvasOwnerInfo? = nil
@@ -174,19 +210,29 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var ttlTimer: DispatchSourceTimer?
     private var ttlDeadline: Date?
     private let aosSchemeHandler: WKURLSchemeHandler?
+    private let lifecycleCoordinator: CanvasLifecycleCoordinator
     private var htmlContent: String?
     private var urlString: String?
     var sourceURL: String? { urlString }
     private var hasShown = false
     private var inputPassthrough = false
+    private var retirementQuiesced = false
+    private var retirementFinalized = false
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
 
-    init(id: String, interactive: Bool, windowLevel: String? = nil, aosSchemeHandler: WKURLSchemeHandler? = nil) {
+    init(
+        id: String,
+        interactive: Bool,
+        windowLevel: String? = nil,
+        aosSchemeHandler: WKURLSchemeHandler? = nil,
+        lifecycleCoordinator: CanvasLifecycleCoordinator
+    ) {
         self.id = id
         self.isInteractive = interactive
         self.windowLevel = normalizeCanvasWindowLevel(windowLevel)
         self.aosSchemeHandler = aosSchemeHandler
+        self.lifecycleCoordinator = lifecycleCoordinator
         _ = rebuildSegments()
     }
 
@@ -275,20 +321,31 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         first.window.makeKeyAndOrderFront(nil)
     }
 
-    func close() {
+    func quiesceForRetirement() {
+        precondition(Thread.isMainThread, "canvas quiesce must run on the main thread")
+        guard !retirementQuiesced else { return }
+        retirementQuiesced = true
         onMessage = nil
         onTTLExpired = nil
         ttlTimer?.cancel()
         ttlTimer = nil
         for segment in segments {
-            segment.messageHandler.onMessage = nil
-            segment.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
-            segment.window.orderOut(nil)
-            segment.window.close()
+            segment.quiesceForRetirement()
+        }
+        hasShown = false
+    }
+
+    func finalizeRetirement() {
+        precondition(Thread.isMainThread, "canvas finalization must run on the main thread")
+        guard !retirementFinalized else { return }
+        retirementFinalized = true
+        quiesceForRetirement()
+        for segment in segments {
+            segment.finalizeRetirement()
         }
         segments = []
         lastDelta = nil
-        hasShown = false
+        ttlDeadline = nil
     }
 
     func updatePosition(cgRect: CGRect) {
@@ -433,9 +490,13 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
         for orphan in byDisplay.values {
             removed.append(segmentMetadata(orphan))
-            orphan.webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
-            orphan.window.orderOut(nil)
-            orphan.window.close()
+            lifecycleCoordinator.retireNativeResource(
+                orphan,
+                ownerGeneration: CanvasLifecycleGeneration(
+                    canvasID: id,
+                    value: lifecycleGeneration
+                )
+            )
         }
 
         segments = nextSegments
@@ -456,6 +517,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             defer: false
         )
         window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
@@ -500,7 +563,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             dwBounds: dwRect,
             window: window,
             webView: webView,
-            messageHandler: messageHandler
+            messageHandler: messageHandler,
+            nativeRetirementID: "\(id):segment:\(meta.displayID):\(UUID().uuidString)"
         )
         loadCurrentContent(into: webView)
         return segment

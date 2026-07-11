@@ -136,10 +136,12 @@ The build gate is content-based for Swift runtime inputs. Touching a Swift file
 without changing its content, or editing build tooling alone, should not replace
 the TCC-owning `./aos` binary. Passing `--force`, changing Swift runtime input
 content, changing build mode, or missing output can still rebuild it. A real
-rebuild emits `Rebuilt: ./aos` without playing the TCC alert.
+rebuild emits `Rebuilt: ./aos` and a bounded-readiness reminder; it does not
+prove that TCC is stale.
 
-After a real rebuild, continue with non-TCC checks as needed. The stop point is
-the first live readiness check that reports `post_rebuild_tcc_stale`: it plays
+After a real rebuild, run `./aos ready --post-permission` before TCC-backed
+proof. The stop point is a readiness result that reports
+`post_rebuild_tcc_stale`: it plays
 the three-chime handoff alert, returns a terminal handoff, and agents must end
 the turn. After the user manually resets/regrants TCC and replies `finished`,
 verify with `./aos ready --post-permission`.

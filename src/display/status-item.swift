@@ -266,7 +266,7 @@ class StatusItemManager {
 
     private func sendToggleIntent(targetState: String, origin: CGPoint, modifiers: [String]) {
         log("posting persistent \(targetState) intent target=\(toggleId) origin=\(Int(origin.x)),\(Int(origin.y)) modifiers=\(modifiers.joined(separator: ","))")
-        canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: toggleId, payload: [
             "type": "status_item.toggle",
             "target_state": targetState,
             "source": "status_item",
@@ -314,7 +314,7 @@ class StatusItemManager {
     private func sendMenuAction(itemID: String) {
         let origin = statusItemCGPosition()
         let modifiers = modifierNames(from: NSApp.currentEvent?.modifierFlags ?? [])
-        canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: toggleId, payload: [
             "type": "status_item.menu_action",
             "id": itemID,
             "action_id": itemID,
@@ -521,9 +521,10 @@ class StatusItemManager {
         if toggleTrack != nil {
             // Tracked canvas: wait on the renderer's real exit-complete ACK
             // instead of guessing with a fixed sleep.
+            guard let target = canvasManager.deliveryTarget(forCanvasID: toggleId) else { return }
             isAnimating = true
             _ = canvasManager.awaitLifecycleCompletion(
-                canvasIDs: Set([toggleId]),
+                for: Set([target]),
                 action: "exit",
                 timeout: lifecycleTimeout
             ) { [weak self] completed in
@@ -543,7 +544,7 @@ class StatusItemManager {
                 self.updateIcon()
             }
 
-            canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+            canvasManager.postMessageAsync(to: target, payload: [
                 "type": "lifecycle",
                 "action": "exit",
                 "origin_x": Int(iconPos.x),
@@ -573,8 +574,13 @@ class StatusItemManager {
             let iconPos = statusItemCGPosition()
             waitUntilCanvasVisible(timeout: visibilityTimeout) { [weak self] in
                 guard let self = self else { return }
+                guard let target = self.canvasManager.deliveryTarget(forCanvasID: self.toggleId) else {
+                    self.isAnimating = false
+                    self.updateIcon()
+                    return
+                }
                 _ = self.canvasManager.awaitLifecycleCompletion(
-                    canvasIDs: Set([self.toggleId]),
+                    for: Set([target]),
                     action: "enter",
                     timeout: self.lifecycleTimeout
                 ) { [weak self] completed in
@@ -584,7 +590,7 @@ class StatusItemManager {
                     self?.isAnimating = false
                     self?.updateIcon()
                 }
-                self.canvasManager.postMessageAsync(canvasID: self.toggleId, payload: [
+                self.canvasManager.postMessageAsync(to: target, payload: [
                     "type": "lifecycle",
                     "action": "enter",
                     "origin_x": Int(iconPos.x),

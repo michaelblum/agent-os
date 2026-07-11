@@ -283,7 +283,8 @@ func printCanvasRefClickResult(
     target: CanvasRefClickTargetInfo,
     detail: String?,
     dryRun: Bool,
-    stateID: String?
+    stateID: String?,
+    terminalEventReceipt: String? = nil
 ) {
     struct Payload: Encodable {
         let status: String
@@ -294,18 +295,20 @@ func printCanvasRefClickResult(
         let execution: ActionExecutionMetadata
     }
 
+    var execution = ActionExecutionMetadata(
+        strategy: dryRun ? "dry_run_canvas_ref_click" : "cgevent_canvas_ref_click",
+        backend: "cgevent",
+        fallback_used: false,
+        state_id: stateID
+    )
+    execution.terminal_event_receipt = terminalEventReceipt
     let payload = Payload(
         status: dryRun ? "dry_run" : "success",
         action: "click",
         backend: "cgevent",
         target: target,
         detail: detail,
-        execution: ActionExecutionMetadata(
-            strategy: dryRun ? "dry_run_canvas_ref_click" : "cgevent_canvas_ref_click",
-            backend: "cgevent",
-            fallback_used: false,
-            state_id: stateID
-        )
+        execution: execution
     )
     writeJSONLine(payload)
 }

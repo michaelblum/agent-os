@@ -296,6 +296,7 @@ class Canvas {
     }
     var suspended: Bool = false
     var lifecycleState: String = "active"
+    var lifecycleGeneration: UInt64 = 0
     var cascadeFromParent: Bool = true
     var parent: String?
     var owner: CanvasOwnerInfo?
@@ -303,6 +304,8 @@ class Canvas {
     var placement: [String: JSONValue]?
     var logicalSurfaceKey: String?
     private var inputPassthrough = false
+    private var retirementQuiesced = false
+    private var retirementFinalized = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
     /// `frame + externalScreen.frame.origin` for specific ratios, while
@@ -333,14 +336,18 @@ class Canvas {
 
     private func schedulePlacementRetry(for cgRect: CGRect) {
         pendingCGFrame = cgRect
+        let generation = lifecycleGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self, let pending = self.pendingCGFrame else { return }
+            guard let self,
+                  self.acceptsLifecycleCallback(generation: generation),
+                  let pending = self.pendingCGFrame else { return }
             self.pendingCGFrame = nil
             let retry = canvasScreenFrame(pending)
             self.applyScreenFrame(retry, allowMixedDPIFallback: true)
             // Double-tap: some display transitions need two attempts.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.applyScreenFrame(retry, allowMixedDPIFallback: true)
+                guard let self, self.acceptsLifecycleCallback(generation: generation) else { return }
+                self.applyScreenFrame(retry, allowMixedDPIFallback: true)
             }
         }
     }
@@ -398,6 +405,8 @@ class Canvas {
             defer: false
         )
         window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: interactive)
@@ -461,8 +470,10 @@ window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.
             window.orderFront(nil)
         }
         let target = desiredCGFrame
+        let generation = lifecycleGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.updatePosition(cgRect: target)
+            guard let self, self.acceptsLifecycleCallback(generation: generation) else { return }
+            self.updatePosition(cgRect: target)
         }
     }
 
@@ -476,14 +487,39 @@ window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.
         window.makeKeyAndOrderFront(nil)
     }
 
-    func close() {
+    func quiesceForRetirement() {
+        precondition(Thread.isMainThread, "canvas quiesce must run on the main thread")
+        guard !retirementQuiesced else { return }
+        retirementQuiesced = true
         onMessage = nil
         onTTLExpired = nil
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
         ttlTimer?.cancel()
         ttlTimer = nil
+        pendingCGFrame = nil
+        window.ignoresMouseEvents = true
+        (window as? CanvasWindow)?.isInteractiveCanvas = false
         window.orderOut(nil)
+        webView.stopLoading()
+    }
+
+    func finalizeRetirement() {
+        precondition(Thread.isMainThread, "canvas finalization must run on the main thread")
+        guard !retirementFinalized else { return }
+        retirementFinalized = true
+        quiesceForRetirement()
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        webView.removeFromSuperview()
+        window.contentView = nil
         window.close()
+        ttlDeadline = nil
+    }
+
+    private func acceptsLifecycleCallback(generation: UInt64) -> Bool {
+        generation == lifecycleGeneration &&
+            lifecycleState != "retiring" &&
+            lifecycleState != "removed"
     }
 
     private var pendingCGFrame: CGRect?
@@ -565,10 +601,12 @@ extension Canvas: CanvasLike {
 
 class CanvasManager {
     private var canvases: [String: CanvasLike] = [:]
+    private let lifecycleCoordinator = CanvasLifecycleCoordinator()
+    private let lifecycleCompletions = CanvasLifecycleCompletionTracker()
     private var anchorTimer: DispatchSourceTimer?
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
-    var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
+    var onEvent: ((CanvasLifecycleGeneration, Any) -> Void)?
     var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
@@ -587,6 +625,72 @@ class CanvasManager {
     func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
     var inputPassthroughActive: Bool { inputPassthroughOverride }
 
+    private func lease(for canvas: CanvasLike) -> CanvasLifecycleGeneration {
+        CanvasLifecycleGeneration(canvasID: canvas.id, value: canvas.lifecycleGeneration)
+    }
+
+    func deliveryTarget(forCanvasID id: String) -> CanvasLifecycleGeneration? {
+        precondition(Thread.isMainThread, "canvas delivery target capture must run on the main thread")
+        guard let canvas = canvases[id] else { return nil }
+        return lease(for: canvas)
+    }
+
+    @discardableResult
+    func awaitLifecycleCompletion(
+        for generations: Set<CanvasLifecycleGeneration>,
+        action: String,
+        timeout: TimeInterval? = nil,
+        completion: @escaping (Bool) -> Void
+    ) -> UUID? {
+        lifecycleCompletions.await(
+            generations: generations,
+            action: action,
+            timeout: timeout,
+            completion: completion
+        )
+    }
+
+    private func currentCanvas(for generation: CanvasLifecycleGeneration) -> CanvasLike? {
+        precondition(Thread.isMainThread, "canvas lookup must run on the main thread")
+        guard let canvas = canvases[generation.canvasID],
+              lifecycleCoordinator.matches(canvas, generation: generation) else {
+            return nil
+        }
+        return canvas
+    }
+
+    private func enqueue(
+        for generation: CanvasLifecycleGeneration,
+        _ operation: @escaping (CanvasManager, CanvasLike) -> Void
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let canvas = self.currentCanvas(for: generation) else { return }
+            operation(self, canvas)
+        }
+    }
+
+    @discardableResult
+    private func retireCanvas(
+        id: String,
+        emitLifecycle: Bool = true,
+        notifyCountChanged: Bool = true
+    ) -> CanvasInfo? {
+        precondition(Thread.isMainThread, "canvas retirement must run on the main thread")
+        guard let canvas = canvases.removeValue(forKey: id) else { return nil }
+
+        activeGeometryTransactions.removeValue(forKey: id)
+        let generation = lease(for: canvas)
+        canvas.lifecycleState = "retiring"
+        canvas.lifecycleState = "removed"
+        let removedInfo = canvas.toInfo()
+        lifecycleCoordinator.retainUntilNextRunLoop(canvas, generation: generation)
+        lifecycleCompletions.abandon(generation)
+        if !hasAnchoredCanvases { stopAnchorPolling() }
+        if notifyCountChanged { onCanvasCountChanged?() }
+        if emitLifecycle { onCanvasLifecycle?(removedInfo, "removed") }
+        return removedInfo
+    }
+
     func setInputPassthrough(_ enabled: Bool) {
         inputPassthroughOverride = enabled
         for canvas in canvases.values {
@@ -602,6 +706,7 @@ class CanvasManager {
         var interactiveActiveCount = 0
         var fullDesktopActiveCount = 0
         var desktopWorldSegmentCount = 0
+        var registeredWindowNumbers = Set<Int>()
 
         for canvas in canvases.values {
             let info = canvas.toInfo()
@@ -622,9 +727,16 @@ class CanvasManager {
             }
             let windowCount = info.windowNumbers?.count ?? 0
             nativeWindowCount += windowCount
+            registeredWindowNumbers.formUnion(info.windowNumbers ?? [])
             let level = info.windowLevel ?? "default"
             windowLevels[level, default: 0] += windowCount
         }
+
+        let unregisteredCanvasWindows = NSApp.windows
+            .compactMap { $0 as? CanvasWindow }
+            .filter { !registeredWindowNumbers.contains($0.windowNumber) }
+            .map(\.windowNumber)
+            .sorted()
 
         return [
             "total": canvases.count,
@@ -635,7 +747,11 @@ class CanvasManager {
             "interactive_active": interactiveActiveCount,
             "full_desktop_active": fullDesktopActiveCount,
             "desktop_world_segments": desktopWorldSegmentCount,
-            "pending_lifecycle_waiters": lifecycleWaiters.count,
+            "pending_lifecycle_waiters": lifecycleCompletions.pendingCount,
+            "pending_retirements": lifecycleCoordinator.pendingFinalizationCount,
+            "pending_retirement_ids": lifecycleCoordinator.pendingFinalizationIDs,
+            "unregistered_canvas_window_count": unregisteredCanvasWindows.count,
+            "unregistered_canvas_window_numbers": unregisteredCanvasWindows,
         ]
     }
 
@@ -1403,75 +1519,6 @@ class CanvasManager {
         return nil
     }
 
-    private final class LifecycleWaiter {
-        let id = UUID()
-        let action: String
-        var pendingCanvasIDs: Set<String>
-        let completion: (Bool) -> Void
-        var timeoutWorkItem: DispatchWorkItem?
-
-        init(action: String, pendingCanvasIDs: Set<String>, completion: @escaping (Bool) -> Void) {
-            self.action = action
-            self.pendingCanvasIDs = pendingCanvasIDs
-            self.completion = completion
-        }
-    }
-
-    /// Lifecycle-complete waiters keyed by action. Renderers ACK transitions
-    /// with `lifecycle.complete`, letting daemon-side flows wait on real
-    /// transition completion instead of fixed sleeps.
-    private var lifecycleWaiters: [UUID: LifecycleWaiter] = [:]
-
-    @discardableResult
-    func awaitLifecycleCompletion(
-        canvasIDs: Set<String>,
-        action: String,
-        timeout: TimeInterval? = nil,
-        completion: @escaping (Bool) -> Void
-    ) -> UUID? {
-        guard !canvasIDs.isEmpty else {
-            completion(true)
-            return nil
-        }
-
-        let waiter = LifecycleWaiter(action: action, pendingCanvasIDs: canvasIDs, completion: completion)
-        lifecycleWaiters[waiter.id] = waiter
-
-        if let timeout, timeout.isFinite {
-            let workItem = DispatchWorkItem { [weak self] in
-                guard let self,
-                      let pending = self.lifecycleWaiters.removeValue(forKey: waiter.id) else { return }
-                pending.timeoutWorkItem = nil
-                pending.completion(false)
-            }
-            waiter.timeoutWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
-        }
-
-        return waiter.id
-    }
-
-    private func completeLifecycleWaiter(_ waiterID: UUID, success: Bool) {
-        guard let waiter = lifecycleWaiters.removeValue(forKey: waiterID) else { return }
-        waiter.timeoutWorkItem?.cancel()
-        waiter.timeoutWorkItem = nil
-        waiter.completion(success)
-    }
-
-    private func abandonLifecycleCompletions(forCanvasID canvasID: String) {
-        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
-            waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
-        }
-
-        for waiterID in waiterIDs {
-            guard let waiter = lifecycleWaiters[waiterID] else { continue }
-            waiter.pendingCanvasIDs.remove(canvasID)
-            if waiter.pendingCanvasIDs.isEmpty {
-                completeLifecycleWaiter(waiterID, success: false)
-            }
-        }
-    }
-
     /// Re-resolve bounds for every canvas with a tracking target and apply
     /// the new bounds. Called from the daemon's coalesced display_geometry
     /// handler on topology change. Failures on individual canvases are logged
@@ -1516,13 +1563,7 @@ class CanvasManager {
     }
 
     func removeByTTL(_ id: String) {
-        guard let canvas = canvases.removeValue(forKey: id) else { return }
-        let info = canvas.toInfo()
-        canvas.close()
-        abandonLifecycleCompletions(forCanvasID: id)
-        if !hasAnchoredCanvases { stopAnchorPolling() }
-        onCanvasLifecycle?(info, "removed")
-        onCanvasCountChanged?()
+        _ = retireCanvas(id: id)
     }
 
     /// Remove all connection-scoped canvases owned by the given connection.
@@ -1531,12 +1572,7 @@ class CanvasManager {
             .filter { $0.connectionID == connectionID && $0.scope == "connection" }
             .map { $0.id }
         for id in toRemove {
-            if let canvas = canvases.removeValue(forKey: id) {
-                let info = canvas.toInfo()
-                canvas.close()
-                abandonLifecycleCompletions(forCanvasID: id)
-                onCanvasLifecycle?(info, "removed")
-            }
+            _ = retireCanvas(id: id, notifyCountChanged: false)
         }
         if !toRemove.isEmpty {
             if !hasAnchoredCanvases { stopAnchorPolling() }
@@ -1545,20 +1581,24 @@ class CanvasManager {
     }
 
     func handle(_ request: CanvasRequest, connectionID: UUID = UUID()) -> CanvasResponse {
-        switch request.action {
-        case "create":  return handleCreate(request, connectionID: connectionID)
-        case "update":  return handleUpdate(request)
-        case "remove":  return handleRemove(request)
-        case "remove-all": return handleRemoveAll()
-        case "list":    return handleList()
-        case "ping":    return handlePing()
-        case "eval":    return handleEval(request)
-        case "post":    return handlePost(request)
-        case "to-front": return handleToFront(request)
-        case "suspend": return handleSuspend(request)
-        case "resume":  return handleResume(request)
-        default:
-            return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
+        // The daemon's AppKit run loop is long-lived; keep command-created
+        // Objective-C temporaries inside the command transaction.
+        autoreleasepool {
+            switch request.action {
+            case "create":  return handleCreate(request, connectionID: connectionID)
+            case "update":  return handleUpdate(request)
+            case "remove":  return handleRemove(request)
+            case "remove-all": return handleRemoveAll()
+            case "list":    return handleList()
+            case "ping":    return handlePing()
+            case "eval":    return handleEval(request)
+            case "post":    return handlePost(request)
+            case "to-front": return handleToFront(request)
+            case "suspend": return handleSuspend(request)
+            case "resume":  return handleResume(request)
+            default:
+                return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
+            }
         }
     }
 
@@ -1638,15 +1678,13 @@ class CanvasManager {
         }
 
         let isDesktopWorldSurface = surfaceTarget == "desktop-world" || trackTarget == .union
-        let canvas: CanvasLike
+        let creationFrame: CGRect?
         if isDesktopWorldSurface {
             let bounds = allDisplaysBounds()
             guard bounds.width > 0, bounds.height > 0 else {
                 return .fail("desktop-world surface requires at least one connected display", code: "NO_DISPLAYS")
             }
-            let surface = DesktopWorldSurfaceCanvas(id: id, interactive: interactive, windowLevel: windowLevel, aosSchemeHandler: aosSchemeHandler)
-            surface.trackTarget = .union
-            canvas = surface
+            creationFrame = nil
         } else {
             let cgFrame: CGRect
             if autoMode == "cursor_trail" {
@@ -1678,39 +1716,93 @@ class CanvasManager {
             } else {
                 return .fail("create requires --at x,y,w,h, --anchor-window + --offset, --anchor-channel, --track union, or --surface desktop-world", code: "MISSING_POSITION")
             }
+            creationFrame = cgFrame
+        }
 
-            let single = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, windowLevel: windowLevel, aosSchemeHandler: aosSchemeHandler)
+        let contentHTML: String?
+        let contentURL: String?
+        if let mode = autoMode, let channelData {
+            contentHTML = generateAutoProjectHTML(mode: mode, channelData: channelData)
+            contentURL = nil
+        } else if let mode = autoMode, mode == "cursor_trail" {
+            contentHTML = generateAutoProjectHTML(mode: mode, channelData: nil)
+            contentURL = nil
+        } else if let html = req.html {
+            contentHTML = html
+            contentURL = nil
+        } else if let url = req.url {
+            guard URL(string: url) != nil else {
+                return .fail("create requires a valid --url", code: "INVALID_URL")
+            }
+            contentHTML = nil
+            contentURL = url
+        } else {
+            return .fail("create requires --html, --file, --url, --auto-project, or stdin content", code: "NO_CONTENT")
+        }
+
+        let explicitParentCanvas: CanvasLike?
+        if let explicitParent = req.parent {
+            guard let parentCanvas = canvases[explicitParent] else {
+                return .fail("Parent canvas '\(explicitParent)' not found", code: "PARENT_NOT_FOUND")
+            }
+            explicitParentCanvas = parentCanvas
+        } else {
+            explicitParentCanvas = nil
+        }
+
+        let cascadeFromParent = req.cascade ?? true
+        let bornSuspended = req.suspended == true ||
+            (cascadeFromParent && explicitParentCanvas?.suspended == true)
+
+        let canvas: CanvasLike
+        if isDesktopWorldSurface {
+            let surface = DesktopWorldSurfaceCanvas(
+                id: id,
+                interactive: interactive,
+                windowLevel: windowLevel,
+                aosSchemeHandler: aosSchemeHandler,
+                lifecycleCoordinator: lifecycleCoordinator
+            )
+            surface.trackTarget = .union
+            canvas = surface
+        } else {
+            guard let creationFrame else {
+                preconditionFailure("validated window canvas is missing its creation frame")
+            }
+            let single = Canvas(
+                id: id,
+                cgFrame: creationFrame,
+                interactive: interactive,
+                windowLevel: windowLevel,
+                aosSchemeHandler: aosSchemeHandler
+            )
             single.trackTarget = trackTarget
             canvas = single
         }
-        canvas.cascadeFromParent = req.cascade ?? true
+
+        canvas.lifecycleState = "creating"
+        let generation = lifecycleCoordinator.issueGeneration(for: canvas)
+        canvases[id] = canvas
+        var creationCommitted = false
+        defer {
+            if !creationCommitted {
+                _ = retireCanvas(id: id, emitLifecycle: false, notifyCountChanged: false)
+            }
+        }
+
+        canvas.cascadeFromParent = cascadeFromParent
         canvas.owner = req.owner
         if let logicalSurfaceKey = logicalSurfaceKey(from: req.geometry) {
             canvas.logicalSurfaceKey = logicalSurfaceKey
         }
-        // Explicit parent from request (implicit parent set by daemon layer)
-        if let explicitParent = req.parent {
-            guard let parentCanvas = canvases[explicitParent] else {
-                canvas.close()
-                return .fail("Parent canvas '\(explicitParent)' not found", code: "PARENT_NOT_FOUND")
-            }
+        if let explicitParent = req.parent, let parentCanvas = explicitParentCanvas {
             canvas.parent = explicitParent
             if canvas.owner == nil {
                 canvas.owner = parentCanvas.owner
             }
         }
-        // Born suspended: if explicitly requested, or if parent is suspended
-        // and cascade is true, start hidden while still allowing the web view
-        // to load and warm its runtime.
-        let bornSuspended: Bool = {
-            if req.suspended == true { return true }
-            guard canvas.cascadeFromParent, let pid = canvas.parent,
-                  let parentCanvas = canvases[pid] else { return false }
-            return parentCanvas.suspended
-        }()
         if bornSuspended {
             canvas.suspended = true
-            canvas.lifecycleState = "warm_suspended"
         }
 
         // --focus on create: activate immediately and arm a one-shot
@@ -1734,18 +1826,33 @@ class CanvasManager {
         // mouse offset within the canvas at drag start. We convert the
         // absolute mouse position to CG coords and subtract the offset.
         canvas.onMessage = { [weak self] body in
+            guard let canvas = self?.currentCanvas(for: generation) else { return }
             // Handle close before the type guard — close uses {action: "close"}
             if let dict = body as? [String: Any],
                (dict["action"] as? String) == "close" || (dict["type"] as? String) == "close" {
-                DispatchQueue.main.async { [weak self] in
-                    _ = self?.handleRemove(CanvasRequest(action: "remove", id: id))
+                self?.enqueue(for: generation) { manager, _ in
+                    _ = manager.handleRemove(CanvasRequest(action: "remove", id: id))
                 }
                 return
             }
 
-               if let dict = body as? [String: Any],
+            if let dict = body as? [String: Any],
                let type = dict["type"] as? String {
                 let messagePayload = dict["payload"] as? [String: Any]
+
+                if type == "lifecycle.complete" {
+                    let action = (messagePayload?["action"] as? String)
+                        ?? (messagePayload?["reason"] as? String)
+                        ?? ""
+                    self?.lifecycleCompletions.receive(generation, action: action)
+                    return
+                }
+                if type == "lifecycle.ready" {
+                    self?.lifecycleCompletions.receive(generation, action: "resume")
+                    self?.onEvent?(generation, body)
+                    return
+                }
+
                 func messageString(_ key: String) -> String? {
                     (dict[key] as? String) ?? (messagePayload?[key] as? String)
                 }
@@ -1759,8 +1866,7 @@ class CanvasManager {
                     let cause = messageString("geometry_cause")
                     let phase = messageString("geometry_phase")
                     let transactionID = messageString("geometry_transaction_id")
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self else { return }
+                    self?.enqueue(for: generation) { manager, canvas in
                         let mouse = mouseInCGCoords()
                         let cgMouseX = mouse.x
                         let cgMouseY = mouse.y
@@ -1771,7 +1877,7 @@ class CanvasManager {
                         // No display-snap: let the canvas straddle displays freely,
                         // same as the renderer animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
-                        self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height), geometry: self.geometryContext(
+                        manager.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height), geometry: manager.geometryContext(
                             change: change,
                             cause: cause ?? "placement.drag",
                             phase: phase ?? "update",
@@ -1785,12 +1891,11 @@ class CanvasManager {
                 if type == "move",
                    let dx = dict["dx"] as? Double,
                    let dy = dict["dy"] as? Double {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self else { return }
+                    self?.enqueue(for: generation) { manager, canvas in
                         var cg = canvas.cgFrame
                         cg.origin.x += CGFloat(dx)
                         cg.origin.y += CGFloat(dy)
-                        self.moveCanvas(canvas, to: cg, geometry: self.geometryContext(
+                        manager.moveCanvas(canvas, to: cg, geometry: manager.geometryContext(
                             change: "origin",
                             cause: "unknown",
                             phase: "settled"
@@ -1801,65 +1906,65 @@ class CanvasManager {
 
                 if type == "drag_start" {
                     let transactionID = messageString("geometry_transaction_id") ?? UUID().uuidString
-                    DispatchQueue.main.async { [weak self] in
+                    self?.enqueue(for: generation) { manager, canvas in
                         ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = true
-                        let context = self?.geometryContext(
+                        let context = manager.geometryContext(
                             change: messageString("geometry_change") ?? "origin",
                             cause: messageString("geometry_cause") ?? "placement.drag",
                             phase: "start",
                             transactionID: transactionID
-                        ) ?? [:]
-                        self?.activeGeometryTransactions[id] = context
-                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        )
+                        manager.activeGeometryTransactions[id] = context
+                        manager.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
                     }
                     return
                 }
 
                 if type == "drag_end" {
                     let transactionID = messageString("geometry_transaction_id")
-                    DispatchQueue.main.async { [weak self] in
+                    self?.enqueue(for: generation) { manager, canvas in
                         ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = false
                         canvas.finalizeDragPosition()
-                        let existing = self?.activeGeometryTransactions.removeValue(forKey: id)
-                        let context = self?.geometryContext(
+                        let existing = manager.activeGeometryTransactions.removeValue(forKey: id)
+                        let context = manager.geometryContext(
                             change: messageString("geometry_change") ?? existing?["change"] as? String ?? "origin",
                             cause: messageString("geometry_cause") ?? existing?["cause"] as? String ?? "placement.drag",
                             phase: messageString("geometry_phase") ?? "settled",
                             transactionID: transactionID ?? existing?["transaction_id"] as? String
-                        ) ?? [:]
-                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
-                        self?.emitLifecycle(canvas, action: "updated")
+                        )
+                        manager.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        manager.emitLifecycle(canvas, action: "updated")
                     }
                     return
                 }
 
                 if type == "resize_start" {
                     let transactionID = messageString("geometry_transaction_id") ?? UUID().uuidString
-                    DispatchQueue.main.async { [weak self] in
-                        let context = self?.geometryContext(
+                    self?.enqueue(for: generation) { manager, canvas in
+                        let context = manager.geometryContext(
                             change: messageString("geometry_change") ?? "frame",
                             cause: messageString("geometry_cause") ?? "resize.drag",
                             phase: "start",
                             transactionID: transactionID
-                        ) ?? [:]
-                        self?.activeGeometryTransactions[id] = context
-                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        )
+                        manager.activeGeometryTransactions[id] = context
+                        manager.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
                     }
                     return
                 }
 
                 if type == "resize_end" {
                     let transactionID = messageString("geometry_transaction_id")
-                    DispatchQueue.main.async { [weak self] in
-                        let existing = self?.activeGeometryTransactions.removeValue(forKey: id)
-                        let context = self?.geometryContext(
+                    self?.enqueue(for: generation) { manager, canvas in
+                        let existing = manager.activeGeometryTransactions.removeValue(forKey: id)
+                        let context = manager.geometryContext(
                             change: messageString("geometry_change") ?? existing?["change"] as? String ?? "frame",
                             cause: messageString("geometry_cause") ?? existing?["cause"] as? String ?? "resize.drag",
                             phase: messageString("geometry_phase") ?? "settled",
                             transactionID: transactionID ?? existing?["transaction_id"] as? String
-                        ) ?? [:]
-                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
-                        self?.emitLifecycle(canvas, action: "updated")
+                        )
+                        manager.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        manager.emitLifecycle(canvas, action: "updated")
                     }
                     return
                 }
@@ -1870,7 +1975,7 @@ class CanvasManager {
                 // emits (the page can re-emit after navigation).
                 if type == "ready" && canvas.focusOnReady {
                     canvas.focusOnReady = false
-                    DispatchQueue.main.async {
+                    self?.enqueue(for: generation) { _, canvas in
                         canvas.evaluateJavaScript("typeof focusInput === 'function' && focusInput()", completion: nil)
                     }
                     // fall through to relay
@@ -1878,7 +1983,7 @@ class CanvasManager {
 
                 // Config IPC: read/write daemon config from canvas JS
                 if type == "get_config" {
-                    DispatchQueue.main.async {
+                    self?.enqueue(for: generation) { _, canvas in
                         let config = loadConfig()
                         let encoder = JSONEncoder()
                         encoder.outputFormatting = [.sortedKeys]
@@ -1893,7 +1998,7 @@ class CanvasManager {
                 if type == "set_config",
                    let key = dict["key"] as? String,
                    let value = dict["value"] as? String {
-                    DispatchQueue.main.async {
+                    self?.enqueue(for: generation) { _, canvas in
                         var config = loadConfig()
                         switch key {
                         case "voice.enabled":
@@ -1925,8 +2030,7 @@ class CanvasManager {
                 if type == "request_resize",
                    let w = dict["width"] as? Double,
                    let h = dict["height"] as? Double {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self else { return }
+                    self?.enqueue(for: generation) { manager, canvas in
                         let cg = canvas.cgFrame
                         let cx = cg.origin.x + cg.size.width / 2
                         let cy = cg.origin.y + cg.size.height / 2
@@ -1936,7 +2040,7 @@ class CanvasManager {
                             width: CGFloat(w),
                             height: CGFloat(h)
                         )
-                        self.moveCanvas(canvas, to: newFrame)
+                        manager.moveCanvas(canvas, to: newFrame)
                     }
                     return
                 }
@@ -1949,7 +2053,7 @@ class CanvasManager {
                     return
                 }
             }
-            self?.onEvent?(id, body)
+            self?.onEvent?(generation, body)
         }
 
         if let anchorWin = resolvedAnchorWindow {
@@ -1965,30 +2069,23 @@ class CanvasManager {
         canvas.anchorChannelID = channelID
         canvas.autoProjectMode = autoMode
 
-        // Resolve content: auto-projection generates HTML, otherwise use user-supplied
-        if let mode = autoMode, let cd = channelData {
-            canvas.loadHTML(generateAutoProjectHTML(mode: mode, channelData: cd))
-        } else if let mode = autoMode, mode == "cursor_trail" {
-            canvas.loadHTML(generateAutoProjectHTML(mode: mode, channelData: nil))
-        } else if let html = req.html {
+        if let html = contentHTML {
             canvas.loadHTML(html)
-        } else if let url = req.url {
+        } else if let url = contentURL {
             canvas.loadURL(url)
         } else {
-            canvas.close()
-            return .fail("create requires --html, --file, --url, --auto-project, or stdin content", code: "NO_CONTENT")
+            preconditionFailure("validated canvas content is missing")
         }
 
         canvas.setInputPassthrough(inputPassthroughOverride)
+        canvas.lifecycleState = bornSuspended ? "warm_suspended" : "active"
 
         if !bornSuspended {
             canvas.show()
-            canvas.lifecycleState = "active"
             if req.focus == true && interactive {
                 canvas.grabFocus()
             }
         }
-        canvases[id] = canvas
 
         if let ttl = req.ttl {
             canvas.onTTLExpired = { [weak self] in
@@ -1999,6 +2096,7 @@ class CanvasManager {
 
         if hasAnchoredCanvases || autoMode != nil { startAnchorPolling() }
 
+        creationCommitted = true
         onCanvasCountChanged?()
         emitLifecycle(canvas, action: "created")
         if let surface = canvas as? DesktopWorldSurfaceCanvas {
@@ -2182,7 +2280,7 @@ class CanvasManager {
         // activate at the OS level and eval focusInput() right away.
         if req.focus == true && canvas.isInteractive {
             canvas.grabFocus()
-            DispatchQueue.main.async {
+            enqueue(for: lease(for: canvas)) { _, canvas in
                 canvas.evaluateJavaScript("typeof focusInput === 'function' && focusInput()", completion: nil)
             }
         }
@@ -2198,38 +2296,19 @@ class CanvasManager {
         guard let id = req.id else {
             return .fail("remove requires --id", code: "MISSING_ID")
         }
-        guard let canvas = canvases.removeValue(forKey: id) else {
+        guard retireCanvas(id: id) != nil else {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
-        canvas.lifecycleState = "removed"
-        let info = canvas.toInfo()
-        canvas.close()
-        abandonLifecycleCompletions(forCanvasID: id)
-        if !hasAnchoredCanvases { stopAnchorPolling() }
-        onCanvasCountChanged?()
-        onCanvasLifecycle?(info, "removed")
         return .ok()
     }
 
     private func handleRemoveAll() -> CanvasResponse {
-        let removedCanvases = Array(canvases.values)
-        for canvas in removedCanvases {
-            canvas.lifecycleState = "removed"
-        }
-        let removedInfos = removedCanvases.map { $0.toInfo() }
-        let removedIds = removedCanvases.map(\.id)
-        for canvas in removedCanvases {
-            canvas.close()
-        }
-        canvases.removeAll()
-        for id in removedIds {
-            abandonLifecycleCompletions(forCanvasID: id)
+        let removedIDs = Array(canvases.keys)
+        for id in removedIDs {
+            _ = retireCanvas(id: id, notifyCountChanged: false)
         }
         stopAnchorPolling()
-        for info in removedInfos {
-            onCanvasLifecycle?(info, "removed")
-        }
-        onCanvasCountChanged?()
+        if !removedIDs.isEmpty { onCanvasCountChanged?() }
         return .ok()
     }
 
@@ -2287,26 +2366,16 @@ class CanvasManager {
         return response
     }
 
-    /// Fire-and-forget JavaScript evaluation on a canvas. Non-blocking.
-    /// Used by the broadcast paths that fan out input events to subscribed canvases at
-    /// high frequency. Unlike `handleEval`, this does not wait for a result or return
-    /// a value — callers should not rely on ordering or completion.
-    func evalAsync(canvasID: String, js: String) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self,
-                  let canvas = self.canvases[canvasID] else { return }
-            canvas.evaluateJavaScript(js, completion: nil)
-        }
-    }
-
     private func headsupEvalJS(forBase64 b64: String) -> String {
         "window.headsup && window.headsup.receive && window.headsup.receive(\(jsStringLiteral(b64)))"
     }
 
-    @discardableResult
-    func postMessage(canvasID: String, payload: Any) -> CanvasResponse {
-        guard canvases[canvasID] != nil else {
-            return .fail("Canvas '\(canvasID)' not found", code: "NOT_FOUND")
+    private func postMessage(
+        for generation: CanvasLifecycleGeneration,
+        payload: Any
+    ) -> CanvasResponse {
+        guard let canvas = currentCanvas(for: generation) else {
+            return .fail("Canvas '\(generation.canvasID)' not found", code: "NOT_FOUND")
         }
         guard JSONSerialization.isValidJSONObject(payload),
               let json = try? JSONSerialization.data(withJSONObject: payload, options: []),
@@ -2314,12 +2383,32 @@ class CanvasManager {
             return .fail("post payload must be valid JSON", code: "INVALID_JSON")
         }
         let b64 = Data(payloadStr.utf8).base64EncodedString()
-        evalAsync(canvasID: canvasID, js: headsupEvalJS(forBase64: b64))
+        canvas.evaluateJavaScript(headsupEvalJS(forBase64: b64), completion: nil)
         return .ok()
     }
 
-    func postMessageAsync(canvasID: String, payload: Any) {
-        _ = postMessage(canvasID: canvasID, payload: payload)
+    @discardableResult
+    func postMessage(canvasID: String, payload: Any) -> CanvasResponse {
+        guard let canvas = canvases[canvasID] else {
+            return .fail("Canvas '\(canvasID)' not found", code: "NOT_FOUND")
+        }
+        return postMessage(for: lease(for: canvas), payload: payload)
+    }
+
+    func postMessageToCurrentCanvasAsync(canvasID: String, payload: Any) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let canvas = self.canvases[canvasID] else { return }
+            _ = self.postMessage(for: self.lease(for: canvas), payload: payload)
+        }
+    }
+
+    func postMessageAsync(
+        to generation: CanvasLifecycleGeneration,
+        payload: Any
+    ) {
+        enqueue(for: generation) { manager, _ in
+            _ = manager.postMessage(for: generation, payload: payload)
+        }
     }
 
     private func handlePost(_ req: CanvasRequest) -> CanvasResponse {
@@ -2360,8 +2449,10 @@ class CanvasManager {
 
         // Phase 1: atomic hide — collect tree, orderOut all windows
         let tree = collectTree(id)
+        var suspendedGenerations: [CanvasLifecycleGeneration] = []
         for cid in tree {
             guard let c = canvases[cid] else { continue }
+            suspendedGenerations.append(lease(for: c))
             c.orderOut()
             c.suspended = true
             c.lifecycleState = c.lifecycleState == "warm_suspended" ? "warm_suspended" : "suspended"
@@ -2369,8 +2460,8 @@ class CanvasManager {
         }
 
         // Phase 2: notify renderers (async, best-effort, no ACK needed)
-        for cid in tree {
-            postMessageAsync(canvasID: cid, payload: ["type": "lifecycle", "action": "suspend"])
+        for generation in suspendedGenerations {
+            postMessageAsync(to: generation, payload: ["type": "lifecycle", "action": "suspend"])
         }
 
         onCanvasCountChanged?()
@@ -2388,13 +2479,16 @@ class CanvasManager {
 
         // Phase 1: notify renderers to wake up, collect ACKs
         let tree = collectTree(id)
-        let suspendedInTree = tree.filter { canvases[$0]?.suspended == true }
+        let suspendedGenerations = tree.compactMap { cid -> CanvasLifecycleGeneration? in
+            guard let canvas = canvases[cid], canvas.suspended else { return nil }
+            return lease(for: canvas)
+        }
 
         let showWindows: () -> Void = { [weak self] in
             guard let self = self else { return }
             // Phase 2: atomic show
-            for cid in suspendedInTree {
-                guard let c = self.canvases[cid] else { continue }
+            for generation in suspendedGenerations {
+                guard let c = self.currentCanvas(for: generation) else { continue }
                 c.show()
                 c.suspended = false
                 c.lifecycleState = "active"
@@ -2403,8 +2497,8 @@ class CanvasManager {
             self.onCanvasCountChanged?()
         }
 
-        _ = awaitLifecycleCompletion(
-            canvasIDs: Set(suspendedInTree),
+        _ = lifecycleCompletions.await(
+            generations: Set(suspendedGenerations),
             action: "resume",
             timeout: 1.0
         ) { completed in
@@ -2415,33 +2509,11 @@ class CanvasManager {
         }
 
         // Send lifecycle:resume to each renderer
-        for cid in suspendedInTree {
-            postMessageAsync(canvasID: cid, payload: ["type": "lifecycle", "action": "resume"])
+        for generation in suspendedGenerations {
+            postMessageAsync(to: generation, payload: ["type": "lifecycle", "action": "resume"])
         }
 
         return .ok()
-    }
-
-    /// Back-compat alias for older renderers that still post lifecycle.ready.
-    func receiveLifecycleReady(_ canvasID: String) {
-        receiveLifecycleComplete(canvasID, action: "resume")
-    }
-
-    /// Called when a renderer sends lifecycle.complete ACK for an action.
-    func receiveLifecycleComplete(_ canvasID: String, action: String) {
-        guard !action.isEmpty else { return }
-
-        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
-            waiter.action == action && waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
-        }
-
-        for waiterID in waiterIDs {
-            guard let waiter = lifecycleWaiters[waiterID] else { continue }
-            waiter.pendingCanvasIDs.remove(canvasID)
-            if waiter.pendingCanvasIDs.isEmpty {
-                completeLifecycleWaiter(waiterID, success: true)
-            }
-        }
     }
 
     // MARK: - Window Anchoring

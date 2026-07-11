@@ -124,6 +124,7 @@ struct ActionExecutionMetadata: Encodable {
     let backend: String
     let fallback_used: Bool
     let state_id: String?
+    var terminal_event_receipt: String? = nil
     var foreground_before_pid: Int? = nil
     var foreground_before_app: String? = nil
     var foreground_after_pid: Int? = nil
@@ -165,6 +166,7 @@ struct ContextSnapshot: Codable {
 /// Mutable state maintained across a session's lifetime.
 class SessionState {
     var cursor: CursorPosition
+    let eventPostingOwner: AOSCGEventPostingOwner
     var modifiers: Set<String> = []
     var context: SessionContext = SessionContext()
     var profileName: String
@@ -180,6 +182,7 @@ class SessionState {
         // Get current cursor position from CGEvent
         let pos = CGEvent(source: nil)?.location ?? .zero
         self.cursor = CursorPosition(x: pos.x, y: pos.y)
+        self.eventPostingOwner = AOSCGEventPostingOwner()
         self.profile = profile
         self.profileName = profileName
     }

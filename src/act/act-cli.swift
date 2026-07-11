@@ -133,7 +133,8 @@ private func printCanvasTargetActionResult(
     stateID: String?,
     detail: String? = nil,
     actionResult: [String: Any]? = nil,
-    postTarget: AOSSemanticTargetJSON? = nil
+    postTarget: AOSSemanticTargetJSON? = nil,
+    terminalEventReceipt: String? = nil
 ) {
     struct Payload: Encodable {
         let status: String
@@ -147,6 +148,13 @@ private func printCanvasTargetActionResult(
         let execution: ActionExecutionMetadata
     }
     let resultValue = actionResult.flatMap { JSONValue($0) }
+    var execution = ActionExecutionMetadata(
+        strategy: dryRun ? "dry_run_\(strategy)" : strategy,
+        backend: backend,
+        fallback_used: backend == "cgevent",
+        state_id: stateID
+    )
+    execution.terminal_event_receipt = terminalEventReceipt
     let payload = Payload(
         status: dryRun ? "dry_run" : "success",
         action: action,
@@ -156,12 +164,7 @@ private func printCanvasTargetActionResult(
         detail: detail,
         action_result: resultValue,
         post_target: postTarget,
-        execution: ActionExecutionMetadata(
-            strategy: dryRun ? "dry_run_\(strategy)" : strategy,
-            backend: backend,
-            fallback_used: backend == "cgevent",
-            state_id: stateID
-        )
+        execution: execution
     )
     writeJSONLine(payload)
 }
@@ -509,7 +512,14 @@ func cliClick(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "click failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "click", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+    cliPrintLegacy(
+        action: "click",
+        backend: "cgevent",
+        target: target,
+        dryRun: false,
+        stateID: stateID,
+        execution: resp.execution
+    )
 }
 
 /// `aos do click canvas:<canvas-id>/<ref>` — click a semantic target on an AOS canvas.
@@ -546,7 +556,13 @@ private func cliClickCanvasRef(targetString: String, args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "click failed", code: resp.code ?? "UNKNOWN")
     }
-    printCanvasRefClickResult(target: resolution.target, detail: detail, dryRun: false, stateID: stateID)
+    printCanvasRefClickResult(
+        target: resolution.target,
+        detail: detail,
+        dryRun: false,
+        stateID: stateID,
+        terminalEventReceipt: resp.execution?.terminal_event_receipt
+    )
 }
 
 /// `aos do hover` — move cursor to coordinates.
@@ -574,7 +590,7 @@ func cliHover(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "hover failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+    cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: false, stateID: stateID, execution: resp.execution)
 }
 
 /// `aos do drag` — drag from one point to another.
@@ -620,7 +636,7 @@ func cliDrag(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "drag failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+    cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: false, stateID: stateID, execution: resp.execution)
 }
 
 private func cliDragCanvasRef(targetString: String, args: [String]) {
@@ -683,7 +699,8 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
                 dryRun: false,
                 stateID: stateID,
                 detail: "to-value=\(toValue)",
-                postTarget: postTarget
+                postTarget: postTarget,
+                terminalEventReceipt: resp.execution?.terminal_event_receipt
             )
             return
         }
@@ -753,7 +770,8 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
             playback: "human",
             dryRun: false,
             stateID: stateID,
-            detail: detail
+            detail: detail,
+            terminalEventReceipt: resp.execution?.terminal_event_receipt
         )
         return
     }
@@ -816,7 +834,7 @@ func cliScroll(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "scroll failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+    cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, dryRun: false, stateID: stateID, execution: resp.execution)
 }
 
 /// `aos do type` — type text string.
@@ -852,7 +870,7 @@ func cliType(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "type failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "type", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "type", backend: "cgevent", target: target, dryRun: false, execution: resp.execution)
 }
 
 /// `aos do key` — press a key combo (e.g. cmd+s).
@@ -878,7 +896,7 @@ func cliKey(args: [String]) {
     if resp.status == "error" {
         exitError(resp.error ?? "key failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "key", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "key", backend: "cgevent", target: target, dryRun: false, execution: resp.execution)
 }
 
 // MARK: - AppleScript CLI Command

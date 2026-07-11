@@ -716,10 +716,10 @@ owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
 build does not reset permissions, open System Settings, show a human-needed
 surface, write completed-build markers, or inject provider input.
 Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
-successful rebuild marker (`Rebuilt: ./aos`) invalidates prior TCC-backed proof
-for that binary and requires a user reset/regrant checkpoint before further
-TCC-backed daemon, capture, input, or native proof.
-After the user confirms the reset, verify with `./aos ready --post-permission`.
+successful rebuild marker (`Rebuilt: ./aos`) requires one bounded
+`./aos ready --post-permission` check before further TCC-backed daemon, capture,
+input, or native proof. Continue when that check is healthy; request a user
+reset/regrant only when it explicitly reports `post_rebuild_tcc_stale`.
 
 The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
@@ -1866,7 +1866,8 @@ responses and session responses report an additive `execution` object:
     "strategy": "cgevent_click",
     "backend": "cgevent",
     "fallback_used": false,
-    "state_id": "see_abc123def456"
+    "state_id": "see_abc123def456",
+    "terminal_event_receipt": "aos-input-41a0000100000001"
   }
 }
 ```
@@ -1875,7 +1876,11 @@ responses and session responses report an additive `execution` object:
 family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), and
 `fallback_used` is reserved for paths that intentionally degrade from a
 preferred semantic strategy. `duration_ms` remains the top-level timing field on
-session responses.
+session responses. Successful CoreGraphics actions with a discrete terminal
+event include an opaque `terminal_event_receipt` after the action process
+observes that exact event at the session event tap. Continuous hover motion may
+be coalesced by macOS and does not claim this receipt. Callers must not parse or
+construct receipt values.
 
 Direct AX `press`, `focus`, and `set-value --pid ... --role ...` responses also
 include a top-level `conformance` block from the external wrapper. The wrapper

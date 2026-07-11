@@ -340,6 +340,7 @@ class PerceptionEngine {
 
     private func inputEventPayload(for type: CGEventType, event: CGEvent, eventName: String) -> [String: Any] {
         let flags = modifierFlags(from: event.flags)
+        let receiptID = aosInputReceiptID(event: event)
         switch type {
         case .keyDown, .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -348,10 +349,10 @@ class PerceptionEngine {
             let point = event.location
             let dx = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2))
             let dy = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1))
-            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags, scrollDX: dx, scrollDY: dy)
+            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags, scrollDX: dx, scrollDY: dy, gestureIDOverride: receiptID)
         default:
             let point = event.location
-            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags)
+            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags, gestureIDOverride: receiptID)
         }
     }
 

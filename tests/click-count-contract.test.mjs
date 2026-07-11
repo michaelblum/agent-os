@@ -32,12 +32,54 @@ test('handleClick rejects non-positive counts before posting click events', () =
   const clickCount = body.indexOf('let clickCount = req.count ?? 1');
   const invalidCount = body.indexOf('guard clickCount > 0 else');
   const invalidCode = body.indexOf('code: "INVALID_COUNT"');
-  const eventSource = body.indexOf('CGEventSource(stateID: .hidSystemState)');
+  const eventOwner = body.indexOf('let owner = state.eventPostingOwner');
   const clickRange = body.indexOf('for i in 1...clickCount');
 
   assert.ok(clickCount >= 0, 'handleClick should normalize missing count to one');
   assert.ok(invalidCount > clickCount, 'handleClick should validate the normalized count');
   assert.ok(invalidCode > invalidCount, 'invalid click counts should return a structured error');
-  assert.ok(eventSource > invalidCode, 'invalid count should be rejected before any CGEvent source is created');
+  assert.ok(eventOwner > invalidCode, 'invalid count should be rejected before the event owner is used');
   assert.ok(clickRange > invalidCode, 'invalid count should be rejected before the trapping range loop');
+});
+
+test('CGEvent actions await terminal receipts without fixed completion sleeps', () => {
+  const models = source('src/act/act-models.swift');
+  const actions = source('src/act/actions.swift');
+  const posting = source('src/act/event-posting.swift');
+  const deliveryState = source('src/act/input-delivery-state.swift');
+  const session = source('src/act/session.swift');
+
+  assert.match(models, /let eventPostingOwner:\s*AOSCGEventPostingOwner/);
+  assert.match(models, /var terminal_event_receipt:\s*String\?/);
+  assert.doesNotMatch(actions, /CGEventSource\(stateID:\s*\.hidSystemState\)/);
+  assert.match(posting, /guard ensureReceiptTap\(\) else \{ return nil \}/);
+  assert.match(posting, /defer \{ teardownReceiptTap\(\) \}/);
+  assert.match(posting, /CGEvent\.tapIsEnabled\(tap:\s*receiptTap\)/);
+  assert.match(posting, /type == \.tapDisabledByTimeout \|\| type == \.tapDisabledByUserInput/);
+  assert.match(posting, /CGEvent\.tapEnable\(tap:\s*tap,\s*enable:\s*true\)/);
+  assert.match(posting, /tracker\.begin\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
+  assert.match(actions, /func handleMove[\s\S]*?owner\.post\(event\)[\s\S]*?func handleClick/);
+  assert.match(actions, /owner\.post\(up,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
+  assert.match(actions, /CGEVENT_DELIVERY_UNCONFIRMED/);
+  assert.match(posting, /event\.setIntegerValueField\(\.eventSourceUserData,\s*value:\s*receipt\.marker\)/);
+  assert.match(posting, /tracker\.consume\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
+  assert.match(posting, /tracker\.observe\(marker:\s*marker,\s*eventType:\s*type\.rawValue\)/);
+  assert.match(posting, /tracker\.clearAll\(\)/);
+  assert.match(deliveryState, /private var pending:\s*Expectation\?/);
+  assert.match(deliveryState, /var uncertainState:\s*Set<String>\s*\{\s*before\.union\(after\)\s*\}/);
+  assert.doesNotMatch(posting, /private var observed:\s*Set/);
+  assert.match(session, /keyboardEventSource:\s*state\.eventPostingOwner\.source/);
+  assert.doesNotMatch(actions, /usleep\(50_000\)/);
+});
+
+test('modifier receipt timeouts remain owned by session cleanup', () => {
+  const actions = source('src/act/actions.swift');
+  const keyDown = functionBody(actions, 'func handleKeyDown(');
+  const keyUp = functionBody(actions, 'func handleKeyUp(');
+
+  assert.match(keyDown, /AOSModifierDeliveryTransition\(before:\s*before,\s*after:\s*after\)/);
+  assert.match(keyDown, /state\.modifiers\s*=\s*transition\.uncertainState/);
+  assert.doesNotMatch(keyDown, /state\.modifiers\.remove\(modifier\)/);
+  assert.match(keyUp, /AOSModifierDeliveryTransition\(before:\s*before,\s*after:\s*after\)/);
+  assert.match(keyUp, /state\.modifiers\s*=\s*transition\.uncertainState/);
 });

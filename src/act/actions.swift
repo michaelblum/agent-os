@@ -17,6 +17,7 @@ private func okResponse(
     strategy: String? = nil,
     fallbackUsed: Bool = false,
     stateID: String? = nil,
+    terminalReceiptID: String? = nil,
     extra: ((inout ActionResponse) -> Void)? = nil
 ) -> ActionResponse {
     let elapsed = Int(Date().timeIntervalSince(start) * 1000)
@@ -34,6 +35,7 @@ private func okResponse(
         fallback_used: fallbackUsed,
         state_id: stateID
     )
+    resp.execution?.terminal_event_receipt = terminalReceiptID
     extra?(&resp)
     return resp
 }
@@ -49,6 +51,15 @@ private func errorResponse(_ action: String, state: SessionState, message: Strin
         duration_ms: nil,
         error: message,
         code: code
+    )
+}
+
+private func inputDeliveryError(_ action: String, state: SessionState) -> ActionResponse {
+    errorResponse(
+        action,
+        state: state,
+        message: "Terminal input event was not observed before the delivery deadline",
+        code: "CGEVENT_DELIVERY_UNCONFIRMED"
     )
 }
 
@@ -189,13 +200,14 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     let points = bezierPath(from: from, to: target, steps: steps, overshoot: overshoot, jitter: jitter)
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
     for pt in points {
-        if let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
-                               mouseCursorPosition: pt, mouseButton: .left) {
-            event.flags = currentFlags(state)
-            event.post(tap: .cghidEventTap)
+        guard let event = CGEvent(mouseEventSource: owner.source, mouseType: .mouseMoved,
+                                  mouseCursorPosition: pt, mouseButton: .left) else {
+            return errorResponse("move", state: state, message: "Failed to create mouseMoved event", code: "CGEVENT_FAILED")
         }
+        event.flags = currentFlags(state)
+        owner.post(event)
         usleep(UInt32(stepInterval * 1_000_000))
     }
 
@@ -244,23 +256,34 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let upType: CGEventType = isRight ? .rightMouseUp : .leftMouseUp
     let cgButton: CGMouseButton = isRight ? .right : .left
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
     let flags = currentFlags(state)
+    var terminalReceipt: AOSInputPostReceipt?
 
     for i in 1...clickCount {
-        guard let down = CGEvent(mouseEventSource: source, mouseType: downType,
-                                 mouseCursorPosition: clickPoint, mouseButton: cgButton) else { continue }
+        guard let receipt = owner.makeReceipt() else {
+            return inputDeliveryError("click", state: state)
+        }
+        guard let down = CGEvent(mouseEventSource: owner.source, mouseType: downType,
+                                 mouseCursorPosition: clickPoint, mouseButton: cgButton) else {
+            return errorResponse("click", state: state, message: "Failed to create mouseDown event", code: "CGEVENT_FAILED")
+        }
         down.setIntegerValueField(.mouseEventClickState, value: Int64(i))
         down.flags = flags
-        down.post(tap: .cghidEventTap)
+        owner.post(down, receipt: receipt)
 
         usleep(sampleDelay(profile.timing.click_dwell))
 
-        guard let up = CGEvent(mouseEventSource: source, mouseType: upType,
-                               mouseCursorPosition: clickPoint, mouseButton: cgButton) else { continue }
+        guard let up = CGEvent(mouseEventSource: owner.source, mouseType: upType,
+                               mouseCursorPosition: clickPoint, mouseButton: cgButton) else {
+            return errorResponse("click", state: state, message: "Failed to create mouseUp event", code: "CGEVENT_FAILED")
+        }
         up.setIntegerValueField(.mouseEventClickState, value: Int64(i))
         up.flags = flags
-        up.post(tap: .cghidEventTap)
+        if !owner.post(up, receipt: receipt, awaitReceipt: true) {
+            return inputDeliveryError("click", state: state)
+        }
+        terminalReceipt = receipt
 
         // Small gap between multi-clicks
         if i < clickCount {
@@ -269,7 +292,7 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     }
 
     state.updateCursor(clickPoint)
-    return okResponse("click", state: state, start: start, backend: "cgevent", strategy: "cgevent_click", stateID: req.state_id)
+    return okResponse("click", state: state, start: start, backend: "cgevent", strategy: "cgevent_click", stateID: req.state_id, terminalReceiptID: terminalReceipt?.id)
 }
 
 /// Drag from req.from (or current cursor) to req.x, req.y along a Bezier curve.
@@ -303,16 +326,19 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         if moveResult.status == "error" { return moveResult }
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("drag", state: state)
+    }
     let flags = currentFlags(state)
 
     // Mouse down at origin
-    guard let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
+    guard let down = CGEvent(mouseEventSource: owner.source, mouseType: .leftMouseDown,
                              mouseCursorPosition: origin, mouseButton: .left) else {
         return errorResponse("drag", state: state, message: "Failed to create mouseDown event", code: "CGEVENT_FAILED")
     }
     down.flags = flags
-    down.post(tap: .cghidEventTap)
+    owner.post(down, receipt: receipt)
 
     // Bezier path from origin to target
     let dx = Double(target.x - origin.x)
@@ -329,24 +355,26 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let points = bezierPath(from: origin, to: target, steps: steps, overshoot: 0, jitter: jitter)
 
     for pt in points {
-        if let drag = CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged,
+        if let drag = CGEvent(mouseEventSource: owner.source, mouseType: .leftMouseDragged,
                               mouseCursorPosition: pt, mouseButton: .left) {
             drag.flags = flags
-            drag.post(tap: .cghidEventTap)
+            owner.post(drag, receipt: receipt)
         }
         usleep(UInt32(stepInterval * 1_000_000))
     }
 
     // Mouse up at target
-    guard let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
+    guard let up = CGEvent(mouseEventSource: owner.source, mouseType: .leftMouseUp,
                            mouseCursorPosition: target, mouseButton: .left) else {
         return errorResponse("drag", state: state, message: "Failed to create mouseUp event", code: "CGEVENT_FAILED")
     }
     up.flags = flags
-    up.post(tap: .cghidEventTap)
+    if !owner.post(up, receipt: receipt, awaitReceipt: true) {
+        return inputDeliveryError("drag", state: state)
+    }
 
     state.updateCursor(target)
-    return okResponse("drag", state: state, start: start, backend: "cgevent", strategy: "cgevent_drag", stateID: req.state_id)
+    return okResponse("drag", state: state, start: start, backend: "cgevent", strategy: "cgevent_drag", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 /// Scroll at (req.x, req.y) or current cursor with req.dx/req.dy.
@@ -376,6 +404,9 @@ func handleScroll(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let totalDx = Int32(req.dx ?? 0)
     let totalDy = Int32(req.dy ?? 0)
     let eventCount = profile.scroll.events_per_action
+    guard eventCount > 0 else {
+        return errorResponse("scroll", state: state, message: "Scroll profile must emit at least one event", code: "INVALID_PROFILE")
+    }
     let decel = profile.scroll.deceleration
     let intervalUs = UInt32(profile.scroll.interval_ms) * 1000
 
@@ -389,20 +420,27 @@ func handleScroll(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         weightSum += w
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("scroll", state: state)
+    }
     for i in 0..<eventCount {
         let fraction = weights[i] / weightSum
         let evDy = Int32(Double(totalDy) * fraction)
         let evDx = Int32(Double(totalDx) * fraction)
 
-        if let scroll = CGEvent(scrollWheelEvent2Source: source, units: .pixel,
-                                wheelCount: 2, wheel1: evDy, wheel2: evDx, wheel3: 0) {
-            scroll.post(tap: .cghidEventTap)
+        guard let scroll = CGEvent(scrollWheelEvent2Source: owner.source, units: .pixel,
+                                   wheelCount: 2, wheel1: evDy, wheel2: evDx, wheel3: 0) else {
+            return errorResponse("scroll", state: state, message: "Failed to create scroll event", code: "CGEVENT_FAILED")
+        }
+        let isTerminal = i == eventCount - 1
+        if !owner.post(scroll, receipt: isTerminal ? receipt : nil, awaitReceipt: isTerminal) {
+            return inputDeliveryError("scroll", state: state)
         }
         usleep(intervalUs)
     }
 
-    return okResponse("scroll", state: state, start: start, backend: "cgevent", strategy: "cgevent_scroll", stateID: req.state_id)
+    return okResponse("scroll", state: state, start: start, backend: "cgevent", strategy: "cgevent_scroll", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 /// Press and hold a key. If it is a modifier, add to state.modifiers.
@@ -417,13 +455,25 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
 
     // Check if this is a modifier key
     if let mod = modifierMap[lower] {
-        state.modifiers.insert(canonicalModifier(lower))
-        let source = CGEventSource(stateID: .hidSystemState)
-        if let event = CGEvent(keyboardEventSource: source, virtualKey: mod.keyCode, keyDown: true) {
-            event.flags = currentFlags(state)
-            event.post(tap: .cghidEventTap)
+        let owner = state.eventPostingOwner
+        guard let receipt = owner.makeReceipt() else {
+            return inputDeliveryError("key_down", state: state)
         }
-        return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id)
+        guard let event = CGEvent(keyboardEventSource: owner.source, virtualKey: mod.keyCode, keyDown: true) else {
+            return errorResponse("key_down", state: state, message: "Failed to create keyDown event", code: "CGEVENT_FAILED")
+        }
+        let modifier = canonicalModifier(lower)
+        let before = state.modifiers
+        var after = before
+        after.insert(modifier)
+        let transition = AOSModifierDeliveryTransition(before: before, after: after)
+        state.modifiers = transition.provisionalState
+        event.flags = currentFlags(state)
+        if !owner.post(event, receipt: receipt, awaitReceipt: true) {
+            state.modifiers = transition.uncertainState
+            return inputDeliveryError("key_down", state: state)
+        }
+        return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id, terminalReceiptID: receipt.id)
     }
 
     // Regular key
@@ -431,13 +481,19 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
         return errorResponse("key_down", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
-    if let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
-        event.flags = currentFlags(state)
-        event.post(tap: .cghidEventTap)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("key_down", state: state)
+    }
+    guard let event = CGEvent(keyboardEventSource: owner.source, virtualKey: keyCode, keyDown: true) else {
+        return errorResponse("key_down", state: state, message: "Failed to create keyDown event", code: "CGEVENT_FAILED")
+    }
+    event.flags = currentFlags(state)
+    if !owner.post(event, receipt: receipt, awaitReceipt: true) {
+        return inputDeliveryError("key_down", state: state)
     }
 
-    return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id)
+    return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 /// Release a key. If modifier, remove all aliases from state.modifiers.
@@ -454,15 +510,26 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     if let mod = modifierMap[lower] {
         // Remove ALL aliases that share the same flag
         let aliases = allAliases(for: lower)
+        let owner = state.eventPostingOwner
+        guard let receipt = owner.makeReceipt() else {
+            return inputDeliveryError("key_up", state: state)
+        }
+        guard let event = CGEvent(keyboardEventSource: owner.source, virtualKey: mod.keyCode, keyDown: false) else {
+            return errorResponse("key_up", state: state, message: "Failed to create keyUp event", code: "CGEVENT_FAILED")
+        }
+        let before = state.modifiers
+        var after = before
         for alias in aliases {
-            state.modifiers.remove(alias)
+            after.remove(alias)
         }
-        let source = CGEventSource(stateID: .hidSystemState)
-        if let event = CGEvent(keyboardEventSource: source, virtualKey: mod.keyCode, keyDown: false) {
-            event.flags = currentFlags(state)
-            event.post(tap: .cghidEventTap)
+        let transition = AOSModifierDeliveryTransition(before: before, after: after)
+        state.modifiers = transition.provisionalState
+        event.flags = currentFlags(state)
+        if !owner.post(event, receipt: receipt, awaitReceipt: true) {
+            state.modifiers = transition.uncertainState
+            return inputDeliveryError("key_up", state: state)
         }
-        return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id)
+        return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id, terminalReceiptID: receipt.id)
     }
 
     // Regular key
@@ -470,13 +537,19 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("key_up", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
-    if let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
-        event.flags = currentFlags(state)
-        event.post(tap: .cghidEventTap)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("key_up", state: state)
+    }
+    guard let event = CGEvent(keyboardEventSource: owner.source, virtualKey: keyCode, keyDown: false) else {
+        return errorResponse("key_up", state: state, message: "Failed to create keyUp event", code: "CGEVENT_FAILED")
+    }
+    event.flags = currentFlags(state)
+    if !owner.post(event, receipt: receipt, awaitReceipt: true) {
+        return inputDeliveryError("key_up", state: state)
     }
 
-    return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id)
+    return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 /// Press and release a key combo (e.g. "cmd+shift+tab"). Uses parseKeyCombo from helpers.
@@ -496,23 +569,30 @@ func handleKeyTap(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     var flags = comboFlags
     flags.insert(currentFlags(state))
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("key_tap", state: state)
+    }
 
     // Key down
-    if let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
-        down.flags = flags
-        down.post(tap: .cghidEventTap)
+    guard let down = CGEvent(keyboardEventSource: owner.source, virtualKey: keyCode, keyDown: true) else {
+        return errorResponse("key_tap", state: state, message: "Failed to create keyDown event", code: "CGEVENT_FAILED")
     }
+    down.flags = flags
+    owner.post(down, receipt: receipt)
 
     usleep(sampleDelay(profile.timing.keystroke_delay))
 
     // Key up
-    if let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
-        up.flags = flags
-        up.post(tap: .cghidEventTap)
+    guard let up = CGEvent(keyboardEventSource: owner.source, virtualKey: keyCode, keyDown: false) else {
+        return errorResponse("key_tap", state: state, message: "Failed to create keyUp event", code: "CGEVENT_FAILED")
+    }
+    up.flags = flags
+    if !owner.post(up, receipt: receipt, awaitReceipt: true) {
+        return inputDeliveryError("key_tap", state: state)
     }
 
-    return okResponse("key_tap", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_tap", stateID: req.state_id)
+    return okResponse("key_tap", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_tap", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 /// Type text character by character with profile-driven cadence.
@@ -531,21 +611,30 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let charsPerSecond = Double(wpm) * 5.0 / 60.0
     let baseIntervalMs = max(1.0, 1000.0 / charsPerSecond)
 
-    let source = CGEventSource(stateID: .hidSystemState)
+    let owner = state.eventPostingOwner
+    guard let receipt = owner.makeReceipt() else {
+        return inputDeliveryError("type", state: state)
+    }
     let flags = currentFlags(state)
+    let characters = Array(text)
 
-    for char in text {
+    for (index, char) in characters.enumerated() {
         // Create a Unicode key event
         var utf16 = Array(String(char).utf16)
-        if let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) {
-            down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
-            down.flags = flags
-            down.post(tap: .cghidEventTap)
+        guard let down = CGEvent(keyboardEventSource: owner.source, virtualKey: 0, keyDown: true) else {
+            return errorResponse("type", state: state, message: "Failed to create keyDown event", code: "CGEVENT_FAILED")
         }
-        if let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) {
-            up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
-            up.flags = flags
-            up.post(tap: .cghidEventTap)
+        let isTerminal = index == characters.count - 1
+        down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        down.flags = flags
+        owner.post(down, receipt: isTerminal ? receipt : nil)
+        guard let up = CGEvent(keyboardEventSource: owner.source, virtualKey: 0, keyDown: false) else {
+            return errorResponse("type", state: state, message: "Failed to create keyUp event", code: "CGEVENT_FAILED")
+        }
+        up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        up.flags = flags
+        if !owner.post(up, receipt: isTerminal ? receipt : nil, awaitReceipt: isTerminal) {
+            return inputDeliveryError("type", state: state)
         }
 
         // Cadence: apply variance
@@ -558,7 +647,7 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         }
     }
 
-    return okResponse("type", state: state, start: start, backend: "cgevent", strategy: "cgevent_type", stateID: req.state_id)
+    return okResponse("type", state: state, start: start, backend: "cgevent", strategy: "cgevent_type", stateID: req.state_id, terminalReceiptID: receipt.id)
 }
 
 // MARK: - AX Action Handlers

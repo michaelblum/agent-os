@@ -104,11 +104,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   explicit signing identifier, entitlements, app bundle wrapping, allowlist
   assumptions, or an `spctl` acceptance gate. `spctl` rejection is expected for
   the raw local binary shape; launchability of `./aos` is the operational check.
-  Only actual rebuilds should drive TCC-sensitive human-attention behavior.
-  After a rebuild that emits `Rebuilt: ./aos`, stop before TCC-backed daemon,
-  capture, input, or native proof and tell the user to manually reset/regrant
-  the needed macOS TCC permissions for the rebuilt binary. Treat TCC-backed
-  failures after a rebuild as inconclusive until the user confirms that reset.
+  Only actual rebuilds should drive a bounded TCC readiness check. After a
+  rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and run
+  `./aos ready --post-permission --json`; request a manual reset/regrant only
+  when it explicitly reports `post_rebuild_tcc_stale`. Do not infer exit `137`
+  from empty output or a timeout and do not force-rebuild a launchable artifact.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.

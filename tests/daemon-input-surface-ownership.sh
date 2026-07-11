@@ -79,16 +79,17 @@ if case .ambiguous(let tied) = frontmostHittableAOSSurface(at: point, surfaces: 
 }
 
 let registry = AOSInputRegionRegistry()
+let stageGeneration = CanvasLifecycleGeneration(canvasID: "stage", value: 42)
 let lowRegion = AOSInputRegionRecord(
     id: "low-region",
-    ownerCanvasID: "stage",
+    ownerCanvasGeneration: stageGeneration,
     nativeFrame: baseFrame,
     semanticLabel: "Low region",
     priority: 1
 )
 let highRegion = AOSInputRegionRecord(
     id: "high-region",
-    ownerCanvasID: "stage",
+    ownerCanvasGeneration: stageGeneration,
     nativeFrame: baseFrame,
     semanticLabel: "High region",
     priority: 10,
@@ -122,7 +123,7 @@ if let route = registry.route(event: descriptor("left_mouse_up"), point: CGPoint
 
 let neverRegion = AOSInputRegionRecord(
     id: "never-region",
-    ownerCanvasID: "stage",
+    ownerCanvasGeneration: stageGeneration,
     nativeFrame: CGRect(x: 200, y: 200, width: 20, height: 20),
     consumePolicy: "never"
 )
@@ -140,7 +141,7 @@ assert(registry.snapshot().isEmpty, "removed regions should disappear from snaps
 
 let retained = AOSInputRegionRecord(
     id: "retained",
-    ownerCanvasID: "stage",
+    ownerCanvasGeneration: stageGeneration,
     nativeFrame: baseFrame,
     removeOnOwnerSuspend: false
 )
@@ -163,6 +164,7 @@ let delivered = failOpenRegistry.resolveDelivery(
 if case .deliver(let delivery)? = delivered {
     assert(delivery.consume, "successful region delivery should preserve consume decision")
     assert(delivery.ownerCanvasID == "stage", "delivery should retain the typed owner destination")
+    assert(delivery.ownerCanvasGeneration == stageGeneration, "delivery should retain the owner generation")
     assert(delivery.phase == .down, "delivery should retain the typed diagnostic phase")
     assert(delivery.regionID == "high-region", "delivery should retain the typed diagnostic region")
     assert(Set(delivery.payload.keys) == Set(["type", "routed_input"]), "successful delivery should expose only the exact envelope")
@@ -204,7 +206,7 @@ assert(repeatedCleanup.showNativeCursor == false, "repeated cursor cleanup shoul
 print("PASS daemon input surface ownership and input regions")
 SWIFT
 
-swiftc "$ROOT/src/shared/input-event.swift" "$ROOT/src/daemon/input-surface-ownership.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
+swiftc "$ROOT/src/display/canvas-generation.swift" "$ROOT/src/shared/input-event.swift" "$ROOT/src/daemon/input-surface-ownership.swift" "$TMP/main.swift" -o "$TMP/test-input-surface-ownership"
 "$TMP/test-input-surface-ownership"
 
 cat >"$TMP/main.swift" <<'SWIFT'
@@ -236,6 +238,22 @@ let flags = [
 let rawPointer = inputEventData(type: "left_mouse_down", x: 25, y: 25, flags: flags)
 assert(rawPointer["input_schema_version"] as? Int == 2, "complete pointer events may claim input v2")
 writeJSON("raw-pointer", rawPointer)
+
+let receiptMarker = aosInputReceiptMarker(processID: 42, counter: 7)
+let receiptID = aosInputReceiptID(marker: receiptMarker)
+assert(receiptID?.hasPrefix("aos-input-") == true, "owned event receipt marker should expose canonical identity")
+assert(aosInputReceiptID(marker: 7) == nil, "unowned event source data must not become a receipt identity")
+let receiptPointer = inputEventData(
+    type: "left_mouse_down",
+    x: 25,
+    y: 25,
+    flags: flags,
+    gestureIDOverride: receiptID
+)
+assert(receiptPointer["gesture_id"] as? String == receiptID, "receipt identity should survive canonical pointer projection")
+writeJSON("receipt-pointer", receiptPointer)
+let concurrentNaturalMove = inputEventData(type: "mouse_moved", x: 26, y: 26, flags: flags)
+assert(concurrentNaturalMove["gesture_id"] as? String != receiptID, "receipt identity must not capture concurrent natural pointer state")
 
 for pointerType in [
     "left_mouse_down",
@@ -282,7 +300,7 @@ writeJSON("raw-cancel", rawCancel)
 
 let region = AOSInputRegionRecord(
     id: "contract-region",
-    ownerCanvasID: "contract-owner",
+    ownerCanvasGeneration: CanvasLifecycleGeneration(canvasID: "contract-owner", value: 7),
     nativeFrame: CGRect(x: 0, y: 0, width: 100, height: 100)
 )
 let ownedPointer = AOSInputRegionRoute(
@@ -399,8 +417,10 @@ enum JSONValue: Codable, Equatable {
 SWIFT
 
 swiftc \
+  "$ROOT/src/display/canvas-generation.swift" \
   "$ROOT/src/shared/types.swift" \
   "$ROOT/src/shared/input-event.swift" \
+  "$ROOT/src/shared/input-event-receipt.swift" \
   "$TMP/json-value.swift" \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \
