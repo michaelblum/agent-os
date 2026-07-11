@@ -4,26 +4,28 @@
 
 ## Purpose
 
-`experiences/` contains experience activation material and app-facing runtime
-composition metadata.
+`experiences/` contains retained neutral experience activation fixtures and
+compatibility composition metadata.
 
 ## Ownership
 
-- Experience files connect apps to AOS runtime activation and status surfaces.
-- App implementation remains in `apps/`.
+- Experience files connect neutral fixtures to AOS runtime activation and
+  status surfaces.
+- Active branded product implementation remains in the product repository;
+  this tree does not confer product ownership.
 - Generic experience schema or validation belongs in `shared/schemas/` and
   tests.
 
 ## Local Contracts
 
-- Keep experience ids, content roots, status-item targets, and app references
-  aligned with the owning app.
+- Keep experience ids, content roots, status-item targets, and fixture
+  references aligned with the owning compatibility proof.
 - Menu entries with a `surface` must target declared mounted surfaces.
   Activation projects matching manifest menu data into the mounted status
   surface through the neutral toolkit mounted-surface menu projection contract;
   smoke surfaces must not duplicate fixture menu data as their source of truth.
-- Do not encode app-private behavior here when it belongs in app source or
-  toolkit policy.
+- Do not encode branded product behavior here when it belongs in an external
+  product repository or generic behavior that belongs in toolkit policy.
 
 ## Work Guidance
 
@@ -35,6 +37,5 @@ composition metadata.
 
 ## Child DOX Index
 
-- `sigil/` contains Sigil experience material.
-- `operator-fixture/` contains the non-Sigil fixture experience for app-owned
-  operator annotation status-menu contracts.
+- `operator-fixture/` contains the neutral compatibility fixture for operator
+  annotation status-menu contracts.

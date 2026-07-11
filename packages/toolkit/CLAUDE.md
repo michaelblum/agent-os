@@ -3,7 +3,7 @@
 
 # toolkit
 
-Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `AGENTS.md` and local `AGENTS.md` for the canonical layer-boundary guidance.
+Reusable WKWebView components built on agent-os primitives - the middle layer between the `aos` unified binary and external product consumers. See root `AGENTS.md` and local `AGENTS.md` for the canonical layer-boundary guidance.
 
 Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md).
 Use the scoped references for detailed contracts:
@@ -22,7 +22,7 @@ aos daemon (Layer 0)           canvas.create/update/remove, subscribe streams, e
        ├─ panel/ (Layer 1b)    panel-shaped scaffolding: chrome, router, layouts (Single, SplitPane, Tabs)
        ├─ workbench/           subject descriptors and reusable workbench contracts
        │    └─ components/     reusable Content units consumed by panel layouts
-       └─ apps/ (Layer 3)      presence surfaces use 1a directly; panels use 1a + 1b + 2
+       └─ external consumers   presence surfaces use 1a directly; panels use 1a + 1b + 2
 ```
 
 Every WKWebView surface (panel or presence) imports from `runtime/`. Surfaces

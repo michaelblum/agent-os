@@ -58,7 +58,8 @@ a non-zero mismatch result.
 
 | Package | Role |
 |---------|------|
-| `apps/sigil` | Avatar presence system — Track 2 consumer of the display subsystem |
+| [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil) | External first-party reference consumer and product authority |
+| `apps/sigil` | Frozen legacy compatibility fixture; not discoverable or packaged |
 | `packages/host` | Node.js agent host — Anthropic SDK loop, session store |
 | `packages/gateway` | MCP server — typed script execution, cross-harness coordination (for external consumers) |
 | `packages/toolkit` | Reusable WKWebView components for apps |

@@ -43,13 +43,6 @@ Wiki pages can be projected from `aos wiki list/show --json` shapes with:
 import { createWikiPageSubject } from '../workbench/wiki-subject.js'
 ```
 
-Sigil agent domain Subjects can be projected from their source wiki document
-shape with:
-
-```js
-import { createSigilAgentSubject } from '../workbench/sigil-subject.js'
-```
-
 Read-only UX tree descriptors can be projected with:
 
 ```js
@@ -103,12 +96,10 @@ when reading descriptors:
 
 The first adopters are:
 
-- Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Read-only UX tree subjects: `aos.ux_tree`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
   `wiki.reference`, and `wiki.page`
-- Sigil agent domain subjects: `sigil.agent`
 - Workflow chain subjects: `wiki.workflow_chain`
 - Work-record subjects: `aos.do_step` and `aos.recipe_health_event`
 
@@ -120,8 +111,8 @@ vocabulary.
 
 `packages/toolkit/workbench/annotation-session.js` provides the neutral
 display-first in-memory Annotation Mode session model. It is shared toolkit
-state for future display overlays, Surface Inspector support views, and Sigil
-reticle entry; it is not a persistent annotation database.
+state for display overlays and Surface Inspector support views; it is not a
+persistent annotation database.
 
 Sessions use schema `aos_annotation_session` version `0.1.0` and carry
 `active`, `entry_source`, `root`, `committed_scope_stack`,
@@ -210,27 +201,6 @@ as `leaf_node_id`, the intended target as `selected_node_id`, and the full
 ancestry as context path nodes. `selectionModeContextArtifact(input)` returns
 the artifact alone for callers that already own the surrounding session.
 
-Sigil now uses the helper as a live product path. Double-clicking the avatar
-enters Selection Mode, registers an active-only daemon input-region claim,
-captures only Selection Mode clicks, and stores runtime state at
-`window.__sigilDebug.snapshot().selectionMode`. The state includes `active`,
-`entered_at`, `cursor`, `leaf_candidate`, `path_candidates`,
-`selected_node_id`, `context_session`, `events`, and `blocker`. After a
-selection click, Sigil exposes the root-to-leaf path, lets the selected target
-move from the leaf to an ancestor with keyboard cycling or debug calls, and
-commits the current `aos_context_session` into the renderer-local active
-context provider. `Escape`, a second avatar double-click, cancel, or successful
-commit exits the mode.
-
-The debug API remains available for deterministic tests and comment entry:
-`window.__sigilDebug.createSelectionModeContext(input)` constructs a session,
-`setSelectionModeNodeComment(nodeId, text)` attaches comments to path nodes, and
-`appendActiveContextKeyframe()` / `exportContextRecording()` assemble compact
-`aos_context_recording` payloads from ordered context keyframes and optional
-events. Sigil does not install an always-on pointer watcher or a new capture
-canvas; the visual cursor decoration and ancestor badges draw on the existing
-interaction overlay.
-
 ### Annotation Overlay Renderer V0
 
 `packages/toolkit/workbench/annotation-overlay-renderer.js` converts an
@@ -301,7 +271,7 @@ the active scope by adapter/root/path evidence and their current projection must
 stay inside the active scope rectangle. Rejected candidates can be reported with
 reasons such as `candidate_outside_active_scope`, `candidate_not_direct_child`,
 `native_ax_root_mismatch`, or `browser_page_scope_mismatch`. The helper is the
-shared boundary for Surface Inspector and Sigil-style reticles; callers should
+shared boundary for Surface Inspector and consumer reticles; callers should
 use cached candidates on pointer hot paths and refresh adapter evidence only on
 mode entry, scope changes, settle events, or explicit refresh.
 
@@ -309,7 +279,7 @@ mode entry, scope changes, settle events, or explicit refresh.
 the same scoped selection decision as a compact diagnostics report: active scope
 identity, raw and scoped candidate counts, selected target summary, bounded
 rejection samples with reasons, and the fallback reason when no direct child can
-win. Sigil reticle debug snapshots and events use this report to explain why an
+win. Consumer reticle snapshots and events can use this report to explain why an
 active frame selected a child candidate, rejected the current scope/siblings, or
 fell back without drawing a false overlay.
 
@@ -1132,7 +1102,7 @@ plumbing, not generation, save/lock-in, export execution, renderer registry,
 replay, repair, macro playback, or a new public `aos` command.
 
 The pattern adapts Open Design's artifact workspace lesson to AOS's Subject
-model. It is not a Sigil-owned feature, not a copied Open Design daemon or
+model. It is not a consumer-owned feature, not a copied Open Design daemon or
 `.od` state model, and not a streamed `<artifact>` tag interface.
 
 ### Subject Graph Index V0
@@ -1308,11 +1278,6 @@ Concrete helper examples:
   emits separate Facets for Markdown source, rendered Markdown preview, and the
   wiki graph projection. These Facets are currently Canvas-Host entries for the
   existing `markdown-workbench` and `wiki-kb` components.
-- `createSigilAgentSubject()` emits a separate `sigil.agent` domain Subject with
-  a `subject_references[]` narrative source pointing back to the wiki document's
-  `wiki-markdown` Facet. Its avatar preview and appearance controls are
-  Canvas-Host entries because the live Sigil renderer and wiki subject browser
-  are AOS canvas surfaces.
 - `createWorkRecordSubject()` maps Work Record intent, execution-map, evidence,
   claims/verifier, and health views into Facets backed by the existing
   `work-record-workbench` Canvas Host. Recording, replay, repair, and retirement
@@ -1324,13 +1289,7 @@ Concrete helper examples:
   controls, animation/effect controls, and export/lock-in. Entry handles use
   the existing Subject Entry Handle syntax. For example, a selected item object
   control route can be addressed as
-  `object-controls:aos.radial_menu:sigil.radial.main/item/wiki-graph`.
-- `buildRadialItemWorkbenchSubject()` in Sigil is now a showcase adapter over
-  that toolkit projection. Sigil injects the toolkit helper from the active
-  `toolkit-root`, keeps the live Three.js renderer and item modules in
-  `apps/sigil/`, and adds Sigil-specific metadata/source routes around the
-  toolkit Subject. The `canvas-id` host entries remain runtime assumptions
-  about an already running editor/workbench canvas, not commands to create one.
+  `object-controls:aos.radial_menu:example.main/item/wiki-graph`.
 
 Radial menu item and object-part drilldown is represented as Facets, Hosts,
 resource paths, and Subject Entry Handles under the radial-menu Subject. A menu

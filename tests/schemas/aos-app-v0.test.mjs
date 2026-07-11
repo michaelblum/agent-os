@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-app-v0.schema.json');
-const sigilManifestPath = path.join(repoRoot, 'apps/sigil/aos-app.json');
+const legacySigilManifestPath = path.join(repoRoot, 'apps/sigil/aos-app.fixture.json');
 
 function validate(instancePath) {
   return spawnSync(
@@ -37,17 +37,28 @@ if errors:
   );
 }
 
-test('Sigil app manifest validates against the generic app schema', () => {
-  const result = validate(sigilManifestPath);
+test('legacy Sigil fixture manifest validates against the generic app schema', () => {
+  const result = validate(legacySigilManifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
-test('Sigil manifest keeps launch policy data-owned', async () => {
-  const manifest = JSON.parse(await fs.readFile(sigilManifestPath, 'utf8'));
+test('legacy Sigil fixture preserves its frozen launch-policy shape', async () => {
+  const manifest = JSON.parse(await fs.readFile(legacySigilManifestPath, 'utf8'));
   assert.equal(manifest.id, 'sigil');
   assert.equal(manifest.default_entry, 'avatar');
   assert.deepEqual(Object.keys(manifest.entries).sort(), ['agent-terminal', 'avatar', 'legacy-workbench']);
   assert.ok(manifest.content_roots.every((root) => root.branch_scoped === true));
   assert.equal(manifest.status_item.toggle_entry, 'avatar');
   assert.equal(manifest.entries['legacy-workbench'].requires_entries[0], 'avatar');
+});
+
+test('legacy Sigil is absent from active app discovery', () => {
+  const result = spawnSync('node', ['scripts/aos-launch.mjs', 'sigil', '--dry-run', '--json'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1, result.stdout);
+  const payload = JSON.parse(result.stderr);
+  assert.equal(payload.status, 'failure');
+  assert.equal(payload.code, 'APP_NOT_FOUND');
 });

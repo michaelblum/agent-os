@@ -28,11 +28,10 @@ mechanism that matches the surface.
    needs rich DOM interaction, focus, forms, menus, keyboard navigation, or
    independent application state. Do not create a WebView for a passive visual
    plus one or two clicks.
-6. **Private app renderer or 3D stage.** Allow this only when the app needs a
-   distinct renderer lifecycle, richer graphics, or product expression that the
-   shared 2D stage cannot provide. Sigil `avatar-main` and effect-heavy radial
-   visuals can fit here; simple app panels, chips, and ordinary desktop markers
-   should not.
+6. **Private app renderer or 3D stage.** Allow this only when an external app
+   needs a distinct renderer lifecycle, richer graphics, or product expression
+   that the shared 2D stage cannot provide. Simple app panels, chips, and
+   ordinary desktop markers should not use this path.
 7. **Daemon primitive.** Add daemon work only for generic native capability:
    lifecycle, display topology, input routing, resource cleanup, identity, or
    performance primitives. Do not move product or toolkit windowing policy into
@@ -55,11 +54,7 @@ every app file. Status values mean:
 | Drag transfer visuals | `packages/toolkit/panel/drag-transfer.js` is a legacy cross-display transfer-outline path. The active One-World path moves panels and draggable nodes through toolkit drag/drop in union coordinates. | Toolkit panel/windowing behavior for movement; visual-only global decoration only for non-interactive diagnostics. | Needs follow-up | #425 | Do not add callers. Continue splitting any still-useful stage helpers away from transfer-outline behavior, then remove the legacy path. |
 | DesktopWorld stage layers | Shared toolkit stage accepts layer upsert/remove/replace/clear messages and stays non-interactive by default. Surface Inspector visibility for stage layers, owners, input regions, and affordance/resource metadata is now part of the V0 baseline. | Visual-only global decoration, or StageAffordance when small hit areas are required. | Acceptable | #122, #223 | Use the inspector visibility as the diagnostic baseline before adding new stage policy. |
 | Surface Inspector/action controls | Surface Inspector is an interactive toolkit WebView with DOM controls, minimap, list panes, annotations, action buttons, and resource visibility for stage layers/input regions/affordances. | Full interactive surface using DOM controls and accessibility semantics. | Acceptable | #223 | Keep new inspector features focused on diagnostics, not hidden assumptions. |
-| Daemon input regions and canvas lifecycle events | Daemon owns generic `input_region.*` registration/events, routed input identity, `canvas_lifecycle` routing, `canvas.info`, and warm/suspend/resume readiness helpers. | Daemon primitive. | Acceptable | #120, #123, #303 | Treat these as V0 baselines; restate only narrower gaps such as non-Sigil callers or compatibility retirement. |
-| Retired Daemon Sigil-specific input paths | `src/daemon/unified.swift` no longer keeps `SigilInputState`, `sigil_input_mode`, or product-named canvas consumption branches. Sigil registers generic daemon input regions for avatar and context-menu native claims. | Generic daemon primitive consumed by Sigil through app/runtime glue. | Acceptable | #303, #305 | Keep product policy in Sigil; do not add new daemon branches for avatar, chat, radial menu, or context menu. |
-| Sigil `avatar-main` and product visuals | Sigil owns a private full-coverage DesktopWorld WebView with Three.js/product visuals, a toolkit-controller-backed avatar hit target, and generic daemon input-region claims for native consumption. | Private app renderer or 3D stage only where richer graphics and product lifecycle are required; physical child hit-surface mechanics should sit in toolkit helpers. | Transitional | #305 | Keep `avatar-main` while 3D/product expression requires it; move simple desktop layers to shared stage after primitives are locked. |
-| Sigil radial/menu/extension affordances | Sigil radial visuals and menu target surfaces are app-owned, with semantic child canvases for actionable targets; the radial and avatar child surface lifecycle now routes through the toolkit DesktopWorld hit-region controller. | Private renderer for rich radial visuals; StageAffordance or toolkit interaction-region helpers for simple logical hit areas. | Transitional | #122, #120, #305 | Make Sigil a second client of StageAffordance/input identity before starting a broader remodel. |
-| Sigil radial item editor and workbench window policy | `apps/sigil/radial-item-editor/index.js` uses `createPanelWindowController().wireDrag(...)` for window movement, and `apps/sigil/radial-item-workbench/index.js` uses `createPanelWindowController()` for drag, resize, maximize, minimize, and close while keeping Three.js orbit/object drag app-owned. | Toolkit panel/windowing behavior for the window; private renderer behavior for 3D object manipulation. | Acceptable | #261, #305 | Keep future radial shell work on the public panel/window controller rather than reintroducing raw window messages or app-private chip paths. |
+| Daemon input regions and canvas lifecycle events | Daemon owns generic `input_region.*` registration/events, routed input identity, `canvas_lifecycle` routing, `canvas.info`, and warm/suspend/resume readiness helpers. | Daemon primitive. | Acceptable | #120, #123, #303 | Treat these as V0 baselines; restate only narrower generic compatibility gaps. |
 
 ## What Changed Since StageAffordance And ResourceScope
 

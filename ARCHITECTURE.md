@@ -137,10 +137,13 @@ Keep those separate:
   workbench shells, minimize/maximize/restore, placement, DesktopWorld visual
   stages, and visual/interaction bindings. Toolkit windowing is opt-in and
   customizable; apps can use it, extend it, or bypass it for non-panel surfaces.
-- **Apps** own product expression and domain behavior. Sigil is the first
-  opinionated app built on the platform, not a precedent for private platform
-  forks. If Sigil needs a capability that belongs to future apps, extract that
-  capability into daemon primitives or toolkit policy.
+- **External apps** own product expression and domain behavior. Sigil is a
+  first-party reference consumer in
+  [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil), not an AOS-owned
+  product surface or a precedent for private platform forks. Sigil may drive
+  product-neutral primitives, toolkit policy, hosts, schemas, and public CLI
+  contracts before another consumer exists. Ownership follows the reusable
+  boundary, not consumer count.
 
 Performance bugs are boundary tests. A slow minimized chip does not imply that
 the daemon should own minimize policy; it implies the toolkit is missing a cheap
@@ -257,7 +260,8 @@ stateless at the subcommand level — the daemon and orchestrator hold state.
 The `aos` broker is the canonical permissioned native primitive substrate.
 `packages/` holds supporting Node.js services, extracted CLI/daemon package
 work, shared design tokens, and the reusable toolkit surface layer. `apps/`
-holds product consumers.
+holds retained compatibility fixtures; active branded products live in their
+own repositories.
 
 ```
 agent-os/
@@ -277,7 +281,7 @@ agent-os/
     gateway/             ← Node.js MCP server — external consumer surface
     host/                ← Node.js agent host — Anthropic SDK loop, sessions
   apps/
-    sigil/               ← Avatar presence system (consumer of display subsystem)
+    sigil/               ← Frozen legacy compatibility/proof fixture
   shared/
     schemas/             ← Cross-tool JSON contracts
       spatial-topology.schema.json
@@ -298,11 +302,11 @@ agent-os/
 | `aos` voice | OS | Swift | `src/voice/` | Production (TTS + registry) | `aos say`, `aos voice`, config-driven voice/rate, daemon event announcements, final-response ingress; STT audio capture remains a planned `aos listen` source |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
-| `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
+| `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), tool registry |
 | `cli` / `daemon` packages | Packaging | JS/TS + assets | `packages/cli/`, `packages/daemon/` | Active | Package roots for CLI verbs and daemon-adjacent runtime surfaces that sit around the unified Swift primitive |
 | `design-tokens` | Design system | CSS | `packages/design-tokens/` | Active | Shared token source consumed by toolkit and app surfaces |
 | `toolkit` | Toolkit/default surface system | JS/HTML/CSS | `packages/toolkit/` | Active | Opt-in reusable AOS surface policy and stock surfaces: `runtime/`, `controls/`, `adapters/zag`, `panel/`, `workbench/`, and `components/` |
-| Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), avatar configuration surface, chat canvas. Consumer of `aos` display subsystem. |
+| Sigil | External first-party reference consumer | TypeScript/HTML | [`Ch-osctrl/sigil`](https://github.com/Ch-osctrl/sigil) | External | Product authority for the Sigil application and primary driver of consumer-facing AOS evolution. The embedded `apps/sigil/` tree is a frozen, non-discoverable compatibility fixture only. |
 
 ---
 

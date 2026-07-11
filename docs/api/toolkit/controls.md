@@ -119,7 +119,7 @@ events on `el` and through `on(...)` subscriptions where useful.
 Stock generated triggers and item controls use at least 44px minimum hit targets
 in `defaults.css`. Consumers that provide their own visible triggers should keep
 the same minimum actionable size. These primitives are generic toolkit
-foundation; Subject Browser, Sigil, wiki, radial-menu, and work-record product
+foundation; Subject Browser, wiki, radial-menu, and work-record product
 behavior belongs in consumers that compose them.
 
 `wireNumberFieldControls(root, options)` remains the numeric field enhancement

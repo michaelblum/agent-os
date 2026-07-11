@@ -31,4 +31,3 @@ and app workflows.
 
 - `canvas/` contains canvas recipes.
 - `runtime/` contains runtime recipes.
-- `sigil/` contains Sigil recipes.

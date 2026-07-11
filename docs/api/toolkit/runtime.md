@@ -371,7 +371,7 @@ rich formats, files, images, and clipboard history are out of scope.
 
 `packages/toolkit/runtime/menu-activation.js` defines the provider-neutral
 activation envelope for menu-like surfaces. It is intentionally independent of
-radial geometry, 3D rendering, and Sigil-specific actions.
+radial geometry, 3D rendering, and consumer-specific actions.
 
 Canonical phases are:
 
@@ -481,7 +481,7 @@ no Three.js, DOM, app actions, Zag, or dynamic module code.
 
 The `logical_items` output is the stable lower menu projection. DOM, AX,
 semantic child canvases, tests, and ordinary stack-menu projections should
-consume that projection instead of walking 3D geometry or Sigil item modules.
+consume that projection instead of walking 3D geometry or consumer item modules.
 The 3D expression remains layered data on each resolved item for a renderer or
 app-owned adapter to consume.
 
@@ -499,8 +499,7 @@ adjacent to the lane.
 Hover defaults cascade from toolkit menu defaults to app/menu overrides and
 then item overrides under `three.item.hover`. The default hover transform uses
 exponential progress with `factor: 0.22`, scale `1 -> 1.08`, and y-axis spin.
-Apps can override those values in JSON; Sigil's
-`apps/sigil/renderer/radial-menu/sigil-radial-menu.json` sets item hover scale
+Apps can override those values in their own JSON manifests; a consumer can set item hover scale
 to `1 -> 2` for every item and changes the cog and annotation reticle to
 z-axis wheel spin. Flat glyphs that must keep their face toward the viewer can
 set `three.item.facing: "camera"` so the renderer suppresses radial-angle yaw
@@ -661,7 +660,7 @@ Convenience wrapper over `mutateSelf({ interactive })`.
 Evaluates JavaScript inside another canvas and resolves with the daemon's eval result string.
 
 ```js
-await evalCanvas('avatar-main', 'document.title')
+await evalCanvas('example-surface', 'document.title')
 ```
 
 Options:

@@ -1,17 +1,5 @@
 {
   "entry": [
-    "apps/sigil/agent-terminal/index.html",
-    "apps/sigil/chat/index.html",
-    "apps/sigil/codex-terminal/index.html",
-    "apps/sigil/diagnostics/interaction-trace/index.html",
-    "apps/sigil/radial-item-editor/index.html",
-    "apps/sigil/radial-item-workbench/index.html",
-    "apps/sigil/renderer/index.html",
-    "apps/sigil/workbench/index.html",
-    "apps/sigil/avatar-editor/panel.html",
-    "apps/sigil/renderer/hit-area.html",
-    "apps/sigil/renderer/radial-menu-surface.html",
-    "apps/sigil/codex-terminal/server.mjs",
     "packages/toolkit/{controls,panel,runtime,shell,workbench}/index.js",
     "packages/toolkit/adapters/*/index.js",
     "packages/toolkit/components/*/index.js",
@@ -24,8 +12,7 @@
   ],
   "workspaces": {
     "patterns": [
-      "packages/*",
-      "apps/sigil"
+      "packages/*"
     ]
   }
 }

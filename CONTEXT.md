@@ -1,7 +1,7 @@
 # agent-os
 
 The shared context for the `agent-os` repo: the unified `aos` runtime, its
-toolkit, and consumer apps such as Sigil. This file captures terminology that
+toolkit, and contracts consumed by external apps. This file captures terminology that
 domain experts (designers, agent operators, plan authors) need to share with
 implementers.
 
@@ -24,11 +24,11 @@ A concrete, addressable projection of a Subject that a workbench or browser can 
 _Avoid_: view, panel, pane (those are display-layer terms; a Facet is a model-layer concept the chrome happens to render).
 
 **Subject Entry Handle**:
-A string that resolves to a Subject *plus an entry Facet*, used in links and navigation. Form: `<facet-key>:<subject-id>` (e.g. `wiki:Sigil` opens the canonical `Sigil` Subject and lands on its wiki/narrative Facet). The handle preserves Subject identity — opening a different entry Facet on the same Subject does not change which Subject is in focus.
+A string that resolves to a Subject *plus an entry Facet*, used in links and navigation. Form: `<facet-key>:<subject-id>` (e.g. `wiki:service-catalog` opens the canonical service-catalog Subject and lands on its wiki/narrative Facet). The handle preserves Subject identity — opening a different entry Facet on the same Subject does not change which Subject is in focus.
 _Avoid_: subject id alone (loses the entry Facet hint), URL (overloaded), target (reserved for `aos see/do` dialects like `browser:`, `canvas:`).
 
 **Navigation Trail**:
-An ordered list of Subject Entry Handles describing how a user reached the current Facet — e.g. `wiki:Sigil → sigil.radial_menu:default → sigil.radial_menu.item:wiki-graph`. The trail crosses Subject boundaries (parent Subject → child Subject), unlike a Facet list, which stays within one Subject.
+An ordered list of Subject Entry Handles describing how a user reached the current Facet — e.g. `wiki:service-catalog → service:gateway → health:gateway`. The trail crosses Subject boundaries (parent Subject → child Subject), unlike a Facet list, which stays within one Subject.
 _Avoid_: subject chain, breadcrumb (those imply a flat hierarchy; trails can branch and collapse).
 
 **Work Record**:
@@ -234,7 +234,7 @@ An opaque perception identifier minted by `aos see capture` that names the state
 _Avoid_: state, version, snapshot id (those are storage-layer terms), perception id (technically equivalent but State ID is the wire term).
 
 **Subject Reference**:
-A typed pointer from one Subject (or one of its Facets) to another Subject (or one of its Facets). Used to express things like "Sigil's narrative Facet sources from the `wiki.entity` Subject at path X." A Subject Reference does not change either Subject's identity or `subject_type`; both Subjects remain stable, the reference is the relationship between them.
+A typed pointer from one Subject (or one of its Facets) to another Subject (or one of its Facets). Used to express that a domain Subject's narrative Facet sources from a `wiki.entity` Subject at a separate path. A Subject Reference does not change either Subject's identity or `subject_type`; both Subjects remain stable, the reference is the relationship between them.
 _Avoid_: link (overloaded with Markdown/HTML links), pointer, embed (embedding implies inclusion, which we explicitly rejected — see ADR-0007).
 
 **Subject Browser**:
@@ -265,7 +265,7 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - A **Subject** has a stable identity that survives Facet additions or removals; opening a different Facet does not change which Subject is in focus.
 - A **Subject Entry Handle** resolves to one Subject and one entry Facet on that Subject.
 - A **Navigation Trail** is a sequence of Subject Entry Handles where each handle's Subject is typically a child or related Subject of the previous handle's Subject.
-- `subject_type` (a schema field on `aos.workbench.subject`) names *what kind of Subject* the descriptor represents (e.g. `wiki.concept`, `sigil.radial_menu.item_3d`); facet keys are a separate namespace and do not collide with `subject_type` values.
+- `subject_type` (a schema field on `aos.workbench.subject`) names *what kind of Subject* the descriptor represents (e.g. `wiki.concept`, `service.runtime`); facet keys are a separate namespace and do not collide with `subject_type` values.
 - A **Run** emits Evidence and may emit exactly one **Work Record** for the
   bounded unit being proven. A Verifier consumes Work Records, never Guides or
   Playbooks directly, because trust attaches to what actually happened.
@@ -290,7 +290,7 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   in the current CLI as `--state-id <id>` next to raw `x,y`; it is
   recommended-for-provenance on Ref-based actions. Dry-run preserves and echoes
   the supplied State ID without minting a new perception.
-- `subject_type` names the **kind** of a Subject (`wiki.entity`, `sigil.agent`, `sigil.radial_menu.item_3d`, etc.) and is stable per Subject. Cross-Subject relationships use **Subject References**, not by switching `subject_type` based on context.
+- `subject_type` names the **kind** of a Subject (`wiki.entity`, `service.runtime`, `artifact.bundle`, etc.) and is stable per Subject. Cross-Subject relationships use **Subject References**, not by switching `subject_type` based on context.
 - A **Subject Reference** carries a Subject Entry Handle (or Facet path) plus optional metadata (relationship type, role); a **Subject Entry Handle** is the resolver address. They are different layers — references express *relationships*; handles express *navigation*.
 - A **Subject Browser** consumes Subject Entry Handles, renders Navigation Trails, and follows Subject References. It is hosted via a normal **Host** (Browser or Canvas). The wiki, Canvas Inspector (when navigating runtime Subjects), and any future Work Record browser are all instances of this surface kind.
 - **Capabilities** declare *what contracts* a Subject implements; **Facets** declare *what projections* it offers; **Controls** are operations *derived* from the combination. A Subject Browser uses `capabilities[]` to decide which classes of behavior are safe to offer, then finds the matching Facets to attach those behaviors to.
@@ -307,8 +307,8 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 ## Flagged ambiguities
 
 - "facet" vs "layer" — resolved: Facets are concrete projections; Layers are the ordered taxonomy a Facet declares membership in. See ADR-0001.
-- "wiki page as Subject" vs "wiki page as Facet" — **resolved (ADR-0007)**: the wiki page is *always* a Subject (`wiki.entity` / `wiki.concept` / etc.). Domain Subjects (`sigil.agent`, etc.) carry a **Subject Reference** to the wiki document Subject as the source of their narrative-Layer Facet. Two stable Subjects, related by reference; no Subject ever has a context-dependent `subject_type`.
-- Cutover note — wiki helper output now keeps wiki documents as wiki-oriented Subjects. App-specialized domain Subjects such as `sigil.agent` are emitted by domain helpers and relate back to wiki narrative documents through top-level `subject_references[]`.
+- "wiki page as Subject" vs "wiki page as Facet" — **resolved (ADR-0007)**: the wiki page is *always* a Subject (`wiki.entity` / `wiki.concept` / etc.). Domain Subjects carry a **Subject Reference** to the wiki document Subject as the source of their narrative-Layer Facet. Two stable Subjects, related by reference; no Subject ever has a context-dependent `subject_type`.
+- Cutover note — wiki helper output keeps wiki documents as wiki-oriented Subjects. Consumer-owned domain Subjects are emitted by consumer adapters and relate back to wiki narrative documents through top-level `subject_references[]`.
 - `capabilities[]` now contains only high-level registry names such as `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable` in live writer output. Dotted operation/event strings like `markdown_document.text.patch`, `wiki.invoke`, `work_record.execution_map.edit`, and `canvas_object.effects.patch` are live `contracts[]` values. Reader fallback for archived descriptors stays isolated in compatibility helpers and should not drive new Subject Browser behavior.
 - "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. Toolkit now defines the canonical `<facet-key>:<subject-id>` handle helper; only a future shared JSON schema for handles, if desired, remains pending.
 - Work Record `origin` field shape — **resolved (ADR-0009, refined by

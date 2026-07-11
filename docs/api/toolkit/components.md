@@ -180,16 +180,12 @@ opens:
 aos://toolkit/components/agent-terminal/index.html
 ```
 
-The toolkit path is neutral user-facing surface policy. It does not launch
-`avatar-main`, render Sigil avatar controls, or emit Sigil-specific
-`agent_terminal.avatar_toggle` behavior. The bridge server, session-inspector
+The toolkit path is neutral user-facing surface policy. It does not launch or
+render consumer-owned product surfaces. The bridge server, session-inspector
 adapter, and PTY proxy live with the toolkit component. The bridge environment
 contract is the canonical `AGENT_TERMINAL_*` family, including
 `AGENT_TERMINAL_COMMAND`, `AGENT_TERMINAL_CWD`,
-`AGENT_TERMINAL_TMUX_SESSION`, and `AGENT_TERMINAL_DRIVER`. Historical
-Sigil/Codex terminal paths remain file-path compatibility wrappers around the
-toolkit substrate; they do not define a separate bridge implementation or
-active env-alias contract.
+`AGENT_TERMINAL_TMUX_SESSION`, and `AGENT_TERMINAL_DRIVER`.
 
 ## Surface-Zoom And Test Console Components
 
@@ -343,11 +339,9 @@ canonical `semantic_targets[]` records whose `provenance.do_target` values are
 used for `aos do click`.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
-domain concepts through separate domain Subjects plus Subject References. For
-example, `createWikiPageSubject({ path: "sigil/agents/default.md" })` emits a
-wiki document Subject, while `createSigilAgentSubject()` emits the separate
-`sigil.agent` domain Subject. The Sigil helper writes that relationship through
-top-level `subject_references[]`.
+domain concepts through separate, consumer-owned domain Subjects plus Subject
+References. Toolkit writers expose the generic relationship through top-level
+`subject_references[]`.
 
 Writer policy is canonical-first for live output. Migrated writers omit
 `views[]` and `controls[]`, put only the registry names documented in
@@ -450,7 +444,7 @@ Renderer consumers can feed app-side samples through the component channel:
 {
   "type": "render-performance/sample",
   "payload": {
-    "source": "sigil-avatar",
+    "source": "example-renderer",
     "frameMs": 16.7,
     "renderMs": 5.4,
     "updateMs": 2.1,
@@ -708,7 +702,7 @@ annotation JSON.
 Consumer canvases can publish ephemeral "object marks" that the
 Surface Inspector renders on its minimap and in the tree list beneath the
 parent canvas. Marks represent sub-canvas objects whose position you want to
-surface (e.g. Sigil's avatar, a hit-test target, a highlighted widget).
+surface (e.g. a hit-test target or highlighted widget).
 
 **Wire contract** — a `canvas_object.marks` event with a full-snapshot
 replace payload:
@@ -717,7 +711,7 @@ replace payload:
 {
   "type": "canvas_object.marks",
   "payload": {
-    "canvas_id": "avatar-main",
+    "canvas_id": "example-surface",
     "objects": [
       {
         "id": "avatar",
@@ -799,16 +793,10 @@ Addresses use `canvas_id + object_id`:
 
 ```json
 {
-  "canvas_id": "avatar-main",
-  "object_id": "radial.wiki-brain.tree"
+  "canvas_id": "object-editor",
+  "object_id": "example.scene.tree"
 }
 ```
-
-Sigil's wiki-brain adopter currently exposes a group object for the whole menu
-item composition plus the outer shell, a nested fiber-optics group, the
-fiber-optic stem, fiber-optic bloom, and fractal tree layers as separate
-objects. Transform controllers can tune the whole composition relative to the
-radial menu item orbit path or tune each layer independently.
 
 Those object ids are registry resources under the owning canvas/menu subject,
 not wiki graph nodes by default. A workbench or subject browser should route to
@@ -825,7 +813,7 @@ effect controls, and capabilities:
 {
   "type": "canvas_object.registry",
   "schema_version": "2026-05-03",
-  "canvas_id": "avatar-main",
+  "canvas_id": "object-editor",
   "objects": [
     {
       "object_id": "radial.wiki-brain.group",
@@ -902,7 +890,7 @@ control values by id and correlate the owner response by `request_id`:
   "schema_version": "2026-05-03",
   "request_id": "req-effects-42",
   "target": {
-    "canvas_id": "avatar-main",
+    "canvas_id": "object-editor",
     "object_id": "radial.wiki-brain.fractal-tree"
   },
   "patch": {
@@ -922,7 +910,7 @@ one addressed object and correlate the owner response by `request_id`:
   "schema_version": "2026-05-03",
   "request_id": "req-42",
   "target": {
-    "canvas_id": "avatar-main",
+    "canvas_id": "object-editor",
     "object_id": "radial.wiki-brain.tree"
   },
   "patch": {
@@ -1012,7 +1000,7 @@ The bundle directory path is copied to the system clipboard, and the inspector
 status bar reflects pending/success/error state for the export.
 
 That export is configured under the daemon-owned `see` subtree rather than in
-Sigil or toolkit-local settings:
+consumer or toolkit-local settings:
 
 ```bash
 aos config get see.canvas_inspector_bundle --json
@@ -1046,13 +1034,9 @@ path is now `aos_context_session`, `aos_context_keyframe`, and
 bundle consumers have migrated to the context files/fields and a later removal
 gate explicitly retires the old artifact.
 
-Sigil's radial camera shutter prefers the renderer-local active context provider
-when it has one. That provider can be populated by reticle commits, live
-Selection Mode commits, or debug compatibility adapters, so the export shutter
-does not need to know which mode produced the canonical context. The current V0
-provider is renderer-local; a daemon-visible provider/event channel remains the
-removal gate before other apps can consume active context without a Sigil
-renderer instance.
+Consumer renderers may provide an active context provider populated by reticle
+or Selection Mode commits. The current V0 provider is renderer-local; a
+daemon-visible provider/event channel remains a separate contract decision.
 
 Supported include toggles today:
 

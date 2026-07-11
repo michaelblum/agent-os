@@ -13,14 +13,15 @@ The daemon runs a local HTTP file server that serves HTML, CSS, and JavaScript f
 
 Canvases use `aos://` URLs which the daemon rewrites to `http://127.0.0.1:PORT/...` at canvas creation time.
 
-Example: `aos://sigil/renderer/index.html` resolves to the Sigil renderer through the registered Sigil content root.
+Example: `aos://toolkit/components/surface-inspector/index.html` resolves a
+toolkit surface through the registered toolkit content root.
 
 ## Configuration
 
 Content roots map URL prefixes to filesystem directories:
 
 ```bash
-aos set content.roots.sigil apps/sigil
+aos set content.roots.toolkit packages/toolkit
 ```
 
 ## Why

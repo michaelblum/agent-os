@@ -160,7 +160,7 @@ over-scoping it:
 - Reusable SOPs and practices belong in `docs/guides/`.
 - Cross-tool or consumer-facing contracts belong in `shared/schemas/`,
   `docs/api/`, or `ARCHITECTURE.md`.
-- Runtime knowledge, Sigil agent documents, operator concepts, user/project
+- Runtime knowledge, external product documents, operator concepts, user/project
   memory, and graphable product knowledge may belong in the AOS wiki.
 
 These sources are not mutually exclusive. Agents developing AOS may need to read

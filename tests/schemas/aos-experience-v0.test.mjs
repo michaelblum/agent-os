@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-v0.schema.json');
-const sigilManifestPath = path.join(repoRoot, 'experiences/sigil/aos-experience.json');
+const legacySigilManifestPath = path.join(repoRoot, 'tests/fixtures/legacy-sigil/aos-experience.fixture.json');
 const operatorFixtureManifestPath = path.join(repoRoot, 'experiences/operator-fixture/aos-experience.json');
 
 function scopedRootName(prefix) {
@@ -47,8 +47,8 @@ if errors:
   );
 }
 
-test('Sigil experience manifest validates against the experience schema', () => {
-  const result = validate(sigilManifestPath);
+test('legacy Sigil fixture manifest validates against the experience schema', () => {
+  const result = validate(legacySigilManifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
@@ -92,33 +92,19 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
 });
 
-test('Sigil activation projects the mounted operator annotation menu entry', () => {
-  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+test('legacy Sigil is absent from active experience discovery', () => {
+  const result = spawnSync('node', ['scripts/aos-experience.mjs', 'status', 'sigil', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
       AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
     },
     encoding: 'utf8',
   });
-  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
-  const payload = JSON.parse(dryRun.stdout);
-  assert.equal(payload.experience.id, 'sigil');
-  assert.equal(payload.status_item.toggle_surface.id, 'avatar-main');
-  const projectedURL = new URL(payload.status_item.toggle_surface.url);
-  assert.equal(projectedURL.searchParams.has('aos_mounted_surface_menu'), true);
-  assert.equal(projectedURL.searchParams.has('aos_manifest_menu'), false);
-  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
-  assert.equal(projection.schema_version, 'aos.mounted-surface-menu-projection.v0');
-  assert.equal(projection.experience_id, 'sigil');
-  assert.equal(projection.surface_id, 'avatar-main');
-  assert.deepEqual(projection.menu.map((item) => item.id), ['annotate-this-thing']);
-  assert.deepEqual(projection.menu.map((item) => item.kind), ['operator_annotation']);
-  assert.deepEqual(projection.menu.map((item) => item.surface), ['avatar-main']);
-  assert.equal(projection.menu[0].action_id, 'aos.sigil.operator_annotation.start');
-  assert.equal(projection.menu[0].mode, 'selection_annotation');
-  assert.equal(projection.menu[0].create_pending_annotation, true);
+  assert.equal(result.status, 1, result.stdout);
+  const payload = JSON.parse(result.stderr);
+  assert.equal(payload.status, 'failure');
+  assert.equal(payload.code, 'EXPERIENCE_NOT_FOUND');
 });
 
 test('experience activation does not import operator annotation runtime contracts', async () => {
@@ -371,7 +357,7 @@ if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
   console.log(JSON.stringify({
     canvases: [{
       id: 'operator-fixture-surface',
-      url: 'http://127.0.0.1:58012/sigil/renderer/index.html?toolkit-root=toolkit',
+      url: 'http://127.0.0.1:58012/legacy-root/old-surface.html',
       lifecycleState: 'active',
     }],
   }));
@@ -386,10 +372,10 @@ process.exit(0);
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
-      toggle_url: 'aos://sigil/renderer/index.html?toolkit-root=toolkit',
+      toggle_id: 'previous-surface',
+      toggle_url: 'aos://legacy-root/old-surface.html',
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   }));
 
@@ -409,7 +395,7 @@ process.exit(0);
   const payload = JSON.parse(activate.stdout);
   const staleStep = payload.steps.find((step) => step.id === 'status-item:stale-target:operator-fixture-surface');
   assert.equal(staleStep.status, 'success');
-  assert.equal(staleStep.canvas_url, 'http://127.0.0.1:58012/sigil/renderer/index.html?toolkit-root=toolkit');
+  assert.equal(staleStep.canvas_url, 'http://127.0.0.1:58012/legacy-root/old-surface.html');
   assert.match(staleStep.current_url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_mounted_surface_menu=/);
 
   const calls = (await fs.readFile(logPath, 'utf8'))
@@ -577,29 +563,21 @@ process.exit(0);
   assert.equal(finalCanvasState.canvases['previous-surface'].url, 'aos://previous/renderer/index.html');
 });
 
-test('Sigil experience is exclusive and status-item-first', async () => {
-  const manifest = JSON.parse(await fs.readFile(sigilManifestPath, 'utf8'));
-  assert.equal(manifest.id, 'sigil');
+test('operator fixture experience is exclusive and status-item-first', async () => {
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  assert.equal(manifest.id, 'operator-fixture');
   assert.equal(manifest.exclusive, true);
   assert.equal(manifest.default_activation.kind, 'status_item');
   assert.equal(manifest.default_activation.status_item_first, true);
-  assert.equal(manifest.default_activation.primary_entry, 'avatar-main');
-  assert.equal(manifest.status_item.toggle_surface.id, 'avatar-main');
+  assert.equal(manifest.default_activation.primary_entry, 'operator-fixture-surface');
+  assert.equal(manifest.status_item.toggle_surface.id, 'operator-fixture-surface');
   const annotationItem = manifest.menu.find((item) => item.kind === 'operator_annotation');
-  assert.equal(annotationItem.id, 'annotate-this-thing');
-  assert.equal(annotationItem.surface, 'avatar-main');
-  assert.equal(annotationItem.action_id, 'aos.sigil.operator_annotation.start');
-  assert.equal(manifest.surfaces['avatar-main'].summary.includes('operator annotation'), true);
-  assert.deepEqual(manifest.hooks, [
-    {
-      phase: 'before_activate',
-      script: 'apps/sigil/sigilctl-seed.sh',
-      argv: ['--mode', '${mode}'],
-    },
-  ]);
-  assert.equal(manifest.branding.display_name, 'Sigil');
-  assert.deepEqual(manifest.vanilla_fallback.tools, ['avatar-terminal', 'graph-wiki', 'inspectors']);
-  assert.equal(manifest.surfaces['legacy-workbench'].legacy, true);
+  assert.equal(annotationItem.id, 'annotate-visible-target');
+  assert.equal(annotationItem.surface, 'operator-fixture-surface');
+  assert.equal(annotationItem.action_id, 'aos.operator_fixture.annotation');
+  assert.equal(manifest.surfaces['operator-fixture-surface'].summary.includes('operator annotation'), true);
+  assert.equal(manifest.branding.display_name, 'Operator Fixture');
+  assert.deepEqual(manifest.vanilla_fallback.tools, ['operator-annotation']);
 });
 
 test('experience deactivate reports and writes honest disabled status-item config', async () => {
@@ -620,59 +598,23 @@ process.exit(0);
     AOS_BYPASS_PREFLIGHT: '1',
     FAKE_AOS_LOG: logPath,
   };
-  await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'legacy-sigil', exclusive: true }));
+  await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'retired-experience', exclusive: true }));
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
-  const customSigilDocs = path.join(tmp, 'custom-sigil-docs');
-  await fs.mkdir(customSigilDocs);
   await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
     content: {
       roots: {
         toolkit: path.join(repoRoot, 'packages/toolkit'),
-        toolkit_old_branch: path.join(repoRoot, 'packages/toolkit'),
-        sigil_old_branch: path.join(repoRoot, 'apps/sigil'),
-        toolkit_abandoned_worktree: path.join(tmp, 'missing-worktree', 'packages/toolkit'),
-        sigil_abandoned_worktree: path.join(tmp, 'missing-worktree', 'apps/sigil'),
-        sigil_custom_docs: customSigilDocs,
-        custom_sigil_docs: path.join(repoRoot, 'docs'),
       },
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
-      toggle_url: 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch',
+      toggle_id: 'retired-surface',
+      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
       toggle_at: [200, 200, 300, 300],
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   }));
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8',
-  });
-  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
-  const activatePayload = JSON.parse(activate.stdout);
-  const activeState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
-  assert.equal(activeState.active_experience, 'sigil');
-  const activeConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
-  assert.equal(activeConfig.content.roots.toolkit, path.join(repoRoot, 'packages/toolkit'));
-  assert.equal(activeConfig.content.roots.sigil_custom_docs, customSigilDocs);
-  assert.equal(activeConfig.content.roots.custom_sigil_docs, path.join(repoRoot, 'docs'));
-  assert.equal(activeConfig.content.roots.toolkit_abandoned_worktree, undefined);
-  assert.equal(activeConfig.content.roots.sigil_abandoned_worktree, undefined);
-  assert.equal(activeConfig.content.roots.toolkit_old_branch, undefined);
-  assert.equal(activeConfig.content.roots.sigil_old_branch, undefined);
-  assert.deepEqual(activatePayload.steps.find((step) => step.id === 'content-root:reconcile')?.removed, [
-    'sigil_abandoned_worktree',
-    'sigil_old_branch',
-    'toolkit_abandoned_worktree',
-    'toolkit_old_branch',
-  ]);
-  assert.equal(
-    activatePayload.steps.find((step) => step.id === 'service:restart')?.reason,
-    'content-roots-reconciled',
-  );
-  await assert.rejects(fs.stat(path.join(tmp, 'experience-state.json')));
 
   const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {
     cwd: repoRoot,
@@ -691,30 +633,14 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
-  assert(calls.some((args) => args.join('\0') === ['content', 'status', '--json'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === [
-    'content',
-    'wait',
-    '--root',
-    'toolkit',
-    '--root',
-    'sigil',
-    '--auto-start',
-    '--allow-start',
-    '--timeout',
-    '15s',
-  ].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['wiki', 'seed'].join('\0')), calls);
-  assert(calls.some((args) => args[0] === 'wiki' && args[1] === 'seed' && args[2] === '--namespace' && args[3] === 'sigil'), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'status-item-canvas'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_track', 'none'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['show', 'remove', '--id', 'avatar-main'].join('\0')), calls);
+  assert(!calls.some((args) => args[0] === 'service'), calls);
 });
 
-test('Sigil activation does not rewrite equivalent relative canonical content roots', async () => {
+test('experience activation does not rewrite equivalent relative canonical content roots', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-roots-idempotent-'));
   const binDir = path.join(tmp, 'bin');
   const fakeAos = path.join(tmp, 'fake-aos.mjs');
@@ -736,8 +662,7 @@ fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
 if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
   console.log(JSON.stringify({
     roots: {
-      toolkit: '${path.join(repoRoot, 'packages/toolkit')}',
-      sigil: '${path.join(repoRoot, 'apps/sigil')}'
+      toolkit: '${path.join(repoRoot, 'packages/toolkit')}'
     }
   }));
 }
@@ -747,20 +672,19 @@ process.exit(0);
     content: {
       roots: {
         toolkit: 'packages/toolkit',
-        sigil: 'apps/sigil',
       },
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
-      toggle_url: 'aos://sigil/renderer/index.html?toolkit-root=toolkit',
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
       toggle_at: [200, 200, 300, 300],
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   }));
 
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -777,35 +701,33 @@ process.exit(0);
   const payload = JSON.parse(activate.stdout);
   assert.equal(payload.status, 'success');
   assert.equal(payload.content_roots.find((root) => root.id === 'toolkit')?.key, 'toolkit');
-  assert.equal(payload.content_roots.find((root) => root.id === 'sigil')?.key, 'sigil');
   assert.equal(payload.steps.find((step) => step.id === 'content-root:toolkit')?.status, 'unchanged');
-  assert.equal(payload.steps.find((step) => step.id === 'content-root:sigil')?.status, 'unchanged');
 
   const config = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
   assert.equal(config.content.roots.toolkit, 'packages/toolkit');
-  assert.equal(config.content.roots.sigil, 'apps/sigil');
   const calls = (await fs.readFile(logPath, 'utf8'))
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
   assert(!calls.some((args) => args.join('\0') === ['config', 'set', 'content.roots.toolkit', path.join(repoRoot, 'packages/toolkit')].join('\0')), calls);
-  assert(!calls.some((args) => args.join('\0') === ['config', 'set', 'content.roots.sigil', path.join(repoRoot, 'apps/sigil')].join('\0')), calls);
   assert(!calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
 });
 
-test('Sigil activation restarts service when live content server still exposes stale branch roots', async () => {
+test('experience activation restarts service when live content server still exposes stale branch roots', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-live-stale-roots-'));
   const fakeAos = path.join(tmp, 'fake-aos.mjs');
   const logPath = path.join(tmp, 'aos-calls.jsonl');
-  const customSigilDocs = path.join(tmp, 'custom-sigil-docs');
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
-  await fs.mkdir(customSigilDocs, { recursive: true });
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  manifest.content_roots[0].branch_scoped = true;
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
   const liveRoots = {
     toolkit: path.join(repoRoot, 'packages/toolkit'),
-    sigil: path.join(repoRoot, 'apps/sigil'),
     toolkit_abandoned_worktree: path.join(tmp, 'missing-worktree', 'packages/toolkit'),
-    sigil_custom_docs: customSigilDocs,
   };
 
   await fs.writeFile(fakeAos, `#!/usr/bin/env node
@@ -821,24 +743,24 @@ process.exit(0);
     content: {
       roots: {
         toolkit: path.join(repoRoot, 'packages/toolkit'),
-        sigil: path.join(repoRoot, 'apps/sigil'),
       },
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
-      toggle_url: 'aos://sigil/renderer/index.html?toolkit-root=toolkit',
+      toggle_id: 'operator-fixture-surface',
+      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
       toggle_at: [200, 200, 300, 300],
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'aos',
     },
   }));
 
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
       AOS_PATH: fakeAos,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
@@ -854,7 +776,7 @@ process.exit(0);
   );
 
   const config = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
-  assert.deepEqual(Object.keys(config.content.roots).sort(), ['sigil', 'toolkit']);
+  assert.deepEqual(Object.keys(config.content.roots).sort(), ['toolkit']);
   const calls = (await fs.readFile(logPath, 'utf8'))
     .trim()
     .split('\n')
@@ -864,11 +786,18 @@ process.exit(0);
 
 test('branch-scoped experience content roots require explicit opt-in isolated state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-branch-roots-'));
+  const experiencesRoot = path.join(tmp, 'experiences');
+  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  await fs.mkdir(fixtureDir, { recursive: true });
+  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  manifest.content_roots[0].branch_scoped = true;
+  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-  const canonical = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+  const canonical = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
@@ -878,12 +807,12 @@ test('branch-scoped experience content roots require explicit opt-in isolated st
   assert.equal(canonical.status, 0, `${canonical.stdout}${canonical.stderr}`);
   const canonicalPayload = JSON.parse(canonical.stdout);
   assert.equal(canonicalPayload.content_roots.find((root) => root.id === 'toolkit')?.key, 'toolkit');
-  assert.equal(canonicalPayload.content_roots.find((root) => root.id === 'sigil')?.key, 'sigil');
 
-  const branchScoped = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+  const branchScoped = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
       AOS_CONTENT_ROOT_SCOPE: 'branch',
       AOS_RUNTIME_MODE: 'repo',
@@ -894,12 +823,12 @@ test('branch-scoped experience content roots require explicit opt-in isolated st
   assert.equal(branchScoped.status, 0, `${branchScoped.stdout}${branchScoped.stderr}`);
   const branchPayload = JSON.parse(branchScoped.stdout);
   assert.equal(branchPayload.content_roots.find((root) => root.id === 'toolkit')?.key, scopedRootName('toolkit'));
-  assert.equal(branchPayload.content_roots.find((root) => root.id === 'sigil')?.key, scopedRootName('sigil'));
 
-  const rejected = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--dry-run', '--json'], {
+  const rejected = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
       ...process.env,
+      AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: '',
       AOS_CONTENT_ROOT_SCOPE: 'branch',
       AOS_RUNTIME_MODE: 'repo',

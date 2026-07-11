@@ -117,6 +117,10 @@ Default section order:
   default repo runtime belongs to the primary checkout; runtime-coupled tests
   from any alternate checkout must use an explicit isolated `AOS_STATE_ROOT`.
 - Treat `_dev` demos as non-canonical.
+- Treat external Sigil as AOS's first-party reference consumer. Sigil needs may
+  drive product-neutral primitives, toolkit policy, hosts, schemas, and public
+  CLI changes without waiting for a second consumer; keep branded product
+  composition in the Sigil repository.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
 
@@ -128,8 +132,9 @@ Default section order:
   child doc is needed.
 - `.claude/` contains Claude compatibility settings and statusline hooks; live
   project-agent orchestration is retired from AOS core.
-- `apps/AGENTS.md` governs application consumers. Its current child is
-  `apps/sigil/AGENTS.md`.
+- `apps/AGENTS.md` governs retained application fixtures. Its current child is
+  the frozen legacy contract at `apps/sigil/AGENTS.md`; active Sigil product
+  authority lives in `Ch-osctrl/sigil`.
 - `docs/AGENTS.md` governs durable docs, ADRs, guides, API docs, reports, and
   archives.
 - `experiences/AGENTS.md` governs experience manifests and app activation

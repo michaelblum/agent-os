@@ -155,8 +155,7 @@
             }
           ],
           "examples": [
-            "aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json",
-            "aos experience menu invoke sigil --item annotate-this-thing --json"
+            "aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json"
           ],
           "execution": {
             "auto_starts_daemon": true,

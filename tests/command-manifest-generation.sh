@@ -40,6 +40,14 @@ for family in ["aos", "external"]:
 
 registry = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
 assert all(command["path"][0] != "dev" for command in registry["commands"]), "generated registry must not contain the retired dev command family"
+registry_text = json.dumps(registry).lower()
+for retired_route in [
+    "aos launch sigil",
+    "aos experience menu invoke sigil",
+    "sigil/start",
+    "apps/sigil",
+]:
+    assert retired_route not in registry_text, f"generated help must not teach embedded Sigil route: {retired_route}"
 external = json.loads(Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8"))
 assert all(command["path"][0] != "dev" for command in external["commands"]), "external registry must not contain retired dev routes"
 

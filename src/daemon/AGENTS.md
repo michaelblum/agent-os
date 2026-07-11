@@ -10,8 +10,8 @@ delivery, voice/communication routing, and cleanup.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as
-`sigil`, `avatar`, or `chat`. Existing Sigil-specific input ownership logic is
-convergence debt, not a pattern to copy.
+`sigil`, `avatar`, or `chat`. Product-specific daemon logic is prohibited unless
+an explicit temporary adapter names its external contract and removal gate.
 
 Allowed daemon-side surface work:
 
@@ -24,7 +24,7 @@ Allowed daemon-side surface work:
   the tested fail-open decision without leaving capture state active; successful
   delivery keeps typed destination and diagnostic metadata until final serialization;
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
-- platform events that toolkit and apps can subscribe to.
+- platform events that toolkit and external consumers can subscribe to.
 
 Avoid daemon-side surface policy:
 

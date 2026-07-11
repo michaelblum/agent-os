@@ -51,7 +51,7 @@ layer instead of painting duplicate text into the UI.
 Do not use visible text as an agent marker. Do not stuff identifiers, action
 ids, routing hints, or debug state into accessible names. Names should read like
 Mac controls, for example `Open radial menu`, `Brush size`, or `Submit`, not
-`sigil.radial.action.open.primary`.
+`example.radial.action.open.primary`.
 
 Use descriptions or help text only for user-facing clarification. Use AOS
 metadata for state-scoped refs, descriptor identity, routing, and reacquisition

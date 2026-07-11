@@ -49,26 +49,22 @@ Candidate reusable artifact reporting:
 ## Canonical URL And Fresh Runtime Evidence
 
 Use shared helpers in `tests/lib/visual-harness.sh` when a visual or live-canvas
-test touches generic content-root URLs, reloads, or canvas setup. Use
-app-specific harnesses such as `tests/lib/sigil/visual-harness.sh` for
-product-specific launch composition, renderer freshness, fixtures, and status
-item setup. New app-specific visual helpers should start under
-`tests/lib/<app>/` and source the generic harness rather than growing the
-generic file.
+test touches generic content-root URLs, reloads, or canvas setup. External
+products own their app-specific launch, renderer, fixture, and status-item
+harnesses; AOS tests should use neutral substrate fixtures.
 
 - Command/config boundary: pass canonical `aos://...` URLs. AOS may rewrite
   those to `http://127.0.0.1:<port>/...` inside WKWebView or `show list`
   runtime evidence.
 - Comparison boundary: compare canonical and resolved URLs by content-root,
-  path, and query equivalence. Do not require raw string equality between
-  `aos://sigil/...` and the localhost URL that served the page.
+  path, and query equivalence. Do not require raw string equality between an
+  `aos://...` URL and the localhost URL that served the page.
 - Reload boundary: reload URL-backed canvases with
   `aos show update --url 'aos://...'`; do not copy a resolved localhost URL
   back into launch or update inputs.
-- Root scoping: the single-checkout dev workflow defaults to canonical
-  `sigil` and `toolkit` content-root keys, even on feature branches. Do not use
-  linked git worktrees or branch-scoped keys to share the default agent-os
-  runtime across agents.
+- Root scoping: the single-checkout dev workflow uses canonical content-root
+  keys, even on feature branches. Do not use linked git worktrees or
+  branch-scoped keys to share the default agent-os runtime across agents.
 - Runtime ownership: the default local runtime is single-owner. Use the
   launchd-managed daemon for `~/.config/aos/{repo|installed}`. Foreground
   `aos serve` development daemons must use an isolated `AOS_STATE_ROOT`; a
@@ -78,8 +74,8 @@ generic file.
   Git worktree. Use show-list owner metadata to prove
   `owner.worktree_root` matches the expected repo root.
 - Freshness boundary: when code changes matter, live smoke evidence must prove
-  `window.__sigilDebug.snapshot().runtime.loadedAt` is newer than or equal to
-  `git show -s --format=%cI HEAD`.
+  the target fixture's loaded revision or timestamp is newer than or equal to
+  the revision under test.
 
 ## Examples
 
@@ -102,10 +98,6 @@ generic file.
   mouse movement, keyboard input, input taps, status-item clicks, or
   DesktopWorld/native coordinate conversion, use a real-input scenario or record
   why that proof is blocked.
-- Optional Sigil example: for avatar launch through the status item, a
-  status-item owner/click harness is representative. Directly creating
-  `avatar-main` with `show create --html` or changing renderer state with
-  `show eval` skips the ownership and click path and is not enough by itself.
 
 ## Wait And Retry Posture
 

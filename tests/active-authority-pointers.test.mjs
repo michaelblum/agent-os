@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readdir, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +62,7 @@ async function activeAuthorityPaths() {
   return stdout
     .split(/\r?\n/)
     .filter(Boolean)
+    .filter((relativePath) => existsSync(path.join(repoRoot, relativePath)))
     .filter((relativePath) => (
       relativePath === 'README.md'
       || relativePath === 'AGENTS.md'

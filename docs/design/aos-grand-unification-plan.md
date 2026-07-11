@@ -246,7 +246,6 @@ slices with repo evidence and clear exit criteria.
 - Work records: `docs/design/aos-work-records-and-self-healing-recipes.md`
 - Browser recording and grammar: `docs/design/see-do-grammar-trace-connections.md`
 - Pi lessons: `docs/design/pi-computer-use-lessons-for-aos-see-do.md`
-- Open Design comparison: `docs/design/open-design-workbench-cross-reference.md`
 - Architecture deepening audit triage:
   `docs/design/2026-05-07-architecture-deepening-audit-triage.md`
 - Local reference checkouts:

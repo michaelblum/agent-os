@@ -137,7 +137,6 @@ is correctness coverage and does **not** establish any of this.
 
 - Review / decision space: `docs/dev/reports/aos-surface-transport-architecture-review-v0.md`
 - Architecture proposal (the means): `docs/design/aos-one-world-architecture-proposal-v0.md`
-- Handoff / backlog / code anchors / guardrails: `docs/design/aos-surface-world-workstream-handoff-v0.md`
 - Phase 0 measurement evidence: `docs/dev/reports/aos-surface-transport-stack-measurement-v0.md`
 - Phase 5 Sigil/resource baseline: `docs/design/visual-object-descriptor-contract-v0.md`; status/evidence: `docs/dev/reports/aos-visual-object-architecture.md`
 
