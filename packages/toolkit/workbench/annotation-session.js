@@ -33,9 +33,13 @@ function text(value, fallback = '') {
   return normalized || fallback
 }
 
-function normalizeAnnotationSessionEntrySource(value) {
+export function normalizeLegacyAnnotationEntrySource(value) {
   const source = text(value)
-  const canonical = LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES.get(source) || source
+  return LEGACY_ANNOTATION_SESSION_ENTRY_SOURCES.get(source) || source
+}
+
+export function normalizeAnnotationSessionEntrySource(value) {
+  const canonical = normalizeLegacyAnnotationEntrySource(value)
   return ANNOTATION_SESSION_ENTRY_SOURCES.has(canonical) ? canonical : 'unknown'
 }
 

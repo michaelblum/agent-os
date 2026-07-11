@@ -549,11 +549,9 @@
     },
     {
       "id": "visual-harness-primitives",
-      "summary": "Visual harness primitives or app-specific visual harness compositions changed.",
+      "summary": "Generic visual harness primitives changed.",
       "patterns": [
         "tests/lib/visual-harness.sh",
-        "tests/lib/sigil/visual-harness.sh",
-        "tests/lib/sigil/radial-menu.sh",
         "tests/visual-harness-*.sh"
       ],
       "classes": [
@@ -570,7 +568,7 @@
         {
           "id": "visual-harness-boundary",
           "command": "bash tests/visual-harness-boundary.sh",
-          "reason": "Prove generic visual primitives and app-specific visual compositions stay separated."
+          "reason": "Prove the visual harness remains a generic AOS substrate boundary."
         },
         {
           "id": "visual-harness-canonical-url",
@@ -580,7 +578,7 @@
         {
           "id": "visual-harness-content-preflight",
           "command": "bash tests/visual-harness-content-preflight.sh",
-          "reason": "Prove stale live content-root detection remains deterministic."
+          "reason": "Prove stale or missing active content roots fail before visual proof begins."
         },
         {
           "id": "harness-composability-contracts",

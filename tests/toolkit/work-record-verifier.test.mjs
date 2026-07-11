@@ -70,7 +70,7 @@ test('report-only verifier checker derives indexes and does not mutate valid v0 
   assert.deepEqual(result.derived_indexes, {
     verified: [
       'claim:before-action-after-evidence-captured',
-      'claim:sigil-subject-opened',
+      'claim:runtime-modes-subject-opened',
     ],
     failed: [],
     unverified: [],

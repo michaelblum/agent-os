@@ -35,9 +35,9 @@ ids, and geometry are not durable target identity.
 {
   "semantic_targets": [
     {
-      "ref": "sigil-radial-item-wiki-graph",
+      "ref": "example-menu-item-wiki-graph",
       "state_id": "see_abc123def456",
-      "surface": "sigil-radial-menu",
+      "surface": "example-menu",
       "role": "button",
       "name": "Wiki Graph",
       "kind": "semantic_target",
@@ -45,11 +45,11 @@ ids, and geometry are not durable target identity.
       "target": {
         "target_id": "radial-item:wiki-graph",
         "owner_namespace": {
-          "app_id": "sigil",
-          "canvas_id": "sigil-radial-menu",
-          "surface_id": "sigil-radial-menu",
-          "component_family": "sigil.radial-menu",
-          "structural_owner": ["avatar-main", "radial-menu"]
+          "app_id": "example",
+          "canvas_id": "example-menu",
+          "surface_id": "example-menu",
+          "component_family": "example.menu",
+          "structural_owner": ["example-root", "menu"]
         }
       },
       "state": { "current": "true" },
@@ -59,9 +59,9 @@ ids, and geometry are not durable target identity.
         "source": { "path": null, "line_start": null, "line_end": null }
       },
       "provenance": {
-        "canvas_id": "sigil-radial-menu",
-        "do_target": "canvas:sigil-radial-menu/sigil-radial-item-wiki-graph",
-        "parent_canvas_id": "avatar-main",
+        "canvas_id": "example-menu",
+        "do_target": "canvas:example-menu/example-menu-item-wiki-graph",
+        "parent_canvas_id": "example-root",
         "source_payload_id": "wiki-graph",
         "bounds": { "x": 40, "y": 24, "width": 56, "height": 56 },
         "frame": { "x": 40, "y": 24, "width": 56, "height": 56 },
@@ -71,9 +71,9 @@ ids, and geometry are not durable target identity.
         "strategy": "owner-structural-fingerprint",
         "machine_fingerprint": {
           "role": "button",
-          "structural_path": ["radial-menu", "item:wiki-graph"],
+          "structural_path": ["menu", "item:wiki-graph"],
           "capabilities": ["click", "open"],
-          "nearby_group": "Sigil radial menu"
+          "nearby_group": "Example menu"
         },
         "hint_fingerprint": {
           "label_hints": ["Wiki Graph"],

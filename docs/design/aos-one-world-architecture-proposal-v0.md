@@ -52,7 +52,7 @@ closer to a game-engine editor, **Blender**, or Smalltalk **Morphic** ("a live
 sandbox of building blocks you can poke") than to a desktop windowing system.
 
 Why this is the simpler architecture, recast from the transport review: the
-`publishState`, cross-canvas `canvas.send`, and `sigil.avatar_panel.snapshot`
+`publishState`, cross-canvas `canvas.send`, and product snapshot
 machinery the review flagged as overhead exist **only because owner and observer
 live in separate heaps**. They are the *tax of process separation*. Co-locate
 first-party surfaces in one heap and that entire category of work **deletes
@@ -82,7 +82,7 @@ window manager** — leaving two layers:
    old "toolkit vs app" split stops being a *platform boundary* and becomes a
    normal in-app concern: the World's **scene-kit / standard library** (controls,
    panels-as-regions, scene graph, effect/transform stack, theming) vs its
-   **content** (Sigil's avatar, dashboards, widgets).
+   **content** (product visuals, dashboards, widgets).
 
 **The one boundary that cannot collapse**, because it is the whole point of
 agent-OS: the World is **transparent and passthrough-by-default**, overlaid on
@@ -97,7 +97,7 @@ screen; it must let real software receive input where AOS isn't. Default z-order
 
 The Subject / Facet / Host model already gives us the vocabulary:
 
-- **Subjects are host-neutral** (0005): Sigil, a radial menu, a Work Record keep
+- **Subjects are host-neutral** (0005): an application, a menu, and a Work Record keep
   one identity regardless of where rendered.
 - **Facets declare Hosts** (0005, 0011): a **Browser Host** (`browser:…`, for
   documents/wiki/reports/workbenches/preview) or a **Canvas Host** (`canvas:…`,
@@ -248,12 +248,9 @@ The review's separate directions become facets of one idea:
 - The **drain-paced daemon coalescing** (review Direction A) still applies at the
   daemon→World seam and stays "pure mechanism, opt-in raw" (ADR-0015 intact).
 
-**Sigil's own migration is a separate, larger track.** Sigil-as-content — the
-avatar renderer becoming entities in the World rather than a private full
-canvas — is *not* folded into this proposal. Sequence it on its own after the
-§10 probes, using the accepted visual-object descriptor/resource contracts and
-the current panel placement/observability contract rather than deleted work-card
-artifacts.
+Product adoption is outside this proposal and belongs in each consuming
+repository. The AOS acceptance boundary ends at the generic World, descriptor,
+placement, and observability contracts.
 
 ---
 

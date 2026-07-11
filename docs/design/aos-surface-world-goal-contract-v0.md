@@ -110,7 +110,7 @@ Phase 0/1 can still reshape or kill the approach.
   not reaching into internals.
 - **Phase 3 — Incremental first-party migration.**
   Move surfaces onto the World node-by-node (overlays → chips → diagnostics →
-  avatar compact controls → …), each only when its window-semantics need is shown
+  compact controls → …), each only when its window-semantics need is shown
   unnecessary.
   **Exit gate (per surface):** behavior parity + the §2.3 perf budget held in the
   stacked scenario.
@@ -120,10 +120,6 @@ Phase 0/1 can still reshape or kill the approach.
   CONTEXT "Layer"/"Control"/"surface" collisions + add World/scene vocabulary;
   collapse ARCHITECTURE's 3-layer surface ownership to 2.
   **Gate:** owner approval.
-- **Phase 5 — Sigil-as-content migration (separate, larger track).**
-  Avatar renderer becomes World entities. Its prerequisites stay in the
-  One-World handoff/backlog and the accepted visual-object descriptor/resource
-  contracts.
 
 ## 6. Acceptance evidence
 
@@ -138,7 +134,7 @@ is correctness coverage and does **not** establish any of this.
 - Review / decision space: `docs/dev/reports/aos-surface-transport-architecture-review-v0.md`
 - Architecture proposal (the means): `docs/design/aos-one-world-architecture-proposal-v0.md`
 - Phase 0 measurement evidence: `docs/dev/reports/aos-surface-transport-stack-measurement-v0.md`
-- Phase 5 Sigil/resource baseline: `docs/design/visual-object-descriptor-contract-v0.md`; status/evidence: `docs/dev/reports/aos-visual-object-architecture.md`
+- Visual-object/resource baseline: `docs/design/visual-object-descriptor-contract-v0.md`; status/evidence: `docs/dev/reports/aos-visual-object-architecture.md`
 
 ## 8. Change control
 

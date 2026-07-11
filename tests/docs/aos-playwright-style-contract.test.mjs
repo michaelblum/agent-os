@@ -40,8 +40,8 @@ test('harness docs preserve canonical-root and wait posture', async () => {
   const oneLine = compact(doc);
 
   for (const phrase of [
-    'single-checkout dev workflow defaults to canonical',
-    '`sigil` and `toolkit` content-root keys',
+    'single-checkout dev workflow uses canonical',
+    'canonical content-root keys',
     'Do not use linked git worktrees or branch-scoped keys',
     'Alternate-checkout isolated runtime proof',
     'Do not branch-scope the active shared experience',
@@ -68,8 +68,6 @@ test('wait and surface housecleaning report classifies live proof before deletio
     'Delete Candidates',
     'tests/show-wait-timeout-boundary.test.mjs',
     'packages/toolkit/components/wiki-subject-browser/launch.sh',
-    'tests/scenarios/sigil/radial-menu/real-input.sh',
-    'Do not delete in this pass.',
     'replace it with an AOS-observed predicate',
     'Fixed sleeps that model input dwell or OS delivery are temporary escape hatches.',
   ]) {

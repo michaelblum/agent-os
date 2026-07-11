@@ -27,8 +27,8 @@ Good runtime responsibilities:
 
 Keep windowing and product policy out of runtime. A helper here may expose a
 generic capability, but default panel state, chip placement, workbench layout,
-surface-manager UI, and Sigil-specific behavior belong in `panel/`,
-`workbench/`, `components/`, or `apps/`.
+surface-manager UI, and product-specific behavior belong in `panel/`,
+`workbench/`, `components/`, or the owning external product.
 Pending annotation record construction belongs outside runtime; runtime may
 emit generic operator-selection evidence to an injected adapter, but it must not
 manufacture pending annotation DTOs.

@@ -113,7 +113,7 @@ test('work record workbench opens a v0 fixture read-only without lossy rewriting
   assert.equal(state.dirty, false);
   assert.equal(workRecordIsReadOnly(state.record), true);
   assert.deepEqual(state.record.evidence, record.evidence);
-  assert.equal(snapshot.subject.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(snapshot.subject.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
@@ -125,7 +125,7 @@ test('work record workbench opens a v0 fixture read-only without lossy rewriting
   assert.equal(snapshot.diagnostics.claim_result_count, 2);
   assert.equal(snapshot.diagnostics.postcondition_count, 3);
   assert.equal(evidenceArtifacts(state.record).length, 3);
-  assert.match(executionMapJson(state.record), /postcondition:sigil-heading-visible/);
+  assert.match(executionMapJson(state.record), /postcondition:runtime-modes-heading-visible/);
   assert.equal(workRecordVerifierCheck(state.record).status, 'passed');
 
   const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate v0' });

@@ -29,8 +29,8 @@ function routedPointer(overrides = {}) {
     coordinate_authority: 'toolkit',
     source_origin: 'daemon',
     source_event: type,
-    region_id: 'avatar-hit',
-    owner_canvas_id: 'avatar-main',
+    region_id: 'example-hit',
+    owner_canvas_id: 'example-root',
     capture_id: 'c1',
     button: 'left',
     buttons: { left: true, right: false, middle: false, other_pressed: [] },
@@ -43,7 +43,7 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
     kind: 'drag',
     axis: 'x',
     semantic: { targetId: 'slider:scale', action: 'set-value', kind: 'slider' },
-    source: { origin: 'daemon', ownerCanvasId: 'avatar-main', sourceCanvasId: 'avatar-hit' },
+    source: { origin: 'daemon', ownerCanvasId: 'example-root', sourceCanvasId: 'example-hit' },
   })
   const frames = []
   stream.subscribe((frame) => frames.push(frame))
@@ -77,8 +77,8 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   assert.equal(frames[0].gesture_id, 'g1')
   assert.equal(frames[0].transaction_id, 'g1')
   assert.equal(frames[0].pointer.capture_id, 'c1')
-  assert.equal(frames[0].source.owner_canvas_id, 'avatar-main')
-  assert.equal(frames[0].source.source_canvas_id, 'avatar-hit')
+  assert.equal(frames[0].source.owner_canvas_id, 'example-root')
+  assert.equal(frames[0].source.source_canvas_id, 'example-hit')
   assert.deepEqual(frames[1].delta, { x: 20, y: 5 })
   assert.deepEqual(frames[2].total_delta, { x: 40, y: 0 })
   assert.equal(frames[2].semantic_target.target_id, 'slider:scale')

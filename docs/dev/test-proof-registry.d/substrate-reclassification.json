@@ -1,0 +1,403 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof ownership for generic AOS contracts separated from the retired embedded product.",
+  "entries": [
+    {
+      "id": "agent-terminal-substrate-contract",
+      "path_patterns": [
+        "packages/toolkit/components/agent-terminal/launch.sh",
+        "tests/agent-terminal-server.test.mjs",
+        "tests/agent-terminal-substrate-no-provider.test.mjs",
+        "tests/toolkit/agent-terminal-chrome.test.mjs",
+        "tests/renderer/agent-terminal-bridge-client.test.mjs",
+        "tests/renderer/agent-terminal-session-inspector-model.test.mjs",
+        "tests/renderer/agent-terminal-session-inspector-view.test.mjs",
+        "tests/renderer/agent-terminal-session-rail-model.test.mjs",
+        "tests/renderer/agent-terminal-session-rail-view.test.mjs",
+        "tests/renderer/agent-terminal-terminal-controller.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-agent-terminal",
+      "harness_level": "model_unit",
+      "proof_kind": "agent_terminal_substrate_contract",
+      "contract": "Agent Terminal provider observation, PTY transport, chrome, and launcher wiring remain neutral toolkit capabilities with no embedded product route.",
+      "worth": "This preserves the reusable terminal substrate while deleting product launch and renderer ownership.",
+      "command": "node --test tests/agent-terminal-server.test.mjs tests/agent-terminal-substrate-no-provider.test.mjs tests/toolkit/agent-terminal-chrome.test.mjs tests/renderer/agent-terminal-bridge-client.test.mjs tests/renderer/agent-terminal-session-inspector-model.test.mjs tests/renderer/agent-terminal-session-inspector-view.test.mjs tests/renderer/agent-terminal-session-rail-model.test.mjs tests/renderer/agent-terminal-session-rail-view.test.mjs tests/renderer/agent-terminal-terminal-controller.test.mjs",
+      "replaces": [
+        "embedded Sigil Agent Terminal tests and launcher composition"
+      ],
+      "guard": "fake providers and local PTY fixtures only; no AOS daemon",
+      "status": "active"
+    },
+    {
+      "id": "agent-ui-target-conformance-contract",
+      "path_patterns": [
+        "tests/toolkit/agent-ui-target-conformance.test.mjs"
+      ],
+      "fixture_patterns": [
+        "docs/design/fixtures/agent-ui-target-conformance-v0/**"
+      ],
+      "owner": "toolkit-semantic-targets",
+      "harness_level": "model_unit",
+      "proof_kind": "agent_ui_target_contract",
+      "contract": "Current producer records map losslessly to neutral canonical agent UI targets and keep projections separate.",
+      "worth": "This retains cross-surface target normalization without treating a product compact surface as the canonical producer.",
+      "command": "node --test tests/toolkit/agent-ui-target-conformance.test.mjs",
+      "replaces": [],
+      "guard": "fixture-only model test",
+      "status": "active"
+    },
+    {
+      "id": "interaction-reacquisition-fixture-contract",
+      "path_patterns": [
+        "tests/toolkit/aos-interaction-grammar-contract.test.mjs",
+        "tests/toolkit/aos-target-descriptor-contract.test.mjs"
+      ],
+      "fixture_patterns": [
+        "docs/design/fixtures/aos-interaction-grammar-v0/**",
+        "docs/design/fixtures/aos-target-descriptor-v0/**"
+      ],
+      "owner": "toolkit-semantic-targets",
+      "harness_level": "model_unit",
+      "proof_kind": "interaction_reacquisition_contract",
+      "contract": "Interaction grammar and target reacquisition fixtures remain namespace-safe with neutral owner identities.",
+      "worth": "This keeps ambiguity and stale-ref behavior reusable across consumers.",
+      "command": "node --test tests/toolkit/aos-interaction-grammar-contract.test.mjs tests/toolkit/aos-target-descriptor-contract.test.mjs",
+      "replaces": [],
+      "guard": "fixture-only model tests",
+      "status": "active"
+    },
+    {
+      "id": "context-session-substrate-contract",
+      "path_patterns": [
+        "tests/toolkit/context-session.test.mjs",
+        "tests/schemas/aos-context-session-v0.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/aos-context-session-v0/**"
+      ],
+      "owner": "toolkit-context-session",
+      "harness_level": "schema",
+      "proof_kind": "context_session_contract",
+      "contract": "Context sessions preserve ordered targets, artifacts, keyframes, and safe asset references independently of product capture UI.",
+      "worth": "This retains the persisted AOS context contract while isolating the one legacy entry-source token at its schema boundary.",
+      "command": "node --test tests/toolkit/context-session.test.mjs tests/schemas/aos-context-session-v0.test.mjs",
+      "replaces": [
+        "embedded product context recording renderer tests"
+      ],
+      "guard": "schema and pure model fixtures only",
+      "status": "active"
+    },
+    {
+      "id": "work-record-toolkit-contract",
+      "path_patterns": [
+        "tests/toolkit/work-record-adapter.test.mjs",
+        "tests/toolkit/work-record-consumer.test.mjs",
+        "tests/toolkit/work-record-repair-attempt-plan.test.mjs",
+        "tests/toolkit/work-record-subject.test.mjs",
+        "tests/toolkit/work-record-verifier.test.mjs",
+        "tests/toolkit/work-record-workbench-model.test.mjs",
+        "tests/schemas/aos-work-record-v0.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/aos-work-record-v0/**",
+        "docs/design/fixtures/aos-work-records/**"
+      ],
+      "owner": "toolkit-work-record",
+      "harness_level": "model_unit",
+      "proof_kind": "work_record_contract",
+      "contract": "Work Record adapters, consumers, subjects, verifier projections, repair planning, and workbench state operate on neutral workflow fixtures.",
+      "worth": "This preserves durable execution evidence without making a product wiki workflow part of AOS authority.",
+      "command": "node --test tests/schemas/aos-work-record-v0.test.mjs tests/toolkit/work-record-adapter.test.mjs tests/toolkit/work-record-consumer.test.mjs tests/toolkit/work-record-repair-attempt-plan.test.mjs tests/toolkit/work-record-subject.test.mjs tests/toolkit/work-record-verifier.test.mjs tests/toolkit/work-record-workbench-model.test.mjs",
+      "replaces": [],
+      "guard": "schema and pure model tests; command-dispatch fixtures use temporary files only",
+      "status": "active"
+    },
+    {
+      "id": "subject-workbench-substrate-contract",
+      "path_patterns": [
+        "tests/schemas/aos-ux-tree-v0.test.mjs",
+        "tests/schemas/aos-workbench-subject.test.mjs",
+        "tests/toolkit/radial-menu-subject.test.mjs",
+        "tests/toolkit/runtime-menu-activation.test.mjs",
+        "tests/toolkit/runtime-radial-menu-config.test.mjs",
+        "tests/toolkit/subject-entry-handle.test.mjs",
+        "tests/toolkit/ux-tree-subject.test.mjs",
+        "tests/toolkit/wiki-subject-browser.test.mjs",
+        "tests/toolkit/wiki-subject-opening.test.mjs",
+        "tests/toolkit/wiki-subject.test.mjs",
+        "tests/toolkit/workbench-shell.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/aos-ux-tree-v0/**"
+      ],
+      "owner": "toolkit-workbench",
+      "harness_level": "model_unit",
+      "proof_kind": "subject_workbench_contract",
+      "contract": "UX trees, menu subjects, wiki subjects, entry handles, and workbench shells remain generic descriptor and host contracts.",
+      "worth": "This retains reusable subject/workbench behavior after removing the embedded product subject adapter.",
+      "command": "node --test tests/schemas/aos-ux-tree-v0.test.mjs tests/schemas/aos-workbench-subject.test.mjs tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/subject-entry-handle.test.mjs tests/toolkit/ux-tree-subject.test.mjs tests/toolkit/wiki-subject-browser.test.mjs tests/toolkit/wiki-subject-opening.test.mjs tests/toolkit/wiki-subject.test.mjs tests/toolkit/workbench-shell.test.mjs",
+      "replaces": [
+        "embedded product UX-tree and subject renderer tests"
+      ],
+      "guard": "schema and pure model tests only",
+      "status": "active"
+    },
+    {
+      "id": "surface-inspector-model-contract",
+      "path_patterns": [
+        "tests/toolkit/annotation-candidates.test.mjs",
+        "tests/toolkit/surface-inspector*.test.mjs",
+        "tests/toolkit/surface-interaction-decision-tree-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-surface-inspector",
+      "harness_level": "model_unit",
+      "proof_kind": "surface_inspector_contract",
+      "contract": "Surface Inspector layout, annotation candidates, semantic controls, marks, segments, and interaction guidance use generic root and canvas identities.",
+      "worth": "This preserves AOS observability and annotation policy without hard-coding a product root canvas.",
+      "command": "node --test tests/toolkit/annotation-candidates.test.mjs tests/toolkit/surface-inspector-annotations.test.mjs tests/toolkit/surface-inspector-ax.test.mjs tests/toolkit/surface-inspector-marks-normalize.test.mjs tests/toolkit/surface-inspector-marks-render.test.mjs tests/toolkit/surface-inspector-segments.test.mjs tests/toolkit/surface-inspector-tree.test.mjs tests/toolkit/surface-inspector.test.mjs tests/toolkit/surface-interaction-decision-tree-contract.test.mjs",
+      "replaces": [
+        "product-root special cases in annotation and Surface Inspector models"
+      ],
+      "guard": "pure model and source-contract tests only",
+      "status": "active"
+    },
+    {
+      "id": "visual-object-model-contract",
+      "path_patterns": [
+        "tests/toolkit/object-transform-panel-model.test.mjs",
+        "tests/toolkit/object-transform-panel-semantics.test.mjs",
+        "tests/toolkit/visual-object-contract.test.mjs",
+        "tests/toolkit/visual-object-form-binding.test.mjs",
+        "tests/toolkit/visual-object-resource-lifecycle.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-visual-object",
+      "harness_level": "model_unit",
+      "proof_kind": "visual_object_contract",
+      "contract": "Visual object descriptors, mutations, resource lifecycle, form binding, and transform-panel semantics use neutral object and canvas identities.",
+      "worth": "This preserves reusable visual-object editing after product renderer and stellation suites move out of AOS.",
+      "command": "node --test tests/toolkit/object-transform-panel-model.test.mjs tests/toolkit/object-transform-panel-semantics.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-resource-lifecycle.test.mjs",
+      "replaces": [
+        "embedded product avatar and renderer visual-object tests"
+      ],
+      "guard": "pure model and DOM fixture tests only",
+      "status": "active"
+    },
+    {
+      "id": "runtime-surface-model-contract",
+      "path_patterns": [
+        "tests/toolkit/render-performance-model.test.mjs",
+        "tests/toolkit/runtime-canvas-lifecycle.test.mjs",
+        "tests/toolkit/runtime-menu-activation.test.mjs",
+        "tests/toolkit/runtime-radial-menu-config.test.mjs",
+        "tests/toolkit/runtime-semantic-targets.test.mjs",
+        "tests/toolkit/spatial-telemetry-model.test.mjs",
+        "tests/toolkit/zag-adapter-menu.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "runtime_surface_contract",
+      "contract": "Canvas lifecycle, menu activation, semantic targets, telemetry, render metrics, and menu adapters accept neutral consumer identities.",
+      "worth": "This retains platform surface behavior without product fixture IDs becoming implicit API.",
+      "command": "node --test tests/toolkit/render-performance-model.test.mjs tests/toolkit/runtime-canvas-lifecycle.test.mjs tests/toolkit/runtime-menu-activation.test.mjs tests/toolkit/runtime-radial-menu-config.test.mjs tests/toolkit/runtime-semantic-targets.test.mjs tests/toolkit/spatial-telemetry-model.test.mjs tests/toolkit/zag-adapter-menu.test.mjs",
+      "replaces": [],
+      "guard": "pure model and DOM fixture tests only",
+      "status": "active"
+    },
+    {
+      "id": "harness-authority-document-contract",
+      "path_patterns": [
+        "tests/docs/aos-playwright-style-contract.test.mjs",
+        "tests/execution-model-terminology-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "test-governance",
+      "harness_level": "model_unit",
+      "proof_kind": "documentation_contract",
+      "contract": "Active harness guidance teaches canonical AOS primitives and neutral substrate fixtures while historical reports remain non-authoritative.",
+      "worth": "This prevents deleted product scenarios from returning through copy-pasteable test guidance.",
+      "command": "node --test tests/docs/aos-playwright-style-contract.test.mjs tests/execution-model-terminology-contract.test.mjs",
+      "replaces": [],
+      "guard": "documentation source assertions only",
+      "status": "active"
+    },
+    {
+      "id": "experience-runtime-context-contract",
+      "path_patterns": [
+        "tests/experience-runtime-context-pending-annotations.test.mjs",
+        "tests/experience-runtime-context-status-item.test.mjs",
+        "tests/status-item-readiness-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "experience-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "experience_runtime_contract",
+      "contract": "Experience status and status-item readiness project neutral mounted-surface, annotation, permission, and mismatch facts without product-private state.",
+      "worth": "This keeps the reusable experience contract centered on operator-fixture after product experience discovery is removed.",
+      "command": "node --test tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-status-item.test.mjs tests/status-item-readiness-contract.test.mjs",
+      "replaces": [
+        "embedded Sigil experience and status-item behavior tests"
+      ],
+      "guard": "fake command responses and temporary state only; no daemon",
+      "status": "active"
+    },
+    {
+      "id": "daemon-ipc-schema-contract",
+      "path_patterns": [
+        "tests/daemon-ipc-schema.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "daemon-ipc",
+      "harness_level": "schema",
+      "proof_kind": "daemon_ipc_contract",
+      "contract": "Daemon request and response schemas accept neutral DesktopWorld URL examples and reject malformed envelopes.",
+      "worth": "This prevents product URLs from becoming canonical IPC examples.",
+      "command": "bash tests/daemon-ipc-schema.sh",
+      "replaces": [],
+      "guard": "JSON Schema validation only; no daemon",
+      "status": "active"
+    },
+    {
+      "id": "canvas-cleanup-substrate-contract",
+      "path_patterns": [
+        "tests/aos-clean-canvas-regression.sh",
+        "tests/lib/isolated-daemon.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "canvas_cleanup_contract",
+      "contract": "Canvas cleanup distinguishes live neutral experience ownership from stale locks and removes harness-owned canvases in isolated state.",
+      "worth": "This preserves cleanup safety without launching or inspecting a product experience.",
+      "command": "bash tests/aos-clean-canvas-regression.sh",
+      "replaces": [
+        "embedded product canvas cleanup fixture"
+      ],
+      "guard": "requires a current native binary but uses isolated AOS_STATE_ROOT; no shared daemon",
+      "status": "active"
+    },
+    {
+      "id": "subject-family-cleanup-model-contract",
+      "path_patterns": [
+        "tests/lib/subject-family-cleanup.sh",
+        "tests/subject-family-cleanup.test.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "display-runtime",
+      "harness_level": "model_unit",
+      "proof_kind": "canvas_cleanup_contract",
+      "contract": "Generic subject-family cleanup removes cascading descendants, preserves unrelated canvases, detaches non-cascading children, and is idempotent.",
+      "worth": "A fake AOS command executes the shared cleanup helper without requiring a daemon or product fixture.",
+      "command": "bash tests/subject-family-cleanup.test.sh",
+      "replaces": [
+        "cleanup helper embedded in the retired real-input product harness"
+      ],
+      "guard": "temporary JSON state and fake AOS command only; no daemon, canvas, native input, or TCC",
+      "status": "active"
+    },
+    {
+      "id": "subject-family-cleanup-integration-contract",
+      "path_patterns": [
+        "tests/show-subject-family-cleanup.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "display-runtime",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "canvas_cleanup_contract",
+      "contract": "The shared cleanup helper integrates with real canvas cascade and input-region retirement in isolated AOS state.",
+      "worth": "This is the bounded native integration counterpart to the deterministic helper model.",
+      "command": "bash tests/show-subject-family-cleanup.sh",
+      "replaces": [],
+      "guard": "requires a current native binary and isolated daemon; excluded from static publication validation",
+      "status": "manual_only"
+    },
+    {
+      "id": "canvas-visible-surface-audit-contract",
+      "path_patterns": [
+        "tests/canvas-visible-surface-audit.sh",
+        "tests/lib/isolated-daemon.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "display-runtime",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "visible_surface_audit_contract",
+      "contract": "Visible-surface audit joins neutral logical surfaces, native windows, ownership, and duplicate keys without product inference.",
+      "worth": "This proves display diagnostics remain generic after product IDs are removed.",
+      "command": "bash tests/canvas-visible-surface-audit.sh",
+      "replaces": [],
+      "guard": "requires a current native binary and isolated daemon; synthetic external-window fixture only",
+      "status": "active"
+    },
+    {
+      "id": "surface-inspector-see-bundle-contract",
+      "path_patterns": [
+        "tests/surface-inspector-see-bundle.sh",
+        "tests/lib/isolated-daemon.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-surface-inspector",
+      "harness_level": "guarded_live",
+      "proof_kind": "surface_inspector_bundle_contract",
+      "contract": "Surface Inspector requests and validates see bundles through a neutral harness canvas and isolated daemon.",
+      "worth": "This keeps the cross-layer bundle proof without a product root canvas.",
+      "command": "bash tests/surface-inspector-see-bundle.sh",
+      "replaces": [],
+      "guard": "requires a current native binary and Screen Recording; isolated AOS_STATE_ROOT only",
+      "status": "manual_only"
+    },
+    {
+      "id": "display-debug-battery-manual",
+      "path_patterns": [
+        "tests/display-debug-battery.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "display-runtime",
+      "harness_level": "visual_harness",
+      "proof_kind": "display_debug_battery",
+      "contract": "The manual display battery launches only generic Surface Inspector and Spatial Telemetry components.",
+      "worth": "This prevents a display diagnostic launcher from teaching product presence as AOS acceptance.",
+      "command": "bash tests/display-debug-battery.sh",
+      "replaces": [],
+      "guard": "manual live visual check against the shared daemon; never run in default validation",
+      "status": "manual_only"
+    },
+    {
+      "id": "utility-surface-warm-lifecycle-manual",
+      "path_patterns": [
+        "tests/utility-surface-warm-lifecycle.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-utility-surface",
+      "harness_level": "guarded_live",
+      "proof_kind": "utility_surface_warm_lifecycle_contract",
+      "contract": "A toolkit wiki workbench suspends and resumes through the warm utility-surface lifecycle without duplicate native canvas creation.",
+      "worth": "This retains the generic lifecycle observation formerly hidden in a product-named smoke.",
+      "command": "bash tests/utility-surface-warm-lifecycle.sh",
+      "replaces": [
+        "tests/sigil-warm-surface-lifecycle.sh"
+      ],
+      "guard": "requires explicit shared-runtime approval and a current native binary; mutates harness-owned canvases",
+      "status": "manual_only"
+    },
+    {
+      "id": "wiki-mutation-parser-contract",
+      "path_patterns": [
+        "tests/wiki-mutate-external.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "wiki-runtime",
+      "harness_level": "shell_router",
+      "proof_kind": "wiki_mutation_contract",
+      "contract": "Wiki mutation parser and external dispatch behavior use neutral subject names and reject extra arguments.",
+      "worth": "This keeps command coverage independent of a product wiki namespace.",
+      "command": "bash tests/wiki-mutate-external.sh",
+      "replaces": [],
+      "guard": "uses temporary wiki fixtures and command fakes",
+      "status": "active"
+    }
+  ]
+}

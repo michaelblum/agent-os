@@ -26,7 +26,7 @@ this as remote project execution over SSH, with warnings to use SSH forwarding,
 VPN, or mesh networking rather than exposing unauthenticated listeners.
 
 That is relevant, but it is not the same product shape as controlling an
-existing local AOS/Sigil agent terminal from another client.
+existing local AOS agent terminal from another client.
 
 Source: <https://developers.openai.com/codex/remote-connections>
 
@@ -112,7 +112,7 @@ A provider-neutral session control record could look like:
     "handle": "agent-os:codex-abc123",
     "attachable": true
   },
-  "canvases": ["sigil-agent-terminal", "session-vitality-lab"],
+  "canvases": ["agent-terminal", "session-vitality-lab"],
   "telemetry": {
     "available": true,
     "source": "agent-session-telemetry"
@@ -181,9 +181,9 @@ The likely layering is:
   stream, provider adapter contracts, owner linkage to canvases.
 - **Level 1, toolkit:** reusable session list, transcript tail, action buttons,
   approval card, vitality/telemetry panel.
-- **Level 2, apps:** Sigil's Agent Terminal and any future mobile/web client.
+- **Level 2, apps:** external product and future mobile/web clients.
 
-Sigil should not invent a private remote-control model. If it needs session
+An external product should not invent a private remote-control model. If it needs session
 control, the primitive should be reusable by future AOS apps.
 
 ## Minimal Sensible Next Slice
@@ -196,8 +196,8 @@ Do not start with a remote UI. The smallest forward-compatible slice would be:
    sessions.
 3. Link Agent Terminal canvases to their session record using existing owner
    metadata.
-4. Add tests with fake Codex/Claude/tmux records so Sigil can render different
-   session states without starting real providers.
+4. Add tests with fake Codex/Claude/tmux records so consumers can render
+   different session states without starting real providers.
 
 Only after that should mutating remote actions be considered.
 

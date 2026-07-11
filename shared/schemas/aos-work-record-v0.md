@@ -72,7 +72,7 @@ map instead of on the durable Claim text.
 {
   "origin": {
     "kind": "workflow",
-    "ref": "workflow:browser-hosted-wiki-open-sigil",
+    "ref": "workflow:browser-hosted-wiki-open-runtime-modes",
     "run_id": "run:2026-05-05T16-20-00Z"
   }
 }
@@ -125,11 +125,11 @@ reference zero or more Postconditions:
 
 ```json
 {
-  "id": "claim:sigil-subject-opened",
-  "text": "The Sigil wiki Subject was opened in the Browser-Hosted Wiki Subject Browser.",
+  "id": "claim:runtime-modes-subject-opened",
+  "text": "The Runtime Modes wiki Subject was opened in the Browser-Hosted Wiki Subject Browser.",
   "scope": "run",
   "postcondition_refs": [
-    "postcondition:sigil-heading-visible"
+    "postcondition:runtime-modes-heading-visible"
   ]
 }
 ```
@@ -138,14 +138,14 @@ Postconditions are structured checks inside the execution map:
 
 ```json
 {
-  "id": "postcondition:sigil-heading-visible",
+  "id": "postcondition:runtime-modes-heading-visible",
   "kind": "browser_dom",
-  "description": "The after-capture exposes a visible Sigil subject heading.",
-  "target": "browser:wiki-browser/heading.sigil",
+  "description": "The after-capture exposes a visible Runtime Modes subject heading.",
+  "target": "browser:wiki-browser/heading.runtime-modes",
   "check": {
     "kind": "text_contains",
-    "ref": "heading.sigil",
-    "expected": "Sigil"
+    "ref": "heading.runtime-modes",
+    "expected": "Runtime Modes"
   },
   "repair_policy": {
     "mode": "patch_execution_map",
@@ -164,15 +164,15 @@ include per-Postcondition results:
 
 ```json
 {
-  "id": "claim-result:sigil-subject-opened",
-  "claim_id": "claim:sigil-subject-opened",
+  "id": "claim-result:runtime-modes-subject-opened",
+  "claim_id": "claim:runtime-modes-subject-opened",
   "status": "verified",
   "confidence": 0.96,
   "reason": "The after-capture evidence shows the expected subject heading.",
   "evidence_refs": ["evidence:after-see"],
   "postcondition_results": [
     {
-      "postcondition_id": "postcondition:sigil-heading-visible",
+      "postcondition_id": "postcondition:runtime-modes-heading-visible",
       "status": "passed",
       "evidence_refs": ["evidence:after-see"],
       "reason": "The expected heading was present."
@@ -188,7 +188,7 @@ truth.
 ```json
 {
   "verifier_report": {
-    "id": "verifier-report:wiki-open-sigil",
+    "id": "verifier-report:wiki-open-runtime-modes",
     "generated_at": "2026-05-05T16:22:00Z",
     "verifier": {
       "id": "aos.verifier.work-record.v0",
@@ -197,7 +197,7 @@ truth.
     },
     "claim_results_ref": "claim_results",
     "derived_indexes": {
-      "verified": ["claim:sigil-subject-opened"],
+      "verified": ["claim:runtime-modes-subject-opened"],
       "failed": [],
       "unverified": []
     },
@@ -221,7 +221,7 @@ The field uses `verdict` to avoid overloading generic `status` or `state`.
     "verdict": "valid",
     "reason": "All run Claims verified against immutable evidence.",
     "evaluated_at": "2026-05-05T16:22:00Z",
-    "verifier_report_id": "verifier-report:wiki-open-sigil",
+    "verifier_report_id": "verifier-report:wiki-open-runtime-modes",
     "confidence": 0.96,
     "repair_gate_refs": [],
     "replay_gate_refs": []

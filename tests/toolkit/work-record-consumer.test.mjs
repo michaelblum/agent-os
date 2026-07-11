@@ -43,12 +43,12 @@ test('Work Record consumer discovers canonical fixtures and reads records by id 
   const discovery = discoverWorkRecords({ roots: [validRoot], repoRoot });
   assert.equal(discovery.status, 'success');
   assert.equal(discovery.schema_version, WORK_RECORD_CONSUMER_VERSION);
-  assert.ok(discovery.records.some((record) => record.id === 'work-record:workflow-open-wiki-sigil-2026-05-05'));
+  assert.ok(discovery.records.some((record) => record.id === 'work-record:workflow-open-wiki-runtime-modes-2026-05-05'));
   assert.ok(discovery.records.some((record) => record.id === 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06'));
 
-  const byId = readWorkRecord('workflow-open-wiki-sigil-2026-05-05', { roots: [validRoot], repoRoot });
+  const byId = readWorkRecord('workflow-open-wiki-runtime-modes-2026-05-05', { roots: [validRoot], repoRoot });
   assert.equal(byId.status, 'success');
-  assert.equal(byId.summary.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(byId.summary.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(byId.summary.historical_claim_results_present, true);
 
   const byPath = readWorkRecord(path.join(validRoot, 'workflow-origin.json'), { repoRoot });
@@ -167,7 +167,7 @@ test('Work Record export returns a compact read-only bundle manifest without inl
   assert.equal(result.mode, 'read_only_manifest');
   assert.equal(result.inlines_heavy_payloads, false);
   assert.equal(result.mutates_record, false);
-  assert.equal(result.record.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(result.record.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(result.evidence.length, 3);
   assert.ok(result.evidence.every((item) => Object.hasOwn(item, 'size_bytes')));
   assert.ok(Array.isArray(result.missing_artifact_diagnostics));
@@ -184,7 +184,7 @@ test('aos work-record public command routes through help and external dispatch',
   assert.equal(list.status, 0, list.stderr);
   const listJson = JSON.parse(list.stdout);
   assert.equal(listJson.status, 'success');
-  assert.ok(listJson.records.some((record) => record.id === 'work-record:workflow-open-wiki-sigil-2026-05-05'));
+  assert.ok(listJson.records.some((record) => record.id === 'work-record:workflow-open-wiki-runtime-modes-2026-05-05'));
 
   const status = runAos(['work-record', 'status', path.join(validRoot, 'workflow-origin.json'), '--json']);
   assert.equal(status.status, 0, status.stderr);

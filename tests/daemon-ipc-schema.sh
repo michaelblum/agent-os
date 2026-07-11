@@ -21,7 +21,7 @@ good_requests = [
     {"v":1,"service":"see","action":"snapshot","data":{}},
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"hit","at":[0,0,10,10],"window_level":"screen_saver","html":"<div/>"}},
-    {"v":1,"service":"show","action":"create","data":{"id":"world","surface":"desktop-world","url":"aos://sigil/renderer/index.html"}},
+    {"v":1,"service":"show","action":"create","data":{"id":"world","surface":"desktop-world","url":"aos://toolkit/components/surface-inspector/index.html"}},
     {"v":1,"service":"show","action":"post","data":{"id":"x","message":"hello"}},
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"],"text":"hi"}},
     {"v":1,"service":"session","action":"register","data":{"session_id":"abc"}},

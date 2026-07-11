@@ -2,8 +2,8 @@
 
 The provider session catalog is a read-only local adapter contract for
 provider-owned agent sessions. It normalizes local Codex and Claude Code session
-metadata without making AOS or Sigil a native client for either provider
-runtime.
+metadata without making AOS or an external product a native client for either
+provider runtime.
 
 The JSON Schema source of truth is
 [`provider-session-catalog.schema.json`](provider-session-catalog.schema.json).

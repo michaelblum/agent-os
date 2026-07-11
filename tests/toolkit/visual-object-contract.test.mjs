@@ -14,7 +14,7 @@ import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbe
 
 test('visual object descriptor contract validates editable descriptors', () => {
   const descriptor = createVisualObjectDescriptor({
-    id: 'sigil-avatar-stellation',
+    id: 'example-stellation',
     label: 'Stellation',
     kind: 'slider',
     technology: 'threejs-3d',
@@ -54,7 +54,7 @@ test('visual object contract examples cover 3D, 2D canvas, and DOM toolkit surfa
   const examples = [
     createVisualObjectContractExample({
       technology: 'threejs-3d',
-      id: 'sigil-avatar-stellation',
+      id: 'example-stellation',
       label: 'Stellation',
       route: 'canvas_object.transform.patch',
       objectIds: ['avatar.primary.shape'],
@@ -227,16 +227,16 @@ test('descriptor-addressed mutation resolves existing dotted object keys', () =>
     label: 'Radius scale',
     kind: 'slider',
     technology: 'threejs-3d',
-    state_path: 'radial_menu.sigil.radial.main.items.wiki-graph.geometry.radiusScale',
+    state_path: 'radial_menu.example.main.items.wiki-graph.geometry.radiusScale',
     route: 'canvas_object.transform.patch',
     coerce: 'number',
     renderer_sync: ['renderRadialMenuPreview'],
     group_key: 'radial-menu.geometry',
-    object_ids: ['radial-menu.sigil.radial.main.item.wiki-graph'],
+    object_ids: ['radial-menu.example.main.item.wiki-graph'],
   });
   const state = {
     radial_menu: {
-      'sigil.radial.main': {
+      'example.main': {
         items: {
           'wiki-graph': {
             geometry: { radiusScale: 1 },
@@ -248,7 +248,7 @@ test('descriptor-addressed mutation resolves existing dotted object keys', () =>
 
   const result = applyVisualObjectDescriptorMutation(state, descriptor, 1.5);
 
-  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].geometry.radiusScale, 1.5);
+  assert.equal(state.radial_menu['example.main'].items['wiki-graph'].geometry.radiusScale, 1.5);
   assert.equal(result.previous_value, 1);
   assert.equal(result.value, 1.5);
 });

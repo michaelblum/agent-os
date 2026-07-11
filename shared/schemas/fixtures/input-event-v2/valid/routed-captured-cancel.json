@@ -15,8 +15,8 @@
     "y": 373
   },
   "coordinate_authority": "toolkit",
-  "region_id": "sigil-avatar",
-  "capture_id": "daemon:47:sigil-avatar",
+  "region_id": "example-avatar",
+  "capture_id": "daemon:47:example-avatar",
   "cancel_reason": "surface_removed",
   "source_event": "daemon:47",
   "source_origin": "toolkit",

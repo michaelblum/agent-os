@@ -272,7 +272,7 @@ function buildReadyWorkflowCatalog(wikiIndex: WikiIndexEntry[]): IntegrationWork
         {
           id: 'query',
           label: 'Search query',
-          placeholder: 'sigil, employer brand, command surface',
+          placeholder: 'runtime modes, employer brand, command surface',
           helpText: 'Optional if you use the quick-jump field below.',
         },
         {
@@ -292,7 +292,7 @@ function buildReadyWorkflowCatalog(wikiIndex: WikiIndexEntry[]): IntegrationWork
       command: {
         label: 'wiki',
         usage: 'wiki <query>',
-        examples: ['wiki sigil', 'wiki command surface', 'wiki employer brand'],
+        examples: ['wiki runtime modes', 'wiki command surface', 'wiki employer brand'],
       },
       validateInput(input: WorkflowInvocationInput) {
         const indexedEntry = readInputField(input, 'indexedEntry');

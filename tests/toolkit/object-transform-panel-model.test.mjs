@@ -22,14 +22,14 @@ import {
   shortStatus,
 } from '../../packages/toolkit/components/object-transform-panel/index.js';
 
-function registry(canvasId = 'avatar-main') {
+function registry(canvasId = 'example-root') {
   return {
     type: 'canvas_object.registry',
     schema_version: '2026-05-03',
     canvas_id: canvasId,
     objects: [
       {
-        object_id: 'radial.wiki-brain.tree',
+        object_id: 'example.menu.tree',
         name: 'Tree',
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch', 'effects.read', 'effects.patch'],
@@ -61,7 +61,7 @@ function registry(canvasId = 'avatar-main') {
         },
       },
       {
-        object_id: 'radial.wiki-brain.shell',
+        object_id: 'example.menu.shell',
         name: 'Shell',
         kind: 'three.object3d',
         capabilities: ['transform.read'],
@@ -97,7 +97,7 @@ test('registry ingest sorts group entries before layer entries', () => {
     objects: [
       ...registry().objects,
       {
-        object_id: 'radial.wiki-brain.group',
+        object_id: 'example.menu.group',
         name: 'Wiki Brain',
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch'],
@@ -112,8 +112,8 @@ test('registry ingest sorts group entries before layer entries', () => {
   });
 
   assert.equal(result.ok, true);
-  assert.equal(sortedObjectEntries(state)[0].object_id, 'radial.wiki-brain.group');
-  assert.equal(selectedObject(state).object_id, 'radial.wiki-brain.group');
+  assert.equal(sortedObjectEntries(state)[0].object_id, 'example.menu.group');
+  assert.equal(selectedObject(state).object_id, 'example.menu.group');
 });
 
 test('registry ingest builds nested object tree rows and descriptor drafts', () => {
@@ -122,7 +122,7 @@ test('registry ingest builds nested object tree rows and descriptor drafts', () 
     ...registry(),
     objects: [
       {
-        object_id: 'radial.wiki-brain.group',
+        object_id: 'example.menu.group',
         name: 'Wiki Brain',
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
@@ -141,13 +141,13 @@ test('registry ingest builds nested object tree rows and descriptor drafts', () 
       {
         ...registry().objects[0],
         name: 'Tree',
-        parent_object_id: 'radial.wiki-brain.group',
+        parent_object_id: 'example.menu.group',
         visible: false,
       },
       {
         ...registry().objects[1],
         name: 'Shell',
-        parent_object_id: 'radial.wiki-brain.group',
+        parent_object_id: 'example.menu.group',
         visible: true,
       },
     ],
@@ -221,18 +221,18 @@ test('selection targets one advertised object without assuming renderer internal
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
 
-  const key = objectAddressKey('avatar-main', 'radial.wiki-brain.tree');
+  const key = objectAddressKey('example-root', 'example.menu.tree');
   const selected = selectObject(state, key);
 
-  assert.equal(selected.object_id, 'radial.wiki-brain.tree');
+  assert.equal(selected.object_id, 'example.menu.tree');
   assert.equal(selected.kind, 'three.object3d');
-  assert.equal(selected.canvas_id, 'avatar-main');
+  assert.equal(selected.canvas_id, 'example-root');
 });
 
 test('triplet edits build a schema-shaped transform patch payload', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
 
   const patch = buildTripletPatchMessage(selectedObject(state), 'scale', {
     x: '1.4',
@@ -245,8 +245,8 @@ test('triplet edits build a schema-shaped transform patch payload', () => {
     schema_version: '2026-05-03',
     request_id: 'req-test',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     patch: {
       scale: { x: 1.4, y: 1.5, z: 1.25 },
@@ -257,14 +257,14 @@ test('triplet edits build a schema-shaped transform patch payload', () => {
 test('patch delivery uses existing canvas.send routing to the owning canvas', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
 
   const entry = selectedObject(state);
   const patch = buildTripletPatchMessage(entry, 'rotation_degrees', { x: -9 }, { requestId: 'req-rotate' });
   const delivery = patchDeliveryForTarget(entry, patch);
 
   assert.equal(delivery.type, 'canvas.send');
-  assert.equal(delivery.payload.target, 'avatar-main');
+  assert.equal(delivery.payload.target, 'example-root');
   assert.equal(delivery.payload.message.type, 'canvas_object.transform.patch');
   assert.equal(delivery.payload.message.request_id, 'req-rotate');
 });
@@ -272,7 +272,7 @@ test('patch delivery uses existing canvas.send routing to the owning canvas', ()
 test('visibility edits build a visibility patch and update local state from owner result', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
 
   const entry = selectedObject(state);
   const patch = buildVisibilityPatchMessage(entry, false, { requestId: 'req-visible' });
@@ -282,8 +282,8 @@ test('visibility edits build a visibility patch and update local state from owne
     schema_version: '2026-05-03',
     request_id: 'req-visible',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     patch: {
       visible: false,
@@ -295,8 +295,8 @@ test('visibility edits build a visibility patch and update local state from owne
     schema_version: '2026-05-03',
     request_id: 'req-visible',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'applied',
     transform: entry.transform,
@@ -310,7 +310,7 @@ test('visibility edits build a visibility patch and update local state from owne
 test('effect control edits build effects patch messages and preserve editable json data', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
 
   const entry = selectedObject(state);
   const patch = buildEffectsPatchMessage(entry, 'fractalPulse.intensity', '1.75', { requestId: 'req-effects' });
@@ -320,8 +320,8 @@ test('effect control edits build effects patch messages and preserve editable js
     schema_version: '2026-05-03',
     request_id: 'req-effects',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     patch: {
       controls: {
@@ -354,7 +354,7 @@ test('effect control edits build effects patch messages and preserve editable js
 test('owner effects results update local control values and clear pending requests', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
   state.pendingByRequest.set('req-effects', { key: state.selectedKey });
 
   const result = applyEffectsResultMessage(state, {
@@ -362,8 +362,8 @@ test('owner effects results update local control values and clear pending reques
     schema_version: '2026-05-03',
     request_id: 'req-effects',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'applied',
     controls: {
@@ -379,7 +379,7 @@ test('owner effects results update local control values and clear pending reques
 test('rejected transform results preserve structured validation diagnostics', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
   state.pendingByRequest.set('req-invalid-transform', { key: state.selectedKey });
 
   const result = applyTransformResultMessage(state, {
@@ -387,8 +387,8 @@ test('rejected transform results preserve structured validation diagnostics', ()
     schema_version: '2026-05-03',
     request_id: 'req-invalid-transform',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'rejected',
     reason: 'invalid_patch',
@@ -419,15 +419,15 @@ test('rejected transform results preserve structured validation diagnostics', ()
 test('rejected effects results preserve structured validation diagnostics without requiring them', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
 
   const structured = applyEffectsResultMessage(state, {
     type: 'canvas_object.effects.result',
     schema_version: '2026-05-03',
     request_id: 'req-invalid-effects',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'rejected',
     reason: 'invalid_patch',
@@ -447,8 +447,8 @@ test('rejected effects results preserve structured validation diagnostics withou
     schema_version: '2026-05-03',
     request_id: 'req-message-only-effects',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'rejected',
     reason: 'invalid_patch',
@@ -466,7 +466,7 @@ test('rejected effects results preserve structured validation diagnostics withou
 test('non-patchable advertised objects reject transform patch construction', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.shell'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.shell'));
 
   assert.throws(
     () => buildTripletPatchMessage(selectedObject(state), 'scale', { x: 1.1 }, { requestId: 'req-shell' }),
@@ -477,7 +477,7 @@ test('non-patchable advertised objects reject transform patch construction', () 
 test('owner results update local transform state and clear pending requests', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());
-  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  selectObject(state, objectAddressKey('example-root', 'example.menu.tree'));
   state.pendingByRequest.set('req-test', { key: state.selectedKey });
 
   const result = applyTransformResultMessage(state, {
@@ -485,8 +485,8 @@ test('owner results update local transform state and clear pending requests', ()
     schema_version: '2026-05-03',
     request_id: 'req-test',
     target: {
-      canvas_id: 'avatar-main',
-      object_id: 'radial.wiki-brain.tree',
+      canvas_id: 'example-root',
+      object_id: 'example.menu.tree',
     },
     status: 'applied',
     transform: {
@@ -507,7 +507,7 @@ test('empty registry snapshots remove a canvas object list', () => {
   applyRegistryMessage(state, {
     type: 'canvas_object.registry',
     schema_version: '2026-05-03',
-    canvas_id: 'avatar-main',
+    canvas_id: 'example-root',
     objects: [],
   });
 

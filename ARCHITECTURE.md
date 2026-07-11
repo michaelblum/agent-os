@@ -79,7 +79,7 @@ cross-surface world model:
 | Layer | Origin | Used by |
 |-------|--------|---------|
 | **Native desktop compatibility** | Top-left of the macOS main display = `(0,0)` | AppKit/CoreGraphics boundary only; current daemon/native emissions |
-| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Canonical world for toolkit, Sigil, Surface Inspector, tests |
+| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Canonical world for toolkit, external consumers, Surface Inspector, tests |
 | **VisibleDesktopWorld** | Same DesktopWorld frame, restricted to visible bounds | Usable-area logic such as clamping |
 | **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `aos see` captures, `--xray` element bounds, annotations |
 
@@ -358,8 +358,8 @@ is the canonical name.
 
 ### Invariants
 
-1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). DesktopWorld surfaces, toolkit minimaps, Sigil stage projection, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
-2. **Transparent + passthrough by default.** A DesktopWorld surface is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
+1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). DesktopWorld surfaces, toolkit minimaps, external product projections, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
+2. **Transparent + passthrough by default.** A DesktopWorld surface is non-interactive — clicks pass through to whatever's underneath. Interactive affordances are spawned as separate child canvases positioned over specific regions.
 3. **One native surface, one owner.** A raw DesktopWorld surface has one owner.
    A shared DesktopWorld stage is one toolkit-owned surface that exposes a layer
    API to multiple consumers. Apps should prefer the shared stage for ordinary

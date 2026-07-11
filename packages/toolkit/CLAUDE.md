@@ -168,7 +168,7 @@ mountPanel({ title: 'My Content', layout: Single(MyContent) })
 ## When to put something here vs. in an app
 
 - **Toolkit (Layer 1/2)**: reusable across apps, not opinionated about a specific use case.
-- **App (Layer 3)**: tied to a specific product (e.g., Sigil's avatar personality, agent doc schema). Lives in `apps/<name>/` and consumes Layer 1a (and optionally 1b/2).
+- **App (Layer 3)**: tied to a specific product. Lives in the owning product repository and consumes Layer 1a (and optionally 1b/2).
 
 ## Styling Boundary
 

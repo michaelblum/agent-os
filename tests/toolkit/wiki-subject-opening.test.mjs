@@ -14,19 +14,19 @@ import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject
 
 test('wiki graph selection emits a subject entry handle and descriptor payload', () => {
   const payload = createWikiSubjectSelectionPayload({
-    id: 'sigil/agents/default.md',
-    path: '/sigil/agents/default.md',
+    id: 'aos/concepts/runtime-modes.md',
+    path: '/aos/concepts/runtime-modes.md',
     name: 'Default Agent',
     type: 'entity',
-    tags: ['sigil', 'agent'],
-    plugin: 'sigil',
+    tags: ['runtime', 'concept'],
+    plugin: 'core',
   });
 
   assert.equal(payload.type, WIKI_SUBJECT_SELECTION_TYPE);
-  assert.equal(payload.path, 'sigil/agents/default.md');
-  assert.equal(payload.entry_handle, 'wiki:sigil/agents/default.md');
+  assert.equal(payload.path, 'aos/concepts/runtime-modes.md');
+  assert.equal(payload.entry_handle, 'wiki:aos/concepts/runtime-modes.md');
   assert.equal(payload.subject.type, 'aos.workbench.subject');
-  assert.equal(payload.subject.id, 'wiki:sigil/agents/default.md');
+  assert.equal(payload.subject.id, 'wiki:aos/concepts/runtime-modes.md');
   assert.equal(payload.subject.subject_type, 'wiki.entity');
   assert.equal(payload.subject.source.kind, 'wiki');
 });
@@ -127,21 +127,21 @@ test('wiki subject opener does not depend on legacy graph descriptor summaries',
 
 test('wiki path resolver can derive paths from subject references', () => {
   const subject = createWorkbenchSubject({
-    id: 'sigil.agent:default',
-    type: 'sigil.agent',
+    id: 'example.service:default',
+    type: 'example.service',
     label: 'Default Agent',
-    owner: 'sigil',
+    owner: 'example',
     capabilities: ['inspectable'],
     subject_references: [
       {
         id: 'wiki-doc',
         relationship: 'narrative_source',
-        handle: 'wiki:sigil/agents/default.md',
+        handle: 'wiki:aos/concepts/runtime-modes.md',
       },
     ],
   });
 
-  assert.equal(wikiPathFromSubject(subject), 'sigil/agents/default.md');
+  assert.equal(wikiPathFromSubject(subject), 'aos/concepts/runtime-modes.md');
 });
 
 test('wiki subject opener rejects descriptors without markdown workbench support', () => {

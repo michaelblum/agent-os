@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 AOS="${AOS:-./aos}"
-WIKI_ID="sigil-wiki-workbench"
+WIKI_ID="utility-wiki-workbench"
 STAGE_ID="aos-desktop-world-stage"
 LOG_FILE="${HOME}/.config/aos/repo/daemon.log"
 
@@ -38,7 +38,7 @@ create_wiki_workbench() {
   "$AOS" show wait --id "$WIKI_ID" --manifest wiki-subject-browser-v0 --timeout 30s --json
 }
 
-create_err="$ROOT/.sigil-warm-create.err"
+create_err="$ROOT/.utility-warm-create.err"
 if ! create_wiki_workbench >/dev/null 2>"$create_err"; then
   if "$AOS" ready --json >/dev/null && "$AOS" show get --id "$WIKI_ID" | python3 -c 'import json,sys; raise SystemExit(0 if not json.load(sys.stdin).get("exists") else 1)'; then
     create_wiki_workbench >/dev/null
@@ -63,7 +63,7 @@ if not data.get("exists"):
 if canvas.get("lifecycle_state") not in ("warm_suspended", "suspended") and canvas.get("suspended") is not True:
     raise SystemExit(f"wiki workbench was not suspended: {canvas}")
 PY
-  "$AOS" show eval --id "$WIKI_ID" --js 'window.webkit.messageHandlers.headsup.postMessage({type:"canvas.resume",payload:{id:"sigil-wiki-workbench"}}); "resume-requested"' >/dev/null
+  "$AOS" show eval --id "$WIKI_ID" --js 'window.webkit.messageHandlers.headsup.postMessage({type:"canvas.resume",payload:{id:"utility-wiki-workbench"}}); "resume-requested"' >/dev/null
   for _ in 1 2 3 4 5; do
     if python3 - "$("$AOS" show get --id "$WIKI_ID")" <<'PY'
 import json, sys

@@ -5,7 +5,7 @@ import { renderCanvasRow } from '../../packages/toolkit/components/surface-inspe
 
 test('renderCanvasRow emits segment children for DesktopWorld surfaces', () => {
   const html = renderCanvasRow({
-    id: 'avatar-main',
+    id: 'example-root',
     at: [0, 0, 3840, 1080],
     track: 'union',
     segments: [

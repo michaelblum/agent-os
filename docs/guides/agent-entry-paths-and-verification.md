@@ -102,8 +102,7 @@ proof ladder from static evidence before asking for live runtime proof.
   `bash tests/command-manifest-generation.sh`,
   `bash tests/external-parser-flags.sh`,
   `bash tests/agent-workspace-contract-drift.sh`, schema tests under
-  `tests/schemas/`, and `node --test tests/code-review-burn-down-status.test.mjs`
-  for review burn-down reporting changes.
+  `tests/schemas/` for schema and generated-contract changes.
 - Level 2: run package, route, or integration tests only when static guards do
   not cover the behavior being changed.
 - Level 3: use `./aos`-backed runtime checks when the contract depends on the

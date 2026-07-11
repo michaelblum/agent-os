@@ -13,10 +13,8 @@ import {
 
 const toolkitBridgeServer = 'packages/toolkit/components/agent-terminal/bridge-server.mjs';
 const toolkitPtyProxy = 'packages/toolkit/components/agent-terminal/pty-proxy.py';
-const sigilCompatBridgeServer = 'apps/sigil/codex-terminal/server.mjs';
-const sigilCompatPtyProxy = 'apps/sigil/codex-terminal/pty-proxy.py';
 
-describe('Sigil Agent Terminal bridge', () => {
+describe('AOS Agent Terminal bridge', () => {
   let root;
   let homeDir;
   let repoCwd;
@@ -25,7 +23,7 @@ describe('Sigil Agent Terminal bridge', () => {
   let output;
 
   beforeEach(async () => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'sigil-agent-terminal-'));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-agent-terminal-'));
     homeDir = path.join(root, 'home');
     repoCwd = path.join(root, 'work', 'agent-os');
     fs.mkdirSync(repoCwd, { recursive: true });
@@ -117,7 +115,7 @@ describe('Sigil Agent Terminal bridge', () => {
         ...process.env,
         AGENT_TERMINAL_PORT: String(port),
         AGENT_TERMINAL_DRIVER: 'process',
-        AGENT_TERMINAL_TMUX_SESSION: 'sigil-agent-terminal-test',
+        AGENT_TERMINAL_TMUX_SESSION: 'aos-agent-terminal-test',
         AGENT_TERMINAL_CWD: repoCwd,
         AGENT_TERMINAL_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
         AGENT_TERMINAL_CATALOG_HOME: homeDir,
@@ -174,7 +172,7 @@ describe('Sigil Agent Terminal bridge', () => {
 
   it('exposes Agent Terminal session observation without provider acceptance authority', async () => {
     const response = await fetch(
-      `http://127.0.0.1:${port}/agent-terminal-session?session=sigil-agent-terminal-test&provider_session_id=codex-session`,
+      `http://127.0.0.1:${port}/agent-terminal-session?session=aos-agent-terminal-test&provider_session_id=codex-session`,
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
@@ -193,7 +191,7 @@ describe('Sigil Agent Terminal bridge', () => {
   it('supports explicit cwd override for Agent Terminal session observations', async () => {
     const sessionCwd = path.join(root, 'intentional-session-cwd');
     const response = await fetch(
-      `http://127.0.0.1:${port}/agent-terminal-session?session=sigil-agent-terminal-test&cwd=${encodeURIComponent(sessionCwd)}`,
+      `http://127.0.0.1:${port}/agent-terminal-session?session=aos-agent-terminal-test&cwd=${encodeURIComponent(sessionCwd)}`,
     );
     assert.equal(response.status, 200);
     const payload = await response.json();
@@ -201,20 +199,11 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(payload.agent_terminal_observation.cwd, sessionCwd);
   });
 
-  it('passes stable repo root to bridge server startup paths', () => {
-    const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
-    assert.match(launcher, /exec "\$REPO_ROOT\/aos" launch sigil agent-terminal "\$\{ARGS\[@\]\}"/);
-
-    const manifest = JSON.parse(fs.readFileSync('apps/sigil/aos-app.json', 'utf8'));
-    const bridgeHook = manifest.entries['agent-terminal'].hooks.find(
-      (hook) => hook.phase === 'before_surfaces',
-    );
-    assert.equal(bridgeHook?.script, 'apps/sigil/agent-terminal/bridge-launch.sh');
-
-    const bridgeLauncher = fs.readFileSync(bridgeHook.script, 'utf8');
-    assert.match(bridgeLauncher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
-    assert.match(bridgeLauncher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
-    assert.doesNotMatch(launcher + bridgeLauncher, new RegExp('SIGIL' + '_AGENT_REPO_ROOT'));
+  it('passes stable repo root to the toolkit bridge server', () => {
+    const launcher = fs.readFileSync('packages/toolkit/components/agent-terminal/launch.sh', 'utf8');
+    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
+    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.doesNotMatch(launcher, /apps\/sigil|SIGIL_/i);
   });
 
   it('supports explicit all-cwd provider catalog queries', async () => {
@@ -287,7 +276,7 @@ describe('Sigil Agent Terminal bridge', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        session: 'sigil-agent-terminal-test',
+        session: 'aos-agent-terminal-test',
         cwd: repoCwd,
         command: ['node', '-e', 'setTimeout(() => {}, 50)'],
         force: true,
@@ -300,7 +289,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('returns process-driver snapshots after the child exits', async () => {
-    const session = 'sigil-agent-terminal-exited-test';
+    const session = 'aos-agent-terminal-exited-test';
     const marker = 'exited-process-snapshot-marker';
     const response = await fetch(`http://127.0.0.1:${port}/ensure`, {
       method: 'POST',
@@ -369,7 +358,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('submits process-driver /input text with Enter to the PTY', async () => {
-    const session = 'sigil-agent-terminal-input-test';
+    const session = 'aos-agent-terminal-input-test';
     await ensureInteractiveEchoSession(port, session, repoCwd);
 
     const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
@@ -397,7 +386,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('submits process-driver text through /input enter=false plus /key Enter', async () => {
-    const session = 'sigil-agent-terminal-key-test';
+    const session = 'aos-agent-terminal-key-test';
     await ensureInteractiveEchoSession(port, session, repoCwd);
 
     const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
@@ -443,7 +432,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('submits input and Enter to a raw no-echo full-screen-ish PTY fixture', async () => {
-    const session = 'sigil-agent-terminal-raw-test';
+    const session = 'aos-agent-terminal-raw-test';
     await ensureRawTuiSession(port, session, repoCwd);
 
     const readySnapshot = await waitForSnapshot(port, session, 'size:');
@@ -472,7 +461,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('resizes a process-driver PTY and preserves key delivery after enter=false input', async () => {
-    const session = 'sigil-agent-terminal-raw-resize-test';
+    const session = 'aos-agent-terminal-raw-resize-test';
     await ensureRawTuiSession(port, session, repoCwd);
     await waitForSnapshot(port, session, 'size:');
 
@@ -632,7 +621,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 });
 
-describe('Sigil Agent Terminal PTY child PID marker parsing', () => {
+describe('AOS Agent Terminal PTY child PID marker parsing', () => {
   it('sets commandPid once and surfaces later marker-shaped stderr as output', () => {
     const record = {
       buffer: '',
@@ -646,18 +635,6 @@ describe('Sigil Agent Terminal PTY child PID marker parsing', () => {
     appendProcessStderr(record, Buffer.from('AGENT_TERMINAL_PTY_CHILD_PID=222\nordinary stderr\n', 'utf8'));
     assert.equal(record.commandPid, 111);
     assert.equal(record.buffer, 'AGENT_TERMINAL_PTY_CHILD_PID=222\nordinary stderr\n');
-  });
-});
-
-describe('Sigil Codex terminal compatibility shims', () => {
-  it('keep historical server and PTY paths delegated to toolkit substrate', () => {
-    const serverShim = fs.readFileSync(sigilCompatBridgeServer, 'utf8');
-    const inspectorShim = fs.readFileSync('apps/sigil/codex-terminal/session-inspector.mjs', 'utf8');
-    const ptyShim = fs.readFileSync(sigilCompatPtyProxy, 'utf8');
-    assert.match(serverShim, /packages\/toolkit\/components\/agent-terminal\/bridge-server\.mjs/);
-    assert.match(serverShim, /export \{ appendProcessStderr, startServer \}/);
-    assert.match(inspectorShim, /packages\/toolkit\/components\/agent-terminal\/session-inspector-server\.mjs/);
-    assert.match(ptyShim, /packages.*toolkit.*components.*agent-terminal.*pty-proxy\.py/);
   });
 });
 

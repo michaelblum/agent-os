@@ -1,5 +1,9 @@
 # Agent Relay Readiness Narrative Ledger
 
+> Historical evidence only. This dated ledger is not executable authority.
+> Embedded Sigil routes and proofs are retired; use current AOS source and the
+> external `Ch-osctrl/sigil` repository for active product work.
+
 **Date:** 2026-06-04
 **Kind:** Historical Foreman narrative checkpoint after the #407 / #412
 settlement

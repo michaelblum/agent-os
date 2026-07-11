@@ -127,7 +127,7 @@ other geometry sequence when a sequence exists.
 
 The `voice` service is a generic daemon event namespace. It must stay
 product-neutral: the daemon publishes trigger and dictation lifecycle facts,
-while apps such as Sigil own UX policy, response sounds, TTS hooks, and menu
+while external products own UX policy, response sounds, TTS hooks, and menu
 behavior.
 
 | Event | Data | Trigger |
@@ -138,7 +138,7 @@ behavior.
 | `dictation_closed_cancel` | `{reason}` where `reason` is `key_release`, `phrase`, `explicit_trigger`, or `timeout` | Dictation closed and captured text should be discarded |
 
 These events intentionally do not define microphone capture, transcription,
-audio playback, or Sigil behavior. Downstream shorthand such as
+audio playback, or product behavior. Downstream shorthand such as
 `voice.wake_detected` means `{service:"voice", event:"wake_detected"}`.
 
 ## Shared Types

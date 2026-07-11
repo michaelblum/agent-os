@@ -139,6 +139,48 @@ test('proof-worth evaluator accepts registered tests and fixtures with exact com
   assert.equal(result.assets.length, 2, result);
 });
 
+test('proof-worth evaluator routes every embedded Sigil path to the frozen fixture proof', () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: [
+      'apps/sigil/renderer/state.js',
+      'apps/sigil/legacy-fixture.json',
+    ],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.equal(result.assets.length, 2, result);
+  assert.deepEqual(result.assets.map((asset) => asset.kind), ['fixture', 'fixture']);
+  assert.deepEqual(result.assets.map((asset) => asset.coverage), ['active', 'active']);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs',
+  ]);
+  assert.deepEqual(result.commands[0].source_entries, ['legacy-sigil-fixture-proof']);
+});
+
+test('proof-worth evaluator routes deleted embedded Sigil bytes to the surviving fixture proof', () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: ['apps/sigil/renderer/deleted-fixture-byte.js'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.equal(result.assets.length, 1, result);
+  assert.equal(result.assets[0].kind, 'fixture');
+  assert.equal(result.assets[0].deleted, true);
+  assert.equal(result.assets[0].coverage, 'deleted_registered_cleanup');
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'node --test tests/legacy-sigil-fixture.test.mjs tests/schemas/aos-app-v0.test.mjs tests/schemas/aos-experience-v0.test.mjs',
+  ]);
+  assert.deepEqual(result.commands[0].source_entries, ['legacy-sigil-fixture-proof']);
+});
+
 test('proof-worth evaluator fails existing unregistered tests and allows deleted cleanup', () => {
   const missing = evaluateProofWorth({
     changedFiles: ['tests/dev-workflow-router.sh'],
@@ -191,24 +233,6 @@ test('proof-worth evaluator treats toolkit component launchers as guarded proof 
   assert.equal(result.commands.length, 0, result);
   assert.equal(result.guarded[0].entry, 'surface-inspector-launcher-smoke');
   assert.match(result.guarded[0].guard, /not part of broad default loops/);
-});
-
-test('proof-worth evaluator treats real-input surface helper as guarded proof asset', async () => {
-  const registry = loadCanonicalRegistry();
-  const result = evaluateProofWorth({
-    changedFiles: ['tests/lib/real-input-surface-harness.sh'],
-    repoRoot,
-    registry,
-    registryPath: 'docs/dev/test-proof-registry.json',
-  });
-
-  assert.equal(result.status, 'passed', result);
-  assert.equal(result.assets.length, 1, result);
-  assert.equal(result.assets[0].kind, 'helper', result);
-  assert.equal(result.assets[0].coverage, 'guarded', result);
-  assert.equal(result.commands.length, 0, result);
-  assert.equal(result.guarded[0].entry, 'real-input-surface-harness-helper');
-  assert.match(result.guarded[0].guard, /real-input approval/);
 });
 
 test('proof-worth evaluator routes process-cleanup isolation through both consumers and its lock proof', () => {
@@ -276,8 +300,6 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
   const result = evaluateProofWorth({
     changedFiles: [
       'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',
-      'tests/renderer/sigil-voice-dictation.test.mjs',
-      'tests/renderer/sigil-voice-runtime.test.mjs',
       'tests/toolkit/controls-dictation.test.mjs',
       'tests/voice-bind.sh',
       'tests/voice-cursor-rotation.sh',
@@ -307,8 +329,6 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     'bash tests/voice-registry-snapshot.sh',
     'bash tests/voice-session-allocation.sh',
     'bash tests/voice-telemetry.sh',
-    'node --test tests/renderer/sigil-voice-dictation.test.mjs',
-    'node --test tests/renderer/sigil-voice-runtime.test.mjs',
     'node --test tests/schemas/daemon-event.test.mjs',
     'node --test tests/toolkit/controls-dictation.test.mjs',
   ].sort());

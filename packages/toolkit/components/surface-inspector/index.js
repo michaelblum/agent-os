@@ -617,7 +617,7 @@ export function planAnnotationActionControlCanvasSync({
 
 export function buildAnnotationScopedHitRegions({ canvases = [], displays = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
   const internal = (id) => id === selfId || String(id || '').startsWith(`${selfId}-annotation-action-`) || String(id || '').startsWith(`${selfId}-annotation-hit-layer`)
-  const broadRoot = (id) => /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
+  const broadRoot = (id) => /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
   const parentId = (canvas = {}) => canvas.parent || canvas.parent_id || ''
   const rectForCanvas = (canvas) => canvasDisplayRect(canvas, displays)
   const scope = Array.isArray(scopeStack) ? scopeStack.at(-1) : null
@@ -1348,7 +1348,7 @@ export default function CanvasInspector() {
   }
 
   function isBroadRootCanvasId(id) {
-    return /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
+    return /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
   }
 
   function canvasParentId(canvas = {}) {

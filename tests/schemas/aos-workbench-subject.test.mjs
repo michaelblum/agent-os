@@ -6,13 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createArtifactBundleSubject } from '../../packages/toolkit/workbench/artifact-bundle-subject.js';
-import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
 import { createWikiWorkflowSubject } from '../../packages/toolkit/workbench/workflow-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
 import { buildWorkRecordWorkbenchSubject, createWorkRecordWorkbenchState } from '../../packages/toolkit/components/work-record-workbench/model.js';
-import { buildRadialItemWorkbenchSubject, createRadialItemEditorState, setRadialMenuWorkbenchSubjectFactory } from '../../apps/sigil/radial-item-editor/model.js';
 import { createRadialMenuWorkbenchSubject } from '../../packages/toolkit/workbench/radial-menu-subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,8 +35,6 @@ const workflowMapMarkdown = `# Runtime Readiness Workflow
 | Orient | [Runtime Modes](runtime-modes.md) | Runtime mode selected |
 | Inspect | [Self Check](../plugins/self-check/SKILL.md) | Runtime diagnostics reviewed |
 `;
-
-setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
 
 async function validate(instance) {
   const result = spawnSync(
@@ -103,18 +99,18 @@ test('toolkit workbench subject helper emits schema-valid descriptors', async ()
 
 test('subject schema accepts canonical v-next fields', async () => {
   await validate(createWorkbenchSubject({
-    id: 'sigil.agent:default',
-    type: 'sigil.agent',
-    label: 'Default',
-    owner: 'sigil',
+    id: 'service.runtime:gateway',
+    type: 'service.runtime',
+    label: 'Gateway',
+    owner: 'gateway',
     capabilities: ['inspectable', 'editable'],
-    contracts: ['sigil.agent.preview', 'sigil.agent.appearance'],
+    contracts: ['service.runtime.read', 'service.runtime.configure'],
     subject_references: [
       {
-        id: 'sigil-agent-narrative-source',
+        id: 'gateway-narrative-source',
         relationship: 'narrative_source',
-        handle: 'wiki:sigil/agents/default.md',
-        subject_id: 'wiki:sigil/agents/default.md',
+        handle: 'wiki:aos/concepts/gateway.md',
+        subject_id: 'wiki:aos/concepts/gateway.md',
         subject_type: 'wiki.entity',
         facet_key: 'wiki',
         layer: 'narrative',
@@ -126,7 +122,7 @@ test('subject schema accepts canonical v-next fields', async () => {
         key: 'narrative',
         layer: 'narrative',
         label: 'Agent Narrative',
-        source_ref: 'sigil-agent-narrative-source',
+        source_ref: 'gateway-narrative-source',
         capabilities: ['inspectable', 'editable'],
         contracts: ['markdown_document.text.patch'],
         hosts: [
@@ -174,23 +170,21 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     path: 'docs/example.md',
     content: '# Example',
   })));
-  await validate(buildRadialItemWorkbenchSubject(createRadialItemEditorState({
-    itemId: 'wiki-graph',
+  await validate(createRadialMenuWorkbenchSubject({
+    menu: {
+      id: 'example.radial',
+      items: [{ id: 'inspect', label: 'Inspect', action: 'inspect' }],
+    },
+    owner: 'fixture',
     canvasId: 'preview',
-  })));
+    selectedItemId: 'inspect',
+  }));
   await validate(createWikiPageSubject({
     path: 'aos/plugins/self-check/SKILL.md',
     type: 'workflow',
     name: 'self-check',
     plugin: 'self-check',
     tags: ['diagnostics', 'runtime'],
-  }));
-  await validate(createSigilAgentSubject({
-    path: 'sigil/agents/default.md',
-    type: 'entity',
-    id: 'default',
-    name: 'Default',
-    tags: ['sigil', 'orchestrator'],
   }));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8'))));

@@ -34,19 +34,19 @@ The stable core owns protected or host-level capabilities such as:
 - readiness, service, and permission diagnostics
 
 Consumers above that layer should own interpretation and product behavior.
-Sigil visuals, toolkit panels, provider session logic, and visual harnesses
+Product visuals, toolkit panels, provider session logic, and visual harnesses
 should remain content, JavaScript, schemas, or package code unless they require a
 new primitive.
 
 ## Current Fit
 
-agent-os already partly follows this boundary. Sigil and toolkit surfaces are
-served as content by the stable daemon, shared contracts live in schemas and
+agent-os already follows this boundary for toolkit surfaces: content is served
+by the stable daemon, shared contracts live in schemas and
 docs, and recent addressable-object work followed the right layering:
 
 - primitive contract first
 - reusable toolkit surface second
-- Sigil adopter third
+- external product adopter third, in the owning repository
 
 The remaining risk is operational. Visual or app debugging can still drift into
 runtime work when a local branch contains both app changes and Swift daemon

@@ -2,7 +2,7 @@
 
 **File:** `integration-broker-snapshot.schema.json`  
 **Producer:** `packages/gateway` integration broker  
-**Consumers:** toolkit `integration-hub`, Sigil workbench, future provider adapters, local operator tools
+**Consumers:** toolkit `integration-hub`, external product workbenches, future provider adapters, local operator tools
 
 ## What This Is
 
@@ -12,11 +12,11 @@ The same snapshot should work for:
 
 - Slack as the current transport
 - Discord or other chat providers later
-- local operator surfaces inside toolkit/Sigil
+- local operator surfaces inside toolkit or external products
 - future dashboards or status pages outside the browser surface
 
 The contract keeps provider state, workflow catalog, and recent job history in
-one place instead of baking Slack-specific assumptions into toolkit or Sigil.
+one place instead of baking Slack-specific assumptions into toolkit or a product.
 
 It does not model the agent/session coordination bus. Session presence,
 channels, and direct agent or human communication remain daemon-owned `tell`,
@@ -51,7 +51,7 @@ channels, and direct agent or human communication remain daemon-owned `tell`,
 - `workflows[].group` lets providers cluster controls into the same hierarchy
   without inventing Slack-only groupings.
 - `jobs` describe executions of workflows, regardless of transport.
-- `surfaces` are UI hints for consumers such as toolkit or Sigil.
+- `surfaces` are UI hints for toolkit and external product consumers.
 - Provider-specific metadata may live in `jobs[].metadata`, but the top-level
   contract stays transport-neutral.
 - Provider-native UI such as Slack App Home, Block Kit buttons, or Discord

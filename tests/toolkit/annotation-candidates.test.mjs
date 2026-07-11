@@ -28,7 +28,7 @@ const node = (id, path = ['main', id], extra = {}) => ({
 })
 
 test('annotation candidate selection prefers specific visible child frames and semantic targets over roots', () => {
-  const root = node('avatar-main', ['desktop-world', 'avatar-main'])
+  const root = node('root', ['desktop-world', 'root'])
   root.projection.visible_display_rect = { x: 0, y: 0, w: 1200, h: 900 }
 
   const workbench = node('html-workbench-expression', ['canvas', 'html-workbench-expression'])

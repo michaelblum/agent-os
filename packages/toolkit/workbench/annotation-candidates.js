@@ -33,7 +33,6 @@ const IMPLICIT_ROOT_ID_PATTERNS = [
   /^aos-desktop-world-stage$/i,
   /^desktop-world:/i,
   /^display[-_:]/i,
-  /^avatar-main$/i,
   /^root$/i,
 ]
 

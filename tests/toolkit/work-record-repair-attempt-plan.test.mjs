@@ -68,7 +68,7 @@ test('valid Work Record produces not_required Repair Attempt Plan without execut
 
   assert.equal(attempt.status, 'not_required');
   assert.equal(attempt.workflow_gate_authorizations.length, 0);
-  assert.equal(attempt.attempt_identity.source_work_record.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
+  assert.equal(attempt.attempt_identity.source_work_record.id, 'work-record:workflow-open-wiki-runtime-modes-2026-05-05');
   assert.equal(attempt.recommended_next.action, 'no_future_repair_attempt_required');
   assertNonExecutingAttempt(attempt);
   assert.equal(fs.readFileSync(validFixture, 'utf8'), before);

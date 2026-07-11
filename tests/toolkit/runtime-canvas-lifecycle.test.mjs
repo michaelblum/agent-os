@@ -17,14 +17,14 @@ test('canvasLifecycleCanvasID resolves top-level and nested ids', () => {
 
 test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads', () => {
   const existing = {
-    id: 'avatar-main',
+    id: 'example-root',
     at: [0, 0, 10, 10],
     interactive: false,
     scope: 'global',
   }
 
   const merged = mergeCanvasLifecycleCanvas(existing, {
-    canvas_id: 'avatar-main',
+    canvas_id: 'example-root',
     action: 'updated',
     at: [-185, 0, 1920, 2062],
     parent: null,
@@ -35,7 +35,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
     suspended: false,
     lifecycle_state: 'active',
     canvas: {
-      id: 'avatar-main',
+      id: 'example-root',
       at: [-185, 0, 1920, 2062],
       interactive: false,
       scope: 'global',
@@ -48,7 +48,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
   })
 
   assert.deepEqual(merged, {
-    id: 'avatar-main',
+    id: 'example-root',
     at: [-185, 0, 1920, 2062],
     interactive: false,
     scope: 'global',
@@ -66,11 +66,11 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
   const merged = mergeCanvasLifecycleCanvas(null, {
     action: 'created',
     canvas: {
-      id: 'sigil-hit',
+      id: 'example-hit',
       at: [1220, 784, 80, 80],
       interactive: false,
       scope: 'global',
-      parent: 'avatar-main',
+      parent: 'example-root',
       cascade: true,
       suspended: false,
       lifecycle_state: 'warm_suspended',
@@ -78,11 +78,11 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
   })
 
   assert.deepEqual(merged, {
-    id: 'sigil-hit',
+    id: 'example-hit',
     at: [1220, 784, 80, 80],
     interactive: false,
     scope: 'global',
-    parent: 'avatar-main',
+    parent: 'example-root',
     track: null,
     ttl: null,
     cascade: true,
@@ -145,7 +145,7 @@ test('mergeCanvasLifecycleCanvas preserves DesktopWorld surface segments', () =>
 
   const merged = mergeCanvasLifecycleCanvas(null, {
     event: 'canvas_topology_settled',
-    canvas_id: 'avatar-main',
+    canvas_id: 'example-root',
     segments,
   })
 

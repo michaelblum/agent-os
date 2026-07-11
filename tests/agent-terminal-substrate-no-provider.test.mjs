@@ -31,7 +31,7 @@ describe('Agent Terminal substrate validation without provider launch', () => {
     port = await freePort();
     output = '';
 
-    bridge = spawn(process.execPath, ['apps/sigil/codex-terminal/server.mjs'], {
+    bridge = spawn(process.execPath, ['packages/toolkit/components/agent-terminal/bridge-server.mjs'], {
       cwd: repoRoot,
       env: {
         ...process.env,

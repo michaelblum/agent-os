@@ -33,9 +33,9 @@ test('menu activation phases are canonical and terminal phases are explicit', ()
 test('createMenuActivationRequest normalizes menu item activation', () => {
   const request = createMenuActivationRequest({
     id: 'activation-1',
-    menuId: 'sigil.radial',
+    menuId: 'example.menu',
     input: 'gesture',
-    source: 'sigil.avatar',
+    source: 'example.control',
     item: {
       id: 'wiki-graph',
       label: 'Wiki Graph',
@@ -51,12 +51,12 @@ test('createMenuActivationRequest normalizes menu item activation', () => {
   assert.equal(request.type, 'aos.menu.activation');
   assert.equal(request.schema_version, MENU_ACTIVATION_SCHEMA_VERSION);
   assert.equal(request.id, 'activation-1');
-  assert.equal(request.menu_id, 'sigil.radial');
+  assert.equal(request.menu_id, 'example.menu');
   assert.equal(request.phase, 'requested');
   assert.deepEqual(request.lifecycle.map((entry) => entry.phase), ['requested']);
   assert.deepEqual(request.input_source, {
     kind: 'gesture',
-    source: 'sigil.avatar',
+    source: 'example.control',
   });
   assert.equal(request.action, 'wikiGraph');
   assert.deepEqual(request.item, {
@@ -72,24 +72,24 @@ test('createMenuActivationRequest normalizes menu item activation', () => {
 test('menu activation descriptors accept object input and string transition shorthands', () => {
   const request = createMenuActivationRequest({
     id: 'activation-input',
-    menuId: 'sigil.radial',
+    menuId: 'example.menu',
     input: { kind: 'click', device: 'mouse', button: 0 },
-    source: 'sigil.radial-target-surface',
+    source: 'example.menu-target',
     item: { id: 'context-menu' },
-    targetSurface: { kind: 'context-menu', canvas_id: 'sigil-context-menu' },
+    targetSurface: { kind: 'context-menu', canvas_id: 'example-context-menu' },
     transition: 'default-menu-open',
   });
 
   assert.deepEqual(request.input_source, {
     kind: 'click',
-    source: 'sigil.radial-target-surface',
+    source: 'example.menu-target',
     device: 'mouse',
     button: 0,
   });
   assert.equal(request.input, 'click');
-  assert.equal(request.source, 'sigil.radial-target-surface');
-  assert.equal(request.surface.canvas_id, 'sigil-context-menu');
-  assert.equal(request.target_surface.canvas_id, 'sigil-context-menu');
+  assert.equal(request.source, 'example.menu-target');
+  assert.equal(request.surface.canvas_id, 'example-context-menu');
+  assert.equal(request.target_surface.canvas_id, 'example-context-menu');
   assert.deepEqual(normalizeMenuActivationInput('keyboard', 'shortcut'), {
     kind: 'keyboard',
     source: 'shortcut',
@@ -100,17 +100,17 @@ test('menu activation descriptors accept object input and string transition shor
 test('advanceMenuActivation preserves request identity while updating phase', () => {
   const request = createMenuActivationRequest({
     id: 'activation-2',
-    menuId: 'sigil.radial',
+    menuId: 'example.menu',
     item: { id: 'agent-terminal' },
   });
   const completed = advanceMenuActivation(request, 'completed', {
-    result: { canvas_id: 'sigil-agent-terminal' },
+    result: { canvas_id: 'example-agent-terminal' },
   });
 
   assert.equal(completed.id, request.id);
   assert.equal(completed.phase, 'completed');
   assert.equal(completed.previous_phase, 'requested');
-  assert.equal(completed.result.canvas_id, 'sigil-agent-terminal');
+  assert.equal(completed.result.canvas_id, 'example-agent-terminal');
   assert.equal(request.phase, 'requested');
   assert.deepEqual(completed.lifecycle.map((entry) => entry.phase), ['requested', 'completed']);
 });
@@ -122,7 +122,7 @@ test('createMenuActivationRequest rejects anonymous items', () => {
 test('activation advancement rejects non-contract phases', () => {
   const request = createMenuActivationRequest({
     id: 'activation-bad-phase',
-    menuId: 'sigil.radial',
+    menuId: 'example.menu',
     item: { id: 'wiki-graph' },
   });
 

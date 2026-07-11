@@ -212,9 +212,9 @@ test('ObjectTransformPanel exposes root region, object list, and triplet fields'
   panel.onMessage({
     type: 'canvas_object.registry',
     schema_version: '2026-05-03',
-    canvas_id: 'avatar-main',
+    canvas_id: 'example-root',
     objects: [{
-      object_id: 'radial.wiki-brain.tree',
+      object_id: 'example.menu.tree',
       name: 'Tree',
       kind: 'three.object3d',
       capabilities: ['transform.read', 'transform.patch'],

@@ -191,7 +191,7 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
     coordinate_authority: 'toolkit',
     source_origin: 'daemon',
     region_id: 'avatar',
-    owner_canvas_id: 'avatar-main',
+    owner_canvas_id: 'example-control',
     capture_id: 'cap-18',
     source_event: 'daemon:18',
     source_sequence: { source: 'daemon', value: 18 },
@@ -206,12 +206,12 @@ test('normalizeCanvasInputMessage preserves routed delivery metadata', () => {
   assert.equal(normalized.deliveryRole, 'captured')
   assert.equal(normalized.captureId, 'cap-18')
   assert.equal(normalized.regionId, 'avatar')
-  assert.equal(normalized.ownerCanvasId, 'avatar-main')
+  assert.equal(normalized.ownerCanvasId, 'example-control')
   assert.equal(normalized.sourceOrigin, 'daemon')
   assert.deepEqual(normalized.sourceSequence, { source: 'daemon', value: 18 })
   assert.deepEqual(normalized.inputIdentity, inputIdentity({
     sourceOrigin: 'daemon',
-    ownerCanvasId: 'avatar-main',
+    ownerCanvasId: 'example-control',
     regionId: 'avatar',
     deliveryRole: 'captured',
     envelopeType: 'aos_routed_input',
@@ -323,11 +323,11 @@ test('normalizeCanvasInputMessage validates direct routed input_region.event cla
 test('createCanvasOriginInputEvent builds stable child canvas source identity', () => {
   const event = createCanvasOriginInputEvent({
     type: 'canvas_message',
-    id: 'sigil-hit-avatar-main',
+    id: 'example-hit-control',
     payload: {
       source_origin: 'canvas',
-      source_canvas_id: 'sigil-hit-avatar-main',
-      owner_canvas_id: 'avatar-main',
+      source_canvas_id: 'example-hit-control',
+      owner_canvas_id: 'example-control',
       kind: 'left_mouse_dragged',
       pointer_id: 9,
       offsetX: 12,
@@ -342,16 +342,16 @@ test('createCanvasOriginInputEvent builds stable child canvas source identity', 
   assert.equal(event.routed_schema_version, 1)
   assert.equal(event.type, 'left_mouse_dragged')
   assert.equal(event.source_origin, 'canvas')
-  assert.equal(event.source_canvas_id, 'sigil-hit-avatar-main')
-  assert.equal(event.owner_canvas_id, 'avatar-main')
-  assert.equal(event.region_id, 'sigil-hit-avatar-main')
+  assert.equal(event.source_canvas_id, 'example-hit-control')
+  assert.equal(event.owner_canvas_id, 'example-control')
+  assert.equal(event.region_id, 'example-hit-control')
   assert.equal(event.source_event, 'left_mouse_dragged')
   assert.deepEqual(event.source_sequence, {
     source: 'toolkit',
-    value: 'sigil-hit-avatar-main:avatar-main:9:left',
+    value: 'example-hit-control:example-control:9:left',
   })
-  assert.equal(event.gesture_id, 'canvas:sigil-hit-avatar-main:avatar-main:9:left')
-  assert.equal(event.capture_id, 'canvas:sigil-hit-avatar-main:avatar-main:9:left:capture')
+  assert.equal(event.gesture_id, 'canvas:example-hit-control:example-control:9:left')
+  assert.equal(event.capture_id, 'canvas:example-hit-control:example-control:9:left:capture')
   assert.deepEqual(event.desktop_world, { x: 300, y: 410 })
   assert.equal(Object.hasOwn(event, 'child_local'), false)
   assert.equal(event.coordinate_authority, 'toolkit')
@@ -466,12 +466,12 @@ test('normalizeCanvasInputMessage rejects incomplete version-claiming payloads',
 test('normalizeCanvasInputMessage leaves identity-only child canvas envelopes unresolved', () => {
   const normalized = normalizeCanvasInputMessage({
     type: 'canvas_message',
-    id: 'sigil-hit-avatar-main',
+    id: 'example-hit-control',
     payload: {
-      source: 'sigil-hit',
+      source: 'example-hit',
       source_origin: 'canvas',
-      source_canvas_id: 'sigil-hit-avatar-main',
-      owner_canvas_id: 'avatar-main',
+      source_canvas_id: 'example-hit-control',
+      owner_canvas_id: 'example-control',
       kind: 'left_mouse_down',
       pointer_id: 1,
       screenX: 100,

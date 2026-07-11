@@ -112,10 +112,10 @@ slices with repo evidence and clear exit criteria.
   - Subjects can link to source files, schemas, workbench facets, and child
     subjects.
 - Add one real Navigation Trail of Subject Entry Handles:
-  - `wiki:Sigil`
-  - `menu-config:aos.radial_menu:sigil.radial.main`
-  - `item-config:aos.radial_menu:sigil.radial.main/item/wiki-graph`
-  - `object-controls:aos.radial_menu:sigil.radial.main/item/wiki-graph`
+  - `wiki:aos/concepts/runtime-modes.md`
+  - `menu-config:aos.menu:example.main`
+  - `item-config:aos.menu:example.main/item/wiki-graph`
+  - `object-controls:aos.menu:example.main/item/wiki-graph`
   - Each handle resolves through a Subject, Facet, Host, or resource path. This
     is not a literal chain of wiki/domain Subjects, and it does not make every
     menu item or `canvas_object` part a graph node by default.
@@ -177,8 +177,8 @@ slices with repo evidence and clear exit criteria.
   evidence or hints, not canonical truth.
 - First candidate Workflow-gated browser run:
   - open browser-hosted wiki browser
-  - locate Sigil subject
-  - follow the Sigil radial menu facet/resource
+  - locate the Runtime Modes subject
+  - follow its menu facet/resource
   - inspect/edit one object transform
   - emit a Work Record through the harness
   - run the report-only verifier profile

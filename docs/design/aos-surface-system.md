@@ -5,7 +5,7 @@
 AOS surfaces should share a small set of platform concepts instead of each app
 inventing its own window chrome, controls, drag behavior, and overlay model.
 The goal is a cohesive agent-first surface system that remains modular enough
-for apps such as Sigil to theme and extend.
+for external products to theme and extend.
 
 For interaction mechanism selection, use the canonical decision tree and first
 conformance audit in
@@ -113,9 +113,8 @@ The toolkit should provide a basic, themeable control set:
 - segmented controls and tabs
 - list rows with selection and visibility affordances
 
-The Sigil radial item workbench is the current visual reference for the default
-AOS theme: compact title bars, clear typography, restrained glow, and richer
-control affordances.
+Toolkit panels are the visual reference for the default AOS theme: compact
+title bars, clear typography, restrained glow, and rich control affordances.
 
 ### Desktop-World Stage
 
@@ -139,7 +138,7 @@ desktop-world visual layers but should not be hidden inside the visual stage.
 ### Visual/Interaction Binding
 
 A binding records which interactive surface controls or represents which visual
-layer. Sigil already has this pattern informally:
+layer. Common examples include:
 
 - avatar visual layer plus avatar hit target
 - radial menu visuals plus radial item semantic target surface
@@ -174,8 +173,8 @@ During drag, AOS should preserve macOS-like transfer behavior:
 The temporary outline can initially be a short-lived canvas. Later it can become
 a layer on the desktop-world stage.
 
-Current implementation status: toolkit panel chrome and the Sigil radial item
-workbench use `wireDrag(..., { clampOnEnd: true, transfer: true })` for final
+Current implementation status: toolkit panel chrome and reusable workbench
+surfaces use `wireDrag(..., { clampOnEnd: true, transfer: true })` for final
 single-display placement recovery and cross-display destination outlines.
 
 The first shared DesktopWorld visual stage now lives at
@@ -209,24 +208,10 @@ canonical `routed_input` payload with `region_id`, `owner_canvas_id`,
 `normalizeCanvasInputMessage` rather than inferring source identity from
 app-specific flags.
 
-Sigil no longer has a daemon product branch for avatar/chat input consumption.
-Its renderer uses `renderer/live-modules/input-regions.js` as the app adapter
-that registers generic daemon input regions for the avatar and open context-menu
-bounds, so native event consumption uses the same primitive as toolkit
-affordances without spreading product policy into the daemon. Child hit surfaces
-that still forward DOM-origin events back to the renderer now normalize through
-the toolkit canvas-origin helper with `source_origin: "canvas"`,
-`source_canvas_id`, `owner_canvas_id`, toolkit coordinate authority, and stable
-source sequence identity. The old Sigil-local `fromHitTarget` flag is retired
-from the live path; `assumeInside` remains only as interaction-router
-compatibility for older callers and tests, not as Sigil glue.
-
-The first #122 toolkit extraction is the runtime DesktopWorld hit-region
-controller. Sigil's radial menu target surface and avatar hit target now use
-that generic controller for owner selection, child canvas lifecycle,
-DesktopWorld-to-native placement, disable/remove behavior, and deduplicated
-placement updates, while Sigil keeps radial item product mapping, avatar
-semantics, DOM event interpretation, and its existing child HTML pages.
+External consumers should register daemon input regions through the generic
+runtime controller and normalize DOM-origin events through the toolkit
+canvas-origin helper. Product mapping, renderer semantics, and app-specific DOM
+interpretation remain in the owning product repository.
 
 Subject-family runtime cleanup is expressed through generic ownership, not app
 names. A root subject may own cascade child canvases through daemon canvas
@@ -267,8 +252,8 @@ replacement.
    default theme.
 2. Add minimize and restore chips for toolkit panels.
 3. Extract the basic control pack from current reusable patterns.
-4. Extract workbench shell and toolbar styling from the Sigil radial item
-   workbench so editor actions no longer live in titlebar chrome.
+4. Consolidate workbench shell and toolbar styling so editor actions do not
+   live in titlebar chrome.
 5. Add maximize and restore as surface state primitives for toolkit panels.
 6. Add split-pane layout with draggable divider, min/max pane sizing, and
    persisted ratios.
@@ -276,7 +261,7 @@ replacement.
 8. Add edge and corner resize with min/max geometry.
 9. Add panel drag clamping so title bars cannot be stranded.
 10. Add first-class toolkit drag/drop for World/union-backed panels and nodes.
-11. Promote the Sigil avatar/radial pattern into a desktop-world stage primitive.
+11. Promote reusable visual/interaction bindings into desktop-world stage primitives.
 12. Add a visual/interaction binding registry.
 13. Build a normal-user surface manager, keeping Surface Inspector as the
    developer/admin view.

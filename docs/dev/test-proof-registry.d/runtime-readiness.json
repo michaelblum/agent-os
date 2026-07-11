@@ -4,6 +4,46 @@
   "summary": "Proof-worth registry entries owned by runtime-readiness.",
   "entries": [
     {
+      "id": "wiki-content-contract",
+      "path_patterns": [
+        "tests/content/wiki-list.test.sh",
+        "tests/content/wiki-graph-page-kind.test.sh",
+        "tests/lib/isolated-daemon.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "content-runtime",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "wiki_content_contract",
+      "contract": "Wiki directory listings and graph page-kind normalization run against a disposable neutral content root instead of an embedded product tree.",
+      "worth": "This preserves the reusable content-server behavior without making a product repository or frozen fixture part of AOS acceptance.",
+      "command": "bash tests/content/wiki-list.test.sh && bash tests/content/wiki-graph-page-kind.test.sh",
+      "replaces": [
+        "embedded Sigil content-root wiki tests"
+      ],
+      "guard": "uses an isolated AOS_STATE_ROOT and disposable content root; does not use the shared repo daemon",
+      "status": "active"
+    },
+    {
+      "id": "status-item-harness-contract",
+      "path_patterns": [
+        "tests/lib/status-item.sh",
+        "tests/status-item-tracked-lifecycle-timeout.sh",
+        "tests/status-item-readiness-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "status_item_harness_contract",
+      "contract": "The shared status-item harness exercises canonical public click delivery and bounded tracked-lifecycle cleanup without product-private native event injection.",
+      "worth": "This keeps reusable status-item ownership proof on the public AOS action path after product-specific harness removal.",
+      "command": "node --test tests/status-item-readiness-contract.test.mjs && bash tests/status-item-tracked-lifecycle-timeout.sh",
+      "replaces": [
+        "unreferenced low-latency product-native click helper"
+      ],
+      "guard": "uses isolated runtime state and mockable status-item ownership; no embedded product launch",
+      "status": "active"
+    },
+    {
       "id": "content-wait-contract",
       "path_patterns": [
         "tests/content-wait.sh"

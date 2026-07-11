@@ -10,8 +10,8 @@ are not copied into the canonical producer identity.
 | --- | --- | --- |
 | Toolkit runtime semantic target | `id`, `ref` | `ref` remains the canonical route identity; runtime-only `id` is listed as provenance when composed into `agent_ui_target` |
 | Toolkit panel form control | `ref` | Already canonical `agent_ui_target`; form ids land in `extension.descriptor_id` and `extension.field_id` |
-| Sigil compact control/tab | `ref` | Already canonical `agent_ui_target`; tab/section/label fields land in `extension`; local source ids stay provenance-only |
-| HTML workbench source-line target | `ref` | Canonical `ref` remains the producer identity; source path/lines land in `extension.source`; selector and DOM slug land in provenance/extension reveal hints |
+| Example compact control/tab | `ref` | Already canonical `agent_ui_target`; tab/section/label fields land in `extension`; local source ids stay provenance-only |
+| HTML workbench semantic target | `ref` | Canonical `ref` remains the producer identity; selector and DOM slug stay provenance-only reveal hints. This fixture has no surviving source-document owner, so it does not claim source-line provenance. |
 | Native `aos see` canvas semantic target | `ref` | Canonical `agent_ui_target`; canvas id, `do_target`, parent canvas, local geometry, and local DOM id land in provenance/extension |
 | Annotation/Surface Inspector projection | `subject_id` | Projection fixture renames join identity to `ref`; `subject_path`, `root_id`, geometry, render status, blockers, and freshness stay projection-only |
 
@@ -24,8 +24,8 @@ are not copied into the canonical producer identity.
 | `surface` | Top-level `surface` | `root_id` / `subject_path` | Surface remains producer ownership; projection describes where it was observed. |
 | `state` | `state.value/current/pressed/selected/checked/expanded` | None | Declared structural state, not render status. |
 | `actions` | Top-level `actions` | None | Runtime semantic `action` is normalized to a one-item actions list when present. |
-| Control extensions | `extension.descriptor_id`, `field_id`, `options`, `hidden`, `tab`, `section`, `label` | None | Covers fields asserted by panel and Sigil compact tests. |
-| Workbench extensions | `extension.annotation_eligible`, `reveal_eligible`, `source.path`, `line_start`, `line_end` | None | Source line identity does not become a producer identity spelling. |
+| Control extensions | `extension.descriptor_id`, `field_id`, `options`, `hidden`, `tab`, `section`, `label` | None | Covers fields asserted by panel and Example compact tests. |
+| Workbench extensions | `extension.annotation_eligible`, `reveal_eligible` | None | Source evidence is optional and must be omitted when no current document owns it. |
 | Provenance selectors | `provenance.selector` | `source_tree_node_metadata.selector` only as adapter source evidence | Selectors are reveal/provenance hints, never canonical identity. |
 | Local producer frame | `provenance.frame` | `local_space_rect` / `display_space_rect` after projection | Current asserted producer frames are accounted for without making projection fields producer-owned. |
 | Canvas action routing | `provenance.do_target` | None | Derived `canvas:<canvas-id>/<ref>` routing identity for `aos do`; not a top-level producer identity. |

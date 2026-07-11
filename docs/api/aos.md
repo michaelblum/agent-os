@@ -68,7 +68,7 @@ The binary exposes platform primitives, not product policy. For surfaces, the
 daemon should provide native lifecycle, display, input, content, and routing
 capabilities that any consumer can build on. The default AOS panel/windowing
 policy belongs in `packages/toolkit/`, not in app code and not as
-Sigil-specific branches inside the daemon. A consumer may use toolkit
+product-specific branches inside the daemon. A consumer may use toolkit
 windowing, customize it, or bypass it for non-panel surfaces.
 
 Examples:

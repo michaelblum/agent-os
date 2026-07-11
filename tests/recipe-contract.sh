@@ -54,8 +54,6 @@ validator = jsonschema.Draft202012Validator(recipe_schema)
 valid_recipes = [
     "recipes/runtime/status-snapshot.json",
     "recipes/runtime/clean-restart.json",
-    "recipes/sigil/start.json",
-    "recipes/sigil/start-agent-terminal.json",
     "recipes/canvas/window-level-smoke.json",
 ]
 for recipe_path in valid_recipes:
@@ -110,9 +108,8 @@ data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert any(r["id"] == "runtime/status-snapshot" for r in data["recipes"]), data
 assert any(r["id"] == "runtime/clean-restart" for r in data["recipes"]), data
-assert any(r["id"] == "sigil/start" for r in data["recipes"]), data
-assert any(r["id"] == "sigil/start-agent-terminal" for r in data["recipes"]), data
 assert any(r["id"] == "canvas/window-level-smoke" for r in data["recipes"]), data
+assert all(not r["id"].startswith("sigil/") for r in data["recipes"]), data
 PY
 then
     pass "recipe list discovers source recipes"
@@ -137,26 +134,6 @@ then
     pass "recipe explain reports status command ref"
 else
     fail "recipe explain command contract failed"
-fi
-
-OUT="$(./aos recipe explain sigil/start --json 2>/dev/null)"
-if OUT="$OUT" python3 - <<'PY'
-import json
-import os
-data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
-launch = data["steps"][0]
-assert launch["kind"] == "aos_command", launch
-assert launch["command"]["path"] == ["experience", "activate"], launch
-assert launch["command"]["form_id"] == "activate-experience", launch
-assert launch["argv"] == ["sigil"], launch
-assert launch["supports_delegate_dry_run"] is True, launch
-assert data["mutates"] is True, data
-PY
-then
-    pass "recipe explain reports Sigil launch command ref"
-else
-    fail "recipe explain launch contract failed"
 fi
 
 # --- 5. flag-sensitive command metadata classifies saved capture as mutating. ---

@@ -47,7 +47,7 @@ const subject = (id, path = ['display:1', id], extra = {}) => ({
 
 test('context session can wrap an aos_annotation_session summary', () => {
   let session = enterAnnotationSession(createAnnotationSession(), {
-    entry_source: 'sigil_radial',
+    entry_source: 'radial_menu',
     root: subject('display-root', ['display:1']),
     updated_at: '2026-05-28T12:00:00.000Z',
   })
@@ -66,7 +66,7 @@ test('context session can wrap an aos_annotation_session summary', () => {
   const context = createContextSession({
     id: 'context-session:window',
     active: true,
-    entry_source: 'sigil_radial',
+    entry_source: 'radial_menu',
     source_annotation_session: session,
     artifacts: [artifact],
     updated_at: '2026-05-28T12:00:01.000Z',
@@ -74,12 +74,12 @@ test('context session can wrap an aos_annotation_session summary', () => {
 
   assert.equal(context.schema, CONTEXT_SESSION_SCHEMA)
   assert.equal(context.source_annotation_session.schema, 'aos_annotation_session')
-  assert.equal(context.source_annotation_session.entry_source, 'sigil_radial')
+  assert.equal(context.source_annotation_session.entry_source, 'radial_menu')
   assert.deepEqual(context.artifacts[0].path.map((node) => node.subject.subject.id), ['display-root', 'window'])
 
   const wrappedSummary = createContextSession({
     id: 'context-session:summary',
-    entry_source: 'sigil_radial',
+    entry_source: 'radial_menu',
     source_annotation_session: context.source_annotation_session,
     artifacts: [artifact],
     updated_at: '2026-05-28T12:00:02.000Z',
@@ -88,6 +88,37 @@ test('context session can wrap an aos_annotation_session summary', () => {
     wrappedSummary.source_annotation_session.committed_scope_addresses,
     context.source_annotation_session.committed_scope_addresses,
   )
+})
+
+test('legacy annotation entry sources never re-emit from context sessions or persisted summaries', () => {
+  const topLevel = createContextSession({
+    id: 'context-session:legacy-top-level',
+    entry_source: 'sigil_radial',
+    updated_at: '2026-05-28T12:00:00.000Z',
+  })
+  assert.equal(topLevel.entry_source, 'radial_menu')
+  assert.doesNotMatch(JSON.stringify(topLevel), /sigil_radial/)
+
+  const nested = createContextSession({
+    id: 'context-session:legacy-summary',
+    source_annotation_session: {
+      schema: 'aos_annotation_session',
+      version: '0.1.0',
+      active: false,
+      entry_source: 'sigil_radial',
+      updated_at: '2026-05-28T12:00:01.000Z',
+      root_address: '',
+      committed_scope_addresses: [],
+      preview_scope_addresses: [],
+      hover_candidate_address: '',
+      anchor_addresses: [],
+      snapshot_count: 0,
+    },
+    updated_at: '2026-05-28T12:00:02.000Z',
+  })
+  assert.equal(nested.entry_source, 'radial_menu')
+  assert.equal(nested.source_annotation_session.entry_source, 'radial_menu')
+  assert.doesNotMatch(JSON.stringify(nested), /sigil_radial/)
 })
 
 test('context artifacts preserve root-to-leaf path and active leaf selection', () => {
@@ -228,7 +259,7 @@ test('keyframes can reference multiple artifacts without embedding assets', () =
   const keyframe = createContextKeyframe({
     id: 'keyframe:001',
     captured_at: '2026-05-28T12:00:03.000Z',
-    trigger: 'sigil_radial_camera',
+    trigger: 'camera_capture',
     artifact_ids: [first.id, second.id],
     asset_refs: {
       capture_image: 'capture.png',
@@ -251,7 +282,7 @@ test('recordings preserve ordered keyframes and timeline events', () => {
   const first = createContextKeyframe({
     id: 'keyframe:001',
     captured_at: '2026-05-28T12:00:00.000Z',
-    trigger: 'sigil_radial_camera',
+    trigger: 'camera_capture',
     artifact_ids: ['context-artifact:a'],
     asset_refs: { capture_image: 'capture.png' },
   })

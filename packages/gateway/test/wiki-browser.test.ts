@@ -9,18 +9,18 @@ import {
 
 const index: WikiIndexEntry[] = [
   {
-    name: 'Sigil',
-    description: 'Avatar presence system.',
-    path: 'aos/entities/sigil.md',
+    name: 'Operator',
+    description: 'Runtime operator identity.',
+    path: 'aos/entities/operator.md',
     type: 'entity',
-    tags: ['sigil', 'avatar'],
+    tags: ['runtime', 'operator'],
   },
   {
-    name: 'Sigil Default App Model',
-    description: 'Default app experience.',
-    path: 'aos/concepts/sigil-default-app-model.md',
+    name: 'Command Surface',
+    description: 'Canonical command surface.',
+    path: 'aos/concepts/command-surface.md',
     type: 'concept',
-    tags: ['sigil', 'app-model'],
+    tags: ['commands', 'contract'],
   },
   {
     name: 'Daemon',
@@ -58,18 +58,18 @@ describe('wiki-browser model', () => {
 
     const entryState = reduceWikiBrowserState(model.state, {
       type: 'open-entry',
-      entryPath: 'aos/entities/sigil.md',
+      entryPath: 'aos/entities/operator.md',
     });
     const detailModel = buildWikiBrowserModel(index, entryState);
-    assert.equal(detailModel.selectedEntry?.name, 'Sigil');
-    assert.equal(detailModel.breadcrumbs.map((crumb) => crumb.label).join(' -> '), 'Types -> Entity -> Sigil');
+    assert.equal(detailModel.selectedEntry?.name, 'Operator');
+    assert.equal(detailModel.breadcrumbs.map((crumb) => crumb.label).join(' -> '), 'Types -> Entity -> Operator');
   });
 
   it('switches roots and resets deeper state', () => {
     const state = reduceWikiBrowserState({
       root: 'types',
       branch: 'entity',
-      entryPath: 'aos/entities/sigil.md',
+      entryPath: 'aos/entities/operator.md',
       page: 2,
     }, {
       type: 'set-root',

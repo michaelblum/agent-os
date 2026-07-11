@@ -15,7 +15,7 @@
       "version": "0.1.0",
       "id": "keyframe:001",
       "captured_at": "2026-05-28T12:00:00.000Z",
-      "trigger": "sigil_radial_camera",
+      "trigger": "example-product_radial_camera",
       "artifact_ids": ["context-artifact:primary-window"],
       "asset_refs": {
         "context_session_json": "context-session.json",

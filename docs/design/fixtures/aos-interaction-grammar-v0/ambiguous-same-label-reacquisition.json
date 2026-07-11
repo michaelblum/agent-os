@@ -12,7 +12,7 @@
     "target": {
       "target_id": "command:open",
       "owner_namespace": {
-        "app_id": "sigil",
+        "app_id": "example",
         "canvas_id": "recent-projects-menu",
         "surface_id": "recent-projects-menu",
         "component_family": "toolkit.menu",
@@ -69,7 +69,7 @@
       "target": {
         "target_id": "command:open",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "file-menu-canvas",
           "surface_id": "file-menu",
           "component_family": "toolkit.menu",
@@ -121,7 +121,7 @@
       "target": {
         "target_id": "command:open",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "project-card-canvas",
           "surface_id": "project-card",
           "component_family": "toolkit.card",
@@ -180,7 +180,7 @@
     "steps": [
       {
         "kind": "re_perceive",
-        "surface": "sigil"
+        "surface": "example"
       },
       {
         "kind": "resolve_descriptor",

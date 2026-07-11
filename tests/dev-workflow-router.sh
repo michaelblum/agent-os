@@ -165,7 +165,6 @@ commands = {item["command"] for item in data["next_commands"]}
 assert {
     "bash tests/visual-harness-boundary.sh",
     "bash tests/visual-harness-canonical-url-primitives.sh",
-    "bash tests/visual-harness-content-preflight.sh",
     "bash tests/harness-composability-contracts.sh",
 } <= commands, data
 assert summary["requires_swift_build"] is False, data

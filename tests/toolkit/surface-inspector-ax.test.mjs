@@ -14,32 +14,32 @@ import {
 } from '../../packages/toolkit/components/surface-inspector/semantics.js'
 
 test('canvas action attrs expose stable AOS target metadata', () => {
-  const attrs = canvasActionAttrs('avatar-main', 'stats', { pressed: true })
+  const attrs = canvasActionAttrs('example-root', 'stats', { pressed: true })
 
   assert.equal(
     attrs,
-    'aria-label="Stats for canvas avatar-main" data-aos-ref="surface-inspector:canvas:avatar-main:stats" data-aos-surface="surface-inspector" data-semantic-target-id="stats-avatar-main" data-aos-action="toggle_stats" aria-pressed="true"',
+    'aria-label="Stats for canvas example-root" data-aos-ref="surface-inspector:canvas:example-root:stats" data-aos-surface="surface-inspector" data-semantic-target-id="stats-example-root" data-aos-action="toggle_stats" aria-pressed="true"',
   )
-  assert.match(attrs, /aria-label="Stats for canvas avatar-main"/)
-  assert.match(attrs, /data-aos-ref="surface-inspector:canvas:avatar-main:stats"/)
+  assert.match(attrs, /aria-label="Stats for canvas example-root"/)
+  assert.match(attrs, /data-aos-ref="surface-inspector:canvas:example-root:stats"/)
   assert.match(attrs, /data-aos-surface="surface-inspector"/)
   assert.match(attrs, /data-aos-action="toggle_stats"/)
-  assert.match(attrs, /data-semantic-target-id="stats-avatar-main"/)
+  assert.match(attrs, /data-semantic-target-id="stats-example-root"/)
   assert.match(attrs, /aria-pressed="true"/)
 })
 
 test('renderCanvasRow stamps semantic metadata on canvas action buttons', () => {
   const html = renderCanvasRow({
-    id: 'avatar-main',
+    id: 'example-root',
     at: [0, 0, 200, 100],
   }, 0, {
-    statsIds: new Set(['avatar-main']),
-    tintedIds: new Set(['avatar-main']),
+    statsIds: new Set(['example-root']),
+    tintedIds: new Set(['example-root']),
   })
 
-  assert.match(html, /class="btn stats-btn active"[^>]*aria-label="Stats for canvas avatar-main"[^>]*data-aos-action="toggle_stats"[^>]*aria-pressed="true"[^>]*>stats<\/button>/)
-  assert.match(html, /class="btn tint-btn active"[^>]*aria-label="Tint canvas avatar-main"[^>]*data-aos-action="toggle_tint"[^>]*aria-pressed="true"[^>]*>tint<\/button>/)
-  assert.match(html, /class="btn remove-btn"[^>]*aria-label="Remove canvas avatar-main"[^>]*data-aos-action="remove_canvas"[^>]*>\u2715<\/button>/)
+  assert.match(html, /class="btn stats-btn active"[^>]*aria-label="Stats for canvas example-root"[^>]*data-aos-action="toggle_stats"[^>]*aria-pressed="true"[^>]*>stats<\/button>/)
+  assert.match(html, /class="btn tint-btn active"[^>]*aria-label="Tint canvas example-root"[^>]*data-aos-action="toggle_tint"[^>]*aria-pressed="true"[^>]*>tint<\/button>/)
+  assert.match(html, /class="btn remove-btn"[^>]*aria-label="Remove canvas example-root"[^>]*data-aos-action="remove_canvas"[^>]*>\u2715<\/button>/)
 })
 
 test('renderCanvasRow stamps semantic metadata on DesktopWorld surface actions', () => {
@@ -113,7 +113,7 @@ test('canvas list disclosure exposes semantic action and expanded state', () => 
 
 test('canvasInspectorAosRef normalizes whitespace in stable refs', () => {
   assert.equal(
-    canvasInspectorAosRef('canvas', 'avatar main', 'stats'),
-    'surface-inspector:canvas:avatar-main:stats',
+    canvasInspectorAosRef('canvas', 'example root', 'stats'),
+    'surface-inspector:canvas:example-root:stats',
   )
 })

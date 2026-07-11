@@ -59,10 +59,10 @@ is:
 
 Concrete `from_node_id` and `to_node_id` values are validated against known
 nodes. V0 also allows documented collection targets ending in `.*`, such as
-`sigil.avatar.radial_menu.item.*`, only on `targets` relations. Implementation
+`example.control.menu.item.*`, only on `targets` relations. Implementation
 surfaces and canvas/input-region identifiers belong in plain JSON relation
 metadata, for example under `metadata.target_surface`, rather than in
-avatar-specific schema fields.
+product-specific schema fields.
 
 ## Safety Rules
 

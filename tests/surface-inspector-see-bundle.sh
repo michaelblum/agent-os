@@ -158,7 +158,7 @@ rm -rf "$BUNDLE_PATH"
 BUNDLE_PATH=""
 
 ./aos show create \
-  --id avatar-main \
+  --id example-root \
   --at 120,120,240,160 \
   --interactive \
   --html '<!doctype html><html><body>bundle requester<script type="module">
@@ -195,13 +195,13 @@ window.__requestInvalidContextBundle = () => {
 </script></body></html>' >/dev/null
 
 ./aos show wait \
-  --id avatar-main \
+  --id example-root \
   --js 'typeof window.__requestExternalBundle === "function"' \
   --timeout 5s >/dev/null
 
 sleep 1
 
-./aos show eval --id avatar-main --js 'window.__requestExternalBundle(); "ok"' >/dev/null
+./aos show eval --id example-root --js 'window.__requestExternalBundle(); "ok"' >/dev/null
 
 BUNDLE_PATH="$(python3 - <<'PY'
 import json, subprocess, time
@@ -209,7 +209,7 @@ import json, subprocess, time
 deadline = time.time() + 15
 while time.time() < deadline:
     payload = json.loads(subprocess.check_output([
-        "./aos", "show", "eval", "--id", "avatar-main", "--js",
+        "./aos", "show", "eval", "--id", "example-root", "--js",
         'JSON.stringify(window.__bundleStatuses || [])'
     ], text=True))
     result = payload.get("result")
@@ -243,13 +243,13 @@ if manifest.get("trigger") != "external-source-test":
     raise SystemExit(f"FAIL: expected external trigger, got: {manifest.get('trigger')}")
 if manifest.get("canvas_id") != "surface-inspector":
     raise SystemExit(f"FAIL: bundle owner should remain surface-inspector: {manifest}")
-if manifest.get("source_canvas_id") != "avatar-main":
+if manifest.get("source_canvas_id") != "example-root":
     raise SystemExit(f"FAIL: external requester not recorded: {manifest}")
 PY
 
 sleep 1
 
-./aos show eval --id avatar-main --js 'window.__requestInvalidContextBundle(); "ok"' >/dev/null
+./aos show eval --id example-root --js 'window.__requestInvalidContextBundle(); "ok"' >/dev/null
 
 python3 <<'PY'
 import json, subprocess, time
@@ -257,7 +257,7 @@ import json, subprocess, time
 deadline = time.time() + 15
 while time.time() < deadline:
     payload = json.loads(subprocess.check_output([
-        "./aos", "show", "eval", "--id", "avatar-main", "--js",
+        "./aos", "show", "eval", "--id", "example-root", "--js",
         'JSON.stringify(window.__bundleStatuses || [])'
     ], text=True))
     result = payload.get("result")

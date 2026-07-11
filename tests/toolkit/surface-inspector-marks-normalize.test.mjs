@@ -9,7 +9,7 @@ import {
 test('normalizeMarks drops entries without id and warns once per canvas', () => {
   const warnings = [];
   const warn = (...args) => warnings.push(args.join(' '));
-  const out = normalizeMarks('avatar-main', [
+  const out = normalizeMarks('example-root', [
     { id: 'avatar', x: 1, y: 2 },
     { x: 3, y: 4 },
     { x: 5, y: 6 },
@@ -17,7 +17,7 @@ test('normalizeMarks drops entries without id and warns once per canvas', () => 
   assert.equal(out.length, 1);
   assert.equal(out[0].id, 'avatar');
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /avatar-main/);
+  assert.match(warnings[0], /example-root/);
 });
 
 test('normalizeMarks enforces id uniqueness within a snapshot (first-wins)', () => {

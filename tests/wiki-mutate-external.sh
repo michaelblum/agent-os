@@ -145,7 +145,7 @@ grep -q 'Unknown argument: unexpected' "$ROOT/wiki-add-extra.err" || {
   exit 1
 }
 
-if ./aos wiki link gateway sigil unexpected --json 2>"$ROOT/wiki-link-extra.err"; then
+if ./aos wiki link gateway runtime unexpected --json 2>"$ROOT/wiki-link-extra.err"; then
   echo "FAIL: wiki link accepted extra positional argument"
   exit 1
 fi

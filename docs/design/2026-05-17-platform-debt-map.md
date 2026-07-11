@@ -1,5 +1,8 @@
 # Platform Debt Map, 2026-05-17
 
+> Historical evidence only. This dated map is not current implementation
+> authority; embedded Sigil ownership has moved to `Ch-osctrl/sigil`.
+
 Status: Foreman coordination map.
 
 This note captures the platform debt exposed by the May 11-17 workstream and

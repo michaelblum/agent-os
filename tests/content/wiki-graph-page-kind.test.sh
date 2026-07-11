@@ -2,26 +2,25 @@
 # Integration test: wiki graph page-kind normalization through the content server.
 set -euo pipefail
 
-CONTENT_WAIT_JSON=$(./aos content wait --root sigil --timeout 5s --json 2>/dev/null || true)
-PORT=$(printf '%s' "$CONTENT_WAIT_JSON" | python3 -c "import sys, json
-try:
-    print(json.load(sys.stdin).get('port', ''))
-except Exception:
-    print('')
-" || true)
-if [[ -z "$PORT" ]]; then
-  echo "SKIP: aos daemon not running (content root not ready)"; exit 0
-fi
+source "$(dirname "$0")/../lib/isolated-daemon.sh"
+
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-wiki-page-kind.XXXXXX")"
+CONTENT_ROOT="$ROOT/content"
+export AOS_STATE_ROOT="$ROOT"
+mkdir -p "$CONTENT_ROOT/aos/entities" "$CONTENT_ROOT/aos/plugins"
+
+cleanup() {
+  aos_test_kill_root "$ROOT"
+  rm -rf "$ROOT"
+}
+trap cleanup EXIT
+
+aos_test_start_daemon "$ROOT" fixture "$CONTENT_ROOT"
+PORT=$(./aos content wait --root fixture --timeout 5s --json | python3 -c "import sys, json; print(json.load(sys.stdin).get('port', ''))")
 
 TEST_ID="taxonomy-alignment-test-$$"
 ENTITY_PATH="aos/entities/$TEST_ID.md"
 REFERENCE_PATH="aos/plugins/$TEST_ID/references/ref.md"
-
-cleanup() {
-  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$ENTITY_PATH" > /dev/null || true
-  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$REFERENCE_PATH" > /dev/null || true
-}
-trap cleanup EXIT
 
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary "---

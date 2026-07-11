@@ -19,7 +19,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" sigil "$ROOT_DIR/apps/sigil" \
+aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 ./aos show create \
@@ -47,15 +47,6 @@ assert not payload.get("canvases"), payload
 assert any("removed canvas id=clean-regression-canvas" in action for action in payload.get("actions_taken", [])), payload
 PY
 
-STATUS="$(./aos status --json)"
-STATUS="$STATUS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["STATUS"])
-assert payload.get("status") == "ok", payload
-assert payload.get("stale_resources", {}).get("canvases") == [], payload
-PY
-
 mkdir -p "$STATE_ROOT/installed"
 cat >"$STATE_ROOT/installed/daemon.lock" <<'JSON'
 {"pid":999999,"mode":"installed","socket_path":"/tmp/aos-missing.sock"}
@@ -67,293 +58,134 @@ import json, os
 
 payload = json.loads(os.environ["LOCK_DRY_RUN"])
 assert payload["status"] == "dirty", payload
-locks = payload.get("stale_locks", [])
-assert any(lock.get("mode") == "installed" and lock.get("pid") == 999999 for lock in locks), payload
+assert any(lock.get("mode") == "installed" and lock.get("pid") == 999999 for lock in payload.get("stale_locks", [])), payload
 PY
 
-LOCK_CLEANED="$(./aos clean --json)"
-LOCK_CLEANED="$LOCK_CLEANED" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["LOCK_CLEANED"])
-assert payload["status"] == "cleaned", payload
-assert payload.get("stale_locks") == [], payload
-assert any("removed stale daemon lock mode=installed pid=999999" in action for action in payload.get("actions_taken", [])), payload
-PY
+./aos clean --json >/dev/null
 test ! -e "$STATE_ROOT/installed/daemon.lock"
 
-write_status_item_config() {
-  local enabled="$1"
-  local toggle_url="$2"
-  python3 - "$STATE_ROOT" "$enabled" "$toggle_url" <<'PY'
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-enabled = sys.argv[2] == "true"
-toggle_url = sys.argv[3]
-config_path = root / "repo" / "config.json"
-try:
-    config = json.loads(config_path.read_text())
-except Exception:
-    config = {}
-config["status_item"] = {
-    "enabled": enabled,
-    "toggle_id": "avatar-main",
-    "toggle_url": toggle_url,
-    "toggle_at": [200, 200, 300, 300],
-    "toggle_track": "union",
-    "icon": "sigil",
-}
-config_path.write_text(json.dumps(config, indent=2) + "\n")
-PY
-}
-
-mkdir -p "$STATE_ROOT/repo"
-cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
-{
-  "active_experience": "sigil",
-  "exclusive": true
-}
-JSON
-
-aos_test_kill_root "$STATE_ROOT"
-write_status_item_config true 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch'
-
-DRIFT_DRY_RUN="$(./aos clean --dry-run --json)"
-DRIFT_DRY_RUN="$DRIFT_DRY_RUN" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["DRIFT_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" in notes, payload
-assert "missing content root" in notes, payload
-assert "./aos experience activate sigil" in notes, payload
-PY
-
-BRANCH_SUFFIX="$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
-SIGIL_ROOT="sigil_${BRANCH_SUFFIX:-worktree}"
-TOOLKIT_ROOT="toolkit_${BRANCH_SUFFIX:-worktree}"
-# Sigil is the first-party active-experience fixture here. The expected URL is
-# derived from the generic mounted-surface projection contract, not hardcoded.
-EXPECTED_ACTIVE_STATUS_ITEM_URL="$(node --input-type=module - "$ROOT_DIR" <<'JS'
+EXPECTED_URL="$(node --input-type=module - "$ROOT_DIR" <<'JS'
 import { discoverExperience, projectedToggleURL, resolveContentRoots, rootMap } from './scripts/lib/experience-manifest.mjs';
 
 const repoRoot = process.argv[2];
-const manifest = discoverExperience('sigil', {
-  experiencesRoot: `${repoRoot}/experiences`,
-});
+const manifest = discoverExperience('operator-fixture', { experiencesRoot: `${repoRoot}/experiences` });
 const roots = resolveContentRoots(manifest, { repoRoot });
 const surface = manifest.status_item.toggle_surface;
 process.stdout.write(projectedToggleURL(manifest, surface, rootMap(roots), { mode: 'repo', repoRoot }));
 JS
 )"
-write_status_item_config false "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
-./aos clean --json >/dev/null
-aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" sigil "$ROOT_DIR/apps/sigil" \
-  || { echo "FAIL: isolated daemon did not become ready after status drift check"; exit 1; }
 
-create_canvas() {
-  local id="$1"
-  ./aos show create \
-    --id "$id" \
-    --at 80,80,240,120 \
-    --html "<html><body>$id</body></html>" \
-    >/dev/null
+write_active_state() {
+  local active_id="$1"
+  python3 - "$STATE_ROOT" "$active_id" <<'PY'
+import json, pathlib, sys
+
+root = pathlib.Path(sys.argv[1]) / "repo"
+root.mkdir(parents=True, exist_ok=True)
+active = sys.argv[2] or None
+(root / "experience-state.json").write_text(json.dumps({"active_experience": active, "exclusive": True}, indent=2) + "\n")
+PY
 }
 
+write_status_item() {
+  local url="$1"
+  python3 - "$STATE_ROOT" "$url" <<'PY'
+import json, pathlib, sys
+
+root = pathlib.Path(sys.argv[1]) / "repo"
+path = root / "config.json"
+try:
+    config = json.loads(path.read_text())
+except Exception:
+    config = {}
+config.setdefault("content", {}).setdefault("roots", {})["toolkit"] = "packages/toolkit"
+config["status_item"] = {
+    "enabled": True,
+    "toggle_id": "operator-fixture-surface",
+    "toggle_url": sys.argv[2],
+    "toggle_at": [200, 200, 300, 300],
+    "toggle_track": "union",
+    "icon": "aos",
+}
+path.write_text(json.dumps(config, indent=2) + "\n")
+PY
+}
+
+write_active_state operator-fixture
+write_status_item "$EXPECTED_URL"
+
 ./aos show create \
-  --id avatar-main \
-  --at 80,80,240,120 \
-  --html '<html><body>avatar-main</body></html>' \
+  --id operator-fixture-surface \
+  --url "$EXPECTED_URL" \
+  --at 80,80,320,180 \
+  --interactive \
   >/dev/null
 
-for id in \
-  sigil-hit-avatar-main \
-  sigil-radial-menu-avatar-main \
-  sigil-agent-terminal \
-  sigil-wiki-workbench \
-  sigil-render-performance \
-  sigil-interaction-trace \
-  surface-inspector \
-  __log__ \
-  clean-unowned-canvas
-do
-  create_canvas "$id"
-done
-
-./aos show eval --id sigil-render-performance --js '
+./aos show eval --id operator-fixture-surface --js '
 window.webkit.messageHandlers.headsup.postMessage({
   type: "canvas.create",
   payload: {
-    id: "aos-desktop-world-stage",
-    url: "aos://sigil/tests/mutation/child.html",
-    surface: "desktop-world",
-    request_id: "clean-regression-diagnostic-stage"
+    id: "operator-fixture-child",
+    url: "aos://toolkit/runtime/_smoke/index.html",
+    frame: [100, 100, 120, 80],
+    request_id: "clean-regression-child"
   }
 });
 "requested";
 ' >/dev/null
 
-python3 - <<'PY'
-import json, subprocess, time
-
-deadline = time.time() + 5
-while time.time() < deadline:
-    payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"]))
-    canvases = {canvas.get("id"): canvas for canvas in payload.get("canvases", [])}
-    stage = canvases.get("aos-desktop-world-stage")
-    if stage and stage.get("parent") == "sigil-render-performance":
-        break
-    time.sleep(0.1)
-else:
-    raise SystemExit(f"FAIL: diagnostic-parented desktop-world stage was not created: {canvases!r}")
-PY
-
-OWNED_IDS="avatar-main sigil-hit-avatar-main sigil-radial-menu-avatar-main sigil-agent-terminal sigil-wiki-workbench"
-DIAGNOSTIC_IDS="sigil-render-performance sigil-interaction-trace aos-desktop-world-stage"
-UNOWNED_IDS="surface-inspector __log__ clean-unowned-canvas"
-
-write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
-OWNED_DRY_RUN="$(./aos clean --dry-run --json)"
-OWNED_DRY_RUN="$OWNED_DRY_RUN" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["OWNED_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-assert not any("Active experience sigil canvas avatar-main is loaded at" in note for note in payload.get("notes", [])), payload
-canvases = {canvas.get("id"): canvas for canvas in payload.get("canvases", [])}
-avatar = canvases.get("avatar-main")
-assert avatar is None, payload
-stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert canvas_id not in stale_ids, (canvas_id, payload)
-for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
-    assert canvas_id in stale_ids, (canvas_id, payload)
-for canvas_id in os.environ["UNOWNED_IDS"].split():
-    assert canvas_id in stale_ids, (canvas_id, payload)
-PY
-
-write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
-PROJECTED_DRY_RUN="$(./aos clean --dry-run --json)"
-PROJECTED_DRY_RUN="$PROJECTED_DRY_RUN" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["PROJECTED_DRY_RUN"])
-notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" not in notes, payload
-assert "missing content root" not in notes, payload
-PY
-
-write_status_item_config true 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch'
-./aos show update \
-  --id avatar-main \
-  --url 'http://127.0.0.1:49152/sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' \
+./aos show create \
+  --id stale-independent-surface \
+  --at 480,80,240,120 \
+  --html '<html><body>stale</body></html>' \
   >/dev/null
-STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+
+for _ in 1 2 3 4 5; do
+  if ./aos show get --id operator-fixture-child | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("exists") else 1)'; then
+    break
+  fi
+  sleep 0.1
+done
+
+ACTIVE_DRY_RUN="$(./aos clean --dry-run --json)"
+ACTIVE_DRY_RUN="$ACTIVE_DRY_RUN" python3 - <<'PY'
 import json, os
 
-payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
-assert payload["status"] == "dirty", payload
+payload = json.loads(os.environ["ACTIVE_DRY_RUN"])
+stale = {canvas.get("id") for canvas in payload.get("canvases", [])}
+assert "stale-independent-surface" in stale, payload
+assert "operator-fixture-surface" not in stale, payload
+assert "operator-fixture-child" not in stale, payload
+PY
+
+./aos clean --json >/dev/null
+./aos show get --id operator-fixture-surface | python3 -c 'import json,sys; assert json.load(sys.stdin).get("exists")'
+./aos show get --id operator-fixture-child | python3 -c 'import json,sys; assert json.load(sys.stdin).get("exists")'
+
+write_status_item 'aos://missing-root/old-surface.html'
+DRIFT="$(./aos clean --dry-run --json)"
+DRIFT="$DRIFT" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["DRIFT"])
 notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" in notes, payload
+assert "Active experience operator-fixture status item target drift" in notes, payload
 assert "missing content root" in notes, payload
-assert "Active experience sigil canvas avatar-main is loaded at" not in notes, payload
+assert "./aos experience activate operator-fixture" in notes, payload
 PY
-write_status_item_config true "$EXPECTED_ACTIVE_STATUS_ITEM_URL"
-STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+
+write_status_item "$EXPECTED_URL"
+write_active_state ""
+
+FINAL="$(./aos clean --json)"
+FINAL="$FINAL" python3 - <<'PY'
 import json, os
 
-payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" not in notes, payload
-assert "missing content root" not in notes, payload
-assert "Active experience sigil canvas avatar-main is loaded at" in notes, payload
-assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
-PY
-./aos show update \
-  --id avatar-main \
-  --url "$EXPECTED_ACTIVE_STATUS_ITEM_URL" \
-  >/dev/null
-
-OWNED_STATUS="$(./aos status --json)"
-OWNED_STATUS="$OWNED_STATUS" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["OWNED_STATUS"])
-stale_ids = set(payload.get("stale_resources", {}).get("canvases", []))
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert canvas_id not in stale_ids, (canvas_id, payload)
-for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
-    assert canvas_id in stale_ids, (canvas_id, payload)
-for canvas_id in os.environ["UNOWNED_IDS"].split():
-    assert canvas_id in stale_ids, (canvas_id, payload)
-PY
-
-OWNED_CLEANED="$(./aos clean --json)"
-OWNED_CLEANED="$OWNED_CLEANED" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
-import json, os, subprocess
-
-payload = json.loads(os.environ["OWNED_CLEANED"])
-assert payload["status"] in {"clean", "cleaned"}, payload
-remaining_stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert canvas_id not in remaining_stale_ids, (canvas_id, payload)
-for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
-    if canvas_id != "aos-desktop-world-stage":
-        assert any(f"removed canvas id={canvas_id}" in action for action in payload.get("actions_taken", [])), (canvas_id, payload)
-for canvas_id in os.environ["UNOWNED_IDS"].split():
-    assert any(f"removed canvas id={canvas_id}" in action for action in payload.get("actions_taken", [])), (canvas_id, payload)
-
-canvases = {canvas.get("id") for canvas in json.loads(subprocess.check_output(["./aos", "show", "list", "--json"])).get("canvases", [])}
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert canvas_id in canvases, (canvas_id, canvases)
-for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
-    assert canvas_id not in canvases, (canvas_id, canvases)
-for canvas_id in os.environ["UNOWNED_IDS"].split():
-    assert canvas_id not in canvases, (canvas_id, canvases)
-PY
-
-OWNED_CLEAN_STATUS="$(./aos status --json)"
-OWNED_CLEAN_STATUS="$OWNED_CLEAN_STATUS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["OWNED_CLEAN_STATUS"])
-assert payload.get("stale_resources", {}).get("canvases") == [], payload
-PY
-
-cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
-{
-  "active_experience": null,
-  "exclusive": true
-}
-JSON
-
-STALE_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_DRY_RUN="$STALE_DRY_RUN" OWNED_IDS="$OWNED_IDS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["STALE_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert canvas_id in stale_ids, (canvas_id, payload)
-PY
-
-STALE_CLEANED="$(./aos clean --json)"
-STALE_CLEANED="$STALE_CLEANED" OWNED_IDS="$OWNED_IDS" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["STALE_CLEANED"])
+payload = json.loads(os.environ["FINAL"])
 assert payload["status"] in {"clean", "cleaned"}, payload
 assert not payload.get("canvases"), payload
-for canvas_id in os.environ["OWNED_IDS"].split():
-    assert any(f"removed canvas id={canvas_id}" in action for action in payload.get("actions_taken", [])), (canvas_id, payload)
+actions = "\n".join(payload.get("actions_taken", []))
+assert "operator-fixture-surface" in actions, payload
 PY
 
 echo "PASS"

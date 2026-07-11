@@ -9,7 +9,7 @@ import { resolveUxTree } from '../../packages/toolkit/runtime/ux-tree.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../..')
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-ux-tree-v0.schema.json')
-const validFixture = 'shared/schemas/fixtures/aos-ux-tree-v0/valid/sigil-avatar.json'
+const validFixture = 'shared/schemas/fixtures/aos-ux-tree-v0/valid/example-control.json'
 const invalidSchemaFixtures = [
   'shared/schemas/fixtures/aos-ux-tree-v0/invalid/executable-command.json',
   'shared/schemas/fixtures/aos-ux-tree-v0/invalid/embedded-resource.json',
@@ -68,7 +68,7 @@ if errors:
   )
 }
 
-test('valid Sigil avatar UX tree fixture matches the canonical schema', () => {
+test('valid example control UX tree fixture matches the canonical schema', () => {
   const result = validateFixture(validFixture)
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
 })

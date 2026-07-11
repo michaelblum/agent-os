@@ -219,10 +219,7 @@
       "provenance": {
         "source_kind": "generated_artifact",
         "source_subject_id": "workflow:example-design-pass",
-        "work_record_id": "work-record:example-design-pass-generation",
-        "guided_by": [
-          "docs/design/open-design-workbench-cross-reference.md"
-        ]
+        "work_record_id": "work-record:example-design-pass-generation"
       },
       "work_record": {
         "subject_id": "work-record:example-design-pass-generation",
@@ -285,10 +282,7 @@
       "provenance": {
         "source_kind": "generated_report",
         "source_subject_id": "workflow:example-design-pass",
-        "work_record_id": "work-record:example-design-pass-generation",
-        "guided_by": [
-          "docs/design/open-design-workbench-cross-reference.md"
-        ]
+        "work_record_id": "work-record:example-design-pass-generation"
       },
       "work_record": {
         "subject_id": "work-record:example-design-pass-generation",

@@ -14,7 +14,7 @@
       "target": {
         "target_id": "control:opacity",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "avatar-panel-canvas",
           "surface_id": "avatar-appearance-panel",
           "component_family": "toolkit.panel.form",
@@ -34,7 +34,7 @@
       },
       "provenance": {
         "canvas_id": "avatar-panel-canvas",
-        "parent_canvas_id": "avatar-main",
+        "parent_canvas_id": "example-root",
         "do_target": "canvas:avatar-panel-canvas/td1",
         "source_payload_id": "appearance.opacity",
         "bounds": { "x": 24, "y": 80, "width": 180, "height": 32 },
@@ -67,7 +67,7 @@
       "target": {
         "target_id": "control:opacity",
         "owner_namespace": {
-          "app_id": "sigil",
+          "app_id": "example",
           "canvas_id": "layer-panel-canvas",
           "surface_id": "layer-appearance-panel",
           "component_family": "toolkit.panel.form",

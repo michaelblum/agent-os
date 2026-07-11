@@ -60,12 +60,12 @@ The AOS version should reuse the underlying ideas while preserving AOS layering:
 - the AOS daemon already owns primitives such as canvases, content serving,
   IPC, pub/sub, capture, and input
 - `packages/toolkit/` should own reusable workbench components
-- apps such as Sigil should be consumers, not owners, of the generic pattern
+- external products should be consumers, not owners, of the generic pattern
 - workflows, reports, slide decks, and visual editors should be first-class
   subjects above the primitive layer
 
-Do not clone Open Design's product shape into Sigil. Learn from its daemon,
-skill, preview, artifact, and project-loop architecture.
+Do not clone Open Design's product shape into another product. Learn from its
+daemon, skill, preview, artifact, and project-loop architecture.
 
 ## Existing AOS Footholds
 
@@ -396,15 +396,15 @@ Reusable workbench components belong in `packages/toolkit/`:
 - execution timeline
 - validation panel
 
-These components should be generic over subject contracts, not hardcoded to
-Sigil.
+These components should be generic over subject contracts, not hardcoded to a
+particular product.
 
 ### Level 3: App Consumers
 
 Apps compose toolkit pieces into product experiences:
 
-- Sigil 3D radial menu item editor
-- Sigil avatar composition editor
+- 3D menu item editor
+- visual composition editor
 - agent terminal/session workbench
 - report builder
 - slide deck builder
@@ -476,7 +476,7 @@ This proves composability and sub-workflow references.
 ## Non-Goals
 
 - Do not create a universal `ItemEditor` class hierarchy.
-- Do not make Sigil the owner of generic workbench primitives.
+- Do not make any product the owner of generic workbench primitives.
 - Do not invent a broad AOS data bus before specific contracts demand it.
 - Do not build a full workflow orchestrator from this note alone.
 - Do not copy Open Design wholesale into agent-os.

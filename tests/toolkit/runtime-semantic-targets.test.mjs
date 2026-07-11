@@ -67,8 +67,8 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     frame: [10.4, 20.6, 55.2, 44.8],
     active: true,
   }, {
-    surface: 'sigil-radial-menu',
-    parent_canvas_id: 'avatar-main',
+    surface: 'example-menu',
+    parent_canvas_id: 'example-root',
   })
 
   assert.deepEqual(target, {
@@ -84,9 +84,9 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     checked: null,
     expanded: null,
     value: null,
-    surface: 'sigil-radial-menu',
-    parent_canvas_id: 'avatar-main',
-    ref: 'sigil-radial-menu:wiki-graph',
+    surface: 'example-menu',
+    parent_canvas_id: 'example-root',
+    ref: 'example-menu:wiki-graph',
     metadata: {},
     frame: { x: 10, y: 21, width: 55, height: 45 },
   })
@@ -183,7 +183,7 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     action: 'save_markdown',
     actions: ['click'],
     surface: 'markdown-workbench',
-    parent_canvas_id: 'avatar-main',
+    parent_canvas_id: 'example-root',
     pressed: false,
   }, {
     nativeRole: 'button',
@@ -194,7 +194,7 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     ['data-aos-ref', 'markdown-workbench:save'],
     ['data-aos-surface', 'markdown-workbench'],
     ['data-semantic-target-id', 'save'],
-    ['data-aos-parent-canvas', 'avatar-main'],
+    ['data-aos-parent-canvas', 'example-root'],
     ['data-aos-action', 'save_markdown'],
     ['data-aos-actions', 'click'],
     ['aria-pressed', 'false'],
@@ -228,7 +228,7 @@ test('semanticTargetAttrString escapes attrs and supports custom order', () => {
     role: 'AXCheckBox',
     name: 'Hide "Tree" & children',
     action: 'toggle_visibility',
-    ref: 'object-transform-panel:visibility:avatar-main:<tree>',
+    ref: 'object-transform-panel:visibility:example-root:<tree>',
     surface: 'object-transform-panel',
     checked: 'mixed',
   }, {
@@ -246,7 +246,7 @@ test('semanticTargetAttrString escapes attrs and supports custom order', () => {
 
   assert.equal(
     attrs,
-    'aria-label="Hide &quot;Tree&quot; &amp; children" data-aos-ref="object-transform-panel:visibility:avatar-main:&lt;tree&gt;" data-aos-surface="object-transform-panel" data-semantic-target-id="visibility-&lt;tree&gt;" data-aos-action="toggle_visibility" aria-checked="mixed"',
+    'aria-label="Hide &quot;Tree&quot; &amp; children" data-aos-ref="object-transform-panel:visibility:example-root:&lt;tree&gt;" data-aos-surface="object-transform-panel" data-semantic-target-id="visibility-&lt;tree&gt;" data-aos-action="toggle_visibility" aria-checked="mixed"',
   )
 })
 
@@ -258,7 +258,7 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
     action: 'contextMenu',
     actions: ['click'],
     frame: { x: 38, y: 38, w: 56, h: 56 },
-    surface: 'sigil-radial-menu',
+    surface: 'example-menu',
   })
 
   assert.equal(element.tagName, 'BUTTON')
@@ -266,10 +266,10 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
   assert.equal(element.getAttribute('type'), 'button')
   assert.equal(element.getAttribute('aria-label'), 'Context Menu')
   assert.equal(element.getAttribute('id'), 'aos-semantic-target-context-menu')
-  assert.equal(element.dataset.aosRef, 'sigil-radial-menu:context-menu')
+  assert.equal(element.dataset.aosRef, 'example-menu:context-menu')
   assert.equal(element.dataset.aosAction, 'contextMenu')
   assert.equal(element.dataset.aosActions, 'click')
-  assert.equal(element.dataset.aosSurface, 'sigil-radial-menu')
+  assert.equal(element.dataset.aosSurface, 'example-menu')
   assert.equal(element.dataset.semanticTargetId, 'context-menu')
   assert.equal(element.style.left, '38px')
   assert.equal(element.style.top, '38px')

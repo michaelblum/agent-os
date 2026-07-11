@@ -268,11 +268,11 @@ test('experience status trusts canonical permission readiness over true CLI bool
   assert(payload.capabilities.saved_ref_action.blockers.includes('permissions_not_ready'), payload.capabilities.saved_ref_action);
 });
 
-test('experience status does not treat Sigil state as operator fixture success', async () => {
+test('experience status does not treat unrelated experience state as operator fixture success', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-cross-app-'));
-  const sigilURL = dryRunToggleURL('sigil', { AOS_STATE_ROOT: tmp });
+  const unrelatedURL = 'aos://toolkit/runtime/_smoke/unrelated-experience.html';
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'sigil',
+    active_experience: 'unrelated-experience',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -283,23 +283,23 @@ test('experience status does not treat Sigil state as operator fixture success',
     },
     status_item: {
       enabled: true,
-      toggle_id: 'avatar-main',
-      toggle_url: sigilURL,
+      toggle_id: 'unrelated-surface',
+      toggle_url: unrelatedURL,
       toggle_track: 'union',
-      icon: 'sigil',
+      icon: 'fixture',
     },
   });
 
   const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
     canvases: [{
-      id: 'avatar-main',
-      url: sigilURL,
+      id: 'unrelated-surface',
+      url: unrelatedURL,
       lifecycleState: 'active',
     }],
   }));
 
   assert.equal(payload.status, 'degraded');
-  assert.equal(payload.active_experience.id, 'sigil');
+  assert.equal(payload.active_experience.id, 'unrelated-experience');
   assert.equal(payload.active_experience.status, 'mismatch');
   assert.equal(payload.status_item.target.status, 'wrong_surface');
   assert.equal(payload.status_item.mounted_surface.status, 'missing');

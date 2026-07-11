@@ -33,7 +33,6 @@ test('agent entry verification guide keeps the static-first proof ladder explici
     'tests/command-manifest-generation.sh',
     'tests/external-parser-flags.sh',
     'tests/agent-workspace-contract-drift.sh',
-    'tests/code-review-burn-down-status.test.mjs',
     'Level 4',
     'TCC-sensitive proof',
     'explicit user approval',
@@ -46,7 +45,6 @@ test('agent entry verification guide keeps the static-first proof ladder explici
     'tests/command-manifest-generation.sh',
     'tests/external-parser-flags.sh',
     'tests/agent-workspace-contract-drift.sh',
-    'tests/code-review-burn-down-status.test.mjs',
     'tests/schemas',
   ]) {
     await assertPathExists(referencedPath);

@@ -42,7 +42,6 @@ import {
 } from '../../packages/toolkit/workbench/wiki-subject-opening.js';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
-import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 
 const repo = new URL('../../', import.meta.url);
 const WORKFLOW_BROWSER_RECORD_ID = 'work-record:workflow-browser-live-action-status-aos-browser-click-status-2026-05-06';
@@ -298,36 +297,38 @@ test('wiki subject browser derives graph-index filter options from canonical fie
   assert.equal(snapshot.subject_index_filters_active, false);
 });
 
-test('wiki subject browser keeps canonical domain subject filters separate from wiki page kinds', () => {
-  const wikiAgentSubject = createWikiPageSubject({
-    path: 'sigil/agents/default.md',
+test('wiki subject browser keeps consumer domain subject filters separate from wiki page kinds', () => {
+  const wikiServiceSubject = createWikiPageSubject({
+    path: 'aos/concepts/gateway.md',
     type: 'entity',
-    name: 'Default Agent',
+    name: 'Gateway',
   });
-  const sigilAgentSubject = createSigilAgentSubject({
-    path: 'sigil/agents/default.md',
-    type: 'entity',
-    name: 'Default Agent',
+  const serviceSubject = createWorkbenchSubject({
+    id: 'service.runtime:gateway',
+    type: 'service.runtime',
+    label: 'Gateway',
+    owner: 'gateway',
+    capabilities: ['inspectable'],
   });
   const snapshot = createWikiSubjectBrowserState({
-    selected_subject: wikiAgentSubject,
+    selected_subject: wikiServiceSubject,
     catalog_entries: [
-      createSubjectCatalogEntry({ subject: sigilAgentSubject }),
+      createSubjectCatalogEntry({ subject: serviceSubject }),
     ],
   });
 
   assert.deepEqual(
     snapshot.subject_index_filter_options.subject_types.map((option) => [option.value, option.count]),
     [
-      ['sigil.agent', 1],
+      ['service.runtime', 1],
       ['wiki.entity', 1],
     ],
   );
   assert.deepEqual(
     snapshot.subject_index_entries.map((entry) => entry.subject_type),
-    ['sigil.agent', 'wiki.entity'],
+    ['service.runtime', 'wiki.entity'],
   );
-  assert.ok(!snapshot.subject_index_filter_options.subject_types.some((option) => option.value === 'agent'));
+  assert.ok(!snapshot.subject_index_filter_options.subject_types.some((option) => option.value === 'service'));
 });
 
 test('wiki subject browser composes search and graph-index filters deterministically', async () => {

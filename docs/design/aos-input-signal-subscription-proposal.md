@@ -11,8 +11,8 @@ into the detector.
 
 ## Problem
 
-AOS and Sigil already need to react to human input that is richer than one raw
-mouse or keyboard event. A rapid pointer waggle is one example. Shortcut keys
+AOS consumers may react to human input that is richer than one raw mouse or
+keyboard event. A rapid pointer waggle is one example. Shortcut keys
 are another. Future expression layers may want similar triggers for selection,
 annotation, reveal, capture, or workflow control.
 
@@ -86,17 +86,16 @@ Consumers own:
 - follow-up actions;
 - local state transitions.
 
-Sigil should not own global input detection for this pattern. Sigil should
-subscribe to AOS signals and decide how those signals affect Sigil state.
+External products should subscribe to AOS signals and decide how those signals
+affect product state; they must not own competing global input detection.
 
 ## First Consumer Direction
 
 For the first user-facing behavior, pointer waggle should publish a generic
-locate/attention signal. Sigil can later subscribe to that signal and toggle a
-new selection mode.
+locate/attention signal. Product adoption belongs in the consuming repository.
 
 That selection mode is intentionally not specified here. The only requirement
-for this proposal is that the signal layer must not bake in Sigil selection
+for this proposal is that the signal layer must not bake in product selection
 semantics. Other consumers should be able to subscribe to the same signal and
 react differently.
 
@@ -104,7 +103,7 @@ react differently.
 
 Potential consumers include:
 
-- Sigil;
+- external product consumers;
 - Surface Inspector;
 - DesktopWorld visual layers;
 - HTML/Markdown expression workbenches;
@@ -131,18 +130,17 @@ fixture-driven tests.
 ### Stage 3: Pointer Waggle Signal
 
 Add a pointer-waggle detector as the first composed input signal. It should emit
-a generic signal such as `pointer.locate_requested`, not a Sigil-specific event.
+a generic signal such as `pointer.locate_requested`, not a product-specific event.
 
 ### Stage 4: Generic Visual Smoke
 
 Add a small AOS or toolkit consumer that proves a subscribed signal can trigger
-a bounded visual response without depending on Sigil.
+a bounded visual response without depending on a product.
 
-### Stage 5: Sigil Subscription
+### Stage 5: External Consumer Adoption
 
-Let Sigil subscribe to the signal and map it to Sigil-owned behavior. The first
-target behavior is expected to be a selection-mode toggle, but that mode should
-be specified separately.
+Consumer repositories may map the signal to product-owned behavior. AOS does
+not specify or test those product modes.
 
 ### Stage 6: Broader Signal Families
 
@@ -152,9 +150,9 @@ the pointer-waggle path proves the subscription model.
 ## Non-Goals
 
 - Do not hook into Apple's built-in "Shake mouse pointer to locate" feature.
-- Do not make Sigil own a global input tap.
+- Do not make a product own a competing global input tap.
 - Do not make pointer waggle a one-off command path.
-- Do not define Sigil selection mode in this proposal.
+- Do not define product modes in this proposal.
 - Do not make signals into Workflows.
 - Do not require every signal to emit a Work Record.
 - Do not store continuous raw input history by default.

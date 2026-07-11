@@ -365,14 +365,14 @@ test('Surface Inspector annotation snapshot artifact accepts long base64-like us
 test('annotation mode entry clears stale or implicit root hover candidates', () => {
   const stale = createSurfaceInspectorAnnotationState({
     annotation_mode: { active: false },
-    last_hover_candidate: node('avatar-main', ['desktop-world', 'avatar-main']),
+    last_hover_candidate: node('root', ['desktop-world', 'root']),
   })
 
   const active = setSurfaceInspectorAnnotationMode(stale, true)
   assert.equal(active.annotation_mode.active, true)
   assert.equal(active.last_hover_candidate, null)
 
-  const implicit = setSurfaceInspectorHoverCandidate(active, node('avatar-main', ['desktop-world', 'avatar-main']))
+  const implicit = setSurfaceInspectorHoverCandidate(active, node('root', ['desktop-world', 'root']))
   assert.equal(implicit.last_hover_candidate, null)
 
   const stage = setSurfaceInspectorHoverCandidate(active, node('aos-desktop-world-stage', ['desktop-world', 'stage']))

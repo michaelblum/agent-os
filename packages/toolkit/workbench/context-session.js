@@ -3,6 +3,8 @@ import {
   ANNOTATION_SESSION_VERSION,
   createAnnotationSession,
   normalizeAnnotationAnchor,
+  normalizeLegacyAnnotationEntrySource,
+  normalizeAnnotationSessionEntrySource,
   normalizeAnnotationSubjectAddress,
 } from './annotation-session.js'
 
@@ -311,7 +313,7 @@ function normalizeAnnotationSessionSummary(input = {}) {
     schema: ANNOTATION_SESSION_SCHEMA,
     version: ANNOTATION_SESSION_VERSION,
     active: Boolean(input.active),
-    entry_source: text(input.entry_source, 'unknown'),
+    entry_source: normalizeAnnotationSessionEntrySource(input.entry_source),
     updated_at: isoNow(input.updated_at || Date.now()),
     root_address: text(input.root_address),
     committed_scope_addresses: input.committed_scope_addresses.map((address) => text(address)).filter(Boolean),
@@ -381,6 +383,9 @@ export function createContextSession(input = {}) {
   const updatedAt = isoNow(input.updated_at || input.now || Date.now())
   const createdAt = isoNow(input.created_at || updatedAt)
   const artifacts = array(input.artifacts).map((artifact) => normalizeContextArtifact(artifact, { now: updatedAt }))
+  const sourceAnnotationSession = input.source_annotation_session
+    ? normalizeAnnotationSessionSummary(input.source_annotation_session)
+    : null
   return {
     schema: CONTEXT_SESSION_SCHEMA,
     version: CONTEXT_SESSION_VERSION,
@@ -388,10 +393,10 @@ export function createContextSession(input = {}) {
     created_at: createdAt,
     updated_at: updatedAt,
     active: Boolean(input.active),
-    entry_source: text(input.entry_source, input.source_annotation_session?.entry_source || 'unknown'),
-    source_annotation_session: input.source_annotation_session
-      ? normalizeAnnotationSessionSummary(input.source_annotation_session)
-      : null,
+    entry_source: text(normalizeLegacyAnnotationEntrySource(
+      text(input.entry_source, sourceAnnotationSession?.entry_source || 'unknown'),
+    ), 'unknown'),
+    source_annotation_session: sourceAnnotationSession,
     artifacts,
     active_artifact_id: text(input.active_artifact_id || artifacts[0]?.id),
     keyframes: array(input.keyframes).map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt })),

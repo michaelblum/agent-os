@@ -73,14 +73,14 @@ test('buildMarkLayers respects custom w and h', () => {
 });
 
 test('renderMinimapMark centers mark on projected point and embeds metadata', () => {
-  const svg = renderMinimapMark(mark({ id: 'avatar', name: 'Avatar', x: 100, y: 120 }), { x: 50, y: 60 }, { canvasId: 'avatar-main' });
+  const svg = renderMinimapMark(mark({ id: 'avatar', name: 'Avatar', x: 100, y: 120 }), { x: 50, y: 60 }, { canvasId: 'example-root' });
   assert.match(svg, /left:40px/);  // 50 - 20/2
   assert.match(svg, /top:50px/);   // 60 - 20/2
   assert.match(svg, /role="img"/);
   assert.match(svg, /aria-label="Avatar"/);
-  assert.match(svg, /data-aos-ref="surface-inspector:mark:avatar-main:avatar"/);
-  assert.match(svg, /data-aos-parent-canvas="avatar-main"/);
-  assert.match(svg, /data-canvas-id="avatar-main"/);
+  assert.match(svg, /data-aos-ref="surface-inspector:mark:example-root:avatar"/);
+  assert.match(svg, /data-aos-parent-canvas="example-root"/);
+  assert.match(svg, /data-canvas-id="example-root"/);
   assert.match(svg, /data-mark-id="avatar"/);
   assert.match(svg, /data-mark-x="100"/);
   assert.match(svg, /data-mark-y="120"/);
@@ -134,7 +134,7 @@ test('renderMinimapMark scales DesktopWorld-sized marks with minimap layout scal
   const svg = renderMinimapMark(
     mark({ id: 'radial-context-menu', w: 112, h: 112, minimapSizeMode: 'desktop_world' }),
     { x: 20, y: 30 },
-    { canvasId: 'avatar-main', layout: { scale: 0.065 } },
+    { canvasId: 'example-root', layout: { scale: 0.065 } },
   );
   assert.match(svg, /left:17px/);
   assert.match(svg, /top:27px/);
@@ -147,7 +147,7 @@ test('renderMinimapMark keeps minimap-sized marks stable when layout scale is pr
   const svg = renderMinimapMark(
     mark({ id: 'avatar-center', w: 20, h: 20, minimapSizeMode: 'minimap' }),
     { x: 20, y: 30 },
-    { canvasId: 'avatar-main', layout: { scale: 0.065 } },
+    { canvasId: 'example-root', layout: { scale: 0.065 } },
   );
   assert.match(svg, /left:10px/);
   assert.match(svg, /top:20px/);

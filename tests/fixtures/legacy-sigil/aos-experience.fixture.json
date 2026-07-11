@@ -1,5 +1,5 @@
 {
-  "$schema": "../../shared/schemas/aos-experience-v0.schema.json",
+  "$schema": "../../../shared/schemas/aos-experience-v0.schema.json",
   "schema_version": 0,
   "id": "sigil",
   "title": "Sigil",

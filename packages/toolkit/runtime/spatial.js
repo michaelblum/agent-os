@@ -2,7 +2,7 @@
 //
 // This module owns desktop-global rect/point normalization and the common
 // geometry transforms reused by toolkit panels and app consumers. App-specific
-// spaces such as Sigil's final 3D scene projection still live in the app, but
+// spaces such as a product's final 3D scene projection still live in the app, but
 // the global -> local rect/point transforms belong here.
 
 function asNumber(value) {

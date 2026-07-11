@@ -1,8 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSigilAvatarEditorModel } from '../../apps/sigil/avatar-editor/model.js';
-import { buildSigilAvatarCompactSurfaceViewModel } from '../../apps/sigil/avatar-editor/surface-view-model.js';
-import sigilMenu from '../../apps/sigil/renderer/radial-menu/sigil-radial-menu.json' with { type: 'json' };
 import default3d from '../../packages/toolkit/runtime/radial-menu/default-3d.json' with { type: 'json' };
 import { createSlider } from '../../packages/toolkit/controls/slider.js';
 import { createForm } from '../../packages/toolkit/panel/form.js';
@@ -26,40 +23,13 @@ function createPatchedDocument() {
   return document;
 }
 
-function avatarState() {
-  return {
-    avatar: {
-      shape: {
-        type: 12,
-        stellationFactor: 0.25,
-        params: {
-          cylinder: { height: 2.4, sides: 9 },
-          tetartoid: { a: 0.8, b: 1.2, c: 1.6 },
-          torus: { radius: 1.1, tube: 0.25, arc: 0.75 },
-          box: { width: 1.4, height: 0.8, depth: 2.1 },
-        },
-        tesseron: { enabled: false, proportion: 0.5, matchMother: true },
-      },
-      appearance: { opacity: 0.8, edgeOpacity: 0.6, colors: { face: ['#112233', '#445566'] } },
-      effects: {
-        omega: { enabled: true, shape: { type: 8, params: { tetartoid: {}, torus: {}, cylinder: {}, box: {} }, tesseron: {} } },
-        lightning: { enabled: true },
-        aura: {},
-        phenomena: {},
-        magnetic: {},
-        trail: {},
-      },
-    },
-  };
-}
-
 function radialState() {
   return {
     radial_menu: {
-      'sigil.radial.main': {
-        selected_item_id: 'wiki-graph',
+      'example.radial.main': {
+        selected_item_id: 'inspect',
         items: {
-          'wiki-graph': {
+          inspect: {
             geometry: { radiusScale: 1 },
             hidden: false,
           },
@@ -69,53 +39,29 @@ function radialState() {
   };
 }
 
-function resolvedSigilMenu() {
-  return resolveRadialMenuConfig(sigilMenu, {
+function resolvedExampleMenu() {
+  return resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'example.radial.main',
+    extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
+    items: [{
+      id: 'inspect',
+      label: 'Inspect',
+      action: 'inspect',
+      geometry: { type: 'glyph', glyph: 'inspect', radiusScale: 1 },
+    }],
+  }, {
     allowExtends: {
       'aos://toolkit/runtime/radial-menu/default-3d.json': default3d,
     },
   });
 }
 
-test('form binding resolves Sigil avatar surface metadata to descriptors and controller handlers', () => {
-  const state = avatarState();
-  const model = buildSigilAvatarEditorModel(state);
-  const viewModel = buildSigilAvatarCompactSurfaceViewModel(model);
-  const alphaControls = viewModel.tabs.find((tab) => tab.key === 'alpha').sections.flatMap((section) => section.controls);
-  const opacityControl = alphaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-opacity');
-  const calls = [];
-
-  const result = applyVisualObjectFormFieldChange({
-    id: opacityControl.id,
-    value: '0.42',
-    field: opacityControl,
-    binding: opacityControl.binding,
-  }, {
-    descriptors: model.visual_object_descriptors,
-    state,
-    routeHandlers: {
-      'canvas_object.effects.patch': ({ mutation }) => calls.push(['route', mutation.descriptor_id, mutation.value]),
-    },
-    rendererSyncHandlers: {
-      updatePrimaryAppearance: ({ mutation }) => calls.push(['sync', mutation.descriptor_id, mutation.value]),
-    },
-  });
-
-  assert.equal(result.field_id, opacityControl.id);
-  assert.equal(result.binding.descriptor_id, 'sigil.avatar.primary-polyhedron.avatar.appearance.opacity');
-  assert.equal(result.update.route, 'canvas_object.effects.patch');
-  assert.equal(state.avatar.appearance.opacity, 0.42);
-  assert.deepEqual(calls, [
-    ['route', 'sigil.avatar.primary-polyhedron.avatar.appearance.opacity', 0.42],
-    ['sync', 'sigil.avatar.primary-polyhedron.avatar.appearance.opacity', 0.42],
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
-});
-
 test('form binding applies radial menu transform and strict boolean routes from field changes', () => {
   const descriptors = createRadialMenuVisualObjectDescriptors({
-    menu: resolvedSigilMenu(),
-    selectedItemId: 'wiki-graph',
+    menu: resolvedExampleMenu(),
+    selectedItemId: 'inspect',
   });
   const state = radialState();
   const calls = [];
@@ -134,13 +80,13 @@ test('form binding applies radial menu transform and strict boolean routes from 
 
   const radius = applyVisualObjectFormFieldChange({
     id: 'radiusScale',
-    descriptor_id: 'radial-menu-sigil.radial.main-wiki-graph-radius-scale',
+    descriptor_id: 'radial-menu-example.radial.main-inspect-radius-scale',
     value: '1.75',
   }, options);
   const visible = applyVisualObjectFormFieldChange({
     id: 'visible',
     binding: {
-      state_path: 'radial_menu.sigil.radial.main.items.wiki-graph.hidden',
+      state_path: 'radial_menu.example.radial.main.items.inspect.hidden',
       route: 'canvas_object.visibility.patch',
     },
     value: 'false',
@@ -148,15 +94,15 @@ test('form binding applies radial menu transform and strict boolean routes from 
 
   assert.equal(radius.update.value, 1.75);
   assert.equal(visible.update.value, true);
-  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].geometry.radiusScale, 1.75);
-  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].hidden, true);
+  assert.equal(state.radial_menu['example.radial.main'].items.inspect.geometry.radiusScale, 1.75);
+  assert.equal(state.radial_menu['example.radial.main'].items.inspect.hidden, true);
   assert.deepEqual(calls, [
-    ['route', 'canvas_object.transform.patch', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale', 1.75],
-    ['sync', 'resolveRadialMenuConfig', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'],
-    ['sync', 'renderRadialMenuPreview', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'],
-    ['route', 'canvas_object.visibility.patch', 'radial-menu-sigil.radial.main-wiki-graph-visible', true],
-    ['sync', 'resolveRadialMenuConfig', 'radial-menu-sigil.radial.main-wiki-graph-visible'],
-    ['sync', 'renderRadialMenuPreview', 'radial-menu-sigil.radial.main-wiki-graph-visible'],
+    ['route', 'canvas_object.transform.patch', 'radial-menu-example.radial.main-inspect-radius-scale', 1.75],
+    ['sync', 'resolveRadialMenuConfig', 'radial-menu-example.radial.main-inspect-radius-scale'],
+    ['sync', 'renderRadialMenuPreview', 'radial-menu-example.radial.main-inspect-radius-scale'],
+    ['route', 'canvas_object.visibility.patch', 'radial-menu-example.radial.main-inspect-visible', true],
+    ['sync', 'resolveRadialMenuConfig', 'radial-menu-example.radial.main-inspect-visible'],
+    ['sync', 'renderRadialMenuPreview', 'radial-menu-example.radial.main-inspect-visible'],
   ]);
 });
 

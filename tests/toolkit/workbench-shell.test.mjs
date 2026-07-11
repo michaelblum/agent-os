@@ -33,46 +33,7 @@ test('workbench defaults define shell, toolbar, and pane primitives', async () =
   assert.match(themeCss, /--accent-blue:\s*#7af1ff/);
 });
 
-test('Sigil radial item workbench keeps editor controls out of titlebar chrome', async () => {
-  const html = await repoText('apps/sigil/radial-item-workbench/index.html');
-  const titlebar = html.match(/<header class="aos-workbench-titlebar"[\s\S]*?<\/header>/)?.[0] || '';
-  const toolbar = html.match(/<div class="aos-workbench-toolbar"[\s\S]*?<\/div>\s*<main/)?.[0] || '';
-
-  assert.match(titlebar, /aos-workbench-title/);
-  assert.match(titlebar, /Sigil \/ Radial Menu \/ Item Editor/);
-  assert.match(titlebar, /id="minimize-workbench"/);
-  assert.match(titlebar, /id="maximize-workbench"/);
-  assert.match(titlebar, /id="close-workbench"/);
-  assert.match(html, /id="workbench-main"/);
-  assert.match(html, /id="preview-pane"/);
-  assert.match(html, /id="controls-pane"/);
-  assert.doesNotMatch(titlebar, /id="item-select"|id="axes-toggle"|id="lock-in"/);
-
-  assert.match(toolbar, /id="item-select"/);
-  assert.match(toolbar, /id="axes-toggle"/);
-  assert.match(toolbar, /id="toggle-controls-pane"/);
-  assert.match(toolbar, /id="lock-in"/);
-  assert.doesNotMatch(toolbar, /id="pulse-control"/);
-});
-
-test('Sigil radial item workbench is focused on object transforms only', async () => {
-  const html = await repoText('apps/sigil/radial-item-workbench/index.html');
-
-  assert.doesNotMatch(html, /Part Material/);
-  assert.doesNotMatch(html, /id="material-controls"/);
-  assert.doesNotMatch(html, /id="status"/);
-  assert.match(html, /id="undo-change"/);
-  assert.match(html, /id="redo-change"/);
-  const js = await repoText('apps/sigil/radial-item-workbench/index.js');
-  assert.match(js, /wireDrag/);
-  assert.match(js, /wireResize/);
-  assert.match(js, /clampOnEnd: true/);
-  assert.doesNotMatch(js, /transfer: true/);
-  assert.match(js, /minWidth: 760/);
-  assert.doesNotMatch(js, /postRaw\(\{ type: 'move_abs'/);
-});
-
-test('workbench shell smoke does not masquerade as the Sigil editor', async () => {
+test('workbench shell smoke stays a neutral toolkit fixture', async () => {
   const html = await repoText('packages/toolkit/workbench/_smoke/index.html');
 
   assert.match(html, /AOS Workbench Shell Smoke/);
