@@ -47,27 +47,36 @@ test('CGEvent actions await terminal receipts without fixed completion sleeps', 
   const actions = source('src/act/actions.swift');
   const posting = source('src/act/event-posting.swift');
   const deliveryState = source('src/act/input-delivery-state.swift');
+  const receiptTap = source('src/act/input-receipt-tap.swift');
   const session = source('src/act/session.swift');
 
   assert.match(models, /let eventPostingOwner:\s*AOSCGEventPostingOwner/);
   assert.match(models, /var terminal_event_receipt:\s*String\?/);
   assert.doesNotMatch(actions, /CGEventSource\(stateID:\s*\.hidSystemState\)/);
-  assert.match(posting, /guard ensureReceiptTap\(\) else \{ return nil \}/);
-  assert.match(posting, /defer \{ teardownReceiptTap\(\) \}/);
-  assert.match(posting, /CGEvent\.tapIsEnabled\(tap:\s*receiptTap\)/);
-  assert.match(posting, /type == \.tapDisabledByTimeout \|\| type == \.tapDisabledByUserInput/);
-  assert.match(posting, /CGEvent\.tapEnable\(tap:\s*tap,\s*enable:\s*true\)/);
+  assert.match(posting, /guard receiptTapOwner\.start\(\) else \{ return nil \}/);
+  assert.match(posting, /guard let receipt,\s*receiptTapOwner\.isActive else \{ return false \}/);
+  assert.match(posting, /defer \{ tracker\.clearAll\(\) \}/);
+  assert.match(receiptTap, /nextWorker\.name\s*=\s*"aos-input-receipt-tap"/);
+  assert.match(receiptTap, /CFRunLoopAddSource\(runLoop,\s*source,\s*\.commonModes\)/);
+  assert.match(receiptTap, /CFRunLoopRun\(\)/);
+  assert.match(receiptTap, /type == \.tapDisabledByTimeout \|\| type == \.tapDisabledByUserInput/);
+  assert.match(receiptTap, /CGEvent\.tapEnable\(tap:\s*tap,\s*enable:\s*true\)/);
   assert.match(posting, /tracker\.begin\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
   assert.match(actions, /func handleMove[\s\S]*?owner\.post\(event\)[\s\S]*?func handleClick/);
   assert.match(actions, /owner\.post\(up,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
+  assert.match(actions, /func handleDrag[\s\S]*?owner\.post\(down,\s*receipt:\s*receipt,\s*awaitReceipt:\s*true\)/);
+  assert.match(actions, /func handleDrag[\s\S]*?postBestEffortPointerRelease\(owner:\s*owner,\s*point:\s*origin,\s*flags:\s*flags,\s*receipt:\s*receipt\)/);
   assert.match(actions, /CGEVENT_DELIVERY_UNCONFIRMED/);
   assert.match(posting, /event\.setIntegerValueField\(\.eventSourceUserData,\s*value:\s*receipt\.marker\)/);
-  assert.match(posting, /tracker\.consume\(marker:\s*receipt\.marker,\s*eventType:\s*event\.type\.rawValue\)/);
-  assert.match(posting, /tracker\.observe\(marker:\s*marker,\s*eventType:\s*type\.rawValue\)/);
+  assert.match(posting, /tracker\.waitAndConsume\([\s\S]*?marker:\s*receipt\.marker,[\s\S]*?eventType:\s*event\.type\.rawValue,[\s\S]*?timeout:\s*timeout/);
+  assert.match(receiptTap, /tracker\.observe\(marker:\s*marker,\s*eventType:\s*type\.rawValue\)/);
   assert.match(posting, /tracker\.clearAll\(\)/);
   assert.match(deliveryState, /private var pending:\s*Expectation\?/);
   assert.match(deliveryState, /var uncertainState:\s*Set<String>\s*\{\s*before\.union\(after\)\s*\}/);
   assert.doesNotMatch(posting, /private var observed:\s*Set/);
+  assert.doesNotMatch(posting, /CFRunLoopRunInMode/);
+  assert.doesNotMatch(posting, /Thread\.sleep/);
+  assert.match(posting, /receiptTapOwner\.stop\(\)/);
   assert.match(session, /keyboardEventSource:\s*state\.eventPostingOwner\.source/);
   assert.doesNotMatch(actions, /usleep\(50_000\)/);
 });
@@ -82,4 +91,24 @@ test('modifier receipt timeouts remain owned by session cleanup', () => {
   assert.doesNotMatch(keyDown, /state\.modifiers\.remove\(modifier\)/);
   assert.match(keyUp, /AOSModifierDeliveryTransition\(before:\s*before,\s*after:\s*after\)/);
   assert.match(keyUp, /state\.modifiers\s*=\s*transition\.uncertainState/);
+});
+
+test('drag owns mouse release until terminal up is acknowledged', () => {
+  const actions = source('src/act/actions.swift');
+  const body = functionBody(actions, 'func handleDrag(');
+  const release = functionBody(actions, 'private func postBestEffortPointerRelease(');
+  const downAcknowledged = body.indexOf('owner.post(down, receipt: receipt, awaitReceipt: true)');
+  const obligation = body.indexOf('var releaseObligation = AOSPointerReleaseObligation(point: origin)');
+  const deferredRelease = body.indexOf('if releaseObligation.isPending');
+  const terminalAcknowledged = body.lastIndexOf('owner.post(up, receipt: receipt, awaitReceipt: true)');
+  const fulfilled = body.indexOf('releaseObligation.fulfill()');
+
+  assert.ok(downAcknowledged >= 0, 'drag should acknowledge down before taking release ownership');
+  assert.ok(obligation > downAcknowledged, 'release obligation should begin only after acknowledged down');
+  assert.ok(deferredRelease > obligation, 'drag should install a deferred best-effort release');
+  assert.match(body, /postBestEffortPointerRelease\([\s\S]*?point:\s*releaseObligation\.point/);
+  assert.match(release, /mouseType:\s*\.leftMouseUp/);
+  assert.match(release, /owner\.post\(release,\s*receipt:\s*receipt\)/);
+  assert.ok(terminalAcknowledged > deferredRelease, 'terminal up should run under the release obligation');
+  assert.ok(fulfilled > terminalAcknowledged, 'only acknowledged terminal up should fulfill release ownership');
 });

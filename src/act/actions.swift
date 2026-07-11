@@ -63,6 +63,22 @@ private func inputDeliveryError(_ action: String, state: SessionState) -> Action
     )
 }
 
+private func postBestEffortPointerRelease(
+    owner: AOSCGEventPostingOwner,
+    point: CGPoint,
+    flags: CGEventFlags,
+    receipt: AOSInputPostReceipt
+) {
+    guard let release = CGEvent(
+        mouseEventSource: owner.source,
+        mouseType: .leftMouseUp,
+        mouseCursorPosition: point,
+        mouseButton: .left
+    ) else { return }
+    release.flags = flags
+    owner.post(release, receipt: receipt)
+}
+
 /// Build CGEventFlags from all currently held modifiers in session state.
 private func currentFlags(_ state: SessionState) -> CGEventFlags {
     var flags = CGEventFlags()
@@ -338,7 +354,22 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("drag", state: state, message: "Failed to create mouseDown event", code: "CGEVENT_FAILED")
     }
     down.flags = flags
-    owner.post(down, receipt: receipt)
+    if !owner.post(down, receipt: receipt, awaitReceipt: true) {
+        postBestEffortPointerRelease(owner: owner, point: origin, flags: flags, receipt: receipt)
+        return inputDeliveryError("drag", state: state)
+    }
+
+    var releaseObligation = AOSPointerReleaseObligation(point: origin)
+    defer {
+        if releaseObligation.isPending {
+            postBestEffortPointerRelease(
+                owner: owner,
+                point: releaseObligation.point,
+                flags: flags,
+                receipt: receipt
+            )
+        }
+    }
 
     // Bezier path from origin to target
     let dx = Double(target.x - origin.x)
@@ -359,6 +390,7 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
                               mouseCursorPosition: pt, mouseButton: .left) {
             drag.flags = flags
             owner.post(drag, receipt: receipt)
+            releaseObligation.advance(to: pt)
         }
         usleep(UInt32(stepInterval * 1_000_000))
     }
@@ -369,9 +401,11 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("drag", state: state, message: "Failed to create mouseUp event", code: "CGEVENT_FAILED")
     }
     up.flags = flags
+    releaseObligation.advance(to: target)
     if !owner.post(up, receipt: receipt, awaitReceipt: true) {
         return inputDeliveryError("drag", state: state)
     }
+    releaseObligation.fulfill()
 
     state.updateCursor(target)
     return okResponse("drag", state: state, start: start, backend: "cgevent", strategy: "cgevent_drag", stateID: req.state_id, terminalReceiptID: receipt.id)
