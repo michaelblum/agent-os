@@ -134,7 +134,8 @@
     {
       "id": "ready-explicit-repair-flow",
       "path_patterns": [
-        "tests/ready-explicit-repair-flow.sh"
+        "tests/ready-explicit-repair-flow.sh",
+        "tests/lib/process-cleanup-serial.sh"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
@@ -144,7 +145,24 @@
       "worth": "This proves the public mutation boundary through fake service argv and isolated runtime state instead of relying on source shape.",
       "command": "bash tests/ready-explicit-repair-flow.sh",
       "replaces": [],
-      "guard": "uses isolated AOS_STATE_ROOT, mock daemons, and fake service actions",
+      "guard": "uses isolated AOS_STATE_ROOT, mock daemons, fake service actions, and the shared global process-cleanup serial lock",
+      "status": "active"
+    },
+    {
+      "id": "process-cleanup-proof-isolation",
+      "path_patterns": [
+        "tests/process-cleanup-serial.sh",
+        "tests/lib/process-cleanup-serial.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "shell_router",
+      "proof_kind": "harness_boundary",
+      "contract": "Proofs that scan or create globally visible AOS process fixtures serialize across shells and worktrees with bounded waiting and stale-owner recovery.",
+      "worth": "This prevents a global stale-daemon cleanup proof from killing another concurrent proof's live fixture.",
+      "command": "bash tests/process-cleanup-serial.sh",
+      "replaces": [],
+      "guard": "uses a temporary lock path and synthetic holder processes only",
       "status": "active"
     },
     {

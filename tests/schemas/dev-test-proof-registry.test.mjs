@@ -211,6 +211,26 @@ test('proof-worth evaluator treats real-input surface helper as guarded proof as
   assert.match(result.guarded[0].guard, /real-input approval/);
 });
 
+test('proof-worth evaluator routes process-cleanup isolation through both consumers and its lock proof', () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: ['tests/lib/process-cleanup-serial.sh'],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.passed, true, result.failures?.[0]?.message);
+  assert.deepEqual(
+    result.commands.map((item) => item.command).sort(),
+    [
+      'bash tests/external-command-dispatch.sh',
+      'bash tests/process-cleanup-serial.sh',
+      'bash tests/ready-explicit-repair-flow.sh',
+    ],
+  );
+});
+
 test('proof-worth evaluator routes skills efficacy fixture through test and CLI proofs', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({

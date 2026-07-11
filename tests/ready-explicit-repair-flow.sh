@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
+source tests/lib/process-cleanup-serial.sh
+trap aos_process_cleanup_release_serial_lock EXIT
+aos_process_cleanup_acquire_serial_lock "tests/ready-explicit-repair-flow.sh"
+
 PREFIX="aos-ready-explicit"
 
 run_case() {
