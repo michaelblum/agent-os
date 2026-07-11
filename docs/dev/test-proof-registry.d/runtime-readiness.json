@@ -193,8 +193,8 @@
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "native_action_event_source_contract",
-      "contract": "Mouse, drag, key, typing, and modifier actions hold one exact terminal receipt expectation, ignore nonterminal observations, retain uncertain modifier transitions for session cleanup, and expose public streaming session stdin without fixed timing delays.",
-      "worth": "The executable Swift model covers terminal sequencing, timeout teardown, expectation replacement, and provisional or uncertain modifier state; static wiring and the public wrapper prove integration ownership.",
+      "contract": "Mouse, drag, key, typing, and modifier actions hold one exact terminal receipt expectation, ignore nonterminal observations, retain uncertain modifier transitions for session cleanup, keep acknowledged drag-down release transaction-owned until confirmed up, and expose public streaming session stdin without fixed timing delays.",
+      "worth": "The executable Swift model covers terminal sequencing, timeout teardown, expectation replacement, provisional or uncertain modifier state, and drag release obligation success/failure; static wiring and the public wrapper prove integration ownership.",
       "command": "node --test tests/click-count-contract.test.mjs tests/aos-do-session-streaming.test.mjs && bash tests/native-action-input-delivery.sh",
       "replaces": [],
       "guard": "executable transaction model plus static ownership and public-wrapper streaming; the guarded concurrent lane separately proves live click delivery",
@@ -217,6 +217,23 @@
       "replaces": [],
       "guard": "uses an isolated AOS_STATE_ROOT and requires a current raw native build",
       "status": "active"
+    },
+    {
+      "id": "native-action-long-receipt-live",
+      "path_patterns": [
+        "tests/native-action-terminal-receipt-live.sh",
+        "tests/lib/input-event-observer.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "real_input",
+      "proof_kind": "native_action_long_receipt_contract",
+      "contract": "A successful public ten-second coordinate drag requires action-owned down and terminal-up acknowledgments, emits its receipt-tagged stream, and leaves the managed daemon input tap active and permission-capable.",
+      "worth": "This executes the long multi-event action that previously starved the action receipt run loop and verifies the managed daemon tap does not degrade or require service restoration afterward.",
+      "command": "AOS_REAL_INPUT_OK=1 bash tests/native-action-terminal-receipt-live.sh",
+      "replaces": [],
+      "guard": "requires explicit AOS_REAL_INPUT_OK=1, native input permissions, a current raw build, and the live repo daemon; incidental user input is permitted",
+      "status": "manual_only"
     },
     {
       "id": "canvas-lifecycle-concurrent-input-proof",

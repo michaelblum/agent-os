@@ -24,6 +24,8 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   session-mode action execution and reusable act-module mechanics.
 - `input-delivery-state.swift` owns the single terminal receipt expectation and
   modifier uncertainty state shared by one-shot and persistent actions.
+- `input-receipt-tap.swift` owns the continuously serviced receipt event tap
+  and its dedicated run-loop thread.
 - `SessionState` owns the CoreGraphics posting source and terminal-event receipt
   boundary used by one-shot and persistent action sessions.
 
@@ -40,6 +42,12 @@ and focused native owners for exact app, menu, and window lifecycle controls.
   Continuous pointer motion may be coalesced and must not claim such a receipt.
 - Keep an unconfirmed modifier transition in session cleanup ownership; a
   receipt timeout means delivery is unknown and must not discard release state.
+- Keep receipt-tap run-loop servicing independent of action duration; long
+  drag, scroll, or typing transactions must not defer tap callbacks until the
+  terminal wait.
+- After drag down is acknowledged, keep a best-effort mouse-up obligation
+  active across every failure path and fulfill it only after terminal up is
+  acknowledged.
 
 ## Work Guidance
 
