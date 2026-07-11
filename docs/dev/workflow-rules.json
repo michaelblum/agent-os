@@ -261,6 +261,8 @@
       "patterns": [
         "scripts/aos-*.mjs",
         "scripts/aos-*",
+        "scripts/lib/aos-ready-*.mjs",
+        "scripts/lib/aos-readiness.mjs",
         "scripts/sign-aos-runtime",
         "packages/cli/**",
         "packages/gateway/dist/doctor-cli.js"

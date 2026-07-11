@@ -132,6 +132,70 @@
       "status": "active"
     },
     {
+      "id": "ready-explicit-repair-flow",
+      "path_patterns": [
+        "tests/ready-auto-repair-flow.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "readiness_mutation_contract",
+      "contract": "Plain ready and post-permission verification execute no service actions, while explicit repair owns bounded cleanup, start, restart, and recovery.",
+      "worth": "This proves the public mutation boundary through fake service argv and isolated runtime state instead of relying on source shape.",
+      "command": "bash tests/ready-auto-repair-flow.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT, mock daemons, and fake service actions",
+      "status": "active"
+    },
+    {
+      "id": "input-tap-readiness-contract",
+      "path_patterns": [
+        "tests/input-tap-readiness.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "readiness_tcc_contract",
+      "contract": "Daemon/CLI permission disagreement remains fail-closed, plain readiness stays side-effect free, and explicit repair owns the one-shot stale-TCC alert.",
+      "worth": "This protects the permission-loss and post-rebuild handoff boundary with a mock daemon instead of live TCC mutation.",
+      "command": "bash tests/input-tap-readiness.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT, mock daemon health, fake repair service actions, and no live TCC mutation",
+      "status": "active"
+    },
+    {
+      "id": "permissions-marker-worktree-contract",
+      "path_patterns": [
+        "tests/permissions-marker-worktree.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "shell_router",
+      "proof_kind": "permission_setup_contract",
+      "contract": "Permission setup markers remain identity-aware across worktrees without bypassing missing-marker readiness blockers.",
+      "worth": "This prevents marker-path provenance from silently weakening readiness setup requirements.",
+      "command": "bash tests/permissions-marker-worktree.sh",
+      "replaces": [],
+      "guard": "uses temporary worktree-shaped paths and mocked permission facts",
+      "status": "active"
+    },
+    {
+      "id": "ready-ownership-mismatch-contract",
+      "path_patterns": [
+        "tests/ready-ownership-mismatch.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "isolated_daemon",
+      "proof_kind": "runtime_ownership_contract",
+      "contract": "Readiness reports daemon ownership mismatch without mutating the managed service and routes recovery through explicit repair.",
+      "worth": "This proves ownership priority and zero implicit service mutation against deterministic mock process facts.",
+      "command": "bash tests/ready-ownership-mismatch.sh",
+      "replaces": [],
+      "guard": "uses isolated AOS_STATE_ROOT, mock daemon health, and fake launchd ownership facts",
+      "status": "active"
+    },
+    {
       "id": "runtime-readiness-broker-primitives-proof",
       "path_patterns": [
         "tests/runtime-readiness-broker-primitives.sh"

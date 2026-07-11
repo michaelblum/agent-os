@@ -16,7 +16,6 @@ mkdir -p "$(dirname "$SOCK")"
 # gate without depending on live macOS TCC grants for the running ./aos binary.
 # This isolates the test from developer-machine state and makes it portable.
 export AOS_BYPASS_PERMISSIONS_SETUP=1
-export AOS_TEST_SKIP_READY_SERVICE_START=1
 export AOS_TCC_HANDOFF_ALERT=0
 
 cleanup() {
@@ -200,6 +199,30 @@ import sys
 
 d = json.loads(sys.argv[1])
 marker_path = pathlib.Path(sys.argv[2])
+assert "tcc_handoff_alert" not in d, d
+assert not marker_path.exists(), marker_path
+PY
+if [[ -e "$ALERT_LOG" ]]; then
+  echo "FAIL: plain readiness wrote a TCC alert side effect"
+  cat "$ALERT_LOG" >&2
+  exit 1
+fi
+
+set +e
+ALERT_REPAIR_JSON="$(AOS_TEST_READY_MOCK_SERVICE_ACTIONS=1 AOS_TEST_READY_WAIT_BUDGET_MS=20 AOS_TEST_READY_WAIT_POLL_MS=5 AOS_TCC_HANDOFF_ALERT=1 AOS_TCC_HANDOFF_ALERT_COMMAND="printf alert >> \"$ALERT_LOG\"" ./aos ready --repair --json)"
+ALERT_REPAIR_RC=$?
+set -e
+if [[ "$ALERT_REPAIR_RC" -eq 0 ]]; then
+  echo "FAIL: stale TCC repair unexpectedly exited 0"
+  exit 1
+fi
+python3 - "$ALERT_REPAIR_JSON" "$ALERT_MARKER" <<'PY'
+import json
+import pathlib
+import sys
+
+d = json.loads(sys.argv[1])
+marker_path = pathlib.Path(sys.argv[2])
 alert = d.get("tcc_handoff_alert") or {}
 assert alert.get("status") == "played", alert
 assert alert.get("marker_status") == "written", alert
@@ -208,12 +231,13 @@ marker = json.loads(marker_path.read_text())
 assert marker.get("key") == alert.get("key"), (marker, alert)
 PY
 if [[ "$(cat "$ALERT_LOG")" != "alert" ]]; then
-  echo "FAIL: stale TCC handoff alert did not fire exactly once on first live failure"
+  echo "FAIL: explicit repair did not fire the TCC handoff alert exactly once"
   cat "$ALERT_LOG" 2>/dev/null || true
   exit 1
 fi
+
 set +e
-ALERT_REPEAT_JSON="$(AOS_TCC_HANDOFF_ALERT=1 AOS_TCC_HANDOFF_ALERT_COMMAND="printf alert >> \"$ALERT_LOG\"" ./aos ready --json)"
+ALERT_REPEAT_JSON="$(AOS_TEST_READY_MOCK_SERVICE_ACTIONS=1 AOS_TEST_READY_WAIT_BUDGET_MS=20 AOS_TEST_READY_WAIT_POLL_MS=5 AOS_TCC_HANDOFF_ALERT=1 AOS_TCC_HANDOFF_ALERT_COMMAND="printf alert >> \"$ALERT_LOG\"" ./aos ready --repair --json)"
 ALERT_REPEAT_RC=$?
 set -e
 if [[ "$ALERT_REPEAT_RC" -eq 0 ]]; then
@@ -234,10 +258,10 @@ if [[ "$(cat "$ALERT_LOG")" != "alert" ]]; then
   cat "$ALERT_LOG" >&2
   exit 1
 fi
-echo "PASS: ready stale TCC handoff alert is one-shot per binary identity"
+echo "PASS: only explicit repair writes the one-shot stale TCC handoff alert"
 
 set +e
-READY_TEXT="$(./aos ready 2>&1)"
+READY_TEXT="$(AOS_TEST_READY_MOCK_SERVICE_ACTIONS=1 AOS_TEST_READY_WAIT_BUDGET_MS=20 AOS_TEST_READY_WAIT_POLL_MS=5 ./aos ready --repair 2>&1)"
 READY_TEXT_RC=$?
 set -e
 if [[ "$READY_TEXT" == *"Post-rebuild TCC reset checkpoint:"* ]] &&

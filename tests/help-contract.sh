@@ -435,8 +435,11 @@ fi
 OUT=$(./aos help ready --json 2>/dev/null)
 if echo "$OUT" | grep -q '"ready"' &&
    echo "$OUT" | grep -q 'aos ready \[--json\] \[--repair\] \[--post-permission\]' &&
+   echo "$OUT" | grep -q 'Check AOS readiness without mutation' &&
    echo "$OUT" | grep -q '"token" : "--repair"' &&
    echo "$OUT" | grep -q '"token" : "--post-permission"' &&
+   echo "$OUT" | grep -q '"mutates_when_flags"' &&
+   echo "$OUT" | grep -q 'Read-only bounded verification' &&
    echo "$OUT" | grep -q '"supports_json_flag" : true'; then
     pass "ready help exposes front-door readiness gate"
 else

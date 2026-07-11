@@ -15,11 +15,11 @@ import {
   runNodeScript,
 } from './lib/aos-cli.mjs';
 import { brokerFacts } from './lib/aos-facts.mjs';
+import { readyExecutionPlan } from './lib/aos-ready-execution.mjs';
 import {
   hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
-  readyAutoRepairReason,
   runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
@@ -182,66 +182,16 @@ function runReadyServiceAction(action, mode) {
   return runNodeScript('scripts/aos-service.mjs', [action, '--mode', mode, '--json']);
 }
 
-function decideReadyStartup({ repair, mode, prefix }) {
-  const skipServiceStart = process.env.AOS_TEST_SKIP_READY_SERVICE_START === '1';
-  const skippedStartup = {
+function skippedReadyStartup(mode, prefix) {
+  return {
     attempted: false,
     command: serviceCommandString(mode, prefix, 'start'),
     exit_code: 0,
     status: 'skipped',
   };
+}
 
-  if (skipServiceStart) {
-    return {
-      startup: skippedStartup,
-      actionTrace: [{
-        step: 'service_start',
-        result: 'skipped',
-        detail: 'AOS_TEST_SKIP_READY_SERVICE_START=1',
-      }],
-    };
-  }
-
-  const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
-  if (preflight.blockers.some((blocker) => blocker.id === 'agent_os_worktree_default_runtime')) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'runtime_policy_blocked',
-      detail: 'linked git worktrees cannot use the default agent-os repo runtime',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
-  if (preflight.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'cleanup_required',
-      detail: 'cleanup must run before service start',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
-  if (!repair && preflight.ready) {
-    const actionTrace = [{
-      step: 'ready_preflight',
-      result: 'ready',
-      detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
-    }];
-    return {
-      startup: skippedStartup,
-      actionTrace,
-      readyResponse: { ...preflight, action_trace: actionTrace },
-    };
-  }
-
+function runReadyStartup(mode, prefix, actionTrace) {
   const result = runReadyServiceAction('start', mode);
   return {
     startup: {
@@ -250,7 +200,7 @@ function decideReadyStartup({ repair, mode, prefix }) {
       exit_code: result.exitCode,
       status: result.exitCode === 0 ? 'ok' : 'degraded',
     },
-    actionTrace: [{
+    actionTrace: [...actionTrace, {
       step: 'service_start',
       result: result.exitCode === 0 ? 'ok' : 'degraded',
       detail: result.exitCode === 0 ? undefined : compactProcessDetail(result),
@@ -376,41 +326,46 @@ function printText(response, mode, prefix) {
 const options = parseArgs(process.argv.slice(2));
 const mode = currentMode();
 const prefix = invocationName();
-const decision = decideReadyStartup({ repair: options.repair, mode, prefix });
-let response = decision.readyResponse ?? buildReadyResponse(decision.startup, decision.actionTrace, mode, prefix);
+let startup = skippedReadyStartup(mode, prefix);
+const initialResponse = buildReadyResponse(startup, [], mode, prefix);
+const executionPlan = readyExecutionPlan(initialResponse, {
+  repair: options.repair,
+  postPermission: options.postPermission,
+});
+let actionTrace = executionPlan.action_trace;
 
-if (!options.repair && process.env.AOS_TEST_SKIP_READY_SERVICE_START !== '1') {
-  const reason = readyAutoRepairReason(response, { postPermission: options.postPermission });
-  if (reason) {
-    response = runReadyRuntimeRepair(
-      decision.startup,
-      response.action_trace,
-      mode,
-      prefix,
-      options.postPermission ? 20_000 : 10_000,
-      reason,
-    );
-  }
+if (executionPlan.actions.includes('start')) {
+  const started = runReadyStartup(mode, prefix, actionTrace);
+  startup = started.startup;
+  actionTrace = started.actionTrace;
 }
 
-if (options.repair && !response.ready) {
-  if (response.blockers.some((blocker) => blocker.id === 'stale_daemons' || blocker.id === 'daemon_foreground_dev_default')) {
-    response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
+let response = executionPlan.actions.includes('start')
+  ? buildReadyResponse(startup, actionTrace, mode, prefix)
+  : { ...initialResponse, action_trace: actionTrace };
+
+if (executionPlan.mutation_allowed && !response.ready) {
+  if (executionPlan.actions.includes('clean')) {
+    response = runReadyCleanRepair(startup, response.action_trace, mode, prefix);
   }
-  if (hasRestartableReadyRuntimeBlocker(response)) {
-    response = runReadyRuntimeRepair(decision.startup, response.action_trace, mode, prefix, 20_000, null);
+  if (executionPlan.actions.includes('restart_if_needed') && hasRestartableReadyRuntimeBlocker(response)) {
+    response = runReadyRuntimeRepair(startup, response.action_trace, mode, prefix, 20_000, null);
   }
-  if (!response.ready && response.blockers.some((blocker) => blocker.kind === 'permission')) {
+  if (executionPlan.actions.includes('permission_handoff_if_needed')
+      && !response.ready
+      && response.blockers.some((blocker) => blocker.kind === 'permission')) {
     const trace = [...response.action_trace, {
       step: 'runtime_tcc_reset_handoff',
       result: 'human_required',
       detail: `${prefix} permissions reset-runtime --mode ${mode}`,
     }];
-    response = buildReadyResponse(decision.startup, trace, mode, prefix);
+    response = buildReadyResponse(startup, trace, mode, prefix);
   }
 }
 
-const handoffAlert = maybePlayTccHandoffAlert(response, mode);
+const handoffAlert = executionPlan.mutation_allowed
+  ? maybePlayTccHandoffAlert(response, mode)
+  : undefined;
 if (handoffAlert) response.tcc_handoff_alert = handoffAlert;
 
 if (options.json) printJSON(response);

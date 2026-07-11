@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { setupState } from '../scripts/lib/aos-facts.mjs';
 import { guardedLiveOperation } from '../scripts/lib/aos-live-operation.mjs';
+import { readyExecutionPlan } from '../scripts/lib/aos-ready-execution.mjs';
 import {
   disagreementFor,
   effectivePermissionView,
@@ -12,7 +13,6 @@ import {
   missingPermissionIDsFor,
   permissionRequirements,
   planPermissionSetup,
-  readyAutoRepairReason,
   readyBlockers,
   readyDecision,
   readyEvaluationSnake,
@@ -833,38 +833,48 @@ test('input monitoring guidance accepts daemon camelCase and runtime snake_case 
   assert.match(inputMonitoringSubGuidance({ listen_access: true, post_access: false }, '/repo/aos'), /listen=true, post=false/);
 });
 
-test('ready auto-repair reason stays null for ready, stale, and unmanaged states', () => {
-  assert.equal(readyAutoRepairReason({ ready: true, blockers: [] }), null);
-  assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }), null);
-  assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_unmanaged', kind: 'runtime' }] }), null);
-  assert.equal(readyAutoRepairReason({
+test('plain and post-permission readiness plans are read-only', () => {
+  const response = {
     ready: false,
-    blockers: [
-      { id: 'input_tap_not_active', kind: 'runtime' },
-      { id: 'input_monitoring_listen', kind: 'permission', reason: 'post_rebuild_tcc_stale' },
-    ],
-  }), null);
+    diagnosis: 'input_tap_not_active',
+    blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }],
+    next_actions: [{ command: './aos ready --repair' }],
+  };
+  const plain = readyExecutionPlan(response);
+  const postPermission = readyExecutionPlan(response, { postPermission: true });
+
+  assert.equal(plain.mode, 'check');
+  assert.equal(postPermission.mode, 'post_permission_check');
+  for (const plan of [plain, postPermission]) {
+    assert.equal(plan.diagnosis, response.diagnosis);
+    assert.deepEqual(plan.next_actions, response.next_actions);
+    assert.equal(plan.mutation_allowed, false);
+    assert.deepEqual(plan.actions, []);
+    assert.equal(plan.action_trace[0].result, 'diagnosed');
+    assert.match(plan.action_trace[0].detail, /read-only; no runtime mutation attempted/);
+  }
 });
 
-test('ready auto-repair reason is deterministic for ownership and input-tap blockers', () => {
-  assert.equal(
-    readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_ownership_mismatch', kind: 'runtime' }] }),
-    'automatic after daemon ownership mismatch',
-  );
-  assert.equal(
-    readyAutoRepairReason({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
-    'automatic after input tap inactive',
-  );
-});
+test('repair plan owns cleanup, startup, and conditional recovery actions', () => {
+  const response = (id) => ({
+    ready: false,
+    diagnosis: id,
+    blockers: [{ id, kind: 'runtime' }],
+    next_actions: [],
+  });
 
-test('post-permission readiness enables bounded restart for repairable runtime blockers', () => {
-  assert.equal(
-    readyAutoRepairReason(
-      { ready: false, blockers: [{ id: 'daemon_unreachable', kind: 'runtime' }] },
-      { postPermission: true },
-    ),
-    'post-permission bounded daemon restart/recheck',
+  assert.deepEqual(
+    readyExecutionPlan(response('input_tap_not_active'), { repair: true }).actions,
+    ['start', 'restart_if_needed', 'permission_handoff_if_needed'],
   );
+  assert.deepEqual(
+    readyExecutionPlan(response('stale_daemons'), { repair: true }).actions,
+    ['clean', 'restart_if_needed', 'permission_handoff_if_needed'],
+  );
+  const unmanaged = readyExecutionPlan(response('daemon_unmanaged'), { repair: true });
+  assert.equal(unmanaged.mutation_allowed, true);
+  assert.deepEqual(unmanaged.actions, []);
+  assert.equal(unmanaged.action_trace[0].result, 'runtime_policy_blocked');
 });
 
 test('ready restart predicate is explicit and excludes stale daemon cleanup', () => {
