@@ -439,11 +439,19 @@ if echo "$OUT" | grep -q '"ready"' &&
    echo "$OUT" | grep -q '"token" : "--repair"' &&
    echo "$OUT" | grep -q '"token" : "--post-permission"' &&
    echo "$OUT" | grep -q '"mutates_when_flags"' &&
+   echo "$OUT" | grep -q '"auto_starts_daemon_when_flags"' &&
    echo "$OUT" | grep -q 'Read-only bounded verification' &&
    echo "$OUT" | grep -q '"supports_json_flag" : true'; then
     pass "ready help exposes front-door readiness gate"
 else
     fail "ready help is missing or malformed: $OUT"
+fi
+READY_TEXT=$(./aos help ready 2>/dev/null)
+if [[ "$READY_TEXT" == *"auto-starts-with --repair"* ]] &&
+   [[ "$READY_TEXT" != *"auto-starts-daemon"* ]]; then
+    pass "ready text help scopes daemon startup to explicit repair"
+else
+    fail "ready text help misstates daemon startup ownership: $READY_TEXT"
 fi
 
 # --- 16. show create/update registry stays aligned with canvas parser enums ---

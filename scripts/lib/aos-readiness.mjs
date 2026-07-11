@@ -510,17 +510,11 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
   return blockers;
 }
 
-export function isRepairableRuntimeBlockerID(id) {
+function isRepairableRuntimeBlockerID(id) {
   return id === 'daemon_unreachable'
     || id === 'daemon_ownership_mismatch'
     || id === 'stale_daemons'
     || id === 'input_tap_not_active';
-}
-
-export function hasRestartableReadyRuntimeBlocker(response) {
-  const blockers = response.blockers ?? [];
-  if (blockers.some((blocker) => blocker.id === 'stale_daemons')) return false;
-  return blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
 }
 
 function compactPrimaryBlocker(blocker) {

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-PREFIX="aos-ready-repair"
+PREFIX="aos-ready-explicit"
 
 run_case() {
   local name="$1"

@@ -15,9 +15,8 @@ import {
   runNodeScript,
 } from './lib/aos-cli.mjs';
 import { brokerFacts } from './lib/aos-facts.mjs';
-import { readyExecutionPlan } from './lib/aos-ready-execution.mjs';
+import { nextReadyExecutionStep } from './lib/aos-ready-execution.mjs';
 import {
-  hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
   runtimeVerdict,
@@ -327,43 +326,44 @@ const options = parseArgs(process.argv.slice(2));
 const mode = currentMode();
 const prefix = invocationName();
 let startup = skippedReadyStartup(mode, prefix);
-const initialResponse = buildReadyResponse(startup, [], mode, prefix);
-const executionPlan = readyExecutionPlan(initialResponse, {
-  repair: options.repair,
-  postPermission: options.postPermission,
-});
-let actionTrace = executionPlan.action_trace;
-
-if (executionPlan.actions.includes('start')) {
-  const started = runReadyStartup(mode, prefix, actionTrace);
-  startup = started.startup;
-  actionTrace = started.actionTrace;
-}
-
-let response = executionPlan.actions.includes('start')
-  ? buildReadyResponse(startup, actionTrace, mode, prefix)
-  : { ...initialResponse, action_trace: actionTrace };
-
-if (executionPlan.mutation_allowed && !response.ready) {
-  if (executionPlan.actions.includes('clean')) {
+let response = buildReadyResponse(startup, [], mode, prefix);
+let stopped = false;
+for (let stepCount = 0; stepCount < 8; stepCount += 1) {
+  const step = nextReadyExecutionStep(response, {
+    repair: options.repair,
+    postPermission: options.postPermission,
+    prefix,
+    mode,
+  });
+  if (step.type === 'stop') {
+    if (step.trace) {
+      response = { ...response, action_trace: [...response.action_trace, step.trace] };
+    }
+    stopped = true;
+    break;
+  }
+  if (step.type === 'start') {
+    const started = runReadyStartup(mode, prefix, response.action_trace);
+    startup = started.startup;
+    response = buildReadyResponse(startup, started.actionTrace, mode, prefix);
+  } else if (step.type === 'clean') {
     response = runReadyCleanRepair(startup, response.action_trace, mode, prefix);
-  }
-  if (executionPlan.actions.includes('restart_if_needed') && hasRestartableReadyRuntimeBlocker(response)) {
+  } else if (step.type === 'restart') {
     response = runReadyRuntimeRepair(startup, response.action_trace, mode, prefix, 20_000, null);
-  }
-  if (executionPlan.actions.includes('permission_handoff_if_needed')
-      && !response.ready
-      && response.blockers.some((blocker) => blocker.kind === 'permission')) {
-    const trace = [...response.action_trace, {
-      step: 'runtime_tcc_reset_handoff',
-      result: 'human_required',
-      detail: `${prefix} permissions reset-runtime --mode ${mode}`,
-    }];
-    response = buildReadyResponse(startup, trace, mode, prefix);
+  } else if (step.type === 'permission_handoff') {
+    response = buildReadyResponse(
+      startup,
+      [...response.action_trace, step.trace],
+      mode,
+      prefix,
+    );
+  } else {
+    exitError(`Unknown readiness execution step: ${step.type}`, 'READY_EXECUTION_STEP_INVALID');
   }
 }
+if (!stopped) exitError('Readiness execution did not converge.', 'READY_EXECUTION_DID_NOT_CONVERGE');
 
-const handoffAlert = executionPlan.mutation_allowed
+const handoffAlert = options.repair
   ? maybePlayTccHandoffAlert(response, mode)
   : undefined;
 if (handoffAlert) response.tcc_handoff_alert = handoffAlert;

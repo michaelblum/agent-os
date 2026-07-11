@@ -3,12 +3,11 @@ import test from 'node:test';
 
 import { setupState } from '../scripts/lib/aos-facts.mjs';
 import { guardedLiveOperation } from '../scripts/lib/aos-live-operation.mjs';
-import { readyExecutionPlan } from '../scripts/lib/aos-ready-execution.mjs';
+import { nextReadyExecutionStep } from '../scripts/lib/aos-ready-execution.mjs';
 import {
   disagreementFor,
   effectivePermissionView,
   evaluateReadyForTesting,
-  hasRestartableReadyRuntimeBlocker,
   inputMonitoringSubGuidance,
   missingPermissionIDsFor,
   permissionRequirements,
@@ -833,67 +832,60 @@ test('input monitoring guidance accepts daemon camelCase and runtime snake_case 
   assert.match(inputMonitoringSubGuidance({ listen_access: true, post_access: false }, '/repo/aos'), /listen=true, post=false/);
 });
 
-test('plain and post-permission readiness plans are read-only', () => {
+test('plain and post-permission readiness stop without mutation', () => {
   const response = {
     ready: false,
+    mode: 'repo',
     diagnosis: 'input_tap_not_active',
     blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }],
-    next_actions: [{ command: './aos ready --repair' }],
+    action_trace: [],
   };
-  const plain = readyExecutionPlan(response);
-  const postPermission = readyExecutionPlan(response, { postPermission: true });
+  const plain = nextReadyExecutionStep(response);
+  const postPermission = nextReadyExecutionStep(response, { postPermission: true });
 
-  assert.equal(plain.mode, 'check');
-  assert.equal(postPermission.mode, 'post_permission_check');
-  for (const plan of [plain, postPermission]) {
-    assert.equal(plan.diagnosis, response.diagnosis);
-    assert.deepEqual(plan.next_actions, response.next_actions);
-    assert.equal(plan.mutation_allowed, false);
-    assert.deepEqual(plan.actions, []);
-    assert.equal(plan.action_trace[0].result, 'diagnosed');
-    assert.match(plan.action_trace[0].detail, /read-only; no runtime mutation attempted/);
+  for (const step of [plain, postPermission]) {
+    assert.equal(step.type, 'stop');
+    assert.equal(step.trace.result, 'diagnosed');
+    assert.match(step.trace.detail, /read-only; no runtime mutation attempted/);
   }
 });
 
-test('repair plan owns cleanup, startup, and conditional recovery actions', () => {
-  const response = (id) => ({
+test('repair execution planner owns cleanup, startup, restart, and permission handoff transitions', () => {
+  const response = (id, actionTrace = [], kind = 'runtime') => ({
     ready: false,
+    mode: 'repo',
     diagnosis: id,
-    blockers: [{ id, kind: 'runtime' }],
-    next_actions: [],
+    blockers: [{ id, kind }],
+    action_trace: actionTrace,
   });
 
-  assert.deepEqual(
-    readyExecutionPlan(response('input_tap_not_active'), { repair: true }).actions,
-    ['start', 'restart_if_needed', 'permission_handoff_if_needed'],
+  assert.equal(nextReadyExecutionStep(response('input_tap_not_active'), { repair: true }).type, 'start');
+  assert.equal(nextReadyExecutionStep(response('stale_daemons'), { repair: true }).type, 'clean');
+  assert.equal(
+    nextReadyExecutionStep(response('stale_daemons', [{ step: 'clean', result: 'ok' }]), { repair: true }).type,
+    'stop',
   );
-  assert.deepEqual(
-    readyExecutionPlan(response('stale_daemons'), { repair: true }).actions,
-    ['clean', 'restart_if_needed', 'permission_handoff_if_needed'],
+  assert.equal(
+    nextReadyExecutionStep(response('input_tap_not_active', [{ step: 'service_start', result: 'ok' }]), { repair: true }).type,
+    'restart',
   );
-  const unmanaged = readyExecutionPlan(response('daemon_unmanaged'), { repair: true });
-  assert.equal(unmanaged.mutation_allowed, true);
-  assert.deepEqual(unmanaged.actions, []);
-  assert.equal(unmanaged.action_trace[0].result, 'runtime_policy_blocked');
-});
+  assert.equal(
+    nextReadyExecutionStep(response('daemon_unreachable', [{ step: 'clean', result: 'ok' }]), { repair: true }).type,
+    'restart',
+  );
 
-test('ready restart predicate is explicit and excludes stale daemon cleanup', () => {
-  assert.equal(
-    hasRestartableReadyRuntimeBlocker({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
-    true,
+  const handoff = nextReadyExecutionStep(
+    response('microphone', [{ step: 'service_start', result: 'ok' }], 'permission'),
+    { repair: true, prefix: './aos', mode: 'repo' },
   );
-  assert.equal(
-    hasRestartableReadyRuntimeBlocker({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }),
-    false,
-  );
-  assert.equal(
-    hasRestartableReadyRuntimeBlocker({
-      ready: false,
-      blockers: [
-        { id: 'stale_daemons', kind: 'runtime' },
-        { id: 'input_tap_not_active', kind: 'runtime' },
-      ],
-    }),
-    false,
-  );
+  assert.equal(handoff.type, 'permission_handoff');
+  assert.deepEqual(handoff.trace, {
+    step: 'runtime_tcc_reset_handoff',
+    result: 'human_required',
+    detail: './aos permissions reset-runtime --mode repo',
+  });
+
+  const unmanaged = nextReadyExecutionStep(response('daemon_unmanaged'), { repair: true });
+  assert.equal(unmanaged.type, 'stop');
+  assert.equal(unmanaged.trace.result, 'runtime_policy_blocked');
 });

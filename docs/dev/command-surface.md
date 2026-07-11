@@ -116,7 +116,10 @@ inference. Each entry must name declared `when_flags`, the conditional
 `default_mode`, and a summary. Rendered text help should show the conditional
 mode, for example `[output: none; with --save: json]`. If a mostly read-only
 form mutates state only under specific flags, set `execution.mutates_when_flags`
-so rendered help can show the conditional mutation surface.
+so rendered help can show the conditional mutation surface. Likewise, use
+`execution.auto_starts_daemon_when_flags` when daemon startup is permitted only
+under explicit flags; do not combine `read_only: true` with an unconditional
+`auto_starts_daemon: true` claim.
 
 The broker may expose privileged facts, privileged actions, and privileged
 streams through private stable primitives. External layers interpret and compose

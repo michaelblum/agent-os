@@ -2332,8 +2332,11 @@ Consumers:
   Input Monitoring; remaining blockers route explicitly to `ready --repair` or
   direct service/permission commands.
   `--repair` is the only readiness form allowed to clean, start or restart the
-  runtime, wait for recovery, and emit the stale-TCC alert/handoff. When passive
-  CLI grants are green but the live daemon reports denied Accessibility/Input
+  runtime, wait for recovery, play the stale-TCC alert, or write its one-shot
+  marker. All readiness forms may report the same read-only `terminal_handoff`
+  and terminal reset actions when the canonical diagnosis requires human work.
+  When passive CLI grants are green but the live daemon reports denied
+  Accessibility/Input
   Monitoring, repair reports `post_rebuild_tcc_stale`, plays the handoff alert
   once per binary identity, and the agent ends the turn until the user replies
   `finished` after manually resetting/regranting TCC. Linked-worktree blockers

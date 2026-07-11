@@ -134,7 +134,7 @@
     {
       "id": "ready-explicit-repair-flow",
       "path_patterns": [
-        "tests/ready-auto-repair-flow.sh"
+        "tests/ready-explicit-repair-flow.sh"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
@@ -142,7 +142,7 @@
       "proof_kind": "readiness_mutation_contract",
       "contract": "Plain ready and post-permission verification execute no service actions, while explicit repair owns bounded cleanup, start, restart, and recovery.",
       "worth": "This proves the public mutation boundary through fake service argv and isolated runtime state instead of relying on source shape.",
-      "command": "bash tests/ready-auto-repair-flow.sh",
+      "command": "bash tests/ready-explicit-repair-flow.sh",
       "replaces": [],
       "guard": "uses isolated AOS_STATE_ROOT, mock daemons, and fake service actions",
       "status": "active"

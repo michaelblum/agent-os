@@ -7890,7 +7890,10 @@
             "aos ready --json"
           ],
           "execution" : {
-            "auto_starts_daemon" : true,
+            "auto_starts_daemon" : false,
+            "auto_starts_daemon_when_flags" : [
+              "--repair"
+            ],
             "interactive" : false,
             "mutates_state" : false,
             "mutates_when_flags" : [
