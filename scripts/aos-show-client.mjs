@@ -186,6 +186,8 @@ function readOneJSON(socket, timeoutMs = 3000) {
       clearTimeout(timer);
       socket.off('data', onData);
       socket.off('error', onError);
+      socket.off('end', onEnd);
+      socket.off('close', onClose);
     };
     const finish = (value) => {
       if (settled) return;
@@ -208,8 +210,12 @@ function readOneJSON(socket, timeoutMs = 3000) {
       }
     };
     const onError = () => finish(null);
+    const onEnd = () => finish(null);
+    const onClose = () => finish(null);
     socket.on('data', onData);
     socket.once('error', onError);
+    socket.once('end', onEnd);
+    socket.once('close', onClose);
   });
 }
 
@@ -227,7 +233,39 @@ function sleep(ms) {
 }
 
 function ipcFailureMessage(action, data) {
-  return `IPC failure while waiting for show.${action} response: ${JSON.stringify(data ?? {})}`;
+  const target = typeof data?.id === 'string' && data.id ? ` for canvas ${JSON.stringify(data.id)}` : '';
+  return `IPC response unavailable for show.${action}${target}; the outcome could not be confirmed.`;
+}
+
+function canvasOwnerMatches(actual, expected) {
+  if (!actual || typeof actual !== 'object' || !expected || typeof expected !== 'object') return false;
+  return [
+    'consumer_id',
+    'harness',
+    'pid',
+    'cwd',
+    'worktree_root',
+    'runtime_mode',
+  ].every((key) => (actual[key] ?? null) === (expected[key] ?? null));
+}
+
+async function reconcileOwnedGlobalCreate(data, timeoutMs) {
+  if (data?.scope === 'connection' || !data?.owner || typeof data?.id !== 'string') return null;
+
+  await sleep(100);
+  const socket = await connectOnce(Math.min(1000, timeoutMs));
+  if (!socket) return null;
+  const response = await sendEnvelope(socket, 'list', {}, timeoutMs);
+  socket.end();
+  if (!response || response.error || response.status === 'error') return null;
+
+  const body = response?.data && typeof response.data === 'object' ? response.data : response;
+  const canvas = Array.isArray(body?.canvases)
+    ? body.canvases.find((candidate) => candidate?.id === data.id)
+    : null;
+  if (!canvas || canvas.scope === 'connection' || !canvasOwnerMatches(canvas.owner, data.owner)) return null;
+
+  return { v: 1, status: 'success', data: {} };
 }
 
 function diagnosticVerdict(operationId, timeoutMs) {
@@ -245,6 +283,7 @@ async function oneShot(action, data, {
   emptyListOnNoDaemon = false,
   timeoutMs = 3000,
   retryNoResponse = 0,
+  recoverNoResponse = null,
   allowStart = false,
 } = {}) {
   if (RUNTIME_COUPLED_SHOW_ACTIONS.has(action)) {
@@ -269,8 +308,9 @@ async function oneShot(action, data, {
     response = await sendEnvelope(socket, action, data, timeoutMs);
     attemptsRemaining -= 1;
   }
+  if (!response && recoverNoResponse) response = await recoverNoResponse();
   socket?.end();
-  if (!response) error(ipcFailureMessage(action, data), 'INTERNAL');
+  if (!response) error(ipcFailureMessage(action, data), 'IPC_RESPONSE_UNAVAILABLE');
   if (response.error) {
     process.stderr.write(`${JSON.stringify(response)}\n`);
     process.exit(1);
@@ -567,10 +607,14 @@ async function mutationCommand(args, kind) {
     if (options.focus !== undefined) request.focus = options.focus;
   }
   applyCanvasMutationOptions(options, request, kind);
+  const timeoutMs = kind === 'create' ? 10000 : 3000;
   await oneShot(kind, request, {
     autoStart: kind === 'create',
     allowStart: Boolean(options.allowStart),
-    timeoutMs: kind === 'create' ? 10000 : 3000,
+    timeoutMs,
+    recoverNoResponse: kind === 'create'
+      ? () => reconcileOwnedGlobalCreate(request, timeoutMs)
+      : null,
   });
 }
 
@@ -616,9 +660,15 @@ async function waitCommand(args) {
 
   if (!id) error('wait requires --id <name>', 'MISSING_ARG');
   requireDefaultRepoRuntimePolicy('show.wait');
-  let condition = "window.headsup && typeof window.headsup.receive === 'function'";
-  if (manifest) condition += ` && window.headsup.manifest && window.headsup.manifest.name === ${JSON.stringify(manifest)}`;
-  if (js) condition += ` && (${js})`;
+  const bridgeCondition = "window.headsup && typeof window.headsup.receive === 'function'";
+  const conditions = [];
+  if (manifest) {
+    conditions.push(bridgeCondition);
+    conditions.push(`window.headsup.manifest && window.headsup.manifest.name === ${JSON.stringify(manifest)}`);
+  }
+  if (js) conditions.push(`(${js})`);
+  if (conditions.length === 0) conditions.push(bridgeCondition);
+  const condition = conditions.join(' && ');
   const evalJS = `(${condition}) ? 'ready' : 'wait'`;
 
   const deadline = Date.now() + timeoutMs;

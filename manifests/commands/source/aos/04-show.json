@@ -706,7 +706,7 @@
               "id": "js",
               "kind": "flag",
               "required": false,
-              "summary": "Additional JavaScript readiness condition",
+              "summary": "JavaScript readiness condition, standalone unless combined with --manifest",
               "token": "--js",
               "value_type": "string"
             },
