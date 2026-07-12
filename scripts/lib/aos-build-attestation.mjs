@@ -30,9 +30,7 @@ export function swiftBuildInputs(root) {
 }
 
 export function repoBuildInputs(root) {
-  const metadata = ['packaging/RepoRuntimeLinkInfo.plist']
-    .filter((relativePath) => fs.existsSync(path.join(root, relativePath)));
-  return [...swiftBuildInputs(root), ...metadata];
+  return swiftBuildInputs(root);
 }
 
 export function swiftSourceFingerprint(root, mode) {

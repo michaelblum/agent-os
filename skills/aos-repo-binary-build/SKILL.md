@@ -45,11 +45,11 @@ Use this skill for repo-mode `./aos` build checks and rebuilds.
 
 ## Boundaries
 
-The raw build may pass `packaging/RepoRuntimeLinkInfo.plist` to the existing
-`swiftc` invocation as `__TEXT,__info_plist` linker input. That plist must stay
-separate from packaged metadata and must not declare identity. Do not invoke
-`ld` separately or add post-link signing, copying, moving, installation-name
-editing, entitlements, app wrapping, `spctl` gates, or explicit identifiers.
+The raw build must preserve the plain direct `swiftc` shape verified at
+`866839e9`: Swift inputs plus `-lsqlite3`, with no injected plist or metadata
+section. Do not invoke `ld` separately or add `-sectcreate`, `__info_plist`,
+post-link signing, copying, moving, installation-name editing, entitlements,
+app wrapping, `spctl` gates, or explicit identifiers.
 Do not infer exit `137` from empty output, a timeout, or a failed readiness
 wrapper; capture the actual process exit status and stop at the prescribed
 checkpoint. Treat confirmed endpoint-security kills as runtime policy, not

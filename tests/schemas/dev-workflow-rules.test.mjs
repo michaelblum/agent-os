@@ -108,8 +108,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(
     rules.get('swift-core')?.notes?.some((note) =>
-      note.includes('one direct build.sh swiftc link')
-        && note.includes('RepoRuntimeLinkInfo.plist')
+      note.includes('plain direct build.sh swiftc link')
+        && note.includes('866839e9')
+        && note.includes('Injected plist or metadata sections')
         && note.includes('post-link signing'),
     ),
   );

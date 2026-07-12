@@ -712,8 +712,8 @@ Rebuild detection is content-based for Swift runtime inputs, not
 mtime-based, and build-tooling edits alone do not replace the TCC-owning binary.
 Repo-mode builds do not post-sign the local binary; packaged app signing is
 owned by `scripts/sign-aos-runtime`. ADR 0023 preserves one direct `swiftc`
-link to `./aos` for managed-endpoint development. The identity-free repo plist
-may enter that link as `__TEXT,__info_plist`; no separate linker, signing,
+link to `./aos` for managed-endpoint development. That raw link accepts no
+packaging metadata or injected plist section; no separate linker, signing,
 copying, moving, wrapping, entitlement, binary rewrite, or `spctl` step may
 touch the result. No post-build hook automates TCC handling: build does not
 reset permissions, open System Settings, show a human-needed surface, write

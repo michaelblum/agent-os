@@ -121,15 +121,15 @@ commands, runtime helpers, wiki tools, and command adapters.
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
   local binary; ADR 0023 owns this managed-endpoint compatibility contract and
   packaged app signing belongs outside the repo-mode build path.
-  The one permitted metadata step is passing
-  `packaging/RepoRuntimeLinkInfo.plist` to the existing direct `swiftc` link as
-  `__TEXT,__info_plist`; it must not declare executable identity.
+  The raw link must match the known-good shape at `866839e9`: plain Swift
+  inputs and `-lsqlite3`, with no injected plist or other metadata section.
   If the repo-local `./aos` artifact is missing or exits `137`, recover with
   `bash build.sh --force --no-restart`; do not add post-build signing, an
   `ld` pass, copying or moving, installation-name editing, an explicit signing
-  identifier, entitlements, app bundle wrapping, allowlist assumptions, or an
-  `spctl` acceptance gate. `spctl` rejection is expected for the raw local
-  binary shape; launchability of `./aos` is the operational check.
+  identifier, entitlements, app bundle wrapping, `-sectcreate`, `__info_plist`,
+  allowlist assumptions, or an `spctl` acceptance gate. `spctl` rejection is
+  expected for the raw local binary shape; launchability of `./aos` is the
+  operational check.
   `aos runtime build-attestation --json` must fail closed when the executable,
   build mode, receipt, or current Swift-input fingerprint does not agree, and
   must never update the receipt or invoke a build.

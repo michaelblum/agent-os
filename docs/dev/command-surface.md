@@ -224,11 +224,11 @@ attest, transform, or run readiness against the live artifact before that first
 launch; stop on exit `137`. If help succeeds, stop for the human TCC checkpoint
 without inspecting the artifact. After the user replies `finished`, run exact
 `./aos ready --repair --post-permission --json` with no intervening command.
-The raw build may embed the separate identity-free
-`packaging/RepoRuntimeLinkInfo.plist` through the existing `swiftc` link; it may
-not run a separate linker or any post-link signing, copying, moving, wrapping,
-entitlement, or assessment step. ADR 0023 owns the managed-endpoint rationale
-and exact retirement gates. Empty output, a timeout, or a different
+The raw build must match the plain direct `swiftc` shape at `866839e9`; it may
+not inject a plist or metadata section, run a separate linker, or perform any
+post-link signing, copying, moving, wrapping, entitlement, or assessment step.
+ADR 0023 owns the managed-endpoint rationale and exact retirement gates. Empty
+output, a timeout, or a different
 readiness failure is not evidence of exit `137` and must not trigger another
 force rebuild. Command metadata and external implementation changes should not
 require rebuilding the TCC-sensitive binary.

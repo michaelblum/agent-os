@@ -29,14 +29,13 @@ test('daemon health exposes explicit microphone authorization state', () => {
   assert.match(health, /microphoneState == ["]authorized["]/);
 });
 
-test('raw repo build embeds privacy metadata only through its existing swiftc link', () => {
+test('raw repo build stays plain while packaged metadata owns microphone usage text', () => {
   const build = read('build.sh');
-  const metadata = read('packaging/RepoRuntimeLinkInfo.plist');
+  const metadata = read('packaging/Info.plist');
 
-  assert.match(build, /LINK_INFO_FLAGS=.*-sectcreate.*__TEXT.*__info_plist/);
   assert.match(build, /swiftc "\$\{SWIFTC_FLAGS\[@\]\}" "\$\{SWIFT_INPUTS\[@\]\}"/);
+  assert.doesNotMatch(build, /RepoRuntimeLinkInfo|sectcreate|__info_plist/);
   assert.doesNotMatch(build, /^\s*(?:\/usr\/bin\/)?(?:codesign|install_name_tool|spctl)\b/m);
   assert.doesNotMatch(build, /^\s*(?:cp|mv)\s+.*(?:\$OUTPUT_PATH|\.\/aos)/m);
   assert.match(metadata, /NSMicrophoneUsageDescription/);
-  assert.doesNotMatch(metadata, /CFBundleIdentifier|CFBundleExecutable|CFBundlePackageType/);
 });

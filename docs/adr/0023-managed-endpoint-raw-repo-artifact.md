@@ -11,11 +11,11 @@ Repo-mode AOS development preserves one direct build shape:
 single swiftc link -> ./aos
 ```
 
-The existing `swiftc` invocation may receive identity-free privacy metadata as
-linker input, including `packaging/RepoRuntimeLinkInfo.plist` in
-`__TEXT,__info_plist`. It still writes directly to `./aos`. Nothing may link,
-sign, copy, move, wrap, rewrite, install, assess, or otherwise transform that
-artifact after `swiftc` returns.
+The raw invocation matches the known-good build at
+`866839e97675dced33d6d0f685bdd3fef901d772`: plain Swift inputs plus
+`-lsqlite3`, linked directly to `./aos`. It receives no injected plist or other
+metadata section. Nothing may link, sign, copy, move, wrap, rewrite, install,
+assess, or otherwise transform that artifact after `swiftc` returns.
 
 This is an intentional, temporary compatibility contract for repository
 development, not accidental technical debt.
@@ -86,9 +86,9 @@ during implementation review; it is never copied over live `./aos`.
 
 ## Raw TCC Identity Consequences
 
-The link-time plist supplies privacy usage text and the raw executable retains
-the linker-generated `Identifier=aos`, but it does not make `./aos` a
-LaunchServices app bundle. These identities are not interchangeable.
+The raw executable's linker-generated identity does not make `./aos` a
+LaunchServices app bundle. Raw code-signing identity and packaged app identity
+are not interchangeable.
 
 On this development Mac, the identifier-scoped command:
 
@@ -140,17 +140,15 @@ remains authoritative.
 
 ## Enforcement
 
-`tests/build-rebuild-policy.sh` requires exactly one direct `swiftc` output
-invocation, permits the identity-free link-time plist input, and rejects
-separate linking, post-link mutation, artifact inspection, and automatic
-execution of the new binary. `tests/repo-runtime-link-metadata.sh`
-compiles only a disposable artifact and verifies the expected linker ad-hoc,
-teamless `aos` identity.
+`tests/build-rebuild-policy.sh` requires exactly one plain direct `swiftc`
+output invocation and rejects metadata-section injection, separate linking,
+post-link mutation, artifact inspection, and automatic execution of the new
+binary.
 
 ## Consequences
 
 - Build-tool cleanup cannot silently replace this artifact contract.
-- Privacy usage descriptions needed by the raw runtime must be supplied during
-  the existing link, not by post-processing.
+- Privacy usage descriptions belong to the packaged runtime. They must not
+  change the managed-endpoint raw artifact shape.
 - Live rebuild validation remains an explicit human checkpoint after static
   review; implementation work must not rebuild `./aos` opportunistically.

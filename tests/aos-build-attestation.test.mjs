@@ -63,23 +63,22 @@ test('repo build attestation fails closed for changed sources, missing binaries,
   });
 });
 
-test('repo build fingerprint includes raw-runtime link metadata when present', (t) => {
+test('repo build fingerprint excludes packaging metadata', (t) => {
   const root = fixture();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'packaging'), { recursive: true });
-  const metadataPath = path.join(root, 'packaging/RepoRuntimeLinkInfo.plist');
+  const metadataPath = path.join(root, 'packaging/Info.plist');
   fs.writeFileSync(metadataPath, '<plist><dict><key>NSMicrophoneUsageDescription</key><string>one</string></dict></plist>\n');
 
   assert.deepEqual(repoBuildInputs(root), [
     'src/main.swift',
     'shared/swift/ipc/runtime.swift',
-    'packaging/RepoRuntimeLinkInfo.plist',
   ]);
   const before = swiftSourceFingerprint(root, 'dev');
   fs.writeFileSync(metadataPath, '<plist><dict><key>NSMicrophoneUsageDescription</key><string>two</string></dict></plist>\n');
   const after = swiftSourceFingerprint(root, 'dev');
 
-  assert.equal(before.inputs.length, 3);
-  assert.equal(after.inputs.length, 3);
-  assert.notEqual(before.fingerprint, after.fingerprint);
+  assert.equal(before.inputs.length, 2);
+  assert.equal(after.inputs.length, 2);
+  assert.equal(before.fingerprint, after.fingerprint);
 });

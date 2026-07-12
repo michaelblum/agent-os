@@ -30,8 +30,10 @@ Do not treat TCC-backed daemon, capture, input, or native proof as conclusive
 before that bounded resume command succeeds.
 
 ADR 0023 owns this managed-endpoint compatibility contract. It is intentional
-and temporary: do not replace it with post-build signing, explicit identifiers,
-entitlements, copying, binary modification, app wrapping, or an `spctl` gate.
+and temporary. Preserve the plain direct link verified at `866839e9`; do not
+inject `__info_plist` or other metadata sections, or replace it with post-build
+signing, explicit identifiers, entitlements, copying, binary modification, app
+wrapping, or an `spctl` gate.
 
 When you are unsure which loop applies, ask the router first:
 

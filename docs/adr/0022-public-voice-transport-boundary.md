@@ -78,10 +78,10 @@ requestable. The Microphone pane has no supported Plus button or drag-add
 target, and consumers must not shift permission ownership to Electron or
 another foreground process.
 
-The raw repo executable receives `NSMicrophoneUsageDescription` from the
-identity-free `packaging/RepoRuntimeLinkInfo.plist` during its one existing
-`swiftc` link. This preserves the `aos` linker ad-hoc identity and adds no
-post-link signing, copy, wrapping, entitlement, or transformation step.
+Packaged AOS metadata owns `NSMicrophoneUsageDescription`. The enterprise-Mac
+raw repo build remains the plain artifact shape owned by ADR 0023 and does not
+consume packaged metadata; development microphone proof is therefore an
+explicit environment-sensitive gate, not a portable distribution claim.
 
 ## Consequences
 

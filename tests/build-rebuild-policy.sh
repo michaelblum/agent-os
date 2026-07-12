@@ -10,13 +10,12 @@ trap 'rm -rf "$TMP"' EXIT
 FAKE_REPO="$TMP/repo"
 FAKE_BIN="$TMP/bin"
 LOG="$TMP/events.log"
-mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_REPO/packaging" "$FAKE_BIN"
+mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_BIN"
 
 cp build.sh "$FAKE_REPO/build.sh"
 cp scripts/aos-build-fingerprint.mjs "$FAKE_REPO/scripts/aos-build-fingerprint.mjs"
 cp scripts/lib/aos-build-attestation.mjs "$FAKE_REPO/scripts/lib/aos-build-attestation.mjs"
 cp scripts/lib/aos-cli.mjs "$FAKE_REPO/scripts/lib/aos-cli.mjs"
-cp packaging/RepoRuntimeLinkInfo.plist "$FAKE_REPO/packaging/RepoRuntimeLinkInfo.plist"
 printf 'print("fake")\n' > "$FAKE_REPO/src/main.swift"
 
 if ! grep -q 'swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\]}"' "$FAKE_REPO/build.sh"; then
@@ -47,15 +46,16 @@ if grep -Eq '"\$OUTPUT_PATH"[[:space:]]+(service|status|runtime|help)|du[[:space
     echo "FAIL: build.sh must not execute or inspect the newly linked artifact" >&2
     exit 1
 fi
-if ! grep -q -- '-sectcreate' "$FAKE_REPO/build.sh" ||
-   ! grep -q 'RepoRuntimeLinkInfo.plist' "$FAKE_REPO/build.sh"; then
-    echo "FAIL: repo-mode build must embed raw-runtime privacy metadata at link time" >&2
+if grep -Eq 'RepoRuntimeLinkInfo|sectcreate|__info_plist' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: repo-mode build must not inject plist or metadata sections" >&2
     exit 1
 fi
 for authority_path in AGENTS.md src/CLAUDE.md; do
     if ! grep -q '0023-managed-endpoint-raw-repo-artifact\|ADR 0023' "$authority_path" ||
        ! grep -q './aos help --json' "$authority_path" ||
        ! grep -q '137' "$authority_path" ||
+       ! grep -q '866839e9' "$authority_path" ||
+       ! grep -q '__info_plist' "$authority_path" ||
        ! grep -q 'human TCC checkpoint' "$authority_path" ||
        ! grep -q 'finished' "$authority_path"; then
         echo "FAIL: $authority_path must preserve the ADR 0023 help-first managed-endpoint contract" >&2
@@ -66,13 +66,6 @@ done
 cat >"$FAKE_BIN/swiftc" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-case " $* " in
-  *" -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "*"/packaging/RepoRuntimeLinkInfo.plist "*) ;;
-  *)
-    echo "missing raw-runtime __info_plist linker metadata" >&2
-    exit 1
-    ;;
-esac
 out=""
 while [[ $# -gt 0 ]]; do
     case "$1" in

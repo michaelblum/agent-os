@@ -337,14 +337,13 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
   ].sort());
 });
 
-test('proof-worth evaluator routes raw repo link metadata proofs', async () => {
+test('proof-worth evaluator routes plain repo build proofs', async () => {
   const registry = loadCanonicalRegistry();
   const result = evaluateProofWorth({
     changedFiles: [
       'tests/aos-after-build.sh',
       'tests/aos-build-attestation.test.mjs',
       'tests/build-rebuild-policy.sh',
-      'tests/repo-runtime-link-metadata.sh',
     ],
     repoRoot,
     registry,
@@ -353,7 +352,7 @@ test('proof-worth evaluator routes raw repo link metadata proofs', async () => {
 
   assert.equal(result.status, 'passed', result);
   assert.deepEqual(result.commands.map((item) => item.command), [
-    'bash tests/aos-after-build.sh && node --test tests/aos-build-attestation.test.mjs && bash tests/build-rebuild-policy.sh && bash tests/repo-runtime-link-metadata.sh',
+    'bash tests/aos-after-build.sh && node --test tests/aos-build-attestation.test.mjs && bash tests/build-rebuild-policy.sh',
   ]);
 });
 
