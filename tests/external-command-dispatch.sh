@@ -510,6 +510,15 @@ function probe(expectConnect) {
   });
 }
 
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
     env: {
@@ -537,12 +546,23 @@ async function main() {
     process.exit(2);
   }
 
+  let daemonPid;
+  try {
+    daemonPid = JSON.parse(fs.readFileSync(`${root}/repo/daemon.lock`, 'utf8')).pid;
+  } catch {
+    child.kill('SIGTERM');
+    await new Promise((resolve) => child.once('exit', resolve));
+    process.exit(2);
+  }
+
   child.kill('SIGTERM');
-  await new Promise((resolve) => child.once('exit', resolve));
+  const wrapperExitCode = await new Promise((resolve) => child.once('exit', resolve));
   for (let i = 0; i < 30; i += 1) {
-    if (await probe(false)) process.exit(0);
+    const socketClosed = await probe(false);
+    if (wrapperExitCode === 0 && socketClosed && !pidAlive(daemonPid)) process.exit(0);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
+  if (pidAlive(daemonPid)) process.kill(daemonPid, 'SIGKILL');
   process.exit(3);
 }
 

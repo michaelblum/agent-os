@@ -89,6 +89,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   stdin, do not echo speech text or capture paths through events or errors, and
   cancel the connection-scoped lease when the native external-dispatch owner
   exits.
+- `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
+  Install signal and parent-exit handling before auto-start, forward shutdown
+  to that child, and await confirmed child exit before the listener exits.
 
 ## Local Contracts
 

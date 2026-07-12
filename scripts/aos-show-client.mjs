@@ -157,6 +157,31 @@ function startDaemon({ managed = false } = {}) {
   return null;
 }
 
+function childHasExited(child) {
+  return !child || child.exitCode !== null || child.signalCode !== null;
+}
+
+async function terminateOwnedChild(child, graceMs = 1500) {
+  if (childHasExited(child)) return;
+  await new Promise((resolve) => {
+    let killTimer = null;
+    const finish = () => {
+      if (killTimer) clearTimeout(killTimer);
+      resolve();
+    };
+    child.once('exit', finish);
+    if (childHasExited(child)) {
+      child.off('exit', finish);
+      finish();
+      return;
+    }
+    child.kill('SIGTERM');
+    killTimer = setTimeout(() => {
+      if (!childHasExited(child)) child.kill('SIGKILL');
+    }, graceMs);
+  });
+}
+
 async function connectWithAutoStart(options = {}) {
   let socket = await connectOnce();
   if (socket) return { socket, daemon: null };
@@ -174,7 +199,7 @@ async function connectWithAutoStart(options = {}) {
     socket = await connectOnce();
     if (socket) return { socket, daemon };
   }
-  if (daemon && !daemon.killed) daemon.kill('SIGTERM');
+  await terminateOwnedChild(daemon);
   return null;
 }
 
@@ -817,34 +842,37 @@ async function auditCommand(args) {
 async function listenCommand(args) {
   if (args.length > 0) unknownArg(args[0]);
   requireDefaultRepoRuntimePolicy('show.listen');
-  const connection = await connectWithAutoStart({ managed: true });
-  const socket = connection?.socket ?? null;
-  const daemon = connection?.daemon ?? null;
-  if (!socket) error('Failed to start aos daemon', 'DAEMON_START_FAILED');
-
+  let socket = null;
+  let daemon = null;
+  let connectionSettled = false;
   let closing = false;
+  let closePromise = null;
+  let parentWatchdog = null;
+
   const close = () => {
-    if (closing) return;
     closing = true;
-    socket.end();
-    if (!daemon || daemon.killed) {
+    if (!connectionSettled || closePromise) return closePromise;
+    closePromise = (async () => {
+      if (parentWatchdog) clearInterval(parentWatchdog);
+      if (socket && !socket.destroyed) socket.destroy();
+      await terminateOwnedChild(daemon);
       process.exit(0);
-    }
-    let daemonExited = false;
-    const exitAfterDaemon = () => process.exit(0);
-    daemon.once('exit', () => {
-      daemonExited = true;
-      exitAfterDaemon();
-    });
-    daemon.kill('SIGTERM');
-    setTimeout(() => {
-      if (!daemonExited) daemon.kill('SIGKILL');
-    }, 1500).unref();
-    setTimeout(exitAfterDaemon, 2500).unref();
+    })();
+    return closePromise;
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
-  installParentExitWatchdog(close);
+  parentWatchdog = installParentExitWatchdog(close);
+
+  const connection = await connectWithAutoStart({ managed: true });
+  socket = connection?.socket ?? null;
+  daemon = connection?.daemon ?? null;
+  connectionSettled = true;
+  if (closing) {
+    await close();
+    return;
+  }
+  if (!socket) error('Failed to start aos daemon', 'DAEMON_START_FAILED');
 
   socket.on('data', (chunk) => {
     process.stdout.write(chunk);
@@ -865,6 +893,7 @@ function installParentExitWatchdog(close, intervalMs = 250) {
     if (process.ppid !== ORIGINAL_PARENT_PID) close();
   }, intervalMs);
   timer.unref();
+  return timer;
 }
 
 const [command, ...args] = process.argv.slice(2);
