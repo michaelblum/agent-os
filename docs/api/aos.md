@@ -2335,9 +2335,13 @@ Consumers:
   `ready --post-permission` are read-only: each collects facts once, reports
   `startup.attempted:false`, and never starts, restarts, cleans, opens Settings,
   changes permissions, or writes a TCC-alert marker. `--post-permission` labels
-  the bounded verification performed after the human re-grants Accessibility or
-  Input Monitoring; remaining blockers route explicitly to `ready --repair` or
-  direct service/permission commands.
+  verification after the human re-grants Accessibility or Input Monitoring.
+  The generated resume command is
+  `aos ready --repair --post-permission`: that exact combination may perform at
+  most one same-mode launchd-managed restart, then requires fresh live daemon
+  tap/listen/post facts during a bounded recheck. It fails closed without
+  mutation when ownership is unmanaged or mismatched, runtime/service modes
+  differ, or the launchd target does not match the expected binary path.
   `--repair` is the only readiness form allowed to clean, start or restart the
   runtime, wait for recovery, play the stale-TCC alert, or write its one-shot
   marker. All readiness forms may report the same read-only `terminal_handoff`
@@ -2362,7 +2366,8 @@ Consumers:
   classifies targeted reset as unavailable for a bare repo binary that is not a
   LaunchServices app bundle. It returns next actions:
   `aos permissions setup --once` to request fresh prompts and
-  `aos ready --post-permission` to verify the recovered daemon. Service-wide TCC
+  `aos ready --repair --post-permission` to refresh and verify the recovered
+  daemon after the human grant. Service-wide TCC
   reset is not part of normal recovery because it can affect other apps. It is a
   break-glass capability only: `--allow-service-reset` requires
   `--emergency-ack-other-apps` and should be used only when Michael explicitly
@@ -2406,7 +2411,7 @@ Consumers:
   remedy. `aos ready --json` also exposes the same object at top-level
   `tcc_staleness` plus a top-level `terminal_handoff` telling agents to stop
   the current turn, wait for the user signal `finished`, and then run
-  `./aos ready --post-permission`.
+  `./aos ready --repair --post-permission`.
 - When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
   `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
   The process command line is either present as `command_line` or explicitly

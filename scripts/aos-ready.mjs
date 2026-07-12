@@ -8,6 +8,7 @@ import path from 'node:path';
 import {
   compactProcessDetail,
   currentMode,
+  expectedBinaryPath,
   exitError,
   invocationName,
   printJSON,
@@ -15,7 +16,11 @@ import {
   runNodeScript,
 } from './lib/aos-cli.mjs';
 import { brokerFacts } from './lib/aos-facts.mjs';
-import { nextReadyExecutionStep } from './lib/aos-ready-execution.mjs';
+import {
+  enforcePostPermissionLiveReadiness,
+  nextReadyExecutionStep,
+  postPermissionRecoveryAuthority,
+} from './lib/aos-ready-execution.mjs';
 import {
   permissionFixLines,
   permissionResetSafeSequenceLines,
@@ -42,10 +47,10 @@ function currentFacts() {
   });
 }
 
-function buildReadyResponse(startup, actionTrace, mode, prefix) {
+function buildReadyResponse(startup, actionTrace, mode, prefix, { postPermissionRepair = false } = {}) {
   const facts = currentFacts();
   const verdict = runtimeVerdict(facts, mode, prefix);
-  return {
+  const response = {
     status: verdict.status,
     ready: verdict.ready,
     phase: verdict.phase,
@@ -65,6 +70,9 @@ function buildReadyResponse(startup, actionTrace, mode, prefix) {
     action_trace: actionTrace,
     notes: verdict.notes,
   };
+  return postPermissionRepair
+    ? enforcePostPermissionLiveReadiness(response, { prefix, mode })
+    : response;
 }
 
 function stateDir(mode) {
@@ -181,6 +189,29 @@ function runReadyServiceAction(action, mode) {
   return runNodeScript('scripts/aos-service.mjs', [action, '--mode', mode, '--json']);
 }
 
+function readyServiceStatus(mode) {
+  if (process.env.AOS_TEST_READY_SERVICE_STATUS_JSON) {
+    try {
+      return JSON.parse(process.env.AOS_TEST_READY_SERVICE_STATUS_JSON);
+    } catch (err) {
+      return { status: 'unavailable', mode, error: `invalid test service status JSON: ${err.message}` };
+    }
+  }
+  const result = runNodeScript('scripts/aos-service.mjs', ['status', '--mode', mode, '--json']);
+  if (result.exitCode !== 0) {
+    return {
+      status: 'unavailable',
+      mode,
+      error: compactProcessDetail(result) || 'service status failed',
+    };
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch (err) {
+    return { status: 'unavailable', mode, error: `service status returned invalid JSON: ${err.message}` };
+  }
+}
+
 function skippedReadyStartup(mode, prefix) {
   return {
     attempted: false,
@@ -207,17 +238,17 @@ function runReadyStartup(mode, prefix, actionTrace) {
   };
 }
 
-function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs, pollMs = 500) {
+function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs, pollMs = 500, responseOptions = {}) {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
-    const response = buildReadyResponse(startup, actionTrace, mode, prefix);
+    const response = buildReadyResponse(startup, actionTrace, mode, prefix, responseOptions);
     if (response.ready) {
       const trace = [...actionTrace, {
         step: 'wait_for_recovery',
         result: 'ready',
         detail: 'daemon became ready during repair wait',
       }];
-      return buildReadyResponse(startup, trace, mode, prefix);
+      return buildReadyResponse(startup, trace, mode, prefix, responseOptions);
     }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pollMs);
   }
@@ -226,10 +257,10 @@ function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs, poll
     result: 'timed_out',
     detail: `daemon did not become ready within ${budgetMs}ms`,
   }];
-  return buildReadyResponse(startup, trace, mode, prefix);
+  return buildReadyResponse(startup, trace, mode, prefix, responseOptions);
 }
 
-function runReadyRuntimeRepair(startup, actionTrace, mode, prefix, budgetMs, reason) {
+function runReadyRuntimeRepair(startup, actionTrace, mode, prefix, budgetMs, reason, responseOptions) {
   const result = runReadyServiceAction('restart', mode);
   const detail = [reason, compactProcessDetail(result)].filter(Boolean).join('\n');
   const trace = [...actionTrace, {
@@ -246,17 +277,18 @@ function runReadyRuntimeRepair(startup, actionTrace, mode, prefix, budgetMs, rea
     prefix,
     Number.isFinite(testBudget) ? testBudget : budgetMs,
     Number.isFinite(testPoll) ? testPoll : 500,
+    responseOptions,
   );
 }
 
-function runReadyCleanRepair(startup, actionTrace, mode, prefix) {
+function runReadyCleanRepair(startup, actionTrace, mode, prefix, responseOptions) {
   const result = runAOS(['clean', '--json']);
   const trace = [...actionTrace, {
     step: 'clean',
     result: result.exitCode === 0 ? 'ok' : 'failed',
     detail: compactProcessDetail(result),
   }];
-  return buildReadyResponse(startup, trace, mode, prefix);
+  return buildReadyResponse(startup, trace, mode, prefix, responseOptions);
 }
 
 function printReadyHumanHandoff(response, mode, prefix) {
@@ -269,7 +301,7 @@ function printReadyHumanHandoff(response, mode, prefix) {
     process.stdout.write(`  Target binary: ${response.terminal_handoff.target_path}\n`);
     process.stdout.write('  Agent: end this turn now; do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes.\n');
     process.stdout.write(`  Human: ${response.terminal_handoff.human_action}\n`);
-    process.stdout.write(`  Session: after the user says ${response.terminal_handoff.next_user_signal}, run ${prefix} ready --post-permission\n`);
+    process.stdout.write(`  Session: after the user says ${response.terminal_handoff.next_user_signal}, run ${prefix} ready --repair --post-permission\n`);
     return;
   }
   const permissionBlockers = response.blockers.filter((blocker) => blocker.kind === 'permission');
@@ -325,13 +357,22 @@ function printText(response, mode, prefix) {
 const options = parseArgs(process.argv.slice(2));
 const mode = currentMode();
 const prefix = invocationName();
+const postPermissionRepair = Boolean(options.repair && options.postPermission);
+const responseOptions = { postPermissionRepair };
 let startup = skippedReadyStartup(mode, prefix);
-let response = buildReadyResponse(startup, [], mode, prefix);
+let response = buildReadyResponse(startup, [], mode, prefix, responseOptions);
+const postPermissionAuthority = postPermissionRepair
+  ? postPermissionRecoveryAuthority(response.runtime, readyServiceStatus(mode), {
+      mode,
+      expectedBinaryPath: expectedBinaryPath(mode),
+    })
+  : null;
 let stopped = false;
 for (let stepCount = 0; stepCount < 8; stepCount += 1) {
   const step = nextReadyExecutionStep(response, {
     repair: options.repair,
     postPermission: options.postPermission,
+    postPermissionAuthority,
     prefix,
     mode,
   });
@@ -345,17 +386,26 @@ for (let stepCount = 0; stepCount < 8; stepCount += 1) {
   if (step.type === 'start') {
     const started = runReadyStartup(mode, prefix, response.action_trace);
     startup = started.startup;
-    response = buildReadyResponse(startup, started.actionTrace, mode, prefix);
+    response = buildReadyResponse(startup, started.actionTrace, mode, prefix, responseOptions);
   } else if (step.type === 'clean') {
-    response = runReadyCleanRepair(startup, response.action_trace, mode, prefix);
+    response = runReadyCleanRepair(startup, response.action_trace, mode, prefix, responseOptions);
   } else if (step.type === 'restart') {
-    response = runReadyRuntimeRepair(startup, response.action_trace, mode, prefix, 20_000, null);
+    response = runReadyRuntimeRepair(
+      startup,
+      response.action_trace,
+      mode,
+      prefix,
+      20_000,
+      step.reason,
+      responseOptions,
+    );
   } else if (step.type === 'permission_handoff') {
     response = buildReadyResponse(
       startup,
       [...response.action_trace, step.trace],
       mode,
       prefix,
+      responseOptions,
     );
   } else {
     exitError(`Unknown readiness execution step: ${step.type}`, 'READY_EXECUTION_STEP_INVALID');

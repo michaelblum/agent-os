@@ -12,9 +12,232 @@ function stop(trace = undefined) {
   return trace ? { type: 'stop', trace } : { type: 'stop' };
 }
 
+function blockedPostPermissionRecovery(reason, detail) {
+  return stop({
+    step: 'post_permission_recovery',
+    result: 'blocked',
+    detail: `${reason}: ${detail}`,
+  });
+}
+
+export function postPermissionRecoveryAuthority(
+  runtime,
+  service,
+  { mode, expectedBinaryPath } = {},
+) {
+  if (!runtime || runtime.mode !== mode) {
+    return {
+      allowed: false,
+      reason: 'runtime_mode_mismatch',
+      detail: `requested mode=${mode ?? 'unknown'}, runtime mode=${runtime?.mode ?? 'unknown'}`,
+    };
+  }
+  const managedRuntime = runtime.ownership_state === 'consistent'
+    && runtime.owner_launchd_managed === true;
+  const absentRuntime = runtime.ownership_state === 'absent'
+    && runtime.daemon_running !== true
+    && runtime.socket_reachable !== true
+    && runtime.owner_pid == null
+    && runtime.serving_pid == null
+    && runtime.lock_owner_pid == null;
+  if (!managedRuntime && !absentRuntime) {
+    return {
+      allowed: false,
+      reason: runtime.ownership_state === 'mismatch'
+        ? 'daemon_ownership_mismatch'
+        : 'daemon_not_launchd_managed',
+      detail: `ownership state=${runtime.ownership_state ?? 'unknown'}, launchd_managed=${runtime.owner_launchd_managed === true}`,
+    };
+  }
+  if (!service || service.status === 'unavailable') {
+    return {
+      allowed: false,
+      reason: 'service_identity_unavailable',
+      detail: service?.error ?? 'managed service status could not be read',
+    };
+  }
+  if (service.mode !== mode) {
+    return {
+      allowed: false,
+      reason: 'service_mode_mismatch',
+      detail: `requested mode=${mode}, service mode=${service.mode ?? 'unknown'}`,
+    };
+  }
+  if (!service.installed) {
+    return {
+      allowed: false,
+      reason: 'managed_service_not_installed',
+      detail: 'the expected launchd service definition is not installed',
+    };
+  }
+  const targetMatches = service.target_matches_expected === true
+    && service.actual_binary_path === service.expected_binary_path
+    && service.expected_binary_path === expectedBinaryPath;
+  if (!targetMatches) {
+    return {
+      allowed: false,
+      reason: 'binary_identity_mismatch',
+      detail: `actual=${service.actual_binary_path ?? 'unknown'}, service_expected=${service.expected_binary_path ?? 'unknown'}, ready_expected=${expectedBinaryPath ?? 'unknown'}`,
+    };
+  }
+  if (managedRuntime && (!service.loaded || !service.running)) {
+    return {
+      allowed: false,
+      reason: 'managed_service_state_mismatch',
+      detail: `runtime is launchd-managed but service loaded=${Boolean(service.loaded)}, running=${Boolean(service.running)}`,
+    };
+  }
+  if (absentRuntime && service.running) {
+    return {
+      allowed: false,
+      reason: 'managed_service_state_mismatch',
+      detail: 'runtime ownership is absent but service status reports a running process',
+    };
+  }
+  return {
+    allowed: true,
+    mode,
+    binary_path: expectedBinaryPath,
+    service_pid: service.pid,
+    daemon_pid: runtime.serving_pid ?? runtime.daemon_pid,
+    requires_restart: absentRuntime,
+  };
+}
+
+function liveInputTapConfirmed(response) {
+  const tap = response.runtime?.input_tap;
+  return response.ready_source === 'daemon'
+    && (tap?.status ?? response.runtime?.input_tap_status) === 'active'
+    && tap?.listen_access === true
+    && tap?.post_access === true;
+}
+
+export function enforcePostPermissionLiveReadiness(response, { prefix = './aos', mode = response.mode } = {}) {
+  if (!response.ready || liveInputTapConfirmed(response)) return response;
+
+  const blocker = {
+    kind: 'runtime',
+    id: 'post_permission_live_readiness_unconfirmed',
+    scope: 'daemon',
+    message: 'Post-permission recovery requires fresh live daemon input-tap, listen, and post facts; passive CLI grants alone are insufficient.',
+    blocks: ['see', 'do', 'listen'],
+  };
+  const blockers = [...(response.blockers ?? [])];
+  if (!blockers.some((item) => item.id === blocker.id)) blockers.push(blocker);
+  const blockedCapabilities = [...new Set([
+    ...(response.blocked_capabilities ?? []),
+    ...blocker.blocks,
+  ])].sort();
+  const nextActions = [
+    {
+      type: 'command',
+      label: 'inspect the launchd target before any post-permission restart',
+      command: `${prefix} service status --mode ${mode} --json`,
+    },
+    {
+      type: 'command',
+      label: 'inspect fresh live daemon input-tap facts',
+      command: `${prefix} status --json`,
+    },
+  ];
+  const notes = [
+    ...(response.notes ?? []),
+    'Post-permission readiness stayed fail-closed because the live daemon tap view was unavailable or stale.',
+  ];
+  const verdict = {
+    ...response.runtime_verdict,
+    ready: false,
+    status: 'degraded',
+    phase: 'runtime_blocked',
+    diagnosis: blocker.id,
+    blockers,
+    blocked_capabilities: blockedCapabilities,
+    next_actions: nextActions,
+    notes,
+  };
+  return {
+    ...response,
+    ready: false,
+    status: 'degraded',
+    phase: 'runtime_blocked',
+    diagnosis: blocker.id,
+    blockers,
+    blocked_capabilities: blockedCapabilities,
+    next_actions: nextActions,
+    notes,
+    runtime_verdict: verdict,
+  };
+}
+
+function nextPostPermissionRepairStep(response, authority) {
+  if (!authority?.allowed) {
+    return blockedPostPermissionRecovery(
+      authority?.reason ?? 'service_identity_unavailable',
+      authority?.detail ?? 'post-permission recovery authority was not established',
+    );
+  }
+  if (response.ready) {
+    return stop(response.action_trace?.length ? undefined : {
+      step: 'ready_preflight',
+      result: 'ready',
+      detail: 'live daemon input tap is active after the post-permission user signal',
+    });
+  }
+  if (hasTrace(response, 'service_restart')) {
+    return stop({
+      step: 'post_permission_recovery',
+      result: 'exhausted',
+      detail: 'the single managed restart was already attempted; no restart loop will run',
+    });
+  }
+
+  const blockerIDs = new Set((response.blockers ?? []).map((blocker) => blocker.id));
+  for (const id of [
+    'agent_os_worktree_default_runtime',
+    'daemon_ownership_mismatch',
+    'daemon_unmanaged',
+    'daemon_foreground_dev_default',
+    'stale_daemons',
+  ]) {
+    if (blockerIDs.has(id)) {
+      return blockedPostPermissionRecovery(id, 'runtime ownership must be resolved before post-permission recovery');
+    }
+  }
+
+  const passive = response.permissions ?? {};
+  const missingPassive = ['accessibility', 'listen_access', 'post_access']
+    .filter((id) => passive[id] !== true);
+  if (missingPassive.length) {
+    return blockedPostPermissionRecovery(
+      'post_permission_signal_unconfirmed',
+      `passive grants still missing: ${missingPassive.join(', ')}`,
+    );
+  }
+
+  const tap = response.runtime?.input_tap;
+  const tapStatus = tap?.status ?? response.runtime?.input_tap_status;
+  const needsLiveRefresh = authority.requires_restart === true
+    || blockerIDs.has('post_permission_live_readiness_unconfirmed')
+    || blockerIDs.has('input_tap_not_active')
+    || (response.blockers ?? []).some((blocker) => blocker.reason === 'post_rebuild_tcc_stale')
+    || (tapStatus && tapStatus !== 'active');
+  if (!needsLiveRefresh) return stop();
+
+  return {
+    type: 'restart',
+    reason: 'refresh the launchd-managed daemon event tap after the explicit post-permission user signal',
+  };
+}
+
 export function nextReadyExecutionStep(
   response,
-  { repair = false, postPermission = false, prefix = './aos', mode = response.mode } = {},
+  {
+    repair = false,
+    postPermission = false,
+    postPermissionAuthority = null,
+    prefix = './aos',
+    mode = response.mode,
+  } = {},
 ) {
   if (!repair) {
     return stop({
@@ -25,6 +248,8 @@ export function nextReadyExecutionStep(
         : `${postPermission ? 'post-permission verification' : 'readiness check'} is read-only; no runtime mutation attempted`,
     });
   }
+
+  if (postPermission) return nextPostPermissionRepairStep(response, postPermissionAuthority);
 
   if (response.ready) {
     return stop(response.action_trace?.length ? undefined : {

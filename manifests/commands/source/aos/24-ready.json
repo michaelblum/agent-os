@@ -29,7 +29,7 @@
               "id": "post-permission",
               "kind": "flag",
               "required": false,
-              "summary": "Read-only bounded verification after the human re-adds macOS permissions",
+              "summary": "Read-only bounded verification after the human re-adds permissions; combine with --repair for one guarded managed restart",
               "token": "--post-permission",
               "value_type": "bool"
             }
@@ -38,6 +38,7 @@
             "aos ready",
             "aos ready --repair",
             "aos ready --post-permission",
+            "aos ready --repair --post-permission",
             "aos ready --json"
           ],
           "execution": {

@@ -124,7 +124,7 @@ reset path instead of asking you to remove rows in System Settings by hand.
    Michael to explicitly ask for emergency recovery.
 4. After the reset, I will run `./aos permissions setup --once`.
 5. When you finish the macOS prompts and say `finished`, I will run
-   `./aos ready --post-permission`.
+   `./aos ready --repair --post-permission`.
 
 I will not open Settings for you, run repeated repair loops, or ask you to
 remove an active daemon from Input Monitoring.
@@ -152,7 +152,7 @@ actions = data.get("next_actions") or []
 commands = [action.get("command") for action in actions]
 if "./aos permissions setup --once" not in commands:
     raise SystemExit("dry-run omitted permissions setup next_action")
-if "./aos ready --post-permission" not in commands:
+if "./aos ready --repair --post-permission" not in commands:
     raise SystemExit("dry-run omitted post-permission ready next_action")
 if data.get("service_resets", []) != []:
     raise SystemExit(f"normal dry-run unexpectedly advertised service resets: {data.get('service_resets')}")
@@ -185,12 +185,12 @@ if "./aos permissions reset-runtime --mode repo" not in commands:
     raise SystemExit("ready output omitted permissions reset-runtime next_action")
 if "./aos permissions setup --once" not in commands:
     raise SystemExit("ready output omitted permissions setup next_action")
-if "./aos ready --post-permission" not in commands:
+if "./aos ready --repair --post-permission" not in commands:
     raise SystemExit("ready output omitted ready post-permission next_action")
 
 reset_index = commands.index("./aos permissions reset-runtime --mode repo")
 setup_index = commands.index("./aos permissions setup --once")
-post_index = commands.index("./aos ready --post-permission")
+post_index = commands.index("./aos ready --repair --post-permission")
 if not reset_index < setup_index < post_index:
     raise SystemExit(f"unsafe next_action order: {commands}")
 
@@ -267,7 +267,7 @@ from pathlib import Path
 data = json.loads(Path(sys.argv[1]).read_text())
 if data.get("ready") is not True:
     raise SystemExit(f"post-permission readiness did not pass: {data}")
-print("PASS: ./aos ready --post-permission reported ready=true")
+print("PASS: ./aos ready --repair --post-permission reported ready=true")
 PY
 }
 
@@ -330,7 +330,7 @@ fi
 
 ./aos permissions setup --once
 require_phrase "After completing the macOS prompts, type finished to run the post-permission check." "finished"
-capture_json ready-after ./aos ready --post-permission --json
+capture_json ready-after ./aos ready --repair --post-permission --json
 validate_ready_after
 
 echo "PASS: disruptive agent/user TCC reset path completed"

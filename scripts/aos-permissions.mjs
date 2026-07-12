@@ -374,8 +374,8 @@ function resetPostActions() {
     },
     {
       type: 'command',
-      label: 'bounded readiness check after permissions have been granted',
-      command: `${prefix} ready --post-permission`,
+      label: 'guarded managed restart and bounded readiness check after permissions have been granted',
+      command: `${prefix} ready --repair --post-permission`,
     },
   ];
 }
@@ -386,7 +386,7 @@ function resetFallbackLines(mode, targetPath) {
     `Confirm the managed daemon is stopped: ${prefix} service status --mode ${mode}`,
     `Normal fallback only if running=false: remove/re-add ${targetPath} in Accessibility and/or Input Monitoring.`,
     'Service-wide TCC reset is break-glass only; do not run it unless Michael explicitly asks for emergency recovery.',
-    `Return to the waiting session and say: finished; the session then runs ${prefix} ready --post-permission.`,
+    `Return to the waiting session and say: finished; the session then runs ${prefix} ready --repair --post-permission.`,
   ];
 }
 

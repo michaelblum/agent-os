@@ -26,7 +26,7 @@ binary. If a later live TCC-backed readiness check reports
 `post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
 prints a terminal handoff, and the agent must end the current turn. The next
 user response is the signal that they manually reset/regranted TCC; resume with
-`./aos ready --post-permission`.
+`./aos ready --repair --post-permission`.
 
 When you are unsure which loop applies, ask the router first:
 
@@ -80,7 +80,8 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 ```bash
 ./aos permissions setup --once   # One-time Accessibility, Screen Recording, Input Monitoring, and Microphone flow
 ./aos ready                      # Primary readiness gate
-./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring/Microphone
+./aos ready --post-permission    # Read-only check after human re-grants permissions
+./aos ready --repair --post-permission # One guarded managed restart + bounded live recheck after the human signal
 ./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
 ./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed
@@ -93,7 +94,7 @@ three-chime handoff. Do not run reset-runtime, setup, service restart, another
 ready probe, or any other TCC-backed command in the same turn. The human
 physically removes and re-adds the repo-mode `aos` runtime in System Settings,
 then says `finished` in the waiting session. The session then runs
-`./aos ready --post-permission` to verify.
+`./aos ready --repair --post-permission` to refresh and verify the live tap.
 Service-wide TCC reset affects other apps and is a break-glass capability only;
 do not use `--allow-service-reset --emergency-ack-other-apps` unless Michael
 explicitly asks for emergency recovery.
@@ -106,7 +107,8 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 
 ```bash
 ./aos ready                       # Start/check AOS and report readiness blockers
-./aos ready --post-permission     # Post-permission handoff check; no repeated ad-hoc repair loops
+./aos ready --post-permission     # Read-only post-permission diagnostic
+./aos ready --repair --post-permission # Guarded one-restart post-user-signal recovery
 ./aos ready --repair              # Restart/wait/recheck, then human instructions if needed
 ./aos status                      # Read-only runtime/session snapshot
 ./aos introspect review           # Self-review / recovery after failed attempts

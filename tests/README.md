@@ -143,7 +143,8 @@ proof. The stop point is a readiness result that reports
 `post_rebuild_tcc_stale`: it plays
 the three-chime handoff alert, returns a terminal handoff, and agents must end
 the turn. After the user manually resets/regrants TCC and replies `finished`,
-verify with `./aos ready --post-permission`.
+verify with `./aos ready --repair --post-permission`. That resume path performs
+at most one identity-checked managed restart before its bounded live recheck.
 
 Run this rebuild only from the primary checkout. If the current task cannot
 mutate the native binary, return the work to the maintainer.
