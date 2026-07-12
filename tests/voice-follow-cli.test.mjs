@@ -71,6 +71,154 @@ function event(name, data, ref) {
   return `${JSON.stringify({ v: 1, service: 'voice', event: name, ts: 1, data, ref })}\n`;
 }
 
+const startingDaemonSource = `#!/usr/bin/env node
+const fs = require('node:fs');
+const net = require('node:net');
+const path = require('node:path');
+const root = process.env.AOS_STATE_ROOT;
+const mode = process.env.AOS_RUNTIME_MODE || 'repo';
+const modeRoot = path.join(root, mode);
+const socketPath = path.join(modeRoot, 'sock');
+const lockPath = path.join(modeRoot, 'daemon.lock');
+fs.mkdirSync(modeRoot, { recursive: true });
+fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, mode, socket_path: socketPath }));
+let server = null;
+let closing = false;
+const startupTimer = setTimeout(() => {
+  try { fs.rmSync(socketPath, { force: true }); } catch {}
+  server = net.createServer((socket) => socket.on('data', () => {}));
+  server.listen(socketPath);
+}, Number(process.env.AOS_FAKE_START_DELAY_MS || 2000));
+const keepalive = setInterval(() => {}, 1000);
+function finish() {
+  clearInterval(keepalive);
+  try { fs.rmSync(socketPath, { force: true }); } catch {}
+  try { fs.rmSync(lockPath, { force: true }); } catch {}
+  process.exit(0);
+}
+function shutdown() {
+  if (process.env.AOS_FAKE_IGNORE_SIGTERM === '1') return;
+  if (closing) return;
+  closing = true;
+  clearTimeout(startupTimer);
+  if (server) server.close(finish);
+  else finish();
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+`;
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForFile(filePath, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fs.access(filePath);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  throw new Error(`timed out waiting for ${filePath}`);
+}
+
+async function socketReachable(socketPath) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(socketPath);
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, 100);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.end();
+      resolve(true);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+async function runStartupCancellation({ command, signal = null, parentLoss = false, ignoreSigterm = false }) {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), `aos-voice-startup-${command}-`));
+  const fakeAOS = path.join(stateRoot, 'fake-aos.cjs');
+  const lockPath = path.join(stateRoot, 'repo', 'daemon.lock');
+  const socketPath = path.join(stateRoot, 'repo', 'sock');
+  await fs.writeFile(fakeAOS, startingDaemonSource);
+  await fs.chmod(fakeAOS, 0o755);
+  const args = command === 'listen'
+    ? ['listen', '--source', 'hotkey', '--shortcut', 'Control+Option+Space', '--follow']
+    : ['--follow'];
+  const script = command === 'listen' ? 'scripts/aos-tell-listen.mjs' : 'scripts/aos-say.mjs';
+  const run = launch(script, args, stateRoot, {
+    AOS_PATH: fakeAOS,
+    AOS_ALLOW_DAEMON_AUTOSTART: '1',
+    AOS_DISABLE_DAEMON_AUTOSTART: '0',
+    AOS_FAKE_START_DELAY_MS: '5000',
+    AOS_FAKE_IGNORE_SIGTERM: ignoreSigterm ? '1' : '0',
+    ...(parentLoss ? { AOS_EXTERNAL_DISPATCH_PARENT_PID: '2147483647' } : {}),
+  });
+  if (command === 'say') run.child.stdin.end('startup cancellation speech');
+
+  let daemonPID;
+  try {
+    await waitForFile(lockPath);
+    daemonPID = JSON.parse(await fs.readFile(lockPath, 'utf8')).pid;
+    if (signal) run.child.kill(signal);
+    const timeoutMs = ignoreSigterm ? 5000 : 3000;
+    let timer;
+    const result = await Promise.race([
+      run.completed,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${command} wrapper did not exit during managed startup cancellation`)), timeoutMs);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(processAlive(daemonPID), false, `managed daemon ${daemonPID} survived ${command} startup cancellation`);
+    assert.equal(await socketReachable(socketPath), false, `${command} startup socket remained reachable`);
+  } finally {
+    if (daemonPID && processAlive(daemonPID)) {
+      try { process.kill(daemonPID, 'SIGKILL'); } catch {}
+    }
+    if (processAlive(run.child.pid)) {
+      try { run.child.kill('SIGKILL'); } catch {}
+    }
+    await fs.rm(stateRoot, { recursive: true, force: true });
+  }
+}
+
+test('listen and say repeatedly cancel managed daemon startup on SIGINT and SIGTERM', async () => {
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    for (const command of ['listen', 'say']) {
+      for (const signal of ['SIGINT', 'SIGTERM']) {
+        await runStartupCancellation({ command, signal });
+      }
+    }
+  }
+});
+
+test('listen and say cancel managed daemon startup when the external dispatcher disappears', async () => {
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    for (const command of ['listen', 'say']) {
+      await runStartupCancellation({ command, parentLoss: true });
+    }
+  }
+});
+
+test('managed startup cancellation escalates to SIGKILL and still awaits daemon exit', async () => {
+  await runStartupCancellation({ command: 'listen', signal: 'SIGTERM', ignoreSigterm: true });
+});
+
 test('hotkey follow emits only canonical dictation events and ignores fragmentation', async () => {
   let firstRequest;
   const stateRoot = await fakeDaemon((request, socket) => {

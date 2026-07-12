@@ -22,6 +22,10 @@ needs, but public command policy and product UI policy belong above it:
 - product-specific daemon branches are prohibited unless an explicit temporary
   adapter names its external contract and removal gate.
 
+Shared native response serialization lives in
+`src/shared/response-envelope.swift`; direct replies and daemon connection
+writers must use that single NDJSON envelope encoder.
+
 When a WebView or toolkit implementation is slow, do not move the whole feature
 into Swift by reflex. Identify the missing native primitive first, then keep the
 policy at the lowest reusable layer that still preserves opt-in customization.

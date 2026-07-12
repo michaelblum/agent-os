@@ -98,22 +98,28 @@ function monitorExternalDispatchParent(onDisconnect) {
 }
 
 async function followVoice({ service, action, data, stopAction, cancelAction, terminalEvents = TERMINAL_EVENTS }) {
-  const connection = await connectWithAutoStart({ managed: true });
-  const socket = connection?.socket;
-  if (!socket) fail('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
+  const startupAbort = new AbortController();
+  let startupCanceled = false;
+  let ownedDaemon = null;
+  let connection = null;
+  let socket = null;
   const ref = randomUUID();
   let buffer = '';
   let settled = false;
   let controlSent = false;
   let parentMonitor = null;
+  let cleanupPromise = null;
 
   const cleanup = (exitCode = 0) => {
-    if (settled) return;
+    if (cleanupPromise) return cleanupPromise;
     settled = true;
     if (parentMonitor) clearInterval(parentMonitor);
-    socket.end();
-    stopManagedDaemon(connection.daemon);
-    process.exitCode = exitCode;
+    cleanupPromise = (async () => {
+      if (socket && !socket.destroyed) socket.end();
+      await stopManagedDaemon(ownedDaemon ?? connection?.daemon);
+      process.exitCode = exitCode;
+    })();
+    return cleanupPromise;
   };
 
   const sendControl = (kind) => {
@@ -128,9 +134,31 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
     setTimeout(() => cleanup(kind === 'stop' ? 0 : 143), 2000).unref();
   };
 
-  process.once('SIGINT', () => sendControl('stop'));
-  process.once('SIGTERM', () => sendControl('cancel'));
-  parentMonitor = monitorExternalDispatchParent(() => sendControl('cancel'));
+  const requestShutdown = (kind) => {
+    if (settled) return;
+    if (!connection) {
+      startupCanceled = true;
+      startupAbort.abort();
+      return;
+    }
+    sendControl(kind);
+  };
+
+  process.once('SIGINT', () => requestShutdown('stop'));
+  process.once('SIGTERM', () => requestShutdown('cancel'));
+  parentMonitor = monitorExternalDispatchParent(() => requestShutdown('cancel'));
+
+  connection = await connectWithAutoStart({
+    managed: true,
+    signal: startupAbort.signal,
+    onManagedDaemon: (daemon) => { ownedDaemon = daemon; },
+  });
+  socket = connection?.socket ?? null;
+  if (startupCanceled || startupAbort.signal.aborted) {
+    await cleanup(0);
+    return;
+  }
+  if (!socket) fail('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
 
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');

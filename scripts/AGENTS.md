@@ -88,7 +88,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
   stdin, do not echo speech text or capture paths through events or errors, and
   cancel the connection-scoped lease when the native external-dispatch owner
-  exits.
+  exits. Signal and parent-loss handling must be active before managed daemon
+  startup, and startup cancellation must await termination of any owned child.
 - `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
   Install signal and parent-exit handling before auto-start, forward shutdown
   to that child, and await confirmed child exit before the listener exits.

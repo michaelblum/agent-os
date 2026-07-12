@@ -32,6 +32,11 @@ playback, meters, and connection cleanup. It must not own transcription,
 conversation policy, product presence state, or branded voice behavior. Voice
 events must never carry audio bytes, spoken text, or local paths.
 
+`connection-outbound-writer.swift` owns daemon socket output. Each connection
+has one bounded serial writer for responses and events; slow-client timeout or
+overflow shuts down only that connection, and queued work must quiesce before
+its file descriptor is closed or reusable.
+
 Avoid daemon-side surface policy:
 
 - no default chip layout, panel theme, snap preference, or workbench layout;

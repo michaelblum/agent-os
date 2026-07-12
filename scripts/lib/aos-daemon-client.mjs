@@ -32,22 +32,57 @@ function autoStartAllowed() {
   return process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1';
 }
 
-function connectOnce(timeoutMs = 1000) {
+function connectOnce(timeoutMs = 1000, signal = null) {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(null);
+      return;
+    }
     const socket = net.createConnection(aosSocketPath());
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(value);
+    };
+    const onAbort = () => {
+      socket.destroy();
+      finish(null);
+    };
     const timer = setTimeout(() => {
       socket.destroy();
-      resolve(null);
+      finish(null);
     }, timeoutMs);
     socket.once('connect', () => {
-      clearTimeout(timer);
-      resolve(socket);
+      finish(socket);
     });
     socket.once('error', () => {
-      clearTimeout(timer);
       socket.destroy();
-      resolve(null);
+      finish(null);
     });
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function abortableDelay(milliseconds, signal = null) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const finish = (completed) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(completed);
+    };
+    const onAbort = () => finish(false);
+    const timer = setTimeout(() => finish(true), milliseconds);
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
@@ -75,7 +110,12 @@ function startDaemon({ managed = false } = {}) {
 }
 
 export async function connectWithAutoStart(options = {}) {
-  let socket = await connectOnce();
+  const signal = options.signal ?? null;
+  let socket = await connectOnce(1000, signal);
+  if (signal?.aborted) {
+    socket?.destroy();
+    return null;
+  }
   if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
@@ -86,19 +126,53 @@ export async function connectWithAutoStart(options = {}) {
     return null;
   }
   const daemon = startDaemon(options);
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    socket = await connectOnce();
-    if (socket) return { socket, daemon };
+  if (daemon) options.onManagedDaemon?.(daemon);
+  let terminationPromise = null;
+  const terminateOwnedDaemon = () => {
+    terminationPromise ??= stopManagedDaemon(daemon);
+    return terminationPromise;
+  };
+  const onAbort = () => { void terminateOwnedDaemon(); };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) {
+    await terminateOwnedDaemon();
+    signal?.removeEventListener('abort', onAbort);
+    return null;
   }
-  stopManagedDaemon(daemon);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (!await abortableDelay(100, signal)) break;
+    socket = await connectOnce(1000, signal);
+    if (signal?.aborted) {
+      socket?.destroy();
+      break;
+    }
+    if (socket) {
+      signal?.removeEventListener('abort', onAbort);
+      return { socket, daemon };
+    }
+  }
+  await terminateOwnedDaemon();
+  signal?.removeEventListener('abort', onAbort);
   return null;
 }
 
-export function stopManagedDaemon(daemon) {
+export async function stopManagedDaemon(daemon, graceMs = 1500) {
   if (!daemon || daemon.exitCode !== null || daemon.signalCode !== null) return;
-  daemon.kill('SIGTERM');
-  setTimeout(() => {
-    if (daemon.exitCode === null && daemon.signalCode === null) daemon.kill('SIGKILL');
-  }, 250).unref();
+  await new Promise((resolve) => {
+    let killTimer = null;
+    const finish = () => {
+      if (killTimer) clearTimeout(killTimer);
+      resolve();
+    };
+    daemon.once('exit', finish);
+    if (daemon.exitCode !== null || daemon.signalCode !== null) {
+      daemon.off('exit', finish);
+      finish();
+      return;
+    }
+    daemon.kill('SIGTERM');
+    killTimer = setTimeout(() => {
+      if (daemon.exitCode === null && daemon.signalCode === null) daemon.kill('SIGKILL');
+    }, graceMs);
+  });
 }

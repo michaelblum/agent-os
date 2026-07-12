@@ -152,7 +152,6 @@ class UnifiedDaemon {
     // Maintained alongside canvasCreatedBy so cascade-remove doesn't need a scan.
     var canvasChildren: [String: Set<String>] = [:]
     private var activeConnections = Set<UUID>()
-    private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
     private var signalSources: [DispatchSourceSignal] = []
     private var isShuttingDown = false
     private let inputRegionLock = NSLock()
@@ -181,7 +180,7 @@ class UnifiedDaemon {
     private let lastPositionsLock = NSLock()
 
     struct SubscriberConnection {
-        let fd: Int32
+        let outbound: AOSConnectionOutboundWriter
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
         var wantsInputEvents: Bool
@@ -571,19 +570,10 @@ class UnifiedDaemon {
         guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
 
         subscriberLock.lock()
-        let fds = subscribers.values.filter(\.isSubscribed).map(\.fd)
+        let writers = subscribers.values.filter(\.isSubscribed).map(\.outbound)
         subscriberLock.unlock()
 
-        guard !fds.isEmpty else { return }
-
-        let byteArray = [UInt8](bytes)
-        eventWriteQueue.async {
-            for fd in fds {
-                byteArray.withUnsafeBufferPointer { ptr in
-                    _ = write(fd, ptr.baseAddress!, ptr.count)
-                }
-            }
-        }
+        for writer in writers { writer.enqueue(bytes) }
     }
 
     private func emitVoiceTransportEvent(
@@ -593,28 +583,21 @@ class UnifiedDaemon {
         ref: String?
     ) {
         guard let bytes = envelopeBytes(service: "voice", event: event, data: data, ref: ref) else { return }
-        eventWriteQueue.async { [weak self] in
-            guard let self else { return }
-            self.subscriberLock.lock()
-            let fd = self.subscribers[connectionID]?.fd
-            self.subscriberLock.unlock()
-            guard let fd else { return }
-            bytes.withUnsafeBytes { pointer in
-                guard let address = pointer.baseAddress else { return }
-                _ = write(fd, address, pointer.count)
-            }
-        }
+        subscriberLock.lock()
+        let writer = subscribers[connectionID]?.outbound
+        subscriberLock.unlock()
+        writer?.enqueue(bytes)
     }
 
     private func sendVoiceTransportError(
-        to clientFD: Int32,
+        to writer: AOSConnectionOutboundWriter,
         message: String,
         code: String,
         envelopeActive: Bool,
         envelopeRef: String?
     ) {
         sendResponseJSON(
-            to: clientFD,
+            to: writer,
             ["error": message, "code": code],
             envelopeActive: envelopeActive,
             envelopeRef: envelopeRef
@@ -2497,10 +2480,16 @@ class UnifiedDaemon {
 
     private func handleConnection(_ clientFD: Int32) {
         let connectionID = UUID()
+        let outbound = AOSConnectionOutboundWriter(connectionID: connectionID, fd: clientFD)
 
         subscriberLock.lock()
         activeConnections.insert(connectionID)
-        subscribers[connectionID] = SubscriberConnection(fd: clientFD, perceptionChannelIDs: [], isSubscribed: false, wantsInputEvents: false)
+        subscribers[connectionID] = SubscriberConnection(
+            outbound: outbound,
+            perceptionChannelIDs: [],
+            isSubscribed: false,
+            wantsInputEvents: false
+        )
         subscriberLock.unlock()
 
         defer {
@@ -2519,6 +2508,7 @@ class UnifiedDaemon {
                 self?.checkIdle()
             }
 
+            outbound.closeAndWait()
             close(clientFD)
         }
 
@@ -2529,7 +2519,24 @@ class UnifiedDaemon {
 
         while true {
             let bytesRead = read(clientFD, &chunk, chunk.count)
-            guard bytesRead > 0 else { break }
+            if bytesRead == 0 { break }
+            if bytesRead < 0 {
+                if errno == EINTR { continue }
+                if errno == EAGAIN || errno == EWOULDBLOCK {
+                    var descriptor = pollfd(fd: clientFD, events: Int16(POLLIN), revents: 0)
+                    let pollResult = poll(&descriptor, 1, 1_000)
+                    if pollResult < 0 {
+                        if errno == EINTR { continue }
+                        break
+                    }
+                    if pollResult == 0 { continue }
+                    if descriptor.revents & Int16(POLLIN) != 0 { continue }
+                    let failedEvents = Int16(POLLERR | POLLHUP | POLLNVAL)
+                    if descriptor.revents & failedEvents != 0 { break }
+                    continue
+                }
+                break
+            }
             buffer.append(contentsOf: chunk[0..<bytesRead])
 
             while let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
@@ -2537,11 +2544,11 @@ class UnifiedDaemon {
                 buffer = Data(buffer[(buffer.index(after: newlineIndex))...])
 
                 guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
-                    sendResponseJSON(to: clientFD, ["error": "Invalid JSON", "code": "PARSE_ERROR"])
+                    sendResponseJSON(to: outbound, ["error": "Invalid JSON", "code": "PARSE_ERROR"])
                     continue
                 }
 
-                handleRequest(json: json, connectionID: connectionID, clientFD: clientFD)
+                handleRequest(json: json, connectionID: connectionID, outbound: outbound)
             }
         }
     }
@@ -2667,31 +2674,40 @@ class UnifiedDaemon {
     /// that hold a persistent socket and cannot use sendEnvelopeRequest's
     /// one-shot API. This carve-out will be cleaned up when a `listen.subscribe`
     /// v1 action is defined (tracked separately).
-    private func handleRequest(json: [String: Any], connectionID: UUID, clientFD: Int32) {
+    private func handleRequest(
+        json: [String: Any],
+        connectionID: UUID,
+        outbound: AOSConnectionOutboundWriter
+    ) {
         if isEnvelopeShape(json) {
             // Envelope request: routeAction will parse and dispatch it.
-            routeAction("", json: json, clientFD: clientFD, connectionID: connectionID)
+            routeAction("", json: json, outbound: outbound, connectionID: connectionID)
             return
         }
         // Non-envelope: allow only the explicit legacy carve-out for streaming subscribers.
         if let action = json["action"] as? String, action == "subscribe" {
-            routeAction(action, json: json, clientFD: clientFD, connectionID: connectionID)
+            routeAction(action, json: json, outbound: outbound, connectionID: connectionID)
             return
         }
         // All other non-envelope requests are rejected.
-        sendResponseJSON(to: clientFD, [
+        sendResponseJSON(to: outbound, [
             "error": "Request envelope required ({v:1, service, action, data}).",
             "code": "PARSE_ERROR"
         ])
     }
 
-    private func routeAction(_ action: String, json: [String: Any], clientFD: Int32, connectionID: UUID) {
+    private func routeAction(
+        _ action: String,
+        json: [String: Any],
+        outbound: AOSConnectionOutboundWriter,
+        connectionID: UUID
+    ) {
         // Envelope dispatch: translate (service, action) to the legacy flat action
         // string and reshape `data` back into the top-level JSON the legacy
         // handlers expect. This keeps handler bodies untouched.
         if isEnvelopeShape(json) {
             guard let env = parseEnvelope(json) else {
-                sendResponseJSON(to: clientFD, envelopeError(
+                sendResponseJSON(to: outbound, envelopeError(
                     error: "Request envelope has v:1 but malformed fields",
                     code: "PARSE_ERROR",
                     ref: json["ref"] as? String
@@ -2701,7 +2717,7 @@ class UnifiedDaemon {
             // Check that the service is one of the known namespaces.
             let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
-                sendResponseJSON(to: clientFD, envelopeError(
+                sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
                     code: "UNKNOWN_SERVICE",
                     ref: env.ref
@@ -2710,7 +2726,7 @@ class UnifiedDaemon {
             }
             let legacyAction = legacyActionName(service: env.service, action: env.action)
             guard let legacy = legacyAction else {
-                sendResponseJSON(to: clientFD, envelopeError(
+                sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown (service, action): (\(env.service), \(env.action))",
                     code: "UNKNOWN_ACTION",
                     ref: env.ref
@@ -2722,7 +2738,7 @@ class UnifiedDaemon {
             flat["action"] = legacy
             flat["__envelope_ref"] = env.ref ?? ""
             flat["__envelope_active"] = true
-            routeAction(legacy, json: flat, clientFD: clientFD, connectionID: connectionID)
+            routeAction(legacy, json: flat, outbound: outbound, connectionID: connectionID)
             return
         }
 
@@ -2745,8 +2761,8 @@ class UnifiedDaemon {
             subscribers[connectionID]?.isSubscribed = true
             subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
+            sendResponseJSON(to: outbound, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            if wantsSnapshot { sendSubscriberSnapshots(to: outbound, events: events) }
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "audit":
@@ -2760,12 +2776,12 @@ class UnifiedDaemon {
                 semaphore.signal()
             }
             semaphore.wait()
-            sendResponseJSON(to: clientFD, audit, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, audit, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
             guard var request = CanvasRequest.from(requestData) else {
-                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
 
@@ -2784,7 +2800,7 @@ class UnifiedDaemon {
             }
             semaphore.wait()
 
-            sendResponseJSON(to: clientFD, canvasResponseDict(response), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, canvasResponseDict(response), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
             // Announce display actions
             if currentConfig.voice.enabled && currentConfig.voice.announce_actions {
@@ -2811,7 +2827,7 @@ class UnifiedDaemon {
         case "post":
             let requestData = lineData(from: json)
             guard let request = CanvasRequest.from(requestData) else {
-                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let postSemaphore = DispatchSemaphore(value: 0)
@@ -2822,24 +2838,24 @@ class UnifiedDaemon {
                 postSemaphore.signal()
             }
             postSemaphore.wait()
-            sendResponseJSON(to: clientFD, canvasResponseDict(postResponse), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, canvasResponseDict(postResponse), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Coordination actions --
         case "tell":
-            handleTellAction(json: json, clientFD: clientFD)
+            handleTellAction(json: json, outbound: outbound)
 
         case "coord-register":
             let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let canonicalSessionID = sessionID, !canonicalSessionID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "session_id required for registration", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "session_id required for registration", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let legacyName = name?.isEmpty == false ? name : nil
             let role = json["role"] as? String ?? "worker"
             let harness = json["harness"] as? String ?? "unknown"
             let result = coordination.registerSession(sessionID: canonicalSessionID, name: legacyName, role: role, harness: harness)
-            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-unregister":
             let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2847,15 +2863,15 @@ class UnifiedDaemon {
             let normalizedName = name?.isEmpty == false ? name : nil
             let normalizedSessionID = sessionID?.isEmpty == false ? sessionID : nil
             guard normalizedSessionID != nil || normalizedName != nil else {
-                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "session_id or name required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let result = coordination.unregisterSession(sessionID: normalizedSessionID, name: normalizedName)
-            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-who":
             let sessions = coordination.whoIsOnline()
-            sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["status": "ok", "sessions": sessions], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-list":
             var voices = coordination.voiceCatalog()
@@ -2872,25 +2888,25 @@ class UnifiedDaemon {
                         && (avail?["reachable"] as? Bool) == true
                 }
             }
-            sendResponseJSON(to: clientFD, ["voices": voices], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["voices": voices], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-hotkey":
             guard let shortcut = json["shortcut"] as? String, !shortcut.isEmpty else {
-                sendVoiceTransportError(to: clientFD, message: "shortcut required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "shortcut required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             do {
                 try voiceTransport.acquireHotkey(owner: connectionID, shortcut: shortcut, ref: envelopeRef)
-                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch let failure as AOSVoiceTransportFailure {
-                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
-                sendVoiceTransportError(to: clientFD, message: "voice hotkey setup failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "voice hotkey setup failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-microphone":
             guard let outputPath = json["output"] as? String, !outputPath.isEmpty else {
-                sendVoiceTransportError(to: clientFD, message: "output required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "output required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let maximumDuration = (json["max_duration_seconds"] as? NSNumber)?.doubleValue
@@ -2902,11 +2918,11 @@ class UnifiedDaemon {
                     maximumDuration: maximumDuration,
                     ref: envelopeRef
                 )
-                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch let failure as AOSVoiceTransportFailure {
-                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
-                sendVoiceTransportError(to: clientFD, message: "microphone capture failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "microphone capture failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-capture-stop", "voice-capture-cancel":
@@ -2916,16 +2932,16 @@ class UnifiedDaemon {
                     finalize: action == "voice-capture-stop",
                     reason: action == "voice-capture-stop" ? "explicit_stop" : "canceled"
                 )
-                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch let failure as AOSVoiceTransportFailure {
-                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
-                sendVoiceTransportError(to: clientFD, message: "microphone capture control failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "microphone capture control failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-speak":
             guard let text = json["text"] as? String else {
-                sendVoiceTransportError(to: clientFD, message: "speech text required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "speech text required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let voiceID = json["voice_id"] as? String
@@ -2938,41 +2954,41 @@ class UnifiedDaemon {
                     rateWPM: rateWPM,
                     ref: envelopeRef
                 )
-                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch let failure as AOSVoiceTransportFailure {
-                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
-                sendVoiceTransportError(to: clientFD, message: "speech playback failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "speech playback failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-speech-cancel":
             do {
                 try voiceTransport.stopSpeech(owner: connectionID, reason: "canceled")
-                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch let failure as AOSVoiceTransportFailure {
-                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
-                sendVoiceTransportError(to: clientFD, message: "speech cancellation failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendVoiceTransportError(to: outbound, message: "speech cancellation failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-assignments":
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "assignments": coordination.voiceAssignments()
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-refresh":
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "voices": coordination.voiceRefresh()
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-providers":
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "providers": coordination.voiceProviders()
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-bind":
             guard let sessionID = json["session_id"] as? String, !sessionID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             var filter = VoiceFilter()
@@ -2985,11 +3001,11 @@ class UnifiedDaemon {
             filter.quality_tier = json["quality_tier"] as? String
             filter.tags = json["tags"] as? [String] ?? []
             let result = coordination.bindVoice(sessionID: sessionID, voiceID: json["voice_id"] as? String, filter: filter)
-            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-next":
             guard let sessionID = json["session_id"] as? String, !sessionID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let result = coordination.rotateSessionVoice(sessionID: sessionID)
@@ -3004,24 +3020,24 @@ class UnifiedDaemon {
                     engine.speak("Hi, I'm \(name).")
                 }
             }
-            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-final-response":
-            handleVoiceFinalResponseAction(json: json, clientFD: clientFD)
+            handleVoiceFinalResponseAction(json: json, outbound: outbound)
 
         case "coord-read":
             guard let channel = json["channel"] as? String else {
-                sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["error": "channel required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let since = json["since"] as? String
             let limit = json["limit"] as? Int ?? 50
             let msgs = coordination.readMessages(channel: channel, since: since, limit: limit)
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel": channel, "messages": msgs], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["status": "ok", "channel": channel, "messages": msgs], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-channels":
             let channels = coordination.listChannels()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channels": channels], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["status": "ok", "channels": channels], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Unified ping --
         case "ping":
@@ -3153,15 +3169,15 @@ class UnifiedDaemon {
             if let port = contentServer?.assignedPort, port > 0 {
                 response["content_port"] = Int(port)
             }
-            sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "content_status":
             if let server = contentServer {
                 var result = server.statusDict()
                 result["status"] = "ok"
-                sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } else {
-                sendResponseJSON(to: clientFD, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         // -- Spatial / focus / graph actions --
@@ -3169,10 +3185,10 @@ class UnifiedDaemon {
              "graph-displays", "graph-windows", "graph-deepen", "graph-collapse",
              "snapshot":
             let response = spatial.handleAction(action, json: json)
-            sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         default:
-            sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
         }
     }
 
@@ -3452,7 +3468,10 @@ class UnifiedDaemon {
         return route
     }
 
-    private func handleTellAction(json: [String: Any], clientFD: Int32) {
+    private func handleTellAction(
+        json: [String: Any],
+        outbound: AOSConnectionOutboundWriter
+    ) {
         let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
         let envelopeRef = json["__envelope_ref"] as? String
         // Accept audience as [String] array (v1 envelope) or comma-string (legacy).
@@ -3462,7 +3481,7 @@ class UnifiedDaemon {
         } else if let str = json["audience"] as? String, !str.isEmpty {
             audiences = str.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         } else {
-            sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["error": "audience required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
 
@@ -3472,7 +3491,7 @@ class UnifiedDaemon {
         let purpose = json["purpose"] as? String
         let sendingSession = fromSessionID.flatMap { coordination.sessionInfo(sessionID: $0) }
         if let fromSessionID, sendingSession == nil {
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "error": "from_session_id not found: \(fromSessionID)",
                 "code": "SESSION_NOT_FOUND"
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
@@ -3484,7 +3503,7 @@ class UnifiedDaemon {
             ?? "cli"
 
         guard text != nil || jsonPayload != nil else {
-            sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            sendResponseJSON(to: outbound, ["error": "text or payload required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
         var routes: [[String: Any]] = []
@@ -3515,10 +3534,13 @@ class UnifiedDaemon {
             }
         }
 
-        sendResponseJSON(to: clientFD, ["status": "ok", "routes": routes], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+        sendResponseJSON(to: outbound, ["status": "ok", "routes": routes], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
-    private func handleVoiceFinalResponseAction(json: [String: Any], clientFD: Int32) {
+    private func handleVoiceFinalResponseAction(
+        json: [String: Any],
+        outbound: AOSConnectionOutboundWriter
+    ) {
         let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
         let envelopeRef = json["__envelope_ref"] as? String
         let explicitSessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3537,7 +3559,7 @@ class UnifiedDaemon {
                 source: ingress.dictionary(),
                 code: "MISSING_SESSION_ID"
             )
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "error": "final-response event could not resolve a session_id",
                 "code": "MISSING_SESSION_ID",
                 "source": ingress.dictionary()
@@ -3551,7 +3573,7 @@ class UnifiedDaemon {
                 source: ingress.dictionary(),
                 code: "SESSION_NOT_FOUND"
             )
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "error": "session not found: \(sessionID)",
                 "code": "SESSION_NOT_FOUND",
                 "source": ingress.dictionary()
@@ -3566,7 +3588,7 @@ class UnifiedDaemon {
                 source: ingress.dictionary(),
                 code: "FINAL_RESPONSE_UNAVAILABLE"
             )
-            sendResponseJSON(to: clientFD, [
+            sendResponseJSON(to: outbound, [
                 "error": "final-response event did not contain readable assistant text",
                 "code": "FINAL_RESPONSE_UNAVAILABLE",
                 "source": ingress.dictionary()
@@ -3580,7 +3602,7 @@ class UnifiedDaemon {
             sendingSession: sendingSession,
             source: ingress.dictionary()
         )
-        sendResponseJSON(to: clientFD, [
+        sendResponseJSON(to: outbound, [
             "status": "ok",
             "session_id": sessionID,
             "routes": [route]
@@ -3624,26 +3646,31 @@ class UnifiedDaemon {
         broadcastEvent(service: "display", event: "channel_post", data: eventData)
     }
 
-    private func sendSnapshotEvent(to fd: Int32, service: String, event: String, data: [String: Any]) {
+    private func sendSnapshotEvent(
+        to outbound: AOSConnectionOutboundWriter,
+        service: String,
+        event: String,
+        data: [String: Any]
+    ) {
         guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
-        let byteArray = [UInt8](bytes)
-        byteArray.withUnsafeBufferPointer { ptr in
-            _ = write(fd, ptr.baseAddress!, ptr.count)
-        }
+        outbound.enqueue(bytes)
     }
 
-    private func sendSubscriberSnapshots(to fd: Int32, events: [String]) {
+    private func sendSubscriberSnapshots(
+        to outbound: AOSConnectionOutboundWriter,
+        events: [String]
+    ) {
         let requested = Set(events)
         DispatchQueue.main.sync {
             if requested.contains("display_geometry") {
-                sendSnapshotEvent(to: fd, service: "display", event: "display_geometry", data: snapshotDisplayGeometry())
+                sendSnapshotEvent(to: outbound, service: "display", event: "display_geometry", data: snapshotDisplayGeometry())
             }
             if requested.contains("canvas_lifecycle") {
                 let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
                 for info in infos {
                     guard let data = canvasLifecyclePayload(action: "created", canvasInfo: info) else { continue }
                     sendSnapshotEvent(
-                        to: fd,
+                        to: outbound,
                         service: "display",
                         event: "canvas_lifecycle",
                         data: data
@@ -3652,7 +3679,7 @@ class UnifiedDaemon {
             }
             if requested.contains("input_event") {
                 sendSnapshotEvent(
-                    to: fd,
+                    to: outbound,
                     service: "input",
                     event: "input_event",
                     data: currentInputEventSnapshot()
@@ -3745,19 +3772,12 @@ class UnifiedDaemon {
         guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
 
         subscriberLock.lock()
-        let fds = subscribers.values.filter { $0.isSubscribed && $0.wantsInputEvents }.map(\.fd)
+        let writers = subscribers.values
+            .filter { $0.isSubscribed && $0.wantsInputEvents }
+            .map(\.outbound)
         subscriberLock.unlock()
 
-        if !fds.isEmpty {
-            let byteArray = [UInt8](bytes)
-            eventWriteQueue.async {
-                for fd in fds {
-                    byteArray.withUnsafeBufferPointer { ptr in
-                        _ = write(fd, ptr.baseAddress!, ptr.count)
-                    }
-                }
-            }
-        }
+        for writer in writers { writer.enqueue(bytes) }
 
         // Forward to subscribed canvases via JS eval. Non-blocking; no response required.
         forwardInputEventToCanvases(data: data)
