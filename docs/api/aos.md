@@ -779,6 +779,13 @@ aos show create \
   --html '<div style="padding:16px;color:white">hello</div>'
 ```
 
+`show create` does not resend a mutation when the daemon response is lost. For
+a global canvas only, the CLI performs one bounded `show list` reconciliation
+and reports success only when the requested id carries the exact owner metadata
+from the still-running CLI process. Connection-scoped creates cannot be
+reconciled across sockets and fail closed. Unconfirmed-response errors identify
+the action and canvas id without echoing HTML or other request content.
+
 Common follow-ups:
 
 ```bash
@@ -829,6 +836,12 @@ For inline `--html` or `--file` canvases, `show update --html ...` or
 the CLI at update time, so repeat the `--file` update after editing the file.
 Use `show wait` after either form when the reloaded page has a readiness
 manifest or observable JavaScript condition.
+
+`show wait --manifest <name>` requires the AOS bridge and matching readiness
+manifest. `show wait --js <condition>` polls that JavaScript condition directly,
+so inline HTML does not need to install `window.headsup.receive`. When both flags
+are present, both conditions must pass. With neither flag, `show wait` retains
+the bridge-ready default.
 
 ### 3. Load Toolkit Content Through the Content Server
 

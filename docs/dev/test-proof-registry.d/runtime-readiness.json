@@ -108,6 +108,22 @@
       "status": "active"
     },
     {
+      "id": "show-client-response-contract",
+      "path_patterns": [
+        "tests/show-client-response-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "ipc_response_contract",
+      "contract": "Show create reconciles an unavailable response only through exact global owner metadata, connection-scoped outcomes fail closed, request content stays out of errors, and JavaScript-only show waits do not require the bridge.",
+      "worth": "This proves the cold-create and inline-HTML wait boundaries against a fake Unix socket without mutating a live daemon or canvas.",
+      "command": "node --test tests/show-client-response-contract.test.mjs tests/show-wait-timeout-boundary.test.mjs",
+      "replaces": [],
+      "guard": "none",
+      "status": "active"
+    },
+    {
       "id": "show-wait-isolated-smoke",
       "path_patterns": [
         "tests/show-wait.sh"
