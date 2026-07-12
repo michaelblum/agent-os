@@ -19,12 +19,12 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 41
-- Concrete forms: 197
-- Consumer-discoverable forms: 188
+- Concrete forms: 200
+- Consumer-discoverable forms: 191
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 108
+- Mutating or conditionally mutating forms: 111
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 192
+- Forms with JSON output path: 195
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -42,7 +42,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Desktop/native control | 18 |
 | Diagnostics/debug | 6 |
 | Operator input | 6 |
-| Operator messaging | 7 |
+| Operator messaging | 9 |
 | Overlay/display | 15 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 15 |
@@ -50,7 +50,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Skills and recipes | 7 |
 | Storage/config | 5 |
 | Verification/evidence | 28 |
-| Voice and speech | 9 |
+| Voice and speech | 10 |
 
 ## Command Paths
 
@@ -68,11 +68,11 @@ current command tree before public CLI and self-hosting boundary changes.
 | `show` | 15 | Overlay/display | yes | mutates, read-only | --json, default, no | `manifests/commands/source/aos/04-show.json` | `node scripts/aos-family-router.mjs show UNKNOWN_SUBCOMMAND show subcommand [not render/create/update/remove...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `recipe` | 4 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/06-recipe.json` | `node scripts/aos-recipe.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do` | 32 | Pointer and keyboard, Canvas and vision, Browser companion, Desktop/native control | yes | mutates, read-only | default | `manifests/commands/source/aos/07-do-01-pointing.json, manifests/commands/source/aos/07-do-02-text.json, manifests/commands/source/aos/07-do-03-controls.json, manifests/commands/source/aos/07-do-04-window.json, manifests/commands/source/aos/07-do-05-script-session.json, manifests/commands/source/aos/07-do-06-app-lifecycle.json, manifests/commands/source/aos/07-do-07-menu.json` | `node scripts/aos-help-proxy.mjs do [missing child]; node scripts/aos-family-router.mjs do UNKNOWN_SUBCOMMAND do subcommand [not click/hover/drag/fill...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `say` | 2 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
+| `say` | 3 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `voice` | 7 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-family-router.mjs voice UNKNOWN_COMMAND voice command [child 0]` | `docs/api/aos.md` |
 | `gate` | 5 | Verification/evidence | yes | mutates, read-only | default | `manifests/commands/source/aos/10-gate.json` | `node scripts/aos-family-router.mjs gate UNKNOWN_SUBCOMMAND gate subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `tell` | 4 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/11-tell.json` | `node scripts/aos-tell-listen.mjs tell` | `docs/api/aos.md` |
-| `listen` | 3 | Operator messaging | yes | read-only | default | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
+| `listen` | 5 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `config` | 3 | Storage/config | yes | mutates, read-only | --json, default | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs dump` | `docs/api/aos.md` |
 | `set` | 2 | Storage/config | yes | mutates, read-only | default | `manifests/commands/source/aos/14-set.json` | `node scripts/aos-config-command.mjs set-shorthand` | `docs/api/aos.md` |
 | `focus` | 4 | Core desktop | yes | mutates, read-only | default | `manifests/commands/source/aos/15-focus.json` | `node scripts/aos-focus-graph.mjs focus` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -182,6 +182,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `do unhide` | `do-unhide` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-06-app-lifecycle.json` | `node scripts/aos-do-native.mjs unhide` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `do menu` | `do-menu` | Desktop/native control | yes | mutates | default | yes | `manifests/commands/source/aos/07-do-07-menu.json` | `node scripts/aos-do-native.mjs menu` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `say` | `say-text` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
+| `say` | `say-follow` | Voice and speech | yes | mutates | default | no | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `say` | `say-list-voices` | Voice and speech | yes | read-only | default | no | `manifests/commands/source/aos/08-say.json` | `node scripts/aos-say.mjs` | `docs/api/aos.md` |
 | `voice list` | `voice-list` | Voice and speech | yes | read-only | default | no | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-voice.mjs list` | `docs/api/aos.md` |
 | `voice assignments` | `voice-assignments` | Voice and speech | yes | read-only | default | no | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-voice.mjs assignments` | `docs/api/aos.md` |
@@ -201,6 +202,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `tell` | `tell-who` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/11-tell.json` | `node scripts/aos-tell-listen.mjs tell` | `docs/api/aos.md` |
 | `listen` | `listen-read` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `listen` | `listen-follow` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
+| `listen` | `listen-hotkey` | Operator messaging | yes | mutates | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
+| `listen` | `listen-microphone` | Operator messaging | yes | mutates | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `listen` | `listen-channels` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `config` | `config-dump` | Storage/config | yes | read-only | default | no | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs dump` | `docs/api/aos.md` |
 | `config get` | `config-get` | Storage/config | yes | read-only | --json | no | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs get` | `docs/api/aos.md` |

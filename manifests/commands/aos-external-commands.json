@@ -1339,7 +1339,7 @@
     },
     {
       "path": ["listen"],
-      "summary": "Read daemon-routed coordination messages through the external listen command.",
+      "summary": "Read daemon-routed messages or stream broker-owned hotkey and microphone input.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "listen"],
       "cwd": "repo",
@@ -1550,7 +1550,7 @@
     },
     {
       "path": ["say"],
-      "summary": "Speak text through the external say command.",
+      "summary": "Speak text through one-shot or streamed system-speech forms.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-say.mjs"],
       "cwd": "repo",

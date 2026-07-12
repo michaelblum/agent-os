@@ -342,13 +342,17 @@ for form_id in ["listen-read", "listen-follow"]:
     assert any("--session-id" in item for item in form.get("examples", [])), form
 text = os.environ["TEXT"]
 assert text.count("requires one listen source: <channel> OR --session-id") == 2, text
+forms = {item["id"]: item for item in data["forms"]}
+assert "--source hotkey" in forms["listen-hotkey"]["usage"], forms["listen-hotkey"]
+assert "--source microphone" in forms["listen-microphone"]["usage"], forms["listen-microphone"]
+assert "Control+Option+Space" in text, text
 api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
 architecture = Path("ARCHITECTURE.md").read_text(encoding="utf-8")
-assert "STT/dictation is planned as a future" in api_doc, "missing planned listen source boundary"
-assert "current public surface only reads channels" in api_doc, "missing current listen source boundary"
+assert "AOS does not transcribe the" in api_doc, "missing transcription ownership boundary"
+assert "exact global hold-to-talk chord" in api_doc, "missing current hotkey boundary"
 assert "direct-session messages" in api_doc, "missing direct-session listen boundary"
-assert "The current public `listen` surface reads channels and direct-session messages" in architecture, "missing architecture listen boundary"
-assert "future sources     (STT/dictation, stdin, webhook, file watch)" in architecture, "architecture must keep future listen sources out of current forms"
+assert "exposes permissioned hotkey and microphone transport" in architecture, "missing architecture voice transport boundary"
+assert "bounded WAV" in architecture, "architecture must advertise current microphone transport"
 assert "stdin pipe         (source = bash)" not in architecture, "architecture must not advertise stdin as a current listen source"
 PY
 then

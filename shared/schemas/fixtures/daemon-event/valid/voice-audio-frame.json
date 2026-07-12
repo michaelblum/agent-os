@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "audio_frame",
+  "ts": 1720000000.2,
+  "data": {
+    "stream": "capture",
+    "rms": 0.25,
+    "peak": 0.5,
+    "sequence": 1
+  }
+}

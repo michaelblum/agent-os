@@ -6,7 +6,7 @@
       "path": [
         "listen"
       ],
-      "summary": "Read daemon-routed coordination messages through the external listen command.",
+      "summary": "Read daemon-routed messages or stream broker-owned hotkey and microphone input.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

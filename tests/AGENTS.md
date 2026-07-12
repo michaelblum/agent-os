@@ -27,6 +27,9 @@ tests.
 - Artifact-producing proof harnesses under `tests/manual/` must write stable
   machine-readable summaries and explicit cleanup evidence when they create
   `/tmp` proof roots.
+- Voice transport unit tests must use disposable Swift or fake-socket harnesses
+  by default. Live microphone, global-hotkey, and audio-output proof is a
+  separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
 
 ## Work Guidance
 

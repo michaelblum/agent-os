@@ -26,6 +26,12 @@ Allowed daemon-side surface work:
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and external consumers can subscribe to.
 
+Voice transport follows ADR 0022. `voice-transport.swift` owns exact global
+hotkey leases, bounded microphone-to-WAV capture, streamed system-speech
+playback, meters, and connection cleanup. It must not own transcription,
+conversation policy, product presence state, or branded voice behavior. Voice
+events must never carry audio bytes, spoken text, or local paths.
+
 Avoid daemon-side surface policy:
 
 - no default chip layout, panel theme, snap preference, or workbench layout;

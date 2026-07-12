@@ -106,6 +106,9 @@ class UnifiedDaemon {
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
+    private lazy var voiceTransport = AOSVoiceTransport { [weak self] owner, event, data, ref in
+        self?.emitVoiceTransportEvent(to: owner, event: event, data: data, ref: ref)
+    }
     private var contentServer: ContentServer?
     let coordination = CoordinationBus()
 
@@ -150,6 +153,8 @@ class UnifiedDaemon {
     var canvasChildren: [String: Set<String>] = [:]
     private var activeConnections = Set<UUID>()
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
+    private var signalSources: [DispatchSourceSignal] = []
+    private var isShuttingDown = false
     private let inputRegionLock = NSLock()
     private var inputRegions = AOSInputRegionRegistry()
     private let nativeCursorSuppressionLock = NSLock()
@@ -243,6 +248,9 @@ class UnifiedDaemon {
         }
         perception.onInputEvent = { [weak self] event, data in
             self?.handleInputEvent(event: event, data: data) ?? false
+        }
+        perception.onVoiceHotkeyInput = { [weak self] input in
+            self?.voiceTransport.handleHotkey(input) ?? false
         }
         perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
             self?.activateInputSafetyEmergencyExit(until: deadline)
@@ -576,6 +584,41 @@ class UnifiedDaemon {
                 }
             }
         }
+    }
+
+    private func emitVoiceTransportEvent(
+        to connectionID: UUID,
+        event: String,
+        data: [String: Any],
+        ref: String?
+    ) {
+        guard let bytes = envelopeBytes(service: "voice", event: event, data: data, ref: ref) else { return }
+        eventWriteQueue.async { [weak self] in
+            guard let self else { return }
+            self.subscriberLock.lock()
+            let fd = self.subscribers[connectionID]?.fd
+            self.subscriberLock.unlock()
+            guard let fd else { return }
+            bytes.withUnsafeBytes { pointer in
+                guard let address = pointer.baseAddress else { return }
+                _ = write(fd, address, pointer.count)
+            }
+        }
+    }
+
+    private func sendVoiceTransportError(
+        to clientFD: Int32,
+        message: String,
+        code: String,
+        envelopeActive: Bool,
+        envelopeRef: String?
+    ) {
+        sendResponseJSON(
+            to: clientFD,
+            ["error": message, "code": code],
+            envelopeActive: envelopeActive,
+            envelopeRef: envelopeRef
+        )
     }
 
     private func encodedObject<T: Encodable>(_ value: T) -> [String: Any]? {
@@ -2461,6 +2504,7 @@ class UnifiedDaemon {
         subscriberLock.unlock()
 
         defer {
+            voiceTransport.connectionClosed(connectionID)
             subscriberLock.lock()
             if let conn = subscribers[connectionID] {
                 perception.attention.removeChannels(conn.perceptionChannelIDs)
@@ -2557,6 +2601,10 @@ class UnifiedDaemon {
         case ("tell", "send"):                return "tell"
         case ("listen", "read"):              return "coord-read"
         case ("listen", "channels"):          return "coord-channels"
+        case ("listen", "hotkey"):            return "voice-hotkey"
+        case ("listen", "microphone"):        return "voice-microphone"
+        case ("listen", "stop"):              return "voice-capture-stop"
+        case ("listen", "cancel"):            return "voice-capture-cancel"
         case ("session", "register"):         return "coord-register"
         case ("session", "unregister"):       return "coord-unregister"
         case ("session", "who"):              return "coord-who"
@@ -2567,6 +2615,8 @@ class UnifiedDaemon {
         case ("voice", "bind"):               return "voice-bind"
         case ("voice", "next"):               return "voice-next"
         case ("voice", "final_response"):     return "voice-final-response"
+        case ("voice", "speak"):              return "voice-speak"
+        case ("voice", "cancel"):             return "voice-speech-cancel"
         case ("system", "ping"):              return "ping"
         // Content server actions
         case ("content", "status"):           return "content_status"
@@ -2823,6 +2873,87 @@ class UnifiedDaemon {
                 }
             }
             sendResponseJSON(to: clientFD, ["voices": voices], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "voice-hotkey":
+            guard let shortcut = json["shortcut"] as? String, !shortcut.isEmpty else {
+                sendVoiceTransportError(to: clientFD, message: "shortcut required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            do {
+                try voiceTransport.acquireHotkey(owner: connectionID, shortcut: shortcut, ref: envelopeRef)
+                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: clientFD, message: "voice hotkey setup failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "voice-microphone":
+            guard let outputPath = json["output"] as? String, !outputPath.isEmpty else {
+                sendVoiceTransportError(to: clientFD, message: "output required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            let maximumDuration = (json["max_duration_seconds"] as? NSNumber)?.doubleValue
+                ?? aosVoiceCaptureMaximumDuration
+            do {
+                try voiceTransport.startCapture(
+                    owner: connectionID,
+                    outputPath: outputPath,
+                    maximumDuration: maximumDuration,
+                    ref: envelopeRef
+                )
+                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: clientFD, message: "microphone capture failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "voice-capture-stop", "voice-capture-cancel":
+            do {
+                try voiceTransport.stopCapture(
+                    owner: connectionID,
+                    finalize: action == "voice-capture-stop",
+                    reason: action == "voice-capture-stop" ? "explicit_stop" : "canceled"
+                )
+                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: clientFD, message: "microphone capture control failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "voice-speak":
+            guard let text = json["text"] as? String else {
+                sendVoiceTransportError(to: clientFD, message: "speech text required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            let voiceID = json["voice_id"] as? String
+            let rateWPM = (json["rate_wpm"] as? NSNumber)?.doubleValue
+            do {
+                try voiceTransport.startSpeech(
+                    owner: connectionID,
+                    text: text,
+                    voiceID: voiceID,
+                    rateWPM: rateWPM,
+                    ref: envelopeRef
+                )
+                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: clientFD, message: "speech playback failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "voice-speech-cancel":
+            do {
+                try voiceTransport.stopSpeech(owner: connectionID, reason: "canceled")
+                sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: clientFD, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: clientFD, message: "speech cancellation failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
 
         case "voice-assignments":
             sendResponseJSON(to: clientFD, [
@@ -3830,9 +3961,13 @@ class UnifiedDaemon {
         idleTimer = nil
     }
 
-    func shutdown() {
-        fputs("aos daemon shutting down (idle)\n", stderr)
+    func shutdown(reason: String = "idle") {
+        guard !isShuttingDown else { return }
+        isShuttingDown = true
+        fputs("aos daemon shutting down (\(reason))\n", stderr)
+        voiceTransport.shutdown()
         restoreNativeCursorSuppressionForExit()
+        perception.stop()
         spatial.stopPolling()
         unlink(socketPath)
         releaseDaemonLock()
@@ -3840,14 +3975,16 @@ class UnifiedDaemon {
     }
 
     private func setupSignalHandlers() {
-        let handler: @convention(c) (Int32) -> Void = { _ in
-            aosRestoreNativeCursorSuppressionForSignalExit()
-            unlink(kDefaultSocketPath)
-            exit(0)
-        }
         signal(SIGPIPE, SIG_IGN)
-        signal(SIGINT, handler)
-        signal(SIGTERM, handler)
+        for signalNumber in [SIGINT, SIGTERM] {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+            source.setEventHandler { [weak self] in
+                self?.shutdown(reason: "signal")
+            }
+            source.resume()
+            signalSources.append(source)
+        }
     }
 
     private func acquireDaemonLock(mode: AOSRuntimeMode) {

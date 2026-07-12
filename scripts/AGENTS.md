@@ -80,6 +80,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
+- `lib/aos-voice-follow.mjs` owns the public streaming adapters for
+  `listen --source hotkey|microphone --follow` and `say --follow`. Keep daemon
+  connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
+  stdin, and do not echo speech text or capture paths through events or errors.
 
 ## Local Contracts
 
@@ -147,6 +151,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
   `bash tests/dev-workflow-router.sh`, `bash tests/command-manifest-generation.sh`,
   and `git diff --check` when relevant.
+- For public voice streams, run `bash tests/voice-transport-native.sh`,
+  `node --test tests/voice-follow-cli.test.mjs`, and
+  `node --test tests/schemas/daemon-event.test.mjs` before any live audio proof.
 
 ## Child DOX Index
 

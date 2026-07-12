@@ -53,7 +53,7 @@ Examples of broker-owned primitives include:
 - privileged actions: CGEvent input, AX actions, native window/canvas creation,
   TCC probes and reset operations that require native APIs;
 - privileged streams: mouse/input events, focus/window/display changes, canvas
-  lifecycle events, future audio and STT events.
+  lifecycle events, and the audio transport defined by ADR 0022.
 
 Examples of external composition include:
 
@@ -67,9 +67,9 @@ Examples of external composition include:
 
 Privileged continuous data should become stable subscription or stream
 contracts instead of consumer-specific Swift logic. Mouse/input streams,
-focus/window/display changes, canvas lifecycle events, and future audio/STT
+focus/window/display changes, canvas lifecycle events, and audio transport
 events should be exposed as small broker contracts that consumers compose
-outside the binary.
+outside the binary. Transcription remains consumer-owned under ADR 0022.
 
 The broker should prefer micro-APIs that are durable across consumers. A future
 surface needing a high-level behavior is not itself a reason to add that

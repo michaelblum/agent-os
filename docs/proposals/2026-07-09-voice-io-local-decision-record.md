@@ -1,7 +1,7 @@
 # Voice I/O Local Decision Record
 
 - **Date:** 2026-07-09
-- **Status:** Accepted implementation direction for the voice I/O PR ladder
+- **Status:** Superseded in part by ADR 0022 for public capture and streamed system speech
 - **Supersedes:** stale implementation leanings in PR #589 where this document
   conflicts with them
 - **Depends on:** PR #590 runtime/TCC foundation findings and telemetry
@@ -13,7 +13,7 @@ local implementation direction for the follow-on component PRs. PR #589 remains
 useful research and ideation context, but later code PRs should cite this file
 when they need the current local decision.
 
-The goal is not to build the whole voice system here. The goal is to freeze the
+The goal was not to build the whole voice system here. The goal was to freeze the
 choices that would otherwise cause downstream PRs to fork: transcription engine,
 TTS ownership, runtime packaging, permission surface, and event vocabulary.
 
@@ -38,7 +38,7 @@ This supersedes PR #589's Apple Speech first leaning. Apple Speech can be a
 future backend if a later decision accepts the extra Speech Recognition prompt
 and validates on-device availability for the target locales.
 
-### 2. TTS Starts With A Standalone Provider Seam
+### 2. TTS Provider Seam And Streamed System Transport
 
 The first TTS implementation adds a provider-backed speakable seam and keeps
 real local model execution behind opt-in, mockable, or unavailable states.
@@ -49,8 +49,9 @@ Consequences:
 - Keep backend selection on `voice://<provider>/<id>`.
 - Add Kokoro provider shape and catalog metadata, but do not vendor real weights
   until license and distribution are cleared.
-- Prefer a standalone service or runner shape for warm local TTS before making
-  the daemon the lifecycle owner.
+- Keep non-system model execution behind a standalone provider or runner seam.
+- ADR 0022 makes the daemon the lifecycle owner only for streamed Apple system
+  speech because it owns the audio output buffers and meter stream.
 - Sigil may later expose a multi-backend menu with system, mock, and
   Kokoro-unavailable states.
 - Default tests must not install packages dynamically and must not require real
@@ -80,12 +81,12 @@ PR #590's option-A build path is enough to carry usage-description metadata for
 repo-mode development. A real app bundle can be a release-time decision, not a
 blocking dependency for local voice I/O slices.
 
-### 4. Freeze Generic `voice.*` Events Before Behavior
+### 4. Generic `voice.*` Events
 
 The daemon event namespace must be product-neutral and Sigil-independent before
 TTS, STT, or Sigil behavior depends on it.
 
-Minimum events:
+The original minimum events were:
 
 | Service | Event | Data |
 | --- | --- | --- |
@@ -94,10 +95,11 @@ Minimum events:
 | `voice` | `dictation_closed_send` | `{ "reason": "key_release" | "phrase" | "explicit_trigger" | "timeout" }` |
 | `voice` | `dictation_closed_cancel` | `{ "reason": "key_release" | "phrase" | "explicit_trigger" | "timeout" }` |
 
-Consequences:
+ADR 0022 extends this strict vocabulary with capture, meter, and speech
+lifecycle events without adding transcription or Sigil behavior. Consequences:
 
-- PR2 owns schema and docs only. It must not add real mic capture, STT, TTS, or
-  Sigil behavior.
+- AOS may add generic broker-owned capture and system-speech transport; it must
+  not add STT or Sigil behavior.
 - Downstream shorthand such as `voice.wake_detected` means
   `{ service: "voice", event: "wake_detected" }`.
 - The daemon carries generic events; Sigil owns dictation UX, sound policy, and

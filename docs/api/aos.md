@@ -126,7 +126,7 @@ The current top-level commands are:
 | `aos say` | Voice output |
 | `aos voice` | registry-backed voice catalog, assignments, providers, and session bindings |
 | `aos tell` | Communication output: human, channel, or direct session routing |
-| `aos listen` | Communication input: channel or direct session reads/follow |
+| `aos listen` | Communication input: channel/direct-session reads, global hotkeys, and bounded microphone capture |
 | `aos wiki` | local knowledge-base workflows |
 | `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
@@ -1995,6 +1995,7 @@ Voice output surface:
 aos say "Hello"
 aos say --voice-slot 1 --language en --quality-tier premium,enhanced "Hello"
 aos say --list-voices
+printf '%s' 'Hello' | aos say --follow --rate 180
 ```
 
 `aos say` is a direct TTS convenience path conceptually aligned with speaking to
@@ -2008,6 +2009,11 @@ flags or comma-separated values. Voice slots are 1-based for human readability.
 Slot selection is intentionally ordinal: if the filtered speakable voice list
 changes, the same slot can resolve to a different voice. If filters produce no
 speakable voices, normal CLI use fails with `VOICE_FILTER_EMPTY`.
+
+`say --follow` is the connection-scoped streamed system-speech form. It reads
+text only from stdin, emits strict `voice` lifecycle and `audio_frame` NDJSON,
+and supports cancellation and microphone barge-in. Events and errors never
+echo the spoken text. Existing one-shot `aos say` behavior is unchanged.
 
 ## `aos voice`
 
@@ -2216,6 +2222,8 @@ Primary public forms:
 | --- | --- |
 | `<channel>\|--session-id <id> [--since id] [--limit N]` | read recent channel or direct-session messages |
 | `<channel>|--session-id <id> --follow [--since id]` | stream messages as NDJSON |
+| `--source hotkey [--shortcut <chord>] --follow` | consume one exact global hold-to-talk chord and stream generic dictation lifecycle events |
+| `--source microphone --output <absolute.wav> --follow [--max-duration 120s]` | capture 16 kHz mono PCM into a bounded create-new WAV while streaming meters |
 | `--channels` | list known channels |
 
 Examples:
@@ -2225,15 +2233,24 @@ aos listen handoff
 aos listen handoff --limit 10
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
+aos listen --source hotkey --shortcut Control+Option+Space --follow
+aos listen --source microphone --output /private/tmp/aos-voice/capture.wav --follow --max-duration 120s
 aos listen --channels
 ```
 
 One-shot reads return a JSON envelope with a `messages` array. `--follow` emits
 one message per line as NDJSON. `--channels` lists the daemon-known channel
 names; it is discovery for existing daemon communication state, not a workspace
-or transcript index. STT/dictation is planned as a future `aos listen` source.
-Stdin ingestion is also planned as a future `aos listen` source, but the
-current public surface only reads channels and direct-session messages.
+or transcript index.
+
+The hotkey form is connection-scoped, consumes only its exact chord, suppresses
+repeat events, and never exposes unrelated key events. The microphone form
+requires an absolute create-new `.wav` target under a canonical, owner-owned
+`0700` directory; the file is `0600`, mono 16 kHz PCM, at most 120 seconds and
+4 MiB. `SIGINT` finalizes it. `SIGTERM`, disconnect, daemon shutdown, or failure
+removes it. Capture events contain no audio or path. AOS does not transcribe the
+WAV; local STT and dictation policy are consumer responsibilities. Stdin,
+webhook, and file-watch listen sources remain unimplemented.
 
 ## `aos wiki`
 

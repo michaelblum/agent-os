@@ -14,11 +14,49 @@
       "owner": "voice-io",
       "harness_level": "schema",
       "proof_kind": "daemon_event_schema_contract",
-      "contract": "Voice daemon-event fixtures and the frozen voice event vocabulary stay aligned with the canonical daemon event schema.",
-      "worth": "This catches voice wake and dictation envelope drift before renderer or daemon behavior tests consume invalid events.",
+      "contract": "Voice daemon-event fixtures and the strict dictation, capture, meter, and speech vocabulary stay aligned with the canonical daemon event schema.",
+      "worth": "This catches voice lifecycle drift and path, text, or payload leakage before consumers accept invalid events.",
       "command": "node --test tests/schemas/daemon-event.test.mjs",
       "replaces": [],
       "guard": "schema-only validation",
+      "status": "active"
+    },
+    {
+      "id": "voice-transport-native-proof",
+      "path_patterns": [
+        "src/daemon/voice-transport.swift",
+        "src/perceive/daemon.swift",
+        "tests/voice-transport-native.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "model_unit",
+      "proof_kind": "voice_transport_contract",
+      "contract": "Exact hotkey matching, repeat suppression, secure WAV target creation, capture bounds, and audio meter math stay deterministic.",
+      "worth": "This proves the security and signal-processing rules without touching TCC, live audio devices, or the shared daemon.",
+      "command": "bash tests/voice-transport-native.sh",
+      "replaces": [],
+      "guard": "compiles a disposable Swift harness; no repo binary rebuild or live TCC use",
+      "status": "active"
+    },
+    {
+      "id": "voice-follow-cli-proof",
+      "path_patterns": [
+        "scripts/aos-say.mjs",
+        "scripts/aos-tell-listen.mjs",
+        "scripts/lib/aos-daemon-client.mjs",
+        "scripts/lib/aos-voice-follow.mjs",
+        "tests/voice-follow-cli.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "voice-io",
+      "harness_level": "shell_router",
+      "proof_kind": "voice_stream_cli_contract",
+      "contract": "Voice CLI streams handle fragmented NDJSON, map signals to stop or cancel, and keep speech text and capture paths out of public output.",
+      "worth": "This protects the public streaming boundary without launching the native daemon or using microphone and audio hardware.",
+      "command": "node --test tests/voice-follow-cli.test.mjs",
+      "replaces": [],
+      "guard": "uses a temporary fake Unix-socket daemon",
       "status": "active"
     },
     {

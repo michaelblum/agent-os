@@ -67,7 +67,7 @@ test('invalid daemon event fixtures are rejected by the canonical schema', async
   }
 });
 
-test('voice event vocabulary stays frozen before behavior lands', async () => {
+test('voice event vocabulary is strict across dictation, capture, and speech', async () => {
   const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
   const voiceServiceRule = schema.allOf.find((rule) => rule.if?.properties?.service?.const === 'voice');
   assert.deepEqual(voiceServiceRule.then.properties.event.enum, [
@@ -75,5 +75,14 @@ test('voice event vocabulary stays frozen before behavior lands', async () => {
     'dictation_opened',
     'dictation_closed_send',
     'dictation_closed_cancel',
+    'capture_started',
+    'capture_completed',
+    'capture_canceled',
+    'capture_failed',
+    'audio_frame',
+    'speech_started',
+    'speech_finished',
+    'speech_canceled',
+    'speech_failed',
   ]);
 });

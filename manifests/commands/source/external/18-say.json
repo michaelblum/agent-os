@@ -6,7 +6,7 @@
       "path": [
         "say"
       ],
-      "summary": "Speak text through the external say command.",
+      "summary": "Speak text through one-shot or streamed system-speech forms.",
       "executable": "/usr/bin/env",
       "argv_prefix": [
         "node",

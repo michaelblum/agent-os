@@ -5197,6 +5197,70 @@
         {
           "args" : [
             {
+              "id" : "follow",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Stream playback lifecycle and meter events",
+              "token" : "--follow",
+              "value_type" : "bool"
+            },
+            {
+              "discovery" : [
+                {
+                  "command" : {
+                    "form_id" : "say-list-voices",
+                    "path" : [
+                      "say"
+                    ]
+                  }
+                }
+              ],
+              "id" : "voice",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "System voice identifier",
+              "token" : "--voice",
+              "value_type" : "string"
+            },
+            {
+              "id" : "rate",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Speech rate from 80 to 450 WPM",
+              "token" : "--rate",
+              "value_type" : "int"
+            }
+          ],
+          "examples" : [
+            "printf '%s' 'Ready' | aos say --follow",
+            "printf '%s' 'Ready' | aos say --follow --voice com.apple.voice.compact.en-US.Samantha --rate 180"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : true,
+            "supports_dry_run" : false
+          },
+          "id" : "say-follow",
+          "output" : {
+            "default_mode" : "ndjson",
+            "error_mode" : "json_stderr",
+            "streaming" : true,
+            "supports_json_flag" : false
+          },
+          "stdin" : {
+            "content_type" : "text",
+            "supported" : true,
+            "used_when" : "always"
+          },
+          "usage" : "printf '%s' <text> | aos say --follow [--voice id] [--rate wpm]"
+        },
+        {
+          "args" : [
+            {
               "id" : "list-voices",
               "kind" : "flag",
               "required" : true,
@@ -6484,6 +6548,112 @@
         {
           "args" : [
             {
+              "id" : "source",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Hotkey input source",
+              "token" : "--source",
+              "value_type" : "string"
+            },
+            {
+              "default_value" : "Control+Option+Space",
+              "id" : "shortcut",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Exact global hold-to-talk chord",
+              "token" : "--shortcut",
+              "value_type" : "string"
+            },
+            {
+              "id" : "follow",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Stream canonical dictation lifecycle events",
+              "token" : "--follow",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos listen --source hotkey --shortcut Control+Option+Space --follow"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : true,
+            "supports_dry_run" : false
+          },
+          "id" : "listen-hotkey",
+          "output" : {
+            "default_mode" : "ndjson",
+            "error_mode" : "json_stderr",
+            "streaming" : true,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos listen --source hotkey [--shortcut Control+Option+Space] --follow"
+        },
+        {
+          "args" : [
+            {
+              "id" : "source",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Microphone input source",
+              "token" : "--source",
+              "value_type" : "string"
+            },
+            {
+              "id" : "output",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Absolute create-new WAV target in an owner-only directory",
+              "token" : "--output",
+              "value_type" : "path"
+            },
+            {
+              "default_value" : "120s",
+              "id" : "max-duration",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum capture duration up to 120 seconds",
+              "token" : "--max-duration",
+              "value_type" : "duration"
+            },
+            {
+              "id" : "follow",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Stream capture lifecycle and meter events",
+              "token" : "--follow",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos listen --source microphone --output /private/tmp/aos-voice/capture.wav --follow --max-duration 120s"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : true,
+            "streaming" : true,
+            "supports_dry_run" : false
+          },
+          "id" : "listen-microphone",
+          "output" : {
+            "default_mode" : "ndjson",
+            "error_mode" : "json_stderr",
+            "streaming" : true,
+            "supports_json_flag" : false
+          },
+          "usage" : "aos listen --source microphone --output <absolute.wav> --follow [--max-duration 120s]"
+        },
+        {
+          "args" : [
+            {
               "id" : "channels",
               "kind" : "flag",
               "required" : true,
@@ -6517,7 +6687,7 @@
       "path" : [
         "listen"
       ],
-      "summary" : "Communication — receive from channels or direct sessions"
+      "summary" : "Communication and voice input — receive channels or direct sessions, exact global hotkeys, or microphone capture"
     },
     {
       "forms" : [
