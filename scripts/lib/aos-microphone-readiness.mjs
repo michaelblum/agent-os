@@ -11,7 +11,6 @@ const MICROPHONE_AUTHORIZATION_STATES = new Set([
 export function daemonMicrophoneAuthorizationState(daemon) {
   const state = daemon?.permissions?.microphoneState;
   if (MICROPHONE_AUTHORIZATION_STATES.has(state)) return state;
-  if (daemon?.permissions?.microphone === true) return 'authorized';
   return 'unknown';
 }
 

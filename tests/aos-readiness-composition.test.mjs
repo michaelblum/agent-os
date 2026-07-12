@@ -250,6 +250,35 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
   );
 });
 
+test('post-rebuild input-monitoring staleness outranks microphone recovery', () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+      permissions: {
+        microphone: false,
+        microphoneState: 'not_determined',
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'daemon_tcc_grant_stale_or_missing');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.terminal_handoff.reason, 'post_rebuild_tcc_stale');
+  assert.deepEqual(verdict.next_actions.map((action) => action.command).filter(Boolean), [
+    './aos ready --repair --post-permission',
+  ]);
+  assert.equal(
+    verdict.next_actions.some((action) => action.command === './aos permissions setup --once'),
+    false,
+  );
+});
+
 test('stale daemon cleanup outranks stale-TCC terminal handoff in mixed readiness states', () => {
   const current = facts({
     daemon: {

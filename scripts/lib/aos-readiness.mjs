@@ -562,6 +562,15 @@ export function readyDecision(ready, blockers, daemon, permissions) {
   if (blocker) return decisionFor('runtime_blocked', blocker.id, 'runtime_cleanup', blocker);
   blocker = find((b) => b.id === 'daemon_unreachable');
   if (blocker) return decisionFor('runtime_blocked', 'daemon_socket_unreachable', 'runtime_repair', blocker);
+  const staleTccBlocker = find((b) => b.reason === 'post_rebuild_tcc_stale');
+  if (staleTccBlocker) {
+    return decisionFor(
+      'human_required',
+      'daemon_tcc_grant_stale_or_missing',
+      'post_rebuild_tcc_stale',
+      staleTccBlocker,
+    );
+  }
   blocker = find((b) => b.id === 'microphone');
   if (blocker) {
     return decisionFor(
@@ -571,7 +580,6 @@ export function readyDecision(ready, blockers, daemon, permissions) {
       blocker,
     );
   }
-  const staleTccBlocker = find((b) => b.reason === 'post_rebuild_tcc_stale');
   const daemonPermissionBlocker = find((b) => b.kind === 'permission' && b.scope === 'daemon');
   if (daemon && ((daemon.permissions.accessibility === false && permissions.accessibility)
       || daemon.inputTap.listenAccess === false
@@ -579,8 +587,8 @@ export function readyDecision(ready, blockers, daemon, permissions) {
     return decisionFor(
       'human_required',
       'daemon_tcc_grant_stale_or_missing',
-      staleTccBlocker ? 'post_rebuild_tcc_stale' : 'permission',
-      staleTccBlocker ?? daemonPermissionBlocker,
+      'permission',
+      daemonPermissionBlocker,
     );
   }
   blocker = find((b) => b.kind === 'permission');

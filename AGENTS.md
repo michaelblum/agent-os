@@ -121,6 +121,14 @@ Default section order:
   drive product-neutral primitives, toolkit policy, hosts, schemas, and public
   CLI changes without waiting for a second consumer; keep branded product
   composition in the Sigil repository.
+- Root `build.sh` is governed by
+  `docs/adr/0023-managed-endpoint-raw-repo-artifact.md`. On this
+  enterprise-managed Mac running Cylance, preserve the intentional repo-mode
+  shape: one direct `swiftc` link to `./aos`, with the identity-free repo plist
+  allowed only as link input. Do not post-link sign, identify, entitle, copy,
+  move, rewrite, wrap, install, or assess the artifact. After a real rebuild,
+  `./aos help --json` must be the immediately following command; do not inspect,
+  hash, attest, or run other checks first, and stop without retry on exit `137`.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
 

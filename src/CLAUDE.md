@@ -19,14 +19,21 @@ tooling does not by itself rebuild the TCC-owning binary; use `--force` only
 when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
-`Rebuilt: ./aos` marker and the rebuild/TCC alert. Continue with non-TCC checks
-as needed, but do not treat TCC-backed daemon, capture, input, or native proof as
-conclusive until the user has manually reset/regranted TCC for the rebuilt
-binary. If a later live TCC-backed readiness check reports
+`Rebuilt: ./aos` marker and the rebuild/TCC alert. The immediately following
+command must be `./aos help --json`; do not inspect, hash, attest, transform, or
+run any other check against the live artifact first. Stop without retry if that
+first launch exits `137`. Only after help succeeds may read-only identity checks
+or non-TCC validation continue. Do not treat TCC-backed daemon, capture, input,
+or native proof as conclusive until the user has manually reset/regranted TCC
+for the rebuilt binary. If a later live TCC-backed readiness check reports
 `post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
 prints a terminal handoff, and the agent must end the current turn. The next
 user response is the signal that they manually reset/regranted TCC; resume with
 `./aos ready --repair --post-permission`.
+
+ADR 0023 owns this managed-endpoint compatibility contract. It is intentional
+and temporary: do not replace it with post-build signing, explicit identifiers,
+entitlements, copying, binary modification, app wrapping, or an `spctl` gate.
 
 When you are unsure which loop applies, ask the router first:
 

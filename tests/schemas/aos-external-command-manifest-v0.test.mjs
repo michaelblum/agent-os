@@ -685,6 +685,18 @@ test('operational registry forms expose json flag metadata', async () => {
   }
 });
 
+test('permissions execution metadata matches daemon startup behavior', async () => {
+  const registry = await loadJson(registryPath);
+  const forms = new Map(
+    registry.commands.flatMap((command) => command.forms.map((form) => [form.id, form])),
+  );
+
+  assert.equal(forms.get('permissions-check')?.execution.auto_starts_daemon, false);
+  assert.equal(forms.get('permissions-check')?.execution.read_only, true);
+  assert.equal(forms.get('permissions-setup')?.execution.auto_starts_daemon, true);
+  assert.equal(forms.get('permissions-setup')?.execution.mutates_state, true);
+});
+
 test('json-capable registry forms expose json flag metadata', async () => {
   const registry = await loadJson(registryPath);
 

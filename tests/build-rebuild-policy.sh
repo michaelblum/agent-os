@@ -28,10 +28,21 @@ if [[ "$(grep -c '^[[:space:]]*swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\
     exit 1
 fi
 BUILD_COMMANDS="$(sed '/^[[:space:]]*#/d' "$FAKE_REPO/build.sh")"
-if grep -Eq '(^|[;&|[:space:]])(ld|codesign|cp|mv|install|ditto|strip|xattr|shasum|otool|file|install_name_tool|spctl)([[:space:]]|$)|--entitlements|--identifier|\.app/' <<<"$BUILD_COMMANDS"; then
+FORBIDDEN_BUILD_TOOL_PATTERN='(^|[;&|[:space:]])([^;&|[:space:]]*/)?(ld|codesign|cp|mv|install|ditto|strip|xattr|shasum|otool|file|install_name_tool|spctl)([[:space:]]|$)'
+if grep -Eq "$FORBIDDEN_BUILD_TOOL_PATTERN|--entitlements|--identifier|\.app/" <<<"$BUILD_COMMANDS"; then
     echo "FAIL: repo-mode build must stay raw: no separate link, post-link mutation, wrapping, signing, or artifact inspection" >&2
     exit 1
 fi
+for forbidden_command in \
+    '/usr/bin/codesign --force --sign - ./aos' \
+    '/bin/cp ./aos ./aos.staged' \
+    '/usr/bin/strip ./aos' \
+    '/usr/bin/ld -o ./aos ./aos.o'; do
+    if ! grep -Eq "$FORBIDDEN_BUILD_TOOL_PATTERN" <<<"$forbidden_command"; then
+        echo "FAIL: post-link policy did not reject path-qualified command: $forbidden_command" >&2
+        exit 1
+    fi
+done
 if grep -Eq '"\$OUTPUT_PATH"[[:space:]]+(service|status|runtime|help)|du[[:space:]].*\$OUTPUT_PATH' "$FAKE_REPO/build.sh"; then
     echo "FAIL: build.sh must not execute or inspect the newly linked artifact" >&2
     exit 1
@@ -41,6 +52,14 @@ if ! grep -q -- '-sectcreate' "$FAKE_REPO/build.sh" ||
     echo "FAIL: repo-mode build must embed raw-runtime privacy metadata at link time" >&2
     exit 1
 fi
+for authority_path in AGENTS.md src/CLAUDE.md; do
+    if ! grep -q '0023-managed-endpoint-raw-repo-artifact\|ADR 0023' "$authority_path" ||
+       ! grep -q './aos help --json' "$authority_path" ||
+       ! grep -q '137' "$authority_path"; then
+        echo "FAIL: $authority_path must preserve the ADR 0023 help-first managed-endpoint contract" >&2
+        exit 1
+    fi
+done
 
 cat >"$FAKE_BIN/swiftc" <<'EOF'
 #!/usr/bin/env bash

@@ -8417,7 +8417,7 @@
             "aos permissions check --json"
           ],
           "execution" : {
-            "auto_starts_daemon" : true,
+            "auto_starts_daemon" : false,
             "interactive" : false,
             "mutates_state" : false,
             "read_only" : true,
@@ -8489,7 +8489,7 @@
             "aos permissions setup --once"
           ],
           "execution" : {
-            "auto_starts_daemon" : false,
+            "auto_starts_daemon" : true,
             "interactive" : true,
             "mutates_state" : true,
             "read_only" : false,
