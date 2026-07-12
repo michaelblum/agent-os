@@ -75,6 +75,40 @@ Linker experiments compile to a disposable temporary output. Read-only
 `codesign` and `otool` inspection may target only that disposable artifact
 during implementation review; it is never copied over live `./aos`.
 
+## Raw TCC Identity Consequences
+
+The link-time plist supplies privacy usage text and the raw executable retains
+the linker-generated `Identifier=aos`, but it does not make `./aos` a
+LaunchServices app bundle. These identities are not interchangeable.
+
+On this development Mac, the identifier-scoped command:
+
+```bash
+/usr/bin/tccutil reset Microphone aos
+```
+
+fails with OSStatus `-10814` because LaunchServices cannot resolve `aos` as a
+bundle identifier. Do not retry with a path, edit the TCC database directly,
+or broaden the command to `tccutil reset Microphone`; an unscoped service reset
+changes Microphone decisions for every app. Service-wide resets remain the
+explicit break-glass path already guarded by `aos permissions reset-runtime`.
+
+The normal raw-runtime recovery remains human-owned:
+
+- Accessibility, Input Monitoring, and Screen & System Audio Recording use
+  their existing System Settings rows and manual remove/re-add or toggle flow.
+- Microphone exposes a toggle rather than add/remove controls. Turning it off
+  revokes access but does not remove the row; first-use authorization must be
+  requested by the AOS daemon-owned microphone broker.
+- Developer Tools permission does not replace any TCC grant and is not a
+  Cylance exception. AOS does not require that additional authority for this
+  workflow.
+
+Successful `help --json` is necessary but does not prove later privileged code
+paths will survive endpoint enforcement. Exit `137` from readiness or another
+later command still stops the run without retry, alternate processing, or a
+second rebuild.
+
 ## Deferred Production Path
 
 A proper IT-approved, team-signed, notarized `AOS.app` distribution path is
