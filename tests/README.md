@@ -140,15 +140,13 @@ does not prove that TCC is stale.
 
 After a real rebuild, the immediately following command must be
 `./aos help --json`. Do not inspect, hash, attest, copy, sign, or run readiness
-against the live artifact first, and stop immediately on exit `137`. Only after
-help succeeds may read-only identity inspection and
-`./aos ready --post-permission --json` occur before TCC-backed proof. The stop
-point is a readiness result that reports
-`post_rebuild_tcc_stale`: it plays
-the three-chime handoff alert, returns a terminal handoff, and agents must end
-the turn. After the user manually resets/regrants TCC and replies `finished`,
-verify with `./aos ready --repair --post-permission`. That resume path performs
-at most one identity-checked managed restart before its bounded live recheck.
+against the live artifact first, and stop immediately on exit `137`. If help
+succeeds, stop immediately for the human TCC checkpoint without inspecting the
+artifact or running readiness. After the user manually resets/regrants TCC and
+replies `finished`, run exact
+`./aos ready --repair --post-permission --json` with no intervening command.
+That resume path performs at most one identity-checked managed restart before
+its bounded live recheck.
 
 Run this rebuild only from the primary checkout. If the current task cannot
 mutate the native binary, return the work to the maintainer.

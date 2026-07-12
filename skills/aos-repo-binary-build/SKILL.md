@@ -37,9 +37,11 @@ Use this skill for repo-mode `./aos` build checks and rebuilds.
 
    Do not hash, inspect, copy, move, sign, attest, or run readiness against the
    live artifact before this first launch. Stop immediately on exit `137`.
-6. Only after help succeeds, inspect identity read-only if required, then run
-   one bounded `./aos ready --post-permission --json` check. Continue when
-   readiness is healthy and stop on any explicit human handoff.
+6. If help succeeds, stop immediately for the human TCC checkpoint. Do not
+   inspect the artifact or run another command.
+7. Only after the user replies `finished`, run exact
+   `./aos ready --repair --post-permission --json` with no intervening command.
+   Continue only when that bounded check is healthy.
 
 ## Boundaries
 

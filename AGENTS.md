@@ -129,6 +129,10 @@ Default section order:
   move, rewrite, wrap, install, or assess the artifact. After a real rebuild,
   `./aos help --json` must be the immediately following command; do not inspect,
   hash, attest, or run other checks first, and stop without retry on exit `137`.
+  If help succeeds, stop immediately for the human TCC checkpoint; do not
+  inspect the artifact or run readiness. Only after the user replies `finished`
+  may the session run the exact next command
+  `./aos ready --repair --post-permission --json`, with no intervening command.
 - Never attribute commits, PR descriptions, issue comments, or release notes to
   Claude or any AI assistant.
 

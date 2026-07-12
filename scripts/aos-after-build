@@ -10,7 +10,8 @@ Usage: scripts/aos-after-build [build.sh args ...] -- <command> [args ...]
 
 Wait for any in-flight aos rebuild, ensure the binary is current, then run the
 given command. If this invocation actually rebuilds ./aos, the command must be
-the exact first-launch checkpoint: ./aos help --json.
+the exact first-launch checkpoint: ./aos help --json. Successful help prints a
+mandatory human TCC checkpoint; stop until the user replies finished.
 
 Examples:
   scripts/aos-after-build -- ./aos tell --who
@@ -50,7 +51,9 @@ else
   bash "$BUILD_SCRIPT" | tee "$BUILD_OUTPUT"
 fi
 
+REBUILT=0
 if grep -q '^Rebuilt: ./aos\b' "$BUILD_OUTPUT"; then
+  REBUILT=1
   expected_aos="${AOS_PATH:-$REPO_ROOT/aos}"
   expected_aos="$(cd "$(dirname "$expected_aos")" && pwd)/$(basename "$expected_aos")"
   command_aos="$(cd "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")"
@@ -59,4 +62,15 @@ if grep -q '^Rebuilt: ./aos\b' "$BUILD_OUTPUT"; then
     exit 75
   fi
 fi
-exec "$@"
+if [[ $REBUILT -eq 0 ]]; then
+  exec "$@"
+fi
+
+set +e
+"$@"
+status=$?
+set -e
+if [[ $status -eq 0 ]]; then
+  echo "aos-after-build: help succeeded; stop now for the human TCC checkpoint and wait for the user to reply finished" >&2
+fi
+exit "$status"

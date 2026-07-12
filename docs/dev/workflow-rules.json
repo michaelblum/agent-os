@@ -40,28 +40,14 @@
       ],
       "hot_swappable": false,
       "tcc_identity_sensitive": true,
-      "commands": [
-        {
-          "id": "dev-build",
-          "command": "node scripts/aos-dev-build.mjs build --no-restart --json",
-          "reason": "Swift source changes require a current repo-mode ./aos binary. The repo-local build wrapper preserves the signing/TCC warning surface."
-        }
-      ],
-      "verification": [
-        {
-          "id": "first-launch",
-          "command": "./aos help --json",
-          "reason": "After a real rebuild, this must be the immediately following command. Stop on exit 137 and do not inspect or transform the artifact first."
-        },
-        {
-          "id": "ready",
-          "command": "./aos ready --post-permission --json",
-          "reason": "Only after help succeeds, verify the raw binary and managed daemon with one bounded check and stop on any explicit handoff."
-        }
-      ],
+      "commands": [],
+      "verification": [],
       "notes": [
         "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because the normal post-build verification cannot run through a broken ./aos artifact.",
-        "ADR 0023 requires one direct build.sh swiftc link to ./aos. Identity-free RepoRuntimeLinkInfo.plist input is allowed; separate linking, post-link signing, explicit identifiers, entitlements, copying, moving, binary rewriting, app wrapping, and spctl gates are prohibited."
+        "ADR 0023 requires one direct build.sh swiftc link to ./aos. Identity-free RepoRuntimeLinkInfo.plist input is allowed; separate linking, post-link signing, explicit identifiers, entitlements, copying, moving, binary rewriting, app wrapping, and spctl gates are prohibited.",
+        "The router intentionally does not schedule the TCC-sensitive build or first launch beside ordinary checks. Finish all static commands first; then use the `aos-repo-binary-build` skill for the isolated build checkpoint.",
+        "At that checkpoint, run `bash build.sh --force --no-restart`, then run `./aos help --json` as the immediately following command and stop on exit 137.",
+        "After help succeeds, stop until the user manually regrants TCC and replies `finished`; then run exact `./aos ready --repair --post-permission --json` with no intervening command."
       ]
     },
     {
@@ -95,7 +81,7 @@
       "verification": [],
       "notes": [
         "The raw recovery command for a missing or launch-killed repo ./aos is `bash build.sh --force --no-restart`; do not repair it with a separate linker or post-link mutation.",
-        "After a real rebuild, ./aos help --json is the exact first launch. spctl rejection is expected for the repo-local raw shape and is not an acceptance gate."
+        "After a real rebuild, ./aos help --json is the exact first launch. If it succeeds, stop for the human TCC checkpoint before any inspection or readiness command. spctl rejection is expected for the repo-local raw shape and is not an acceptance gate."
       ]
     },
     {

@@ -68,8 +68,17 @@ After an actual rebuild, the immediately following command is:
 
 No hash, signature inspection, attestation, readiness command, copy, or other
 live-artifact access occurs between those commands. Exit `137` stops the run
-without retry. Only after help succeeds may read-only identity inspection and
-the bounded post-permission readiness workflow proceed.
+without retry. If help succeeds, stop immediately for the human TCC checkpoint.
+Do not inspect the live artifact or run another command. After the user
+manually regrants TCC and replies `finished`, the exact next command is:
+
+```bash
+./aos ready --repair --post-permission --json
+```
+
+No identity inspection, status command, permission probe, or other operation
+may intervene between successful help, the human checkpoint, and that bounded
+resume command.
 
 Linker experiments compile to a disposable temporary output. Read-only
 `codesign` and `otool` inspection may target only that disposable artifact
@@ -104,10 +113,11 @@ The normal raw-runtime recovery remains human-owned:
   Cylance exception. AOS does not require that additional authority for this
   workflow.
 
-Successful `help --json` is necessary but does not prove later privileged code
-paths will survive endpoint enforcement. Exit `137` from readiness or another
-later command still stops the run without retry, alternate processing, or a
-second rebuild.
+Successful `help --json` is the stop signal for the human checkpoint, not
+authorization to inspect or continue. A later `137` observed after violating
+that stop is not valid evidence that all execution of the raw artifact is
+blocked. Exit `137` from the prescribed sequence still stops the run without
+retry, alternate processing, or a second rebuild.
 
 ## Deferred Production Path
 

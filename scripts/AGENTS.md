@@ -136,13 +136,16 @@ commands, runtime helpers, wiki tools, and command adapters.
   After a rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and make
   `./aos help --json` the immediately following command. Do not inspect, hash,
   attest, transform, or run readiness against the live artifact first; stop on
-  exit `137`. Only after help succeeds may read-only identity inspection and
-  one bounded `./aos ready --post-permission --json` check occur. Do not infer
-  exit `137` from empty output or a timeout and do not force-rebuild a
-  launchable artifact. `build.sh` must not execute, restart through, or inspect
-  the newly linked binary before it exits. `aos-after-build` must reject
-  arbitrary chained commands when its build step reports a real rebuild; only
-  exact `help --json` may run.
+  exit `137`. If help succeeds, stop immediately for the human TCC checkpoint;
+  do not inspect the artifact or run any other command. Only after the user
+  replies `finished` may the session run exact
+  `./aos ready --repair --post-permission --json`, with no intervening command.
+  Do not infer exit `137` from empty output or a timeout and do not force-rebuild
+  a launchable artifact. `build.sh` must not execute, restart through, or
+  inspect the newly linked binary before it exits. `aos-after-build` must
+  reject arbitrary chained commands when its build step reports a real
+  rebuild; only exact `help --json` may run, after which it must print the human
+  checkpoint and return without another artifact access.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.

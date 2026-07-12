@@ -120,9 +120,10 @@ Rejected reasons include:
 - `src/AGENTS.md`, docs owners, and command/workflow owners should require a
   native boundary justification before routing Swift work.
 - ADR 0023 owns the managed-endpoint raw-artifact contract. After a real
-  repo-mode rebuild, `./aos help --json` is the immediate first launch. Only
-  after it succeeds may read-only identity inspection and one bounded
-  post-permission readiness check occur.
+  repo-mode rebuild, `./aos help --json` is the immediate first launch. If it
+  succeeds, stop for the human TCC checkpoint without inspecting the artifact.
+  After the user replies `finished`, run only the bounded post-permission
+  readiness command owned by ADR 0023.
 - Follow-on refactors should inventory remaining Swift public/runtime policy,
   expose smaller private broker primitives where needed, and move public
   behavior to external composition without repo-internal shims.

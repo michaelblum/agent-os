@@ -721,9 +721,10 @@ completed-build markers, or inject provider input.
 Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
 successful rebuild marker (`Rebuilt: ./aos`) requires `./aos help --json` as
 the immediately following command, with no intervening inspection or
-transformation. Stop on exit `137`. Only after help succeeds may read-only
-identity inspection and one bounded `./aos ready --post-permission --json`
-check occur before further TCC-backed daemon, capture, input, or native proof.
+transformation. Stop on exit `137`. If help succeeds, stop for the human TCC
+checkpoint without inspecting the artifact. After the user replies `finished`,
+run exact `./aos ready --repair --post-permission --json` with no intervening
+command before further TCC-backed daemon, capture, input, or native proof.
 
 The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development

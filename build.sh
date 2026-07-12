@@ -93,7 +93,7 @@ play_rebuild_alert() {
     fi
 
     echo "Alert: repo-mode ./aos binary rebuilt; the first post-build command must be ./aos help --json. Do not inspect or transform ./aos before that launch."
-    echo "After help succeeds, use read-only identity inspection and ./aos ready --post-permission --json; stop on any explicit handoff."
+    echo "If help succeeds, stop immediately for the human TCC checkpoint. Do not inspect ./aos or run readiness until the user replies finished."
 
     if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
         "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true

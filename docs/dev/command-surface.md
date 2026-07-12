@@ -221,8 +221,9 @@ build tooling alone must not automatically replace the TCC-owning binary. Treat
 a successful rebuild marker (`Rebuilt: ./aos`) as requiring
 `./aos help --json` as the immediately following command. Do not inspect, hash,
 attest, transform, or run readiness against the live artifact before that first
-launch; stop on exit `137`. Only after help succeeds may read-only identity
-inspection and one bounded `./aos ready --post-permission --json` check occur.
+launch; stop on exit `137`. If help succeeds, stop for the human TCC checkpoint
+without inspecting the artifact. After the user replies `finished`, run exact
+`./aos ready --repair --post-permission --json` with no intervening command.
 The raw build may embed the separate identity-free
 `packaging/RepoRuntimeLinkInfo.plist` through the existing `swiftc` link; it may
 not run a separate linker or any post-link signing, copying, moving, wrapping,

@@ -99,9 +99,11 @@ printf '{"commands":[]}\n'
 EOF
 chmod +x "$FAKE_AOS"
 AOS_BUILD_SCRIPT="$FAKE_REBUILD" AOS_PATH="$FAKE_AOS" \
-  scripts/aos-after-build -- "$FAKE_AOS" help --json >"$TMP/help.out"
+  scripts/aos-after-build -- "$FAKE_AOS" help --json >"$TMP/help.out" 2>"$TMP/help.err"
 grep -q '{"commands":\[\]}' "$TMP/help.out" \
   || fail "exact post-build help checkpoint did not run"
+grep -q 'stop now for the human TCC checkpoint.*finished' "$TMP/help.err" \
+  || fail "successful help did not emit the mandatory human checkpoint"
 pass "aos-after-build permits exact help checkpoint after a real rebuild"
 
 echo "aos-after-build: all checks passed"

@@ -55,7 +55,9 @@ fi
 for authority_path in AGENTS.md src/CLAUDE.md; do
     if ! grep -q '0023-managed-endpoint-raw-repo-artifact\|ADR 0023' "$authority_path" ||
        ! grep -q './aos help --json' "$authority_path" ||
-       ! grep -q '137' "$authority_path"; then
+       ! grep -q '137' "$authority_path" ||
+       ! grep -q 'human TCC checkpoint' "$authority_path" ||
+       ! grep -q 'finished' "$authority_path"; then
         echo "FAIL: $authority_path must preserve the ADR 0023 help-first managed-endpoint contract" >&2
         exit 1
     fi
@@ -180,7 +182,8 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     exit 1
 fi
 if ! grep -q 'first post-build command must be ./aos help --json' "$FIRST_OUT" ||
-   ! grep -q 'Do not inspect or transform ./aos before that launch' "$FIRST_OUT"; then
+   ! grep -q 'Do not inspect or transform ./aos before that launch' "$FIRST_OUT" ||
+   ! grep -q 'stop immediately for the human TCC checkpoint' "$FIRST_OUT"; then
     echo "FAIL: first build did not report the launch-before-inspection checkpoint" >&2
     cat "$FIRST_OUT" >&2
     exit 1
@@ -255,7 +258,8 @@ if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     exit 1
 fi
 if ! grep -q 'first post-build command must be ./aos help --json' "$CHANGED_OUT" ||
-   ! grep -q 'Do not inspect or transform ./aos before that launch' "$CHANGED_OUT"; then
+   ! grep -q 'Do not inspect or transform ./aos before that launch' "$CHANGED_OUT" ||
+   ! grep -q 'stop immediately for the human TCC checkpoint' "$CHANGED_OUT"; then
     echo "FAIL: changed runtime input content did not report the launch-before-inspection checkpoint" >&2
     cat "$CHANGED_OUT" >&2
     exit 1

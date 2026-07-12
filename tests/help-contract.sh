@@ -839,6 +839,9 @@ assert "build_wrapper: 'build.sh'" in source
 assert "build_source: 'repo-root/build.sh'" in source
 assert "command: './aos help --json'" in source
 assert "required_first_post_build_command: true" in source
+assert "stop_after_success: true" in source
+assert "human_tcc_checkpoint_required: true" in source
+assert "next_user_signal: 'finished'" in source
 assert "checkpointContract" not in source
 assert "permissions reset-runtime --mode repo" not in source
 assert "ready --post-permission" not in source
@@ -860,6 +863,7 @@ if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/t
     && grep -q 'post-link codesign' /tmp/aos-dev-build-help.out \
     && grep -q 'spctl gate' /tmp/aos-dev-build-help.out \
     && grep -q 'immediately following command is ./aos help --json' /tmp/aos-dev-build-help.out \
+    && grep -q 'stop for the human TCC checkpoint' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Signing aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \

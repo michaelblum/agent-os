@@ -25,6 +25,8 @@ function usage() {
     'privacy plist, but must not run a separate linker or any post-link codesign,',
     'copy, move, binary rewrite, app wrap, entitlements, identifier, or spctl gate.',
     'After a real rebuild, the immediately following command is ./aos help --json.',
+    'If help succeeds, stop for the human TCC checkpoint. Do not inspect ./aos',
+    'or run readiness until the user replies finished.',
     '',
     'Options:',
     '  --release     Build optimized release binary',
@@ -76,6 +78,9 @@ function buildCommand(args) {
         command: './aos help --json',
         required_first_post_build_command: true,
         stop_on_exit_137: true,
+        stop_after_success: true,
+        human_tcc_checkpoint_required: true,
+        next_user_signal: 'finished',
       } : null,
     });
   } else {
