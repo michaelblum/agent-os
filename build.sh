@@ -116,16 +116,6 @@ play_rebuild_alert() {
     fi
 }
 
-build_fingerprint() {
-    {
-        printf 'mode %s\n' "$BUILD_MODE"
-        for input in "${INPUTS[@]}"; do
-            printf 'file %s\n' "$input"
-            shasum -a 256 "$input"
-        done
-    } | shasum -a 256 | awk '{print $1}'
-}
-
 runtime_inputs_newer_than_output() {
     for input in "${INPUTS[@]}"; do
         if [[ "$input" -nt "$OUTPUT_PATH" ]]; then
@@ -141,7 +131,7 @@ if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
     INPUTS+=("${SHARED_IPC[@]}")
     SWIFT_INPUTS+=("${SHARED_IPC[@]}")
 fi
-CURRENT_FINGERPRINT="$(build_fingerprint)"
+CURRENT_FINGERPRINT="$(/usr/bin/env node scripts/aos-build-fingerprint.mjs --mode "$BUILD_MODE")"
 NEEDS_BUILD=1
 BINARY_REBUILT=0
 

@@ -7898,6 +7898,38 @@
             }
           ],
           "examples" : [
+            "aos runtime build-attestation --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "runtime-build-attestation",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos runtime build-attestation [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
             "aos runtime path"
           ],
           "execution" : {

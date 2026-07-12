@@ -851,10 +851,17 @@
         "scripts/aos-subcommand-router.mjs",
         "runtime",
         "MISSING_SUBCOMMAND",
-        "runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
+        "runtime requires a subcommand. Usage: aos runtime <status|build-attestation|path|sign|install|display-union [--native]> ...",
         "UNKNOWN_SUBCOMMAND",
         "runtime subcommand"
       ],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "build-attestation"],
+      "summary": "Verify that the repo binary build receipt matches the current Swift runtime inputs.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-runtime-build-attestation.mjs"],
       "cwd": "repo"
     },
     {

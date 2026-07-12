@@ -10,9 +10,12 @@ trap 'rm -rf "$TMP"' EXIT
 FAKE_REPO="$TMP/repo"
 FAKE_BIN="$TMP/bin"
 LOG="$TMP/events.log"
-mkdir -p "$FAKE_REPO/src" "$FAKE_BIN"
+mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_BIN"
 
 cp build.sh "$FAKE_REPO/build.sh"
+cp scripts/aos-build-fingerprint.mjs "$FAKE_REPO/scripts/aos-build-fingerprint.mjs"
+cp scripts/lib/aos-build-attestation.mjs "$FAKE_REPO/scripts/lib/aos-build-attestation.mjs"
+cp scripts/lib/aos-cli.mjs "$FAKE_REPO/scripts/lib/aos-cli.mjs"
 printf 'print("fake")\n' > "$FAKE_REPO/src/main.swift"
 
 if ! grep -q 'swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\]}"' "$FAKE_REPO/build.sh"; then

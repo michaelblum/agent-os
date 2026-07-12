@@ -200,6 +200,7 @@ echo "lines" | aos log            # Stream stdin to log overlay
 ./aos status [--json]             # Read-only runtime/session status
 ./aos introspect review [--json]  # Review recent ./aos usage for this session
 ./aos runtime status [--json]     # Runtime identity, signing, mode
+./aos runtime build-attestation --json # Passive repo binary/source fingerprint check
 ./aos runtime path                # Print current executable path
 ./aos service install [--mode repo|installed]   # Install launch agent
 ./aos service start|stop|restart  # Service lifecycle

@@ -23,6 +23,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   decision model, and reusable status/doctor/permissions projections. The
   ready builder maps its single top-level `ready_source` field directly from the
   verdict and is covered by a bounded command proof.
+- `lib/aos-build-attestation.mjs` owns the repo Swift-input fingerprint and
+  read-only build-receipt comparison shared by `build.sh` and
+  `aos runtime build-attestation`; keep that command passive and daemon-free.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the
@@ -110,6 +113,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   explicit signing identifier, entitlements, app bundle wrapping, allowlist
   assumptions, or an `spctl` acceptance gate. `spctl` rejection is expected for
   the raw local binary shape; launchability of `./aos` is the operational check.
+  `aos runtime build-attestation --json` must fail closed when the executable,
+  build mode, receipt, or current Swift-input fingerprint does not agree, and
+  must never update the receipt or invoke a build.
   Only actual rebuilds should drive a bounded TCC readiness check. After a
   rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and run
   `./aos ready --post-permission --json`; request a manual reset/regrant only
