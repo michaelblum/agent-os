@@ -13,6 +13,7 @@
         "scripts/aos-tell-listen.mjs",
         "listen"
       ],
+      "stdio": "inherit",
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",

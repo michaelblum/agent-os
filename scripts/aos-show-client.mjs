@@ -839,8 +839,8 @@ async function listenCommand(args) {
     daemon.kill('SIGTERM');
     setTimeout(() => {
       if (!daemonExited) daemon.kill('SIGKILL');
-    }, 250).unref();
-    setTimeout(exitAfterDaemon, 1000).unref();
+    }, 1500).unref();
+    setTimeout(exitAfterDaemon, 2500).unref();
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
@@ -860,7 +860,7 @@ async function listenCommand(args) {
   socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
 }
 
-function installParentExitWatchdog(close, intervalMs = 1000) {
+function installParentExitWatchdog(close, intervalMs = 250) {
   const timer = setInterval(() => {
     if (process.ppid !== ORIGINAL_PARENT_PID) close();
   }, intervalMs);

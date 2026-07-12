@@ -539,8 +539,11 @@ async function main() {
 
   child.kill('SIGTERM');
   await new Promise((resolve) => child.once('exit', resolve));
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  process.exit((await probe(false)) ? 0 : 3);
+  for (let i = 0; i < 30; i += 1) {
+    if (await probe(false)) process.exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  process.exit(3);
 }
 
 main();

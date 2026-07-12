@@ -165,6 +165,13 @@ test('Swift external dispatcher identifies the owner and preserves forwarded sig
   assert.match(source, /Darwin\.kill\(process\.processIdentifier, SIGINT\)/);
 });
 
+test('listen routes through inherited stdio so follow forms stream and retain signal control', async () => {
+  const manifest = await loadJson(manifestPath);
+  const listen = manifest.commands.find((command) => command.path.join(' ') === 'listen');
+  assert.ok(listen, 'listen external route is missing');
+  assert.equal(listen.stdio, 'inherit');
+});
+
 test('external command manifest only routes bootstrap families to Swift', async () => {
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
