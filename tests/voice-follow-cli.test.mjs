@@ -43,7 +43,7 @@ async function fakeDaemon(onRequest) {
   return stateRoot;
 }
 
-function launch(script, args, stateRoot) {
+function launch(script, args, stateRoot, extraEnv = {}) {
   const child = spawn(process.execPath, [path.join(repoRoot, script), ...args], {
     cwd: repoRoot,
     env: {
@@ -51,6 +51,7 @@ function launch(script, args, stateRoot) {
       AOS_STATE_ROOT: stateRoot,
       AOS_RUNTIME_MODE: 'repo',
       AOS_DISABLE_DAEMON_AUTOSTART: '1',
+      ...extraEnv,
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -91,6 +92,32 @@ test('hotkey follow emits only canonical dictation events and ignores fragmentat
   const events = result.stdout.trim().split('\n').filter(Boolean).map(JSON.parse);
   assert.deepEqual(events.map((item) => item.event), ['dictation_opened', 'dictation_closed_send']);
   assert.ok(events.every((item) => !JSON.stringify(item).includes('keyCode')));
+});
+
+test('voice follow cancels when its external-dispatch owner disappears', async () => {
+  let requestSeen = false;
+  const stateRoot = await fakeDaemon((request, socket) => {
+    requestSeen = true;
+    socket.write(success(request.ref));
+    socket.write(event('dictation_opened', { source: 'hotkey' }, request.ref));
+  });
+  const run = launch(
+    'scripts/aos-tell-listen.mjs',
+    ['listen', '--source', 'hotkey', '--shortcut', 'Control+Option+Space', '--follow'],
+    stateRoot,
+    { AOS_EXTERNAL_DISPATCH_PARENT_PID: '2147483647' },
+  );
+  let timeout;
+  const result = await Promise.race([
+    run.completed,
+    new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('voice client did not exit after owner loss')), 3000);
+    }),
+  ]).finally(() => clearTimeout(timeout));
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(requestSeen, true);
+  assert.match(result.stdout, /"event":"dictation_opened"/);
 });
 
 test('SIGINT finalizes microphone capture and output events never reveal its path', async () => {

@@ -7,6 +7,7 @@ import {
 
 const MAX_LINE_BYTES = 16 * 1024;
 const MAX_SPEECH_BYTES = 64 * 1024;
+const EXTERNAL_DISPATCH_PARENT_PID_ENV = 'AOS_EXTERNAL_DISPATCH_PARENT_PID';
 const TERMINAL_EVENTS = new Set([
   'capture_completed',
   'capture_canceled',
@@ -78,6 +79,24 @@ function request(service, action, data, ref) {
   return `${JSON.stringify({ v: 1, service, action, data, ref })}\n`;
 }
 
+function monitorExternalDispatchParent(onDisconnect) {
+  const parentPID = Number(process.env[EXTERNAL_DISPATCH_PARENT_PID_ENV]);
+  if (!Number.isInteger(parentPID) || parentPID <= 1) return null;
+  const timer = setInterval(() => {
+    let alive = process.ppid === parentPID;
+    if (alive) {
+      try {
+        process.kill(parentPID, 0);
+      } catch {
+        alive = false;
+      }
+    }
+    if (!alive) onDisconnect();
+  }, 250);
+  timer.unref();
+  return timer;
+}
+
 async function followVoice({ service, action, data, stopAction, cancelAction, terminalEvents = TERMINAL_EVENTS }) {
   const connection = await connectWithAutoStart({ managed: true });
   const socket = connection?.socket;
@@ -86,10 +105,12 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
   let buffer = '';
   let settled = false;
   let controlSent = false;
+  let parentMonitor = null;
 
   const cleanup = (exitCode = 0) => {
     if (settled) return;
     settled = true;
+    if (parentMonitor) clearInterval(parentMonitor);
     socket.end();
     stopManagedDaemon(connection.daemon);
     process.exitCode = exitCode;
@@ -109,6 +130,7 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
 
   process.once('SIGINT', () => sendControl('stop'));
   process.once('SIGTERM', () => sendControl('cancel'));
+  parentMonitor = monitorExternalDispatchParent(() => sendControl('cancel'));
 
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');

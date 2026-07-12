@@ -1,5 +1,6 @@
 // external-command-dispatch.swift — Manifest-backed command launcher
 
+import Darwin
 import Foundation
 
 private let externalCommandManifestRelativePath = "manifests/commands/aos-external-commands.json"
@@ -220,13 +221,14 @@ private func runExternalProcessInheritingStdio(
     if let cwd {
         process.currentDirectoryURL = URL(fileURLWithPath: cwd)
     }
+    var merged = ProcessInfo.processInfo.environment
     if let environment {
-        var merged = ProcessInfo.processInfo.environment
         for (key, value) in environment {
             merged[key] = value
         }
-        process.environment = merged
     }
+    merged["AOS_EXTERNAL_DISPATCH_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+    process.environment = merged
     process.standardInput = FileHandle.standardInput
     process.standardOutput = FileHandle.standardOutput
     process.standardError = FileHandle.standardError
@@ -246,12 +248,12 @@ private func runExternalProcessInheritingStdio(
     signal(SIGINT, SIG_IGN)
     sigterm.setEventHandler {
         if process.isRunning {
-            process.terminate()
+            _ = Darwin.kill(process.processIdentifier, SIGTERM)
         }
     }
     sigint.setEventHandler {
         if process.isRunning {
-            process.terminate()
+            _ = Darwin.kill(process.processIdentifier, SIGINT)
         }
     }
     sigterm.resume()

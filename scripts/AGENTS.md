@@ -83,7 +83,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `lib/aos-voice-follow.mjs` owns the public streaming adapters for
   `listen --source hotkey|microphone --follow` and `say --follow`. Keep daemon
   connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
-  stdin, and do not echo speech text or capture paths through events or errors.
+  stdin, do not echo speech text or capture paths through events or errors, and
+  cancel the connection-scoped lease when the native external-dispatch owner
+  exits.
 
 ## Local Contracts
 

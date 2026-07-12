@@ -158,6 +158,13 @@ test('external command manifest placeholders are resolved by Swift dispatcher', 
   }
 });
 
+test('Swift external dispatcher identifies the owner and preserves forwarded signals', async () => {
+  const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
+  assert.match(source, /merged\["AOS_EXTERNAL_DISPATCH_PARENT_PID"\]/);
+  assert.match(source, /Darwin\.kill\(process\.processIdentifier, SIGTERM\)/);
+  assert.match(source, /Darwin\.kill\(process\.processIdentifier, SIGINT\)/);
+});
+
 test('external command manifest only routes bootstrap families to Swift', async () => {
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
