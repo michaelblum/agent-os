@@ -159,10 +159,10 @@ assert "passive checks pass" in stale.get("reason", ""), stale
 assert stale.get("binary_identity", {}).get("path") == target, stale
 actions = d.get("next_actions", [])
 commands = [a.get("command", "") for a in actions]
-assert "./aos ready --post-permission" in commands, actions
+assert "./aos ready --repair --post-permission" in commands, actions
 manual = [a for a in actions if a.get("type") == "manual_tcc_reset" and a.get("reason") == "post_rebuild_tcc_stale"]
 assert len(manual) == 1 and manual[0].get("terminal") is True, actions
-post_index = commands.index("./aos ready --post-permission")
+post_index = commands.index("./aos ready --repair --post-permission")
 assert actions[post_index].get("after_user_signal") == "finished", actions
 assert not any(a.get("command") == "./aos permissions reset-runtime --mode repo" for a in actions), actions
 assert not any(a.get("command") == "./aos permissions setup --once" for a in actions), actions
@@ -171,7 +171,7 @@ handoff = d.get("terminal_handoff") or {}
 assert handoff.get("terminal") is True, handoff
 assert handoff.get("reason") == "post_rebuild_tcc_stale", handoff
 assert handoff.get("next_user_signal") == "finished", handoff
-assert handoff.get("resume_command") == "./aos ready --post-permission", handoff
+assert handoff.get("resume_command") == "./aos ready --repair --post-permission", handoff
 blockers = d.get("blockers", [])
 assert any(b.get("target_path") == target for b in blockers), blockers
 PY
@@ -269,7 +269,7 @@ if [[ "$READY_TEXT" == *"Post-rebuild TCC reset checkpoint:"* ]] &&
    [[ "$READY_TEXT" == *"Target binary: $ROOT/aos"* ]] &&
    [[ "$READY_TEXT" == *"Agent: end this turn now; do not run reset-runtime, setup, ready, service restart, or other TCC-backed probes."* ]] &&
    [[ "$READY_TEXT" == *"Human: Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished."* ]] &&
-   [[ "$READY_TEXT" == *"Session: after the user says finished, run ./aos ready --post-permission"* ]]; then
+   [[ "$READY_TEXT" == *"Session: after the user says finished, run ./aos ready --repair --post-permission"* ]]; then
   echo "PASS: ready text terminal TCC handoff"
 else
   echo "FAIL: ready text missing terminal TCC handoff:"
@@ -296,7 +296,7 @@ assert d.get("service_resets", []) == [], d
 assert any("emergency-only" in note for note in d.get("notes", [])), d
 commands = [a.get("command") for a in d.get("next_actions", [])]
 assert "./aos permissions setup --once" in commands, d
-assert "./aos ready --post-permission" in commands, d
+assert "./aos ready --repair --post-permission" in commands, d
 PY
 echo "PASS: permissions reset-runtime dry-run"
 

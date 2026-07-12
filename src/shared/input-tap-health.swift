@@ -236,7 +236,7 @@ func inputMonitoringSubGuidance(
     In repo mode, prefer:
       ./aos permissions reset-runtime --mode repo
       ./aos permissions setup --once
-      ./aos ready --post-permission
+      ./aos ready --repair --post-permission
     Manual Settings fallback: Privacy & Security > Input Monitoring for daemon binary:
       \(daemonBinaryPath)
     """

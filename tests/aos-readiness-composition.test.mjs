@@ -163,7 +163,7 @@ test('permission recovery owns mixed input-tap and microphone blockers', () => {
     [
       './aos permissions reset-runtime --mode repo',
       './aos permissions setup --once',
-      './aos ready --post-permission',
+      './aos ready --repair --post-permission',
       './aos ready',
     ],
   );
@@ -212,7 +212,7 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
   assert.equal(verdict.tcc_staleness.daemon_live.input_tap_status, 'unavailable');
   assert.equal(verdict.tcc_staleness.binary_identity.cdhash, 'abc123def456');
   assert.deepEqual(verdict.tcc_staleness.remedy.commands, [
-    './aos ready --post-permission',
+    './aos ready --repair --post-permission',
   ]);
   assert.deepEqual(verdict.terminal_handoff, {
     type: 'manual_tcc_reset',
@@ -223,7 +223,7 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
     next_user_signal: 'finished',
     human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
     target_path: '/repo/aos',
-    resume_command: './aos ready --post-permission',
+    resume_command: './aos ready --repair --post-permission',
   });
   assert.deepEqual(verdict.next_actions, [
     {
@@ -235,8 +235,8 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
     },
     {
       type: 'command',
-      label: 'after the user says finished, run the bounded post-permission readiness check',
-      command: './aos ready --post-permission',
+      label: 'after the user says finished, run one guarded managed restart and bounded post-permission recheck',
+      command: './aos ready --repair --post-permission',
       after_user_signal: 'finished',
     },
   ]);

@@ -48,7 +48,7 @@ Stop on stale identity, missing permissions, fallback-only refs, unsupported
 actions, known native limits, command recommendations that require recapture, or
 live proof that would mutate UI/TCC/native state without authorization. After a
 real repo-mode `./aos` rebuild, stop until the user resets/regrants TCC and
-`./aos ready --post-permission` is green.
+`./aos ready --repair --post-permission` is green.
 
 ## References
 

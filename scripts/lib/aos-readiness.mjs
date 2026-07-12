@@ -164,7 +164,7 @@ export function postRebuildTccStalenessFor(facts, mode, prefix = invocationName(
       type: 'manual_tcc_reset',
       summary: 'Play the stale-TCC handoff alert, end the current turn, and wait for the user to manually reset/regrant macOS TCC permissions for the rebuilt aos binary.',
       commands: [
-        `${prefix} ready --post-permission`,
+        `${prefix} ready --repair --post-permission`,
       ],
       human_action: 'Remove/re-add or regrant the aos entry in macOS Privacy & Security, then return to the waiting session and say: finished.',
       target_path: targetPath,
@@ -232,7 +232,7 @@ export function inputMonitoringSubGuidance(tap, daemonBinaryPath) {
     'In repo mode, prefer:',
     '  ./aos permissions reset-runtime --mode repo',
     '  ./aos permissions setup --once',
-    '  ./aos ready --post-permission',
+    '  ./aos ready --repair --post-permission',
     'Manual Settings fallback: Privacy & Security > Input Monitoring for daemon binary:',
     `  ${daemonBinaryPath}`,
   ].join('\n');
@@ -278,7 +278,7 @@ export function permissionResetSafeSequenceLines(blockers, mode, prefix = invoca
     `2. Agent: run ${prefix} permissions setup --once`,
     '3. Human: grant the macOS permission prompt, or physically remove/re-add the repo-mode aos runtime in System Settings if the grant remains stale.',
     '4. Human: return to the waiting session and say: finished',
-    `5. Session: run ${prefix} ready --post-permission`,
+    `5. Session: run ${prefix} ready --repair --post-permission`,
     'Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale.',
   ];
   if (blockers.some((blocker) => blocker.id === 'screen_recording')) {
@@ -298,7 +298,7 @@ export function staleTccTerminalHandoff(tccStaleness, prefix = invocationName())
     next_user_signal: 'finished',
     human_action: tccStaleness.remedy.human_action,
     target_path: tccStaleness.remedy.target_path,
-    resume_command: `${prefix} ready --post-permission`,
+    resume_command: `${prefix} ready --repair --post-permission`,
   };
 }
 
@@ -630,8 +630,8 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
     });
     appendAction(actions, seen, {
       type: 'command',
-      label: 'after the user says finished, run the bounded post-permission readiness check',
-      command: `${prefix} ready --post-permission`,
+      label: 'after the user says finished, run one guarded managed restart and bounded post-permission recheck',
+      command: `${prefix} ready --repair --post-permission`,
       after_user_signal: 'finished',
     });
     return actions;
@@ -674,8 +674,8 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
     });
     appendAction(actions, seen, {
       type: 'command',
-      label: 'bounded handoff check after permissions have been granted',
-      command: `${prefix} ready --post-permission`,
+      label: 'guarded managed restart and bounded handoff check after permissions have been granted',
+      command: `${prefix} ready --repair --post-permission`,
     });
   }
 
@@ -715,7 +715,7 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (tccStaleness) {
     notes.push(tccStaleness.reason);
     notes.push(tccStaleness.remedy.summary);
-    notes.push(`After the user says ${tccStaleness.remedy.next_user_signal}, run '${prefix} ready --post-permission'.`);
+    notes.push(`After the user says ${tccStaleness.remedy.next_user_signal}, run '${prefix} ready --repair --post-permission'.`);
     return notes;
   }
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
@@ -853,7 +853,7 @@ export function permissionRecoveryNotes(missing, mode, prefix = invocationName()
     notes.push('Microphone permission is still not granted.');
   }
   notes.push(`Run '${prefix} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
-  notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --post-permission'.`);
+  notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --repair --post-permission'.`);
   return notes;
 }
 
