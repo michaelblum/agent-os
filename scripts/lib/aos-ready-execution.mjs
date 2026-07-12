@@ -32,7 +32,15 @@ export function postPermissionRecoveryAuthority(
       detail: `requested mode=${mode ?? 'unknown'}, runtime mode=${runtime?.mode ?? 'unknown'}`,
     };
   }
-  if (runtime.ownership_state !== 'consistent' || runtime.owner_launchd_managed !== true) {
+  const managedRuntime = runtime.ownership_state === 'consistent'
+    && runtime.owner_launchd_managed === true;
+  const absentRuntime = runtime.ownership_state === 'absent'
+    && runtime.daemon_running !== true
+    && runtime.socket_reachable !== true
+    && runtime.owner_pid == null
+    && runtime.serving_pid == null
+    && runtime.lock_owner_pid == null;
+  if (!managedRuntime && !absentRuntime) {
     return {
       allowed: false,
       reason: runtime.ownership_state === 'mismatch'
@@ -55,11 +63,11 @@ export function postPermissionRecoveryAuthority(
       detail: `requested mode=${mode}, service mode=${service.mode ?? 'unknown'}`,
     };
   }
-  if (!service.installed || !service.loaded || !service.running) {
+  if (!service.installed) {
     return {
       allowed: false,
-      reason: 'managed_service_not_running',
-      detail: `installed=${Boolean(service.installed)}, loaded=${Boolean(service.loaded)}, running=${Boolean(service.running)}`,
+      reason: 'managed_service_not_installed',
+      detail: 'the expected launchd service definition is not installed',
     };
   }
   const targetMatches = service.target_matches_expected === true
@@ -72,12 +80,27 @@ export function postPermissionRecoveryAuthority(
       detail: `actual=${service.actual_binary_path ?? 'unknown'}, service_expected=${service.expected_binary_path ?? 'unknown'}, ready_expected=${expectedBinaryPath ?? 'unknown'}`,
     };
   }
+  if (managedRuntime && (!service.loaded || !service.running)) {
+    return {
+      allowed: false,
+      reason: 'managed_service_state_mismatch',
+      detail: `runtime is launchd-managed but service loaded=${Boolean(service.loaded)}, running=${Boolean(service.running)}`,
+    };
+  }
+  if (absentRuntime && service.running) {
+    return {
+      allowed: false,
+      reason: 'managed_service_state_mismatch',
+      detail: 'runtime ownership is absent but service status reports a running process',
+    };
+  }
   return {
     allowed: true,
     mode,
     binary_path: expectedBinaryPath,
     service_pid: service.pid,
     daemon_pid: runtime.serving_pid ?? runtime.daemon_pid,
+    requires_restart: absentRuntime,
   };
 }
 
@@ -193,7 +216,8 @@ function nextPostPermissionRepairStep(response, authority) {
 
   const tap = response.runtime?.input_tap;
   const tapStatus = tap?.status ?? response.runtime?.input_tap_status;
-  const needsLiveRefresh = blockerIDs.has('post_permission_live_readiness_unconfirmed')
+  const needsLiveRefresh = authority.requires_restart === true
+    || blockerIDs.has('post_permission_live_readiness_unconfirmed')
     || blockerIDs.has('input_tap_not_active')
     || (response.blockers ?? []).some((blocker) => blocker.reason === 'post_rebuild_tcc_stale')
     || (tapStatus && tapStatus !== 'active');

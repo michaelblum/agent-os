@@ -168,14 +168,50 @@ test('post-permission restart authority fails closed on ownership, mode, and bin
   ).reason, 'binary_identity_mismatch');
 });
 
+test('post-permission repair authorizes one exact-target restart after reset-runtime stops launchd', () => {
+  const authority = postPermissionRecoveryAuthority({
+    mode: 'repo',
+    daemon_running: false,
+    socket_reachable: false,
+    ownership_state: 'absent',
+    ownership_kind: 'absent',
+  }, {
+    status: 'degraded',
+    mode: 'repo',
+    installed: true,
+    loaded: false,
+    running: false,
+    actual_binary_path: '/repo/aos',
+    expected_binary_path: '/repo/aos',
+    target_matches_expected: true,
+  }, { mode: 'repo', expectedBinaryPath: '/repo/aos' });
+
+  assert.equal(authority.allowed, true);
+  assert.equal(authority.requires_restart, true);
+  const step = nextReadyExecutionStep({
+    ready: false,
+    mode: 'repo',
+    runtime: { ownership_state: 'absent' },
+    permissions: grantedPermissions(),
+    blockers: [{ id: 'daemon_socket_unreachable', kind: 'runtime' }],
+    action_trace: [],
+  }, {
+    repair: true,
+    postPermission: true,
+    postPermissionAuthority: authority,
+  });
+  assert.equal(step.type, 'restart');
+});
+
 const fakeAOSSource = `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 const actionLog = process.env.AOS_TEST_READY_SERVICE_ACTION_LOG;
 const restarted = Boolean(actionLog && fs.existsSync(actionLog));
 const active = restarted && process.env.AOS_FAKE_NEVER_READY !== '1';
+const absent = process.env.AOS_FAKE_RUNTIME_ABSENT === '1' && !restarted;
 const ownership = process.env.AOS_FAKE_OWNERSHIP || 'consistent';
-const launchdManaged = ownership === 'consistent';
+const launchdManaged = !absent && ownership === 'consistent';
 const tap = active
   ? { status: 'active', attempts: 1, listen_access: true, post_access: true }
   : { status: 'unavailable', attempts: 1, listen_access: false, post_access: false, last_error_at: '2026-07-12T01:16:34Z' };
@@ -194,16 +230,16 @@ if (args.join(' ') === '__permissions facts --json') {
 } else if (args.join(' ') === '__runtime status-facts --json') {
   payload = {
     mode: 'repo',
-    daemon_pid: active ? 72167 : 51075,
-    serving_pid: active ? 72167 : 51075,
-    daemon_running: true,
-    socket_reachable: true,
-    ownership_state: ownership,
-    ownership_kind: launchdManaged ? 'launchd_managed' : 'unmanaged',
+    daemon_pid: absent ? undefined : active ? 72167 : 51075,
+    serving_pid: absent ? undefined : active ? 72167 : 51075,
+    daemon_running: !absent,
+    socket_reachable: !absent,
+    ownership_state: absent ? 'absent' : ownership,
+    ownership_kind: absent ? 'absent' : launchdManaged ? 'launchd_managed' : 'unmanaged',
     owner_launchd_managed: launchdManaged,
-    owner_pid: active ? 72167 : 51075,
-    lock_owner_pid: active ? 72167 : 51075,
-    service_pid: 51065,
+    owner_pid: absent ? undefined : active ? 72167 : 51075,
+    lock_owner_pid: absent ? undefined : active ? 72167 : 51075,
+    service_pid: absent ? undefined : 51065,
     input_tap_status: tap.status,
     input_tap_attempts: tap.attempts,
     input_tap: tap,
@@ -219,7 +255,7 @@ if (args.join(' ') === '__permissions facts --json') {
 process.stdout.write(JSON.stringify(payload) + '\\n');
 `;
 
-async function runCase({ neverReady = false, ownership = 'consistent', service = {} } = {}) {
+async function runCase({ absent = false, neverReady = false, ownership = 'consistent', service = {} } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-ready-post-permission-'));
   const fakeAOS = path.join(root, 'aos');
   const actionLog = path.join(root, 'actions.jsonl');
@@ -229,8 +265,8 @@ async function runCase({ neverReady = false, ownership = 'consistent', service =
     status: 'ok',
     mode: 'repo',
     installed: true,
-    loaded: true,
-    running: true,
+    loaded: !absent,
+    running: !absent,
     pid: 51065,
     actual_binary_path: fakeAOS,
     expected_binary_path: fakeAOS,
@@ -248,6 +284,7 @@ async function runCase({ neverReady = false, ownership = 'consistent', service =
       AOS_STATE_ROOT: root,
       AOS_RUNTIME_MODE: 'repo',
       AOS_FAKE_NEVER_READY: neverReady ? '1' : '0',
+      AOS_FAKE_RUNTIME_ABSENT: absent ? '1' : '0',
       AOS_FAKE_OWNERSHIP: ownership,
       AOS_TEST_READY_MOCK_SERVICE_ACTIONS: '1',
       AOS_TEST_READY_SERVICE_ACTION_LOG: actionLog,
@@ -286,6 +323,15 @@ test('post-permission repair performs one managed restart and requires fresh liv
   assert.equal(result.response.runtime.input_tap.listen_access, true);
   assert.equal(result.response.runtime.input_tap.post_access, true);
   assert.equal(result.response.action_trace.some((entry) => entry.step === 'wait_for_recovery' && entry.result === 'ready'), true);
+});
+
+test('post-permission repair restarts an exact-target service stopped by reset-runtime', async () => {
+  const result = await runCase({ absent: true });
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(result.actions, [{ action: 'restart', mode: 'repo' }]);
+  assert.equal(result.response.ready, true);
+  assert.equal(result.response.ready_source, 'daemon');
+  assert.equal(result.response.runtime.input_tap.status, 'active');
 });
 
 test('post-permission repair never performs a second restart when live facts stay stale', async () => {
