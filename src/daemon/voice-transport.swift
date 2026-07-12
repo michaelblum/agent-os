@@ -203,6 +203,17 @@ func aosVoiceCaptureDuration(_ requested: TimeInterval) -> TimeInterval? {
     return min(requested, aosVoiceCaptureMaximumDuration, byteBound)
 }
 
+func aosVoiceCaptureDurationMilliseconds(at outputURL: URL, fallback: TimeInterval) -> Int {
+    if let file = try? AVAudioFile(forReading: outputURL),
+       file.fileFormat.sampleRate.isFinite,
+       file.fileFormat.sampleRate > 0 {
+        let duration = Double(file.length) / file.fileFormat.sampleRate
+        return max(0, Int((duration * 1000).rounded()))
+    }
+    guard fallback.isFinite else { return 0 }
+    return max(0, Int((fallback * 1000).rounded()))
+}
+
 func aosSystemSpeechVoiceIdentifier(_ value: String?) throws -> String? {
     guard let value else { return nil }
     guard !value.isEmpty else {
@@ -396,7 +407,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         stateLock.unlock()
         meterTimer?.cancel()
         meterTimer = nil
-        let duration = recorder.currentTime
+        let fallbackDuration = recorder.currentTime
         recorder.stop()
         _ = chmod(outputURL.path, mode_t(0o600))
         let size = (try? outputURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -411,7 +422,10 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         } else if keepFile {
             emit(event, [
                 "reason": reason,
-                "duration_ms": max(0, Int(duration * 1000)),
+                "duration_ms": aosVoiceCaptureDurationMilliseconds(
+                    at: outputURL,
+                    fallback: fallbackDuration
+                ),
                 "bytes": size,
             ])
         } else {

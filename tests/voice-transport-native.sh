@@ -17,6 +17,30 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+private func appendLittleEndian<T: FixedWidthInteger>(_ value: T, to data: inout Data) {
+    var encoded = value.littleEndian
+    withUnsafeBytes(of: &encoded) { data.append(contentsOf: $0) }
+}
+
+private func writeOneSecondPCMFixture(to output: URL) throws {
+    let sampleCount = UInt32(aosVoiceCaptureSampleRate)
+    let audioByteCount = sampleCount * 2
+    var data = Data("RIFF".utf8)
+    appendLittleEndian(UInt32(36) + audioByteCount, to: &data)
+    data.append(Data("WAVEfmt ".utf8))
+    appendLittleEndian(UInt32(16), to: &data)
+    appendLittleEndian(UInt16(1), to: &data)
+    appendLittleEndian(UInt16(aosVoiceCaptureChannels), to: &data)
+    appendLittleEndian(UInt32(aosVoiceCaptureSampleRate), to: &data)
+    appendLittleEndian(UInt32(aosVoiceCaptureSampleRate * 2), to: &data)
+    appendLittleEndian(UInt16(2), to: &data)
+    appendLittleEndian(UInt16(16), to: &data)
+    data.append(Data("data".utf8))
+    appendLittleEndian(audioByteCount, to: &data)
+    data.append(Data(count: Int(audioByteCount)))
+    try data.write(to: output, options: .atomic)
+}
+
 private final class FakeMicrophoneAuthorization: AOSMicrophoneAuthorizationProviding {
     private(set) var current: AOSMicrophoneAuthorizationState
     private let requestedState: AOSMicrophoneAuthorizationState
@@ -96,6 +120,28 @@ struct VoiceTransportNativeTest {
         require(aosVoiceCaptureDuration(120) == 120, "duration bound drifted")
         require(aosVoiceCaptureDuration(121) == 120, "duration cap was not applied")
         require(aosVoiceCaptureDuration(0) == nil, "zero duration was accepted")
+
+        let durationRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aos-voice-duration-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: durationRoot,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? FileManager.default.removeItem(at: durationRoot) }
+        let durationOutput = durationRoot.appendingPathComponent("duration.wav")
+        try writeOneSecondPCMFixture(to: durationOutput)
+        require(
+            aosVoiceCaptureDurationMilliseconds(at: durationOutput, fallback: 0) == 1000,
+            "finalized WAV duration was not authoritative"
+        )
+        require(
+            aosVoiceCaptureDurationMilliseconds(
+                at: durationRoot.appendingPathComponent("missing.wav"),
+                fallback: 0.5
+            ) == 500,
+            "unavailable WAV duration did not use recorder fallback"
+        )
 
         let stateCases: [(AVAuthorizationStatus, AOSMicrophoneAuthorizationState)] = [
             (.notDetermined, .notDetermined),
