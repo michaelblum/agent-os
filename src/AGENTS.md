@@ -15,6 +15,9 @@ needs, but public command policy and product UI policy belong above it:
 
 - canvas lifecycle, native frames, display topology, content serving, input
   streams, and lifecycle routing belong here;
+- permission status and request primitives belong to the process that owns the
+  privileged capability; daemon-owned microphone capture therefore uses
+  daemon-owned authorization rather than foreground CLI authorization;
 - generic windowing semantics, panel chrome, minimize chips, and reusable
   workbench layout belong in `packages/toolkit/`;
 - product themes, product UX, and product-specific surface behavior belong in

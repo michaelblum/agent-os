@@ -837,8 +837,8 @@ source = Path("scripts/aos-dev-build.mjs").read_text(encoding="utf-8")
 assert "buildArgs.push('--no-restart')" in source
 assert "build_wrapper: 'build.sh'" in source
 assert "build_source: 'repo-root/build.sh'" in source
-assert "next: null" in source
-assert "post_build_checkpoint" not in source
+assert "command: './aos help --json'" in source
+assert "required_first_post_build_command: true" in source
 assert "checkpointContract" not in source
 assert "permissions reset-runtime --mode repo" not in source
 assert "ready --post-permission" not in source
@@ -846,9 +846,9 @@ assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
 then
-    pass "maintainer build script reports wrapper source without post-build ritual"
+    pass "maintainer build script reports the help-first post-build checkpoint"
 else
-    fail "maintainer build script telemetry or readiness boundary regressed"
+    fail "maintainer build script help-first or mutation boundary regressed"
 fi
 
 if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/tmp/aos-dev-build-help.err \
@@ -856,8 +856,10 @@ if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/t
     && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help.out \
     && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help-short.out \
     && grep -q 'bash build.sh --force --no-restart' /tmp/aos-dev-build-help.out \
-    && grep -q 'no post-build codesign' /tmp/aos-dev-build-help.out \
-    && grep -q 'spctl launch gate' /tmp/aos-dev-build-help.out \
+    && grep -q 'one direct swiftc link' /tmp/aos-dev-build-help.out \
+    && grep -q 'post-link codesign' /tmp/aos-dev-build-help.out \
+    && grep -q 'spctl gate' /tmp/aos-dev-build-help.out \
+    && grep -q 'immediately following command is ./aos help --json' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Signing aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \

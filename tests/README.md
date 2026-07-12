@@ -135,11 +135,15 @@ The build gate is content-based for Swift runtime inputs. Touching a Swift file
 without changing its content, or editing build tooling alone, should not replace
 the TCC-owning `./aos` binary. Passing `--force`, changing Swift runtime input
 content, changing build mode, or missing output can still rebuild it. A real
-rebuild emits `Rebuilt: ./aos` and a bounded-readiness reminder; it does not
-prove that TCC is stale.
+rebuild emits `Rebuilt: ./aos` and the ADR 0023 first-launch checkpoint; it
+does not prove that TCC is stale.
 
-After a real rebuild, run `./aos ready --post-permission` before TCC-backed
-proof. The stop point is a readiness result that reports
+After a real rebuild, the immediately following command must be
+`./aos help --json`. Do not inspect, hash, attest, copy, sign, or run readiness
+against the live artifact first, and stop immediately on exit `137`. Only after
+help succeeds may read-only identity inspection and
+`./aos ready --post-permission --json` occur before TCC-backed proof. The stop
+point is a readiness result that reports
 `post_rebuild_tcc_stale`: it plays
 the three-chime handoff alert, returns a terminal handoff, and agents must end
 the turn. After the user manually resets/regrants TCC and replies `finished`,
@@ -152,12 +156,13 @@ mutate the native binary, return the work to the maintainer.
 Use raw `bash build.sh` only when `./aos` is missing or the build command itself
 is being repaired.
 
-If you are chaining build + `./aos` verification from automation, prefer:
+If you are serializing an up-to-date check with `./aos` verification, prefer:
 
 - `scripts/aos-after-build -- ./aos ...`
 
-That wrapper waits for any in-flight rebuild, ensures the binary is current,
-then runs the `./aos` command.
+That wrapper waits for any in-flight rebuild and runs the command when the
+artifact was already current. If it performs a real rebuild, it rejects every
+next command except exact `./aos help --json`.
 
 Examples:
 

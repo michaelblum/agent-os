@@ -2616,6 +2616,10 @@ class UnifiedDaemon {
         case ("session", "unregister"):       return "coord-unregister"
         case ("session", "who"):              return "coord-who"
         case ("voice", "list"):               return "voice-list"
+        case ("voice", "microphone_authorization_status"):
+                                                return "voice-microphone-authorization-status"
+        case ("voice", "microphone_authorization_request"):
+                                                return "voice-microphone-authorization-request"
         case ("voice", "assignments"):        return "voice-assignments"
         case ("voice", "refresh"):            return "voice-refresh"
         case ("voice", "providers"):          return "voice-providers"
@@ -2890,6 +2894,20 @@ class UnifiedDaemon {
             }
             sendResponseJSON(to: outbound, ["voices": voices], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
+        case "voice-microphone-authorization-status":
+            let authorization = voiceTransport.microphoneAuthorizationStatus()
+            sendResponseJSON(to: outbound, [
+                "status": authorization.isAuthorized ? "ok" : "degraded",
+                "microphone_authorization": authorization.statusDictionary(),
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "voice-microphone-authorization-request":
+            let result = voiceTransport.requestMicrophoneAuthorization()
+            sendResponseJSON(to: outbound, [
+                "status": result.after.isAuthorized ? "ok" : "degraded",
+                "microphone_authorization": result.dictionary(),
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
         case "voice-hotkey":
             guard let shortcut = json["shortcut"] as? String, !shortcut.isEmpty else {
                 sendVoiceTransportError(to: outbound, message: "shortcut required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
@@ -3104,6 +3122,7 @@ class UnifiedDaemon {
             }
             let visualLastRemaining: Any = visualSnapshot.lastDisplayedRemaining ?? NSNull()
 
+            let microphoneAuthorization = voiceTransport.microphoneAuthorizationStatus()
             var response: [String: Any] = [
                 "status": "ok",
                 "uptime": uptime,
@@ -3161,6 +3180,8 @@ class UnifiedDaemon {
                 // New nested permissions block (daemon-sourced)
                 "permissions": [
                     "accessibility": perception.daemonAccessibilityGranted,
+                    "microphone": microphoneAuthorization.isAuthorized,
+                    "microphone_state": microphoneAuthorization.rawValue,
                 ] as [String: Any],
             ]
             if let lockOwnerPID = aosDaemonLockOwnerPID(for: mode) {

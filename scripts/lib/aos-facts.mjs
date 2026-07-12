@@ -38,6 +38,8 @@ export function daemonView(daemonHealth) {
     },
     permissions: {
       accessibility: daemonHealth.permissions?.accessibility,
+      microphone: daemonHealth.permissions?.microphone,
+      microphoneState: daemonHealth.permissions?.microphone_state,
     },
   };
 }
@@ -60,6 +62,12 @@ export function daemonViewFromHealth(health) {
   };
   if (health.permissions?.accessibility !== undefined) {
     block.accessibility = Boolean(health.permissions.accessibility);
+  }
+  if (health.permissions?.microphone !== undefined) {
+    block.microphone = Boolean(health.permissions.microphone);
+  }
+  if (typeof health.permissions?.microphone_state === 'string') {
+    block.microphone_state = health.permissions.microphone_state;
   }
 
   return {

@@ -24,19 +24,21 @@
     {
       "id": "voice-transport-native-proof",
       "path_patterns": [
+        "src/daemon/microphone-authorization.swift",
         "src/daemon/voice-transport.swift",
         "src/perceive/daemon.swift",
+        "tests/daemon-microphone-authorization-contract.test.mjs",
         "tests/voice-transport-native.sh"
       ],
       "fixture_patterns": [],
       "owner": "voice-io",
       "harness_level": "model_unit",
       "proof_kind": "voice_transport_contract",
-      "contract": "Exact hotkey matching, repeat suppression, secure WAV target creation, capture bounds, and audio meter math stay deterministic.",
-      "worth": "This proves the security and signal-processing rules without touching TCC, live audio devices, or the shared daemon.",
-      "command": "bash tests/voice-transport-native.sh",
+      "contract": "Exact hotkey matching, daemon-owned microphone authorization states and first-use request routing, secure WAV target creation, capture bounds, and audio meter math stay deterministic.",
+      "worth": "This proves capture-owner authorization, security, and signal-processing rules without touching TCC, live audio devices, or the shared daemon.",
+      "command": "bash tests/voice-transport-native.sh && node --test tests/daemon-microphone-authorization-contract.test.mjs",
       "replaces": [],
-      "guard": "compiles a disposable Swift harness; no repo binary rebuild or live TCC use",
+      "guard": "uses an injected authorization provider and compiles a disposable Swift harness; no repo binary rebuild or live TCC use",
       "status": "active"
     },
     {

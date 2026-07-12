@@ -17,18 +17,55 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+private final class FakeMicrophoneAuthorization: AOSMicrophoneAuthorizationProviding {
+    private(set) var current: AOSMicrophoneAuthorizationState
+    private let requestedState: AOSMicrophoneAuthorizationState
+    private(set) var requestCount = 0
+
+    init(
+        current: AOSMicrophoneAuthorizationState,
+        requestedState: AOSMicrophoneAuthorizationState? = nil
+    ) {
+        self.current = current
+        self.requestedState = requestedState ?? current
+    }
+
+    func status() -> AOSMicrophoneAuthorizationState { current }
+
+    func request(timeout: TimeInterval) -> AOSMicrophoneAuthorizationRequestResult {
+        let before = current
+        guard before == .notDetermined else {
+            return AOSMicrophoneAuthorizationRequestResult(
+                before: before,
+                after: before,
+                attempted: false,
+                completed: true
+            )
+        }
+        requestCount += 1
+        current = requestedState
+        return AOSMicrophoneAuthorizationRequestResult(
+            before: before,
+            after: current,
+            attempted: true,
+            completed: true
+        )
+    }
+}
+
 @main
 struct VoiceTransportNativeTest {
     static func main() throws {
         var events: [String] = []
         let owner = UUID()
         let other = UUID()
-        let transport = AOSVoiceTransport { emittedOwner, event, data, ref in
+        let authorizedMicrophone = FakeMicrophoneAuthorization(current: .authorized)
+        let transport = AOSVoiceTransport(emit: { emittedOwner, event, data, ref in
             require(emittedOwner == owner, "event owner drifted")
             require(ref == "hotkey-ref", "event ref drifted")
             require(data["key_code"] == nil, "hotkey event exposed a key code")
             events.append(event)
-        }
+        }, microphoneAuthorization: authorizedMicrophone)
         try transport.acquireHotkey(owner: owner, shortcut: "Control+Option+Space", ref: "hotkey-ref")
         let modifiers = AOSVoiceModifierSnapshot(control: true, option: true, command: false, shift: false)
         let down = AOSVoiceHotkeyInput(kind: .keyDown, keyCode: 49, modifiers: modifiers, isRepeat: false)
@@ -59,6 +96,63 @@ struct VoiceTransportNativeTest {
         require(aosVoiceCaptureDuration(120) == 120, "duration bound drifted")
         require(aosVoiceCaptureDuration(121) == 120, "duration cap was not applied")
         require(aosVoiceCaptureDuration(0) == nil, "zero duration was accepted")
+
+        let stateCases: [(AVAuthorizationStatus, AOSMicrophoneAuthorizationState)] = [
+            (.notDetermined, .notDetermined),
+            (.restricted, .restricted),
+            (.denied, .denied),
+            (.authorized, .authorized),
+        ]
+        for (native, expected) in stateCases {
+            require(AOSMicrophoneAuthorizationState(native) == expected, "native microphone state mapping drifted")
+            let status = expected.statusDictionary()
+            require(status["owner"] as? String == "daemon", "microphone owner drifted")
+            require(status["state"] as? String == expected.rawValue, "microphone state was collapsed")
+            require(status["authorized"] as? Bool == expected.isAuthorized, "microphone authorized projection drifted")
+        }
+
+        let firstUse = FakeMicrophoneAuthorization(current: .notDetermined, requestedState: .denied)
+        let firstUseTransport = AOSVoiceTransport(emit: { _, _, _, _ in }, microphoneAuthorization: firstUse)
+        let request = firstUseTransport.requestMicrophoneAuthorization(timeout: 1)
+        require(request.before == .notDetermined, "first-use request lost before state")
+        require(request.after == .denied, "first-use request lost denied state")
+        require(request.attempted && request.completed, "first-use request was not completed")
+        require(firstUse.requestCount == 1, "first-use request count drifted")
+
+        for state in [AOSMicrophoneAuthorizationState.restricted, .denied, .unknown] {
+            let provider = FakeMicrophoneAuthorization(current: state)
+            let deniedTransport = AOSVoiceTransport(emit: { _, _, _, _ in }, microphoneAuthorization: provider)
+            let deniedOutput = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("aos-voice-denied-\(UUID().uuidString).wav")
+            do {
+                try deniedTransport.startCapture(
+                    owner: owner,
+                    outputPath: deniedOutput.path,
+                    maximumDuration: 1,
+                    ref: nil
+                )
+                require(false, "non-authorized microphone state started capture")
+            } catch let failure as AOSVoiceTransportFailure {
+                require(failure.code == state.failure?.code, "microphone state failure code was collapsed")
+            }
+            require(!FileManager.default.fileExists(atPath: deniedOutput.path), "failed microphone state created an output file")
+        }
+
+        let deniedAfterPrompt = FakeMicrophoneAuthorization(current: .notDetermined, requestedState: .denied)
+        let deniedAfterPromptTransport = AOSVoiceTransport(emit: { _, _, _, _ in }, microphoneAuthorization: deniedAfterPrompt)
+        do {
+            try deniedAfterPromptTransport.startCapture(
+                owner: owner,
+                outputPath: NSTemporaryDirectory() + "/aos-voice-prompt-denied-\(UUID().uuidString).wav",
+                maximumDuration: 1,
+                ref: nil
+            )
+            require(false, "capture continued after first-use denial")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "MICROPHONE_PERMISSION_DENIED", "first-use denial code drifted")
+        }
+        require(deniedAfterPrompt.requestCount == 1, "capture did not request first-use authorization exactly once")
+
         let normalizedVoice = try aosSystemSpeechVoiceIdentifier("voice://system/example")
         require(normalizedVoice == "example", "canonical system voice did not normalize")
         do {
@@ -125,5 +219,9 @@ struct VoiceTransportNativeTest {
 }
 SWIFT
 
-swiftc -parse-as-library "$ROOT/src/daemon/voice-transport.swift" "$TMP/main.swift" -o "$TMP/voice-transport-native"
+swiftc -parse-as-library \
+    "$ROOT/src/daemon/microphone-authorization.swift" \
+    "$ROOT/src/daemon/voice-transport.swift" \
+    "$TMP/main.swift" \
+    -o "$TMP/voice-transport-native"
 "$TMP/voice-transport-native"

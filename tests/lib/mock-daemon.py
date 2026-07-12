@@ -8,7 +8,8 @@ without requiring a real CGEventTap failure or launchd round-trip.
 
 Usage:
   mock-daemon.py --socket PATH [--tap-status STATUS] [--listen-access BOOL]
-                 [--post-access BOOL] [--accessibility BOOL] [--attempts N]
+                 [--post-access BOOL] [--accessibility BOOL]
+                 [--microphone-state STATE] [--attempts N]
 """
 from __future__ import annotations
 
@@ -63,6 +64,8 @@ def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
         }
         payload["permissions"] = {
             "accessibility": parse_bool(args.accessibility),
+            "microphone": args.microphone_state == "authorized",
+            "microphone_state": args.microphone_state,
         }
     return payload
 
@@ -142,6 +145,9 @@ def main() -> None:
     parser.add_argument("--listen-access", default="true")
     parser.add_argument("--post-access", default="true")
     parser.add_argument("--accessibility", default="true")
+    parser.add_argument("--microphone-state", default="authorized",
+                        choices=("not_determined", "restricted", "denied",
+                                 "authorized", "unknown"))
     parser.add_argument("--legacy", action="store_true",
                         help="Emit only legacy flat fields; omit the structured "
                              "input_tap/permissions blocks (simulates a "

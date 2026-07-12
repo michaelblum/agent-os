@@ -269,6 +269,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
     let ref: String?
     let outputURL: URL
     private let maximumDuration: TimeInterval
+    private let authorizationState: () -> AOSMicrophoneAuthorizationState
     private let emit: (String, [String: Any]) -> Void
     private let terminal: (UUID) -> Void
     private var recorder: AVAudioRecorder
@@ -282,12 +283,10 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         ref: String?,
         outputPath: String,
         maximumDuration: TimeInterval,
+        authorizationState: @escaping () -> AOSMicrophoneAuthorizationState,
         emit: @escaping (String, [String: Any]) -> Void,
         terminal: @escaping (UUID) -> Void
     ) throws {
-        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            throw AOSVoiceTransportFailure(code: "MICROPHONE_PERMISSION_DENIED", message: "microphone permission is not granted")
-        }
         guard let boundedDuration = aosVoiceCaptureDuration(maximumDuration) else {
             throw AOSVoiceTransportFailure(code: "INVALID_MAX_DURATION", message: "voice capture duration must be positive")
         }
@@ -295,6 +294,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         self.ref = ref
         self.outputURL = try aosCreateVoiceCaptureTarget(outputPath)
         self.maximumDuration = boundedDuration
+        self.authorizationState = authorizationState
         self.emit = emit
         self.terminal = terminal
         do {
@@ -367,7 +367,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
         let isFinished = finished
         stateLock.unlock()
         guard !isFinished else { return }
-        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+        guard authorizationState().isAuthorized else {
             fail(code: "MICROPHONE_PERMISSION_LOST")
             return
         }
@@ -645,12 +645,25 @@ final class AOSVoiceTransport {
 
     private let lock = NSLock()
     private let emit: EventEmitter
+    private let microphoneAuthorization: AOSMicrophoneAuthorizationProviding
     private var hotkey: HotkeyLease?
     private var capture: AOSMicrophoneCaptureSession?
     private var speech: AOSStreamingSpeechSession?
 
-    init(emit: @escaping EventEmitter) {
+    init(
+        emit: @escaping EventEmitter,
+        microphoneAuthorization: AOSMicrophoneAuthorizationProviding = AOSSystemMicrophoneAuthorization()
+    ) {
         self.emit = emit
+        self.microphoneAuthorization = microphoneAuthorization
+    }
+
+    func microphoneAuthorizationStatus() -> AOSMicrophoneAuthorizationState {
+        microphoneAuthorization.status()
+    }
+
+    func requestMicrophoneAuthorization(timeout: TimeInterval = 30) -> AOSMicrophoneAuthorizationRequestResult {
+        microphoneAuthorization.request(timeout: timeout)
     }
 
     func acquireHotkey(owner: UUID, shortcut value: String, ref: String?) throws {
@@ -708,6 +721,14 @@ final class AOSVoiceTransport {
         }
         let activeSpeech = speech
         lock.unlock()
+
+        var authorization = microphoneAuthorization.status()
+        if authorization == .notDetermined {
+            authorization = microphoneAuthorization.request(timeout: 30).after
+        }
+        if let failure = authorization.failure {
+            throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
+        }
         activeSpeech?.cancel(reason: "barge_in")
 
         let session = try AOSMicrophoneCaptureSession(
@@ -715,6 +736,7 @@ final class AOSVoiceTransport {
             ref: ref,
             outputPath: outputPath,
             maximumDuration: maximumDuration,
+            authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
             emit: { [emit] event, data in emit(owner, event, data, ref) },
             terminal: { [weak self] token in self?.captureDidTerminate(token: token) }
         )

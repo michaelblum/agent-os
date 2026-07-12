@@ -711,14 +711,19 @@ node scripts/aos-dev-build.mjs build --no-restart --json
 Rebuild detection is content-based for Swift runtime inputs, not
 mtime-based, and build-tooling edits alone do not replace the TCC-owning binary.
 Repo-mode builds do not post-sign the local binary; packaged app signing is
-owned by `scripts/sign-aos-runtime`. No post-build hook automates TCC handling:
-build does not reset permissions, open System Settings, show a human-needed
-surface, write completed-build markers, or inject provider input.
+owned by `scripts/sign-aos-runtime`. ADR 0023 preserves one direct `swiftc`
+link to `./aos` for managed-endpoint development. The identity-free repo plist
+may enter that link as `__TEXT,__info_plist`; no separate linker, signing,
+copying, moving, wrapping, entitlement, binary rewrite, or `spctl` step may
+touch the result. No post-build hook automates TCC handling: build does not
+reset permissions, open System Settings, show a human-needed surface, write
+completed-build markers, or inject provider input.
 Repo-mode binary rebuilds are TCC-sensitive and intentionally rare. A
-successful rebuild marker (`Rebuilt: ./aos`) requires one bounded
-`./aos ready --post-permission` check before further TCC-backed daemon, capture,
-input, or native proof. Continue when that check is healthy; request a user
-reset/regrant only when it explicitly reports `post_rebuild_tcc_stale`.
+successful rebuild marker (`Rebuilt: ./aos`) requires `./aos help --json` as
+the immediately following command, with no intervening inspection or
+transformation. Stop on exit `137`. Only after help succeeds may read-only
+identity inspection and one bounded `./aos ready --post-permission --json`
+check occur before further TCC-backed daemon, capture, input, or native proof.
 
 The `capabilities` subcommand is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed development
@@ -2252,6 +2257,15 @@ removes it. Capture events contain no audio or path. AOS does not transcribe the
 WAV; local STT and dictation policy are consumer responsibilities. Stdin,
 webhook, and file-watch listen sources remain unimplemented.
 
+The managed daemon owns microphone authorization. On first capture from
+`not_determined`, that daemon calls `AVCaptureDevice.requestAccess(for:.audio)`
+and waits for the bounded result before creating the WAV. Live state remains
+distinct as `not_determined`, `restricted`, `denied`, or `authorized` in daemon
+health and readiness. If denied, open the Microphone privacy pane from the
+reported `settings_url` and poll `aos permissions check --json`; there is no
+Plus/drag-add recovery path for Microphone. Foreground CLI preflight never
+substitutes for daemon authorization.
+
 ## `aos wiki`
 
 Primary public verbs for knowledge-base consumers:
@@ -2397,19 +2411,19 @@ Consumers:
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the full capability permission set: daemon Accessibility and Input
-  Monitoring facts when available, per-field CLI fallback for those facts, and
-  CLI Screen Recording, Microphone, and setup completion in every case.
-  The top-level `permissions` object is the CLI-side view and includes
+  Monitoring facts when available, per-field CLI fallback for those facts,
+  CLI Screen Recording, daemon Microphone authorization, and setup completion.
+  The top-level `permissions` object is the effective readiness view and includes
   `accessibility`, `screen_recording`, `listen_access`, `post_access`, and
-  `microphone`. Microphone gates voice dictation / local STT capture and is not
-  mirrored in the daemon-side view.
-  The daemon-side Accessibility and Input Monitoring view remains under
-  `daemon_view` / `runtime.input_tap`; daemon Screen Recording is not reported.
-- `aos permissions setup --once` checks the full CLI permission set
-  (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
-  post, Microphone). If the CLI grant is present but the daemon reports stale or missing
-  daemon-owned grants, setup returns degraded with the same reset-runtime
-  guidance instead of silently declaring onboarding complete.
+  `microphone`. `cli_view.microphone` remains diagnostic. The daemon-side view
+  includes `microphone` and `microphone_state`; absent or non-authorized daemon
+  state fails voice readiness closed. Daemon Screen Recording is not reported.
+- `aos permissions setup --once` requests Accessibility, Screen Recording, and
+  Input Monitoring from their existing primitives, and routes Microphone
+  through the managed daemon's explicit authorization request. `not_determined`
+  is requestable; `denied` opens the Microphone settings pane and is polled from
+  daemon health; `restricted` remains distinct. Microphone recovery never uses
+  `permissions reset-runtime` or a drag-add instruction.
 - The permissions onboarding marker is mode-scoped and proves the operator has
   completed the setup flow for that runtime mode. The marker's recorded
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely

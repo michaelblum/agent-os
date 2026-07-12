@@ -49,14 +49,19 @@
       ],
       "verification": [
         {
+          "id": "first-launch",
+          "command": "./aos help --json",
+          "reason": "After a real rebuild, this must be the immediately following command. Stop on exit 137 and do not inspect or transform the artifact first."
+        },
+        {
           "id": "ready",
-          "command": "./aos ready --post-permission",
-          "reason": "After a real rebuild, verify the raw binary and managed daemon with one bounded check; reset/regrant only if readiness reports post_rebuild_tcc_stale."
+          "command": "./aos ready --post-permission --json",
+          "reason": "Only after help succeeds, verify the raw binary and managed daemon with one bounded check and stop on any explicit handoff."
         }
       ],
       "notes": [
         "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because the normal post-build verification cannot run through a broken ./aos artifact.",
-        "Repo-mode rebuilds must stay raw: direct build.sh swiftc output only, no post-build codesign, explicit signing identifier, entitlements, app bundle, allowlist assumption, or spctl launch gate."
+        "ADR 0023 requires one direct build.sh swiftc link to ./aos. Identity-free RepoRuntimeLinkInfo.plist input is allowed; separate linking, post-link signing, explicit identifiers, entitlements, copying, moving, binary rewriting, app wrapping, and spctl gates are prohibited."
       ]
     },
     {
@@ -64,7 +69,11 @@
       "summary": "Repo-mode build wrapper, signing, or rebuild alert behavior changed.",
       "patterns": [
         "build.sh",
+        "packaging/RepoRuntimeLinkInfo.plist",
+        "scripts/aos-after-build",
         "scripts/aos-dev-build.mjs",
+        "tests/aos-after-build.sh",
+        "tests/aos-build-attestation.test.mjs",
         "tests/build-rebuild-policy.sh"
       ],
       "classes": [
@@ -80,13 +89,13 @@
         {
           "id": "build-rebuild-policy-test",
           "command": "bash tests/build-rebuild-policy.sh",
-          "reason": "Verify content-based rebuilds, no repo-mode post-signing, and conditional stale-TCC handoff behavior."
+          "reason": "Verify content-based one-link rebuilds, no post-link mutation, and the help-first launch checkpoint."
         }
       ],
       "verification": [],
       "notes": [
-        "The raw recovery command for a missing or launch-killed repo ./aos is `bash build.sh --force --no-restart`; do not repair by adding post-build codesign or an spctl acceptance gate.",
-        "spctl rejection is expected for the repo-local raw binary shape; launchability of ./aos is the operational gate."
+        "The raw recovery command for a missing or launch-killed repo ./aos is `bash build.sh --force --no-restart`; do not repair it with a separate linker or post-link mutation.",
+        "After a real rebuild, ./aos help --json is the exact first launch. spctl rejection is expected for the repo-local raw shape and is not an acceptance gate."
       ]
     },
     {

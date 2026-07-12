@@ -24,7 +24,10 @@ assert summary["requires_swift_build"] is True, summary
 assert summary["tcc_identity_sensitive"] is True, summary
 assert summary["hot_swappable"] is False, summary
 assert any(item["command"] == "node scripts/aos-dev-build.mjs build --no-restart --json" for item in summary["commands"]), summary
-assert any(item["command"] == "./aos ready --post-permission" for item in summary["verification"]), summary
+assert [item["command"] for item in summary["verification"][:2]] == [
+    "./aos help --json",
+    "./aos ready --post-permission --json",
+], summary
 PY
 then
     pass "dev classify aggregates manifest-backed workflow classes"

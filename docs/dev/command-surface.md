@@ -218,10 +218,16 @@ Swift runtime input changes still require the repo-mode build and
 post-permission readiness path before native live behavior is trusted. The build
 gate is content-based for Swift runtime inputs, not mtime-based, and edits to
 build tooling alone must not automatically replace the TCC-owning binary. Treat
-a successful rebuild marker (`Rebuilt: ./aos`) as requiring one bounded
-`./aos ready --post-permission` check before relying on native live behavior.
-Keep the raw linker-signed artifact; request a user reset/regrant only when that
-check explicitly reports `post_rebuild_tcc_stale`. Empty output, a timeout, or a
-different readiness failure is not evidence of exit `137` and must not trigger
-another force rebuild. Command metadata and external implementation changes
-should not require rebuilding the TCC-sensitive binary.
+a successful rebuild marker (`Rebuilt: ./aos`) as requiring
+`./aos help --json` as the immediately following command. Do not inspect, hash,
+attest, transform, or run readiness against the live artifact before that first
+launch; stop on exit `137`. Only after help succeeds may read-only identity
+inspection and one bounded `./aos ready --post-permission --json` check occur.
+The raw build may embed the separate identity-free
+`packaging/RepoRuntimeLinkInfo.plist` through the existing `swiftc` link; it may
+not run a separate linker or any post-link signing, copying, moving, wrapping,
+entitlement, or assessment step. ADR 0023 owns the managed-endpoint rationale
+and exact retirement gates. Empty output, a timeout, or a different
+readiness failure is not evidence of exit `137` and must not trigger another
+force rebuild. Command metadata and external implementation changes should not
+require rebuilding the TCC-sensitive binary.

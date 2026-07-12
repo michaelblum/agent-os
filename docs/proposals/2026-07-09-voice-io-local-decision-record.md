@@ -66,6 +66,7 @@ behavior.
 
 Repo-mode development keeps the bare in-repo `./aos` executable shape from
 PR #590, with embedded runtime metadata and fail-closed stale-TCC telemetry.
+ADR 0023 now owns the exact managed-endpoint build and first-launch contract.
 
 Consequences:
 

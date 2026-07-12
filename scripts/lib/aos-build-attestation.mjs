@@ -29,9 +29,15 @@ export function swiftBuildInputs(root) {
   ];
 }
 
+export function repoBuildInputs(root) {
+  const metadata = ['packaging/RepoRuntimeLinkInfo.plist']
+    .filter((relativePath) => fs.existsSync(path.join(root, relativePath)));
+  return [...swiftBuildInputs(root), ...metadata];
+}
+
 export function swiftSourceFingerprint(root, mode) {
   if (!BUILD_MODES.has(mode)) throw new Error(`unsupported AOS build mode: ${mode}`);
-  const inputs = swiftBuildInputs(root);
+  const inputs = repoBuildInputs(root);
   const digest = crypto.createHash('sha256');
   digest.update(`mode ${mode}\n`);
   for (const relativePath of inputs) {

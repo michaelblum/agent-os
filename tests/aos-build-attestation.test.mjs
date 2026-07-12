@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import {
   repoBuildAttestation,
+  repoBuildInputs,
   swiftSourceFingerprint,
 } from '../scripts/lib/aos-build-attestation.mjs';
 
@@ -60,4 +61,25 @@ test('repo build attestation fails closed for changed sources, missing binaries,
     recorded_fingerprint: expected.fingerprint,
     source_file_count: 0,
   });
+});
+
+test('repo build fingerprint includes raw-runtime link metadata when present', (t) => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'packaging'), { recursive: true });
+  const metadataPath = path.join(root, 'packaging/RepoRuntimeLinkInfo.plist');
+  fs.writeFileSync(metadataPath, '<plist><dict><key>NSMicrophoneUsageDescription</key><string>one</string></dict></plist>\n');
+
+  assert.deepEqual(repoBuildInputs(root), [
+    'src/main.swift',
+    'shared/swift/ipc/runtime.swift',
+    'packaging/RepoRuntimeLinkInfo.plist',
+  ]);
+  const before = swiftSourceFingerprint(root, 'dev');
+  fs.writeFileSync(metadataPath, '<plist><dict><key>NSMicrophoneUsageDescription</key><string>two</string></dict></plist>\n');
+  const after = swiftSourceFingerprint(root, 'dev');
+
+  assert.equal(before.inputs.length, 3);
+  assert.equal(after.inputs.length, 3);
+  assert.notEqual(before.fingerprint, after.fingerprint);
 });

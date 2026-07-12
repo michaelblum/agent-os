@@ -300,7 +300,9 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
   const result = evaluateProofWorth({
     changedFiles: [
       'shared/schemas/fixtures/daemon-event/valid/voice-dictation-opened-phrase.json',
+      'tests/daemon-microphone-authorization-contract.test.mjs',
       'tests/toolkit/controls-dictation.test.mjs',
+      'tests/voice-transport-native.sh',
       'tests/voice-bind.sh',
       'tests/voice-cursor-rotation.sh',
       'tests/voice-external-parser.sh',
@@ -329,9 +331,30 @@ test('proof-worth evaluator routes voice proof family assets', async () => {
     'bash tests/voice-registry-snapshot.sh',
     'bash tests/voice-session-allocation.sh',
     'bash tests/voice-telemetry.sh',
+    'bash tests/voice-transport-native.sh && node --test tests/daemon-microphone-authorization-contract.test.mjs',
     'node --test tests/schemas/daemon-event.test.mjs',
     'node --test tests/toolkit/controls-dictation.test.mjs',
   ].sort());
+});
+
+test('proof-worth evaluator routes raw repo link metadata proofs', async () => {
+  const registry = loadCanonicalRegistry();
+  const result = evaluateProofWorth({
+    changedFiles: [
+      'tests/aos-after-build.sh',
+      'tests/aos-build-attestation.test.mjs',
+      'tests/build-rebuild-policy.sh',
+      'tests/repo-runtime-link-metadata.sh',
+    ],
+    repoRoot,
+    registry,
+    registryPath: 'docs/dev/test-proof-registry.json',
+  });
+
+  assert.equal(result.status, 'passed', result);
+  assert.deepEqual(result.commands.map((item) => item.command), [
+    'bash tests/aos-after-build.sh && node --test tests/aos-build-attestation.test.mjs && bash tests/build-rebuild-policy.sh && bash tests/repo-runtime-link-metadata.sh',
+  ]);
 });
 
 test('proof-worth evaluator routes toolkit input identity normalization', async () => {

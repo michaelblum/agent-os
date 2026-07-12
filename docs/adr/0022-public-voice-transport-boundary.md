@@ -30,6 +30,14 @@ The broker owns the behavior that requires its stable permissioned identity:
 - system speech buffers and playback;
 - cancellation, disconnect, daemon-shutdown, and barge-in cleanup.
 
+The managed daemon is the microphone permission holder because it owns capture.
+It exposes live authorization as one of `not_determined`, `restricted`,
+`denied`, or `authorized`, and it alone calls
+`AVCaptureDevice.requestAccess(for:.audio)`. First capture requests access when
+state is `not_determined`; every non-authorized terminal state fails before a
+WAV is created. Foreground CLI authorization is diagnostic and cannot make
+voice readiness true.
+
 The external command adapters own parsing, help, stdin handling, signal
 translation, and NDJSON presentation.
 
@@ -57,6 +65,23 @@ contains only normalized RMS/peak values and a sequence number, at no more than
 Existing channel/session `aos listen` forms and one-shot `aos say` behavior are
 unchanged. `say --follow` is a separate form using streamed system speech;
 provider-backed non-system speech remains behind its existing provider seam.
+
+## Consumer Permission Contract
+
+External consumers, including Sigil, start capture through the public AOS
+stream and allow first use to trigger the daemon-owned prompt. When daemon
+state is `denied`, the consumer may open
+`x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`
+and poll `aos permissions check --json` until the live daemon state changes.
+`restricted` requires administrator policy; `not_determined` remains
+requestable. The Microphone pane has no supported Plus button or drag-add
+target, and consumers must not shift permission ownership to Electron or
+another foreground process.
+
+The raw repo executable receives `NSMicrophoneUsageDescription` from the
+identity-free `packaging/RepoRuntimeLinkInfo.plist` during its one existing
+`swiftc` link. This preserves the `aos` linker ad-hoc identity and adds no
+post-link signing, copy, wrapping, entitlement, or transformation step.
 
 ## Consequences
 

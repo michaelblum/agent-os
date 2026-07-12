@@ -119,10 +119,10 @@ Rejected reasons include:
   primitive substrate, not as owner of public command behavior.
 - `src/AGENTS.md`, docs owners, and command/workflow owners should require a
   native boundary justification before routing Swift work.
-- A real repo-mode `./aos` rebuild requires one bounded
-  `./aos ready --post-permission` check before TCC-backed proof. Agents request
-  manual reset/regrant only when that check explicitly reports
-  `post_rebuild_tcc_stale`; the rebuild marker alone is not a reset mandate.
+- ADR 0023 owns the managed-endpoint raw-artifact contract. After a real
+  repo-mode rebuild, `./aos help --json` is the immediate first launch. Only
+  after it succeeds may read-only identity inspection and one bounded
+  post-permission readiness check occur.
 - Follow-on refactors should inventory remaining Swift public/runtime policy,
   expose smaller private broker primitives where needed, and move public
   behavior to external composition without repo-internal shims.

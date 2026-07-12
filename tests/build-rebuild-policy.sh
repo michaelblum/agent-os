@@ -10,26 +10,48 @@ trap 'rm -rf "$TMP"' EXIT
 FAKE_REPO="$TMP/repo"
 FAKE_BIN="$TMP/bin"
 LOG="$TMP/events.log"
-mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_BIN"
+mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_REPO/packaging" "$FAKE_BIN"
 
 cp build.sh "$FAKE_REPO/build.sh"
 cp scripts/aos-build-fingerprint.mjs "$FAKE_REPO/scripts/aos-build-fingerprint.mjs"
 cp scripts/lib/aos-build-attestation.mjs "$FAKE_REPO/scripts/lib/aos-build-attestation.mjs"
 cp scripts/lib/aos-cli.mjs "$FAKE_REPO/scripts/lib/aos-cli.mjs"
+cp packaging/RepoRuntimeLinkInfo.plist "$FAKE_REPO/packaging/RepoRuntimeLinkInfo.plist"
 printf 'print("fake")\n' > "$FAKE_REPO/src/main.swift"
 
 if ! grep -q 'swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\]}"' "$FAKE_REPO/build.sh"; then
     echo "FAIL: repo-mode build must compile directly with swiftc" >&2
     exit 1
 fi
-if grep -Eq 'codesign --force|--identifier[ =]com\.agentos\.repo-aos|spctl' "$FAKE_REPO/build.sh"; then
-    echo "FAIL: repo-mode build must stay raw: no post-build codesign, explicit identifier, or spctl gate" >&2
+if [[ "$(grep -c '^[[:space:]]*swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\]}"' "$FAKE_REPO/build.sh")" -ne 1 ]]; then
+    echo "FAIL: repo-mode build must use one direct swiftc output invocation" >&2
+    exit 1
+fi
+BUILD_COMMANDS="$(sed '/^[[:space:]]*#/d' "$FAKE_REPO/build.sh")"
+if grep -Eq '(^|[;&|[:space:]])(ld|codesign|cp|mv|install|ditto|strip|xattr|shasum|otool|file|install_name_tool|spctl)([[:space:]]|$)|--entitlements|--identifier|\.app/' <<<"$BUILD_COMMANDS"; then
+    echo "FAIL: repo-mode build must stay raw: no separate link, post-link mutation, wrapping, signing, or artifact inspection" >&2
+    exit 1
+fi
+if grep -Eq '"\$OUTPUT_PATH"[[:space:]]+(service|status|runtime|help)|du[[:space:]].*\$OUTPUT_PATH' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: build.sh must not execute or inspect the newly linked artifact" >&2
+    exit 1
+fi
+if ! grep -q -- '-sectcreate' "$FAKE_REPO/build.sh" ||
+   ! grep -q 'RepoRuntimeLinkInfo.plist' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: repo-mode build must embed raw-runtime privacy metadata at link time" >&2
     exit 1
 fi
 
 cat >"$FAKE_BIN/swiftc" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+case " $* " in
+  *" -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "*"/packaging/RepoRuntimeLinkInfo.plist "*) ;;
+  *)
+    echo "missing raw-runtime __info_plist linker metadata" >&2
+    exit 1
+    ;;
+esac
 out=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -138,9 +160,9 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     cat "$FIRST_OUT" >&2
     exit 1
 fi
-if ! grep -q 'verify with ./aos ready --post-permission' "$FIRST_OUT" ||
-   ! grep -q 'Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale' "$FIRST_OUT"; then
-    echo "FAIL: first build did not report the conditional stale-TCC handoff" >&2
+if ! grep -q 'first post-build command must be ./aos help --json' "$FIRST_OUT" ||
+   ! grep -q 'Do not inspect or transform ./aos before that launch' "$FIRST_OUT"; then
+    echo "FAIL: first build did not report the launch-before-inspection checkpoint" >&2
     cat "$FIRST_OUT" >&2
     exit 1
 fi
@@ -213,9 +235,9 @@ if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
-if ! grep -q 'verify with ./aos ready --post-permission' "$CHANGED_OUT" ||
-   ! grep -q 'Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale' "$CHANGED_OUT"; then
-    echo "FAIL: changed runtime input content did not report the conditional stale-TCC handoff" >&2
+if ! grep -q 'first post-build command must be ./aos help --json' "$CHANGED_OUT" ||
+   ! grep -q 'Do not inspect or transform ./aos before that launch' "$CHANGED_OUT"; then
+    echo "FAIL: changed runtime input content did not report the launch-before-inspection checkpoint" >&2
     cat "$CHANGED_OUT" >&2
     exit 1
 fi

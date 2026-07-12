@@ -22,7 +22,7 @@
             "aos permissions check --json"
           ],
           "execution": {
-            "auto_starts_daemon": false,
+            "auto_starts_daemon": true,
             "interactive": false,
             "mutates_state": false,
             "read_only": true,
@@ -191,7 +191,7 @@
       "path": [
         "permissions"
       ],
-      "summary": "Permission preflight and one-time onboarding"
+      "summary": "Permission preflight and owner-correct one-time onboarding"
     }
   ]
 }

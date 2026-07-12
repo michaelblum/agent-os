@@ -10,14 +10,23 @@ experiments, including the embedded runtime `Info.plist` and entitlements file.
 ## Ownership
 
 - `Info.plist` owns bundle identity and privacy usage-description strings for
-  the repo-mode `aos` runtime.
+  packaged runtime experiments, not the raw repo binary.
+- `RepoRuntimeLinkInfo.plist` owns the privacy usage text embedded directly in
+  the raw repo binary at link time. It must not declare a bundle identifier or
+  imply app wrapping.
 - `aos.entitlements` owns the entitlement set used by packaged runtime signing.
 
 ## Local Contracts
 
 - Keep the default development build path opt-in free; packaged behavior must
   stay behind an explicit build flag until promoted by a durable decision.
-- Keep `CFBundleIdentifier` aligned with the repo runtime signing identifier.
+- Raw repo builds may embed `RepoRuntimeLinkInfo.plist` with linker
+  `__info_plist` metadata, but remain direct `swiftc` output with no post-build
+  signing, copying, wrapping, entitlements, or explicit signing identifier.
+  ADR 0023 owns this temporary managed-endpoint compatibility contract and its
+  retirement conditions.
+- Keep packaged `CFBundleIdentifier` aligned with its packaged signing owner;
+  it must never flow into the raw repo link plist.
 - Keep entitlements minimal and evidence-backed. Do not add broad automation,
   sandbox, or hardened-runtime exceptions without a proof note or owning doc.
 
@@ -30,8 +39,10 @@ experiments, including the embedded runtime `Info.plist` and entitlements file.
 
 ## Verification
 
-- Run `plutil -lint packaging/Info.plist packaging/aos.entitlements` after
-  metadata edits.
+- Run `plutil -lint packaging/Info.plist packaging/RepoRuntimeLinkInfo.plist packaging/aos.entitlements`
+  after metadata edits.
+- Run `bash tests/repo-runtime-link-metadata.sh` to compile and inspect only a
+  disposable output; never substitute that output for live `./aos`.
 - Run `bash tests/build-rebuild-policy.sh` after `build.sh`, repo-mode build
   wrapper, or signing metadata edits.
 

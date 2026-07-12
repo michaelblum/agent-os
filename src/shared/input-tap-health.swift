@@ -21,6 +21,8 @@ struct DaemonPermissions {
     // Optional for the same reason as InputTapHealth's access fields: legacy
     // daemons predating the structured `permissions` block don't expose this.
     let accessibility: Bool?
+    let microphone: Bool?
+    let microphoneState: String?
 }
 
 struct DaemonHealthView {
@@ -68,6 +70,8 @@ func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
 
     let perms = payload["permissions"] as? [String: Any]
     let accessibility = perms?["accessibility"] as? Bool
+    let microphone = perms?["microphone"] as? Bool
+    let microphoneState = perms?["microphone_state"] as? String
 
     return DaemonHealthView(
         inputTap: InputTapHealth(
@@ -77,7 +81,11 @@ func parseDaemonHealthView(from response: [String: Any]) -> DaemonHealthView? {
             postAccess: postAccess,
             lastErrorAt: lastErrorAt
         ),
-        permissions: DaemonPermissions(accessibility: accessibility)
+        permissions: DaemonPermissions(
+            accessibility: accessibility,
+            microphone: microphone,
+            microphoneState: microphoneState
+        )
     )
 }
 
@@ -132,7 +140,9 @@ extension ServiceReadinessOutcome {
 ///    (no `permissions` block) too — without this guard, a mixed-version
 ///    setup where the legacy daemon's tap is broken but the CLI's TCC
 ///    grants are fine would falsely report `ready_for_testing=true`.
-/// 2. **Otherwise, accessibility source determines `ready_source`:**
+/// 2. **Daemon microphone authorization is required.** Foreground CLI
+///    microphone preflight is diagnostic only because the daemon owns capture.
+/// 3. **Otherwise, accessibility source determines `ready_source`:**
 ///    - Daemon reachable + tap active + `permissions.accessibility` known:
 ///      daemon-sourced (`ready_source="daemon"`).
 ///    - Daemon unreachable, OR daemon reachable + tap active + legacy daemon
@@ -159,7 +169,16 @@ func evaluateReadyForTesting(
         return ReadinessEvaluation(readyForTesting: false, readySource: "daemon")
     }
 
-    if let view = daemon, let daemonAccessibility = view.permissions.accessibility {
+    guard let view = daemon,
+          view.permissions.microphone == true,
+          view.permissions.microphoneState == "authorized" else {
+        return ReadinessEvaluation(
+            readyForTesting: false,
+            readySource: daemon == nil ? "cli" : "daemon"
+        )
+    }
+
+    if let daemonAccessibility = view.permissions.accessibility {
         let ready = daemonAccessibility
             && cliScreenRecording
             && setupCompleted

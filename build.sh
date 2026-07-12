@@ -9,10 +9,12 @@ MODULE_CACHE_DIR="$BUILD_DIR/clang-module-cache"
 MODE_FILE="$BUILD_DIR/aos-build-mode"
 FINGERPRINT_FILE="$BUILD_DIR/aos-build-fingerprint"
 LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
+REPO_RUNTIME_LINK_INFO="$REPO_ROOT/packaging/RepoRuntimeLinkInfo.plist"
+# ADR 0023: keep the raw repo artifact as one direct swiftc link. Link-time
+# privacy metadata is permitted; post-link mutation is not.
 
 BUILD_MODE="dev"
 FORCE_BUILD=0
-RESTART_DAEMON=1
 
 usage() {
     cat <<'EOF'
@@ -32,7 +34,8 @@ while [[ $# -gt 0 ]]; do
             FORCE_BUILD=1
             ;;
         --no-restart)
-            RESTART_DAEMON=0
+            # Retained as the explicit safe workflow spelling. Repo builds no
+            # longer execute the newly linked artifact automatically.
             ;;
         --help|-h)
             usage
@@ -76,11 +79,12 @@ fd = 9
 fcntl.flock(fd, fcntl.LOCK_EX)
 PY
 
-SWIFTC_FLAGS=(-parse-as-library -o "$OUTPUT_PATH" -lsqlite3)
+LINK_INFO_FLAGS=(-Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$REPO_RUNTIME_LINK_INFO")
+SWIFTC_FLAGS=(-parse-as-library -o "$OUTPUT_PATH" -lsqlite3 "${LINK_INFO_FLAGS[@]}")
 if [[ "$BUILD_MODE" == "release" ]]; then
-    SWIFTC_FLAGS=(-parse-as-library -O -o "$OUTPUT_PATH" -lsqlite3)
+    SWIFTC_FLAGS=(-parse-as-library -O -o "$OUTPUT_PATH" -lsqlite3 "${LINK_INFO_FLAGS[@]}")
 else
-    SWIFTC_FLAGS=(-parse-as-library -Onone -o "$OUTPUT_PATH" -lsqlite3)
+    SWIFTC_FLAGS=(-parse-as-library -Onone -o "$OUTPUT_PATH" -lsqlite3 "${LINK_INFO_FLAGS[@]}")
 fi
 
 play_rebuild_alert() {
@@ -88,7 +92,8 @@ play_rebuild_alert() {
         return 0
     fi
 
-    echo "Alert: repo-mode ./aos binary rebuilt; verify with ./aos ready --post-permission. Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale."
+    echo "Alert: repo-mode ./aos binary rebuilt; the first post-build command must be ./aos help --json. Do not inspect or transform ./aos before that launch."
+    echo "After help succeeds, use read-only identity inspection and ./aos ready --post-permission --json; stop on any explicit handoff."
 
     if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
         "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true
@@ -127,6 +132,7 @@ runtime_inputs_newer_than_output() {
 
 INPUTS=("${SOURCES[@]}")
 SWIFT_INPUTS=("${SOURCES[@]}")
+INPUTS+=("$REPO_RUNTIME_LINK_INFO")
 if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
     INPUTS+=("${SHARED_IPC[@]}")
     SWIFT_INPUTS+=("${SHARED_IPC[@]}")
@@ -150,7 +156,7 @@ fi
 
 if [[ $NEEDS_BUILD -eq 0 ]]; then
     printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
-    echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
+    echo "Up to date: ./aos ($BUILD_MODE)"
     exit 0
 fi
 
@@ -166,18 +172,7 @@ fi
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
 
-echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
+echo "Done: ./aos"
 if [[ $BINARY_REBUILT -eq 1 ]]; then
     play_rebuild_alert
-fi
-
-# Restart daemon if it's running as a service
-if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("running") is True else 1)'; then
-    if "$OUTPUT_PATH" service restart >/dev/null 2>&1; then
-        echo "Daemon restarted"
-    else
-        echo "Build succeeded, but daemon readiness is degraded:" >&2
-        "$OUTPUT_PATH" status || true
-        echo "Next: ./aos ready --repair" >&2
-    fi
 fi

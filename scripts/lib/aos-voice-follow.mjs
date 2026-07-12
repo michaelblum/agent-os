@@ -19,6 +19,9 @@ const TERMINAL_EVENTS = new Set([
 const FAILURE_EVENTS = new Set(['capture_failed', 'speech_failed']);
 const SAFE_DAEMON_ERRORS = new Map([
   ['MICROPHONE_PERMISSION_DENIED', 'microphone permission is not granted'],
+  ['MICROPHONE_PERMISSION_NOT_DETERMINED', 'microphone permission has not been requested'],
+  ['MICROPHONE_PERMISSION_RESTRICTED', 'microphone access is restricted by system policy'],
+  ['MICROPHONE_PERMISSION_UNKNOWN', 'microphone permission state is unavailable'],
   ['MICROPHONE_UNAVAILABLE', 'microphone input is unavailable'],
   ['HOTKEY_LEASE_BUSY', 'a voice hotkey listener is already active'],
   ['CAPTURE_LEASE_BUSY', 'microphone capture is already active'],

@@ -16,6 +16,7 @@ import {
 } from './lib/aos-facts.mjs';
 import {
   disagreementFor,
+  effectivePermissionView,
   evaluateReadyForTesting,
   missingPermissionIDsFor,
   permissionCheckNotes,
@@ -25,6 +26,10 @@ import {
   readyEvaluationSnake,
   runSetupPromptPlan,
 } from './lib/aos-readiness.mjs';
+import {
+  daemonMicrophoneAuthorizationState,
+  daemonMicrophoneIsAuthorized,
+} from './lib/aos-microphone-readiness.mjs';
 
 function parsePrimitive(result, label, errorCode = 'PERMISSIONS_PRIMITIVE_FAILED') {
   return parseJSONOutput(result, label, {
@@ -86,6 +91,17 @@ function daemonFacts() {
   }
 }
 
+function effectivePermissionsFor(daemon, cli) {
+  const effective = effectivePermissionView(daemon, cli);
+  return {
+    accessibility: Boolean(effective.accessibility),
+    screen_recording: Boolean(effective.screen_recording),
+    listen_access: Boolean(effective.listen_access),
+    post_access: Boolean(effective.post_access),
+    microphone: Boolean(effective.microphone),
+  };
+}
+
 function runCheck() {
   const mode = currentMode();
   const facts = currentFacts();
@@ -97,15 +113,17 @@ function runCheck() {
     microphone: Boolean(facts.permissions.microphone),
   };
   const daemon = daemonViewFromHealth(facts.daemonHealth);
+  const effective = effectivePermissionView(daemon.comparable, cli);
+  const effectivePermissions = effectivePermissionsFor(daemon.comparable, cli);
   const evaluation = readyEvaluationSnake(evaluateReadyForTesting(daemon.comparable, cli, facts.setup));
   const notes = permissionCheckNotes(cli, facts.setup, daemon.comparable, mode);
   const disagreement = disagreementFor(daemon.comparable, cli);
   const response = {
     status: notes.length ? 'degraded' : 'ok',
-    permissions: cli,
+    permissions: effectivePermissions,
     daemon_view: daemon.block,
     cli_view: cli,
-    requirements: permissionRequirements(cli),
+    requirements: permissionRequirements(effective),
     setup: facts.setup,
     missing_permissions: missingPermissionIDsFor(daemon.comparable, cli),
     ready_for_testing: evaluation.ready_for_testing,
@@ -211,13 +229,18 @@ function serviceLabel(mode) {
   return `com.agent-os.aos.${mode}`;
 }
 
-function promptMissingPermissions(plan) {
+function promptMissingPermissions(plan, mode) {
   return runSetupPromptPlan({
     plan,
-    prompt: ({ primitiveID }) => parsePrimitiveLoose(
-      runAOS(['__permissions', 'prompt', primitiveID, '--json']),
-      `__permissions prompt ${primitiveID}`,
-    ),
+    prompt: ({ primitiveID }) => {
+      if (primitiveID === 'microphone' && !daemonFacts()) {
+        parsePrimitiveLoose(runService(['start'], mode), 'service start');
+      }
+      return parsePrimitiveLoose(
+        runAOS(['__permissions', 'prompt', primitiveID, '--json']),
+        `__permissions prompt ${primitiveID}`,
+      );
+    },
   });
 }
 
@@ -227,8 +250,7 @@ function printSetupResult(response, json) {
     return;
   }
   process.stdout.write(`completed=${response.completed} accessibility=${response.permissions.accessibility} screen_recording=${response.permissions.screen_recording} listen_access=${response.permissions.listen_access} post_access=${response.permissions.post_access} microphone=${response.permissions.microphone}\n`);
-  const evaluation = readyEvaluationSnake(evaluateReadyForTesting(null, response.permissions, response.setup));
-  process.stdout.write(`ready_for_testing=${evaluation.ready_for_testing}\n`);
+  process.stdout.write(`ready_for_testing=${response.completed}\n`);
   if (response.restarted_services.length) {
     process.stdout.write(`restarted=${response.restarted_services.join(',')}\n`);
   }
@@ -252,6 +274,7 @@ function runSetup(args) {
   const initialPermissions = permissionsFromFacts();
   const initialSetup = setupFacts();
   const initialDaemon = daemonViewFromHealth(daemonFacts()).comparable;
+  const initialEffectivePermissions = effectivePermissionsFor(initialDaemon, initialPermissions);
   const initialMissing = missingPermissionIDsFor(initialDaemon, initialPermissions);
   const plan = planPermissionSetup({
     initialPermissions,
@@ -266,7 +289,7 @@ function runSetup(args) {
     printSetupResult(setupResponse({
       status: plan.status,
       completed: plan.completed,
-      permissions: initialPermissions,
+      permissions: initialEffectivePermissions,
       setup: initialSetup,
       missing: [],
       restartedServices: [],
@@ -279,7 +302,7 @@ function runSetup(args) {
     printSetupResult(setupResponse({
       status: plan.status,
       completed: false,
-      permissions: initialPermissions,
+      permissions: initialEffectivePermissions,
       setup: initialSetup,
       missing: initialMissing,
       restartedServices: [],
@@ -292,13 +315,13 @@ function runSetup(args) {
   if (plan.branch === 'record_marker_without_prompts') {
     const recorded = writeSetupMarkerAndRestart(
       mode,
-      initialPermissions,
+      initialEffectivePermissions,
       'Permissions were already granted; onboarding marker was recorded without additional prompts.',
     );
     printSetupResult(setupResponse({
       status: 'ok',
       completed: true,
-      permissions: initialPermissions,
+      permissions: initialEffectivePermissions,
       setup: recorded.finalSetup,
       missing: [],
       restartedServices: recorded.restartedServices,
@@ -307,23 +330,30 @@ function runSetup(args) {
     return;
   }
 
-  const notes = promptMissingPermissions(plan);
+  const notes = promptMissingPermissions(plan, mode);
   const finalPermissions = permissionsFromFacts();
+  const finalDaemon = daemonViewFromHealth(daemonFacts()).comparable;
+  const effectivePermissions = effectivePermissionsFor(finalDaemon, finalPermissions);
   if (!finalPermissions.accessibility) notes.push('Accessibility permission is still not granted.');
   if (!finalPermissions.screen_recording) notes.push('Screen Recording permission is still not granted.');
   if (!finalPermissions.listen_access) notes.push('Input Monitoring listen access is still not granted.');
   if (!finalPermissions.post_access) notes.push('Input Monitoring post access is still not granted.');
-  if (!finalPermissions.microphone) notes.push('Microphone permission is still not granted.');
+  if (!effectivePermissions.microphone) {
+    const state = daemonMicrophoneAuthorizationState(finalDaemon);
+    notes.push(state === 'authorized' && !daemonMicrophoneIsAuthorized(finalDaemon)
+      ? 'Daemon Microphone authorization fields disagree; readiness fails closed.'
+      : `Daemon Microphone authorization is ${state}.`);
+  }
 
-  const completedByCLI = finalPermissions.accessibility
-    && finalPermissions.screen_recording
-    && finalPermissions.listen_access
-    && finalPermissions.post_access
-    && finalPermissions.microphone
+  const completedByEffectivePermissions = effectivePermissions.accessibility
+    && effectivePermissions.screen_recording
+    && effectivePermissions.listen_access
+    && effectivePermissions.post_access
+    && effectivePermissions.microphone
     && notes.length === 0;
   let finalSetup = setupFacts();
   let restartedServices = [];
-  if (completedByCLI) {
+  if (completedByEffectivePermissions) {
     const marker = parsePrimitive(runAOS(['__permissions', 'setup-marker', 'write', '--json']), '__permissions setup-marker write');
     finalSetup = setupState(marker.marker ?? marker);
     restartedServices = restartPermissionsDependentServices(mode);
@@ -332,14 +362,13 @@ function runSetup(args) {
       : 'Permissions were granted, but no managed services were running to restart.');
   }
 
-  const finalDaemon = daemonViewFromHealth(daemonFacts()).comparable;
   const missing = missingPermissionIDsFor(finalDaemon, finalPermissions);
-  if (completedByCLI && missing.length > 0) notes.push(...permissionRecoveryNotes(missing, mode, invocationName()));
-  const completed = completedByCLI && missing.length === 0;
+  if (completedByEffectivePermissions && missing.length > 0) notes.push(...permissionRecoveryNotes(missing, mode, invocationName()));
+  const completed = completedByEffectivePermissions && missing.length === 0;
   printSetupResult(setupResponse({
     status: completed ? 'ok' : 'degraded',
     completed,
-    permissions: finalPermissions,
+    permissions: effectivePermissions,
     setup: finalSetup,
     missing,
     restartedServices,

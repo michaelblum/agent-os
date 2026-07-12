@@ -84,7 +84,11 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(
     rules.get('swift-core')?.verification?.[0]?.command,
-    './aos ready --post-permission',
+    './aos help --json',
+  );
+  assert.equal(
+    rules.get('swift-core')?.verification?.[1]?.command,
+    './aos ready --post-permission --json',
   );
   assert.ok(
     rules.get('swift-core')?.notes?.some((note) =>
@@ -93,7 +97,9 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(
     rules.get('swift-core')?.notes?.some((note) =>
-      note.includes('direct build.sh swiftc output only') && note.includes('spctl launch gate'),
+      note.includes('one direct build.sh swiftc link')
+        && note.includes('RepoRuntimeLinkInfo.plist')
+        && note.includes('post-link signing'),
     ),
   );
   assert.deepEqual(
@@ -104,12 +110,12 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-rebuild-policy.sh'));
   assert.ok(
     rules.get('repo-build-tooling')?.notes?.some((note) =>
-      note.includes('bash build.sh --force --no-restart') && note.includes('post-build codesign'),
+      note.includes('bash build.sh --force --no-restart') && note.includes('post-link mutation'),
     ),
   );
   assert.ok(
     rules.get('repo-build-tooling')?.notes?.some((note) =>
-      note.includes('spctl rejection is expected') && note.includes('launchability'),
+      note.includes('./aos help --json') && note.includes('spctl rejection is expected'),
     ),
   );
   assert.deepEqual(

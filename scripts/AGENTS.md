@@ -23,6 +23,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   decision model, and reusable status/doctor/permissions projections. The
   ready builder maps its single top-level `ready_source` field directly from the
   verdict and is covered by a bounded command proof.
+- `lib/aos-microphone-readiness.mjs` owns daemon microphone state validation,
+  blocker/action projection, and denied/restricted/not-determined recovery text.
 - `lib/aos-build-attestation.mjs` owns the repo Swift-input fingerprint and
   read-only build-receipt comparison shared by `build.sh` and
   `aos runtime build-attestation`; keep that command passive and daemon-free.
@@ -90,6 +92,12 @@ commands, runtime helpers, wiki tools, and command adapters.
   cancel the connection-scoped lease when the native external-dispatch owner
   exits. Signal and parent-loss handling must be active before managed daemon
   startup, and startup cancellation must await termination of any owned child.
+- `aos-permissions.mjs` treats foreground Microphone preflight as diagnostic
+  only. Its public prompt route starts the managed runtime when needed and
+  delegates to the daemon authorization primitive; readiness and permissions
+  output fail closed unless daemon health reports `microphone_state=authorized`.
+  Denied recovery opens the Microphone settings pane and polls daemon health;
+  it never teaches drag-add or runtime TCC reset for Microphone.
 - `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
   Install signal and parent-exit handling before auto-start, forward shutdown
   to that child, and await confirmed child exit before the listener exits.
@@ -111,20 +119,30 @@ commands, runtime helpers, wiki tools, and command adapters.
   adding ad hoc PATH checks.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
-  local binary; packaged app signing belongs outside the repo-mode build path.
+  local binary; ADR 0023 owns this managed-endpoint compatibility contract and
+  packaged app signing belongs outside the repo-mode build path.
+  The one permitted metadata step is passing
+  `packaging/RepoRuntimeLinkInfo.plist` to the existing direct `swiftc` link as
+  `__TEXT,__info_plist`; it must not declare executable identity.
   If the repo-local `./aos` artifact is missing or exits `137`, recover with
   `bash build.sh --force --no-restart`; do not add post-build signing, an
-  explicit signing identifier, entitlements, app bundle wrapping, allowlist
-  assumptions, or an `spctl` acceptance gate. `spctl` rejection is expected for
-  the raw local binary shape; launchability of `./aos` is the operational check.
+  `ld` pass, copying or moving, installation-name editing, an explicit signing
+  identifier, entitlements, app bundle wrapping, allowlist assumptions, or an
+  `spctl` acceptance gate. `spctl` rejection is expected for the raw local
+  binary shape; launchability of `./aos` is the operational check.
   `aos runtime build-attestation --json` must fail closed when the executable,
   build mode, receipt, or current Swift-input fingerprint does not agree, and
   must never update the receipt or invoke a build.
-  Only actual rebuilds should drive a bounded TCC readiness check. After a
-  rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and run
-  `./aos ready --post-permission --json`; request a manual reset/regrant only
-  when it explicitly reports `post_rebuild_tcc_stale`. Do not infer exit `137`
-  from empty output or a timeout and do not force-rebuild a launchable artifact.
+  After a rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and make
+  `./aos help --json` the immediately following command. Do not inspect, hash,
+  attest, transform, or run readiness against the live artifact first; stop on
+  exit `137`. Only after help succeeds may read-only identity inspection and
+  one bounded `./aos ready --post-permission --json` check occur. Do not infer
+  exit `137` from empty output or a timeout and do not force-rebuild a
+  launchable artifact. `build.sh` must not execute, restart through, or inspect
+  the newly linked binary before it exits. `aos-after-build` must reject
+  arbitrary chained commands when its build step reports a real rebuild; only
+  exact `help --json` may run.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.

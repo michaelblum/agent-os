@@ -19,6 +19,9 @@ finding elements, tracking the cursor, converting text to speech, showing
 visual feedback, and emitting native state. To serve this, the permissioned
 process identity stays unified in `./aos`: one TCC capability broker, one
 daemon/socket substrate, one CGEventTap, and shared runtime state.
+ADR 0023 governs the temporary managed-endpoint repo artifact that carries this
+identity; it remains one direct linker-signed `swiftc -> ./aos` output until its
+IT, endpoint, TCC-identity, and coordinated AOS/Sigil retirement gates are met.
 
 Public command behavior is not the broker's source of truth. Help metadata,
 argument shape, recovery policy, workflow composition, next-action text, and

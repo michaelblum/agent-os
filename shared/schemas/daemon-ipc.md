@@ -207,6 +207,15 @@ streams. Their internal v1 request actions are `listen.hotkey`,
 `voice.cancel`. Disconnect cancels owned capture or speech and releases the
 hotkey lease.
 
+The daemon also owns internal `voice.microphone_authorization_status` and
+`voice.microphone_authorization_request` actions. Their
+`microphone_authorization` payload preserves `not_determined`, `restricted`,
+`denied`, and `authorized`; request calls are attempted only from
+`not_determined`. `system.ping.permissions` includes both boolean `microphone`
+and exact `microphone_state`. Public readiness must fail closed when those live
+daemon fields are absent, unknown, or non-authorized, regardless of foreground
+CLI preflight.
+
 The live daemon additionally emits `system`, `coordination`, and `wiki` event
 services. The request-side namespaces defined here
 (`see|do|show|tell|listen|session|voice|system`) differ from the event-side
