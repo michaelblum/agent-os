@@ -174,17 +174,35 @@
     {
       "id": "aos-readiness-composition-proof",
       "path_patterns": [
+        "tests/aos-permissions-microphone-authority.test.mjs",
         "tests/aos-readiness-composition.test.mjs"
       ],
       "fixture_patterns": [],
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "readiness_contract",
-      "contract": "Readiness verdict composition, blocker priority, TCC staleness telemetry, and next-action ordering stay deterministic.",
-      "worth": "This catches readiness priority regressions without touching live TCC or daemon state.",
-      "command": "node --test tests/aos-readiness-composition.test.mjs",
+      "contract": "Readiness verdict composition, blocker priority, daemon-authoritative microphone state, TCC staleness telemetry, and next-action ordering stay deterministic.",
+      "worth": "This catches readiness priority or foreground-CLI microphone authority regressions without touching live TCC or daemon state.",
+      "command": "node --test tests/aos-readiness-composition.test.mjs tests/aos-permissions-microphone-authority.test.mjs",
       "replaces": [],
       "guard": "model fixtures only; no live TCC mutation",
+      "status": "active"
+    },
+    {
+      "id": "mock-daemon-health-fixture-proof",
+      "path_patterns": [
+        "tests/lib/mock-daemon.py",
+        "tests/mock-daemon-health.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "daemon_health_fixture_contract",
+      "contract": "The shared mock daemon emits explicit Accessibility, input-tap, and daemon Microphone authorization facts while legacy mode omits unsupported structured fields.",
+      "worth": "This keeps isolated readiness proofs aligned with current health authority without launching the native AOS binary or daemon.",
+      "command": "node --test tests/mock-daemon-health.test.mjs",
+      "replaces": [],
+      "guard": "imports the Python helper in a disposable process; no socket, native AOS, TCC, or runtime mutation",
       "status": "active"
     },
     {

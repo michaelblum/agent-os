@@ -342,13 +342,17 @@ for form_id in ["listen-read", "listen-follow"]:
     assert any("--session-id" in item for item in form.get("examples", [])), form
 text = os.environ["TEXT"]
 assert text.count("requires one listen source: <channel> OR --session-id") == 2, text
+forms = {item["id"]: item for item in data["forms"]}
+assert "--source hotkey" in forms["listen-hotkey"]["usage"], forms["listen-hotkey"]
+assert "--source microphone" in forms["listen-microphone"]["usage"], forms["listen-microphone"]
+assert "Control+Option+Space" in text, text
 api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
 architecture = Path("ARCHITECTURE.md").read_text(encoding="utf-8")
-assert "STT/dictation is planned as a future" in api_doc, "missing planned listen source boundary"
-assert "current public surface only reads channels" in api_doc, "missing current listen source boundary"
+assert "AOS does not transcribe the" in api_doc, "missing transcription ownership boundary"
+assert "exact global hold-to-talk chord" in api_doc, "missing current hotkey boundary"
 assert "direct-session messages" in api_doc, "missing direct-session listen boundary"
-assert "The current public `listen` surface reads channels and direct-session messages" in architecture, "missing architecture listen boundary"
-assert "future sources     (STT/dictation, stdin, webhook, file watch)" in architecture, "architecture must keep future listen sources out of current forms"
+assert "exposes permissioned hotkey and microphone transport" in architecture, "missing architecture voice transport boundary"
+assert "bounded WAV" in architecture, "architecture must advertise current microphone transport"
 assert "stdin pipe         (source = bash)" not in architecture, "architecture must not advertise stdin as a current listen source"
 PY
 then
@@ -833,8 +837,11 @@ source = Path("scripts/aos-dev-build.mjs").read_text(encoding="utf-8")
 assert "buildArgs.push('--no-restart')" in source
 assert "build_wrapper: 'build.sh'" in source
 assert "build_source: 'repo-root/build.sh'" in source
-assert "next: null" in source
-assert "post_build_checkpoint" not in source
+assert "command: './aos help --json'" in source
+assert "required_first_post_build_command: true" in source
+assert "stop_after_success: true" in source
+assert "human_tcc_checkpoint_required: true" in source
+assert "next_user_signal: 'finished'" in source
 assert "checkpointContract" not in source
 assert "permissions reset-runtime --mode repo" not in source
 assert "ready --post-permission" not in source
@@ -842,9 +849,9 @@ assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
 then
-    pass "maintainer build script reports wrapper source without post-build ritual"
+    pass "maintainer build script reports the help-first post-build checkpoint"
 else
-    fail "maintainer build script telemetry or readiness boundary regressed"
+    fail "maintainer build script help-first or mutation boundary regressed"
 fi
 
 if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/tmp/aos-dev-build-help.err \
@@ -852,8 +859,11 @@ if node scripts/aos-dev-build.mjs build --help >/tmp/aos-dev-build-help.out 2>/t
     && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help.out \
     && grep -q 'Usage: node scripts/aos-dev-build.mjs build' /tmp/aos-dev-build-help-short.out \
     && grep -q 'bash build.sh --force --no-restart' /tmp/aos-dev-build-help.out \
-    && grep -q 'no post-build codesign' /tmp/aos-dev-build-help.out \
-    && grep -q 'spctl launch gate' /tmp/aos-dev-build-help.out \
+    && grep -q 'one direct swiftc link' /tmp/aos-dev-build-help.out \
+    && grep -q 'post-link codesign' /tmp/aos-dev-build-help.out \
+    && grep -q 'spctl gate' /tmp/aos-dev-build-help.out \
+    && grep -q 'immediately following command is ./aos help --json' /tmp/aos-dev-build-help.out \
+    && grep -q 'stop for the human TCC checkpoint' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Signing aos' /tmp/aos-dev-build-help.out \
     && ! grep -q '^Rebuilt: \./aos' /tmp/aos-dev-build-help-short.out \

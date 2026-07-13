@@ -23,6 +23,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   decision model, and reusable status/doctor/permissions projections. The
   ready builder maps its single top-level `ready_source` field directly from the
   verdict and is covered by a bounded command proof.
+- `lib/aos-microphone-readiness.mjs` owns daemon microphone state validation,
+  blocker/action projection, and denied/restricted/not-determined recovery text.
+- `lib/aos-build-attestation.mjs` owns the repo Swift-input fingerprint and
+  read-only build-receipt comparison shared by `build.sh` and
+  `aos runtime build-attestation`; keep that command passive and daemon-free.
 - `lib/experience-runtime-env.mjs` owns normalized experience runtime
   environment and state paths: `AOS_STATE_ROOT`, `AOS_RUNTIME_MODE`,
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the
@@ -80,6 +85,22 @@ commands, runtime helpers, wiki tools, and command adapters.
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
+- `lib/aos-voice-follow.mjs` owns the public streaming adapters for
+  `listen --source hotkey|microphone --follow` and `say --follow`. Keep daemon
+  connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
+  stdin, do not echo speech text or capture paths through events or errors, and
+  cancel the connection-scoped lease when the native external-dispatch owner
+  exits. Signal and parent-loss handling must be active before managed daemon
+  startup, and startup cancellation must await termination of any owned child.
+- `aos-permissions.mjs` treats foreground Microphone preflight as diagnostic
+  only. Its public prompt route starts the managed runtime when needed and
+  delegates to the daemon authorization primitive; readiness and permissions
+  output fail closed unless daemon health reports `microphone_state=authorized`.
+  Denied recovery opens the Microphone settings pane and polls daemon health;
+  it never teaches drag-add or runtime TCC reset for Microphone.
+- `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
+  Install signal and parent-exit handling before auto-start, forward shutdown
+  to that child, and await confirmed child exit before the listener exits.
 
 ## Local Contracts
 
@@ -98,17 +119,35 @@ commands, runtime helpers, wiki tools, and command adapters.
   adding ad hoc PATH checks.
 - Development build wrappers must distinguish an actual repo-mode `./aos`
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
-  local binary; packaged app signing belongs outside the repo-mode build path.
+  local binary; ADR 0023 owns this managed-endpoint compatibility contract and
+  packaged app signing belongs outside the repo-mode build path.
+  The raw link must match root `build.sh`: inline source fingerprinting, plain
+  Swift inputs and `-lsqlite3`, with no injected plist or metadata section.
   If the repo-local `./aos` artifact is missing or exits `137`, recover with
   `bash build.sh --force --no-restart`; do not add post-build signing, an
-  explicit signing identifier, entitlements, app bundle wrapping, allowlist
-  assumptions, or an `spctl` acceptance gate. `spctl` rejection is expected for
-  the raw local binary shape; launchability of `./aos` is the operational check.
-  Only actual rebuilds should drive a bounded TCC readiness check. After a
-  rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and run
-  `./aos ready --post-permission --json`; request a manual reset/regrant only
-  when it explicitly reports `post_rebuild_tcc_stale`. Do not infer exit `137`
-  from empty output or a timeout and do not force-rebuild a launchable artifact.
+  `ld` pass, copying or moving, installation-name editing, an explicit signing
+  identifier, entitlements, app bundle wrapping, `-sectcreate`, `__info_plist`,
+  allowlist assumptions, or an `spctl` acceptance gate. `spctl` rejection is
+  expected for the raw local binary shape; launchability of `./aos` is the
+  operational check.
+  `aos runtime build-attestation --json` must fail closed when the executable,
+  build mode, receipt, or current Swift-input fingerprint does not agree, and
+  must never update the receipt or invoke a build.
+  After a rebuild that emits `Rebuilt: ./aos`, keep that raw artifact and make
+  `./aos help --json` the immediately following command. Do not inspect, hash,
+  attest, transform, or run readiness against the live artifact first; stop on
+  exit `137`. If help succeeds, stop immediately for the human TCC checkpoint;
+  do not inspect the artifact or run any other command. Only after the user
+  replies `finished` may the session run exact
+  `./aos ready --repair --post-permission --json`, with no intervening command.
+  Do not infer exit `137` from empty output or a timeout and do not force-rebuild
+  a launchable artifact. The recovery invocation must include `--no-restart`,
+  and that path must not execute or restart through the newly linked binary.
+  The script's internal source hashes and size reporting are intentional.
+  `aos-after-build` must
+  reject arbitrary chained commands when its build step reports a real
+  rebuild; only exact `help --json` may run, after which it must print the human
+  checkpoint and return without another artifact access.
 - Mutating command adapters must handle `--help` and `-h` before execution so
   help reads never trigger builds, service restarts, TCC-sensitive signing, or
   other runtime mutation.
@@ -147,6 +186,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 - For broad command routing changes, include `bash tests/help-contract.sh`,
   `bash tests/dev-workflow-router.sh`, `bash tests/command-manifest-generation.sh`,
   and `git diff --check` when relevant.
+- For public voice streams, run `bash tests/voice-transport-native.sh`,
+  `node --test tests/voice-follow-cli.test.mjs`, and
+  `node --test tests/schemas/daemon-event.test.mjs` before any live audio proof.
 
 ## Child DOX Index
 

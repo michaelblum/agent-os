@@ -23,8 +23,26 @@ assert "docs-only" in summary["rule_ids"], summary
 assert summary["requires_swift_build"] is True, summary
 assert summary["tcc_identity_sensitive"] is True, summary
 assert summary["hot_swappable"] is False, summary
-assert any(item["command"] == "node scripts/aos-dev-build.mjs build --no-restart --json" for item in summary["commands"]), summary
-assert any(item["command"] == "./aos ready --post-permission" for item in summary["verification"]), summary
+verification = [item["command"] for item in summary["verification"]]
+assert all("aos-dev-build.mjs build" not in item["command"] for item in summary["commands"]), summary
+assert all(command != "./aos help --json" for command in verification), summary
+assert all(not command.startswith("./aos ready") for command in verification), summary
+assert any(
+    "does not schedule the TCC-sensitive build" in note
+    and "Finish all static commands first" in note
+    for note in summary["notes"]
+), summary
+assert any(
+    "bash build.sh --force --no-restart" in note
+    and "./aos help --json" in note
+    and "immediately following command" in note
+    for note in summary["notes"]
+), summary
+assert any(
+    "replies `finished`" in note
+    and "./aos ready --repair --post-permission --json" in note
+    for note in summary["notes"]
+), summary
 PY
 then
     pass "dev classify aggregates manifest-backed workflow classes"
@@ -403,20 +421,24 @@ else
     fail "dev audit missing --repo error mismatch: $ERR"
 fi
 
-if ERR="$(./aos help dev --json 2>&1 >/dev/null)"; then
-    fail "aos help dev should not resolve after dev command removal"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
-    pass "public help rejects removed dev command"
+if [[ "${AOS_SKIP_LIVE_CLI_CHECKS:-0}" == "1" ]]; then
+    pass "public CLI checks deferred by explicit static-only gate"
 else
-    fail "aos help dev returned unexpected error: $ERR"
-fi
+    if ERR="$(./aos help dev --json 2>&1 >/dev/null)"; then
+        fail "aos help dev should not resolve after dev command removal"
+    elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+        pass "public help rejects removed dev command"
+    else
+        fail "aos help dev returned unexpected error: $ERR"
+    fi
 
-if ERR="$(./aos dev classify --json 2>&1 >/dev/null)"; then
-    fail "aos dev classify should not dispatch after dev command removal"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
-    pass "public dispatch rejects removed dev command"
-else
-    fail "aos dev classify returned unexpected error: $ERR"
+    if ERR="$(./aos dev classify --json 2>&1 >/dev/null)"; then
+        fail "aos dev classify should not dispatch after dev command removal"
+    elif echo "$ERR" | grep -q '"code" : "UNKNOWN_COMMAND"'; then
+        pass "public dispatch rejects removed dev command"
+    else
+        fail "aos dev classify returned unexpected error: $ERR"
+    fi
 fi
 
 echo

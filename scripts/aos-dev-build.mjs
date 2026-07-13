@@ -21,9 +21,13 @@ function usage() {
     'Running this command may rebuild the repo-mode ./aos binary.',
     'If repo ./aos is missing or exits 137, recover directly with:',
     '  bash build.sh --force --no-restart',
-    'That path must remain raw build.sh swiftc output: no post-build codesign,',
-    'explicit signing identifier, app bundle, entitlements, allowlist assumption,',
-    'or spctl launch gate.',
+    'That path is one direct swiftc link matching known-good head 866839e9.',
+    'It stays plain: do not inject a plist or other metadata section, run a separate linker,',
+    'or use post-link codesign, copy, move, rewrite, wrapping, entitlements,',
+    'identifiers, or an spctl gate.',
+    'After a real rebuild, the immediately following command is ./aos help --json.',
+    'If help succeeds, stop for the human TCC checkpoint. Do not inspect ./aos',
+    'or run readiness until the user replies finished.',
     '',
     'Options:',
     '  --release     Build optimized release binary',
@@ -71,7 +75,14 @@ function buildCommand(args) {
       exit_code: exitCode,
       stdout,
       stderr,
-      next: null,
+      next: binaryRebuilt ? {
+        command: './aos help --json',
+        required_first_post_build_command: true,
+        stop_on_exit_137: true,
+        stop_after_success: true,
+        human_tcc_checkpoint_required: true,
+        next_user_signal: 'finished',
+      } : null,
     });
   } else {
     if (stdout) process.stdout.write(stdout);

@@ -429,7 +429,24 @@ else
 fi
 
 SETUP_ROOT="$(mktemp -d)"
-if AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 ./aos __permissions setup-marker write --json >/dev/null 2>&1 \
+SETUP_SOCK="$SETUP_ROOT/repo/sock"
+mkdir -p "$(dirname "$SETUP_SOCK")"
+python3 tests/lib/mock-daemon.py \
+    --socket "$SETUP_SOCK" \
+    --tap-status active \
+    --listen-access true \
+    --post-access true \
+    --accessibility true \
+    --microphone-state authorized \
+    >"$SETUP_ROOT/mock.stdout" 2>"$SETUP_ROOT/mock.stderr" &
+SETUP_MOCK_PID=$!
+for _ in $(seq 1 20); do
+    if [[ -S "$SETUP_SOCK" ]]; then break; fi
+    sleep 0.1
+done
+if [[ ! -S "$SETUP_SOCK" ]]; then
+    fail "permissions setup mock daemon did not bind: $(cat "$SETUP_ROOT/mock.stderr" 2>/dev/null)"
+elif AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 ./aos __permissions setup-marker write --json >/dev/null 2>&1 \
     && OUT="$(AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 AOS_DISABLE_DAEMON_AUTOSTART=1 ./aos permissions setup --once --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -446,6 +463,8 @@ then
 else
     fail "permissions setup external once skip route drifted: ${OUT:-}"
 fi
+kill "$SETUP_MOCK_PID" 2>/dev/null || true
+wait "$SETUP_MOCK_PID" 2>/dev/null || true
 rm -rf "$SETUP_ROOT"
 
 LISTEN_ROOT="$(mktemp -d)"
@@ -510,6 +529,15 @@ function probe(expectConnect) {
   });
 }
 
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
     env: {
@@ -537,10 +565,24 @@ async function main() {
     process.exit(2);
   }
 
+  let daemonPid;
+  try {
+    daemonPid = JSON.parse(fs.readFileSync(`${root}/repo/daemon.lock`, 'utf8')).pid;
+  } catch {
+    child.kill('SIGTERM');
+    await new Promise((resolve) => child.once('exit', resolve));
+    process.exit(2);
+  }
+
   child.kill('SIGTERM');
-  await new Promise((resolve) => child.once('exit', resolve));
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  process.exit((await probe(false)) ? 0 : 3);
+  const wrapperExitCode = await new Promise((resolve) => child.once('exit', resolve));
+  for (let i = 0; i < 30; i += 1) {
+    const socketClosed = await probe(false);
+    if (wrapperExitCode === 0 && socketClosed && !pidAlive(daemonPid)) process.exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (pidAlive(daemonPid)) process.kill(daemonPid, 'SIGKILL');
+  process.exit(3);
 }
 
 main();

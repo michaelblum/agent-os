@@ -1,5 +1,12 @@
 # Packaged-Runtime `Info.plist` / `.entitlements` Findings
 
+> **Historical only.** ADR 0023 supersedes this experiment as build authority.
+> Its `--package`, post-link signing, entitlements, explicit identifier, and
+> direct-readiness commands must not be run against repo-mode `./aos`. Git
+> history preserves the evidence; the active contract is one direct `swiftc`
+> link with identity-free repo metadata and `./aos help --json` as the first
+> post-build launch.
+
 - **Date tested:** 2026-07-08 EDT
 - **Machine:** macOS 26.5.1 (25F80), arm64, Apple M1 Pro
 - **Branch:** `perplexity-packaged-runtime-infoplist-entitlements-spike`

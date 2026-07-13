@@ -66,6 +66,8 @@ function daemon(overrides = {}) {
     },
     permissions: {
       accessibility: true,
+      microphone: true,
+      microphoneState: 'authorized',
       ...overrides.permissions,
     },
   };
@@ -142,28 +144,30 @@ test('daemon input tap inactive blocks readiness and yields runtime recovery act
 
 test('permission recovery owns mixed input-tap and microphone blockers', () => {
   const current = facts({
-    daemon: { inputTap: { status: 'inactive', attempts: 3 } },
-    permissions: { microphone: false },
+    daemon: {
+      inputTap: { status: 'inactive', attempts: 3 },
+      permissions: { microphone: false, microphoneState: 'denied' },
+    },
   });
   const blockers = readyBlockers(current, 'repo');
   const decision = readyDecision(false, blockers, current.daemon, current.permissions);
 
   assert.deepEqual(decision, {
     phase: 'human_required',
-    diagnosis: 'not_ready',
-    action_reason: 'permission',
+    diagnosis: 'microphone_denied',
+    action_reason: 'microphone_permission',
     primary_blocker: {
       kind: 'permission',
       id: 'microphone',
-      scope: 'cli',
+      scope: 'daemon',
+      reason: 'microphone_denied',
     },
   });
   assert.deepEqual(
-    readyNextActions(decision, blockers, current.setup, 'repo', './aos').map((action) => action.command),
+    readyNextActions(decision, blockers, current.setup, 'repo', './aos').map((action) => action.command ?? action.settings_url),
     [
-      './aos permissions reset-runtime --mode repo',
-      './aos permissions setup --once',
-      './aos ready --repair --post-permission',
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+      './aos permissions check --json',
       './aos ready',
     ],
   );
@@ -246,6 +250,35 @@ test('passive-green live-fail daemon input monitoring names post-rebuild stale T
   );
 });
 
+test('post-rebuild input-monitoring staleness outranks microphone recovery', () => {
+  const current = facts({
+    daemon: {
+      inputTap: {
+        status: 'unavailable',
+        attempts: 1,
+        listenAccess: false,
+      },
+      permissions: {
+        microphone: false,
+        microphoneState: 'not_determined',
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'daemon_tcc_grant_stale_or_missing');
+  assert.equal(verdict.tcc_staleness.id, 'post_rebuild_tcc_stale');
+  assert.equal(verdict.terminal_handoff.reason, 'post_rebuild_tcc_stale');
+  assert.deepEqual(verdict.next_actions.map((action) => action.command).filter(Boolean), [
+    './aos ready --repair --post-permission',
+  ]);
+  assert.equal(
+    verdict.next_actions.some((action) => action.command === './aos permissions setup --once'),
+    false,
+  );
+});
+
 test('stale daemon cleanup outranks stale-TCC terminal handoff in mixed readiness states', () => {
   const current = facts({
     daemon: {
@@ -305,16 +338,16 @@ test('linked-worktree runtime policy outranks stale-TCC terminal handoff', () =>
   assert.equal(rawActions.some((action) => action.type === 'manual_tcc_reset'), false);
 }));
 
-test('legacy daemon health without access fields falls back to CLI permission view', () => {
+test('legacy daemon health without microphone state fails closed instead of trusting CLI microphone state', () => {
   const legacyDaemon = daemon({
     inputTap: { listenAccess: undefined, postAccess: undefined },
-    permissions: { accessibility: undefined },
+    permissions: { accessibility: undefined, microphone: undefined, microphoneState: undefined },
   });
   const cli = permissions({ accessibility: true, screen_recording: true });
   const result = evaluateReadyForTesting(legacyDaemon, cli, setup());
 
-  assert.deepEqual(result, { readyForTesting: true, readySource: 'cli' });
-  assert.deepEqual(missingPermissionIDsFor(legacyDaemon, cli), []);
+  assert.deepEqual(result, { readyForTesting: false, readySource: 'cli' });
+  assert.deepEqual(missingPermissionIDsFor(legacyDaemon, cli), ['microphone']);
   assert.equal(disagreementFor(legacyDaemon, cli), undefined);
 });
 
@@ -324,7 +357,7 @@ test('ready_for_testing requires each capability permission independently', () =
     ['screen_recording', daemon(), permissions({ screen_recording: false })],
     ['listen_access', daemon({ inputTap: { listenAccess: false } }), permissions()],
     ['post_access', daemon({ inputTap: { postAccess: false } }), permissions()],
-    ['microphone', daemon(), permissions({ microphone: false })],
+    ['microphone', daemon({ permissions: { microphone: false, microphoneState: 'denied' } }), permissions()],
   ];
 
   for (const [name, daemonView, cliView] of cases) {
@@ -365,13 +398,13 @@ test('effective permission view is the shared daemon-first readiness projection'
     screen_recording: true,
     listen_access: false,
     post_access: false,
-    microphone: false,
+    microphone: true,
+    microphone_state: 'authorized',
     source: 'daemon',
   });
   assert.deepEqual(missingPermissionIDsFor(daemonView, cliView), [
     'listen_access',
     'post_access',
-    'microphone',
   ]);
 });
 
@@ -694,14 +727,17 @@ test('permissionRequirements keeps public output shape stable', () => {
         id: 'microphone',
         granted: true,
         required_for: ['voice dictation', 'local STT capture'],
-        setup_trigger: 'AVCaptureDevice.requestAccess(for:.audio) prompt',
+        setup_trigger: 'daemon AVCaptureDevice.requestAccess(for:.audio) prompt',
       },
     ],
   );
 });
 
 test('missing microphone blocks listen and makes ready_for_testing capability-consistent', () => {
-  const current = facts({ permissions: { microphone: false } });
+  const current = facts({
+    daemon: { permissions: { microphone: false, microphoneState: 'denied' } },
+    permissions: { microphone: true },
+  });
   const evaluation = evaluateReadyForTesting(current.daemon, current.permissions, current.setup);
   const verdict = runtimeVerdict(current, 'repo', './aos');
 
@@ -712,10 +748,46 @@ test('missing microphone blocks listen and makes ready_for_testing capability-co
   assert.deepEqual(verdict.blocked_capabilities, ['listen']);
   assert.deepEqual(missingPermissionIDsFor(current.daemon, current.permissions), ['microphone']);
   assert.equal(
-    verdict.blockers.some((blocker) => blocker.id === 'microphone' && blocker.scope === 'cli'),
+    verdict.blockers.some((blocker) => blocker.id === 'microphone'
+      && blocker.scope === 'daemon'
+      && blocker.authorization_state === 'denied'),
     true,
   );
-  assert.equal(verdict.notes.some((note) => note.includes('Microphone permission is not granted')), true);
+  assert.equal(verdict.notes.some((note) => note.includes('Daemon Microphone authorization is denied')), true);
+  assert.equal(verdict.tcc_staleness, undefined);
+  assert.equal(verdict.next_actions.some((action) => action.command?.includes('reset-runtime')), false);
+});
+
+test('daemon microphone authorization states remain distinct in blockers and recovery actions', () => {
+  for (const state of ['not_determined', 'restricted', 'denied', 'unknown']) {
+    const current = facts({ daemon: { permissions: { microphone: false, microphoneState: state } } });
+    const blockers = readyBlockers(current, 'repo');
+    const microphone = blockers.find((blocker) => blocker.id === 'microphone');
+    const decision = readyDecision(false, blockers, current.daemon, current.permissions);
+    const actions = readyNextActions(decision, blockers, current.setup, 'repo', './aos');
+
+    assert.equal(microphone.authorization_state, state);
+    assert.equal(microphone.reason, `microphone_${state}`);
+    assert.equal(decision.diagnosis, `microphone_${state}`);
+    assert.equal(actions.some((action) => action.command?.includes('reset-runtime')), false);
+    assert.equal(actions.some((action) => action.command === './aos permissions check --json'), true);
+  }
+});
+
+test('inconsistent daemon microphone health fails closed with an actionable blocker', () => {
+  const current = facts({
+    daemon: { permissions: { microphone: false, microphoneState: 'authorized' } },
+    permissions: { microphone: true },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.diagnosis, 'microphone_state_inconsistent');
+  assert.equal(verdict.blockers.some((blocker) => (
+    blocker.id === 'microphone' && blocker.reason === 'microphone_state_inconsistent'
+  )), true);
+  assert.equal(verdict.next_actions.some((action) => action.command === './aos permissions check --json'), true);
+  assert.equal(verdict.next_actions.some((action) => action.command?.includes('reset-runtime')), false);
 });
 
 test('shared readiness projectors preserve status, doctor, and permissions field shapes', () => {
@@ -756,7 +828,7 @@ test('setup planner prompts missing permissions in deterministic order', () => {
 
 test('setup planner includes microphone after core desktop prompts', () => {
   const plan = planPermissionSetup({
-    initialPermissions: permissions({ microphone: false }),
+    initialPermissions: permissions({ microphone: true }),
     initialSetup: setup({ marker_exists: false, setup_completed: false }),
     initialMissing: ['microphone'],
     once: true,
@@ -790,7 +862,7 @@ test('setup prompt loop stops on failed prompt and reports cancellation note', (
   assert.deepEqual(notes, ['screen_recording permission setup was cancelled before completion.']);
 });
 
-test('setup planner writes marker and restarts services only after final CLI view is complete', () => {
+test('setup planner writes marker and restarts services only after final effective view is complete', () => {
   const plan = planPermissionSetup({
     initialPermissions: permissions(),
     initialSetup: setup({ marker_exists: false, setup_completed: false }),
@@ -874,16 +946,11 @@ test('repair execution planner owns cleanup, startup, restart, and permission ha
     'restart',
   );
 
-  const handoff = nextReadyExecutionStep(
+  const microphoneStop = nextReadyExecutionStep(
     response('microphone', [{ step: 'service_start', result: 'ok' }], 'permission'),
     { repair: true, prefix: './aos', mode: 'repo' },
   );
-  assert.equal(handoff.type, 'permission_handoff');
-  assert.deepEqual(handoff.trace, {
-    step: 'runtime_tcc_reset_handoff',
-    result: 'human_required',
-    detail: './aos permissions reset-runtime --mode repo',
-  });
+  assert.deepEqual(microphoneStop, { type: 'stop' });
 
   const unmanaged = nextReadyExecutionStep(response('daemon_unmanaged'), { repair: true });
   assert.equal(unmanaged.type, 'stop');

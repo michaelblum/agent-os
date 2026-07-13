@@ -6,13 +6,14 @@ Owner: `scripts/lib/aos-stt/bundled-whisper.mjs`
 
 ## Purpose
 
-This spike proves the local speech-to-text provider boundary for a future
+This spike proves the local speech-to-text provider boundary for consumer-side
 Bundled Whisper integration without requiring live microphone input, real model
 downloads, or vendored weights in the repository.
 
-It is intentionally internal. Public `aos listen` remains the existing
-communication channel/session reader and is not repurposed as dictation input.
-Consumer dictation and daemon `voice.*` event adoption are separate slices.
+It is intentionally internal. Public AOS now provides bounded microphone-to-WAV
+transport through `aos listen --source microphone`; this spike does not make
+transcription an AOS daemon responsibility. Consumer dictation and model
+execution remain separate.
 
 ## Proven Contract
 
@@ -55,7 +56,7 @@ Bundled Whisper enablement remains gated on:
 - model size and update strategy
 - packaged runtime location and integrity checks
 - runner implementation, sandbox expectations, and crash behavior
-- microphone capture integration and consumer-owned dictation state
+- consumer integration with the public WAV handoff and consumer-owned dictation state
 
 Until those decisions are closed, tests must continue to use fake weights,
 fixture audio, and synthetic runner behavior.

@@ -94,7 +94,7 @@
             "aos permissions setup --once"
           ],
           "execution": {
-            "auto_starts_daemon": false,
+            "auto_starts_daemon": true,
             "interactive": true,
             "mutates_state": true,
             "read_only": false,
@@ -191,7 +191,7 @@
       "path": [
         "permissions"
       ],
-      "summary": "Permission preflight and one-time onboarding"
+      "summary": "Permission preflight and owner-correct one-time onboarding"
     }
   ]
 }

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { listenVoice, writeVoiceCLIError } from './lib/aos-voice-follow.mjs';
 
 const SESSION_ROLES = new Set(['worker', 'coordinator', 'observer']);
 
@@ -335,6 +336,14 @@ function parseListenArgs(args) {
 }
 
 async function listenCommand(args) {
+  if (args.includes('--source')) {
+    try {
+      await listenVoice(args);
+    } catch (error) {
+      writeVoiceCLIError(error);
+    }
+    return;
+  }
   if (args.includes('--channels')) {
     for (const arg of args) if (arg !== '--channels') unknownArg(arg);
   }

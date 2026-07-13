@@ -4,6 +4,13 @@ import {
   explicitStateRootOverride,
   invocationName,
 } from './aos-cli.mjs';
+import {
+  daemonMicrophoneAuthorizationState,
+  daemonMicrophoneIsAuthorized,
+  daemonMicrophoneReadinessNote,
+  microphoneNextActions,
+  microphonePermissionBlocker,
+} from './aos-microphone-readiness.mjs';
 
 export function permissionRequirements(permissions) {
   return [
@@ -35,7 +42,7 @@ export function permissionRequirements(permissions) {
       id: 'microphone',
       granted: Boolean(permissions.microphone),
       required_for: ['voice dictation', 'local STT capture'],
-      setup_trigger: 'AVCaptureDevice.requestAccess(for:.audio) prompt',
+      setup_trigger: 'daemon AVCaptureDevice.requestAccess(for:.audio) prompt',
     },
   ];
 }
@@ -45,13 +52,16 @@ export function effectivePermissionView(daemon, cli = {}) {
     daemon.permissions?.accessibility,
     daemon.inputTap?.listenAccess,
     daemon.inputTap?.postAccess,
+    daemon.permissions?.microphone,
   ].some((value) => value !== undefined));
+  const microphoneState = daemonMicrophoneAuthorizationState(daemon);
   return {
     accessibility: daemon?.permissions?.accessibility ?? cli.accessibility,
     screen_recording: cli.screen_recording,
     listen_access: daemon?.inputTap?.listenAccess ?? cli.listen_access,
     post_access: daemon?.inputTap?.postAccess ?? cli.post_access,
-    microphone: cli.microphone,
+    microphone: daemonMicrophoneIsAuthorized(daemon),
+    microphone_state: microphoneState,
     source: daemonViewAvailable ? 'daemon' : 'cli',
   };
 }
@@ -115,6 +125,13 @@ export function disagreementFor(daemon, cli) {
   if (daemon.inputTap.postAccess !== undefined && daemon.inputTap.postAccess !== cli.post_access) {
     disagreement.post_access = { cli: cli.post_access, daemon: daemon.inputTap.postAccess };
   }
+  if (daemon.permissions.microphone !== undefined && daemon.permissions.microphone !== cli.microphone) {
+    disagreement.microphone = {
+      cli: cli.microphone,
+      daemon: daemon.permissions.microphone,
+      daemon_state: daemonMicrophoneAuthorizationState(daemon),
+    };
+  }
   return Object.keys(disagreement).length ? disagreement : undefined;
 }
 
@@ -131,6 +148,8 @@ export function passiveLiveViewsFor(daemon, cli) {
       accessibility: daemon.permissions.accessibility,
       listen_access: daemon.inputTap.listenAccess,
       post_access: daemon.inputTap.postAccess,
+      microphone: daemon.permissions.microphone,
+      microphone_state: daemonMicrophoneAuthorizationState(daemon),
       input_tap_status: daemon.inputTap.status,
       input_tap_attempts: daemon.inputTap.attempts,
     } : undefined,
@@ -141,7 +160,7 @@ export function postRebuildTccStalenessFor(facts, mode, prefix = invocationName(
   const disagreement = disagreementFor(facts.daemon, facts.permissions);
   if (!disagreement) return undefined;
   const staleFields = Object.entries(disagreement)
-    .filter(([, value]) => value.cli === true && value.daemon === false)
+    .filter(([field, value]) => field !== 'microphone' && value.cli === true && value.daemon === false)
     .map(([field]) => field);
   if (!staleFields.length) return undefined;
   const targetPath = facts.binary_identity?.path ?? expectedBinaryPath(mode);
@@ -449,17 +468,8 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
     });
   }
 
-  if (!permissions.microphone) {
-    blockers.push({
-      kind: 'permission',
-      id: 'microphone',
-      scope: 'cli',
-      message: 'CLI lacks Microphone permission for voice dictation.',
-      target_path: currentPath,
-      settings_url: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
-      blocks: ['listen'],
-    });
-  }
+  const microphoneBlocker = microphonePermissionBlocker(daemon, daemonPath);
+  if (microphoneBlocker) blockers.push(microphoneBlocker);
 
   if (daemon?.inputTap && daemon.inputTap.status !== 'active') {
     blockers.push({
@@ -553,6 +563,23 @@ export function readyDecision(ready, blockers, daemon, permissions) {
   blocker = find((b) => b.id === 'daemon_unreachable');
   if (blocker) return decisionFor('runtime_blocked', 'daemon_socket_unreachable', 'runtime_repair', blocker);
   const staleTccBlocker = find((b) => b.reason === 'post_rebuild_tcc_stale');
+  if (staleTccBlocker) {
+    return decisionFor(
+      'human_required',
+      'daemon_tcc_grant_stale_or_missing',
+      'post_rebuild_tcc_stale',
+      staleTccBlocker,
+    );
+  }
+  blocker = find((b) => b.id === 'microphone');
+  if (blocker) {
+    return decisionFor(
+      'human_required',
+      blocker.reason ?? `microphone_${blocker.authorization_state ?? 'unknown'}`,
+      'microphone_permission',
+      blocker,
+    );
+  }
   const daemonPermissionBlocker = find((b) => b.kind === 'permission' && b.scope === 'daemon');
   if (daemon && ((daemon.permissions.accessibility === false && permissions.accessibility)
       || daemon.inputTap.listenAccess === false
@@ -560,8 +587,8 @@ export function readyDecision(ready, blockers, daemon, permissions) {
     return decisionFor(
       'human_required',
       'daemon_tcc_grant_stale_or_missing',
-      staleTccBlocker ? 'post_rebuild_tcc_stale' : 'permission',
-      staleTccBlocker ?? daemonPermissionBlocker,
+      'permission',
+      daemonPermissionBlocker,
     );
   }
   blocker = find((b) => b.kind === 'permission');
@@ -679,6 +706,13 @@ export function readyNextActions(decision, blockers, setup, mode, prefix = invoc
     });
   }
 
+  if (primary === 'microphone_permission') {
+    const microphone = blockers.find((blocker) => blocker.id === 'microphone');
+    for (const action of microphoneNextActions(microphone?.authorization_state ?? 'unknown', prefix)) {
+      appendAction(actions, seen, action);
+    }
+  }
+
   if (primary === 'runtime_repair') {
     appendAction(actions, seen, {
       type: 'command',
@@ -761,7 +795,8 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   if (!permissions.accessibility) notes.push('Accessibility permission is not granted (CLI view).');
   if (daemon?.permissions.accessibility === false) notes.push('Accessibility permission is not granted (daemon view).');
   if (!permissions.screen_recording) notes.push('Screen Recording permission is not granted.');
-  if (!permissions.microphone) notes.push('Microphone permission is not granted.');
+  const microphoneNote = daemonMicrophoneReadinessNote(daemon);
+  if (microphoneNote) notes.push(microphoneNote);
   if (!setup.setup_completed && setup.recommended_command) notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
   if (cleanReport?.stale_daemons?.length) {
     notes.push(`Stale daemon cleanup required before readiness: ${cleanReport.stale_daemons.map((item) => item.pid).join(', ')}. Run '${prefix} clean'.`);
@@ -818,7 +853,8 @@ export function permissionCheckNotes(cli, setup, daemon, mode) {
   if (!cli.screen_recording) notes.push('Screen Recording permission is not granted.');
   if (!cli.listen_access) notes.push('Input Monitoring listen access is not granted (CLI view).');
   if (!cli.post_access) notes.push('Input Monitoring post access is not granted (CLI view).');
-  if (!cli.microphone) notes.push('Microphone permission is not granted.');
+  const microphoneNote = daemonMicrophoneReadinessNote(daemon);
+  if (microphoneNote) notes.push(microphoneNote);
   if (!setup.marker_exists) {
     notes.push('Permission onboarding has not been completed for this runtime identity.');
   } else if (!setup.bundle_matches_current && !setup.setup_completed) {
@@ -850,10 +886,15 @@ export function permissionRecoveryNotes(missing, mode, prefix = invocationName()
     notes.push('Daemon-owned Input Monitoring permission is stale or missing.');
   }
   if (missing.includes('microphone')) {
-    notes.push('Microphone permission is still not granted.');
+    notes.push('Daemon-owned Microphone authorization is still not authorized. First use requests through the daemon; denied recovery uses the Microphone settings pane and live daemon polling.');
   }
-  notes.push(`Run '${prefix} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
-  notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --repair --post-permission'.`);
+  const resetOwnedMissing = missing.filter((id) => id !== 'microphone');
+  if (resetOwnedMissing.length) {
+    notes.push(`Run '${prefix} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
+    notes.push(`Then run '${prefix} permissions setup --once' and '${prefix} ready --repair --post-permission'.`);
+  } else if (missing.includes('microphone')) {
+    notes.push(`Run '${prefix} permissions setup --once' to request or re-check daemon-owned Microphone authorization.`);
+  }
   return notes;
 }
 
@@ -870,6 +911,17 @@ export function planPermissionSetup({ initialPermissions, initialSetup, initialM
     return { branch: 'already_complete', status: 'ok', completed: true, promptOrder: [], writeMarker: false, restartServices: false, notes: ['Permissions are already granted; onboarding was skipped.'] };
   }
   if (once && initialSetup.setup_completed && initialMissing.length > 0) {
+    if (initialMissing.every((id) => id === 'microphone')) {
+      return {
+        branch: 'prompt_missing',
+        status: 'pending',
+        completed: false,
+        promptOrder: [{ permissionID: 'microphone', primitiveID: 'microphone' }],
+        writeMarker: false,
+        restartServices: false,
+        notes: [],
+      };
+    }
     return { branch: 'completed_but_missing', status: 'degraded', completed: false, promptOrder: [], writeMarker: false, restartServices: false, notes: permissionRecoveryNotes(initialMissing, mode, prefix) };
   }
 
@@ -882,7 +934,8 @@ export function planPermissionSetup({ initialPermissions, initialSetup, initialM
   if (once && allCLIGranted && initialMissing.length === 0) {
     return { branch: 'record_marker_without_prompts', status: 'ok', completed: true, promptOrder: [], writeMarker: true, restartServices: true, notes: [] };
   }
-  if (once && allCLIGranted && initialMissing.length > 0) {
+  const daemonMismatchMissing = initialMissing.filter((id) => id !== 'microphone' && initialPermissions[id]);
+  if (once && allCLIGranted && daemonMismatchMissing.length > 0) {
     return { branch: 'cli_granted_daemon_missing', status: 'degraded', completed: false, promptOrder: [], writeMarker: false, restartServices: false, notes: permissionRecoveryNotes(initialMissing, mode, prefix) };
   }
 
@@ -891,7 +944,8 @@ export function planPermissionSetup({ initialPermissions, initialSetup, initialM
     status: 'pending',
     completed: false,
     promptOrder: SETUP_PROMPT_ORDER
-      .filter(([permissionID]) => !initialPermissions[permissionID])
+      .filter(([permissionID]) => initialMissing.includes(permissionID))
+      .filter(([permissionID]) => permissionID === 'microphone' || !initialPermissions[permissionID])
       .map(([permissionID, primitiveID]) => ({ permissionID, primitiveID })),
     writeMarker: false,
     restartServices: false,

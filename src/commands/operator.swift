@@ -81,6 +81,22 @@ private struct PermissionsPromptResponse: Encodable {
     let granted: Bool
 }
 
+private struct DaemonMicrophonePermissionsPromptResponse: Encodable {
+    let status: String
+    let permission: String
+    let native_trigger: String
+    let authorization_owner: String
+    let authorization_state_before: String
+    let authorization_state_after: String
+    let attempted: Bool
+    let trigger_result: Bool?
+    let request_completed: Bool
+    let before: PermissionsState
+    let after: PermissionsState
+    let granted: Bool
+    let settings_url: String
+}
+
 private struct PermissionsResetTargetResponse: Encodable {
     let status: String
     let mode: String
@@ -202,6 +218,8 @@ private struct DaemonHealthState {
     let inputTapPostAccess: Bool?
     let inputTapLastErrorAt: String?
     let daemonAccessibility: Bool?
+    let daemonMicrophone: Bool?
+    let daemonMicrophoneState: String?
 }
 
 private struct DaemonHealthInputTapFacts: Encodable {
@@ -227,14 +245,18 @@ private struct DaemonHealthInputTapFacts: Encodable {
 
 private struct DaemonHealthPermissionsFacts: Encodable {
     let accessibility: Bool?
+    let microphone: Bool?
+    let microphone_state: String?
 
     private enum CodingKeys: String, CodingKey {
-        case accessibility
+        case accessibility, microphone, microphone_state
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encodeIfPresent(accessibility, forKey: .accessibility)
+        try c.encodeIfPresent(microphone, forKey: .microphone)
+        try c.encodeIfPresent(microphone_state, forKey: .microphone_state)
     }
 }
 
@@ -295,7 +317,11 @@ private func currentDaemonHealthFacts() -> DaemonHealthFacts {
         pid: health?.servingPID,
         uptime_seconds: health?.uptime,
         input_tap: inputTap,
-        permissions: DaemonHealthPermissionsFacts(accessibility: health?.daemonAccessibility)
+        permissions: DaemonHealthPermissionsFacts(
+            accessibility: health?.daemonAccessibility,
+            microphone: health?.daemonMicrophone,
+            microphone_state: health?.daemonMicrophoneState
+        )
     )
 }
 
@@ -437,7 +463,7 @@ private enum PermissionPromptKind: String {
         case .postEvent:
             return "CGRequestPostEventAccess"
         case .microphone:
-            return "AVCaptureDevice.requestAccess(for:.audio)"
+            return "daemon:AVCaptureDevice.requestAccess(for:.audio)"
         }
     }
 }
@@ -449,6 +475,10 @@ private func permissionsPromptCommand(args: [String]) {
     }
     guard let kind = PermissionPromptKind(rawValue: rawPermission) else {
         exitError("Unknown __permissions prompt permission: \(rawPermission)", code: "UNKNOWN_PERMISSION")
+    }
+    if kind == .microphone {
+        daemonMicrophonePermissionsPromptCommand()
+        return
     }
 
     let before = currentPermissionsState()
@@ -473,6 +503,69 @@ private func permissionsPromptCommand(args: [String]) {
         before: before,
         after: after,
         granted: granted
+    )))
+    exit(granted ? 0 : 1)
+}
+
+private func daemonMicrophonePermissionsPromptCommand() {
+    guard let response = sendEnvelopeRequest(
+        service: "voice",
+        action: "microphone_authorization_request",
+        data: [:],
+        socketPath: aosSocketPath(for: aosCurrentRuntimeMode()),
+        timeoutMs: 31_000
+    ) else {
+        exitError(
+            "The managed daemon must be reachable before requesting Microphone permission.",
+            code: "DAEMON_UNREACHABLE"
+        )
+    }
+    if let error = response["error"] as? String {
+        exitError(error, code: response["code"] as? String ?? "MICROPHONE_PERMISSION_REQUEST_FAILED")
+    }
+    let body = (response["data"] as? [String: Any]) ?? response
+    guard let authorization = body["microphone_authorization"] as? [String: Any],
+          let beforeState = authorization["before_state"] as? String,
+          let afterState = authorization["after_state"] as? String,
+          let attempted = authorization["attempted"] as? Bool,
+          let completed = authorization["completed"] as? Bool,
+          let granted = authorization["authorized"] as? Bool else {
+        exitError(
+            "The daemon returned malformed Microphone authorization facts.",
+            code: "MICROPHONE_PERMISSION_RESPONSE_INVALID"
+        )
+    }
+
+    let cli = currentPermissionsState()
+    let before = PermissionsState(
+        accessibility: cli.accessibility,
+        screen_recording: cli.screen_recording,
+        listen_access: cli.listen_access,
+        post_access: cli.post_access,
+        microphone: beforeState == "authorized"
+    )
+    let after = PermissionsState(
+        accessibility: cli.accessibility,
+        screen_recording: cli.screen_recording,
+        listen_access: cli.listen_access,
+        post_access: cli.post_access,
+        microphone: granted
+    )
+    print(jsonString(DaemonMicrophonePermissionsPromptResponse(
+        status: granted ? "ok" : "degraded",
+        permission: "microphone",
+        native_trigger: "daemon:AVCaptureDevice.requestAccess(for:.audio)",
+        authorization_owner: "daemon",
+        authorization_state_before: beforeState,
+        authorization_state_after: afterState,
+        attempted: attempted,
+        trigger_result: attempted && completed ? granted : nil,
+        request_completed: completed,
+        before: before,
+        after: after,
+        granted: granted,
+        settings_url: authorization["settings_url"] as? String
+            ?? aosMicrophoneSettingsURL
     )))
     exit(granted ? 0 : 1)
 }
@@ -504,7 +597,7 @@ private func triggerPermissionPrompt(_ kind: PermissionPromptKind) -> Bool {
     case .postEvent:
         return requestPostEventAccess()
     case .microphone:
-        return requestMicrophoneAccess()
+        preconditionFailure("Microphone prompts must be requested by the daemon")
     }
 }
 
@@ -687,17 +780,6 @@ private func currentPermissionsState() -> PermissionsState {
 
 private func preflightMicrophoneAccess() -> Bool {
     AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-}
-
-private func requestMicrophoneAccess() -> Bool {
-    let semaphore = DispatchSemaphore(value: 0)
-    var granted = false
-    AVCaptureDevice.requestAccess(for: .audio) { allowed in
-        granted = allowed
-        semaphore.signal()
-    }
-    let result = semaphore.wait(timeout: .now() + 30)
-    return result == .success && granted
 }
 
 private func testAssumePermissionsGranted() -> Bool {
@@ -897,7 +979,9 @@ private func fetchDaemonHealth(socketPath: String, budgetMs: Int = 250) -> Daemo
         inputTapListenAccess: view.inputTap.listenAccess,
         inputTapPostAccess: view.inputTap.postAccess,
         inputTapLastErrorAt: view.inputTap.lastErrorAt,
-        daemonAccessibility: view.permissions.accessibility
+        daemonAccessibility: view.permissions.accessibility,
+        daemonMicrophone: view.permissions.microphone,
+        daemonMicrophoneState: view.permissions.microphoneState
     )
 }
 
@@ -917,7 +1001,11 @@ extension DaemonHealthState {
                 postAccess: inputTapPostAccess,
                 lastErrorAt: inputTapLastErrorAt
             ),
-            permissions: DaemonPermissions(accessibility: daemonAccessibility)
+            permissions: DaemonPermissions(
+                accessibility: daemonAccessibility,
+                microphone: daemonMicrophone,
+                microphoneState: daemonMicrophoneState
+            )
         )
     }
 }

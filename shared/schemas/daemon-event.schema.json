@@ -21,7 +21,16 @@
               "wake_detected",
               "dictation_opened",
               "dictation_closed_send",
-              "dictation_closed_cancel"
+              "dictation_closed_cancel",
+              "capture_started",
+              "capture_completed",
+              "capture_canceled",
+              "capture_failed",
+              "audio_frame",
+              "speech_started",
+              "speech_finished",
+              "speech_canceled",
+              "speech_failed"
             ]
           }
         }
@@ -80,6 +89,118 @@
       "then": {
         "properties": {
           "data": { "$ref": "#/$defs/VoiceDictationClosedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "capture_started" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceCaptureStartedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "capture_completed" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceCaptureCompletedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "capture_canceled" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceCaptureCanceledData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "enum": ["capture_failed", "speech_failed"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceFailureData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "audio_frame" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceAudioFrameData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "speech_started" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSpeechStartedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "speech_finished" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSpeechFinishedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "speech_canceled" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSpeechCanceledData" }
         }
       }
     }
@@ -141,6 +262,82 @@
       "additionalProperties": false,
       "properties": {
         "reason": { "$ref": "#/$defs/VoiceDictationCloseReason" }
+      }
+    },
+    "VoiceCaptureStartedData": {
+      "type": "object",
+      "required": ["sample_rate", "channels", "max_duration_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "sample_rate": { "const": 16000 },
+        "channels": { "const": 1 },
+        "max_duration_ms": { "type": "integer", "minimum": 1, "maximum": 120000 }
+      }
+    },
+    "VoiceCaptureCompletedData": {
+      "type": "object",
+      "required": ["reason", "duration_ms", "bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "type": "string", "enum": ["explicit_stop", "max_duration"] },
+        "duration_ms": { "type": "integer", "minimum": 0, "maximum": 120000 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 4194304 }
+      }
+    },
+    "VoiceCaptureCanceledData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["canceled", "owner_disconnect", "daemon_shutdown", "superseded"]
+        }
+      }
+    },
+    "VoiceFailureData": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+      }
+    },
+    "VoiceAudioFrameData": {
+      "type": "object",
+      "required": ["stream", "rms", "peak", "sequence"],
+      "additionalProperties": false,
+      "properties": {
+        "stream": { "type": "string", "enum": ["capture", "speech"] },
+        "rms": { "type": "number", "minimum": 0, "maximum": 1 },
+        "peak": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sequence": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "VoiceSpeechStartedData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rate_wpm": { "type": "number", "minimum": 80, "maximum": 450 }
+      }
+    },
+    "VoiceSpeechFinishedData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "const": "completed" }
+      }
+    },
+    "VoiceSpeechCanceledData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["canceled", "owner_disconnect", "daemon_shutdown", "barge_in"]
+        }
       }
     }
   }

@@ -70,4 +70,49 @@ grep -q '"code":"UNKNOWN_FLAG"' "$STATE_ROOT/voice-final-response-bogus.err" || 
   exit 1
 }
 
+if ./aos listen --source hotkey --follow --bogus 2>"$STATE_ROOT/listen-hotkey-bogus.err"; then
+  echo "FAIL: hotkey listen accepted unknown flag" >&2
+  exit 1
+fi
+grep -q '"code":"UNKNOWN_FLAG"' "$STATE_ROOT/listen-hotkey-bogus.err" || {
+  echo "FAIL: hotkey listen unknown flag did not use UNKNOWN_FLAG" >&2
+  cat "$STATE_ROOT/listen-hotkey-bogus.err" >&2
+  exit 1
+}
+
+if ./aos listen --source microphone --follow 2>"$STATE_ROOT/listen-microphone-output-missing.err"; then
+  echo "FAIL: microphone listen accepted missing output" >&2
+  exit 1
+fi
+grep -q '"code":"MISSING_ARG"' "$STATE_ROOT/listen-microphone-output-missing.err" || {
+  echo "FAIL: microphone listen missing output did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-output-missing.err" >&2
+  exit 1
+}
+
+if ./aos listen --source microphone --output /private/tmp/capture.wav --max-duration 121s --follow 2>"$STATE_ROOT/listen-microphone-duration-invalid.err"; then
+  echo "FAIL: microphone listen accepted duration above 120s" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-duration-invalid.err" || {
+  echo "FAIL: microphone listen invalid duration did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-duration-invalid.err" >&2
+  exit 1
+}
+
+secret="voice-parser-secret"
+if printf '%s' "$secret" | ./aos say --follow --rate invalid 2>"$STATE_ROOT/say-follow-rate-invalid.err"; then
+  echo "FAIL: say follow accepted invalid rate" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_SPEECH_RATE"' "$STATE_ROOT/say-follow-rate-invalid.err" || {
+  echo "FAIL: say follow invalid rate did not use INVALID_SPEECH_RATE" >&2
+  cat "$STATE_ROOT/say-follow-rate-invalid.err" >&2
+  exit 1
+}
+if grep -q "$secret" "$STATE_ROOT/say-follow-rate-invalid.err"; then
+  echo "FAIL: say follow error echoed spoken text" >&2
+  exit 1
+fi
+
 echo "voice-external-parser: all checks passed"

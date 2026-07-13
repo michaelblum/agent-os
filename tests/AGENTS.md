@@ -27,6 +27,13 @@ tests.
 - Artifact-producing proof harnesses under `tests/manual/` must write stable
   machine-readable summaries and explicit cleanup evidence when they create
   `/tmp` proof roots.
+- Voice transport unit tests must use disposable Swift or fake-socket harnesses
+  by default. Live microphone, global-hotkey, and audio-output proof is a
+  separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
+- `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
+  default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
+  validation while the repo artifact is absent or waiting at ADR 0023's human
+  TCC checkpoint; the live checks remain required after readiness recovers.
 
 ## Work Guidance
 

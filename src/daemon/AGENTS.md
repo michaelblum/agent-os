@@ -26,6 +26,23 @@ Allowed daemon-side surface work:
 - lifecycle parentage, cascade cleanup, ownership checks, and recovery;
 - platform events that toolkit and external consumers can subscribe to.
 
+Voice transport follows ADR 0022. `voice-transport.swift` owns exact global
+hotkey leases, bounded microphone-to-WAV capture, streamed system-speech
+playback, meters, and connection cleanup. It must not own transcription,
+conversation policy, product presence state, or branded voice behavior. Voice
+events must never carry audio bytes, spoken text, or local paths.
+`microphone-authorization.swift` owns the daemon process's four-state macOS
+authorization view and the only `AVCaptureDevice.requestAccess(for:.audio)`
+call. First capture may request from `not_determined`; denied, restricted, and
+unknown states fail before file creation. Health must publish the live daemon
+state so foreground CLI preflight can never substitute for capture-owner
+authorization.
+
+`connection-outbound-writer.swift` owns daemon socket output. Each connection
+has one bounded serial writer for responses and events; slow-client timeout or
+overflow shuts down only that connection, and queued work must quiesce before
+its file descriptor is closed or reusable.
+
 Avoid daemon-side surface policy:
 
 - no default chip layout, panel theme, snap preference, or workbench layout;

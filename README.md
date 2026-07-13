@@ -17,8 +17,8 @@ commands, a typed MCP gateway for external consumers, and a Node.js agent host.
 | `aos do` | Primitive | Action: saved refs, direct browser/canvas targets, native AX, coordinates, keyboard, AppleScript, behavior profiles |
 | `aos show` | Primitive | Projection: persistent WKWebView canvases, overlays, HTML-to-bitmap render, anchors, shared surfaces |
 | `aos tell` | Primitive | Outbound communication: human, channel, direct session, and future sinks |
-| `aos listen` | Primitive | Inbound communication: channel/direct-session reads and follow today; STT and broader sources planned |
-| `aos say` | Convenience | Direct TTS convenience aligned with `tell human` |
+| `aos listen` | Primitive | Inbound communication: channel/direct-session reads, exact global hotkeys, and bounded microphone capture |
+| `aos say` | Convenience | Direct TTS plus streamed system speech aligned with `tell human` |
 | `aos skills` | Packaging | Installable AOS root skills for direct agent workflows: list, check, install, and dry-run plans |
 | `aos recipe` | Higher-order | Source-backed executable procedures built from primitive commands |
 | `aos work-record` | Higher-order | Read-only Work Record discovery, report-only verification, recovery guidance, and compact evidence bundle manifests |

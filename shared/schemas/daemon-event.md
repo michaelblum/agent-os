@@ -126,9 +126,9 @@ other geometry sequence when a sequence exists.
 ### voice
 
 The `voice` service is a generic daemon event namespace. It must stay
-product-neutral: the daemon publishes trigger and dictation lifecycle facts,
-while external products own UX policy, response sounds, TTS hooks, and menu
-behavior.
+product-neutral: the daemon publishes trigger, capture, meter, and speech
+transport facts, while external products own dictation policy, transcription,
+conversation behavior, UX, and menu behavior.
 
 | Event | Data | Trigger |
 |-------|------|---------|
@@ -136,10 +136,20 @@ behavior.
 | `dictation_opened` | `{source}` where `source` is `hotkey` or `phrase` | A dictation session opened |
 | `dictation_closed_send` | `{reason}` where `reason` is `key_release`, `phrase`, `explicit_trigger`, or `timeout` | Dictation closed and captured text should be sent |
 | `dictation_closed_cancel` | `{reason}` where `reason` is `key_release`, `phrase`, `explicit_trigger`, or `timeout` | Dictation closed and captured text should be discarded |
+| `capture_started` | `{sample_rate:16000, channels:1, max_duration_ms}` | A connection-scoped microphone capture started |
+| `audio_frame` | `{stream, rms, peak, sequence}` | A bounded meter sample from capture or speech playback |
+| `capture_completed` | `{reason, duration_ms, bytes}` | Capture finalized its create-new WAV target |
+| `capture_canceled` | `{reason}` | Capture was canceled and its WAV target was removed |
+| `capture_failed` | `{code}` | Capture failed without exposing audio or filesystem details |
+| `speech_started` | `{rate_wpm?}` | Streamed system speech playback started |
+| `speech_finished` | `{reason:"completed"}` | Streamed speech playback completed |
+| `speech_canceled` | `{reason}` | Speech was canceled, including microphone barge-in |
+| `speech_failed` | `{code}` | Speech failed without exposing the spoken text |
 
-These events intentionally do not define microphone capture, transcription,
-audio playback, or product behavior. Downstream shorthand such as
-`voice.wake_detected` means `{service:"voice", event:"wake_detected"}`.
+No voice event carries captured audio, spoken text, or a local path.
+Transcription and product behavior remain outside AOS. Downstream shorthand
+such as `voice.wake_detected` means
+`{service:"voice", event:"wake_detected"}`.
 
 ## Shared Types
 

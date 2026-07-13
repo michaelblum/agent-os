@@ -53,7 +53,7 @@ Examples of broker-owned primitives include:
 - privileged actions: CGEvent input, AX actions, native window/canvas creation,
   TCC probes and reset operations that require native APIs;
 - privileged streams: mouse/input events, focus/window/display changes, canvas
-  lifecycle events, future audio and STT events.
+  lifecycle events, and the audio transport defined by ADR 0022.
 
 Examples of external composition include:
 
@@ -67,9 +67,9 @@ Examples of external composition include:
 
 Privileged continuous data should become stable subscription or stream
 contracts instead of consumer-specific Swift logic. Mouse/input streams,
-focus/window/display changes, canvas lifecycle events, and future audio/STT
+focus/window/display changes, canvas lifecycle events, and audio transport
 events should be exposed as small broker contracts that consumers compose
-outside the binary.
+outside the binary. Transcription remains consumer-owned under ADR 0022.
 
 The broker should prefer micro-APIs that are durable across consumers. A future
 surface needing a high-level behavior is not itself a reason to add that
@@ -119,10 +119,11 @@ Rejected reasons include:
   primitive substrate, not as owner of public command behavior.
 - `src/AGENTS.md`, docs owners, and command/workflow owners should require a
   native boundary justification before routing Swift work.
-- A real repo-mode `./aos` rebuild requires one bounded
-  `./aos ready --post-permission` check before TCC-backed proof. Agents request
-  manual reset/regrant only when that check explicitly reports
-  `post_rebuild_tcc_stale`; the rebuild marker alone is not a reset mandate.
+- ADR 0023 owns the managed-endpoint raw-artifact contract. After a real
+  repo-mode rebuild, `./aos help --json` is the immediate first launch. If it
+  succeeds, stop for the human TCC checkpoint without inspecting the artifact.
+  After the user replies `finished`, run only the bounded post-permission
+  readiness command owned by ADR 0023.
 - Follow-on refactors should inventory remaining Swift public/runtime policy,
   expose smaller private broker primitives where needed, and move public
   behavior to external composition without repo-internal shims.

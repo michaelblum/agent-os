@@ -4,20 +4,23 @@
 
 ## Purpose
 
-`packaging/` contains repo-runtime packaging metadata used by build and signing
-experiments, including the embedded runtime `Info.plist` and entitlements file.
+`packaging/` contains packaged-runtime metadata used by signing experiments,
+including the runtime `Info.plist` and entitlements file.
 
 ## Ownership
 
 - `Info.plist` owns bundle identity and privacy usage-description strings for
-  the repo-mode `aos` runtime.
+  packaged runtime experiments, not the raw repo binary.
 - `aos.entitlements` owns the entitlement set used by packaged runtime signing.
 
 ## Local Contracts
 
 - Keep the default development build path opt-in free; packaged behavior must
   stay behind an explicit build flag until promoted by a durable decision.
-- Keep `CFBundleIdentifier` aligned with the repo runtime signing identifier.
+- Raw repo builds must not consume packaging metadata or inject plist sections.
+  ADR 0023 owns that managed-endpoint compatibility contract.
+- Keep packaged `CFBundleIdentifier` aligned with its packaged signing owner;
+  it must never flow into the raw repo link.
 - Keep entitlements minimal and evidence-backed. Do not add broad automation,
   sandbox, or hardened-runtime exceptions without a proof note or owning doc.
 

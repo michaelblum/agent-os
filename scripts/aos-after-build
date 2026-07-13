@@ -9,7 +9,9 @@ usage() {
 Usage: scripts/aos-after-build [build.sh args ...] -- <command> [args ...]
 
 Wait for any in-flight aos rebuild, ensure the binary is current, then run the
-given command.
+given command. If this invocation actually rebuilds ./aos, the command must be
+the exact first-launch checkpoint: ./aos help --json. Successful help prints a
+mandatory human TCC checkpoint; stop until the user replies finished.
 
 Examples:
   scripts/aos-after-build -- ./aos tell --who
@@ -41,9 +43,34 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
+BUILD_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/aos-after-build-output.XXXXXX")"
+trap 'rm -f "$BUILD_OUTPUT"' EXIT
 if [[ ${#build_args[@]} -gt 0 ]]; then
-  bash "$BUILD_SCRIPT" "${build_args[@]}"
+  bash "$BUILD_SCRIPT" "${build_args[@]}" | tee "$BUILD_OUTPUT"
 else
-  bash "$BUILD_SCRIPT"
+  bash "$BUILD_SCRIPT" | tee "$BUILD_OUTPUT"
 fi
-exec "$@"
+
+REBUILT=0
+if grep -q '^Rebuilt: ./aos\b' "$BUILD_OUTPUT"; then
+  REBUILT=1
+  expected_aos="${AOS_PATH:-$REPO_ROOT/aos}"
+  expected_aos="$(cd "$(dirname "$expected_aos")" && pwd)/$(basename "$expected_aos")"
+  command_aos="$(cd "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")"
+  if [[ $# -ne 3 || "$command_aos" != "$expected_aos" || "$2" != "help" || "$3" != "--json" ]]; then
+    echo "aos-after-build stopped: a real rebuild requires '$expected_aos help --json' as the exact next command" >&2
+    exit 75
+  fi
+fi
+if [[ $REBUILT -eq 0 ]]; then
+  exec "$@"
+fi
+
+set +e
+"$@"
+status=$?
+set -e
+if [[ $status -eq 0 ]]; then
+  echo "aos-after-build: help succeeded; stop now for the human TCC checkpoint and wait for the user to reply finished" >&2
+fi
+exit "$status"

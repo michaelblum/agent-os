@@ -78,13 +78,28 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   const rules = new Map(manifest.rules.map((rule) => [rule.id, rule]));
 
   assert.equal(rules.get('swift-core')?.tcc_identity_sensitive, true);
-  assert.equal(
-    rules.get('swift-core')?.commands?.[0]?.command,
-    'node scripts/aos-dev-build.mjs build --no-restart --json',
+  assert.equal(rules.get('swift-core')?.commands?.length, 0);
+  assert.equal(rules.get('swift-core')?.verification?.length, 0);
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('does not schedule the TCC-sensitive build')
+        && note.includes('Finish all static commands first')
+        && note.includes('aos-repo-binary-build'),
+    ),
   );
-  assert.equal(
-    rules.get('swift-core')?.verification?.[0]?.command,
-    './aos ready --post-permission',
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('bash build.sh --force --no-restart')
+        && note.includes('./aos help --json')
+        && note.includes('immediately following command'),
+    ),
+  );
+  assert.ok(
+    rules.get('swift-core')?.notes?.some((note) =>
+      note.includes('user manually regrants TCC')
+        && note.includes('replies `finished`')
+        && note.includes('./aos ready --repair --post-permission --json'),
+    ),
   );
   assert.ok(
     rules.get('swift-core')?.notes?.some((note) =>
@@ -93,7 +108,10 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(
     rules.get('swift-core')?.notes?.some((note) =>
-      note.includes('direct build.sh swiftc output only') && note.includes('spctl launch gate'),
+      note.includes('root build.sh with inline source fingerprinting')
+        && note.includes('one plain direct swiftc link')
+        && note.includes('Injected plist or metadata sections')
+        && note.includes('post-link signing'),
     ),
   );
   assert.deepEqual(
@@ -104,12 +122,14 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('repo-build-tooling')?.patterns?.includes('tests/build-rebuild-policy.sh'));
   assert.ok(
     rules.get('repo-build-tooling')?.notes?.some((note) =>
-      note.includes('bash build.sh --force --no-restart') && note.includes('post-build codesign'),
+      note.includes('bash build.sh --force --no-restart') && note.includes('post-link mutation'),
     ),
   );
   assert.ok(
     rules.get('repo-build-tooling')?.notes?.some((note) =>
-      note.includes('spctl rejection is expected') && note.includes('launchability'),
+      note.includes('./aos help --json')
+        && note.includes('human TCC checkpoint')
+        && note.includes('spctl rejection is expected'),
     ),
   );
   assert.deepEqual(

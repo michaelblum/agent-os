@@ -291,7 +291,9 @@ export function nextReadyExecutionStep(
   const restartable = blockers.some((blocker) => RESTARTABLE_BLOCKERS.has(blocker.id));
   if (restartable && !restarted) return { type: 'restart' };
 
-  const needsPermissionHandoff = blockers.some((blocker) => blocker.kind === 'permission');
+  const needsPermissionHandoff = blockers.some(
+    (blocker) => blocker.kind === 'permission' && blocker.id !== 'microphone',
+  );
   if (needsPermissionHandoff && !hasTrace(response, 'runtime_tcc_reset_handoff')) {
     return {
       type: 'permission_handoff',

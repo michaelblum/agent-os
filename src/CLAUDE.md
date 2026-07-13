@@ -19,14 +19,21 @@ tooling does not by itself rebuild the TCC-owning binary; use `--force` only
 when intentionally replacing that binary.
 
 When the repo-mode `./aos` binary is actually rebuilt, the build script emits a
-`Rebuilt: ./aos` marker and the rebuild/TCC alert. Continue with non-TCC checks
-as needed, but do not treat TCC-backed daemon, capture, input, or native proof as
-conclusive until the user has manually reset/regranted TCC for the rebuilt
-binary. If a later live TCC-backed readiness check reports
-`post_rebuild_tcc_stale`, the command plays the three-chime handoff alert,
-prints a terminal handoff, and the agent must end the current turn. The next
-user response is the signal that they manually reset/regranted TCC; resume with
-`./aos ready --repair --post-permission`.
+`Rebuilt: ./aos` marker and the rebuild/TCC alert. The immediately following
+command must be `./aos help --json`; do not inspect, hash, attest, transform, or
+run any other check against the live artifact first. Stop without retry if that
+first launch exits `137`. If help succeeds, stop for the human TCC checkpoint.
+Do not inspect the artifact or run readiness. Only after the user
+replies `finished` may the session run exact
+`./aos ready --repair --post-permission --json`, with no intervening command.
+Do not treat TCC-backed daemon, capture, input, or native proof as conclusive
+before that bounded resume command succeeds.
+
+ADR 0023 owns this managed-endpoint compatibility contract. It is intentional
+and temporary. Preserve root `build.sh` with its inline source fingerprint and
+plain direct link; do not inject `__info_plist` or other metadata sections, or
+replace it with post-build signing, explicit identifiers, entitlements,
+copying, binary modification, app wrapping, or an `spctl` gate.
 
 When you are unsure which loop applies, ask the router first:
 
@@ -200,6 +207,7 @@ echo "lines" | aos log            # Stream stdin to log overlay
 ./aos status [--json]             # Read-only runtime/session status
 ./aos introspect review [--json]  # Review recent ./aos usage for this session
 ./aos runtime status [--json]     # Runtime identity, signing, mode
+./aos runtime build-attestation --json # Passive repo binary/source fingerprint check
 ./aos runtime path                # Print current executable path
 ./aos service install [--mode repo|installed]   # Install launch agent
 ./aos service start|stop|restart  # Service lifecycle

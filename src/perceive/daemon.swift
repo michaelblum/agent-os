@@ -19,6 +19,9 @@ class PerceptionEngine {
     /// Called for raw input events captured by the daemon's event tap.
     /// Returns true when the event should be consumed.
     var onInputEvent: ((String, [String: Any]) -> Bool)?
+    /// Called before generic input routing so an active voice lease can consume
+    /// only its registered key chord without publishing unrelated key events.
+    var onVoiceHotkeyInput: ((AOSVoiceHotkeyInput) -> Bool)?
     var onInputSafetyHotkeyTriggered: ((Date) -> Void)?
 
     // Cursor state
@@ -260,6 +263,18 @@ class PerceptionEngine {
             return false
         }
 
+        if type == .keyDown || type == .keyUp {
+            let voiceInput = AOSVoiceHotkeyInput(
+                kind: type == .keyDown ? .keyDown : .keyUp,
+                keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+                modifiers: voiceModifierSnapshot(from: event.flags),
+                isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            )
+            if onVoiceHotkeyInput?(voiceInput) == true {
+                return true
+            }
+        }
+
         if type == .mouseMoved ||
             type == .leftMouseDragged ||
             type == .rightMouseDragged ||
@@ -367,6 +382,15 @@ class PerceptionEngine {
             "fn": flags.contains(.maskSecondaryFn),
             "caps_lock": flags.contains(.maskAlphaShift),
         ]
+    }
+
+    private func voiceModifierSnapshot(from flags: CGEventFlags) -> AOSVoiceModifierSnapshot {
+        AOSVoiceModifierSnapshot(
+            control: flags.contains(.maskControl),
+            option: flags.contains(.maskAlternate),
+            command: flags.contains(.maskCommand),
+            shift: flags.contains(.maskShift)
+        )
     }
 
     private func handleMouseEvent(_ event: CGEvent) {

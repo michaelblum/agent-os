@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "capture_completed",
+  "ts": 1720000001.1,
+  "data": {
+    "reason": "explicit_stop",
+    "duration_ms": 900,
+    "bytes": 4194305
+  }
+}

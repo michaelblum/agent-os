@@ -19,6 +19,9 @@ finding elements, tracking the cursor, converting text to speech, showing
 visual feedback, and emitting native state. To serve this, the permissioned
 process identity stays unified in `./aos`: one TCC capability broker, one
 daemon/socket substrate, one CGEventTap, and shared runtime state.
+ADR 0023 governs the temporary managed-endpoint repo artifact that carries this
+identity; it remains one direct linker-signed `swiftc -> ./aos` output until its
+IT, endpoint, TCC-identity, and coordinated AOS/Sigil retirement gates are met.
 
 Public command behavior is not the broker's source of truth. Help metadata,
 argument shape, recovery policy, workflow composition, next-action text, and
@@ -171,8 +174,8 @@ broker command surface.
 | `aos` perception | **Perception** - screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production |
 | `aos` action | **Action** - multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
 | `aos` display | **Projection** - display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML to bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
-| `aos` voice | **Audio** - `aos say` direct TTS convenience, `aos voice` registry/catalog/assignments/providers/final-response speech ingress, daemon-driven announcements, and config-driven voice/rate. STT audio capture is a planned `aos listen` source, not a separate public primitive | AVFoundation / NSSpeechSynthesizer | Production (TTS + registry); STT planned |
-| `aos` communication | **Communication** - `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
+| `aos` voice | **Audio transport** - `aos say` direct TTS convenience, streamed system speech, bounded microphone-to-WAV capture, meters, `aos voice` registry/catalog/assignments/providers/final-response speech ingress, and config-driven voice/rate. Transcription is consumer-owned | AVFoundation / NSSpeechSynthesizer | Production (transport + TTS + registry) |
+| `aos` communication | **Communication** - `aos tell` routes outward; `aos listen` receives channel/direct-session messages, exact global hotkeys, and bounded microphone capture. Daemon routes by audience/source without owning product dictation policy. | Foundation (daemon socket), AVFoundation | Production |
 
 Privileged native capability ships through the unified `aos` broker
 (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`, `src/daemon/`).
@@ -194,7 +197,7 @@ The verb vocabulary follows an embodied metaphor. Communication is one primitive
 | `do` | Act on the environment | CGEvents, AX actions, AppleScript |
 | `show` | Project visuals | Canvases, overlays, render |
 | `tell` | Communicate outward | Routes to TTS, channels, future sinks |
-| `listen` | Receive communication | Channels and direct sessions today; STT, stdin, and aggregated sources planned |
+| `listen` | Receive communication | Channels, direct sessions, exact hotkeys, and bounded microphone capture |
 
 The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to deliver it. This follows the first principle above: agent tokens are for decisions, not plumbing.
 
@@ -222,17 +225,19 @@ aos tell <audience> "message"
          └─→ future sinks       (Slack, push, webhook)
 
 aos listen <channel>|--session-id <canonical-session-id>
+aos listen --source hotkey|microphone --follow
          ▲
       daemon (arbiter)
         ├── channel message    (source = agent)
         ├── direct-session msg (source = session)
-        └── future sources     (STT/dictation, stdin, webhook, file watch)
+        ├── exact key chord    (source = hotkey)
+        └── bounded WAV        (source = microphone)
 ```
 
-The current public `listen` surface reads channels and direct-session messages.
-STT/dictation, stdin ingestion, webhooks, and file-watch inputs are reserved
-future sources; they require explicit help, parser, schema, and daemon contracts
-before agents should rely on them. The daemon routes based on config
+The public `listen` surface reads channels and direct-session messages and
+exposes permissioned hotkey and microphone transport. AOS does not transcribe
+the WAV or decide whether captured text is sent. Stdin ingestion, webhooks, and
+file-watch inputs remain unimplemented. The daemon routes based on config
 (`aos set voice.*`), presence (which sessions are online), and channel state.
 This is a natural extension of the daemon's existing responsibilities — it
 already manages voice config, canvases, and perception state.
@@ -299,7 +304,7 @@ agent-os/
 | `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS |
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
 | `aos recipe` | Execution model | Swift dispatcher + Node recipe engine + JSON manifests | `manifests/commands/aos-external-commands.json`, `scripts/aos-recipe.mjs`, `recipes/`, `shared/schemas/recipe*.schema.json` | v1 scaffold | Source-backed executable recipes that agents can list, explain, statically dry-run, and run; includes read-only `runtime/status-snapshot` plus owned-cleanup canvas smoke `canvas/window-level-smoke`. The old `aos ops` command surface is retired. |
-| `aos` voice | OS | Swift | `src/voice/` | Production (TTS + registry) | `aos say`, `aos voice`, config-driven voice/rate, daemon event announcements, final-response ingress; STT audio capture remains a planned `aos listen` source |
+| `aos` voice | OS | Swift | `src/voice/` + `src/daemon/voice-transport.swift` | Production (transport + TTS + registry) | `aos listen` hotkey/microphone streams, `aos say` streamed system speech, meters, `aos voice`, config-driven voice/rate, and final-response ingress; transcription remains consumer-owned |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), tool registry |

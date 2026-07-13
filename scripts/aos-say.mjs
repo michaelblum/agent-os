@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { sayFollow, writeVoiceCLIError } from './lib/aos-voice-follow.mjs';
 
 function aosPath() {
   return process.env.AOS_PATH || './aos';
@@ -58,4 +59,13 @@ function runSayPrimitive(args) {
   process.exit(result.status ?? 1);
 }
 
-runSayPrimitive(process.argv.slice(2));
+const args = process.argv.slice(2);
+if (args.includes('--follow')) {
+  try {
+    await sayFollow(args);
+  } catch (error) {
+    writeVoiceCLIError(error);
+  }
+} else {
+  runSayPrimitive(args);
+}

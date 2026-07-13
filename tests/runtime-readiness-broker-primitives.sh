@@ -93,6 +93,8 @@ assert tap.get("listen_access") is False, tap
 assert tap.get("post_access") is True, tap
 assert tap.get("last_error_at") == "2026-04-24T00:00:00Z", tap
 assert d.get("permissions", {}).get("accessibility") is False, d
+assert d.get("permissions", {}).get("microphone") is True, d
+assert d.get("permissions", {}).get("microphone_state") == "authorized", d
 for policy_key in ("ready", "phase", "diagnosis", "blockers", "next_actions", "notes"):
     assert policy_key not in d, (policy_key, d)
 PY

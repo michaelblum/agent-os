@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "speech_canceled",
+  "ts": 1720000002.2,
+  "data": {
+    "reason": "barge_in"
+  }
+}

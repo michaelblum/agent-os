@@ -108,6 +108,70 @@
         {
           "args": [
             {
+              "id": "follow",
+              "kind": "flag",
+              "required": true,
+              "summary": "Stream playback lifecycle and meter events",
+              "token": "--follow",
+              "value_type": "bool"
+            },
+            {
+              "discovery": [
+                {
+                  "command": {
+                    "form_id": "say-list-voices",
+                    "path": [
+                      "say"
+                    ]
+                  }
+                }
+              ],
+              "id": "voice",
+              "kind": "flag",
+              "required": false,
+              "summary": "System voice identifier",
+              "token": "--voice",
+              "value_type": "string"
+            },
+            {
+              "id": "rate",
+              "kind": "flag",
+              "required": false,
+              "summary": "Speech rate from 80 to 450 WPM",
+              "token": "--rate",
+              "value_type": "int"
+            }
+          ],
+          "examples": [
+            "printf '%s' 'Ready' | aos say --follow",
+            "printf '%s' 'Ready' | aos say --follow --voice com.apple.voice.compact.en-US.Samantha --rate 180"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "id": "say-follow",
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          },
+          "stdin": {
+            "content_type": "text",
+            "supported": true,
+            "used_when": "always"
+          },
+          "usage": "printf '%s' <text> | aos say --follow [--voice id] [--rate wpm]"
+        },
+        {
+          "args": [
+            {
               "id": "list-voices",
               "kind": "flag",
               "required": true,

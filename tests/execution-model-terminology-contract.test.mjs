@@ -442,12 +442,15 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   const tellMessageForm = tellCommand?.forms?.find((form) => form.id === 'tell-message');
   const listenReadForm = listenCommand?.forms?.find((form) => form.id === 'listen-read');
   const listenFollowForm = listenCommand?.forms?.find((form) => form.id === 'listen-follow');
+  const listenHotkeyForm = listenCommand?.forms?.find((form) => form.id === 'listen-hotkey');
+  const listenMicrophoneForm = listenCommand?.forms?.find((form) => form.id === 'listen-microphone');
+  const sayFollowForm = sayCommand?.forms?.find((form) => form.id === 'say-follow');
   const doTellForm = doCommand?.forms?.find((form) => form.id === 'do-tell');
 
   assert.match(architecture, /`aos say` direct TTS convenience/);
   assert.match(architecture, /`aos voice` registry\/catalog\/assignments\/providers\/final-response speech ingress/);
-  assert.match(architecture, /STT audio capture is a planned `aos listen` source, not a separate public primitive/);
-  assert.match(architecture, /\| `listen` \| Receive communication \| Channels and direct sessions today; STT, stdin, and aggregated sources planned \|/);
+  assert.match(architecture, /\| `listen` \| Receive communication \| Channels, direct sessions, exact hotkeys, and bounded microphone capture \|/);
+  assert.match(architecture, /AOS does not transcribe\s+the WAV or decide whether captured text is sent/);
   assert.match(aosApi, /`aos say` is a direct TTS convenience path/);
   assert.match(aosApi, /`aos tell human \.\.\.` is daemon-routed communication/);
   assert.match(aosApi, /`aos tell` is daemon-routed communication, not an app-control synonym for\s+`aos do tell`/);
@@ -458,12 +461,12 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   assert.match(aosApi, /This keeps `aos tell --who`, `aos voice assignments`, and role-session\s+status\s+aligned around the same role session identity/);
   assert.match(aosApi, /`--channels` lists the daemon-known channel\s+names/);
   assert.match(aosApi, /not a workspace\s+or transcript index/);
-  assert.match(aosApi, /STT\/dictation is planned as a future `aos listen` source/);
-  assert.match(aosApi, /Stdin ingestion is also planned as a future `aos listen` source/);
-  assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads and follow today; STT and broader sources planned \|/);
+  assert.match(aosApi, /AOS does not transcribe the\s+WAV; local STT and dictation policy are consumer responsibilities/);
+  assert.match(aosApi, /Stdin,\s+webhook, and file-watch listen sources remain unimplemented/);
+  assert.match(readme, /\| `aos listen` \| Primitive \| Inbound communication: channel\/direct-session reads, exact global hotkeys, and bounded microphone capture \|/);
   assert.match(sayCommand?.summary ?? '', /direct TTS convenience aligned with tell human/);
   assert.match(tellCommand?.summary ?? '', /send to human, channel, or session/);
-  assert.match(listenCommand?.summary ?? '', /receive from channels or direct sessions/);
+  assert.match(listenCommand?.summary ?? '', /receive channels or direct sessions/);
   assert.match(tellMessageForm?.usage ?? '', /aos tell <audience>\|--session-id <id>/);
   assert.deepEqual(
     tellMessageForm?.constraints?.required_groups?.[0]?.one_of,
@@ -476,9 +479,12 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
       [['channel'], ['session-id']],
     );
   }
+  assert.match(listenHotkeyForm?.usage ?? '', /aos listen --source hotkey/);
+  assert.match(listenMicrophoneForm?.usage ?? '', /aos listen --source microphone --output <absolute\.wav>/);
+  assert.match(sayFollowForm?.usage ?? '', /aos say --follow/);
   assert.match(doTellForm?.usage ?? '', /aos do tell <app> <script>/);
   assert.match(JSON.stringify(doTellForm?.args ?? []), /AppleScript body/);
-  assert.doesNotMatch(JSON.stringify(listenCommand?.forms ?? []), /STT|dictation|stdin|webhook|file watch/i);
+  assert.doesNotMatch(JSON.stringify(listenCommand?.forms ?? []), /STT|transcription|webhook|file watch/i);
   assert.doesNotMatch(maintained, /\| `listen` \| Receive communication \| Aggregates STT/);
   assert.doesNotMatch(maintained, /`aos listen` or similar/);
   assert.doesNotMatch(maintained, /say.*sugar for tell human/i);

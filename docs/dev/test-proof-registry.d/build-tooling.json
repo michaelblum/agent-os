@@ -6,17 +6,19 @@
     {
       "id": "build-rebuild-policy-proof",
       "path_patterns": [
+        "tests/aos-after-build.sh",
+        "tests/aos-build-attestation.test.mjs",
         "tests/build-rebuild-policy.sh"
       ],
       "fixture_patterns": [],
       "owner": "build-tooling",
       "harness_level": "shell_router",
       "proof_kind": "build_policy",
-      "contract": "Repo-mode builds are content-based, stay raw direct swiftc output, do not post-sign or gate on spctl, and emit the manual TCC handoff only after real rebuilds.",
-      "worth": "This protects raw rebuild and 137 recovery behavior without touching the real repo-mode binary or macOS TCC state.",
-      "command": "bash tests/build-rebuild-policy.sh",
+      "contract": "Repo-mode builds are content-based, preserve the known-good plain direct swiftc link with no injected metadata section, prohibit every post-link mutation, and require help as the first live launch after rebuild.",
+      "worth": "This protects the ADR 0023 managed-endpoint artifact and 137 stop boundary without touching the real repo-mode binary or macOS TCC state.",
+      "command": "bash tests/aos-after-build.sh && node --test tests/aos-build-attestation.test.mjs && bash tests/build-rebuild-policy.sh",
       "replaces": [],
-      "guard": "uses a temporary fake repo and fake toolchain",
+      "guard": "uses a temporary fake repo/toolchain; never reads, writes, or replaces live ./aos",
       "status": "active"
     }
   ]

@@ -115,11 +115,15 @@ proof ladder from static evidence before asking for live runtime proof.
 Batch native rebuilds, TCC recovery, service reset, and other disruptive runtime
 steps into a single checkpoint when they are unavoidable.
 
-If the repo-mode `./aos` binary was actually rebuilt, run one bounded
-`./aos ready --post-permission` check before Level 3/4 proof that depends on
-TCC. Continue when it is healthy. Ask the user to manually reset/regrant only
-when readiness explicitly reports `post_rebuild_tcc_stale`; do not turn empty
-output, timeout, or an unrelated readiness blocker into another rebuild.
+If the repo-mode `./aos` binary was actually rebuilt, ADR 0023 requires
+`./aos help --json` as the immediately following command. Do not inspect, hash,
+attest, transform, or run readiness first; stop on exit `137`. If help succeeds,
+stop for the human TCC checkpoint without inspecting the artifact. After the
+user replies `finished`, run exact
+`./aos ready --repair --post-permission --json` with no intervening command
+before Level 3/4 TCC proof.
+Do not turn empty output, timeout, or an unrelated readiness blocker into
+another rebuild.
 
 ### Visual Diagnostics
 

@@ -195,11 +195,26 @@ Bare `{"action":"subscribe"}` (non-envelope format) is still accepted for backwa
 ## Event Envelope Note
 
 The event envelope (`daemon-event.schema.json` v1) uses `service` values
-`perceive|display|act|voice` in its enum today. The `voice` service is reserved
-for generic trigger and dictation lifecycle events:
-`wake_detected`, `dictation_opened`, `dictation_closed_send`, and
-`dictation_closed_cancel`. These are pushed events, not request actions, and do
-not imply microphone capture, transcription, playback, or product behavior.
+`perceive|display|act|voice` in its enum today. The `voice` service carries
+generic dictation, microphone-capture, meter, and streamed-system-speech
+lifecycle events. Events never carry audio bytes, spoken text, or local paths;
+transcription and product behavior remain consumer-owned.
+
+Public `aos listen --source hotkey|microphone --follow` and
+`aos say --follow` are the sanctioned adapters for these connection-scoped
+streams. Their internal v1 request actions are `listen.hotkey`,
+`listen.microphone`, `listen.stop`, `listen.cancel`, `voice.speak`, and
+`voice.cancel`. Disconnect cancels owned capture or speech and releases the
+hotkey lease.
+
+The daemon also owns internal `voice.microphone_authorization_status` and
+`voice.microphone_authorization_request` actions. Their
+`microphone_authorization` payload preserves `not_determined`, `restricted`,
+`denied`, and `authorized`; request calls are attempted only from
+`not_determined`. `system.ping.permissions` includes both boolean `microphone`
+and exact `microphone_state`. Public readiness must fail closed when those live
+daemon fields are absent, unknown, or non-authorized, regardless of foreground
+CLI preflight.
 
 The live daemon additionally emits `system`, `coordination`, and `wiki` event
 services. The request-side namespaces defined here

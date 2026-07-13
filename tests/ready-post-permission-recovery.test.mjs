@@ -225,7 +225,11 @@ if (args.join(' ') === '__permissions facts --json') {
   payload = { marker_exists: true, setup_completed: true, bundle_matches_current: true };
 } else if (args.join(' ') === '__daemon health --json') {
   payload = active
-    ? { reachable: true, input_tap: tap, permissions: { accessibility: true } }
+    ? {
+        reachable: true,
+        input_tap: tap,
+        permissions: { accessibility: true, microphone: true, microphone_state: 'authorized' },
+      }
     : { reachable: true };
 } else if (args.join(' ') === '__runtime status-facts --json') {
   payload = {

@@ -29,27 +29,35 @@ Use this skill for repo-mode `./aos` build checks and rebuilds.
    ```
 
 4. If JSON reports `binary_rebuilt: false`, continue with the recommended non-rebuild checks.
-5. If JSON reports `binary_rebuilt: true` or stdout contains `Rebuilt: ./aos`, keep the raw artifact and run one bounded readiness check before TCC-backed daemon, capture, input, or native proof:
+5. If JSON reports `binary_rebuilt: true` or stdout contains `Rebuilt: ./aos`, keep the raw artifact. The immediately following command must be:
 
    ```bash
-   ./aos ready --post-permission --json
+   ./aos help --json
    ```
 
-   Continue when readiness is healthy. Stop and ask the user to reset/regrant
-   permissions only when readiness explicitly reports
-   `post_rebuild_tcc_stale`.
+   Do not hash, inspect, copy, move, sign, attest, or run readiness against the
+   live artifact before this first launch. Stop immediately on exit `137`.
+6. If help succeeds, stop immediately for the human TCC checkpoint. Do not
+   inspect the artifact or run another command.
+7. Only after the user replies `finished`, run exact
+   `./aos ready --repair --post-permission --json` with no intervening command.
+   Continue only when that bounded check is healthy.
 
 ## Boundaries
 
-Do not add post-build signing, an explicit organization identifier,
-entitlements, app-bundle wrapping, `spctl` acceptance gates, allowlist
-assumptions, or automated TCC resets. Do not infer exit `137` from empty output,
-a timeout, or a failed readiness wrapper; capture the actual process exit status
-and diagnose the same artifact first. Treat confirmed endpoint-security kills as
-runtime policy, not proof that the build logic is wrong.
+The raw build must preserve the plain direct `swiftc` shape verified at
+`866839e9`: Swift inputs plus `-lsqlite3`, with no injected plist or metadata
+section. Do not invoke `ld` separately or add `-sectcreate`, `__info_plist`,
+post-link signing, copying, moving, installation-name editing, entitlements,
+app wrapping, `spctl` gates, or explicit identifiers.
+Do not infer exit `137` from empty output, a timeout, or a failed readiness
+wrapper; capture the actual process exit status and stop at the prescribed
+checkpoint. Treat confirmed endpoint-security kills as runtime policy, not
+proof that the build logic is wrong.
 
 ## References
 
+- `docs/adr/0023-managed-endpoint-raw-repo-artifact.md`
 - `build.sh`
 - `scripts/aos-dev-build.mjs`
 - `scripts/AGENTS.md`
