@@ -91,6 +91,24 @@
     {
       "path": [
         "wiki",
+        "put"
+      ],
+      "summary": "Conditionally create or update one wiki Markdown page from bounded stdin.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-wiki-put.mjs"
+      ],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": [
+        "wiki",
         "rm"
       ],
       "summary": "Remove wiki pages through the external wiki command.",

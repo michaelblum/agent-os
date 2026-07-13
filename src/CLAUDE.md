@@ -303,7 +303,9 @@ A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by product namesp
 aos wiki list [--namespace <ns>]      # List entries (defaults to all namespaces)
 aos wiki show <path>                  # Print an entry
 aos wiki graph [--raw]                # Emit canonical graph payload for KB surfaces
-aos wiki add <path> --file <src>      # Create or update an entry from a file
+aos wiki add <entity|concept> <name>  # Scaffold an entity or concept entry
+aos wiki put <path> --stdin --if-match <sha256|none>
+                                      # Conflict-safe create or update from stdin
 aos wiki rm <path>                    # Delete an entry
 aos wiki link <from> <to>             # Cross-link entries
 aos wiki search <query>               # Full-text search

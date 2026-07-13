@@ -398,6 +398,26 @@
       "replaces": [],
       "guard": "uses temporary wiki fixtures and command fakes",
       "status": "active"
+    },
+    {
+      "id": "wiki-put-conditional-contract",
+      "path_patterns": [
+        "tests/wiki-put-contract.test.mjs",
+        "tests/wiki-put-external.sh",
+        "tests/schemas/aos-wiki-put-result-v1.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/aos-wiki-put-result-v1/**"
+      ],
+      "owner": "wiki-runtime",
+      "harness_level": "shell_router",
+      "proof_kind": "wiki_conditional_write_contract",
+      "contract": "Conditional wiki writes are bounded, atomic, owner-only, symlink-safe, hash-guarded, schema-valid, and content-redacted.",
+      "worth": "This lets first-party consumers publish reviewed knowledge without private socket access or silent lost updates.",
+      "command": "node --test tests/wiki-put-contract.test.mjs tests/schemas/aos-wiki-put-result-v1.test.mjs && bash tests/wiki-put-external.sh",
+      "replaces": [],
+      "guard": "uses disposable wiki state, a fake reindex executable for model tests, and the current public CLI for daemonless dispatch; no daemon, TCC, native input, or shared runtime mutation",
+      "status": "active"
     }
   ]
 }

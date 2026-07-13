@@ -1,0 +1,10 @@
+{
+  "schema_version": "aos.wiki.put-result.v1",
+  "status": "ok",
+  "operation": "updated",
+  "path": "consumer/concepts/reviewed-fact.md",
+  "bytes": 256,
+  "previous_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reindexed": true
+}
