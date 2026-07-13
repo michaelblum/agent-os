@@ -2277,6 +2277,7 @@ Primary public verbs for knowledge-base consumers:
 | `show` | fetch one page by path or bare name |
 | `graph` | emit the canonical `wiki-kb` graph payload |
 | `search` | full-text search across indexed pages |
+| `put` | conditionally create or update one Markdown page from stdin |
 | `invoke` | invoke a workflow/plugin entry |
 
 `aos wiki graph --json` is the canonical graph projection for KB surfaces. It returns:
@@ -2290,6 +2291,34 @@ Primary public verbs for knowledge-base consumers:
 `subject_type` and not arbitrary raw frontmatter. The V0 page-kind vocabulary is
 `page`, `concept`, `entity`, `workflow`, and `reference`. Plugin pages under
 `references/` map to `reference`.
+
+`aos wiki put` is the conflict-safe publication boundary for consumers:
+
+```bash
+printf '# Reviewed fact\n' \
+  | aos wiki put consumer/concepts/reviewed-fact.md \
+      --stdin --if-match none --json
+
+printf '# Revised fact\n' \
+  | aos wiki put consumer/concepts/reviewed-fact.md \
+      --stdin --if-match "$CURRENT_SHA256" --json
+```
+
+Use `none` only to create a path that does not exist. Updating requires the
+current SHA-256 of the exact UTF-8 bytes, available from the prior successful
+`put` result or computed from the `raw` field returned by
+`aos wiki show <path> --json`. Input is limited to 1 MiB. Paths must be
+canonical relative `.md` paths beneath the mode-scoped wiki root; traversal,
+symlinks, and non-regular targets are rejected. Writes are serialized, atomic,
+and `0600`. A successful write reindexes the wiki and follows the normal wiki
+change-event path when the daemon watcher is active.
+
+JSON success uses the
+`shared/schemas/aos-wiki-put-result-v1.schema.json` contract and returns only
+the relative path, operation, byte count, previous/current hashes, and reindex
+status. Conflict errors use `WIKI_CONFLICT` with `exists`, `expected_sha256`,
+and `actual_sha256`; neither success nor error output includes Markdown content
+or an absolute filesystem path.
 
 ## Auxiliary Consumer Surfaces
 

@@ -98,6 +98,11 @@ commands, runtime helpers, wiki tools, and command adapters.
   output fail closed unless daemon health reports `microphone_state=authorized`.
   Denied recovery opens the Microphone settings pane and polls daemon health;
   it never teaches drag-add or runtime TCC reset for Microphone.
+- `aos-wiki-put.mjs` owns bounded conditional wiki publication. It accepts only
+  canonical Markdown paths and UTF-8 stdin, serializes writers, rejects
+  symlinks, commits owner-only files atomically, and exposes hashes without
+  echoing page content or absolute paths. `none` is create-only; updates require
+  the current SHA-256 and fail closed on conflicts.
 - `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
   Install signal and parent-exit handling before auto-start, forward shutdown
   to that child, and await confirmed child exit before the listener exits.

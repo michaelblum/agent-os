@@ -19,12 +19,12 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 41
-- Concrete forms: 201
-- Consumer-discoverable forms: 192
+- Concrete forms: 202
+- Consumer-discoverable forms: 193
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 111
+- Mutating or conditionally mutating forms: 112
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 196
+- Forms with JSON output path: 197
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -35,7 +35,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Canvas and vision | 5 |
 | Capture and perception | 7 |
 | CLI metadata | 2 |
-| Content/wiki | 17 |
+| Content/wiki | 18 |
 | Core desktop | 9 |
 | Core readiness | 7 |
 | Desktop discovery | 4 |
@@ -91,7 +91,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `permissions` | 4 | Core readiness, Runtime/service | yes | mutates, read-only | --json | `manifests/commands/source/aos/29-permissions.json` | `node scripts/aos-permissions.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `inspect` | 1 | Diagnostics/debug | yes | mutates | default | `manifests/commands/source/aos/30-inspect.json` | `node scripts/aos-inspect.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `log` | 3 | Diagnostics/debug | yes | mutates, read-only | default | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
-| `wiki` | 15 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
+| `wiki` | 16 | Content/wiki | yes | mutates, read-only | --json | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-router.mjs` | `docs/api/aos.md` |
 | `browser` | 9 | Browser companion | no | mutates, read-only | --json, default | `manifests/commands/source/aos/33-browser.json` | `node scripts/aos-browser-internal.mjs` | `docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `help` | 2 | CLI metadata | yes | read-only | --json | `manifests/commands/source/aos/34-help.json` | `node scripts/aos-help-proxy.mjs` | `docs/api/aos.md` |
 | `work-record` | 23 | Verification/evidence | yes | mutates, read-only | --json | `manifests/commands/source/aos/35-work-record.json, manifests/commands/source/aos/36-work-record-supersession.json, manifests/commands/source/aos/37-work-record-finalization.json` | `node scripts/aos-work-record.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -251,6 +251,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `log clear` | `log-clear` | Diagnostics/debug | yes | mutates | default | no | `manifests/commands/source/aos/31-log.json` | `node scripts/aos-log.mjs clear` | `docs/api/aos.md, docs/api/aos-capabilities.md, docs/dev/command-surface.md` |
 | `wiki create-plugin` | `wiki-create-plugin` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs create-plugin` | `docs/api/aos.md` |
 | `wiki add` | `wiki-add` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs add` | `docs/api/aos.md` |
+| `wiki put` | `wiki-put` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-put.mjs` | `docs/api/aos.md` |
 | `wiki rm` | `wiki-rm` | Content/wiki | yes | mutates | --json | no | `manifests/commands/source/aos/32-wiki.json` | `node scripts/aos-wiki-mutate.mjs rm` | `docs/api/aos.md` |
 | `wiki list` | `wiki-list` | Content/wiki | yes | read-only | --json | no | `manifests/commands/source/aos/32-wiki.json` | `python3 scripts/aos-wiki-query.py list` | `docs/api/aos.md` |
 | `wiki search` | `wiki-search` | Content/wiki | yes | read-only | --json | no | `manifests/commands/source/aos/32-wiki.json` | `python3 scripts/aos-wiki-query.py search` | `docs/api/aos.md` |

@@ -5,6 +5,7 @@ const subcommands = [
   'show',
   'graph',
   'add',
+  'put',
   'rm',
   'link',
   'search',

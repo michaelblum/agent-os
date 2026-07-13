@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-wiki-put-result-v1.schema.json",
+  "title": "AOS Wiki Put Result v1",
+  "description": "Successful machine-readable result from aos wiki put. Content and absolute filesystem paths are intentionally absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "operation",
+    "path",
+    "bytes",
+    "previous_sha256",
+    "sha256",
+    "reindexed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "aos.wiki.put-result.v1"
+    },
+    "status": {
+      "const": "ok"
+    },
+    "operation": {
+      "enum": [
+        "created",
+        "updated"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*\\\\).+\\.md$"
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1048576
+    },
+    "previous_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reindexed": {
+      "const": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "created"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "properties": {
+          "previous_sha256": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previous_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -8900,6 +8900,67 @@
               "id" : "path",
               "kind" : "positional",
               "required" : true,
+              "summary" : "Canonical Markdown path beneath the wiki root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "stdin",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Read at most 1 MiB of UTF-8 Markdown from stdin",
+              "token" : "--stdin",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "if-match",
+              "kind" : "flag",
+              "required" : true,
+              "summary" : "Use none to create or the current lowercase SHA-256 to update",
+              "token" : "--if-match",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit the aos.wiki.put-result.v1 envelope",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "printf '# Reviewed fact\\n' | aos wiki put consumer/concepts/reviewed-fact.md --stdin --if-match none --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "wiki-put",
+          "summary" : "Conditionally create or update one Markdown page with optimistic concurrency.",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "stdin" : {
+            "content_type" : "text/markdown; charset=utf-8",
+            "supported" : true,
+            "used_when" : "--stdin is required; input is bounded at 1 MiB"
+          },
+          "usage" : "aos wiki put <path> --stdin --if-match <sha256|none> [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "required" : true,
               "summary" : "Page path or name",
               "value_type" : "string"
             },
