@@ -12,6 +12,7 @@ LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
 
 BUILD_MODE="dev"
 FORCE_BUILD=0
+RESTART_DAEMON=1
 
 usage() {
     cat <<'EOF'
@@ -31,8 +32,7 @@ while [[ $# -gt 0 ]]; do
             FORCE_BUILD=1
             ;;
         --no-restart)
-            # Retained as the explicit safe workflow spelling. Repo builds no
-            # longer execute the newly linked artifact automatically.
+            RESTART_DAEMON=0
             ;;
         --help|-h)
             usage
@@ -88,8 +88,7 @@ play_rebuild_alert() {
         return 0
     fi
 
-    echo "Alert: repo-mode ./aos binary rebuilt; the first post-build command must be ./aos help --json. Do not inspect or transform ./aos before that launch."
-    echo "If help succeeds, stop immediately for the human TCC checkpoint. Do not inspect ./aos or run readiness until the user replies finished."
+    echo "Alert: repo-mode ./aos binary rebuilt; verify with ./aos ready --post-permission. Reset/regrant TCC only if readiness reports post_rebuild_tcc_stale."
 
     if [[ -n "${AOS_BUILD_REBUILD_ALERT_COMMAND:-}" ]]; then
         "$AOS_BUILD_REBUILD_ALERT_COMMAND" >/dev/null 2>&1 || true
@@ -117,6 +116,16 @@ play_rebuild_alert() {
     fi
 }
 
+build_fingerprint() {
+    {
+        printf 'mode %s\n' "$BUILD_MODE"
+        for input in "${INPUTS[@]}"; do
+            printf 'file %s\n' "$input"
+            shasum -a 256 "$input"
+        done
+    } | shasum -a 256 | awk '{print $1}'
+}
+
 runtime_inputs_newer_than_output() {
     for input in "${INPUTS[@]}"; do
         if [[ "$input" -nt "$OUTPUT_PATH" ]]; then
@@ -132,7 +141,7 @@ if [[ ${#SHARED_IPC[@]} -gt 0 ]]; then
     INPUTS+=("${SHARED_IPC[@]}")
     SWIFT_INPUTS+=("${SHARED_IPC[@]}")
 fi
-CURRENT_FINGERPRINT="$(/usr/bin/env node scripts/aos-build-fingerprint.mjs --mode "$BUILD_MODE")"
+CURRENT_FINGERPRINT="$(build_fingerprint)"
 NEEDS_BUILD=1
 BINARY_REBUILT=0
 
@@ -151,7 +160,7 @@ fi
 
 if [[ $NEEDS_BUILD -eq 0 ]]; then
     printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
-    echo "Up to date: ./aos ($BUILD_MODE)"
+    echo "Up to date: ./aos ($BUILD_MODE, $(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
     exit 0
 fi
 
@@ -167,7 +176,18 @@ fi
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 printf '%s\n' "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
 
-echo "Done: ./aos"
+echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
 if [[ $BINARY_REBUILT -eq 1 ]]; then
     play_rebuild_alert
+fi
+
+# Restart daemon if it's running as a service
+if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("running") is True else 1)'; then
+    if "$OUTPUT_PATH" service restart >/dev/null 2>&1; then
+        echo "Daemon restarted"
+    else
+        echo "Build succeeded, but daemon readiness is degraded:" >&2
+        "$OUTPUT_PATH" status || true
+        echo "Next: ./aos ready --repair" >&2
+    fi
 fi

@@ -44,7 +44,7 @@
       "verification": [],
       "notes": [
         "If the repo-local ./aos binary is missing or exits 137, recover with `bash build.sh --force --no-restart` because the normal post-build verification cannot run through a broken ./aos artifact.",
-        "ADR 0023 requires the plain direct build.sh swiftc link verified at 866839e9. Injected plist or metadata sections, separate linking, post-link signing, explicit identifiers, entitlements, copying, moving, binary rewriting, app wrapping, and spctl gates are prohibited.",
+        "ADR 0023 requires root build.sh with inline source fingerprinting and one plain direct swiftc link. Injected plist or metadata sections, separate linking, post-link signing, explicit identifiers, entitlements, copying, moving, binary rewriting, app wrapping, and spctl gates are prohibited.",
         "The router intentionally does not schedule the TCC-sensitive build or first launch beside ordinary checks. Finish all static commands first; then use the `aos-repo-binary-build` skill for the isolated build checkpoint.",
         "At that checkpoint, run `bash build.sh --force --no-restart`, then run `./aos help --json` as the immediately following command and stop on exit 137.",
         "After help succeeds, stop until the user manually regrants TCC and replies `finished`; then run exact `./aos ready --repair --post-permission --json` with no intervening command."

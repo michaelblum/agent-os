@@ -11,11 +11,13 @@ Repo-mode AOS development preserves one direct build shape:
 single swiftc link -> ./aos
 ```
 
-The raw invocation matches the known-good build at
-`866839e97675dced33d6d0f685bdd3fef901d772`: plain Swift inputs plus
-`-lsqlite3`, linked directly to `./aos`. It receives no injected plist or other
-metadata section. Nothing may link, sign, copy, move, wrap, rewrite, install,
-assess, or otherwise transform that artifact after `swiftc` returns.
+The authoritative invocation is root `build.sh`: it fingerprints source inputs
+inline, links plain Swift inputs plus `-lsqlite3` directly to `./aos`, and
+reports the resulting size. It receives no injected plist or other metadata
+section. Nothing may separately link, sign, copy, move, wrap, rewrite, install,
+assess, or otherwise transform that artifact after `swiftc` returns. The
+sanctioned recovery invocation always includes `--no-restart`, so the rebuilt
+binary is not executed before `build.sh` exits.
 
 This is an intentional, temporary compatibility contract for repository
 development, not accidental technical debt.
@@ -140,10 +142,10 @@ remains authoritative.
 
 ## Enforcement
 
-`tests/build-rebuild-policy.sh` requires exactly one plain direct `swiftc`
-output invocation and rejects metadata-section injection, separate linking,
-post-link mutation, artifact inspection, and automatic execution of the new
-binary.
+`tests/build-rebuild-policy.sh` requires inline source fingerprinting and
+exactly one plain direct `swiftc` output invocation. It rejects metadata-section
+injection, separate linking, and post-link mutation, and proves that the
+sanctioned `--no-restart` path does not execute the new binary.
 
 ## Consequences
 

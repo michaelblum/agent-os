@@ -10,6 +10,7 @@ trap 'rm -rf "$TMP"' EXIT
 FAKE_REPO="$TMP/repo"
 FAKE_BIN="$TMP/bin"
 LOG="$TMP/events.log"
+EXEC_LOG="$TMP/aos-executions.log"
 mkdir -p "$FAKE_REPO/src" "$FAKE_REPO/scripts/lib" "$FAKE_BIN"
 
 cp build.sh "$FAKE_REPO/build.sh"
@@ -27,9 +28,9 @@ if [[ "$(grep -c '^[[:space:]]*swiftc "${SWIFTC_FLAGS\[@\]}" "${SWIFT_INPUTS\[@\
     exit 1
 fi
 BUILD_COMMANDS="$(sed '/^[[:space:]]*#/d' "$FAKE_REPO/build.sh")"
-FORBIDDEN_BUILD_TOOL_PATTERN='(^|[;&|[:space:]])([^;&|[:space:]]*/)?(ld|codesign|cp|mv|install|ditto|strip|xattr|shasum|otool|file|install_name_tool|spctl)([[:space:]]|$)'
+FORBIDDEN_BUILD_TOOL_PATTERN='(^|[;&|[:space:]])([^;&|[:space:]]*/)?(ld|codesign|cp|mv|install|ditto|strip|xattr|otool|file|install_name_tool|spctl)([[:space:]]|$)'
 if grep -Eq "$FORBIDDEN_BUILD_TOOL_PATTERN|--entitlements|--identifier|\.app/" <<<"$BUILD_COMMANDS"; then
-    echo "FAIL: repo-mode build must stay raw: no separate link, post-link mutation, wrapping, signing, or artifact inspection" >&2
+    echo "FAIL: repo-mode build must stay raw: no separate link, post-link mutation, wrapping, or signing" >&2
     exit 1
 fi
 for forbidden_command in \
@@ -42,8 +43,8 @@ for forbidden_command in \
         exit 1
     fi
 done
-if grep -Eq '"\$OUTPUT_PATH"[[:space:]]+(service|status|runtime|help)|du[[:space:]].*\$OUTPUT_PATH' "$FAKE_REPO/build.sh"; then
-    echo "FAIL: build.sh must not execute or inspect the newly linked artifact" >&2
+if grep -Eq 'shasum.*\$OUTPUT_PATH' "$FAKE_REPO/build.sh"; then
+    echo "FAIL: build.sh source fingerprint must not hash the linked artifact" >&2
     exit 1
 fi
 if grep -Eq 'RepoRuntimeLinkInfo|sectcreate|__info_plist' "$FAKE_REPO/build.sh"; then
@@ -54,7 +55,7 @@ for authority_path in AGENTS.md src/CLAUDE.md; do
     if ! grep -q '0023-managed-endpoint-raw-repo-artifact\|ADR 0023' "$authority_path" ||
        ! grep -q './aos help --json' "$authority_path" ||
        ! grep -q '137' "$authority_path" ||
-       ! grep -q '866839e9' "$authority_path" ||
+       ! grep -q 'bash build.sh --force --no-restart' "$authority_path" ||
        ! grep -q '__info_plist' "$authority_path" ||
        ! grep -q 'human TCC checkpoint' "$authority_path" ||
        ! grep -q 'finished' "$authority_path"; then
@@ -85,6 +86,9 @@ fi
 printf 'swiftc\n' >> "${AOS_BUILD_SIGNING_TEST_LOG:?}"
 cat > "$out" <<'BIN'
 #!/usr/bin/env bash
+if [[ -n "${AOS_BUILD_EXECUTION_TEST_LOG:-}" ]]; then
+  printf 'exec %s\n' "$*" >> "$AOS_BUILD_EXECUTION_TEST_LOG"
+fi
 if [[ "${1:-}" == "help" && "${2:-}" == "--json" ]]; then
   printf '{"commands":[]}\n'
   exit 0
@@ -138,7 +142,7 @@ UP_TO_DATE_OUT="$TMP/up-to-date.out"
 TOUCHED_OUT="$TMP/touched.out"
 CHANGED_OUT="$TMP/changed.out"
 
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$FIRST_OUT"
 # Scenario: first repo-mode build compiles, emits the bounded readiness reminder,
 # and does not run any post-build signing hook.
 if ! grep -qx 'swiftc' "$LOG"; then
@@ -165,6 +169,11 @@ if [[ -e "$FAKE_REPO/aos.signed" ]]; then
     echo "FAIL: first build left a post-signing marker" >&2
     exit 1
 fi
+if [[ -s "$EXEC_LOG" ]]; then
+    echo "FAIL: --no-restart first build executed the newly linked artifact" >&2
+    cat "$EXEC_LOG" >&2
+    exit 1
+fi
 if ! "$FAKE_REPO/aos" help --json >/dev/null; then
     echo "FAIL: raw repo-mode build artifact must be judged by launchability" >&2
     exit 1
@@ -174,10 +183,8 @@ if ! grep -q '^Rebuilt: ./aos' "$FIRST_OUT"; then
     cat "$FIRST_OUT" >&2
     exit 1
 fi
-if ! grep -q 'first post-build command must be ./aos help --json' "$FIRST_OUT" ||
-   ! grep -q 'Do not inspect or transform ./aos before that launch' "$FIRST_OUT" ||
-   ! grep -q 'stop immediately for the human TCC checkpoint' "$FIRST_OUT"; then
-    echo "FAIL: first build did not report the launch-before-inspection checkpoint" >&2
+if ! grep -q '^Alert: repo-mode ./aos binary rebuilt;' "$FIRST_OUT"; then
+    echo "FAIL: first build did not report the rebuild alert" >&2
     cat "$FIRST_OUT" >&2
     exit 1
 fi
@@ -188,7 +195,8 @@ if grep -q -- '--identifier' "$LOG"; then
 fi
 
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --force --no-restart >"$FORCE_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --force --no-restart >"$FORCE_OUT"
 # Scenario: the direct recovery command for a missing or launch-killed ./aos is
 # still the raw compile-only build path. A rejected spctl assessment is not a
 # build failure criterion for repo-local development.
@@ -202,10 +210,16 @@ if ! grep -q '^Rebuilt: ./aos' "$FORCE_OUT"; then
     cat "$FORCE_OUT" >&2
     exit 1
 fi
+if [[ -s "$EXEC_LOG" ]]; then
+    echo "FAIL: --force --no-restart executed the newly linked artifact" >&2
+    cat "$EXEC_LOG" >&2
+    exit 1
+fi
 
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
 # Scenario: legacy missing signature markers are irrelevant in repo mode. The
 # build remains a no-op instead of entering an obsolete signature repair path.
 if [[ -s "$LOG" ]]; then
@@ -221,7 +235,8 @@ fi
 
 touch "$FAKE_REPO/src/main.swift" "$FAKE_REPO/build.sh"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$TOUCHED_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$TOUCHED_OUT"
 # Scenario: timestamp-only churn, including build tooling mtime changes, does
 # not rebuild, does not sign, and does not alert.
 if [[ -s "$LOG" ]]; then
@@ -237,7 +252,8 @@ fi
 
 printf '// runtime source changed\n' >> "$FAKE_REPO/src/main.swift"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT_COMMAND="$FAKE_BIN/rebuild-alert" bash "$FAKE_REPO/build.sh" --no-restart >"$CHANGED_OUT"
 # Scenario: real Swift content changes rebuild and alert, still without
 # repo-mode post-signing.
 if ! grep -qx 'swiftc' "$LOG" || grep -q '^codesign ' "$LOG" || grep -q '^spctl ' "$LOG" || ! grep -qx 'alert' "$LOG"; then
@@ -250,17 +266,16 @@ if ! grep -q '^Rebuilt: ./aos' "$CHANGED_OUT"; then
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
-if ! grep -q 'first post-build command must be ./aos help --json' "$CHANGED_OUT" ||
-   ! grep -q 'Do not inspect or transform ./aos before that launch' "$CHANGED_OUT" ||
-   ! grep -q 'stop immediately for the human TCC checkpoint' "$CHANGED_OUT"; then
-    echo "FAIL: changed runtime input content did not report the launch-before-inspection checkpoint" >&2
+if ! grep -q '^Alert: repo-mode ./aos binary rebuilt;' "$CHANGED_OUT"; then
+    echo "FAIL: changed runtime input content did not report the rebuild alert" >&2
     cat "$CHANGED_OUT" >&2
     exit 1
 fi
 
 rm -f "$FAKE_REPO/aos.signed"
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$REPAIR_OUT"
 # Scenario: after a real rebuild, missing signature markers are still ignored
 # and alerts stay tied only to rebuilds.
 if [[ -s "$LOG" ]]; then
@@ -270,7 +285,8 @@ if [[ -s "$LOG" ]]; then
 fi
 
 : > "$LOG"
-PATH="$FAKE_BIN:$PATH" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$UP_TO_DATE_OUT"
+: > "$EXEC_LOG"
+PATH="$FAKE_BIN:$PATH" AOS_BUILD_EXECUTION_TEST_LOG="$EXEC_LOG" AOS_BUILD_SIGNING_TEST_LOG="$LOG" AOS_BUILD_REBUILD_ALERT=0 bash "$FAKE_REPO/build.sh" --no-restart >"$UP_TO_DATE_OUT"
 if [[ -s "$LOG" ]]; then
     echo "FAIL: valid signed artifact should not rebuild or re-sign" >&2
     cat "$LOG" >&2

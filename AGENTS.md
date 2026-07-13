@@ -124,10 +124,13 @@ Default section order:
 - Root `build.sh` is governed by
   `docs/adr/0023-managed-endpoint-raw-repo-artifact.md`. On this
   enterprise-managed Mac running Cylance, preserve the intentional repo-mode
-  shape verified at `866839e97675dced33d6d0f685bdd3fef901d772`: one plain,
-  direct `swiftc` link to `./aos` with no extra metadata sections. Do not
+  shape in root `build.sh`: inline source fingerprinting followed by one plain,
+  direct `swiftc` link to `./aos` with no extra metadata sections. Its internal
+  source `shasum` and size reporting are part of the proven script. Do not
   post-link sign, identify, entitle, copy, move, rewrite, wrap, install, assess,
-  or add an `__info_plist` section to the raw artifact. After a real rebuild,
+  or add an `__info_plist` section to the raw artifact. Recover a missing or
+  exit-`137` binary with exact `bash build.sh --force --no-restart`. After a
+  real rebuild,
   `./aos help --json` must be the immediately following command; do not inspect,
   hash, attest, or run other checks first, and stop without retry on exit `137`.
   If help succeeds, stop immediately for the human TCC checkpoint; do not

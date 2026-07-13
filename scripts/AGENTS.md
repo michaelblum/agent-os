@@ -121,8 +121,8 @@ commands, runtime helpers, wiki tools, and command adapters.
   binary rebuild from no-op checks. Repo-mode builds must not post-sign the
   local binary; ADR 0023 owns this managed-endpoint compatibility contract and
   packaged app signing belongs outside the repo-mode build path.
-  The raw link must match the known-good shape at `866839e9`: plain Swift
-  inputs and `-lsqlite3`, with no injected plist or other metadata section.
+  The raw link must match root `build.sh`: inline source fingerprinting, plain
+  Swift inputs and `-lsqlite3`, with no injected plist or metadata section.
   If the repo-local `./aos` artifact is missing or exits `137`, recover with
   `bash build.sh --force --no-restart`; do not add post-build signing, an
   `ld` pass, copying or moving, installation-name editing, an explicit signing
@@ -141,8 +141,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   replies `finished` may the session run exact
   `./aos ready --repair --post-permission --json`, with no intervening command.
   Do not infer exit `137` from empty output or a timeout and do not force-rebuild
-  a launchable artifact. `build.sh` must not execute, restart through, or
-  inspect the newly linked binary before it exits. `aos-after-build` must
+  a launchable artifact. The recovery invocation must include `--no-restart`,
+  and that path must not execute or restart through the newly linked binary.
+  The script's internal source hashes and size reporting are intentional.
+  `aos-after-build` must
   reject arbitrary chained commands when its build step reports a real
   rebuild; only exact `help --json` may run, after which it must print the human
   checkpoint and return without another artifact access.
