@@ -63,6 +63,35 @@ function launch(script, args, stateRoot, extraEnv = {}) {
   return { child, completed };
 }
 
+test('say voice inventory completes without reading an open stdin pipe', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-say-inventory-'));
+  const fakeAos = path.join(stateRoot, 'aos');
+  await fs.writeFile(fakeAos, `#!/usr/bin/env node
+if (process.argv.slice(2).join(' ') !== '__say --list-voices') process.exit(9);
+process.stdout.write('[{"id":"voice.test","name":"Test","language":"en_US","provider":"system"}]\\n');
+`);
+  await fs.chmod(fakeAos, 0o700);
+  cleanups.push(async () => { await fs.rm(stateRoot, { recursive: true, force: true }); });
+
+  const run = launch('scripts/aos-say.mjs', ['--list-voices'], stateRoot, { AOS_PATH: fakeAos });
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      run.child.kill('SIGKILL');
+      reject(new Error('say --list-voices waited for stdin'));
+    }, 2_000);
+  });
+  const result = await Promise.race([run.completed, timeout]).finally(() => clearTimeout(timeoutId));
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), [{
+    id: 'voice.test',
+    name: 'Test',
+    language: 'en_US',
+    provider: 'system',
+  }]);
+});
+
 function success(ref) {
   return `${JSON.stringify({ v: 1, status: 'success', data: {}, ref })}\n`;
 }
