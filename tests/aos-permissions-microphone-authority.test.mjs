@@ -151,6 +151,65 @@ if (key === '__permissions facts --json') {
   }
 }
 
+function runSetupWithUnavailableDaemon() {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'aos-permissions-setup-unavailable-'));
+  const fakeAOS = path.join(tempRoot, 'aos');
+  writeFileSync(fakeAOS, `#!/usr/bin/env node
+const key = process.argv.slice(2).join(' ');
+function reply(value) {
+  process.stdout.write(JSON.stringify(value) + '\\n');
+}
+function fail(code, error) {
+  process.stderr.write(JSON.stringify({ code, error }) + '\\n');
+  process.exit(1);
+}
+if (key === '__permissions facts --json') {
+  reply({
+    permissions: {
+      accessibility: true,
+      screen_recording: true,
+      listen_access: true,
+      post_access: true,
+      microphone: true,
+    },
+    identity: { executable_path: '/tmp/fake-aos', bundle_path: '/tmp/fake-aos' },
+  });
+} else if (key === '__permissions setup-marker get --json') {
+  reply({
+    marker_exists: true,
+    marker_path: '/tmp/setup.json',
+    current_bundle_path: '/tmp/fake-aos',
+    bundle_matches_current: true,
+    setup_completed: true,
+  });
+} else if (key === '__daemon health --json') {
+  fail('DAEMON_UNREACHABLE', 'managed daemon is unreachable');
+} else if (key === 'service start --mode repo --json') {
+  fail('SERVICE_START_FAILED', 'managed daemon did not start');
+} else if (key === '__permissions prompt microphone --json') {
+  fail('DAEMON_UNREACHABLE', 'managed daemon is unreachable');
+} else {
+  fail('UNEXPECTED_AOS', key);
+}
+`);
+  chmodSync(fakeAOS, 0o755);
+  try {
+    const result = spawnSync(process.execPath, ['scripts/aos-permissions.mjs', 'setup', '--once', '--json'], {
+      cwd: root,
+      env: {
+        ...process.env,
+        AOS_PATH: fakeAOS,
+        AOS_RUNTIME_MODE: 'repo',
+        AOS_STATE_ROOT: tempRoot,
+      },
+      encoding: 'utf8',
+    });
+    return { ...result, response: JSON.parse(result.stdout) };
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 test('foreground microphone true cannot override daemon denied', () => {
   const result = runCheck({ microphone: false, microphoneState: 'denied' });
 
@@ -226,4 +285,16 @@ test('permissions setup starts the managed daemon for daemon-owned microphone au
     result.calls.filter((args) => args.join(' ') === '__permissions prompt microphone --json').length,
     1,
   );
+});
+
+test('permissions setup preserves structured daemon errors without parser relabeling', () => {
+  const result = runSetupWithUnavailableDaemon();
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.response.status, 'degraded');
+  assert.equal(result.response.completed, false);
+  assert.deepEqual(result.response.missing_permissions, ['microphone']);
+  assert.equal(result.response.notes.some((note) => note.includes('cancelled')), true);
+  assert.equal(JSON.stringify(result.response).includes('PERMISSIONS_PRIMITIVE_JSON_INVALID'), false);
 });

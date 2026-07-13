@@ -39,7 +39,10 @@ function parsePrimitive(result, label, errorCode = 'PERMISSIONS_PRIMITIVE_FAILED
 }
 
 function parsePrimitiveLoose(result, label) {
-  return parseJSONOutput(result, label, {
+  const normalized = result.stdout.trim()
+    ? result
+    : { ...result, stdout: result.stderr };
+  return parseJSONOutput(normalized, label, {
     jsonCode: 'PERMISSIONS_PRIMITIVE_JSON_INVALID',
     requireZeroExit: false,
   });
