@@ -48,11 +48,13 @@ function validateSayArgs(args) {
 
 function runSayPrimitive(args) {
   validateSayArgs(args);
-  const stdin = process.stdin.isTTY ? undefined : fs.readFileSync(0);
+  const listsVoices = args.includes('--list-voices') || args.includes('--voices');
+  const readsStdin = !listsVoices && !process.stdin.isTTY;
+  const stdin = readsStdin ? fs.readFileSync(0) : undefined;
   const result = spawnSync(aosPath(), ['__say', ...args], {
     input: stdin,
     env: process.env,
-    stdio: process.stdin.isTTY ? ['inherit', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
+    stdio: [listsVoices ? 'ignore' : process.stdin.isTTY ? 'inherit' : 'pipe', 'pipe', 'pipe'],
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
