@@ -43,6 +43,7 @@ export class DesktopWorldSurfaceThree extends DesktopWorldSurfaceAdapter {
     this.camera = null
     this.renderer = null
     this.scene = null
+    this.managesViewport = true
     this._threeHandlers = {}
     this._stateLatencies = []
     this._lastStateReceivedAt = 0
@@ -127,13 +128,17 @@ export class DesktopWorldSurfaceThree extends DesktopWorldSurfaceAdapter {
     }
   }
 
-  mountScene({ scene = null, camera = null, renderer = null } = {}) {
+  mountScene({ scene = null, camera = null, renderer = null, manageViewport = true } = {}) {
+    globalThis.window?.removeEventListener?.('resize', this._resizeHandler)
     this.scene = scene
     this.camera = camera
     this.renderer = renderer
+    this.managesViewport = manageViewport !== false
     this.refreshCamera()
-    this.refreshViewport()
-    globalThis.window?.addEventListener?.('resize', this._resizeHandler)
+    if (this.managesViewport) {
+      this.refreshViewport()
+      globalThis.window?.addEventListener?.('resize', this._resizeHandler)
+    }
   }
 
   refreshCamera(camera = this.camera, segment = this.segment) {

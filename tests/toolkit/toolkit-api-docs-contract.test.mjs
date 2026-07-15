@@ -18,6 +18,7 @@ function lineCount(doc) {
 
 const scopedFiles = [
   'docs/api/toolkit/runtime.md',
+  'docs/api/toolkit/scene.md',
   'docs/api/toolkit/controls.md',
   'docs/api/toolkit/panel-window.md',
   'docs/api/toolkit/workbench.md',
@@ -44,6 +45,7 @@ test('toolkit API index is an overview with links to scoped references', async (
     'mountChrome',
     'controls API',
     'DesktopWorld stage/surface runtime',
+    'external Three scene authoring',
     'input regions/events',
     'workbench contracts',
     'Surface Inspector and Surface-Zoom Inspector',
@@ -62,6 +64,13 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/runtime.md'], /registerInputRegion/);
   assert.match(docs['docs/api/toolkit/runtime.md'], /input_region\.event/);
   assert.match(docs['docs/api/toolkit/runtime.md'], /subscribe\(events, options\?\)/);
+
+  assert.match(docs['docs/api/toolkit/scene.md'], /@agent-os\/toolkit\/scene/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /createThreeRenderLifecycle/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /DesktopWorldSurfaceThree/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /createVisualObjectDescriptor/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /bindVisualObjectForm/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
 
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createButtonGroup/);

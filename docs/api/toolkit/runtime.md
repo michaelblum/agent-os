@@ -235,6 +235,13 @@ remove-all cleanup, and snapshots.
 inject a telemetry state accessor, source label, target canvas id, visibility
 predicate, renderer stats, render-loop work classifier, and post function.
 
+`packages/toolkit/runtime/three-render-lifecycle.js` provides the generic,
+dependency-injected Three renderer lifecycle: bounded DPR/backing metrics,
+resize observation, hidden/context-loss suspension, frame scheduling, and
+owned-resource disposal. External package consumers use the narrow
+[`@agent-os/toolkit/scene` contract](./scene.md) instead of importing this file
+directly.
+
 ## Runtime API
 
 Convenience re-export:
@@ -264,6 +271,8 @@ import {
   createCanvasHostRuntime,
   createManagedInputRegionSet,
   createRenderPerformanceSampler,
+  createThreeRenderLifecycle,
+  resolveThreeRenderMetrics,
   createSemanticChildTargetSurface,
   createUtilitySurfaceManager,
   MENU_ACTIVATION_PHASES,

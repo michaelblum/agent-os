@@ -23,6 +23,8 @@ Layer intent:
 - `workbench/`: subject descriptors and reusable workbench contracts.
 - `components/`: reusable content units and stock surfaces built from the lower
   layers.
+- `scene/`: narrow external package facade over reviewed Three lifecycle,
+  DesktopWorld, canvas lifecycle, and visual-object contracts.
 
 Toolkit policy must stay generic. If a behavior only makes sense for a
 specific external product, it belongs in that product repository. If toolkit
@@ -48,7 +50,8 @@ as a pointer to that canonical tree instead of copying the full policy here.
 Consumer-facing toolkit contracts are indexed at `docs/api/toolkit.md`. Prefer
 the scoped API file for the layer you are changing:
 `docs/api/toolkit/runtime.md`, `docs/api/toolkit/panel-window.md`,
-`docs/api/toolkit/workbench.md`, `docs/api/toolkit/components.md`, or
+`docs/api/toolkit/workbench.md`, `docs/api/toolkit/scene.md`,
+`docs/api/toolkit/components.md`, or
 `docs/api/toolkit/content-host.md`.
 
 For `workbench/` Work Record filesystem paths, preserve raw path strings in
@@ -69,6 +72,7 @@ public facade for testing convenience.
 - `panel/AGENTS.md` governs reusable panel/windowing policy.
 - `runtime/AGENTS.md` governs the generic in-canvas bridge to daemon
   primitives.
+- `scene/AGENTS.md` governs the narrow external scene-authoring package facade.
 - `contracts/`, `components/`, `workbench/`, `adapters/`, `markdown/`, and
-  `shell/` do not have child `AGENTS.md` files yet; follow this toolkit
-  contract plus scoped API docs when editing them.
+  `shell/` do not have child `AGENTS.md` files yet; follow this toolkit contract
+  plus scoped API docs when editing them.
