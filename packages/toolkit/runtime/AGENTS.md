@@ -24,6 +24,9 @@ Good runtime responsibilities:
   `packages/toolkit/contracts/`, operator annotation menu filtering/routing,
   and selection evidence helpers that stay app-neutral and consume manifest
   data supplied by activation.
+- dependency-injected Three renderer lifecycle mechanics: bounded sizing,
+  visibility and context-loss suspension, frame scheduling, and disposal of
+  explicitly owned resources.
 
 Keep windowing and product policy out of runtime. A helper here may expose a
 generic capability, but default panel state, chip placement, workbench layout,

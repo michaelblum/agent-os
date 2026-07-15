@@ -25,6 +25,13 @@ export {
   deriveOrthoCamera,
 } from './desktop-world-surface-three.js'
 export {
+  DEFAULT_THREE_RENDER_LIMITS,
+  createThreeRenderLifecycle,
+  disposeThreeObjectTree,
+  disposeThreeRenderer,
+  resolveThreeRenderMetrics,
+} from './three-render-lifecycle.js'
+export {
   createCanvasOriginInputEvent,
   isCanvasInputEventType,
   normalizeCanvasInputMessage,

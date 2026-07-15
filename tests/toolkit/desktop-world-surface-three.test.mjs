@@ -58,3 +58,31 @@ test('refreshCamera updates perspective cameras without applying orthographic bo
     globalThis.window = priorWindow
   }
 })
+
+test('mountScene can delegate viewport ownership to a bounded external lifecycle', () => {
+  const priorWindow = globalThis.window
+  const listeners = []
+  const removedListeners = []
+  globalThis.window = {
+    innerWidth: 1200,
+    innerHeight: 800,
+    addEventListener: (...args) => listeners.push(args),
+    removeEventListener: (...args) => removedListeners.push(args),
+  }
+  try {
+    const adapter = new DesktopWorldSurfaceThree({ canvasId: 'consumer-stage' })
+    adapter.segment = { dw_bounds: [0, 0, 1200, 800] }
+    const renderer = {
+      sizes: [],
+      setSize(...args) { this.sizes.push(args) },
+    }
+    adapter.mountScene({ renderer, manageViewport: false })
+
+    assert.equal(adapter.managesViewport, false)
+    assert.deepEqual(renderer.sizes, [])
+    assert.deepEqual(listeners, [])
+    assert.equal(removedListeners.length, 1)
+  } finally {
+    globalThis.window = priorWindow
+  }
+})

@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./scene": {
+      "types": "./scene/index.d.ts",
+      "import": "./scene/index.js",
+      "default": "./scene/index.js"
+    }
+  },
   "dependencies": {
     "@zag-js/accordion": "^1.40.0",
     "@zag-js/collapsible": "^1.40.0",
