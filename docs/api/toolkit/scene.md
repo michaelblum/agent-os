@@ -14,15 +14,40 @@ dependency-injected helpers.
 ```js
 import {
   DesktopWorldSurfaceThree,
+  canonicalizeSceneDocument,
+  createSceneLease,
   createThreeRenderLifecycle,
   createVisualObjectDescriptor,
   bindVisualObjectForm,
+  validateSceneTransaction,
 } from '@agent-os/toolkit/scene'
 ```
 
 The package export includes `scene/index.d.ts` for TypeScript consumers. Direct
 imports into `runtime/` or `workbench/` are not part of this external package
 contract.
+
+## Declarative Scene Contracts
+
+`aos.scene.document.v1` describes a bounded object/resource graph without
+consumer JavaScript. `canonicalizeSceneDocument()` validates exact fields,
+hierarchy, resource references, finite JSON parameters, per-resource asset
+limits, and a 256 MiB aggregate asset limit before returning key-sorted data.
+`sceneDocumentRequiredImplementations()` reports the registered geometry,
+material, effect, and component implementations needed to render it.
+
+`aos.scene.transaction.v1` carries owner/resource-scoped, revision-checked
+operations. `validateSceneTransaction()` validates the envelope and bounded
+operations; the future stage host remains responsible for lease ownership,
+revision matching, resource availability, and atomic application.
+
+`createSceneLease()` produces an `aos.scene.lease.v1` identity containing the
+stage, owner, resource, and ResourceScope IDs. The contract does not create a
+daemon lease or shared renderer by itself.
+
+This initial contract slice is not evidence that the shared DesktopWorld 3D
+host is operational. Existing Three consumers still use the standalone adapter
+until the daemon and toolkit host slices are delivered.
 
 ## Three Renderer Lifecycle
 

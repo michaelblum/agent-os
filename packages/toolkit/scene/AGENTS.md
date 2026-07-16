@@ -6,17 +6,21 @@
 ## Purpose
 
 `scene/` is the narrow package facade for product-neutral scene authoring. It
-exposes the DesktopWorld Three adapter, bounded Three renderer lifecycle,
-canvas lifecycle projections, and visual-object editing contracts needed by
-external consumers.
+owns the public contracts for the DesktopWorld stage 3D outlet and currently
+exposes declarative scene contracts, the standalone Three adapter, bounded
+renderer lifecycle, canvas lifecycle projections, and visual-object editing
+contracts needed by external consumers. Do not describe the shared 3D host as
+operational until its daemon and toolkit runtime slices exist.
 
 ## Ownership
 
 - Runtime implementations remain owned by `runtime/`.
 - Visual-object implementations remain owned by `workbench/`.
 - This folder owns only the reviewed external package surface and its types.
-- Product representation, scene state, materials, animation policy, and editor
-  UX remain in the consuming product.
+- Generic scene transactions, leases, rendering, animation, interaction, and
+  resource lifecycle belong here or behind this facade. Product representation,
+  persisted definitions, semantic state mappings, visual recipes, and editor UX
+  remain in the consuming product.
 
 ## Local Contracts
 

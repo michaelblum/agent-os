@@ -46,3 +46,16 @@ export {
   createVisualObjectResourceLifecycleEvidence,
   validateVisualObjectResourceLifecycleEvidence,
 } from '../workbench/visual-object-resource-lifecycle.js'
+
+export {
+  SCENE_DOCUMENT_CONTRACT_ID,
+  SCENE_DOCUMENT_LIMITS,
+  SCENE_LEASE_CONTRACT_ID,
+  SCENE_TRANSACTION_CONTRACT_ID,
+  canonicalizeSceneDocument,
+  createSceneLease,
+  sceneDocumentRequiredImplementations,
+  validateSceneDocument,
+  validateSceneLease,
+  validateSceneTransaction,
+} from './scene-document.js'

@@ -321,3 +321,118 @@ export function createVisualObjectResourceLifecycleEvidence(
 export function validateVisualObjectResourceLifecycleEvidence(
   evidence?: Record<string, unknown>,
 ): { ok: boolean; errors: Array<{ code: string; field: string }> };
+
+export type SceneJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | SceneJsonValue[]
+  | { [key: string]: SceneJsonValue };
+
+export interface SceneComponentDescriptor {
+  id: string;
+  implementation: string;
+  parameters: Record<string, SceneJsonValue>;
+  enabled: boolean;
+}
+
+export interface SceneTransform {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+}
+
+export interface SceneObjectDescriptor {
+  id: string;
+  parentId: string | null;
+  kind: 'group' | 'mesh' | 'points' | 'line' | 'light' | 'camera';
+  transform: SceneTransform;
+  visible: boolean;
+  geometryId: string | null;
+  materialId: string | null;
+  components: SceneComponentDescriptor[];
+}
+
+export interface SceneAssetDescriptor {
+  sha256: string;
+  mediaType: string;
+  bytes: number;
+}
+
+export interface SceneResourceDescriptor {
+  id: string;
+  kind: 'geometry' | 'material' | 'texture' | 'shader' | 'effect';
+  implementation: string;
+  parameters: Record<string, SceneJsonValue>;
+  asset: SceneAssetDescriptor | null;
+}
+
+export interface SceneDocument {
+  contract: typeof SCENE_DOCUMENT_CONTRACT_ID;
+  schemaVersion: 1;
+  id: string;
+  revision: number;
+  rootObjectId: string;
+  objects: SceneObjectDescriptor[];
+  resources: SceneResourceDescriptor[];
+  metadata: Record<string, SceneJsonValue>;
+}
+
+export interface SceneValidationError {
+  code: string;
+  path: string;
+  message: string;
+}
+
+export interface SceneValidationResult {
+  ok: boolean;
+  errors: SceneValidationError[];
+}
+
+export type SceneTransactionOperation =
+  | { op: 'put_object'; object: SceneObjectDescriptor }
+  | { op: 'remove_object'; objectId: string }
+  | { op: 'set_property'; objectId: string; path: string; value: SceneJsonValue }
+  | { op: 'put_resource'; resource: SceneResourceDescriptor }
+  | { op: 'remove_resource'; resourceId: string };
+
+export interface SceneTransaction {
+  contract: typeof SCENE_TRANSACTION_CONTRACT_ID;
+  transactionId: string;
+  stageId: string;
+  ownerId: string;
+  resourceId: string;
+  expectedRevision: number;
+  operations: SceneTransactionOperation[];
+}
+
+export interface SceneLease {
+  contract: typeof SCENE_LEASE_CONTRACT_ID;
+  stageId: string;
+  ownerId: string;
+  resourceId: string;
+  scopeId: string;
+}
+
+export const SCENE_DOCUMENT_CONTRACT_ID: 'aos.scene.document.v1';
+export const SCENE_TRANSACTION_CONTRACT_ID: 'aos.scene.transaction.v1';
+export const SCENE_LEASE_CONTRACT_ID: 'aos.scene.lease.v1';
+export const SCENE_DOCUMENT_LIMITS: Readonly<{
+  maxObjects: number;
+  maxResources: number;
+  maxComponentsPerObject: number;
+  maxOperationsPerTransaction: number;
+  maxParameterDepth: number;
+  maxParameterKeys: number;
+  maxParameterArrayLength: number;
+  maxParameterStringLength: number;
+  maxAssetBytes: number;
+}>;
+
+export function validateSceneDocument(document: unknown): SceneValidationResult;
+export function canonicalizeSceneDocument(document: unknown): SceneDocument;
+export function sceneDocumentRequiredImplementations(document: unknown): string[];
+export function validateSceneTransaction(transaction: unknown): SceneValidationResult;
+export function validateSceneLease(lease: unknown): SceneValidationResult;
+export function createSceneLease(input: Omit<SceneLease, 'contract'>): Readonly<SceneLease>;

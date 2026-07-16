@@ -33,10 +33,11 @@ primitive instead of inventing private app canvases or pushing toolkit policy
 into Swift.
 
 The shared DesktopWorld stage is toolkit policy running on a daemon
-DesktopWorld canvas primitive. Prefer it for ordinary desktop-wide visuals such
-as chips, drag ghosts, telemetry, avatar/radial visuals, and temporary
-affordances. Pair visual layers with explicit interaction surfaces or input
-regions; do not make the full visual stage interactive by default.
+DesktopWorld canvas primitive. Its compatible 2D and 3D outlets are the default
+host for ordinary desktop-wide visuals such as chips, drag ghosts, telemetry,
+avatar/radial visuals, and temporary affordances. Pair visual objects with
+explicit interaction surfaces or input regions; do not make the full visual
+stage interactive by default. ADR 0024 owns the 3D outlet boundary.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace
