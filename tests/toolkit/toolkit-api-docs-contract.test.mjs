@@ -78,7 +78,8 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene.md'], /allocates no event object per binding per tick/);
   assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.inspection\.v1/);
   assert.match(docs['docs/api/toolkit/scene.md'], /validateSceneTransaction/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /daemon-backed\s+singleton scene transport or cross-process replication exists/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate plane/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /primary segment emits the single authoritative/);
   assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
 
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);

@@ -25,6 +25,10 @@ stage internals.
   resource lifecycle belong here or behind this facade. Product representation,
   persisted definitions, semantic state mappings, visual recipes, and editor UX
   remain in the consuming product.
+- The daemon-backed stage projects object transforms in global DesktopWorld
+  coordinates through one orthographic camera per physical display segment.
+  Every segment applies the same declarative operation, while only the primary
+  segment reports its result to avoid duplicate transport acknowledgements.
 
 ## Local Contracts
 

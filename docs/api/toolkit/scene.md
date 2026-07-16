@@ -17,6 +17,13 @@ to the client connection and removed on disconnect. Documents contain only
 registered declarative implementation IDs; implementation code never crosses
 the transport.
 
+The daemon-backed outlet interprets scene object positions and scales in the
+global DesktopWorld coordinate plane. It uses one orthographic camera per
+physical display segment, so a resource appears at its declared desktop point
+without being independently centered on every display. All segments apply the
+same bounded operation; the primary segment emits the single authoritative
+result event.
+
 The package does not depend on or bundle Three.js. Consumers own their Three.js
 version and pass renderer-, scene-, camera-, and resource-like objects into the
 dependency-injected helpers.
@@ -132,10 +139,10 @@ are contained and exposed only as redacted counters. The underlying Three
 lifecycle retains its stricter canvas limits.
 
 The DesktopWorld host wraps `DesktopWorldSurfaceThree` and mounts the same
-prepared projection used by a local viewport. This package host is operational
-with dependency-injected projections. It is not evidence that daemon-backed
-singleton scene transport or cross-process replication exists; those remain a
-separate runtime slice.
+prepared projection used by a local viewport. The public `scene-follow`
+transport mounts generic registered implementations into the daemon-backed
+singleton outlet. Product-specific projection implementations remain local to
+the consumer unless they are accepted into this product-neutral registry.
 
 ## Three Renderer Lifecycle
 

@@ -156,21 +156,25 @@ wireBridge((message) => {
     try {
       const applied = sceneOutlet.apply(message)
       window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
-      emit('desktop_world_stage.scene.result', {
-        lease_key: payload.lease_key,
-        operation: payload.operation?.op ?? 'release',
-        resource: payload.resource ?? null,
-        status: applied ? 'ok' : 'ignored',
-        snapshot: sceneOutlet.snapshot(),
-      })
+      if (surface.isPrimary) {
+        emit('desktop_world_stage.scene.result', {
+          lease_key: payload.lease_key,
+          operation: payload.operation?.op ?? 'release',
+          resource: payload.resource ?? null,
+          status: applied ? 'ok' : 'ignored',
+          snapshot: sceneOutlet.snapshot(),
+        })
+      }
     } catch (error) {
-      emit('desktop_world_stage.scene.result', {
-        lease_key: payload.lease_key,
-        operation: payload.operation?.op ?? 'unknown',
-        resource: payload.resource ?? null,
-        status: 'error',
-        code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
-      })
+      if (surface.isPrimary) {
+        emit('desktop_world_stage.scene.result', {
+          lease_key: payload.lease_key,
+          operation: payload.operation?.op ?? 'unknown',
+          resource: payload.resource ?? null,
+          status: 'error',
+          code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+        })
+      }
     }
     return
   }
@@ -178,10 +182,18 @@ wireBridge((message) => {
 })
 
 surface.start({
-  onInit: render,
-  onTopologyChange: render,
-}).then(render)
+  onInit: ({ segment }) => {
+    sceneOutlet.updateSegment(segment)
+    render()
+  },
+  onTopologyChange: ({ segment }) => {
+    sceneOutlet.updateSegment(segment)
+    render()
+  },
+}).then(() => {
+  render()
+  installVisualObjectLiveProof()
+  emitReady()
+})
 
 render()
-installVisualObjectLiveProof()
-emitReady()
