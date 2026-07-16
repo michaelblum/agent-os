@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "scene",
+  "commands": [{
+    "path": ["scene"],
+    "summary": "Stream bounded declarative scenes to DesktopWorld.",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "scripts/aos-scene.mjs"],
+    "cwd": "repo",
+    "stdio": "inherit",
+    "env": {
+      "AOS_PATH": "$AOS_PATH",
+      "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+      "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+    }
+  }]
+}

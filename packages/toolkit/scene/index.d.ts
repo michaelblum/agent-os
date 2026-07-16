@@ -20,6 +20,21 @@ export interface DisposableResource {
   dispose(): void;
 }
 
+export const GENERIC_SCENE_IMPLEMENTATIONS: Readonly<Record<string, string>>;
+export function createGenericSceneImplementationRegistry(): SceneImplementationRegistry;
+export function createGenericThreeSceneProjection(input: {
+  THREE: Record<string, any>;
+  document: SceneDocument;
+}): {
+  object: unknown;
+  activate(): void;
+  applyAnimation(binding: { target: string }, value: number): boolean;
+  applySignal(binding: { target: string }, value: number): boolean;
+  suspend(): void;
+  resume(): void;
+  dispose(): void;
+};
+
 export interface ThreeRendererLike {
   domElement?: EventTarget & { parentElement?: Element | null };
   render?(scene: unknown, camera: unknown): void;
@@ -476,6 +491,7 @@ export interface SceneImplementationEntry {
   create?: (context: SceneImplementationContext) => unknown;
   update?: (context: SceneImplementationContext) => unknown;
   dispose?: (context: SceneImplementationContext) => unknown;
+  validateParameters?: (parameters: Record<string, SceneJsonValue>) => true | string;
 }
 
 export interface SceneImplementationRequirement {
@@ -493,7 +509,7 @@ export interface SceneImplementationRegistry {
     ok: boolean;
     errors: SceneValidationError[];
     missing: SceneImplementationRequirement[];
-    mismatched: Array<SceneImplementationRequirement & { registeredKind: SceneImplementationKind }>;
+    mismatched: Array<SceneImplementationRequirement & { registeredKind: SceneImplementationKind; reason?: string }>;
   };
   required(document: unknown): SceneImplementationRequirement[];
   snapshot(): {

@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "v": { "const": 1 },
-    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph", "content"] },
+    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "scene", "system", "focus", "graph", "content"] },
     "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
     "ref": { "type": "string" }
@@ -58,6 +58,8 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceNextData" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "final_response" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceFinalResponseData" } } } },
+    { "if": { "properties": { "service": { "const": "scene" }, "action": { "const": "follow" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SceneFollowData" } } } },
     { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "ping" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "list" } } },
@@ -81,6 +83,22 @@
   ],
   "$defs": {
     "Empty": { "type": "object", "additionalProperties": true },
+    "SceneFollowData": {
+      "type": "object",
+      "required": ["stage", "owner", "resource", "operation"],
+      "properties": {
+        "stage": { "const": "desktop-world/main" },
+        "owner": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+        "resource": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]{0,127}$" },
+        "operation": {
+          "type": "object",
+          "required": ["op"],
+          "properties": { "op": { "enum": ["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close"] } },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
     "SeeObserveData": {
       "type": "object",
       "properties": {

@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "service": "scene",
+  "event": "result",
+  "ts": 1784228400.125,
+  "ref": "scene-request-1",
+  "data": {
+    "operation": "mount",
+    "resource": "companion/main",
+    "status": "ok",
+    "snapshot": {
+      "contextLost": false,
+      "hidden": false,
+      "resources": 1,
+      "renderer": "three",
+      "maxResources": 32
+    }
+  }
+}

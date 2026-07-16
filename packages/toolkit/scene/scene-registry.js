@@ -32,6 +32,9 @@ function normalizeEntry(input, options = {}) {
       throw new TypeError(`Scene implementation ${key} must be a function when provided.`)
     }
   }
+  if (input.validateParameters !== undefined && typeof input.validateParameters !== 'function') {
+    throw new TypeError('Scene implementation validateParameters must be a function when provided.')
+  }
   return Object.freeze({
     id: input.id,
     kind: input.kind,
@@ -39,6 +42,7 @@ function normalizeEntry(input, options = {}) {
     create: input.create ?? null,
     update: input.update ?? null,
     dispose: input.dispose ?? null,
+    validateParameters: input.validateParameters ?? null,
   })
 }
 
@@ -102,6 +106,21 @@ export function createSceneImplementationRegistry(input = {}) {
         if (!entry) missing.push(required)
         else if (entry.kind !== required.kind) {
           mismatched.push({ ...required, registeredKind: entry.kind })
+        } else if (entry.validateParameters) {
+          const source = required.sourceKind === 'resource'
+            ? document.resources.find((resource) => resource.id === required.sourceId)
+            : document.objects
+              .flatMap((object) => object.components.map((component) => ({ object, component })))
+              .find(({ object, component }) => `${object.id}/${component.id}` === required.sourceId)
+              ?.component
+          const result = entry.validateParameters(source?.parameters ?? {})
+          if (result !== true) {
+            mismatched.push({
+              ...required,
+              registeredKind: entry.kind,
+              reason: typeof result === 'string' ? result : 'invalid_parameters',
+            })
+          }
         }
       }
       return {

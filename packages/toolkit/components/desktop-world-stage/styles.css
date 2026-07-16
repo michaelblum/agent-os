@@ -18,6 +18,14 @@ body {
   pointer-events: none;
 }
 
+.desktop-world-stage-scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .desktop-world-stage-layer {
   position: absolute;
   box-sizing: border-box;

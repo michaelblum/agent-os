@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "scene",
+  "path_prefix": ["scene"],
+  "commands": [{
+    "path": ["scene"],
+    "summary": "Stream declarative scenes to a shared DesktopWorld stage",
+    "forms": [{
+      "id": "scene-follow",
+      "usage": "aos scene --stage desktop-world/main --owner <id> --resource <id> --follow",
+      "args": [
+        {"id":"stage","kind":"flag","token":"--stage","value_type":"string","required":true,"summary":"Stage identifier"},
+        {"id":"owner","kind":"flag","token":"--owner","value_type":"string","required":true,"summary":"Consumer owner identifier"},
+        {"id":"resource","kind":"flag","token":"--resource","value_type":"string","required":true,"summary":"Owner-scoped resource identifier"},
+        {"id":"follow","kind":"flag","token":"--follow","value_type":"bool","required":true,"summary":"Read scene operations as NDJSON"}
+      ],
+      "stdin":{"supported":true,"content_type":"ndjson","used_when":"always"},
+      "output":{"default_mode":"ndjson","error_mode":"json_stderr","streaming":true,"supports_json_flag":false},
+      "execution":{"auto_starts_daemon":true,"interactive":false,"mutates_state":true,"read_only":false,"requires_permissions":false,"streaming":true,"supports_dry_run":false},
+      "examples":["printf '%s\\n' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"]
+    }]
+  }]
+}

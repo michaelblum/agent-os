@@ -2,6 +2,7 @@ import { emit, wireBridge } from '../../runtime/bridge.js'
 import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js'
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
+import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
 import {
   createVisualObjectResourceLifecycleEvidence,
@@ -16,9 +17,11 @@ import {
 } from './model.js'
 
 const root = document.getElementById('desktop-world-stage-root')
+const sceneCanvas = document.getElementById('desktop-world-stage-scene')
 const canvasId = window.__aosSurfaceCanvasId || window.__aosCanvasId || 'aos-desktop-world-stage'
 const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
+const sceneOutlet = createDesktopWorldSceneOutlet({ canvas: sceneCanvas })
 
 function render() {
   if (!root) return
@@ -140,12 +143,37 @@ declareManifest({
     'desktop_world_stage.layer.remove',
     'desktop_world_stage.layers.replace',
     'desktop_world_stage.clear',
+    'desktop_world_stage.scene.operation',
+    'desktop_world_stage.scene.release',
   ],
   emits: ['ready', 'canvas_object.registry'],
   surface: 'desktop-world',
 })
 
 wireBridge((message) => {
+  if (message?.type?.startsWith('desktop_world_stage.scene.')) {
+    const payload = message.payload ?? {}
+    try {
+      const applied = sceneOutlet.apply(message)
+      window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
+      emit('desktop_world_stage.scene.result', {
+        lease_key: payload.lease_key,
+        operation: payload.operation?.op ?? 'release',
+        resource: payload.resource ?? null,
+        status: applied ? 'ok' : 'ignored',
+        snapshot: sceneOutlet.snapshot(),
+      })
+    } catch (error) {
+      emit('desktop_world_stage.scene.result', {
+        lease_key: payload.lease_key,
+        operation: payload.operation?.op ?? 'unknown',
+        resource: payload.resource ?? null,
+        status: 'error',
+        code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+      })
+    }
+    return
+  }
   if (applyDesktopWorldStageMessage(state, message)) render()
 })
 

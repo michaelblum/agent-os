@@ -8,6 +8,10 @@ state and routing that must outlive individual canvases: sockets,
 subscriptions, display geometry, canvas lifecycle, content routing, input event
 delivery, voice/communication routing, and cleanup.
 
+Scene transport owns only connection-scoped owner/resource leases and delivery
+to the singleton toolkit DesktopWorld stage. Declarative validation and render
+policy remain in the scene toolkit; disconnect always releases owned scenes.
+
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as
 `sigil`, `avatar`, or `chat`. Product-specific daemon logic is prohibited unless

@@ -117,6 +117,10 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
+    private let sceneLeaseLock = NSLock()
+    private var sceneLeaseOwners: [String: UUID] = [:]
+    private var sceneLeasesByConnection: [UUID: Set<String>] = [:]
+    private var sceneLeaseRefs: [String: String] = [:]
     private let voiceTelemetryLock = NSLock()
     let canvasInspectorBundleLock = NSLock()
     var canvasInspectorBundleInFlight = false
@@ -327,6 +331,9 @@ class UnifiedDaemon {
                     return
                 case "position.set":
                     self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "desktop_world_stage.scene.result":
+                    self.handleSceneStageResult(inner ?? [:])
                     return
                 case "capture.region":
                     self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
@@ -2494,6 +2501,7 @@ class UnifiedDaemon {
 
         defer {
             voiceTransport.connectionClosed(connectionID)
+            cleanupSceneLeases(connectionID)
             subscriberLock.lock()
             if let conn = subscribers[connectionID] {
                 perception.attention.removeChannels(conn.perceptionChannelIDs)
@@ -2591,6 +2599,143 @@ class UnifiedDaemon {
         return CGPoint(x: px, y: py)
     }
 
+    private let sceneStageCanvasID = "aos-desktop-world-stage"
+
+    private func sceneLeaseKey(owner: String, resource: String) -> String {
+        return "\(owner)::\(resource)"
+    }
+
+    private func cleanupSceneLeases(_ connectionID: UUID) {
+        sceneLeaseLock.lock()
+        let keys = sceneLeasesByConnection.removeValue(forKey: connectionID) ?? []
+        for key in keys where sceneLeaseOwners[key] == connectionID {
+            sceneLeaseOwners.removeValue(forKey: key)
+            sceneLeaseRefs.removeValue(forKey: key)
+        }
+        sceneLeaseLock.unlock()
+        for key in keys {
+            canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
+                "type": "desktop_world_stage.scene.release",
+                "payload": ["lease_key": key],
+            ])
+        }
+    }
+
+    private func handleSceneStageResult(_ payload: [String: Any]) {
+        guard let key = payload["lease_key"] as? String else { return }
+        sceneLeaseLock.lock()
+        let owner = sceneLeaseOwners[key]
+        let ref = sceneLeaseRefs[key]
+        sceneLeaseLock.unlock()
+        var eventData = payload
+        eventData.removeValue(forKey: "lease_key")
+        guard let owner,
+              let bytes = envelopeBytes(
+                service: "scene",
+                event: "result",
+                data: eventData,
+                ref: ref
+              ) else { return }
+        subscriberLock.lock()
+        let writer = subscribers[owner]?.outbound
+        subscriberLock.unlock()
+        writer?.enqueue(bytes)
+    }
+
+    private func ensureSceneStage() -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        var available = false
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { semaphore.signal(); return }
+            if self.canvasManager.hasCanvas(self.sceneStageCanvasID) {
+                available = true
+                semaphore.signal()
+                return
+            }
+            var request = CanvasRequest(action: "create", id: self.sceneStageCanvasID)
+            request.url = self.resolveContentURL("aos://toolkit/components/desktop-world-stage/index.html")
+            request.track = "union"
+            request.interactive = false
+            request.scope = "global"
+            request.cascade = false
+            available = self.canvasManager.handle(request).status == "success"
+            semaphore.signal()
+        }
+        semaphore.wait()
+        guard available else { return false }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if let manifest = readyManifest(for: sceneStageCanvasID),
+               manifest["name"] as? String == "desktop-world-stage" {
+                return true
+            }
+            usleep(20_000)
+        }
+        return false
+    }
+
+    private func handleSceneFollow(
+        json: [String: Any],
+        connectionID: UUID,
+        outbound: AOSConnectionOutboundWriter,
+        envelopeActive: Bool,
+        envelopeRef: String?
+    ) {
+        guard json["stage"] as? String == "desktop-world/main",
+              let owner = json["owner"] as? String,
+              let resource = json["resource"] as? String,
+              let operation = json["operation"] as? [String: Any],
+              let op = operation["op"] as? String else {
+            sendResponseJSON(to: outbound, ["error": "Invalid scene request", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        let allowed = Set(["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close"])
+        guard allowed.contains(op) else {
+            sendResponseJSON(to: outbound, ["error": "Unsupported scene operation", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        let key = sceneLeaseKey(owner: owner, resource: resource)
+        sceneLeaseLock.lock()
+        let currentOwner = sceneLeaseOwners[key]
+        if currentOwner == nil || currentOwner == connectionID {
+            sceneLeaseOwners[key] = connectionID
+            if let envelopeRef { sceneLeaseRefs[key] = envelopeRef }
+            var connectionKeys = sceneLeasesByConnection[connectionID] ?? []
+            connectionKeys.insert(key)
+            sceneLeasesByConnection[connectionID] = connectionKeys
+        }
+        sceneLeaseLock.unlock()
+        guard currentOwner == nil || currentOwner == connectionID else {
+            sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        guard ensureSceneStage() else {
+            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
+            "type": "desktop_world_stage.scene.operation",
+            "payload": [
+                "lease_key": key,
+                "owner": owner,
+                "resource": resource,
+                "operation": operation,
+            ],
+        ])
+        if op == "close" {
+            sceneLeaseLock.lock()
+            sceneLeaseOwners.removeValue(forKey: key)
+            sceneLeaseRefs.removeValue(forKey: key)
+            sceneLeasesByConnection[connectionID]?.remove(key)
+            sceneLeaseLock.unlock()
+        }
+        sendResponseJSON(to: outbound, [
+            "status": "ok",
+            "operation": op,
+            "resource": resource,
+        ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+    }
+
     /// Map v1 envelope (service, action) to the legacy flat action string
     /// used by the existing switch. Returns nil if the pair is not in the v1 catalog.
     private func legacyActionName(service: String, action: String) -> String? {
@@ -2628,6 +2773,7 @@ class UnifiedDaemon {
         case ("voice", "final_response"):     return "voice-final-response"
         case ("voice", "speak"):              return "voice-speak"
         case ("voice", "cancel"):             return "voice-speech-cancel"
+        case ("scene", "follow"):             return "scene-follow"
         case ("system", "ping"):              return "ping"
         // Content server actions
         case ("content", "status"):           return "content_status"
@@ -2719,7 +2865,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "scene", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -2767,6 +2913,15 @@ class UnifiedDaemon {
             subscriberLock.unlock()
             sendResponseJSON(to: outbound, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             if wantsSnapshot { sendSubscriberSnapshots(to: outbound, events: events) }
+
+        case "scene-follow":
+            handleSceneFollow(
+                json: json,
+                connectionID: connectionID,
+                outbound: outbound,
+                envelopeActive: envelopeActive,
+                envelopeRef: envelopeRef
+            )
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "audit":
