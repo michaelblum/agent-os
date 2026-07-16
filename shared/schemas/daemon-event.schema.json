@@ -203,6 +203,13 @@
           "data": { "$ref": "#/$defs/VoiceSpeechCanceledData" }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "scene" }, "event": { "const": "result" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SceneResultData" } } }
     }
   ],
   "properties": {
@@ -212,7 +219,7 @@
     },
     "service": {
       "type": "string",
-      "enum": ["perceive", "display", "act", "voice"],
+      "enum": ["perceive", "display", "act", "voice", "scene"],
       "description": "Which aos subsystem emitted this event."
     },
     "event": {
@@ -234,6 +241,29 @@
     }
   },
   "$defs": {
+    "SceneResultData": {
+      "type": "object",
+      "required": ["operation", "resource", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": { "enum": ["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close", "release", "unknown"] },
+        "resource": { "type": ["string", "null"], "maxLength": 128 },
+        "status": { "enum": ["ok", "ignored", "error"] },
+        "code": { "enum": ["SCENE_BUDGET_EXCEEDED", "SCENE_PROJECTION_FAILED"] },
+        "snapshot": {
+          "type": "object",
+          "required": ["contextLost", "hidden", "resources", "renderer", "maxResources"],
+          "additionalProperties": false,
+          "properties": {
+            "contextLost": { "type": "boolean" },
+            "hidden": { "type": "boolean" },
+            "resources": { "type": "integer", "minimum": 0, "maximum": 32 },
+            "renderer": { "const": "three" },
+            "maxResources": { "const": 32 }
+          }
+        }
+      }
+    },
     "Bounds": {
       "$ref": "annotation.schema.json#/$defs/Bounds",
       "description": "Reuse shared Bounds type (x, y, width, height)."

@@ -106,6 +106,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `aos-show-client.mjs` owns any isolated daemon it starts for `show listen`.
   Install signal and parent-exit handling before auto-start, forward shutdown
   to that child, and await confirmed child exit before the listener exits.
+- `aos-scene.mjs` owns the bounded public NDJSON adapter for connection-scoped
+  DesktopWorld scene leases. It accepts only the documented operation set,
+  bounds input/output, and never exposes the daemon socket to consumers.
 
 ## Local Contracts
 

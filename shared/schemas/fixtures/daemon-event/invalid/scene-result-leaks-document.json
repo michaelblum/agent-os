@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "service": "scene",
+  "event": "result",
+  "ts": 1784228400.125,
+  "data": {
+    "operation": "mount",
+    "resource": "companion/main",
+    "status": "ok",
+    "document": { "secret": "must-not-echo" }
+  }
+}

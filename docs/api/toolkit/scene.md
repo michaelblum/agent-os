@@ -5,6 +5,18 @@ authors. It exposes product-neutral DesktopWorld, Three renderer lifecycle,
 canvas projection, and visual-object editing primitives without exposing the
 broader toolkit implementation tree.
 
+The public streaming transport is:
+
+```bash
+aos scene --stage desktop-world/main --owner <consumer-id> --resource <resource-id> --follow
+```
+
+It reads strict NDJSON operations from stdin: `mount`, `transact`, `signal`,
+`play`, `suspend`, `resume`, `inspect`, `remove`, and `close`. Leases are scoped
+to the client connection and removed on disconnect. Documents contain only
+registered declarative implementation IDs; implementation code never crosses
+the transport.
+
 The package does not depend on or bundle Three.js. Consumers own their Three.js
 version and pass renderer-, scene-, camera-, and resource-like objects into the
 dependency-injected helpers.

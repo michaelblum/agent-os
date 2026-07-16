@@ -190,6 +190,8 @@
       "id": "scene-toolkit-public-contract",
       "path_patterns": [
         "tests/toolkit/desktop-world-surface-three.test.mjs",
+        "tests/toolkit/desktop-world-scene-outlet.test.mjs",
+        "tests/toolkit/scene-generic-three.test.mjs",
         "tests/toolkit/scene-public-contract.test.mjs",
         "tests/toolkit/three-render-lifecycle.test.mjs",
         "tests/toolkit/toolkit-api-docs-contract.test.mjs"
@@ -200,11 +202,27 @@
       "proof_kind": "scene_toolkit_contract",
       "contract": "The external scene facade exposes only product-neutral DesktopWorld, bounded Three lifecycle, canvas projection, and visual-object primitives.",
       "worth": "This lets external first-party consumers reuse renderer mechanics and editing contracts without copying toolkit source or restoring product authority to AOS.",
-      "command": "node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs",
+      "command": "node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs tests/toolkit/scene-generic-three.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs",
       "replaces": [
         "embedded product avatar renderer lifecycle tests"
       ],
       "guard": "dependency-injected model tests only; no daemon, GPU, TCC, or product fixture",
+      "status": "active"
+    },
+    {
+      "id": "scene-follow-cli-contract",
+      "path_patterns": [
+        "tests/scene-follow-cli.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "scene-transport",
+      "harness_level": "model_unit",
+      "proof_kind": "scene_follow_transport",
+      "contract": "The public scene follower validates owner, resource, stage, operation, and bounded NDJSON before forwarding through the daemon envelope.",
+      "worth": "This proves consumers can hold a connection-scoped DesktopWorld lease without direct socket access or product-specific daemon behavior.",
+      "command": "node --test tests/scene-follow-cli.test.mjs",
+      "replaces": [],
+      "guard": "disposable fake Unix socket only; no AOS binary, daemon, GUI, TCC, or GPU",
       "status": "active"
     },
     {

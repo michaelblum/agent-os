@@ -74,6 +74,12 @@ export {
 } from './scene-registry.js'
 
 export {
+  GENERIC_SCENE_IMPLEMENTATIONS,
+  createGenericSceneImplementationRegistry,
+  createGenericThreeSceneProjection,
+} from './scene-generic-three.js'
+
+export {
   SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID,
   compileSceneSignalBindings,
   createSceneSignalController,

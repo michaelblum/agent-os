@@ -36,8 +36,9 @@ The shared DesktopWorld stage is toolkit policy running on a daemon
 DesktopWorld canvas primitive. Its compatible 2D and 3D outlets are the default
 host for ordinary desktop-wide visuals such as chips, drag ghosts, telemetry,
 avatar/radial visuals, and temporary affordances. The scene package now owns
-working dependency-injected local and DesktopWorld host policy; daemon-backed
-singleton scene transport remains a separate slice. Pair visual objects with
+working dependency-injected local and DesktopWorld host policy. The
+daemon-backed singleton transport is exposed only through owner/resource-scoped
+`scene-follow` leases. Pair visual objects with
 explicit interaction surfaces or input regions; do not make the full visual
 stage interactive by default. ADR 0024 owns the 3D outlet boundary.
 

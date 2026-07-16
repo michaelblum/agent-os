@@ -10,10 +10,11 @@ owns the public contracts for the DesktopWorld stage 3D outlet and currently
 exposes declarative scene contracts, implementation registration, atomic scene
 transactions, numeric signal and elapsed-clock animation bindings,
 dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
+the bounded generic Three implementation registry/projector,
 bounded renderer lifecycle, canvas lifecycle projections, and visual-object
-editing contracts. The toolkit hosts
-are operational with caller-supplied projections; the daemon-backed singleton
-shared stage is not operational until its transport slice exists.
+editing contracts. The public `scene-follow` transport leases owner-scoped
+resources onto the daemon-backed singleton DesktopWorld stage without exposing
+stage internals.
 
 ## Ownership
 
@@ -39,6 +40,9 @@ shared stage is not operational until its transport slice exists.
 - Signal and animation bindings carry finite numeric values only. Text, audio,
   prompts, product state vocabularies, and arbitrary timelines stay outside
   this contract.
+- Generic implementation parameter validators fail before projection. The
+  stock browser outlet uses the pinned local Three module and performs no
+  runtime network fetch; the package facade remains dependency-injected.
 
 ## Verification
 

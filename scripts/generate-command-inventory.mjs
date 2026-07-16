@@ -218,6 +218,7 @@ function capabilityGroup(command, form) {
   }
   if (top === 'do') return 'Desktop/native control';
   if (top === 'show') return 'Overlay/display';
+  if (top === 'scene') return 'Overlay/display';
   if (top === 'browser') return 'Browser companion';
   if (top === 'skills' && second === 'companion') return 'Browser companion';
   if (top === 'skills' || top === 'recipe') return 'Skills and recipes';
