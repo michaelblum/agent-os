@@ -25,6 +25,24 @@
       ],
       "guard": "static files and Node scripts only; no AOS binary, daemon, canvas, native input, or TCC",
       "status": "active"
+    },
+    {
+      "id": "legacy-sigil-content-root-retirement",
+      "path_patterns": [
+        "tests/legacy-sigil-content-root-retirement.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "legacy-config-retirement",
+      "harness_level": "model_unit",
+      "proof_kind": "legacy_content_root_retirement",
+      "contract": "AOS retires only the historical Sigil content root that resolves to the frozen apps/sigil fixture and preserves every external or user-defined content root.",
+      "worth": "This prevents the frozen product fixture from remaining servable after authority moved to the external Sigil repository without broad or heuristic config deletion.",
+      "command": "node --test tests/legacy-sigil-content-root-retirement.test.mjs",
+      "replaces": [
+        "manual removal of the stale embedded Sigil content root"
+      ],
+      "guard": "disposable pure Swift helper compile only; no AOS binary, daemon, config mutation, fixture mutation, GUI, or TCC",
+      "status": "active"
     }
   ]
 }

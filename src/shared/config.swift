@@ -243,8 +243,15 @@ func normalizeHotkeyCombo(_ value: String) -> String? {
 /// Load config from disk, falling back to defaults if missing or invalid.
 func loadConfig() -> AosConfig {
     guard let data = FileManager.default.contents(atPath: kAosConfigPath),
-          let config = try? JSONDecoder().decode(AosConfig.self, from: data) else {
+          var config = try? JSONDecoder().decode(AosConfig.self, from: data) else {
         return .defaults
+    }
+    if let roots = config.content?.roots, let repoRoot = aosCurrentRepoRoot() {
+        let retirement = retireLegacySigilContentRoot(roots, repoRoot: repoRoot)
+        if retirement.retired {
+            config.content?.roots = retirement.roots
+            saveConfig(config)
+        }
     }
     return config
 }
