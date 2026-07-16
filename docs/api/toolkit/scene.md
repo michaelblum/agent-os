@@ -22,7 +22,9 @@ global DesktopWorld coordinate plane. It uses one orthographic camera per
 physical display segment, so a resource appears at its declared desktop point
 without being independently centered on every display. All segments apply the
 same bounded operation; the primary segment emits the single authoritative
-result event.
+result event. The outlet uses the same animation and signal controllers as the
+public host API, preserving once/loop/ping-pong playback, easing, clamping, and
+time-based signal smoothing.
 
 The package does not depend on or bundle Three.js. Consumers own their Three.js
 version and pass renderer-, scene-, camera-, and resource-like objects into the

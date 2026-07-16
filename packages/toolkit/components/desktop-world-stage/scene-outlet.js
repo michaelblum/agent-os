@@ -2,8 +2,8 @@ import * as THREE from '../../vendor/three/three.module.min.js'
 import {
   applySceneTransaction,
   canonicalizeSceneDocument,
-  compileSceneAnimationBindings,
-  compileSceneSignalBindings,
+  createSceneAnimationController,
+  createSceneSignalController,
   createGenericSceneImplementationRegistry,
   createGenericThreeSceneProjection,
   deriveOrthoCamera,
@@ -28,7 +28,6 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   let disposed = false
   let hidden = false
   let contextLost = false
-  let lastAt = performance.now()
   let segment = null
 
   const updateSegment = (nextSegment) => {
@@ -59,6 +58,8 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     const mounted = resources.get(key)
     if (!mounted) return false
     scene.remove(mounted.projection.object)
+    mounted.animations.dispose()
+    mounted.signals.dispose()
     mounted.projection.dispose()
     resources.delete(key)
     return true
@@ -70,19 +71,30 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     if (!validation.ok) throw new TypeError('Scene document requires an unavailable or invalid implementation.')
     const previous = resources.get(key)
     const projection = createGenericThreeSceneProjection({ THREE, document })
+    let animations
+    let signals
+    try {
+      animations = createSceneAnimationController(document, {
+        apply: (binding, value, elapsedMs, progress) => projection.applyAnimation(binding, value, elapsedMs, progress),
+      })
+      signals = createSceneSignalController(document, {
+        apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
+      })
+    } catch (error) {
+      projection.dispose()
+      throw error
+    }
     projection.object.position.copy(previous?.projection.object.position ?? new THREE.Vector3())
     scene.add(projection.object)
     if (previous) {
       scene.remove(previous.projection.object)
       previous.projection.dispose()
     }
-    const signals = compileSceneSignalBindings(document)
-    const animations = compileSceneAnimationBindings(document)
     resources.set(key, {
       document,
       projection,
-      signals: signals.ok ? signals.bindings : [],
-      animations: animations.ok ? animations.bindings : [],
+      signals,
+      animations,
       suspended: false,
       signalWindowAt: 0,
       signalWindowCount: 0,
@@ -114,12 +126,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         mounted.signalWindowCount = 0
       }
       if (++mounted.signalWindowCount > MAX_SIGNALS_PER_SECOND) return true
-      for (const binding of mounted.signals.filter((entry) => entry.signalId === operation.signalId)) {
-        const span = binding.inputMax - binding.inputMin || 1
-        const ratio = Math.max(0, Math.min(1, (operation.value - binding.inputMin) / span))
-        const value = binding.outputMin + ratio * (binding.outputMax - binding.outputMin)
-        mounted.projection.applySignal(binding, value)
-      }
+      mounted.signals.publish(operation.signalId, operation.value, Number(operation.at) || Date.now())
     } else if (operation.op === 'play') {
       const mounted = resources.get(key)
       if (mounted) mounted.playStartedAt = performance.now()
@@ -137,17 +144,11 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
 
   const render = (at) => {
     if (disposed) return
-    const delta = Math.min(100, Math.max(0, at - lastAt))
-    lastAt = at
     if (!hidden && !contextLost) {
       for (const mounted of resources.values()) {
         if (mounted.suspended) continue
         const elapsed = at - (mounted.playStartedAt ?? at)
-        for (const binding of mounted.animations) {
-          const duration = Math.max(1, binding.durationMs)
-          const value = binding.from + ((elapsed % duration) / duration) * (binding.to - binding.from)
-          mounted.projection.applyAnimation(binding, value, delta)
-        }
+        mounted.animations.tick(elapsed)
       }
       renderer.render(scene, camera)
     }
