@@ -24,6 +24,9 @@ needs, but public command policy and product UI policy belong above it:
   the owning external product repository;
 - product-specific daemon branches are prohibited unless an explicit temporary
   adapter names its external contract and removal gate.
+- Historical embedded-product config residue may be retired only through an
+  exact key and repo-path migration. Preserve external or user-defined content
+  roots and never mutate the frozen product fixture during config cleanup.
 
 Shared native response serialization lives in
 `src/shared/response-envelope.swift`; direct replies and daemon connection
