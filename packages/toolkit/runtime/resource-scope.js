@@ -51,6 +51,7 @@ export function createResourceScope({
   let cleanupPromise = null
   const childCanvases = []
   const stageLayers = []
+  const stageObjects = []
   const inputRegions = []
   const subscriptions = []
   const customCleanups = []
@@ -58,6 +59,7 @@ export function createResourceScope({
   const cleanupStatus = {
     removedChildCanvases: false,
     removedStageLayers: false,
+    removedStageObjects: false,
     removedInputRegions: false,
     unsubscribed: false,
     retainedSubscriptions: false,
@@ -65,6 +67,7 @@ export function createResourceScope({
     removed: {
       childCanvasIds: [],
       stageLayerIds: [],
+      stageObjectIds: [],
       inputRegionIds: [],
       subscriptionEvents: [],
       cleanupIds: [],
@@ -97,6 +100,7 @@ export function createResourceScope({
       ownerCanvasId,
       childCanvasIds: childCanvases.map((entry) => entry.id),
       stageLayerIds: stageLayers.map((entry) => entry.id),
+      stageObjectIds: stageObjects.map((entry) => entry.id),
       inputRegionIds: inputRegions.map((entry) => entry.id),
       subscriptionEvents: uniqueList(subscriptions.flatMap((entry) => entry.events)),
       subscriptionEventsRetained,
@@ -109,6 +113,7 @@ export function createResourceScope({
         removed: {
           childCanvasIds: [...cleanupStatus.removed.childCanvasIds],
           stageLayerIds: [...cleanupStatus.removed.stageLayerIds],
+          stageObjectIds: [...cleanupStatus.removed.stageObjectIds],
           inputRegionIds: [...cleanupStatus.removed.inputRegionIds],
           subscriptionEvents: [...cleanupStatus.removed.subscriptionEvents],
           cleanupIds: [...cleanupStatus.removed.cleanupIds],
@@ -141,6 +146,12 @@ export function createResourceScope({
   function addStageLayer(id, options = {}) {
     const resource = normalizeResource('stageLayer', id, options)
     stageLayers.push(resource)
+    return resource.id
+  }
+
+  function addStageObject(id, options = {}) {
+    const resource = normalizeResource('stageObject', id, options)
+    stageObjects.push(resource)
     return resource.id
   }
 
@@ -204,6 +215,23 @@ export function createResourceScope({
           }
         } catch (error) {
           cleanupStatus.errors.push({ kind: 'inputRegion', id: resource.id, message: String(error?.message || error) })
+        }
+      }
+
+      for (const resource of [...stageObjects].reverse()) {
+        try {
+          if (await runCleanup(resource.remove, resource)) {
+            cleanupStatus.removedStageObjects = true
+            cleanupStatus.removed.stageObjectIds.push(resource.id)
+          } else {
+            cleanupStatus.couldNotClassify.push({
+              kind: 'stageObject',
+              id: resource.id,
+              reason: 'missing_cleanup_callback',
+            })
+          }
+        } catch (error) {
+          cleanupStatus.errors.push({ kind: 'stageObject', id: resource.id, message: String(error?.message || error) })
         }
       }
 
@@ -285,6 +313,7 @@ export function createResourceScope({
     addChildCanvas,
     adoptChildCanvas: addChildCanvas,
     addStageLayer,
+    addStageObject,
     addInputRegion,
     addSubscription,
     addBridgeHandler,

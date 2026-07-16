@@ -21,6 +21,9 @@ test('resource scope tracks owned resources and cleans up idempotently', async (
   scope.addStageLayer('layer-a', {
     remove: (resource) => calls.push(['layer', resource.id]),
   })
+  scope.addStageObject('object-a', {
+    remove: (resource) => calls.push(['object', resource.id]),
+  })
   scope.addInputRegion('region-a', {
     remove: (resource) => calls.push(['region', resource.id]),
   })
@@ -29,6 +32,7 @@ test('resource scope tracks owned resources and cleans up idempotently', async (
 
   assert.deepEqual(scope.getState().childCanvasIds, ['child-a', 'child-preserved'])
   assert.deepEqual(scope.getState().stageLayerIds, ['layer-a'])
+  assert.deepEqual(scope.getState().stageObjectIds, ['object-a'])
   assert.deepEqual(scope.getState().inputRegionIds, ['region-a'])
   assert.deepEqual(scope.getState().subscriptionEvents, ['canvas_lifecycle'])
   assert.equal(scope.getState().active, true)
@@ -38,6 +42,7 @@ test('resource scope tracks owned resources and cleans up idempotently', async (
 
   assert.deepEqual(calls, [
     ['region', 'region-a'],
+    ['object', 'object-a'],
     ['layer', 'layer-a'],
     ['child', 'child-a'],
     ['cleanup', 'custom-a'],
@@ -46,11 +51,13 @@ test('resource scope tracks owned resources and cleans up idempotently', async (
   assert.equal(cleanupState.active, false)
   assert.equal(cleanupState.cleanupStatus.removedInputRegions, true)
   assert.equal(cleanupState.cleanupStatus.removedStageLayers, true)
+  assert.equal(cleanupState.cleanupStatus.removedStageObjects, true)
   assert.equal(cleanupState.cleanupStatus.removedChildCanvases, true)
   assert.equal(cleanupState.cleanupStatus.retainedSubscriptions, true)
   assert.equal(cleanupState.cleanupStatus.unsubscribed, false)
   assert.deepEqual(cleanupState.cleanupStatus.removed.childCanvasIds, ['child-a'])
   assert.deepEqual(cleanupState.cleanupStatus.removed.stageLayerIds, ['layer-a'])
+  assert.deepEqual(cleanupState.cleanupStatus.removed.stageObjectIds, ['object-a'])
   assert.deepEqual(cleanupState.cleanupStatus.removed.inputRegionIds, ['region-a'])
   assert.deepEqual(cleanupState.cleanupStatus.removed.cleanupIds, ['custom-a'])
   assert.deepEqual(cleanupState.cleanupStatus.preserved.childCanvasIds, ['child-preserved'])
@@ -62,6 +69,7 @@ test('resource scope tracks owned resources and cleans up idempotently', async (
   assert.deepEqual(duplicateCleanupState, cleanupState)
   assert.deepEqual(cleanupState.childCanvasIds, ['child-a', 'child-preserved'])
   assert.deepEqual(cleanupState.stageLayerIds, ['layer-a'])
+  assert.deepEqual(cleanupState.stageObjectIds, ['object-a'])
   assert.deepEqual(cleanupState.inputRegionIds, ['region-a'])
 })
 
@@ -102,6 +110,22 @@ test('resource scope reports stage layers without cleanup callbacks', async () =
   assert.deepEqual(cleanupState.cleanupStatus.couldNotClassify, [{
     kind: 'stageLayer',
     id: 'layer-unclassified',
+    reason: 'missing_cleanup_callback',
+  }])
+})
+
+test('resource scope reports stage objects without cleanup callbacks', async () => {
+  const scope = createResourceScope({ id: 'scope-a', ownerCanvasId: 'panel-a' })
+
+  scope.addStageObject('object-unclassified')
+
+  const cleanupState = await scope.cleanup()
+
+  assert.equal(cleanupState.cleanupStatus.removedStageObjects, false)
+  assert.deepEqual(cleanupState.cleanupStatus.removed.stageObjectIds, [])
+  assert.deepEqual(cleanupState.cleanupStatus.couldNotClassify, [{
+    kind: 'stageObject',
+    id: 'object-unclassified',
     reason: 'missing_cleanup_callback',
   }])
 })

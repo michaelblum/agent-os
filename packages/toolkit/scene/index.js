@@ -46,3 +46,42 @@ export {
   createVisualObjectResourceLifecycleEvidence,
   validateVisualObjectResourceLifecycleEvidence,
 } from '../workbench/visual-object-resource-lifecycle.js'
+
+export {
+  SCENE_DOCUMENT_CONTRACT_ID,
+  SCENE_DOCUMENT_LIMITS,
+  SCENE_LEASE_CONTRACT_ID,
+  SCENE_TRANSACTION_CONTRACT_ID,
+  canonicalizeSceneDocument,
+  createSceneLease,
+  sceneDocumentRequiredImplementations,
+  validateSceneDocument,
+  validateSceneLease,
+  validateSceneTransaction,
+} from './scene-document.js'
+
+export { applySceneTransaction } from './scene-transaction.js'
+
+export {
+  SCENE_ANIMATION_BINDING_IMPLEMENTATION_ID,
+  compileSceneAnimationBindings,
+  createSceneAnimationController,
+} from './scene-animation.js'
+
+export {
+  SCENE_IMPLEMENTATION_KINDS,
+  createSceneImplementationRegistry,
+} from './scene-registry.js'
+
+export {
+  SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID,
+  compileSceneSignalBindings,
+  createSceneSignalController,
+} from './scene-signal.js'
+
+export {
+  DEFAULT_SCENE_HOST_BUDGETS,
+  SCENE_INSPECTION_CONTRACT_ID,
+  createDesktopWorldSceneHost,
+  createLocalSceneViewportHost,
+} from './scene-host.js'

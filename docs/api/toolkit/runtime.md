@@ -35,7 +35,8 @@ callbacks once the scope is inactive or cleaned up.
 
 For subject-family cleanup, use one resource scope per root subject family and
 register every owned runtime resource at the same boundary: cascade-owned child
-canvases with `addChildCanvas`, stage layers with `addStageLayer` and a
+canvases with `addChildCanvas`, stage layers with `addStageLayer`, declarative
+3D resources with `addStageObject`, and a
 `desktop_world_stage.layer.remove` callback, daemon input regions with
 `addInputRegion`, and any exclusive event claims with
 `addSubscription(..., { exclusive: true })`. Running `scope.cleanup()` is the
