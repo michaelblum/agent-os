@@ -6,6 +6,7 @@ import {
   compileSceneSignalBindings,
   createGenericSceneImplementationRegistry,
   createGenericThreeSceneProjection,
+  deriveOrthoCamera,
 } from '../../scene/index.js'
 
 const MAX_RESOURCES = 32
@@ -15,7 +16,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
   const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 1000)
+  const camera = new THREE.OrthographicCamera(0, 1, 0, 1, -1000, 1000)
   camera.position.set(0, 0, 7)
   scene.add(new THREE.AmbientLight(0xffffff, 1.8))
   const keyLight = new THREE.DirectionalLight(0xd8ccff, 3)
@@ -28,6 +29,21 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   let hidden = false
   let contextLost = false
   let lastAt = performance.now()
+  let segment = null
+
+  const updateSegment = (nextSegment) => {
+    const projection = deriveOrthoCamera(nextSegment)
+    if (!projection.width || !projection.height) return false
+    segment = nextSegment
+    camera.left = projection.left
+    camera.right = projection.right
+    camera.top = projection.top
+    camera.bottom = projection.bottom
+    camera.near = projection.near
+    camera.far = projection.far
+    camera.updateProjectionMatrix()
+    return true
+  }
 
   const resize = () => {
     const width = Math.max(1, Math.min(4096, Math.floor(canvas.clientWidth || hostWindow.innerWidth || 1)))
@@ -150,8 +166,17 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
 
   return Object.freeze({
     apply,
+    updateSegment,
     snapshot() {
-      return { contextLost, hidden, resources: resources.size, renderer: 'three', maxResources: MAX_RESOURCES }
+      return {
+        contextLost,
+        displayId: segment?.display_id ?? null,
+        hidden,
+        maxResources: MAX_RESOURCES,
+        projection: 'desktop-world-orthographic',
+        renderer: 'three',
+        resources: resources.size,
+      }
     },
     dispose() {
       if (disposed) return false
