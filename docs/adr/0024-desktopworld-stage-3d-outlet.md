@@ -71,13 +71,16 @@ assets and registered effect implementations, but they may not execute arbitrary
 consumer JavaScript. An untrusted executable extension host or cross-process
 texture-composition path requires a separate security decision.
 
-The initial implementation slice is deliberately narrower than the completed
-contract above. It adds strict scene-document, transaction, and lease schemas,
-required-implementation discovery, and ResourceScope accounting for stage
-objects. It does **not** yet add daemon command forms, shared-stage rendering,
-resource pooling, hit testing, animation evaluation, or cross-process scene
-replication. Those capabilities require separate reviewed slices and must not be
-claimed from the existence of the declarative contract alone.
+The initial implementation is deliberately narrower than the completed
+contract above. It adds strict scene-document, transaction, lease, registry,
+numeric signal and elapsed-clock animation bindings, inspection, local
+viewport, and DesktopWorld host policy plus ResourceScope accounting for stage
+objects. Hosts use trusted, dependency-injected projection factories and the
+existing bounded Three lifecycle. It does **not** add daemon command forms,
+singleton shared-stage transport, resource pooling, hit testing, arbitrary
+timeline or animation-graph evaluation, or cross-process scene replication.
+Those capabilities require separate reviewed slices and must not be claimed
+from the package host alone.
 
 ## Consequences
 

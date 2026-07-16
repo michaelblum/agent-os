@@ -7,10 +7,13 @@
 
 `scene/` is the narrow package facade for product-neutral scene authoring. It
 owns the public contracts for the DesktopWorld stage 3D outlet and currently
-exposes declarative scene contracts, the standalone Three adapter, bounded
-renderer lifecycle, canvas lifecycle projections, and visual-object editing
-contracts needed by external consumers. Do not describe the shared 3D host as
-operational until its daemon and toolkit runtime slices exist.
+exposes declarative scene contracts, implementation registration, atomic scene
+transactions, numeric signal and elapsed-clock animation bindings,
+dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
+bounded renderer lifecycle, canvas lifecycle projections, and visual-object
+editing contracts. The toolkit hosts
+are operational with caller-supplied projections; the daemon-backed singleton
+shared stage is not operational until its transport slice exists.
 
 ## Ownership
 
@@ -30,9 +33,15 @@ operational until its daemon and toolkit runtime slices exist.
   `docs/api/toolkit/scene.md` synchronized.
 - Renderer disposal applies only to resources the consumer explicitly gives
   the lifecycle; shared resource ownership remains with the consumer.
+- Scene documents never carry implementation code. Only trusted registry
+  entries and projection factories may execute, and failed preparation must
+  leave the active document and projection unchanged.
+- Signal and animation bindings carry finite numeric values only. Text, audio,
+  prompts, product state vocabularies, and arbitrary timelines stay outside
+  this contract.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs`
+- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs`
 
 ## Child DOX Index

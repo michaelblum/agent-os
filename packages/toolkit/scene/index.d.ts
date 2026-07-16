@@ -436,3 +436,291 @@ export function sceneDocumentRequiredImplementations(document: unknown): string[
 export function validateSceneTransaction(transaction: unknown): SceneValidationResult;
 export function validateSceneLease(lease: unknown): SceneValidationResult;
 export function createSceneLease(input: Omit<SceneLease, 'contract'>): Readonly<SceneLease>;
+
+export interface SceneTransactionSuccess {
+  ok: true;
+  document: SceneDocument;
+  previousRevision: number;
+  revision: number;
+  transactionId: string;
+}
+
+export interface SceneOperationFailure {
+  ok: false;
+  code: string;
+  errors: SceneValidationError[];
+}
+
+export function applySceneTransaction(
+  document: unknown,
+  transaction: unknown,
+  options?: { lease?: SceneLease },
+): SceneTransactionSuccess | SceneOperationFailure;
+
+export type SceneImplementationKind =
+  | 'component'
+  | 'effect'
+  | 'geometry'
+  | 'material'
+  | 'shader'
+  | 'texture';
+
+export interface SceneImplementationContext {
+  [key: string]: unknown;
+}
+
+export interface SceneImplementationEntry {
+  id: string;
+  kind: SceneImplementationKind;
+  builtin?: boolean;
+  create?: (context: SceneImplementationContext) => unknown;
+  update?: (context: SceneImplementationContext) => unknown;
+  dispose?: (context: SceneImplementationContext) => unknown;
+}
+
+export interface SceneImplementationRequirement {
+  id: string;
+  kind: SceneImplementationKind;
+  sourceId: string;
+  sourceKind: 'component' | 'resource';
+}
+
+export interface SceneImplementationRegistry {
+  register(entry: SceneImplementationEntry & { create: NonNullable<SceneImplementationEntry['create']> }): Readonly<SceneImplementationEntry>;
+  unregister(id: string): boolean;
+  resolve(id: string, expectedKind?: SceneImplementationKind | null): Readonly<SceneImplementationEntry> | null;
+  validateDocument(document: unknown): {
+    ok: boolean;
+    errors: SceneValidationError[];
+    missing: SceneImplementationRequirement[];
+    mismatched: Array<SceneImplementationRequirement & { registeredKind: SceneImplementationKind }>;
+  };
+  required(document: unknown): SceneImplementationRequirement[];
+  snapshot(): {
+    count: number;
+    implementations: Array<{ id: string; kind: SceneImplementationKind; builtin: boolean }>;
+  };
+}
+
+export const SCENE_IMPLEMENTATION_KINDS: readonly SceneImplementationKind[];
+export function createSceneImplementationRegistry(input?: {
+  entries?: Array<SceneImplementationEntry & { create: NonNullable<SceneImplementationEntry['create']> }>;
+}): Readonly<SceneImplementationRegistry>;
+
+export type SceneAnimationPlayback = 'once' | 'loop' | 'ping_pong';
+export type SceneAnimationEasing = 'linear' | 'ease_in_out';
+
+export interface SceneAnimationBinding {
+  id: string;
+  objectId: string;
+  componentId: string;
+  target: string;
+  from: number;
+  to: number;
+  durationMs: number;
+  delayMs: number;
+  playback: SceneAnimationPlayback;
+  easing: SceneAnimationEasing;
+}
+
+export interface SceneAnimationController {
+  tick(elapsedMs: number): number;
+  snapshot(): {
+    bindings: Array<Pick<SceneAnimationBinding, 'id' | 'objectId' | 'componentId' | 'target' | 'playback'>>;
+    disposed: boolean;
+    failures: number;
+    frames: number;
+  };
+  dispose(): boolean;
+}
+
+export const SCENE_ANIMATION_BINDING_IMPLEMENTATION_ID: 'aos.scene.animation.bind';
+export function compileSceneAnimationBindings(
+  document: unknown,
+  options?: { maxBindings?: number },
+): { ok: boolean; bindings: Readonly<SceneAnimationBinding>[]; errors: SceneValidationError[] };
+export function createSceneAnimationController(
+  document: unknown,
+  options: {
+    apply: (
+      binding: Readonly<SceneAnimationBinding>,
+      value: number,
+      elapsedMs: number,
+      progress: number,
+    ) => unknown;
+    maxBindings?: number;
+  },
+): Readonly<SceneAnimationController>;
+
+export interface SceneSignalBinding {
+  id: string;
+  objectId: string;
+  componentId: string;
+  signalId: string;
+  target: string;
+  inputMin: number;
+  inputMax: number;
+  outputMin: number;
+  outputMax: number;
+  smoothingMs: number;
+  clamp: boolean;
+}
+
+export interface SceneSignalController {
+  publish(signalId: string, input: number, at?: number): number;
+  snapshot(): {
+    bindings: Array<Pick<SceneSignalBinding, 'id' | 'objectId' | 'componentId' | 'signalId' | 'target'>>;
+    disposed: boolean;
+    failures: number;
+    publications: number;
+  };
+  dispose(): boolean;
+}
+
+export const SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID: 'aos.scene.signal.bind';
+export function compileSceneSignalBindings(
+  document: unknown,
+  options?: { maxBindings?: number },
+): { ok: boolean; bindings: Readonly<SceneSignalBinding>[]; errors: SceneValidationError[] };
+export function createSceneSignalController(
+  document: unknown,
+  options: {
+    apply: (
+      binding: Readonly<SceneSignalBinding>,
+      value: number,
+      input: number,
+      at: number,
+    ) => unknown;
+    maxBindings?: number;
+    now?: () => number;
+  },
+): Readonly<SceneSignalController>;
+
+export interface SceneHostBudgets {
+  maxAnimationBindings: number;
+  maxObjects: number;
+  maxResources: number;
+  maxSignalBindings: number;
+}
+
+export type SceneHostStatus =
+  | 'idle'
+  | 'mounting'
+  | 'ready'
+  | 'suspended'
+  | 'context_lost'
+  | 'recovering'
+  | 'error'
+  | 'disposed';
+
+export interface SceneProjection {
+  scene?: unknown;
+  camera?: ThreeCameraLike | null;
+  renderer?: ThreeRendererLike | null;
+  manageViewport?: boolean;
+  lifecycle?: ThreeRenderLifecycle;
+  activate?(): unknown | Promise<unknown>;
+  suspend?(): unknown;
+  resume?(): unknown;
+  contextLost?(): unknown;
+  applyAnimation?(
+    binding: Readonly<SceneAnimationBinding>,
+    value: number,
+    elapsedMs: number,
+    progress: number,
+  ): unknown;
+  applySignal?(
+    binding: Readonly<SceneSignalBinding>,
+    value: number,
+    input: number,
+    at: number,
+  ): unknown;
+  dispose(): unknown | Promise<unknown>;
+}
+
+export interface SceneProjectionContext {
+  budgets: Readonly<SceneHostBudgets>;
+  document: SceneDocument;
+  hostKind: 'local' | 'desktop-world' | string;
+  lease: Readonly<SceneLease>;
+  reason: 'mount' | 'transaction' | 'context_recovery';
+  registry: SceneImplementationRegistry;
+  reportContextLost(): SceneHostSnapshot;
+  tickAnimation(elapsedMs: number): number;
+}
+
+export interface SceneHostSnapshot {
+  hostKind: string;
+  status: SceneHostStatus;
+  disposed: boolean;
+  suspended: boolean;
+  revision: number;
+  objects: number;
+  resources: number;
+  budgets: Readonly<SceneHostBudgets>;
+  transactions: number;
+  contextLosses: number;
+  recoveries: number;
+  signalPublications: number;
+  signalFailures: number;
+  animationFrames: number;
+  animationFailures: number;
+  disposalErrors: Array<{ kind: string; message: string }>;
+}
+
+export interface SceneInspection {
+  contract: typeof SCENE_INSPECTION_CONTRACT_ID;
+  hostKind: string;
+  lease: Readonly<SceneLease>;
+  status: SceneHostStatus;
+  revision: number;
+  rootObjectId: string;
+  objects: Array<Pick<SceneObjectDescriptor, 'id' | 'parentId' | 'kind' | 'visible'>>;
+  resources: Array<Pick<SceneResourceDescriptor, 'id' | 'kind' | 'implementation' | 'asset'>>;
+  metadataKeys: string[];
+  implementations: {
+    missing: Array<{ id: string; kind: SceneImplementationKind }>;
+    mismatched: Array<{ id: string; kind: SceneImplementationKind; registeredKind: SceneImplementationKind }>;
+  };
+  signals: ReturnType<SceneSignalController['snapshot']>;
+  animations: ReturnType<SceneAnimationController['snapshot']>;
+  lifecycle: ThreeRenderLifecycleSnapshot | null;
+}
+
+export type SceneHostResult =
+  | { ok: true; snapshot: SceneHostSnapshot }
+  | SceneOperationFailure;
+
+export interface SceneHost {
+  mount(): Promise<SceneHostResult>;
+  transact(transaction: SceneTransaction): Promise<(
+    SceneTransactionSuccess & { snapshot: SceneHostSnapshot }
+  ) | SceneOperationFailure>;
+  publishSignal(signalId: string, value: number, at?: number): number;
+  tick(elapsedMs: number): number;
+  suspend(): SceneHostSnapshot;
+  resume(): SceneHostSnapshot;
+  markContextLost(): SceneHostSnapshot;
+  recoverContext(): Promise<SceneHostResult>;
+  inspect(): SceneInspection;
+  snapshot(): SceneHostSnapshot;
+  dispose(): Promise<SceneHostSnapshot>;
+}
+
+export interface SceneHostOptions {
+  document: SceneDocument;
+  lease: SceneLease;
+  registry: SceneImplementationRegistry;
+  prepareProjection(context: Readonly<SceneProjectionContext>): SceneProjection | Promise<SceneProjection>;
+  budgets?: Partial<SceneHostBudgets>;
+  now?: () => number;
+  onStatusChange?: (status: SceneHostStatus) => void;
+}
+
+export const DEFAULT_SCENE_HOST_BUDGETS: Readonly<SceneHostBudgets>;
+export const SCENE_INSPECTION_CONTRACT_ID: 'aos.scene.inspection.v1';
+export function createLocalSceneViewportHost(options: SceneHostOptions): Readonly<SceneHost>;
+export function createDesktopWorldSceneHost(options: SceneHostOptions & {
+  surface: DesktopWorldSurfaceThree;
+  surfaceHandlers?: Record<string, (...args: readonly unknown[]) => unknown>;
+}): Readonly<SceneHost>;

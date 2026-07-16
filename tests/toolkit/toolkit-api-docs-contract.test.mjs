@@ -71,8 +71,14 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene.md'], /createVisualObjectDescriptor/);
   assert.match(docs['docs/api/toolkit/scene.md'], /bindVisualObjectForm/);
   assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.document\.v1/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /createLocalSceneViewportHost/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /createDesktopWorldSceneHost/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.signal\.bind/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.animation\.bind/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /allocates no event object per binding per tick/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /aos\.scene\.inspection\.v1/);
   assert.match(docs['docs/api/toolkit/scene.md'], /validateSceneTransaction/);
-  assert.match(docs['docs/api/toolkit/scene.md'], /shared DesktopWorld 3D\s+host is operational/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /daemon-backed\s+singleton scene transport or cross-process replication exists/);
   assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
 
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);

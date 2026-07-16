@@ -29,7 +29,13 @@ const OPERATION_KINDS = new Set([
 ])
 
 function isRecord(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  try {
+    const prototype = Object.getPrototypeOf(value)
+    return prototype === Object.prototype || prototype === null
+  } catch {
+    return false
+  }
 }
 
 function addError(errors, code, path, message) {
@@ -217,6 +223,7 @@ function validateDocumentGraph(document, errors) {
   const resources = new Map()
   for (const [index, resource] of document.resources.entries()) {
     validateSceneResource(resource, `resources.${index}`, errors)
+    if (!isRecord(resource)) continue
     if (resources.has(resource?.id)) {
       addError(errors, 'duplicate_resource_id', `resources.${index}.id`, 'Scene resource IDs must be unique.')
     }
@@ -233,6 +240,7 @@ function validateDocumentGraph(document, errors) {
   }
   for (const [index, object] of document.objects.entries()) {
     validateSceneObject(object, `objects.${index}`, errors)
+    if (!isRecord(object)) continue
     if (objectIds.has(object?.id)) {
       addError(errors, 'duplicate_object_id', `objects.${index}.id`, 'Scene object IDs must be unique.')
     }
@@ -242,6 +250,7 @@ function validateDocumentGraph(document, errors) {
     addError(errors, 'missing_root_object', 'rootObjectId', 'Scene root object must exist.')
   }
   for (const [index, object] of document.objects.entries()) {
+    if (!isRecord(object)) continue
     if (object.parentId !== null && !objectIds.has(object.parentId)) {
       addError(errors, 'missing_parent_object', `objects.${index}.parentId`, 'Scene parent object must exist.')
     }
@@ -255,8 +264,11 @@ function validateDocumentGraph(document, errors) {
       }
     }
   }
-  const parentById = new Map(document.objects.map((object) => [object.id, object.parentId]))
+  const parentById = new Map(document.objects.flatMap((object) => (
+    isRecord(object) ? [[object.id, object.parentId]] : []
+  )))
   for (const [index, object] of document.objects.entries()) {
+    if (!isRecord(object)) continue
     const visited = new Set()
     let current = object.id
     let reachedRoot = false

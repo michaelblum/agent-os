@@ -14,8 +14,14 @@ dependency-injected helpers.
 ```js
 import {
   DesktopWorldSurfaceThree,
+  applySceneTransaction,
   canonicalizeSceneDocument,
+  createDesktopWorldSceneHost,
+  createSceneAnimationController,
+  createLocalSceneViewportHost,
+  createSceneImplementationRegistry,
   createSceneLease,
+  createSceneSignalController,
   createThreeRenderLifecycle,
   createVisualObjectDescriptor,
   bindVisualObjectForm,
@@ -38,16 +44,86 @@ material, effect, and component implementations needed to render it.
 
 `aos.scene.transaction.v1` carries owner/resource-scoped, revision-checked
 operations. `validateSceneTransaction()` validates the envelope and bounded
-operations; the future stage host remains responsible for lease ownership,
-revision matching, resource availability, and atomic application.
+operations. `applySceneTransaction()` additionally verifies the active lease,
+matches the current revision, applies the operations to an isolated candidate,
+validates its complete graph, and returns revision `n + 1`. A rejected
+transaction never mutates the supplied document.
 
 `createSceneLease()` produces an `aos.scene.lease.v1` identity containing the
 stage, owner, resource, and ResourceScope IDs. The contract does not create a
 daemon lease or shared renderer by itself.
 
-This initial contract slice is not evidence that the shared DesktopWorld 3D
-host is operational. Existing Three consumers still use the standalone adapter
-until the daemon and toolkit host slices are delivered.
+## Implementations, Animation, Signals, And Hosts
+
+`createSceneImplementationRegistry()` is the trusted-code boundary. Scene
+documents carry implementation IDs only; a host resolves those IDs to locally
+registered geometry, material, texture, shader, effect, and component
+factories. Missing or kind-mismatched implementations fail before projection
+work begins.
+
+The built-in `aos.scene.signal.bind` component maps one finite numeric signal
+to one relative projection target. Bindings support bounded input/output
+ranges, clamping, and time-based smoothing. `compileSceneSignalBindings()`
+validates them, while `createSceneSignalController()` applies values through a
+caller callback. The signal contract accepts no text, audio buffers, prompts,
+functions, or arbitrary property paths.
+
+The built-in `aos.scene.animation.bind` component maps an explicit elapsed
+clock to one finite numeric projection target. It supports bounded delay and
+duration, linear or ease-in-out interpolation, and once, loop, or ping-pong
+playback. `createSceneAnimationController()` performs no scheduling and
+allocates no event object per binding per tick; the host or consumer owns the
+clock. This is a numeric binding primitive, not a general timeline or
+consumer-code evaluator.
+
+`createLocalSceneViewportHost()` and `createDesktopWorldSceneHost()` own the
+same document, lease, registry, transaction, animation, signal, inspection,
+suspension, context-recovery, and disposal policy. Consumers provide a trusted
+`prepareProjection()` function that returns their Three scene, renderer,
+camera, bounded lifecycle, and deterministic disposal. Candidate projections
+activate before the previous projection is disposed; failed preparation leaves
+the active revision and projection unchanged.
+
+```js
+const registry = createSceneImplementationRegistry({
+  entries: [boxGeometry, physicalMaterial],
+})
+const lease = createSceneLease({
+  stageId: 'desktop-world/main',
+  ownerId: 'io.example.product',
+  resourceId: 'companion/main',
+  scopeId: 'connection/42',
+})
+const host = createLocalSceneViewportHost({
+  document,
+  lease,
+  registry,
+  prepareProjection: ({ document, registry, reportContextLost }) => (
+    buildProductProjection({ document, registry, reportContextLost })
+  ),
+})
+await host.mount()
+await host.transact(transaction)
+host.publishSignal('audio.rms', 0.45)
+host.tick(500)
+host.suspend()
+host.resume()
+await host.dispose()
+```
+
+`host.inspect()` returns `aos.scene.inspection.v1`: object/resource identities,
+implementation health, signal binding identities, lifecycle metrics, and
+metadata keys without parameter values or metadata content. Default host
+budgets cap documents at 1,024 objects, 256 resources, 1,024 numeric signal
+bindings, and 1,024 numeric animation bindings. Projection callback failures
+are contained and exposed only as redacted counters. The underlying Three
+lifecycle retains its stricter canvas limits.
+
+The DesktopWorld host wraps `DesktopWorldSurfaceThree` and mounts the same
+prepared projection used by a local viewport. This package host is operational
+with dependency-injected projections. It is not evidence that daemon-backed
+singleton scene transport or cross-process replication exists; those remain a
+separate runtime slice.
 
 ## Three Renderer Lifecycle
 
@@ -155,8 +231,10 @@ proof contracts, not a resource manager.
 
 ## Ownership Boundary
 
-This API owns reusable renderer and binding mechanics only. External products
-own persona, representation selection, scene schema, materials, effects,
-animation mapping, editor layout, persistence, authority, and approval policy.
+This API owns the generic declarative scene schema, host policy, renderer
+lifecycle, numeric signal mapping, transactions, inspection, and binding
+mechanics. External products own persona, representation selection, definition
+schema, materials and effect recipes, semantic state mapping, editor layout,
+persistence, authority, and approval policy.
 Importing this package grants no AOS command execution, daemon socket access,
 native input, TCC permission, or product identity.
