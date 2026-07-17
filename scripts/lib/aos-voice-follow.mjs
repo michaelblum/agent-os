@@ -28,6 +28,7 @@ const SAFE_DAEMON_ERRORS = new Map([
   ['MICROPHONE_UNAVAILABLE', 'microphone input is unavailable'],
   ['HOTKEY_LEASE_BUSY', 'a voice hotkey listener is already active'],
   ['CAPTURE_LEASE_BUSY', 'microphone capture is already active'],
+  ['CAPTURE_CANCELED', 'microphone capture was canceled before startup'],
   ['SPEECH_LEASE_BUSY', 'speech playback is already active'],
   ['CAPTURE_ACTIVE', 'speech cannot start during microphone capture'],
   ['INVALID_SHORTCUT', 'unsupported voice shortcut'],

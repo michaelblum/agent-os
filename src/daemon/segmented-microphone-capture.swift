@@ -179,8 +179,14 @@ final class AOSAtomicVoiceSegmentWriter {
                 source.advanced(by: Int(sourceOffset)),
                 Int(frameCount) * MemoryLayout<Int16>.size
             )
+            guard let currentFile else {
+                throw AOSVoiceTransportFailure(
+                    code: "CAPTURE_WRITE_FAILED",
+                    message: "voice segment writer is unavailable"
+                )
+            }
             do {
-                try currentFile?.write(from: slice)
+                try currentFile.write(from: slice)
             } catch {
                 throw AOSVoiceTransportFailure(
                     code: "CAPTURE_WRITE_FAILED",
@@ -316,6 +322,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private var converter: AVAudioConverter?
     private var meterTimer: DispatchSourceTimer?
     private var startedAt: DispatchTime?
+    private var tapInstalled = false
     private var sequence = 0
     private var lastMetrics = AOSAudioFrameMetrics(rms: 0, peak: 0)
 
@@ -344,6 +351,15 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     }
 
     func start() throws {
+        finishLock.lock()
+        defer { finishLock.unlock() }
+        guard !finishRequested else {
+            writer.cancel()
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_CANCELED",
+                message: "microphone capture was canceled before startup"
+            )
+        }
         var startupError: Error?
         aosRunOnMainSync {
             let input = engine.inputNode
@@ -363,11 +379,15 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
                 guard let self, let copy = aosCopyPCMBuffer(buffer) else { return }
                 self.queue.async { self.receive(copy) }
             }
+            tapInstalled = true
             engine.prepare()
             do {
                 try engine.start()
             } catch {
-                input.removeTap(onBus: 0)
+                if tapInstalled {
+                    input.removeTap(onBus: 0)
+                    tapInstalled = false
+                }
                 startupError = AOSVoiceTransportFailure(
                     code: "MICROPHONE_UNAVAILABLE",
                     message: "microphone input is unavailable"
@@ -542,9 +562,12 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         reason: String,
         failureCode: String?
     ) {
-        guard !finished else { return }
-        finished = true
         finishLock.lock()
+        guard !finished else {
+            finishLock.unlock()
+            return
+        }
+        finished = true
         finishRequested = true
         finishLock.unlock()
         meterTimer?.cancel()
@@ -596,8 +619,11 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
 
     private func stopEngine() {
         aosRunOnMainSync {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
+            if tapInstalled {
+                engine.inputNode.removeTap(onBus: 0)
+                tapInstalled = false
+            }
+            if engine.isRunning { engine.stop() }
         }
     }
 }

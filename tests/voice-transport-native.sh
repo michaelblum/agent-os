@@ -328,6 +328,33 @@ struct VoiceTransportNativeTest {
             require(failure.code == "INVALID_SEGMENT_DURATION", "wrong segment duration error")
         }
 
+        let preStartCancelCompleted = DispatchSemaphore(value: 0)
+        let canceledBeforeStart = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "cancel-before-start",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            authorizationState: { .authorized },
+            emit: { event, data in
+                require(event == "capture_segmented_canceled", "pre-start cancel emitted an unexpected event")
+                require(data["reason"] as? String == "superseded", "pre-start cancel reason drifted")
+            },
+            terminal: { _ in preStartCancelCompleted.signal() }
+        )
+        canceledBeforeStart.cancel(reason: "superseded")
+        let preStartCancelDeadline = Date().addingTimeInterval(2)
+        var preStartCancelDidComplete = false
+        while !preStartCancelDidComplete, Date() < preStartCancelDeadline {
+            preStartCancelDidComplete = preStartCancelCompleted.wait(timeout: .now()) == .success
+            if !preStartCancelDidComplete {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+            }
+        }
+        require(preStartCancelDidComplete, "pre-start segment cancellation did not terminate")
+        let namesAfterPreStartCancel = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterPreStartCancel.isEmpty, "pre-start segment cancellation left output")
+
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4)!
         buffer.frameLength = 4
