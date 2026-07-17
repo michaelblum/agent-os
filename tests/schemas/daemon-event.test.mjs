@@ -85,9 +85,24 @@ test('voice event vocabulary is strict across dictation, capture, and speech', a
     'capture_segmented_canceled',
     'capture_segmented_failed',
     'audio_frame',
+    'playback_started',
+    'playback_finished',
+    'playback_canceled',
+    'playback_failed',
     'speech_started',
     'speech_finished',
     'speech_canceled',
     'speech_failed',
+  ]);
+});
+
+test('annotation event vocabulary is strict across desktop selection lifecycle', async () => {
+  const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
+  const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'annotation' && !item.if?.properties?.event);
+  assert.deepEqual(rule.then.properties.event.enum, [
+    'selection_started',
+    'selection_completed',
+    'selection_canceled',
+    'selection_failed',
   ]);
 });

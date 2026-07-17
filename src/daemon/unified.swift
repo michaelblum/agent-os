@@ -109,6 +109,9 @@ class UnifiedDaemon {
     private lazy var voiceTransport = AOSVoiceTransport { [weak self] owner, event, data, ref in
         self?.emitVoiceTransportEvent(to: owner, event: event, data: data, ref: ref)
     }
+    private lazy var annotationSelection = AOSAnnotationSelectionTransport { [weak self] owner, event, data, ref in
+        self?.emitConnectionEvent(service: "annotation", to: owner, event: event, data: data, ref: ref)
+    }
     private var contentServer: ContentServer?
     let coordination = CoordinationBus()
 
@@ -589,7 +592,17 @@ class UnifiedDaemon {
         data: [String: Any],
         ref: String?
     ) {
-        guard let bytes = envelopeBytes(service: "voice", event: event, data: data, ref: ref) else { return }
+        emitConnectionEvent(service: "voice", to: connectionID, event: event, data: data, ref: ref)
+    }
+
+    private func emitConnectionEvent(
+        service: String,
+        to connectionID: UUID,
+        event: String,
+        data: [String: Any],
+        ref: String?
+    ) {
+        guard let bytes = envelopeBytes(service: service, event: event, data: data, ref: ref) else { return }
         subscriberLock.lock()
         let writer = subscribers[connectionID]?.outbound
         subscriberLock.unlock()
@@ -2501,6 +2514,7 @@ class UnifiedDaemon {
 
         defer {
             voiceTransport.connectionClosed(connectionID)
+            annotationSelection.connectionClosed(connectionID)
             cleanupSceneLeases(connectionID)
             subscriberLock.lock()
             if let conn = subscribers[connectionID] {
@@ -2774,7 +2788,10 @@ class UnifiedDaemon {
         case ("voice", "next"):               return "voice-next"
         case ("voice", "final_response"):     return "voice-final-response"
         case ("voice", "speak"):              return "voice-speak"
+        case ("voice", "playback"):           return "voice-playback"
         case ("voice", "cancel"):             return "voice-speech-cancel"
+        case ("annotation", "select"):        return "annotation-select"
+        case ("annotation", "cancel"):        return "annotation-select-cancel"
         case ("scene", "follow"):             return "scene-follow"
         case ("system", "ping"):              return "ping"
         // Content server actions
@@ -2867,7 +2884,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "scene", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "annotation", "scene", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -3161,6 +3178,24 @@ class UnifiedDaemon {
                 sendVoiceTransportError(to: outbound, message: "speech playback failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
+        case "voice-playback":
+            guard let inputPath = json["audio_path"] as? String, !inputPath.isEmpty else {
+                sendVoiceTransportError(to: outbound, message: "audio path required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            do {
+                try voiceTransport.startPlayback(
+                    owner: connectionID,
+                    inputPath: inputPath,
+                    ref: envelopeRef
+                )
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: outbound, message: "audio playback failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
         case "voice-speech-cancel":
             do {
                 try voiceTransport.stopSpeech(owner: connectionID, reason: "canceled")
@@ -3169,6 +3204,30 @@ class UnifiedDaemon {
                 sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
                 sendVoiceTransportError(to: outbound, message: "speech cancellation failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "annotation-select":
+            guard let mode = json["mode"] as? String, !mode.isEmpty else {
+                sendResponseJSON(to: outbound, ["error": "annotation mode required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            do {
+                try annotationSelection.start(owner: connectionID, mode: mode, ref: envelopeRef)
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSAnnotationSelectionFailure {
+                sendResponseJSON(to: outbound, ["error": failure.message, "code": failure.code], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendResponseJSON(to: outbound, ["error": "annotation selection failed", "code": "ANNOTATION_SELECTION_FAILED"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "annotation-select-cancel":
+            do {
+                try annotationSelection.cancel(owner: connectionID, reason: "canceled")
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSAnnotationSelectionFailure {
+                sendResponseJSON(to: outbound, ["error": failure.message, "code": failure.code], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendResponseJSON(to: outbound, ["error": "annotation cancellation failed", "code": "ANNOTATION_SELECTION_FAILED"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-assignments":
@@ -4189,6 +4248,7 @@ class UnifiedDaemon {
         isShuttingDown = true
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         voiceTransport.shutdown()
+        annotationSelection.shutdown()
         restoreNativeCursorSuppressionForExit()
         perception.stop()
         spatial.stopPolling()

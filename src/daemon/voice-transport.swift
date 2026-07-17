@@ -471,7 +471,7 @@ func aosRunOnMainSync(_ operation: () -> Void) {
     }
 }
 
-private final class AOSStreamingSpeechSession {
+private final class AOSStreamingSpeechSession: AOSVoiceOutputLease {
     let token = UUID()
     let owner: UUID
     let ref: String?
@@ -662,7 +662,7 @@ final class AOSVoiceTransport {
     private let microphoneAuthorization: AOSMicrophoneAuthorizationProviding
     private var hotkey: HotkeyLease?
     private var capture: (any AOSMicrophoneCaptureLease)?
-    private var speech: AOSStreamingSpeechSession?
+    private var output: (any AOSVoiceOutputLease)?
 
     init(
         emit: @escaping EventEmitter,
@@ -733,7 +733,6 @@ final class AOSVoiceTransport {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
         }
-        let activeSpeech = speech
         lock.unlock()
 
         var authorization = microphoneAuthorization.status()
@@ -743,8 +742,6 @@ final class AOSVoiceTransport {
         if let failure = authorization.failure {
             throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
         }
-        activeSpeech?.cancel(reason: "barge_in")
-
         let session = try AOSMicrophoneCaptureSession(
             owner: owner,
             ref: ref,
@@ -760,8 +757,10 @@ final class AOSVoiceTransport {
             session.cancel(reason: "superseded")
             throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
         }
+        let outputToCancel = output
         capture = session
         lock.unlock()
+        outputToCancel?.cancel(reason: "barge_in")
         do {
             try session.start()
         } catch {
@@ -782,7 +781,6 @@ final class AOSVoiceTransport {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
         }
-        let activeSpeech = speech
         lock.unlock()
 
         var authorization = microphoneAuthorization.status()
@@ -792,8 +790,6 @@ final class AOSVoiceTransport {
         if let failure = authorization.failure {
             throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
         }
-        activeSpeech?.cancel(reason: "barge_in")
-
         let session = try AOSSegmentedMicrophoneCaptureSession(
             owner: owner,
             ref: ref,
@@ -810,8 +806,10 @@ final class AOSVoiceTransport {
             session.cancel(reason: "superseded")
             throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
         }
+        let outputToCancel = output
         capture = session
         lock.unlock()
+        outputToCancel?.cancel(reason: "barge_in")
         do {
             try session.start()
         } catch {
@@ -836,7 +834,7 @@ final class AOSVoiceTransport {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "speech cannot start during microphone capture")
         }
-        guard speech == nil else {
+        guard output == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "SPEECH_LEASE_BUSY", message: "speech playback is already active")
         }
@@ -849,21 +847,64 @@ final class AOSVoiceTransport {
             voiceID: voiceID,
             rateWPM: rateWPM,
             emit: { [emit] event, data in emit(owner, event, data, ref) },
-            terminal: { [weak self] token in self?.speechDidTerminate(token: token) }
+            terminal: { [weak self] token in self?.outputDidTerminate(token: token) }
         )
         lock.lock()
-        guard speech == nil else {
+        guard capture == nil else {
+            lock.unlock()
+            throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "speech cannot start during microphone capture")
+        }
+        guard output == nil else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "SPEECH_LEASE_BUSY", message: "speech playback is already active")
         }
-        speech = session
+        output = session
         lock.unlock()
         session.start()
     }
 
+    func startPlayback(owner: UUID, inputPath: String, ref: String?) throws {
+        lock.lock()
+        guard capture == nil else {
+            lock.unlock()
+            throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "audio playback cannot start during microphone capture")
+        }
+        guard output == nil else {
+            lock.unlock()
+            throw AOSVoiceTransportFailure(code: "SPEECH_LEASE_BUSY", message: "voice output is already active")
+        }
+        lock.unlock()
+
+        let session = try AOSAudioPlaybackSession(
+            owner: owner,
+            ref: ref,
+            inputPath: inputPath,
+            emit: { [emit] event, data in emit(owner, event, data, ref) },
+            terminal: { [weak self] token in self?.outputDidTerminate(token: token) }
+        )
+        lock.lock()
+        guard capture == nil else {
+            lock.unlock()
+            throw AOSVoiceTransportFailure(code: "CAPTURE_ACTIVE", message: "audio playback cannot start during microphone capture")
+        }
+        guard output == nil else {
+            lock.unlock()
+            session.cancel(reason: "superseded")
+            throw AOSVoiceTransportFailure(code: "SPEECH_LEASE_BUSY", message: "voice output is already active")
+        }
+        output = session
+        lock.unlock()
+        do {
+            try session.start()
+        } catch {
+            outputDidTerminate(token: session.token)
+            throw error
+        }
+    }
+
     func stopSpeech(owner: UUID, reason: String) throws {
         lock.lock()
-        guard let session = speech, session.owner == owner else {
+        guard let session = output, session.owner == owner else {
             lock.unlock()
             throw AOSVoiceTransportFailure(code: "SPEECH_NOT_OWNED", message: "this connection does not own speech playback")
         }
@@ -875,20 +916,20 @@ final class AOSVoiceTransport {
         lock.lock()
         if hotkey?.owner == owner { hotkey = nil }
         let captureToCancel = capture?.owner == owner ? capture : nil
-        let speechToCancel = speech?.owner == owner ? speech : nil
+        let outputToCancel = output?.owner == owner ? output : nil
         lock.unlock()
         captureToCancel?.cancel(reason: "owner_disconnect")
-        speechToCancel?.cancel(reason: "owner_disconnect")
+        outputToCancel?.cancel(reason: "owner_disconnect")
     }
 
     func shutdown() {
         lock.lock()
         hotkey = nil
         let captureToCancel = capture
-        let speechToCancel = speech
+        let outputToCancel = output
         lock.unlock()
         captureToCancel?.cancel(reason: "daemon_shutdown")
-        speechToCancel?.cancel(reason: "daemon_shutdown")
+        outputToCancel?.cancel(reason: "daemon_shutdown")
     }
 
     private func captureDidTerminate(token: UUID) {
@@ -897,9 +938,9 @@ final class AOSVoiceTransport {
         lock.unlock()
     }
 
-    private func speechDidTerminate(token: UUID) {
+    private func outputDidTerminate(token: UUID) {
         lock.lock()
-        if speech?.token == token { speech = nil }
+        if output?.token == token { output = nil }
         lock.unlock()
     }
 }

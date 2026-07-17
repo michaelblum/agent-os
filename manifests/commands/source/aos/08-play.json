@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "play",
+  "path_prefix": [
+    "play"
+  ],
+  "commands": [
+    {
+      "path": [
+        "play"
+      ],
+      "summary": "Play bounded owner-only audio through the daemon output broker",
+      "forms": [
+        {
+          "id": "play-audio-follow",
+          "summary": "Play one canonical owner-only WAV while streaming lifecycle and meter events",
+          "usage": "aos play --audio <absolute.wav> --follow",
+          "args": [
+            {
+              "id": "audio",
+              "kind": "flag",
+              "required": true,
+              "summary": "Canonical WAV in an owner-only directory",
+              "token": "--audio",
+              "value_type": "path"
+            },
+            {
+              "id": "follow",
+              "kind": "flag",
+              "required": true,
+              "summary": "Stream playback lifecycle and meter events",
+              "token": "--follow",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos play --audio /private/tmp/aos-command/audio.wav --follow"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          }
+        }
+      ]
+    }
+  ]
+}

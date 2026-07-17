@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
   array,
   fail,
@@ -193,6 +194,123 @@ export function normalizeSourceCapture(value) {
   };
 }
 
+const DESKTOP_SELECTION_MODES = new Set(['point', 'rectangle', 'freehand', 'text']);
+const DESKTOP_SELECTION_COORDINATE_SPACE = 'desktop_points_top_left';
+const DESKTOP_SELECTION_MAX_POINTS = 256;
+const DESKTOP_SELECTION_ID = /^sel-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function finiteNumber(value, label) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    fail(`${label} must be a finite number`, 'INVALID_ARG');
+  }
+  return value;
+}
+
+function boundedNullableString(value, label, maxBytes) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > maxBytes) {
+    fail(`${label} must be null or at most ${maxBytes} UTF-8 bytes`, 'INVALID_ARG');
+  }
+  return value;
+}
+
+function normalizeDesktopBounds(value, label) {
+  if (!isObject(value)) fail(`${label} must be an object`, 'INVALID_ARG');
+  return {
+    x: finiteNumber(value.x, `${label}.x`),
+    y: finiteNumber(value.y, `${label}.y`),
+    width: finiteNumber(value.width, `${label}.width`),
+    height: finiteNumber(value.height, `${label}.height`),
+  };
+}
+
+function normalizeDesktopGeometry(value, mode) {
+  if (!isObject(value)) fail('desktop_selection.geometry must be an object', 'INVALID_ARG');
+  if (value.coordinate_space !== DESKTOP_SELECTION_COORDINATE_SPACE) {
+    fail(`desktop_selection.geometry.coordinate_space must be ${DESKTOP_SELECTION_COORDINATE_SPACE}`, 'INVALID_ARG');
+  }
+  const kind = requiredText(value.kind, 'desktop_selection.geometry.kind');
+  if ((mode === 'point' || mode === 'text') && kind !== 'point') {
+    fail('point and text selections require point geometry', 'INVALID_ARG');
+  }
+  if (mode === 'rectangle' && kind !== 'rectangle') {
+    fail('rectangle selections require rectangle geometry', 'INVALID_ARG');
+  }
+  if (mode === 'freehand' && kind !== 'freehand') {
+    fail('freehand selections require freehand geometry', 'INVALID_ARG');
+  }
+  if (kind === 'point') {
+    return {
+      kind,
+      coordinate_space: DESKTOP_SELECTION_COORDINATE_SPACE,
+      x: finiteNumber(value.x, 'desktop_selection.geometry.x'),
+      y: finiteNumber(value.y, 'desktop_selection.geometry.y'),
+    };
+  }
+  if (kind === 'rectangle') {
+    const geometry = normalizeDesktopBounds(value, 'desktop_selection.geometry');
+    if (geometry.width < 0 || geometry.height < 0) {
+      fail('desktop_selection rectangle dimensions must be non-negative', 'INVALID_ARG');
+    }
+    return { kind, coordinate_space: DESKTOP_SELECTION_COORDINATE_SPACE, ...geometry };
+  }
+  if (kind === 'freehand') {
+    if (!Array.isArray(value.points) || value.points.length < 1 || value.points.length > DESKTOP_SELECTION_MAX_POINTS) {
+      fail(`desktop_selection freehand points must contain 1 to ${DESKTOP_SELECTION_MAX_POINTS} points`, 'INVALID_ARG');
+    }
+    const points = value.points.map((point, index) => {
+      if (!isObject(point)) fail(`desktop_selection.geometry.points[${index}] must be an object`, 'INVALID_ARG');
+      return {
+        x: finiteNumber(point.x, `desktop_selection.geometry.points[${index}].x`),
+        y: finiteNumber(point.y, `desktop_selection.geometry.points[${index}].y`),
+      };
+    });
+    const bounds = normalizeDesktopBounds(value.bounds, 'desktop_selection.geometry.bounds');
+    if (bounds.width < 0 || bounds.height < 0) {
+      fail('desktop_selection freehand bounds must be non-negative', 'INVALID_ARG');
+    }
+    return { kind, coordinate_space: DESKTOP_SELECTION_COORDINATE_SPACE, points, bounds };
+  }
+  fail(`Unsupported desktop selection geometry: ${kind}`, 'INVALID_ARG');
+}
+
+export function normalizeDesktopSelection(value) {
+  if (value === null || value === undefined) return null;
+  if (!isObject(value)) fail('desktop_selection must be an object or null', 'INVALID_ARG');
+  const mode = requiredText(value.mode, 'desktop_selection.mode');
+  if (!DESKTOP_SELECTION_MODES.has(mode)) fail(`Unsupported desktop selection mode: ${mode}`, 'INVALID_ARG');
+  if (!DESKTOP_SELECTION_ID.test(value.selection_id)) {
+    fail('desktop selection id must be a canonical sel-prefixed UUID', 'INVALID_ARG');
+  }
+  if (!isObject(value.application)) fail('desktop_selection.application must be an object', 'INVALID_ARG');
+  if (!Number.isInteger(value.application.pid) || value.application.pid < -1) {
+    fail('desktop_selection.application.pid must be an integer >= -1', 'INVALID_ARG');
+  }
+  let window = null;
+  if (value.window !== null && value.window !== undefined) {
+    if (!isObject(value.window) || !Number.isInteger(value.window.window_id) || value.window.window_id < -1) {
+      fail('desktop_selection.window must contain window_id >= -1', 'INVALID_ARG');
+    }
+    window = {
+      window_id: value.window.window_id,
+      title: boundedNullableString(value.window.title, 'desktop_selection.window.title', 512),
+      bounds: normalizeDesktopBounds(value.window.bounds, 'desktop_selection.window.bounds'),
+    };
+  }
+  return {
+    kind: 'desktop_annotation_selection',
+    selection_id: value.selection_id,
+    mode,
+    geometry: normalizeDesktopGeometry(value.geometry, mode),
+    application: {
+      pid: value.application.pid,
+      name: boundedNullableString(value.application.name, 'desktop_selection.application.name', 256),
+      bundle_id: boundedNullableString(value.application.bundle_id, 'desktop_selection.application.bundle_id', 256),
+    },
+    window,
+  };
+}
+
 function recordContext(context = {}) {
   return {
     runtime_mode: requiredText(context.runtime_mode, 'record context runtime_mode'),
@@ -228,6 +346,7 @@ export function normalizeRecordInput(input, context = {}) {
     fallbackOnly: capability.status !== 'saved_ref',
     workspace: workspaceForNext,
   });
+  const desktopSelection = normalizeDesktopSelection(input.desktop_selection);
   return {
     schema_version: SCHEMA_VERSION,
     id,
@@ -257,6 +376,7 @@ export function normalizeRecordInput(input, context = {}) {
     artifact_refs: normalizeArtifactRefs(input.artifact_refs ?? []),
     recommended_next: recommendedNext,
     source_capture: normalizeSourceCapture(input.source_capture),
+    ...(desktopSelection ? { desktop_selection: desktopSelection } : {}),
     work_record_links: normalizeWorkRecordLinks(input.work_record_links),
     paths: {
       root: ctx.pending_root,
@@ -333,6 +453,16 @@ function assertSourceCapture(value) {
   );
 }
 
+function assertDesktopSelection(value) {
+  if (value === undefined) return true;
+  if (value === null) return false;
+  try {
+    return isDeepStrictEqual(value, normalizeDesktopSelection(value));
+  } catch {
+    return false;
+  }
+}
+
 export function validateCapabilityInvariants(value) {
   const savedRefAvailable = value.target.saved_ref !== null;
   if (value.capability.saved_ref_available !== savedRefAvailable) return false;
@@ -383,6 +513,7 @@ export function isPendingAnnotationRecord(value) {
     || value.recommended_next.length < 1
     || !Object.hasOwn(value, 'source_capture')
     || !assertSourceCapture(value.source_capture)
+    || !assertDesktopSelection(value.desktop_selection)
     || !Array.isArray(value.work_record_links)
     || !isObject(value.paths)
     || !nonEmptyString(value.paths.root)

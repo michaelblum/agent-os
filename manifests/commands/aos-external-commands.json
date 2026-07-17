@@ -1036,11 +1036,24 @@
         "scripts/aos-subcommand-router.mjs",
         "see annotation",
         "MISSING_SUBCOMMAND",
-        "see annotation requires a subcommand. Usage: aos see annotation <create|list|read|consume|link-work-record|delete> ...",
+        "see annotation requires a subcommand. Usage: aos see annotation <select|create|list|read|consume|link-work-record|delete> ...",
         "UNKNOWN_SUBCOMMAND",
         "see annotation subcommand"
       ],
       "cwd": "repo"
+    },
+    {
+      "path": ["see", "annotation", "select"],
+      "summary": "Select bounded desktop annotation evidence and persist it through the pending-annotation queue.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-annotation-select.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["see", "annotation", "create"],
@@ -1569,6 +1582,19 @@
       "cwd": "repo"
     },
     {
+      "path": ["play"],
+      "summary": "Stream bounded audio playback through the daemon voice-output broker.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-play.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["say"],
       "summary": "Speak text through one-shot or streamed system-speech forms.",
       "executable": "/usr/bin/env",
@@ -2068,6 +2094,22 @@
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH"
       }
+    },
+    {
+      "path": ["shortcut"],
+      "summary": "Run explicitly named Apple Shortcuts through a bounded shell-free adapter.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-shortcut.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit"
+    },
+    {
+      "path": ["shortcut", "run"],
+      "summary": "Run one exact Apple Shortcut through the bounded adapter.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-shortcut.mjs", "run"],
+      "cwd": "repo",
+      "stdio": "inherit"
     },
     {
       "path": ["recipe"],

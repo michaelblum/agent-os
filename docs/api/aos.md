@@ -124,9 +124,11 @@ The current top-level commands are:
 | `aos introspect` | Session self-review over recent `./aos` usage |
 | `aos help` | Registry and command-specific help |
 | `aos say` | Voice output |
+| `aos play` | Bounded owner-only audio playback with exact meter events |
 | `aos voice` | registry-backed voice catalog, assignments, providers, and session bindings |
 | `aos tell` | Communication output: human, channel, or direct session routing |
 | `aos listen` | Communication input: channel/direct-session reads, global hotkeys, and bounded microphone capture |
+| `aos shortcut` | Bounded execution of one explicitly named Apple Shortcut |
 | `aos wiki` | local knowledge-base workflows |
 | `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
@@ -318,7 +320,10 @@ daemon runtime state.
 Pending operator annotations live under
 `~/.config/aos/{repo|installed}/pending-annotations/`, or
 `$AOS_STATE_ROOT/{repo|installed}/pending-annotations/` when the state root is
-overridden. Use `aos see annotation create` to create or ingest one pending
+overridden. Use `aos see annotation select --mode
+<point|rectangle|freehand|text> --follow` to collect one native desktop
+selection and persist it before completion, `aos see annotation create` to
+create or ingest one pending
 record, `aos see annotation list` for compact summaries, `aos see annotation
 read <id>` for one compact record, `aos see annotation consume <id>` to drain it
 once, `aos see annotation link-work-record <id> --work-record <ref>` to attach
@@ -340,6 +345,13 @@ rebuildable cache, and read/list derives from records without repairing state
 so an index write failure cannot make a successful record mutation look failed.
 Pending annotations are evidence state in the user-facing vocabulary, not
 agent sessions, focus channels, or saved workspaces.
+
+The native selector is a connection-scoped lease. Freehand evidence is capped
+at 256 points, text at 4 KiB, and geometry uses desktop top-left logical points.
+The public completion event strips text and exposes only `has_text`; read the
+created pending record by its returned annotation id to consume the comment.
+Selection evidence is initially `fallback_only` and does not manufacture a
+semantic saved ref.
 
 Experience manifests can declare app-owned operator selection affordances in
 their status-item `menu[]` with `kind: "operator_annotation"` and a target
@@ -2020,6 +2032,37 @@ speakable voices, normal CLI use fails with `VOICE_FILTER_EMPTY`.
 text only from stdin, emits strict `voice` lifecycle and `audio_frame` NDJSON,
 and supports cancellation and microphone barge-in. Events and errors never
 echo the spoken text. Existing one-shot `aos say` behavior is unchanged.
+
+## `aos play`
+
+Play one bounded local PCM WAV through the same daemon-owned output broker used
+for streamed system speech:
+
+```bash
+aos play --audio /private/tmp/aos-command/audio.wav --follow
+```
+
+The input must be a canonical owner-only `0600` regular file beneath a
+canonical owner-owned `0700` directory. Symlinks, files over 4 MiB, durations
+over 120 seconds, more than two channels, and unsupported PCM formats fail
+before playback. Follow output includes lifecycle facts and the exact
+`audio_frame` meter stream used for playback, but never the input path or audio
+content. The lease is connection-scoped and shares cancellation, barge-in, and
+daemon-shutdown cleanup with streamed speech.
+
+## `aos shortcut`
+
+Run one explicitly authorized Apple Shortcut by exact name:
+
+```bash
+aos shortcut run 'Prepare Focus Mode' --timeout 30s --json
+```
+
+The adapter invokes `/usr/bin/shortcuts` without a shell, bounds execution to 1
+through 120 seconds, caps combined output at 64 KiB, and returns only status,
+duration, and byte counts. It never returns Shortcut output content. AOS does
+not discover commands, interpret voice phrases, or grant product authority;
+consumer policy must authorize the exact name before invocation.
 
 ## `aos voice`
 

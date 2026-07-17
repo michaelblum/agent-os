@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "shortcut",
+  "path_prefix": [
+    "shortcut"
+  ],
+  "commands": [
+    {
+      "path": [
+        "shortcut"
+      ],
+      "summary": "Run one named Apple Shortcut without a shell",
+      "forms": [
+        {
+          "id": "shortcut-run",
+          "summary": "Run one explicit Apple Shortcut with bounded time and output",
+          "usage": "aos shortcut run <name> [--timeout <duration>] [--json]",
+          "args": [
+            {
+              "id": "name",
+              "kind": "positional",
+              "required": true,
+              "summary": "Exact Apple Shortcut name",
+              "value_type": "string"
+            },
+            {
+              "id": "timeout",
+              "kind": "flag",
+              "required": false,
+              "summary": "Execution timeout from 1s to 120s",
+              "token": "--timeout",
+              "value_type": "duration"
+            },
+            {
+              "id": "json",
+              "kind": "flag",
+              "required": false,
+              "summary": "Return JSON",
+              "token": "--json",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos shortcut run 'Prepare Focus Mode' --json",
+            "aos shortcut run 'Open Daily Note' --timeout 30s --json"
+          ],
+          "execution": {
+            "auto_starts_daemon": false,
+            "interactive": false,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": false,
+            "streaming": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "error_mode": "json_stderr",
+            "streaming": false,
+            "supports_json_flag": true
+          }
+        }
+      ]
+    }
+  ]
+}

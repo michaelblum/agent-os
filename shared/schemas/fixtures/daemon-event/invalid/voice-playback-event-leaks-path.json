@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "playback_started",
+  "ts": 1,
+  "data": {
+    "duration_ms": 1000,
+    "bytes": 32044,
+    "sample_rate": 16000,
+    "channels": 1,
+    "path": "/private/tmp/private.wav"
+  }
+}

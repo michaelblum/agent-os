@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "playback_canceled",
+  "ts": 1784160000.25,
+  "data": {
+    "reason": "barge_in"
+  }
+}

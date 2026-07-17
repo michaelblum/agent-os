@@ -24,6 +24,7 @@
     {
       "id": "voice-transport-native-proof",
       "path_patterns": [
+        "src/daemon/audio-playback.swift",
         "src/daemon/microphone-authorization.swift",
         "src/daemon/segmented-microphone-capture.swift",
         "src/daemon/voice-transport.swift",
@@ -45,6 +46,7 @@
     {
       "id": "voice-follow-cli-proof",
       "path_patterns": [
+        "scripts/aos-play.mjs",
         "scripts/aos-say.mjs",
         "scripts/aos-tell-listen.mjs",
         "scripts/lib/aos-daemon-client.mjs",
@@ -60,6 +62,65 @@
       "command": "node --test tests/voice-follow-cli.test.mjs",
       "replaces": [],
       "guard": "uses a temporary fake Unix-socket daemon",
+      "status": "active"
+    },
+    {
+      "id": "annotation-selection-schema-proof",
+      "path_patterns": [
+        "scripts/lib/pending-annotations-model.mjs",
+        "shared/schemas/aos-pending-annotation-v0.schema.json",
+        "tests/schemas/aos-pending-annotation-v0.test.mjs",
+        "tests/schemas/daemon-event.test.mjs",
+        "tests/toolkit/pending-annotation-model.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/annotation-*.json"
+      ],
+      "owner": "desktop-annotation",
+      "harness_level": "schema",
+      "proof_kind": "annotation_selection_schema_contract",
+      "contract": "Native annotation selections persist as a closed, bounded desktop-selection record while public daemon events expose only canonical IDs, geometry, application facts, and a text-presence flag.",
+      "worth": "This catches malformed geometry, leaked paths or text, noncanonical selection IDs, and schema/model drift before Sigil consumes annotation evidence.",
+      "command": "node --test tests/schemas/aos-pending-annotation-v0.test.mjs tests/schemas/daemon-event.test.mjs tests/toolkit/pending-annotation-model.test.mjs",
+      "replaces": [],
+      "guard": "schema and model validation only; no desktop overlay, daemon, or TCC use",
+      "status": "active"
+    },
+    {
+      "id": "annotation-selection-adapter-proof",
+      "path_patterns": [
+        "scripts/aos-annotation-select.mjs",
+        "src/daemon/annotation-selection.swift",
+        "tests/annotation-select-cli.test.mjs",
+        "tests/annotation-selection-native.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "desktop-annotation",
+      "harness_level": "model_unit",
+      "proof_kind": "annotation_selection_adapter_contract",
+      "contract": "The public annotation-selection follower validates strict path-free events, persists completion before publication, and the native selector enforces one connection-scoped bounded point, rectangle, freehand, or text lease.",
+      "worth": "This proves adapter redaction, cancellation, ownership, geometry normalization, and native lifecycle behavior without showing a real overlay or touching the shared daemon.",
+      "command": "node --test tests/annotation-select-cli.test.mjs && bash tests/annotation-selection-native.sh",
+      "replaces": [],
+      "guard": "uses a fake Unix-socket daemon and a disposable Swift model harness; no repo binary, live desktop overlay, or TCC use",
+      "status": "active"
+    },
+    {
+      "id": "shortcut-execution-proof",
+      "path_patterns": [
+        "scripts/aos-shortcut.mjs",
+        "scripts/lib/aos-shortcut-run.mjs",
+        "tests/shortcut-command.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "desktop-native-control",
+      "harness_level": "shell_router",
+      "proof_kind": "shortcut_execution_contract",
+      "contract": "Explicit Apple Shortcut execution uses argv-only process invocation, bounded and redacted output, timeout and cancellation escalation, and process-group teardown.",
+      "worth": "This prevents shell injection, Shortcut-name disclosure, unbounded output, and orphaned child processes while keeping invocation explicit and auditable.",
+      "command": "node --test tests/shortcut-command.test.mjs",
+      "replaces": [],
+      "guard": "injects a fake shortcuts executable; no real Apple Shortcut is invoked",
       "status": "active"
     },
     {

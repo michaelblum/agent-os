@@ -224,7 +224,8 @@ function capabilityGroup(command, form) {
   if (top === 'skills' || top === 'recipe') return 'Skills and recipes';
   if (top === 'gate' || top === 'work-record') return 'Verification/evidence';
   if (top === 'tell' || top === 'listen') return 'Operator messaging';
-  if (top === 'say' || top === 'voice') return 'Voice and speech';
+  if (top === 'say' || top === 'voice' || top === 'play') return 'Voice and speech';
+  if (top === 'shortcut') return 'Desktop/native control';
   if (top === 'wiki' || top === 'content') return 'Content/wiki';
   if (top === 'config' || top === 'set') return 'Storage/config';
   if (top === 'service' || top === 'runtime' || top === 'serve' || top === 'reset' || top === 'clean') return 'Runtime/service';

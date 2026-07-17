@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "service": "annotation",
+  "event": "selection_completed",
+  "ts": 1784160000.125,
+  "data": {
+    "selection_id": "sel-123e4567-e89b-12d3-a456-426614174000",
+    "mode": "text",
+    "geometry": {
+      "kind": "point",
+      "coordinate_space": "desktop_points_top_left",
+      "x": 120,
+      "y": 80
+    },
+    "application": { "pid": 42, "name": "Fixture App", "bundle_id": null },
+    "window": null,
+    "text": null
+  }
+}
