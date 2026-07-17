@@ -26,6 +26,11 @@
               "capture_completed",
               "capture_canceled",
               "capture_failed",
+              "capture_segmented_started",
+              "capture_segment_ready",
+              "capture_segmented_completed",
+              "capture_segmented_canceled",
+              "capture_segmented_failed",
               "audio_frame",
               "speech_started",
               "speech_finished",
@@ -111,12 +116,54 @@
         "required": ["service", "event"],
         "properties": {
           "service": { "const": "voice" },
+          "event": { "const": "capture_segmented_started" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSegmentedCaptureStartedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "capture_segment_ready" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceCaptureSegmentReadyData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
           "event": { "const": "capture_completed" }
         }
       },
       "then": {
         "properties": {
           "data": { "$ref": "#/$defs/VoiceCaptureCompletedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "capture_segmented_completed" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceSegmentedCaptureCompletedData" }
         }
       }
     },
@@ -139,7 +186,21 @@
         "required": ["service", "event"],
         "properties": {
           "service": { "const": "voice" },
-          "event": { "enum": ["capture_failed", "speech_failed"] }
+          "event": { "const": "capture_segmented_canceled" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoiceCaptureCanceledData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "enum": ["capture_failed", "capture_segmented_failed", "speech_failed"] }
         }
       },
       "then": {
@@ -312,6 +373,38 @@
         "reason": { "type": "string", "enum": ["explicit_stop", "max_duration"] },
         "duration_ms": { "type": "integer", "minimum": 0, "maximum": 120000 },
         "bytes": { "type": "integer", "minimum": 0, "maximum": 4194304 }
+      }
+    },
+    "VoiceSegmentedCaptureStartedData": {
+      "type": "object",
+      "required": ["sample_rate", "channels", "max_duration_ms", "segment_duration_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "sample_rate": { "const": 16000 },
+        "channels": { "const": 1 },
+        "max_duration_ms": { "type": "integer", "minimum": 1, "maximum": 120000 },
+        "segment_duration_ms": { "type": "integer", "minimum": 500, "maximum": 5000 }
+      }
+    },
+    "VoiceCaptureSegmentReadyData": {
+      "type": "object",
+      "required": ["index", "duration_ms", "bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "index": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "duration_ms": { "type": "integer", "minimum": 1, "maximum": 5000 },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 262144 }
+      }
+    },
+    "VoiceSegmentedCaptureCompletedData": {
+      "type": "object",
+      "required": ["reason", "duration_ms", "bytes", "segments"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "type": "string", "enum": ["explicit_stop", "max_duration"] },
+        "duration_ms": { "type": "integer", "minimum": 0, "maximum": 120000 },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 4194304 },
+        "segments": { "type": "integer", "minimum": 0, "maximum": 240 }
       }
     },
     "VoiceCaptureCanceledData": {

@@ -100,6 +100,38 @@ function event(name, data, ref) {
   return `${JSON.stringify({ v: 1, service: 'voice', event: name, ts: 1, data, ref })}\n`;
 }
 
+test('microphone duration parsing rejects schema-incompatible bounds before daemon startup', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-voice-bounds-'));
+  cleanups.push(async () => { await fs.rm(stateRoot, { recursive: true, force: true }); });
+  const tooShortLease = launch('scripts/aos-tell-listen.mjs', [
+    'listen',
+    '--source',
+    'microphone',
+    '--output',
+    path.join(stateRoot, 'capture.wav'),
+    '--max-duration',
+    '0.5ms',
+    '--follow',
+  ], stateRoot);
+  const leaseResult = await tooShortLease.completed;
+  assert.equal(leaseResult.code, 1);
+  assert.match(leaseResult.stderr, /"code":"INVALID_ARG"/);
+
+  const tooShortSegment = launch('scripts/aos-tell-listen.mjs', [
+    'listen',
+    '--source',
+    'microphone',
+    '--segments',
+    path.join(stateRoot, 'segments'),
+    '--segment-duration',
+    '250ms',
+    '--follow',
+  ], stateRoot);
+  const segmentResult = await tooShortSegment.completed;
+  assert.equal(segmentResult.code, 1);
+  assert.match(segmentResult.stderr, /"code":"INVALID_ARG"/);
+});
+
 const startingDaemonSource = `#!/usr/bin/env node
 const fs = require('node:fs');
 const net = require('node:net');
@@ -322,6 +354,62 @@ test('SIGINT finalizes microphone capture and output events never reveal its pat
   assert.ok(!result.stdout.includes(outputPath));
   assert.ok(!result.stderr.includes(outputPath));
   assert.match(result.stdout, /"event":"capture_completed"/);
+});
+
+test('segmented microphone follow publishes path-free checkpoints and finalizes on SIGINT', async () => {
+  const requests = [];
+  let captureSocket;
+  const stateRoot = await fakeDaemon((request, socket) => {
+    requests.push(request);
+    if (request.action === 'microphone_segmented') {
+      captureSocket = socket;
+      socket.write(success(request.ref));
+      socket.write(event('capture_segmented_started', {
+        sample_rate: 16000,
+        channels: 1,
+        max_duration_ms: 120000,
+        segment_duration_ms: 3000,
+      }, request.ref));
+      socket.write(event('capture_segment_ready', {
+        index: 1,
+        duration_ms: 3000,
+        bytes: 96044,
+      }, request.ref));
+    } else if (request.action === 'stop') {
+      socket.write(success(request.ref));
+      socket.write(event('capture_segmented_completed', {
+        reason: 'explicit_stop',
+        duration_ms: 3000,
+        bytes: 96044,
+        segments: 1,
+      }, request.ref));
+    }
+  });
+  const segmentsDirectory = path.join(stateRoot, 'private-segments');
+  const run = launch('scripts/aos-tell-listen.mjs', [
+    'listen',
+    '--source',
+    'microphone',
+    '--segments',
+    segmentsDirectory,
+    '--segment-duration',
+    '3s',
+    '--follow',
+  ], stateRoot);
+  while (!captureSocket) await new Promise((resolve) => setTimeout(resolve, 10));
+  run.child.kill('SIGINT');
+  const result = await run.completed;
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(requests.map((item) => item.action), ['microphone_segmented', 'stop']);
+  assert.equal(requests[0].data.segments_directory, segmentsDirectory);
+  assert.equal(requests[0].data.segment_duration_seconds, 3);
+  assert.ok(!result.stdout.includes(segmentsDirectory));
+  assert.ok(!result.stderr.includes(segmentsDirectory));
+  assert.deepEqual(result.stdout.trim().split('\n').map(JSON.parse).map((item) => item.event), [
+    'capture_segmented_started',
+    'capture_segment_ready',
+    'capture_segmented_completed',
+  ]);
 });
 
 test('say follow keeps stdin text out of output while streaming same-run meters', async () => {

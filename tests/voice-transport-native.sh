@@ -120,6 +120,24 @@ struct VoiceTransportNativeTest {
         require(aosVoiceCaptureDuration(120) == 120, "duration bound drifted")
         require(aosVoiceCaptureDuration(121) == 120, "duration cap was not applied")
         require(aosVoiceCaptureDuration(0) == nil, "zero duration was accepted")
+        require(aosVoiceCaptureDuration(0.0005) == nil, "sub-millisecond duration was accepted")
+        let deadlineStart = DispatchTime(uptimeNanoseconds: 1_000_000_000)
+        require(
+            !aosVoiceCaptureDeadlineReached(
+                startedAt: deadlineStart,
+                now: DispatchTime(uptimeNanoseconds: 1_500_000_000),
+                maximumDuration: 1
+            ),
+            "capture deadline fired early"
+        )
+        require(
+            aosVoiceCaptureDeadlineReached(
+                startedAt: deadlineStart,
+                now: DispatchTime(uptimeNanoseconds: 2_000_000_000),
+                maximumDuration: 1
+            ),
+            "capture deadline did not fire at the wall-clock bound"
+        )
 
         let durationRoot = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("aos-voice-duration-\(UUID().uuidString)")
@@ -230,6 +248,113 @@ struct VoiceTransportNativeTest {
             require(failure.code == "UNSAFE_OUTPUT_PARENT", "wrong parent-mode error")
         }
 
+        let segmentRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aos-voice-segments-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: segmentRoot,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer { try? FileManager.default.removeItem(at: segmentRoot) }
+        let validatedSegmentRoot = try aosValidateVoiceSegmentDirectory(segmentRoot.path)
+        require(validatedSegmentRoot.path == segmentRoot.standardizedFileURL.path, "canonical segment directory was rejected")
+        let segmentWriter = try AOSAtomicVoiceSegmentWriter(
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1
+        )
+        let segmentBuffer = AVAudioPCMBuffer(
+            pcmFormat: segmentWriter.outputFormat,
+            frameCapacity: AVAudioFrameCount(aosVoiceCaptureSampleRate)
+        )!
+        segmentBuffer.frameLength = segmentBuffer.frameCapacity
+        for index in 0..<Int(segmentBuffer.frameLength) {
+            segmentBuffer.int16ChannelData![0][index] = index.isMultiple(of: 2) ? 1024 : -1024
+        }
+        let readySegments = try segmentWriter.append(segmentBuffer)
+        require(readySegments.count == 2, "fixed PCM did not produce deterministic segment boundaries")
+        require(readySegments.map(\.index) == [1, 2], "segment indexes were not monotonic")
+        require(readySegments.allSatisfy { $0.durationMilliseconds == 500 }, "segment duration drifted")
+        require(segmentWriter.reachedMaximumDuration, "segment writer did not enforce the capture duration")
+        require(segmentWriter.totalBytes <= aosVoiceCaptureMaximumBytes, "segment writer exceeded aggregate bytes")
+        for index in 1...2 {
+            let segment = segmentRoot.appendingPathComponent(String(format: "segment-%06d.wav", index))
+            let attributes = try FileManager.default.attributesOfItem(atPath: segment.path)
+            require(
+                ((attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0) & 0o777 == 0o600,
+                "published segment is not 0600"
+            )
+        }
+        let publishedSegmentNames = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(publishedSegmentNames.allSatisfy { !$0.contains("partial") }, "partial segment was exposed after publication")
+        segmentWriter.cancel()
+        let namesAfterCancellation = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterCancellation.isEmpty, "segment cancellation did not remove owned files")
+
+        let partialWriter = try AOSAtomicVoiceSegmentWriter(
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1
+        )
+        let partial = AVAudioPCMBuffer(
+            pcmFormat: partialWriter.outputFormat,
+            frameCapacity: 4_000
+        )!
+        partial.frameLength = 4_000
+        let partialReady = try partialWriter.append(partial)
+        require(partialReady.isEmpty, "partial segment published before finalization")
+        let finalizedPartial = try partialWriter.finish()
+        require(
+            finalizedPartial.count == 1 && finalizedPartial[0].durationMilliseconds == 250,
+            "explicit stop did not atomically publish the final partial segment"
+        )
+        partialWriter.cancel()
+        try Data("occupied".utf8).write(to: segmentRoot.appendingPathComponent("unexpected.txt"))
+        do {
+            _ = try aosValidateVoiceSegmentDirectory(segmentRoot.path)
+            require(false, "non-empty segment directory was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "SEGMENT_DIRECTORY_NOT_EMPTY", "wrong non-empty segment directory error")
+        }
+        try FileManager.default.removeItem(at: segmentRoot.appendingPathComponent("unexpected.txt"))
+        do {
+            _ = try AOSAtomicVoiceSegmentWriter(
+                directoryPath: segmentRoot.path,
+                segmentDuration: 0.1,
+                maximumDuration: 1
+            )
+            require(false, "undersized segment duration was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "INVALID_SEGMENT_DURATION", "wrong segment duration error")
+        }
+
+        let preStartCancelCompleted = DispatchSemaphore(value: 0)
+        let canceledBeforeStart = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: "cancel-before-start",
+            directoryPath: segmentRoot.path,
+            segmentDuration: 0.5,
+            maximumDuration: 1,
+            authorizationState: { .authorized },
+            emit: { event, data in
+                require(event == "capture_segmented_canceled", "pre-start cancel emitted an unexpected event")
+                require(data["reason"] as? String == "superseded", "pre-start cancel reason drifted")
+            },
+            terminal: { _ in preStartCancelCompleted.signal() }
+        )
+        canceledBeforeStart.cancel(reason: "superseded")
+        let preStartCancelDeadline = Date().addingTimeInterval(2)
+        var preStartCancelDidComplete = false
+        while !preStartCancelDidComplete, Date() < preStartCancelDeadline {
+            preStartCancelDidComplete = preStartCancelCompleted.wait(timeout: .now()) == .success
+            if !preStartCancelDidComplete {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+            }
+        }
+        require(preStartCancelDidComplete, "pre-start segment cancellation did not terminate")
+        let namesAfterPreStartCancel = try FileManager.default.contentsOfDirectory(atPath: segmentRoot.path)
+        require(namesAfterPreStartCancel.isEmpty, "pre-start segment cancellation left output")
+
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4)!
         buffer.frameLength = 4
@@ -267,6 +392,7 @@ SWIFT
 
 swiftc -parse-as-library \
     "$ROOT/src/daemon/microphone-authorization.swift" \
+    "$ROOT/src/daemon/segmented-microphone-capture.swift" \
     "$ROOT/src/daemon/voice-transport.swift" \
     "$TMP/main.swift" \
     -o "$TMP/voice-transport-native"

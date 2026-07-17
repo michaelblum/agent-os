@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "capture_segmented_completed",
+  "ts": 1720000003.2,
+  "data": {
+    "reason": "explicit_stop",
+    "duration_ms": 3000,
+    "bytes": 96044,
+    "segments": 1
+  },
+  "ref": "capture-segmented-1"
+}

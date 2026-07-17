@@ -444,6 +444,7 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   const listenFollowForm = listenCommand?.forms?.find((form) => form.id === 'listen-follow');
   const listenHotkeyForm = listenCommand?.forms?.find((form) => form.id === 'listen-hotkey');
   const listenMicrophoneForm = listenCommand?.forms?.find((form) => form.id === 'listen-microphone');
+  const listenMicrophoneSegmentedForm = listenCommand?.forms?.find((form) => form.id === 'listen-microphone-segmented');
   const sayFollowForm = sayCommand?.forms?.find((form) => form.id === 'say-follow');
   const doTellForm = doCommand?.forms?.find((form) => form.id === 'do-tell');
 
@@ -481,6 +482,7 @@ test('voice and communication guidance keep say, voice, tell, and listen roles d
   }
   assert.match(listenHotkeyForm?.usage ?? '', /aos listen --source hotkey/);
   assert.match(listenMicrophoneForm?.usage ?? '', /aos listen --source microphone --output <absolute\.wav>/);
+  assert.match(listenMicrophoneSegmentedForm?.usage ?? '', /aos listen --source microphone --segments <absolute-directory>/);
   assert.match(sayFollowForm?.usage ?? '', /aos say --follow/);
   assert.match(doTellForm?.usage ?? '', /aos do tell <app> <script>/);
   assert.match(JSON.stringify(doTellForm?.args ?? []), /AppleScript body/);

@@ -2230,6 +2230,7 @@ Primary public forms:
 | `<channel>|--session-id <id> --follow [--since id]` | stream messages as NDJSON |
 | `--source hotkey [--shortcut <chord>] --follow` | consume one exact global hold-to-talk chord and stream generic dictation lifecycle events |
 | `--source microphone --output <absolute.wav> --follow [--max-duration 120s]` | capture 16 kHz mono PCM into a bounded create-new WAV while streaming meters |
+| `--source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--max-duration 120s]` | capture continuous 16 kHz mono PCM into atomic segment checkpoints while streaming meters |
 | `--channels` | list known channels |
 
 Examples:
@@ -2241,6 +2242,7 @@ aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 aos listen --source hotkey --shortcut Control+Option+Space --follow
 aos listen --source microphone --output /private/tmp/aos-voice/capture.wav --follow --max-duration 120s
+aos listen --source microphone --segments /private/tmp/aos-voice/segments --segment-duration 3s --follow --max-duration 120s
 aos listen --channels
 ```
 
@@ -2250,12 +2252,21 @@ names; it is discovery for existing daemon communication state, not a workspace
 or transcript index.
 
 The hotkey form is connection-scoped, consumes only its exact chord, suppresses
-repeat events, and never exposes unrelated key events. The microphone form
-requires an absolute create-new `.wav` target under a canonical, owner-owned
-`0700` directory; the file is `0600`, mono 16 kHz PCM, at most 120 seconds and
-4 MiB. `SIGINT` finalizes it. `SIGTERM`, disconnect, daemon shutdown, or failure
-removes it. Capture events contain no audio or path. AOS does not transcribe the
-WAV; local STT and dictation policy are consumer responsibilities. Stdin,
+repeat events, and never exposes unrelated key events. The one-shot microphone
+form requires an absolute create-new `.wav` target under a canonical,
+owner-owned `0700` directory. The segmented form requires an absolute,
+canonical, empty, owner-owned `0700` directory and atomically publishes
+deterministic `segment-000001.wav` files after each bounded checkpoint. Every
+file is `0600`, mono 16 kHz PCM. A lease is at most 120 seconds and 4 MiB across
+all segments; segment duration is 500 milliseconds to 5 seconds.
+
+`SIGINT` finalizes the one-shot file or current partial segment. `SIGTERM`,
+disconnect, daemon shutdown, or failure removes every output still owned by the
+lease. `capture_segment_ready` identifies only an index, duration, and byte
+count; consumers derive the deterministic filename from the directory they
+supplied. Capture events contain no audio or path. AOS does not transcribe the
+WAV; local STT and dictation policy are consumer responsibilities.
+Cross-segment text stability and endpointing are also consumer-owned. Stdin,
 webhook, and file-watch listen sources remain unimplemented.
 
 The managed daemon owns microphone authorization. On first capture from

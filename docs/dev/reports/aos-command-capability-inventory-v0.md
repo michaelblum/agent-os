@@ -19,12 +19,12 @@ current command tree before public CLI and self-hosting boundary changes.
 ## Summary
 
 - Command paths: 42
-- Concrete forms: 203
-- Consumer-discoverable forms: 194
+- Concrete forms: 204
+- Consumer-discoverable forms: 195
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 113
+- Mutating or conditionally mutating forms: 114
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 198
+- Forms with JSON output path: 199
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -42,7 +42,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Desktop/native control | 18 |
 | Diagnostics/debug | 6 |
 | Operator input | 6 |
-| Operator messaging | 9 |
+| Operator messaging | 10 |
 | Overlay/display | 16 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 16 |
@@ -72,7 +72,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `voice` | 7 | Voice and speech | yes | mutates, read-only | default | `manifests/commands/source/aos/09-voice.json` | `node scripts/aos-family-router.mjs voice UNKNOWN_COMMAND voice command [child 0]` | `docs/api/aos.md` |
 | `gate` | 5 | Verification/evidence | yes | mutates, read-only | default | `manifests/commands/source/aos/10-gate.json` | `node scripts/aos-family-router.mjs gate UNKNOWN_SUBCOMMAND gate subcommand [child 0]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `tell` | 4 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/11-tell.json` | `node scripts/aos-tell-listen.mjs tell` | `docs/api/aos.md` |
-| `listen` | 5 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
+| `listen` | 6 | Operator messaging | yes | mutates, read-only | default | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `config` | 3 | Storage/config | yes | mutates, read-only | --json, default | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs dump` | `docs/api/aos.md` |
 | `set` | 2 | Storage/config | yes | mutates, read-only | default | `manifests/commands/source/aos/14-set.json` | `node scripts/aos-config-command.mjs set-shorthand` | `docs/api/aos.md` |
 | `focus` | 4 | Core desktop | yes | mutates, read-only | default | `manifests/commands/source/aos/15-focus.json` | `node scripts/aos-focus-graph.mjs focus` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -205,6 +205,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `listen` | `listen-follow` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `listen` | `listen-hotkey` | Operator messaging | yes | mutates | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `listen` | `listen-microphone` | Operator messaging | yes | mutates | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
+| `listen` | `listen-microphone-segmented` | Operator messaging | yes | mutates | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `listen` | `listen-channels` | Operator messaging | yes | read-only | default | no | `manifests/commands/source/aos/12-listen.json` | `node scripts/aos-tell-listen.mjs listen` | `docs/api/aos.md` |
 | `config` | `config-dump` | Storage/config | yes | read-only | default | no | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs dump` | `docs/api/aos.md` |
 | `config get` | `config-get` | Storage/config | yes | read-only | --json | no | `manifests/commands/source/aos/13-config.json` | `node scripts/aos-config-command.mjs get` | `docs/api/aos.md` |
