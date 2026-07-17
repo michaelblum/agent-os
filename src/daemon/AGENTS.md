@@ -32,7 +32,8 @@ Allowed daemon-side surface work:
 
 Voice transport follows ADR 0022. `voice-transport.swift` owns exact global
 hotkey leases, bounded microphone-to-WAV capture, streamed system-speech
-playback, meters, and connection cleanup. It must not own transcription,
+playback, bounded owner-only WAV playback, meters, and connection cleanup. It
+must not own transcription,
 conversation policy, product presence state, or branded voice behavior. Voice
 events must never carry audio bytes, spoken text, or local paths.
 `microphone-authorization.swift` owns the daemon process's four-state macOS
@@ -46,6 +47,11 @@ authorization.
 has one bounded serial writer for responses and events; slow-client timeout or
 overflow shuts down only that connection, and queued work must quiesce before
 its file descriptor is closed or reusable.
+
+`annotation-selection.swift` owns one connection-scoped native desktop
+selection lease for point, rectangle, freehand, or text geometry. It emits
+bounded product-neutral evidence and never owns pending-annotation persistence,
+consumer routing, or project policy.
 
 Avoid daemon-side surface policy:
 

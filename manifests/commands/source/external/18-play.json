@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "play",
+  "commands": [
+    {
+      "path": [
+        "play"
+      ],
+      "summary": "Stream bounded audio playback through the daemon voice-output broker.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-play.mjs"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    }
+  ]
+}

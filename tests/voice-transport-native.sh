@@ -247,6 +247,31 @@ struct VoiceTransportNativeTest {
         } catch let failure as AOSVoiceTransportFailure {
             require(failure.code == "UNSAFE_OUTPUT_PARENT", "wrong parent-mode error")
         }
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: tempRoot.path)
+        let playbackInput = tempRoot.appendingPathComponent("playback.wav")
+        try writeOneSecondPCMFixture(to: playbackInput)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: playbackInput.path)
+        let playbackSource = try aosValidateAudioPlaybackSource(playbackInput.path)
+        require(playbackSource.durationMilliseconds == 1000, "playback duration drifted")
+        require(playbackSource.sampleRate == aosVoiceCaptureSampleRate, "playback sample rate drifted")
+        require(playbackSource.channels == aosVoiceCaptureChannels, "playback channels drifted")
+        require(playbackSource.bytes > 44, "playback byte count drifted")
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: playbackInput.path)
+        do {
+            _ = try aosValidateAudioPlaybackSource(playbackInput.path)
+            require(false, "non-owner-only playback input was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "UNSAFE_AUDIO_INPUT", "wrong playback input mode error")
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: playbackInput.path)
+        let playbackSymlink = tempRoot.appendingPathComponent("playback-link.wav")
+        try FileManager.default.createSymbolicLink(at: playbackSymlink, withDestinationURL: playbackInput)
+        do {
+            _ = try aosValidateAudioPlaybackSource(playbackSymlink.path)
+            require(false, "symlinked playback input was accepted")
+        } catch let failure as AOSVoiceTransportFailure {
+            require(failure.code == "INVALID_AUDIO_PATH", "wrong playback symlink error")
+        }
 
         let segmentRoot = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("aos-voice-segments-\(UUID().uuidString)")
@@ -393,6 +418,7 @@ SWIFT
 swiftc -parse-as-library \
     "$ROOT/src/daemon/microphone-authorization.swift" \
     "$ROOT/src/daemon/segmented-microphone-capture.swift" \
+    "$ROOT/src/daemon/audio-playback.swift" \
     "$ROOT/src/daemon/voice-transport.swift" \
     "$TMP/main.swift" \
     -o "$TMP/voice-transport-native"

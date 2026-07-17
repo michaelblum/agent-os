@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { voiceCLIErrorEnvelope } from '../scripts/lib/aos-voice-follow.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cleanups = [];
@@ -154,7 +155,9 @@ const keepalive = setInterval(() => {}, 1000);
 function finish() {
   clearInterval(keepalive);
   try { fs.rmSync(socketPath, { force: true }); } catch {}
-  try { fs.rmSync(lockPath, { force: true }); } catch {}
+  if (process.env.AOS_FAKE_PRESERVE_LOCK_ON_SHUTDOWN !== '1') {
+    try { fs.rmSync(lockPath, { force: true }); } catch {}
+  }
   process.exit(0);
 }
 function shutdown() {
@@ -227,7 +230,12 @@ async function runStartupCancellation({ command, signal = null, parentLoss = fal
     AOS_DISABLE_DAEMON_AUTOSTART: '0',
     AOS_FAKE_START_DELAY_MS: '5000',
     AOS_FAKE_IGNORE_SIGTERM: ignoreSigterm ? '1' : '0',
-    ...(parentLoss ? { AOS_EXTERNAL_DISPATCH_PARENT_PID: '2147483647' } : {}),
+    AOS_FAKE_PRESERVE_LOCK_ON_SHUTDOWN: parentLoss ? '1' : '0',
+    ...(parentLoss ? {
+      NODE_ENV: 'test',
+      AOS_EXTERNAL_DISPATCH_PARENT_PID: '2147483647',
+      AOS_TEST_PARENT_MONITOR_DELAY_MS: '1000',
+    } : {}),
   });
   if (command === 'say') run.child.stdin.end('startup cancellation speech');
 
@@ -412,6 +420,61 @@ test('segmented microphone follow publishes path-free checkpoints and finalizes 
   ]);
 });
 
+test('audio playback follow keeps its input path private while streaming exact meters', async () => {
+  let requestSeen;
+  const stateRoot = await fakeDaemon((request, socket) => {
+    requestSeen = request;
+    socket.write(success(request.ref));
+    socket.write(event('playback_started', {
+      duration_ms: 1000,
+      bytes: 32044,
+      sample_rate: 16000,
+      channels: 1,
+    }, request.ref));
+    socket.write(event('audio_frame', {
+      stream: 'playback',
+      rms: 0.1,
+      peak: 0.2,
+      sequence: 1,
+    }, request.ref));
+    socket.write(event('playback_finished', { reason: 'completed' }, request.ref));
+  });
+  const privatePath = path.join(stateRoot, 'private.wav');
+  const run = launch('scripts/aos-play.mjs', ['--audio', privatePath, '--follow'], stateRoot);
+  const result = await run.completed;
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(requestSeen.service, 'voice');
+  assert.equal(requestSeen.action, 'playback');
+  assert.deepEqual(requestSeen.data, { audio_path: privatePath });
+  assert.ok(!result.stdout.includes(privatePath));
+  assert.ok(!result.stderr.includes(privatePath));
+  assert.deepEqual(result.stdout.trim().split('\n').map(JSON.parse).map((item) => item.event), [
+    'playback_started',
+    'audio_frame',
+    'playback_finished',
+  ]);
+});
+
+test('audio playback rejects a relative path before daemon startup', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-playback-relative-'));
+  cleanups.push(async () => { await fs.rm(stateRoot, { recursive: true, force: true }); });
+  const run = launch('scripts/aos-play.mjs', ['--audio', 'private.wav', '--follow'], stateRoot);
+  const result = await run.completed;
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /"code":"INVALID_AUDIO_PATH"/);
+  assert.ok(!result.stderr.includes('private.wav'));
+});
+
+test('audio playback help is passive', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-playback-help-'));
+  cleanups.push(async () => { await fs.rm(stateRoot, { recursive: true, force: true }); });
+  const run = launch('scripts/aos-play.mjs', ['--help'], stateRoot);
+  const result = await run.completed;
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Usage: aos play/);
+});
+
 test('say follow keeps stdin text out of output while streaming same-run meters', async () => {
   const secret = 'private spoken response';
   let receivedText;
@@ -455,6 +518,18 @@ test('daemon errors are code-projected without echoing request text or paths', a
   assert.ok(!result.stderr.includes(secret));
   assert.ok(!result.stderr.includes(leakedPath));
   assert.match(result.stderr, /"code":"VOICE_TRANSPORT_FAILED"/);
+});
+
+test('unexpected voice CLI exceptions are projected without raw messages or codes', () => {
+  const secret = '/private/tmp/voice-secret.wav';
+  const envelope = voiceCLIErrorEnvelope(Object.assign(new Error(`failed at ${secret}`), {
+    code: `LEAK_${secret}`,
+  }));
+  assert.deepEqual(envelope, {
+    code: 'VOICE_TRANSPORT_FAILED',
+    error: 'voice transport failed',
+  });
+  assert.ok(!JSON.stringify(envelope).includes(secret));
 });
 
 test('terminal native failure events produce a nonzero process exit', async () => {

@@ -18,8 +18,11 @@ const TERMINAL_EVENTS = new Set([
   'speech_finished',
   'speech_canceled',
   'speech_failed',
+  'playback_finished',
+  'playback_canceled',
+  'playback_failed',
 ]);
-const FAILURE_EVENTS = new Set(['capture_failed', 'capture_segmented_failed', 'speech_failed']);
+const FAILURE_EVENTS = new Set(['capture_failed', 'capture_segmented_failed', 'speech_failed', 'playback_failed']);
 const SAFE_DAEMON_ERRORS = new Map([
   ['MICROPHONE_PERMISSION_DENIED', 'microphone permission is not granted'],
   ['MICROPHONE_PERMISSION_NOT_DETERMINED', 'microphone permission has not been requested'],
@@ -46,6 +49,23 @@ const SAFE_DAEMON_ERRORS = new Map([
   ['INVALID_VOICE_ID', 'voice identifier is malformed'],
   ['INVALID_VOICE_PROVIDER', 'streamed speech requires a system voice'],
   ['VOICE_NOT_FOUND', 'requested system voice is unavailable'],
+  ['INVALID_AUDIO_PATH', 'audio playback input path is invalid'],
+  ['UNSAFE_AUDIO_PARENT', 'audio playback input parent is unsafe'],
+  ['UNSAFE_AUDIO_INPUT', 'audio playback input is unsafe'],
+  ['AUDIO_INPUT_UNAVAILABLE', 'audio playback input is unavailable'],
+  ['AUDIO_INPUT_LIMIT', 'audio playback input exceeds the supported size'],
+  ['INVALID_AUDIO_FILE', 'audio playback input is not readable PCM audio'],
+  ['UNSUPPORTED_AUDIO_FILE', 'audio playback format or duration is unsupported'],
+  ['AUDIO_OUTPUT_UNAVAILABLE', 'audio playback output is unavailable'],
+  ['PLAYBACK_CANCELED', 'audio playback was canceled before startup'],
+]);
+const SAFE_CLI_ERRORS = new Map([
+  ['MISSING_ARG', 'required voice argument is missing'],
+  ['UNKNOWN_ARG', 'voice command received an unexpected argument'],
+  ['UNKNOWN_FLAG', 'voice command received an unknown flag'],
+  ['INVALID_ARG', 'voice command argument is invalid'],
+  ['INVALID_AUDIO_PATH', 'audio playback input path is invalid'],
+  ['DAEMON_UNREACHABLE', 'AOS daemon is unavailable'],
 ]);
 
 function fail(message, code) {
@@ -105,7 +125,12 @@ function request(service, action, data, ref) {
 function monitorExternalDispatchParent(onDisconnect) {
   const parentPID = Number(process.env[EXTERNAL_DISPATCH_PARENT_PID_ENV]);
   if (!Number.isInteger(parentPID) || parentPID <= 1) return null;
+  const testDelay = process.env.NODE_ENV === 'test'
+    ? Number(process.env.AOS_TEST_PARENT_MONITOR_DELAY_MS ?? 0)
+    : 0;
+  const firstCheckAt = Date.now() + (Number.isFinite(testDelay) && testDelay > 0 ? Math.min(testDelay, 2_000) : 0);
   const timer = setInterval(() => {
+    if (Date.now() < firstCheckAt) return;
     let alive = process.ppid === parentPID;
     if (alive) {
       try {
@@ -120,7 +145,24 @@ function monitorExternalDispatchParent(onDisconnect) {
   return timer;
 }
 
-async function followVoice({ service, action, data, stopAction, cancelAction, terminalEvents = TERMINAL_EVENTS }) {
+export async function followDaemonLease({
+  service,
+  action,
+  data,
+  stopAction,
+  cancelAction,
+  eventService,
+  terminalEvents,
+  failureEvents,
+  safeDaemonErrors,
+  eventTooLargeCode,
+  eventTooLargeMessage,
+  invalidEventCode,
+  invalidEventMessage,
+  fallbackErrorCode,
+  fallbackErrorMessage,
+  transformEvent = (payload) => payload,
+}) {
   const startupAbort = new AbortController();
   let startupCanceled = false;
   let ownedDaemon = null;
@@ -186,7 +228,7 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
   socket.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
     if (Buffer.byteLength(buffer) > MAX_LINE_BYTES && !buffer.includes('\n')) {
-      process.stderr.write(`${JSON.stringify({ code: 'VOICE_EVENT_TOO_LARGE', error: 'voice event exceeded the line limit' })}\n`);
+      process.stderr.write(`${JSON.stringify({ code: eventTooLargeCode, error: eventTooLargeMessage })}\n`);
       cleanup(1);
       return;
     }
@@ -196,7 +238,7 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       if (Buffer.byteLength(line) > MAX_LINE_BYTES) {
-        process.stderr.write(`${JSON.stringify({ code: 'VOICE_EVENT_TOO_LARGE', error: 'voice event exceeded the line limit' })}\n`);
+        process.stderr.write(`${JSON.stringify({ code: eventTooLargeCode, error: eventTooLargeMessage })}\n`);
         cleanup(1);
         return;
       }
@@ -204,24 +246,49 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
       try {
         payload = JSON.parse(line);
       } catch {
-        process.stderr.write(`${JSON.stringify({ code: 'INVALID_VOICE_EVENT', error: 'daemon returned malformed JSON' })}\n`);
+        process.stderr.write(`${JSON.stringify({ code: invalidEventCode, error: invalidEventMessage })}\n`);
         cleanup(1);
         return;
       }
       if (payload.status === 'error' || payload.error) {
-        const code = payload.code ?? 'VOICE_TRANSPORT_FAILED';
-        process.stderr.write(`${JSON.stringify({ code, error: SAFE_DAEMON_ERRORS.get(code) ?? 'voice transport failed' })}\n`);
+        const code = payload.code ?? fallbackErrorCode;
+        process.stderr.write(`${JSON.stringify({ code, error: safeDaemonErrors.get(code) ?? fallbackErrorMessage })}\n`);
         cleanup(1);
         return;
       }
-      if (payload.v !== 1 || payload.service !== 'voice' || typeof payload.event !== 'string') continue;
-      process.stdout.write(`${JSON.stringify(payload)}\n`);
-      if (terminalEvents.has(payload.event)) cleanup(FAILURE_EVENTS.has(payload.event) ? 1 : 0);
+      if (payload.v !== 1 || payload.service !== eventService || typeof payload.event !== 'string') continue;
+      let output;
+      try {
+        output = transformEvent(payload);
+      } catch (error) {
+        const code = error?.code ?? invalidEventCode;
+        process.stderr.write(`${JSON.stringify({ code, error: safeDaemonErrors.get(code) ?? fallbackErrorMessage })}\n`);
+        cleanup(1);
+        return;
+      }
+      if (output !== null && output !== undefined) process.stdout.write(`${JSON.stringify(output)}\n`);
+      if (terminalEvents.has(payload.event)) cleanup(failureEvents.has(payload.event) ? 1 : 0);
     }
   });
   socket.once('error', () => cleanup(1));
   socket.once('close', () => cleanup(controlSent ? 0 : 1));
   socket.write(request(service, action, data, ref));
+}
+
+function followVoice(options) {
+  return followDaemonLease({
+    ...options,
+    eventService: 'voice',
+    terminalEvents: options.terminalEvents ?? TERMINAL_EVENTS,
+    failureEvents: FAILURE_EVENTS,
+    safeDaemonErrors: SAFE_DAEMON_ERRORS,
+    eventTooLargeCode: 'VOICE_EVENT_TOO_LARGE',
+    eventTooLargeMessage: 'voice event exceeded the line limit',
+    invalidEventCode: 'INVALID_VOICE_EVENT',
+    invalidEventMessage: 'daemon returned malformed JSON',
+    fallbackErrorCode: 'VOICE_TRANSPORT_FAILED',
+    fallbackErrorMessage: 'voice transport failed',
+  });
 }
 
 export async function listenVoice(args) {
@@ -317,7 +384,31 @@ export async function sayFollow(args) {
   });
 }
 
+export async function playAudioFollow(args) {
+  assertOnlyFlags(args, new Set(['--audio']), new Set(['--follow']));
+  if (!args.includes('--follow')) fail('audio playback requires --follow', 'MISSING_ARG');
+  const audioPath = valueAfter(args, '--audio');
+  if (!audioPath) fail('audio playback requires --audio', 'MISSING_ARG');
+  if (!audioPath.startsWith('/')) fail('audio playback input must be absolute', 'INVALID_AUDIO_PATH');
+  await followVoice({
+    service: 'voice',
+    action: 'playback',
+    data: { audio_path: audioPath },
+    stopAction: { service: 'voice', action: 'cancel' },
+    cancelAction: { service: 'voice', action: 'cancel' },
+  });
+}
+
+export function voiceCLIErrorEnvelope(error) {
+  const candidate = typeof error?.code === 'string' ? error.code : '';
+  const code = /^[A-Z][A-Z0-9_]{1,63}$/.test(candidate) ? candidate : 'VOICE_TRANSPORT_FAILED';
+  return {
+    code,
+    error: SAFE_DAEMON_ERRORS.get(code) ?? SAFE_CLI_ERRORS.get(code) ?? 'voice transport failed',
+  };
+}
+
 export function writeVoiceCLIError(error) {
-  process.stderr.write(`${JSON.stringify({ code: error?.code ?? 'VOICE_TRANSPORT_FAILED', error: error?.message ?? 'voice transport failed' })}\n`);
+  process.stderr.write(`${JSON.stringify(voiceCLIErrorEnvelope(error))}\n`);
   process.exitCode = 1;
 }

@@ -204,7 +204,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Desktop discovery | Displays, windows, cursor, selection, and active surfaces | `graph displays`, `graph windows`, `see list`, `see cursor`, `see selection` |
 | Capture and perception | Screenshots, window/region/canvas/channel capture, xray, labels, saved refs | `see capture`, `see capture --save`, `see snapshots`, `see refs` |
 | Saved workspace | Snapshot/ref storage, ref lookup, diffs, expectations, cleanup | `see workspaces`, `see workspace`, `see refs --diff --expect`, workspace prune/delete |
-| Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value` |
+| Desktop/native control | App activate/quit/hide/unhide, window raise/move/resize/close/minimize/maximize/restore, app menu invocation, explicit Apple Shortcut execution, and native AX press/focus/set-value | `do activate`, `do quit`, `do hide`, `do unhide`, `do raise`, `do move`, `do resize`, `do close`, `do minimize`, `do maximize`, `do restore`, `do menu`, `do press`, `do focus`, `do set-value`, `shortcut run` |
 | AOS-owned status-item menus | Experience-owned status-item/operator annotation menu invocation | `experience status`, `experience menu invoke` |
 | Pointer and keyboard | Mouse, keyboard, scrolling, dragging, text, browser ref actions | `do click`, `do hover`, `do drag`, `do scroll`, `do type`, `do key`, `do fill`, `do navigate` |
 | Canvas and vision | Canvas refs, regions, coordinates, labels, xray, visual proof | `see capture --canvas`, `see capture --region`, `see capture --xray --label`, `do click canvas:...`, coordinate actions |
@@ -212,7 +212,7 @@ apps cannot safely reconstruct from the current JSON surfaces.
 | Overlay/display | Canvases, panels, stage surfaces, render/list/wait/readback | `show create/update/remove/list/audit/render/wait/get/to-front/post` |
 | Diagnostics/debug | Debug readbacks and diagnostic displays for active AOS/runtime work | `daemon-snapshot`, `service logs`, `inspect`, `introspect review`, `log` |
 | Verification/evidence | Recapture, refs diff/expect, gates, Work Records | `see refs --diff --expect`, `gate`, `work-record read/verify/status/plan-repair` |
-| Operator input | Pending operator annotations and saved-ref handoff | `see annotation create/list/read/consume/link-work-record/delete` |
+| Operator input | Native desktop selection, pending operator annotations, and saved-ref handoff | `see annotation select/create/list/read/consume/link-work-record/delete` |
 | Skills and recipes | Installable guidance versus executable source-backed procedures | `skills list/check/install`, `skills companion ...`, `recipe list/explain/dry-run/run` |
 | Runtime/service | Daemon ownership, mode, permissions, cleanup | `service`, `runtime`, `content`, `clean`, `reset` |
 

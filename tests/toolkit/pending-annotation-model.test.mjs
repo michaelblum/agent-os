@@ -206,3 +206,99 @@ test('pending annotation selected target does not manufacture fallback evidence'
   assert.equal(read.annotation.capability.fallback_used, false);
   validateJSONFile(created.annotation.path);
 });
+
+test('pending annotation records normalize bounded desktop selection evidence', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-desktop-selection-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-desktop-selection-fixtures-'));
+  const env = { AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo' };
+  const inputPath = await writeJSON(fixtureRoot, 'desktop-selection.json', {
+    id: 'ann-desktop-selection',
+    target_kind: 'region',
+    target_summary: 'Selected desktop region',
+    desktop_selection: {
+      kind: 'desktop_annotation_selection',
+      selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+      mode: 'rectangle',
+      geometry: {
+        kind: 'rectangle',
+        coordinate_space: 'desktop_points_top_left',
+        x: 12,
+        y: 34,
+        width: 56,
+        height: 78,
+        ignored: true,
+      },
+      application: { pid: 42, name: 'Fixture', bundle_id: null, ignored: true },
+      window: {
+        window_id: 17,
+        title: 'Window',
+        bounds: { x: 0, y: 0, width: 800, height: 600, ignored: true },
+        ignored: true,
+      },
+      ignored: true,
+    },
+  });
+  const created = parseJSON(run(['create', '--from-json', inputPath, '--json'], env));
+  const record = JSON.parse(await fs.readFile(created.annotation.path, 'utf8'));
+
+  assert.deepEqual(record.desktop_selection, {
+    kind: 'desktop_annotation_selection',
+    selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+    mode: 'rectangle',
+    geometry: {
+      kind: 'rectangle',
+      coordinate_space: 'desktop_points_top_left',
+      x: 12,
+      y: 34,
+      width: 56,
+      height: 78,
+    },
+    application: { pid: 42, name: 'Fixture', bundle_id: null },
+    window: {
+      window_id: 17,
+      title: 'Window',
+      bounds: { x: 0, y: 0, width: 800, height: 600 },
+    },
+  });
+  validateJSONFile(created.annotation.path);
+  await validateAllPendingRecordFiles(env);
+});
+
+test('pending annotation records reject mismatched and oversized desktop selection evidence', async () => {
+  const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-invalid-desktop-selection-'));
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-pending-annotation-invalid-desktop-selection-fixtures-'));
+  const env = { AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo' };
+  const base = {
+    target_kind: 'region',
+    target_summary: 'Invalid desktop selection',
+    desktop_selection: {
+      selection_id: 'sel-123e4567-e89b-12d3-a456-426614174000',
+      mode: 'freehand',
+      geometry: {
+        kind: 'point',
+        coordinate_space: 'desktop_points_top_left',
+        x: 1,
+        y: 2,
+      },
+      application: { pid: 42, name: null, bundle_id: null },
+      window: null,
+    },
+  };
+  const mismatchPath = await writeJSON(fixtureRoot, 'mismatch.json', base);
+  assert.equal(parseError(run(['create', '--from-json', mismatchPath, '--json'], env)).code, 'INVALID_ARG');
+
+  const oversizedPath = await writeJSON(fixtureRoot, 'oversized.json', {
+    ...base,
+    desktop_selection: {
+      ...base.desktop_selection,
+      geometry: {
+        kind: 'freehand',
+        coordinate_space: 'desktop_points_top_left',
+        points: Array.from({ length: 257 }, (_, index) => ({ x: index, y: index })),
+        bounds: { x: 0, y: 0, width: 256, height: 256 },
+      },
+    },
+  });
+  assert.equal(parseError(run(['create', '--from-json', oversizedPath, '--json'], env)).code, 'INVALID_ARG');
+  await validateAllPendingRecordFiles(env);
+});

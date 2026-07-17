@@ -16,6 +16,7 @@ The initial public forms are:
 - `aos listen --source microphone --output <absolute.wav> --follow`
 - `aos listen --source microphone --segments <absolute-directory> --follow`
 - `aos say --follow`, with text read from stdin
+- `aos play --audio <absolute.wav> --follow`
 
 These forms are connection-scoped leases over the existing unified daemon.
 They do not expose the private socket as a consumer API.
@@ -30,6 +31,7 @@ The broker owns the behavior that requires its stable permissioned identity:
 - continuous capture with atomically published, deterministic WAV checkpoints;
 - capture and playback meter calculation;
 - system speech buffers and playback;
+- bounded owner-only WAV validation and playback;
 - cancellation, disconnect, daemon-shutdown, and barge-in cleanup.
 
 The managed daemon is the microphone permission holder because it owns capture.
@@ -54,6 +56,9 @@ translation, and NDJSON presentation.
 - Capture is globally singleton, at most 120 seconds, at most 4 MiB, and is
   removed on cancellation, disconnect, failure, or daemon shutdown.
 - Speech text enters through stdin and never appears in events or errors.
+- WAV playback requires a canonical `0600` regular file beneath a canonical,
+  non-symlinked, owner-owned `0700` parent. Input is at most 4 MiB and 120
+  seconds, with mono or stereo PCM at 8 to 192 kHz.
 - Events never contain audio bytes, spoken text, or local paths.
 - There is no raw PCM socket stream and no AOS-owned transcription.
 
@@ -72,7 +77,9 @@ Existing channel/session `aos listen`, hotkey, one-shot microphone, and
 one-shot `aos say` behavior are unchanged. Segmented microphone capture is a
 separate form selected by `--segments`. `say --follow` remains a separate form
 using streamed system speech; provider-backed non-system speech remains behind
-its existing provider seam.
+its existing provider seam. `aos play --follow` shares the singleton output
+lease with streamed speech, so capture, barge-in, cancellation, owner loss, and
+daemon shutdown retain one cleanup boundary.
 
 ## Consumer Permission Contract
 

@@ -229,11 +229,31 @@
         "scripts/aos-subcommand-router.mjs",
         "see annotation",
         "MISSING_SUBCOMMAND",
-        "see annotation requires a subcommand. Usage: aos see annotation <create|list|read|consume|link-work-record|delete> ...",
+        "see annotation requires a subcommand. Usage: aos see annotation <select|create|list|read|consume|link-work-record|delete> ...",
         "UNKNOWN_SUBCOMMAND",
         "see annotation subcommand"
       ],
       "cwd": "repo"
+    },
+    {
+      "path": [
+        "see",
+        "annotation",
+        "select"
+      ],
+      "summary": "Select bounded desktop annotation evidence and persist it through the pending-annotation queue.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-annotation-select.mjs"
+      ],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": [

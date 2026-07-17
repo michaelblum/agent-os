@@ -74,6 +74,8 @@ Each record includes:
 - `capability.status` and reasons;
 - `source_capture` metadata when the record was projected from a saved
   perception capture or refs readback, or `null` when no source capture exists;
+- optional `desktop_selection` metadata with bounded mode, top-left desktop
+  geometry, application/window facts, and the native selection id;
 - `artifact_refs[]` for disk-backed heavy evidence;
 - `recommended_next[]` as structured argv arrays;
 - `work_record_links[]` for later action/readback evidence connection.
@@ -87,6 +89,7 @@ normalizer does not invent fallback rows for missing refs.
 ## CLI
 
 ```bash
+aos see annotation select --mode rectangle --source companion --follow
 aos see annotation create --target-kind region --target-summary "top-right button" --comment "Use this one" --json
 aos see annotation create --target-kind browser --target-summary "Save button" --workspace default --snapshot snap1 --ref r2 --json
 aos see annotation create --from-capture-json capture.json --ref r2 --json
@@ -96,6 +99,14 @@ aos see annotation consume ann-example --actor agent --json
 aos see annotation link-work-record ann-example --work-record work-record:annotation-action-proof --relation annotation_action_evidence --json
 aos see annotation delete ann-example --json
 ```
+
+The native select form persists one record before emitting
+`selection_completed`. Its public event includes the pending annotation id and
+`has_text`, but never repeats entered text. The durable record keeps text only
+in `comment.text`; `desktop_selection` contains no text or filesystem path.
+Freehand paths are limited to 256 points, and native selection starts as honest
+`fallback_only` evidence until a consumer resolves a semantic saved ref through
+the separate perception contract.
 
 `create --from-json <path|->` accepts create-time annotation fields and
 normalizes missing ids, lifecycle timestamps, default recommended next

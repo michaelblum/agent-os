@@ -10,8 +10,66 @@
         "see",
         "annotation"
       ],
-      "summary": "Create, list, read, consume, and delete compact pending operator annotations",
+      "summary": "Select, create, list, read, consume, and delete compact pending operator annotations",
       "forms": [
+        {
+          "id": "annotation-select-follow",
+          "summary": "Select a bounded desktop point, rectangle, freehand path, or text annotation and persist it as pending evidence",
+          "usage": "aos see annotation select --mode <point|rectangle|freehand|text> [--source <token>] --follow",
+          "args": [
+            {
+              "id": "mode",
+              "kind": "flag",
+              "required": true,
+              "summary": "Desktop selection geometry",
+              "token": "--mode",
+              "value_type": {
+                "enum": [
+                  { "value": "point", "summary": "Select one desktop point" },
+                  { "value": "rectangle", "summary": "Drag one desktop rectangle" },
+                  { "value": "freehand", "summary": "Draw one bounded desktop path" },
+                  { "value": "text", "summary": "Select one point and enter bounded annotation text" }
+                ]
+              }
+            },
+            {
+              "id": "source",
+              "kind": "flag",
+              "required": false,
+              "summary": "Bounded product-neutral annotation source token",
+              "token": "--source",
+              "value_type": "string"
+            },
+            {
+              "id": "follow",
+              "kind": "flag",
+              "required": true,
+              "summary": "Stream selection lifecycle and the persisted annotation id",
+              "token": "--follow",
+              "value_type": "bool"
+            }
+          ],
+          "examples": [
+            "aos see annotation select --mode point --follow",
+            "aos see annotation select --mode rectangle --source companion --follow",
+            "aos see annotation select --mode text --follow"
+          ],
+          "execution": {
+            "auto_starts_daemon": true,
+            "interactive": true,
+            "mutates_state": true,
+            "read_only": false,
+            "requires_permissions": true,
+            "streaming": true,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "ndjson",
+            "error_mode": "json_stderr",
+            "streaming": true,
+            "supports_json_flag": false
+          }
+        },
         {
           "id": "see-annotation-create",
           "summary": "Create or ingest one pending operator annotation record under the runtime-mode state root",

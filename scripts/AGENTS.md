@@ -85,8 +85,10 @@ commands, runtime helpers, wiki tools, and command adapters.
   new behavior there.
 - Native capability stays in `src/`; public schema contracts stay in
   `shared/schemas/`.
-- `lib/aos-voice-follow.mjs` owns the public streaming adapters for
-  `listen --source hotkey|microphone --follow` and `say --follow`. Keep daemon
+- `lib/aos-voice-follow.mjs` owns the bounded daemon-follow lifecycle used by
+  public connection-scoped streaming adapters, including
+  `listen --source hotkey|microphone --follow`, `say --follow`, `play --follow`,
+  and native annotation selection. Keep daemon
   connection mechanics in `lib/aos-daemon-client.mjs`, keep speech text on
   stdin, do not echo speech text or capture paths through events or errors, and
   cancel the connection-scoped lease when the native external-dispatch owner
@@ -109,6 +111,17 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `aos-scene.mjs` owns the bounded public NDJSON adapter for connection-scoped
   DesktopWorld scene leases. It accepts only the documented operation set,
   bounds input/output, and never exposes the daemon socket to consumers.
+- `aos-shortcut.mjs` owns explicit Apple Shortcut execution through
+  `/usr/bin/shortcuts`. It passes one exact shortcut name as an argv item,
+  never invokes a shell, bounds time and output, and never returns captured
+  Shortcut output content.
+- `aos-play.mjs` owns bounded connection-scoped WAV playback through the
+  daemon voice-output broker. Input paths stay private to the request; public
+  events expose only lifecycle, format, byte-count, and meter facts.
+- `aos-annotation-select.mjs` owns the public connection-scoped desktop
+  annotation adapter. It validates native point, rectangle, freehand, or text
+  evidence, persists one pending-annotation record before completion, and
+  strips annotation text from the public follow event.
 
 ## Local Contracts
 

@@ -32,6 +32,10 @@
               "capture_segmented_canceled",
               "capture_segmented_failed",
               "audio_frame",
+              "playback_started",
+              "playback_finished",
+              "playback_canceled",
+              "playback_failed",
               "speech_started",
               "speech_finished",
               "speech_canceled",
@@ -200,7 +204,7 @@
         "required": ["service", "event"],
         "properties": {
           "service": { "const": "voice" },
-          "event": { "enum": ["capture_failed", "capture_segmented_failed", "speech_failed"] }
+          "event": { "enum": ["capture_failed", "capture_segmented_failed", "playback_failed", "speech_failed"] }
         }
       },
       "then": {
@@ -220,6 +224,48 @@
       "then": {
         "properties": {
           "data": { "$ref": "#/$defs/VoiceAudioFrameData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "playback_started" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoicePlaybackStartedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "playback_finished" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoicePlaybackFinishedData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": {
+          "service": { "const": "voice" },
+          "event": { "const": "playback_canceled" }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/VoicePlaybackCanceledData" }
         }
       }
     },
@@ -271,6 +317,45 @@
         "properties": { "service": { "const": "scene" }, "event": { "const": "result" } }
       },
       "then": { "properties": { "data": { "$ref": "#/$defs/SceneResultData" } } }
+    },
+    {
+      "if": {
+        "required": ["service"],
+        "properties": { "service": { "const": "annotation" } }
+      },
+      "then": {
+        "properties": {
+          "event": { "enum": ["selection_started", "selection_completed", "selection_canceled", "selection_failed"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "annotation" }, "event": { "const": "selection_started" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/AnnotationSelectionStartedData" } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "annotation" }, "event": { "const": "selection_completed" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/AnnotationSelectionCompletedData" } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "annotation" }, "event": { "const": "selection_canceled" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/AnnotationSelectionCanceledData" } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "annotation" }, "event": { "const": "selection_failed" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/AnnotationSelectionFailureData" } } }
     }
   ],
   "properties": {
@@ -280,7 +365,7 @@
     },
     "service": {
       "type": "string",
-      "enum": ["perceive", "display", "act", "voice", "scene"],
+      "enum": ["perceive", "display", "act", "voice", "scene", "annotation"],
       "description": "Which aos subsystem emitted this event."
     },
     "event": {
@@ -431,10 +516,40 @@
       "required": ["stream", "rms", "peak", "sequence"],
       "additionalProperties": false,
       "properties": {
-        "stream": { "type": "string", "enum": ["capture", "speech"] },
+        "stream": { "type": "string", "enum": ["capture", "playback", "speech"] },
         "rms": { "type": "number", "minimum": 0, "maximum": 1 },
         "peak": { "type": "number", "minimum": 0, "maximum": 1 },
         "sequence": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "VoicePlaybackStartedData": {
+      "type": "object",
+      "required": ["duration_ms", "bytes", "sample_rate", "channels"],
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": { "type": "integer", "minimum": 1, "maximum": 120000 },
+        "bytes": { "type": "integer", "minimum": 45, "maximum": 4194304 },
+        "sample_rate": { "type": "integer", "minimum": 8000, "maximum": 192000 },
+        "channels": { "type": "integer", "minimum": 1, "maximum": 2 }
+      }
+    },
+    "VoicePlaybackFinishedData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "const": "completed" }
+      }
+    },
+    "VoicePlaybackCanceledData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": ["canceled", "owner_disconnect", "daemon_shutdown", "superseded", "barge_in"]
+        }
       }
     },
     "VoiceSpeechStartedData": {
@@ -462,6 +577,141 @@
           "enum": ["canceled", "owner_disconnect", "daemon_shutdown", "barge_in"]
         }
       }
+    },
+    "AnnotationSelectionMode": {
+      "enum": ["point", "rectangle", "freehand", "text"]
+    },
+    "AnnotationDesktopPoint": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "AnnotationDesktopBounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "AnnotationGeometry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "point" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "x", "y", "width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "rectangle" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "minimum": 0 },
+            "height": { "type": "number", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "points", "bounds"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "freehand" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "points": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "items": { "$ref": "#/$defs/AnnotationDesktopPoint" }
+            },
+            "bounds": { "$ref": "#/$defs/AnnotationDesktopBounds" }
+          }
+        }
+      ]
+    },
+    "AnnotationApplication": {
+      "type": "object",
+      "required": ["pid", "name", "bundle_id"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": { "type": "integer", "minimum": -1 },
+        "name": { "type": ["string", "null"], "maxLength": 256 },
+        "bundle_id": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "AnnotationWindow": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["window_id", "title", "bounds"],
+          "additionalProperties": false,
+          "properties": {
+            "window_id": { "type": "integer", "minimum": -1 },
+            "title": { "type": ["string", "null"], "maxLength": 512 },
+            "bounds": { "$ref": "#/$defs/AnnotationDesktopBounds" }
+          }
+        }
+      ]
+    },
+    "AnnotationSelectionStartedData": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": { "mode": { "$ref": "#/$defs/AnnotationSelectionMode" } }
+    },
+    "AnnotationSelectionCompletedData": {
+      "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mode": { "const": "text" } },
+            "required": ["mode"]
+          },
+          "then": { "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 4096 } } },
+          "else": { "properties": { "text": { "type": "null" } } }
+        }
+      ],
+      "required": ["selection_id", "mode", "geometry", "application", "window", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "selection_id": { "type": "string", "pattern": "^sel-[a-f0-9-]{36}$" },
+        "mode": { "$ref": "#/$defs/AnnotationSelectionMode" },
+        "geometry": { "$ref": "#/$defs/AnnotationGeometry" },
+        "application": { "$ref": "#/$defs/AnnotationApplication" },
+        "window": { "$ref": "#/$defs/AnnotationWindow" },
+        "text": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "AnnotationSelectionCanceledData": {
+      "type": "object",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "enum": ["escape", "canceled", "owner_disconnect", "daemon_shutdown", "invalid_selection"] }
+      }
+    },
+    "AnnotationSelectionFailureData": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": { "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" } }
     }
   }
 }

@@ -129,6 +129,147 @@
         "selected_resolution_class": { "$ref": "#/$defs/nullable_string" }
       }
     },
+    "desktop_bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "desktop_point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "desktop_geometry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "point" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "x", "y", "width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "rectangle" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "minimum": 0 },
+            "height": { "type": "number", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "coordinate_space", "points", "bounds"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "freehand" },
+            "coordinate_space": { "const": "desktop_points_top_left" },
+            "points": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "items": { "$ref": "#/$defs/desktop_point" }
+            },
+            "bounds": { "$ref": "#/$defs/desktop_bounds" }
+          }
+        }
+      ]
+    },
+    "desktop_selection": {
+      "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mode": { "enum": ["point", "text"] } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "properties": { "kind": { "const": "point" } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "rectangle" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "properties": { "kind": { "const": "rectangle" } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "freehand" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "geometry": {
+                "properties": { "kind": { "const": "freehand" } }
+              }
+            }
+          }
+        }
+      ],
+      "required": ["kind", "selection_id", "mode", "geometry", "application", "window"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "desktop_annotation_selection" },
+        "selection_id": { "type": "string", "pattern": "^sel-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+        "mode": { "enum": ["point", "rectangle", "freehand", "text"] },
+        "geometry": { "$ref": "#/$defs/desktop_geometry" },
+        "application": {
+          "type": "object",
+          "required": ["pid", "name", "bundle_id"],
+          "additionalProperties": false,
+          "properties": {
+            "pid": { "type": "integer", "minimum": -1 },
+            "name": { "type": ["string", "null"], "maxLength": 256 },
+            "bundle_id": { "type": ["string", "null"], "maxLength": 256 }
+          }
+        },
+        "window": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["window_id", "title", "bounds"],
+              "additionalProperties": false,
+              "properties": {
+                "window_id": { "type": "integer", "minimum": -1 },
+                "title": { "type": ["string", "null"], "maxLength": 512 },
+                "bounds": { "$ref": "#/$defs/desktop_bounds" }
+              }
+            }
+          ]
+        }
+      }
+    },
     "work_record_link": {
       "type": "object",
       "required": ["ref", "relationship", "status", "artifact_refs"],
@@ -314,6 +455,7 @@
           "items": { "$ref": "#/$defs/recommended_next" }
         },
         "source_capture": { "$ref": "#/$defs/source_capture" },
+        "desktop_selection": { "$ref": "#/$defs/desktop_selection" },
         "work_record_links": {
           "type": "array",
           "items": { "$ref": "#/$defs/work_record_link" }
