@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "service": "voice",
+  "event": "capture_segmented_started",
+  "ts": 1720000000.1,
+  "data": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "max_duration_ms": 120000,
+    "segment_duration_ms": 3000
+  },
+  "ref": "capture-segmented-1"
+}

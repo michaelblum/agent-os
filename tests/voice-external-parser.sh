@@ -100,6 +100,26 @@ grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-duration-invalid.e
   exit 1
 }
 
+if ./aos listen --source microphone --output /private/tmp/capture.wav --segments /private/tmp/segments --follow 2>"$STATE_ROOT/listen-microphone-target-conflict.err"; then
+  echo "FAIL: microphone listen accepted both output forms" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-target-conflict.err" || {
+  echo "FAIL: microphone target conflict did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-target-conflict.err" >&2
+  exit 1
+}
+
+if ./aos listen --source microphone --segments /private/tmp/segments --segment-duration 250ms --follow 2>"$STATE_ROOT/listen-microphone-segment-duration-invalid.err"; then
+  echo "FAIL: segmented microphone listen accepted a short segment duration" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$STATE_ROOT/listen-microphone-segment-duration-invalid.err" || {
+  echo "FAIL: invalid segment duration did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/listen-microphone-segment-duration-invalid.err" >&2
+  exit 1
+}
+
 secret="voice-parser-secret"
 if printf '%s' "$secret" | ./aos say --follow --rate invalid 2>"$STATE_ROOT/say-follow-rate-invalid.err"; then
   echo "FAIL: say follow accepted invalid rate" >&2

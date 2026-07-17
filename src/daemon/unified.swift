@@ -2755,6 +2755,8 @@ class UnifiedDaemon {
         case ("listen", "channels"):          return "coord-channels"
         case ("listen", "hotkey"):            return "voice-hotkey"
         case ("listen", "microphone"):        return "voice-microphone"
+        case ("listen", "microphone_segmented"):
+                                                return "voice-microphone-segmented"
         case ("listen", "stop"):              return "voice-capture-stop"
         case ("listen", "cancel"):            return "voice-capture-cancel"
         case ("session", "register"):         return "coord-register"
@@ -3096,6 +3098,31 @@ class UnifiedDaemon {
                 sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } catch {
                 sendVoiceTransportError(to: outbound, message: "microphone capture failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            }
+
+        case "voice-microphone-segmented":
+            guard let directoryPath = json["segments_directory"] as? String,
+                  !directoryPath.isEmpty else {
+                sendVoiceTransportError(to: outbound, message: "segments directory required", code: "MISSING_ARG", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
+            let segmentDuration = (json["segment_duration_seconds"] as? NSNumber)?.doubleValue
+                ?? aosVoiceSegmentDefaultDuration
+            let maximumDuration = (json["max_duration_seconds"] as? NSNumber)?.doubleValue
+                ?? aosVoiceCaptureMaximumDuration
+            do {
+                try voiceTransport.startSegmentedCapture(
+                    owner: connectionID,
+                    directoryPath: directoryPath,
+                    segmentDuration: segmentDuration,
+                    maximumDuration: maximumDuration,
+                    ref: envelopeRef
+                )
+                sendResponseJSON(to: outbound, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch let failure as AOSVoiceTransportFailure {
+                sendVoiceTransportError(to: outbound, message: failure.message, code: failure.code, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            } catch {
+                sendVoiceTransportError(to: outbound, message: "segmented microphone capture failed", code: "VOICE_TRANSPORT_FAILED", envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         case "voice-capture-stop", "voice-capture-cancel":

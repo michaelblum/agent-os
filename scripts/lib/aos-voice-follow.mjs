@@ -12,11 +12,14 @@ const TERMINAL_EVENTS = new Set([
   'capture_completed',
   'capture_canceled',
   'capture_failed',
+  'capture_segmented_completed',
+  'capture_segmented_canceled',
+  'capture_segmented_failed',
   'speech_finished',
   'speech_canceled',
   'speech_failed',
 ]);
-const FAILURE_EVENTS = new Set(['capture_failed', 'speech_failed']);
+const FAILURE_EVENTS = new Set(['capture_failed', 'capture_segmented_failed', 'speech_failed']);
 const SAFE_DAEMON_ERRORS = new Map([
   ['MICROPHONE_PERMISSION_DENIED', 'microphone permission is not granted'],
   ['MICROPHONE_PERMISSION_NOT_DETERMINED', 'microphone permission has not been requested'],
@@ -32,6 +35,11 @@ const SAFE_DAEMON_ERRORS = new Map([
   ['UNSAFE_OUTPUT_PARENT', 'voice capture output parent is unsafe'],
   ['OUTPUT_EXISTS', 'voice capture output must not already exist'],
   ['OUTPUT_CREATE_FAILED', 'voice capture output could not be created'],
+  ['INVALID_SEGMENT_DIRECTORY', 'voice segment directory is invalid'],
+  ['UNSAFE_SEGMENT_DIRECTORY', 'voice segment directory is unsafe'],
+  ['SEGMENT_DIRECTORY_NOT_EMPTY', 'voice segment directory must be empty'],
+  ['INVALID_SEGMENT_DURATION', 'voice segment duration is invalid'],
+  ['SEGMENT_CREATE_FAILED', 'voice segment could not be created'],
   ['INVALID_SPEECH_TEXT', 'speech input is invalid'],
   ['INVALID_SPEECH_RATE', 'speech rate is invalid'],
   ['INVALID_VOICE_ID', 'voice identifier is malformed'],
@@ -72,8 +80,19 @@ function parseDuration(value) {
   if (!match) fail('listen --max-duration must be a positive duration', 'INVALID_ARG');
   const amount = Number(match[1]);
   const seconds = match[2] === 'ms' ? amount / 1000 : match[2] === 'm' ? amount * 60 : amount;
-  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 120) {
+  if (!Number.isFinite(seconds) || seconds < 0.001 || seconds > 120) {
     fail('listen --max-duration must be between 1ms and 120s', 'INVALID_ARG');
+  }
+  return seconds;
+}
+
+function parseSegmentDuration(value) {
+  const match = /^(\d+(?:\.\d+)?)(ms|s)?$/.exec(value ?? '3s');
+  if (!match) fail('listen --segment-duration must be a duration', 'INVALID_ARG');
+  const amount = Number(match[1]);
+  const seconds = match[2] === 'ms' ? amount / 1000 : amount;
+  if (!Number.isFinite(seconds) || seconds < 0.5 || seconds > 5) {
+    fail('listen --segment-duration must be between 500ms and 5s', 'INVALID_ARG');
   }
   return seconds;
 }
@@ -207,13 +226,18 @@ async function followVoice({ service, action, data, stopAction, cancelAction, te
 export async function listenVoice(args) {
   assertOnlyFlags(
     args,
-    new Set(['--source', '--shortcut', '--output', '--max-duration']),
+    new Set(['--source', '--shortcut', '--output', '--segments', '--segment-duration', '--max-duration']),
     new Set(['--follow']),
   );
   if (!args.includes('--follow')) fail('voice listen sources require --follow', 'MISSING_ARG');
   const source = valueAfter(args, '--source');
   if (source === 'hotkey') {
-    if (args.includes('--output') || args.includes('--max-duration')) fail('hotkey listen does not accept microphone flags', 'INVALID_ARG');
+    if (
+      args.includes('--output')
+      || args.includes('--segments')
+      || args.includes('--segment-duration')
+      || args.includes('--max-duration')
+    ) fail('hotkey listen does not accept microphone flags', 'INVALID_ARG');
     const shortcut = valueAfter(args, '--shortcut') ?? 'Control+Option+Space';
     await followVoice({
       service: 'listen',
@@ -226,7 +250,30 @@ export async function listenVoice(args) {
   if (source === 'microphone') {
     if (args.includes('--shortcut')) fail('microphone listen does not accept --shortcut', 'INVALID_ARG');
     const output = valueAfter(args, '--output');
-    if (!output) fail('listen --source microphone requires --output', 'MISSING_ARG');
+    const segmentsDirectory = valueAfter(args, '--segments');
+    if (!output && !segmentsDirectory) {
+      fail('listen --source microphone requires --output or --segments', 'MISSING_ARG');
+    }
+    if (output && segmentsDirectory) {
+      fail('listen --source microphone accepts only one of --output or --segments', 'INVALID_ARG');
+    }
+    if (output && args.includes('--segment-duration')) {
+      fail('listen --segment-duration requires --segments', 'INVALID_ARG');
+    }
+    if (segmentsDirectory) {
+      await followVoice({
+        service: 'listen',
+        action: 'microphone_segmented',
+        data: {
+          segments_directory: segmentsDirectory,
+          segment_duration_seconds: parseSegmentDuration(valueAfter(args, '--segment-duration')),
+          max_duration_seconds: parseDuration(valueAfter(args, '--max-duration')),
+        },
+        stopAction: { service: 'listen', action: 'stop' },
+        cancelAction: { service: 'listen', action: 'cancel' },
+      });
+      return;
+    }
     await followVoice({
       service: 'listen',
       action: 'microphone',

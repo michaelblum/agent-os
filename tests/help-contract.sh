@@ -345,10 +345,13 @@ assert text.count("requires one listen source: <channel> OR --session-id") == 2,
 forms = {item["id"]: item for item in data["forms"]}
 assert "--source hotkey" in forms["listen-hotkey"]["usage"], forms["listen-hotkey"]
 assert "--source microphone" in forms["listen-microphone"]["usage"], forms["listen-microphone"]
+assert "--segments <absolute-directory>" in forms["listen-microphone-segmented"]["usage"], forms["listen-microphone-segmented"]
+assert "--segment-duration 3s" in forms["listen-microphone-segmented"]["usage"], forms["listen-microphone-segmented"]
 assert "Control+Option+Space" in text, text
 api_doc = Path("docs/api/aos.md").read_text(encoding="utf-8")
 architecture = Path("ARCHITECTURE.md").read_text(encoding="utf-8")
 assert "AOS does not transcribe the" in api_doc, "missing transcription ownership boundary"
+assert "atomic segment checkpoints" in api_doc, "missing segmented capture ownership boundary"
 assert "exact global hold-to-talk chord" in api_doc, "missing current hotkey boundary"
 assert "direct-session messages" in api_doc, "missing direct-session listen boundary"
 assert "exposes permissioned hotkey and microphone transport" in architecture, "missing architecture voice transport boundary"

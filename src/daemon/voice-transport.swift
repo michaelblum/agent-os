@@ -197,7 +197,7 @@ struct AOSVoiceTransportFailure: Error {
 }
 
 func aosVoiceCaptureDuration(_ requested: TimeInterval) -> TimeInterval? {
-    guard requested.isFinite, requested > 0 else { return nil }
+    guard requested.isFinite, requested >= 0.001 else { return nil }
     let bytesPerSecond = aosVoiceCaptureSampleRate * Double(aosVoiceCaptureChannels) * 2
     let byteBound = Double(aosVoiceCaptureMaximumBytes - 4096) / bytesPerSecond
     return min(requested, aosVoiceCaptureMaximumDuration, byteBound)
@@ -274,7 +274,7 @@ func aosCreateVoiceCaptureTarget(_ outputPath: String) throws -> URL {
     return URL(fileURLWithPath: outputPath)
 }
 
-private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelegate {
+private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelegate, AOSMicrophoneCaptureLease {
     let token = UUID()
     let owner: UUID
     let ref: String?
@@ -447,7 +447,7 @@ private final class AOSMicrophoneCaptureSession: NSObject, AVAudioRecorderDelega
     }
 }
 
-private func aosCopyPCMBuffer(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+func aosCopyPCMBuffer(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     guard let copy = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: source.frameLength) else { return nil }
     copy.frameLength = source.frameLength
     let sourceBuffers = UnsafeMutableAudioBufferListPointer(source.mutableAudioBufferList)
@@ -463,7 +463,7 @@ private func aosCopyPCMBuffer(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     return copy
 }
 
-private func aosRunOnMainSync(_ operation: () -> Void) {
+func aosRunOnMainSync(_ operation: () -> Void) {
     if Thread.isMainThread {
         operation()
     } else {
@@ -661,7 +661,7 @@ final class AOSVoiceTransport {
     private let emit: EventEmitter
     private let microphoneAuthorization: AOSMicrophoneAuthorizationProviding
     private var hotkey: HotkeyLease?
-    private var capture: AOSMicrophoneCaptureSession?
+    private var capture: (any AOSMicrophoneCaptureLease)?
     private var speech: AOSStreamingSpeechSession?
 
     init(
@@ -749,6 +749,56 @@ final class AOSVoiceTransport {
             owner: owner,
             ref: ref,
             outputPath: outputPath,
+            maximumDuration: maximumDuration,
+            authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
+            emit: { [emit] event, data in emit(owner, event, data, ref) },
+            terminal: { [weak self] token in self?.captureDidTerminate(token: token) }
+        )
+        lock.lock()
+        guard capture == nil else {
+            lock.unlock()
+            session.cancel(reason: "superseded")
+            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
+        }
+        capture = session
+        lock.unlock()
+        do {
+            try session.start()
+        } catch {
+            captureDidTerminate(token: session.token)
+            throw error
+        }
+    }
+
+    func startSegmentedCapture(
+        owner: UUID,
+        directoryPath: String,
+        segmentDuration: TimeInterval,
+        maximumDuration: TimeInterval,
+        ref: String?
+    ) throws {
+        lock.lock()
+        guard capture == nil else {
+            lock.unlock()
+            throw AOSVoiceTransportFailure(code: "CAPTURE_LEASE_BUSY", message: "microphone capture is already active")
+        }
+        let activeSpeech = speech
+        lock.unlock()
+
+        var authorization = microphoneAuthorization.status()
+        if authorization == .notDetermined {
+            authorization = microphoneAuthorization.request(timeout: 30).after
+        }
+        if let failure = authorization.failure {
+            throw AOSVoiceTransportFailure(code: failure.code, message: failure.message)
+        }
+        activeSpeech?.cancel(reason: "barge_in")
+
+        let session = try AOSSegmentedMicrophoneCaptureSession(
+            owner: owner,
+            ref: ref,
+            directoryPath: directoryPath,
+            segmentDuration: segmentDuration,
             maximumDuration: maximumDuration,
             authorizationState: { [microphoneAuthorization] in microphoneAuthorization.status() },
             emit: { [emit] event, data in emit(owner, event, data, ref) },
