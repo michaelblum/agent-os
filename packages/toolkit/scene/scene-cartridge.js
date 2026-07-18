@@ -14,6 +14,9 @@ import {
   SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID,
   compileSceneSignalBindings,
 } from './scene-signal.js'
+import {
+  validateSceneInteractionDocument,
+} from './scene-interaction.js'
 
 export const SCENE_CARTRIDGE_CONTRACT_ID = 'aos.scene.cartridge.v1'
 export const SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID = 'aos.scene.cartridge.animations.v1'
@@ -57,18 +60,6 @@ const EXACT_FILE_PATHS = Object.freeze({
   interactions: 'interactions.json',
   scene: 'scene.json',
 })
-const RECOGNIZER_IMPLEMENTATIONS = new Set([
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.dragRecognizer,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.longPressRecognizer,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.radialRecognizer,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.tapRecognizer,
-])
-const RESPONSE_IMPLEMENTATIONS = new Set([
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.aimCommitResponse,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.dropResponse,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.signalGraphResponse,
-  SCENE_CARTRIDGE_IMPLEMENTATIONS.translateResponse,
-])
 const BUILTIN_IMPLEMENTATIONS = new Set([
   ...Object.values(GENERIC_SCENE_IMPLEMENTATIONS),
   ...Object.values(SCENE_CARTRIDGE_IMPLEMENTATIONS),
@@ -349,50 +340,21 @@ function validateAnimations(value, scene, budgets, errors) {
   })
 }
 
-function validateInteractionImplementation(value, implementations, path, errors) {
-  if (!isRecord(value)) {
-    addError(errors, 'invalid_interaction_implementation', path, 'Interaction implementations require an ID and parameters.')
-    return
-  }
-  exactKeys(value, new Set(['implementation', 'parameters']), path, errors)
-  if (!implementations.has(value.implementation)) addError(errors, 'unknown_implementation', `${path}.implementation`, 'Interaction implementation is not registered.')
-  if (!isRecord(value.parameters)) addError(errors, 'invalid_parameters', `${path}.parameters`, 'Interaction parameters must be an object.')
-  else validateFiniteJson(value.parameters, `${path}.parameters`, errors)
-}
-
-function validateInteractions(value, budgets, knownImplementations, errors) {
-  if (!isRecord(value)) {
-    addError(errors, 'invalid_interactions', 'interactions', 'Cartridge interactions must be an object.')
-    return
-  }
-  exactKeys(value, new Set(['contract', 'interactions', 'schemaVersion']), 'interactions', errors)
-  if (value.contract !== SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID) addError(errors, 'contract_id', 'interactions.contract', `Interaction contract must be ${SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID}.`)
-  if (value.schemaVersion !== 1) addError(errors, 'schema_version', 'interactions.schemaVersion', 'Interaction schema version must be 1.')
-  if (!Array.isArray(value.interactions) || value.interactions.length > budgets.maxInteractions) {
-    addError(errors, 'interaction_count', 'interactions.interactions', 'Cartridge interactions exceed their declared budget.')
-    return
-  }
-  const ids = new Set()
-  value.interactions.forEach((interaction, index) => {
-    const path = `interactions.interactions.${index}`
-    if (!isRecord(interaction)) {
-      addError(errors, 'invalid_interaction', path, 'Cartridge interactions must be objects.')
-      return
-    }
-    exactKeys(interaction, new Set(['affordanceId', 'id', 'recognizer', 'response']), path, errors)
-    validateId(interaction.id, `${path}.id`, errors)
-    validateId(interaction.affordanceId, `${path}.affordanceId`, errors)
-    if (ids.has(interaction.id)) addError(errors, 'duplicate_interaction', `${path}.id`, 'Cartridge interaction IDs must be unique.')
-    ids.add(interaction.id)
-    validateInteractionImplementation(interaction.recognizer, knownImplementations, `${path}.recognizer`, errors)
-    validateInteractionImplementation(interaction.response, knownImplementations, `${path}.response`, errors)
-    if (interaction.recognizer?.implementation && !RECOGNIZER_IMPLEMENTATIONS.has(interaction.recognizer.implementation)) {
-      addError(errors, 'implementation_kind', `${path}.recognizer.implementation`, 'Interaction recognizer requires a recognizer implementation.')
-    }
-    if (interaction.response?.implementation && !RESPONSE_IMPLEMENTATIONS.has(interaction.response.implementation)) {
-      addError(errors, 'implementation_kind', `${path}.response.implementation`, 'Interaction response requires a response implementation.')
-    }
+function validateInteractions(value, scene, budgets, knownImplementations, errors) {
+  const validation = validateSceneInteractionDocument(value, {
+    maxInteractions: budgets.maxInteractions,
+    scene,
   })
+  errors.push(...validation.errors)
+  if (!isRecord(value) || !Array.isArray(value.interactions)) return
+  for (const [index, interaction] of value.interactions.entries()) {
+    for (const field of ['recognizer', 'response']) {
+      const implementation = interaction?.[field]?.implementation
+      if (implementation && !knownImplementations.has(implementation)) {
+        addError(errors, 'unknown_implementation', `interactions.interactions.${index}.${field}.implementation`, 'Interaction implementation is not registered.')
+      }
+    }
+  }
 }
 
 function requiredImplementationEntries(scene, interactions) {
@@ -448,7 +410,7 @@ export function validateSceneCartridge(cartridge, options = {}) {
     ...BUILTIN_IMPLEMENTATIONS,
     ...registry.snapshot().implementations.map((entry) => entry.id),
   ])
-  validateInteractions(cartridge.interactions, budgets, knownImplementations, errors)
+  validateInteractions(cartridge.interactions, scene, budgets, knownImplementations, errors)
   if (errors.length > 0) return { ok: false, errors }
   const required = requiredImplementationEntries(scene, cartridge.interactions)
   const declared = [...cartridge.manifest.implementations].sort((left, right) => left.id.localeCompare(right.id))

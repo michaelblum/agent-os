@@ -12,10 +12,25 @@ aos scene --stage desktop-world/main --owner <consumer-id> --resource <resource-
 ```
 
 It reads strict NDJSON operations from stdin: `mount`, `transact`, `signal`,
-`play`, `suspend`, `resume`, `inspect`, `remove`, and `close`. Leases are scoped
-to the client connection and removed on disconnect. Documents contain only
-registered declarative implementation IDs; implementation code never crosses
-the transport.
+`play`, `suspend`, `resume`, `inspect`, `subscribe`, `unsubscribe`, `remove`,
+and `close`. Leases are scoped to the client connection and removed on
+disconnect. Documents contain only registered declarative implementation IDs;
+implementation code never crosses the transport.
+
+Subscribe to typed gesture events without opening another socket or process:
+
+```jsonl
+{"op":"subscribe","events":["gesture"]}
+{"op":"inspect"}
+{"op":"unsubscribe","events":["gesture"]}
+{"op":"close"}
+```
+
+`subscribe` requires one or more supported event names. `unsubscribe` removes
+the named events; an empty event list removes every subscription for that
+lease. Unsolicited events use `aos.scene.event.v1`, preserve owner/resource and
+pointer-session identity, and never carry product text, audio, prompts, or
+scene document content.
 
 Data-only cartridges can be validated without starting the daemon:
 
@@ -45,6 +60,7 @@ import {
   canonicalizeSceneDocument,
   createDesktopWorldSceneHost,
   createSceneAnimationController,
+  createSceneInteractionController,
   createLocalSceneViewportHost,
   createSceneImplementationRegistry,
   createSceneLease,
@@ -53,6 +69,7 @@ import {
   createVisualObjectDescriptor,
   bindVisualObjectForm,
   validateSceneTransaction,
+  validateSceneInteractionDocument,
 } from '@agent-os/toolkit/scene'
 ```
 
@@ -110,6 +127,34 @@ transaction never mutates the supplied document.
 `createSceneLease()` produces an `aos.scene.lease.v1` identity containing the
 stage, owner, resource, and ResourceScope IDs. The contract does not create a
 daemon lease or shared renderer by itself.
+
+### Affordances And Gestures
+
+`aos.scene.cartridge.interactions.v1` declares object-relative rectangular
+`SceneAffordanceDescriptor` regions. AOS registers those regions against the
+passive DesktopWorld canvas and owns pointer capture, DesktopWorld/native
+coordinates, display topology, arbitration, Escape cancellation, update
+coalescing, and cleanup. Only the primary display segment mutates daemon region
+state or emits events; every segment applies the same response so one logical
+scene remains visually continuous across displays.
+
+Affordance rectangles resolve through the object's complete parent transform
+chain into an axis-aligned DesktopWorld hit frame. Conventional translation
+converts DesktopWorld pointer deltas back into the object's parent space and
+refreshes the native hit region after commit.
+
+`createSceneGestureArena()` arbitrates tap, drag, long-press, and radial
+recognizers by bounded explicit priority and stable ID order. Drag phases are
+always `start`, `update`, `end`, or `cancel`; the recognizer does not imply that
+an object moves. `translate`, `aim_commit`, `drop`, and `signal_graph` are
+separate declarative responses. Aim-and-commit keeps its object fixed and emits
+the route vector for an engine renderer to consume.
+
+`createSceneInteractionController()` binds the generic arena to one
+owner/resource lease and emits schema-validated `SceneEventEnvelope` values.
+Movement updates are coalesced to render cadence, while start, end, and cancel
+are never dropped. Long-press uses a timer only while an undecided pointer
+session exists; an idle scene creates no timer or additional frame loop.
 
 ## Implementations, Animation, Signals, And Hosts
 

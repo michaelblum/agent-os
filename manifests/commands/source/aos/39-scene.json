@@ -17,7 +17,7 @@
       "stdin":{"supported":true,"content_type":"ndjson","used_when":"always"},
       "output":{"default_mode":"ndjson","error_mode":"json_stderr","streaming":true,"supports_json_flag":false},
       "execution":{"auto_starts_daemon":true,"interactive":false,"mutates_state":true,"read_only":false,"requires_permissions":false,"streaming":true,"supports_dry_run":false},
-      "examples":["printf '%s\\n' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"]
+      "examples":["printf '%s\\n' '{\"op\":\"subscribe\",\"events\":[\"gesture\"]}' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"]
     }]
   }, {
     "path": ["scene", "cartridge", "validate"],

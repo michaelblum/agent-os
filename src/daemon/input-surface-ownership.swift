@@ -290,6 +290,7 @@ final class AOSInputRegionRegistry {
     private var regions: [String: AOSInputRegionRecord] = [:]
     private var captureRegionID: String?
     private var captureID: String?
+    private var captureDesktopWorld: CGPoint?
 
     var allRegions: [AOSInputRegionRecord] {
         regions.values.sorted(by: sortRegions)
@@ -303,6 +304,7 @@ final class AOSInputRegionRegistry {
         if captureRegionID == id {
             captureRegionID = nil
             captureID = nil
+            captureDesktopWorld = nil
         }
         return regions.removeValue(forKey: id)
     }
@@ -350,9 +352,16 @@ final class AOSInputRegionRegistry {
     func clearCapture() {
         captureRegionID = nil
         captureID = nil
+        captureDesktopWorld = nil
     }
 
-    func route(event: AOSInputEventDescriptor, point: CGPoint?, sourceSequence: String? = nil, gestureID: String? = nil) -> AOSInputRegionRoute? {
+    func route(
+        event: AOSInputEventDescriptor,
+        point: CGPoint?,
+        desktopWorld: CGPoint? = nil,
+        sourceSequence: String? = nil,
+        gestureID: String? = nil
+    ) -> AOSInputRegionRoute? {
         guard let phase = event.phase else { return nil }
 
         if let capturedID = captureRegionID, let capturedRegion = regions[capturedID] {
@@ -369,8 +378,9 @@ final class AOSInputRegionRegistry {
                 shouldConsume: capturedRegion.shouldConsume(phase: phase, captured: true)
             )
             if event.isTerminal {
-                captureRegionID = nil
-                captureID = nil
+                clearCapture()
+            } else if let desktopWorld {
+                captureDesktopWorld = desktopWorld
             }
             return route
         }
@@ -385,6 +395,7 @@ final class AOSInputRegionRegistry {
                 sourceSequence: sourceSequence,
                 gestureID: gestureID
             )
+            captureDesktopWorld = desktopWorld
         }
 
         return AOSInputRegionRoute(
@@ -407,6 +418,7 @@ final class AOSInputRegionRegistry {
         guard let route = route(
             event: descriptor,
             point: point,
+            desktopWorld: desktopWorld,
             sourceSequence: sourceSequence,
             gestureID: gestureID
         ) else {
@@ -423,6 +435,39 @@ final class AOSInputRegionRegistry {
             clearCapture()
         }
         return decision
+    }
+
+    func cancelActiveCapture(
+        reason: AOSInputCancelReason,
+        sourceSequence: String? = nil,
+        gestureID: String? = nil
+    ) -> AOSInputRegionDeliveryDecision? {
+        guard let capturedID = captureRegionID,
+              let region = regions[capturedID] else { return nil }
+        guard let desktopWorld = captureDesktopWorld,
+              let event = AOSCanonicalInputEvent(type: "pointer_cancel", cancelReason: reason.rawValue) else {
+            clearCapture()
+            return .failOpen
+        }
+        let route = AOSInputRegionRoute(
+            region: region,
+            phase: AOSInputEventPhase.cancel.rawValue,
+            captured: true,
+            captureID: captureID ?? AOSInputRegionRegistry.defaultCaptureID(
+                regionID: region.id,
+                sourceSequence: sourceSequence,
+                gestureID: gestureID
+            ),
+            shouldConsume: region.shouldConsume(phase: .cancel, captured: true)
+        )
+        clearCapture()
+        return aosInputRegionDeliveryDecision(
+            event: event,
+            route: route,
+            desktopWorld: desktopWorld,
+            sourceSequence: sourceSequence,
+            gestureID: gestureID
+        )
     }
 
     static func defaultCaptureID(regionID: String, sourceSequence: String?, gestureID: String?) -> String {

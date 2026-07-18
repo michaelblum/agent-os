@@ -111,7 +111,9 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `aos-scene.mjs` owns the bounded public NDJSON adapter for connection-scoped
   DesktopWorld scene leases and the read-only cartridge-validation command.
   Follow mode accepts only the documented operation set, bounds input/output,
-  and never exposes the daemon socket to consumers. Cartridge validation uses
+  and never exposes the daemon socket to consumers. `subscribe` and
+  `unsubscribe` operate on that same lease, accept only registered typed event
+  names, and never create a second socket or per-gesture process. Cartridge validation uses
   `lib/aos-scene-cartridge.mjs` to reject links, traversal, undeclared files,
   digest drift, executable data, remote runtime assets, and unsafe budgets
   without starting the daemon or exposing absolute paths.

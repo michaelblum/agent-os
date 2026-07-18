@@ -188,6 +188,39 @@ if case .failOpen? = failed {
 }
 assert(failOpenRegistry.activeCaptureSnapshot() == nil, "fail-open decision must atomically clear active capture")
 
+let escapeRegistry = AOSInputRegionRegistry()
+escapeRegistry.register(highRegion)
+let escapeDown = escapeRegistry.resolveDelivery(
+    descriptor: canonicalDown.descriptor,
+    event: canonicalDown,
+    point: point,
+    desktopWorld: CGPoint(x: 125, y: 225),
+    sourceSequence: "daemon:10",
+    gestureID: "g-escape"
+)
+if case .deliver? = escapeDown {
+    assert(true, "escape test should establish a canonical capture")
+} else {
+    assert(false, "escape test requires a canonical capture")
+}
+let escaped = escapeRegistry.cancelActiveCapture(
+    reason: .escape,
+    sourceSequence: "daemon:11",
+    gestureID: "escape:daemon:11"
+)
+if case .deliver(let delivery)? = escaped {
+    let routed = delivery.payload["routed_input"] as? [String: Any]
+    assert(routed?["event_kind"] as? String == "cancel", "Escape must emit a routed cancel event")
+    assert(routed?["cancel_reason"] as? String == "escape", "Escape cancellation must retain its reason")
+    assert(routed?["capture_id"] as? String == "daemon:10:high-region", "Escape cancellation must retain the pointer-session capture")
+    let routedPoint = routed?["desktop_world"] as? [String: Any]
+    assert((routedPoint?["x"] as? Double) == 125, "Escape cancellation must retain the last DesktopWorld x coordinate")
+} else {
+    assert(false, "active capture should produce one routed Escape cancellation")
+}
+assert(escapeRegistry.activeCaptureSnapshot() == nil, "Escape cancellation must clear active capture atomically")
+assert(escapeRegistry.cancelActiveCapture(reason: .escape) == nil, "repeated Escape cancellation must be idempotent")
+
 let cursorReconciler = AOSNativeCursorSuppressionReconciler()
 let firstCursorSuppression = cursorReconciler.reconcile(active: true)
 assert(firstCursorSuppression.hideNativeCursor == true, "first cursor suppression should hide the process cursor once")

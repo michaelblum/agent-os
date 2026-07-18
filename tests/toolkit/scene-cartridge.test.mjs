@@ -92,6 +92,8 @@ test('cartridge scene safety preserves the existing 1024-object structural allow
     components: [],
   }))]
   cartridge.manifest.budgets.maxObjects = 1024
+  cartridge.interactions.affordances[0].id = 'node/0'
+  cartridge.interactions.affordances[0].objectId = 'node/0'
   cartridge.interactions.interactions[0].affordanceId = 'node/0'
   const result = validateSceneCartridge(cartridge)
   assert.equal(result.ok, true, JSON.stringify(result.errors))

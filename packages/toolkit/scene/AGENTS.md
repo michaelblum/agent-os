@@ -8,8 +8,9 @@
 `scene/` is the narrow package facade for product-neutral scene authoring. It
 owns the public contracts for the DesktopWorld stage 3D outlet and currently
 exposes data-only cartridge contracts, declarative scene contracts,
-implementation registration, atomic scene
-transactions, numeric signal and elapsed-clock animation bindings,
+implementation registration, atomic scene transactions, owner-scoped
+affordances, deterministic gesture arbitration and typed scene events, numeric
+signal and elapsed-clock animation bindings,
 dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
 the bounded generic Three implementation registry/projector,
 bounded renderer lifecycle, canvas lifecycle projections, and visual-object
@@ -53,9 +54,16 @@ stage internals.
 - Generic implementation parameter validators fail before projection. The
   stock browser outlet uses the pinned local Three module and performs no
   runtime network fetch; the package facade remains dependency-injected.
+- A drag recognizer owns only `start`, `update`, `end`, and `cancel` lifecycle.
+  Translation, aim-and-commit, drop, and signal graphs are separate declarative
+  responses. A product meaning such as fast travel must remain in its cartridge.
+- Only the primary DesktopWorld segment registers native hit regions or emits
+  typed gesture events. Every segment applies the same visual response, and a
+  failed region activation must restore the previous scene or fail closed with
+  no active resource.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs`
+- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs`
 
 ## Child DOX Index

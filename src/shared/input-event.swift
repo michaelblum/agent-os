@@ -36,6 +36,7 @@ enum AOSInputButton: Equatable {
 }
 
 enum AOSInputCancelReason: String {
+    case escape = "escape"
     case osCancelled = "os_cancelled"
     case surfaceRemoved = "surface_removed"
     case surfaceSuspended = "surface_suspended"

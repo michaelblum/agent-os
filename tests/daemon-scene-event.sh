@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/aos-scene-event.XXXXXX")"
+trap 'rm -rf "$TMP"' EXIT
+
+cat >"$TMP/main.swift" <<'SWIFT'
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+        exit(1)
+    }
+}
+
+let valid: [String: Any] = [
+    "contract": "aos.scene.event.v1",
+    "schemaVersion": 1,
+    "type": "gesture",
+    "sequence": 1,
+    "stageId": "desktop-world/main",
+    "ownerId": "example.consumer",
+    "resourceId": "companion/main",
+    "affordanceId": "body-hit",
+    "interactionId": "body-drag",
+    "gesture": [
+        "id": "gesture-1", "kind": "drag", "phase": "update",
+        "pointerSessionId": "capture-1", "cancellationReason": NSNull(),
+    ],
+    "coordinates": [
+        "origin": ["x": 100.0, "y": 200.0], "previous": ["x": 110.0, "y": 210.0],
+        "current": ["x": 120.0, "y": 220.0], "desktopWorld": ["x": 120.0, "y": 220.0],
+        "native": NSNull(), "delta": ["x": 10.0, "y": 10.0], "totalDelta": ["x": 20.0, "y": 20.0],
+    ],
+    "topology": ["displays": [["displayId": 1, "index": 0, "bounds": [0.0, 0.0, 1440.0, 900.0]]]],
+    "response": ["kind": "aim_commit", "objectId": "body", "origin": ["x": 100.0, "y": 200.0], "pointer": ["x": 120.0, "y": 220.0], "angle": 0.7, "distance": 28.0, "route": "line", "applied": true, "revision": 2],
+    "at": 100.0,
+]
+
+require(aosCanonicalSceneEvent(valid) != nil, "valid scene event was rejected")
+var leaked = valid
+leaked["prompt"] = "private product content"
+require(aosCanonicalSceneEvent(leaked) == nil, "unknown top-level product content was accepted")
+var badResponse = valid
+badResponse["response"] = ["kind": "aim_commit", "objectId": "body", "origin": NSNull(), "pointer": NSNull(), "angle": 0.0, "distance": 0.0, "route": "line", "spokenText": "private"]
+require(aosCanonicalSceneEvent(badResponse) == nil, "unknown nested response content was accepted")
+var badCancel = valid
+badCancel["gesture"] = ["id": "gesture-1", "kind": "drag", "phase": "cancel", "pointerSessionId": "capture-1", "cancellationReason": "product_reason"]
+require(aosCanonicalSceneEvent(badCancel) == nil, "unregistered cancellation reason was accepted")
+print("PASS daemon scene event projection")
+SWIFT
+
+CLANG_MODULE_CACHE_PATH="$TMP/cache" SWIFT_MODULECACHE_PATH="$TMP/cache" \
+    swiftc "$ROOT/src/daemon/scene-event.swift" "$TMP/main.swift" -o "$TMP/test"
+"$TMP/test"

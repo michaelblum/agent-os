@@ -8,7 +8,8 @@ import { loadSceneCartridge } from './lib/aos-scene-cartridge.mjs'
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
 const MAX_STDERR_BYTES = 32 * 1024
-const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close'])
+const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
+const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
 
 function fail(code, message) {
   const error = new Error(message)
@@ -35,7 +36,9 @@ function parseFollowArgs(args) {
   const resource = valueAfter(args, '--resource')
   if (stage !== 'desktop-world/main') fail('INVALID_STAGE', 'scene stage must be desktop-world/main')
   if (!/^[a-z0-9][a-z0-9._-]{0,127}$/u.test(owner)) fail('INVALID_OWNER', 'scene owner is invalid')
-  if (!/^[a-z0-9][a-z0-9._/-]{0,127}$/u.test(resource)) fail('INVALID_RESOURCE', 'scene resource is invalid')
+  if (!/^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u.test(resource) || resource.length > 128) {
+    fail('INVALID_RESOURCE', 'scene resource is invalid')
+  }
   return { stage, owner, resource }
 }
 
@@ -53,6 +56,25 @@ function parseCartridgeArgs(args) {
 
 function safeError(error) {
   return JSON.stringify({ code: error?.code ?? 'SCENE_TRANSPORT_FAILED', error: error?.message ?? 'scene transport failed' })
+}
+
+function validateFollowOperation(operation) {
+  if (!operation || typeof operation !== 'object' || Array.isArray(operation) || !ALLOWED_OPERATIONS.has(operation.op)) {
+    fail('INVALID_SCENE_OPERATION', 'scene operation is not supported')
+  }
+  if (operation.op !== 'subscribe' && operation.op !== 'unsubscribe') return operation
+  const keys = Object.keys(operation)
+  if (keys.some((key) => key !== 'op' && key !== 'events')) {
+    fail('INVALID_SCENE_SUBSCRIPTION', 'scene subscription contains unknown fields')
+  }
+  const events = operation.events ?? []
+  if (!Array.isArray(events) || events.length > 8 || events.some((event) => !ALLOWED_SCENE_EVENTS.has(event))) {
+    fail('INVALID_SCENE_SUBSCRIPTION', 'scene subscription contains unsupported events')
+  }
+  if (operation.op === 'subscribe' && events.length === 0) {
+    fail('INVALID_SCENE_SUBSCRIPTION', 'scene subscribe requires at least one event')
+  }
+  return { op: operation.op, events: [...new Set(events)] }
 }
 
 async function runCartridgeValidate(args) {
@@ -101,12 +123,15 @@ async function runSceneFollow(args) {
   let closeAcknowledged
   const closeAcknowledgement = new Promise((resolve) => { closeAcknowledged = resolve })
   const cleanup = async (code = 0) => {
-    if (closed) return
+    if (closed) {
+      if (code !== 0) process.exitCode = code
+      return
+    }
     closed = true
+    process.exitCode = code
     if (parentMonitor) clearInterval(parentMonitor)
     socket.end()
     await stopManagedDaemon(connection.daemon)
-    process.exitCode = code
   }
   cleanupActive = cleanup
   const writeError = (error) => {
@@ -126,11 +151,29 @@ async function runSceneFollow(args) {
         void cleanup(1)
         return
       }
-      process.stdout.write(`${line}\n`)
+      let payload
       try {
-        const payload = JSON.parse(line)
-        if (payload.operation === 'close') closeAcknowledged()
-      } catch {}
+        payload = JSON.parse(line)
+      } catch {
+        writeError(Object.assign(new Error('daemon returned malformed scene JSON'), { code: 'INVALID_SCENE_EVENT' }))
+        void cleanup(1)
+        return
+      }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        writeError(Object.assign(new Error('daemon returned an invalid scene envelope'), { code: 'INVALID_SCENE_EVENT' }))
+        void cleanup(1)
+        return
+      }
+      const output = `${JSON.stringify(payload)}\n`
+      if (!process.stdout.write(output)) {
+        socket.pause()
+        process.stdout.once('drain', () => socket.resume())
+      }
+      if (payload.operation === 'close') closeAcknowledged()
+    }
+    if (Buffer.byteLength(outputBuffer) > MAX_OUTPUT_LINE_BYTES) {
+      writeError(Object.assign(new Error('scene event exceeded the line limit'), { code: 'SCENE_EVENT_TOO_LARGE' }))
+      void cleanup(1)
     }
   })
   socket.once('error', () => void cleanup(1))
@@ -141,9 +184,7 @@ async function runSceneFollow(args) {
     if (Buffer.byteLength(line) > MAX_INPUT_LINE_BYTES) fail('SCENE_OPERATION_TOO_LARGE', 'scene operation exceeded the line limit')
     let operation
     try { operation = JSON.parse(line) } catch { fail('INVALID_SCENE_OPERATION', 'scene operation must be JSON') }
-    if (!operation || typeof operation !== 'object' || !ALLOWED_OPERATIONS.has(operation.op)) {
-      fail('INVALID_SCENE_OPERATION', 'scene operation is not supported')
-    }
+    operation = validateFollowOperation(operation)
     socket.write(`${JSON.stringify({
       v: 1,
       service: 'scene',

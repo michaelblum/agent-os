@@ -179,6 +179,7 @@ function createFrame({
       frame_index: frameIndex,
     },
     raw_event_type: rawEvent.type,
+    cancel_reason: phase === 'cancel' ? rawEvent.cancel_reason || rawEvent.cancelReason || 'cancelled' : null,
   })
 }
 
@@ -221,6 +222,7 @@ export function createPointerGestureStream(options = {}) {
         origin: current,
         previous: current,
         frameIndex: 0,
+        coordinateSpaces: extra.coordinateSpaces,
       }
     }
 
@@ -241,6 +243,7 @@ export function createPointerGestureStream(options = {}) {
       now: extra.now,
     })
     active.previous = frame.current
+    if (Object.keys(extra.coordinateSpaces || {}).length > 0) active.coordinateSpaces = extra.coordinateSpaces
     active.frameIndex += 1
     hub.publish(frame)
     if (phase === 'end' || phase === 'cancel') active = null
@@ -289,6 +292,7 @@ export function createPointerGestureStream(options = {}) {
     return emitFrame('cancel', { ...rawEvent, type: rawEvent.type || 'pointer_cancel', cancel_reason: reason }, {
       current: extra.current || active.previous || active.origin,
       now: extra.now,
+      coordinateSpaces: extra.coordinateSpaces || active.coordinateSpaces,
     })
   }
 

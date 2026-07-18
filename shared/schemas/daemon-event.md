@@ -15,7 +15,7 @@ Newline-delimited JSON (ndjson) over Unix socket. One JSON object per line.
 | Field     | Type   | Required | Description |
 |-----------|--------|----------|-------------|
 | `v`       | int    | yes      | Envelope version. Currently `1`. Bump only on breaking wire changes. |
-| `service` | string | yes      | Emitting aos subsystem: `"perceive"`, `"display"`, `"act"`, `"voice"`. |
+| `service` | string | yes      | Emitting aos subsystem: `"perceive"`, `"display"`, `"act"`, `"voice"`, `"scene"`, or `"annotation"`. |
 | `event`   | string | yes      | Event name. Snake_case, service-specific. |
 | `ts`      | number | yes      | Unix timestamp, millisecond precision. |
 | `data`    | object | yes      | Event payload. Structure is service + event specific. Always an object. |
@@ -122,6 +122,20 @@ other geometry sequence when a sequence exists.
 |-------|------|---------|
 | `action_complete` | `{action, target, result}` | An action finished executing |
 | `context_changed` | `{pid, window_id, bounds}` | Session context changed |
+
+### scene
+
+The `scene` namespace is the connection-scoped DesktopWorld scene stream.
+`result` acknowledges one bounded operation. `gesture` carries the exact
+`aos.scene.event.v1` payload documented in
+[`scene-event-v1.md`](./scene-event-v1.md). A client receives gestures only
+after subscribing on its own owner/resource lease; disconnect removes the
+subscription and releases the scene.
+
+| Event | Data | Trigger |
+|-------|------|---------|
+| `result` | `{operation, resource, status, code?, snapshot?}` | A scene operation was accepted, ignored, or rejected |
+| `gesture` | `aos.scene.event.v1` | A subscribed scene recognizer emitted start, update, end, or cancel |
 
 ### voice
 

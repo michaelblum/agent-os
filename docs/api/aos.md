@@ -118,6 +118,7 @@ The current top-level commands are:
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
+| `aos scene` | Connection-scoped declarative DesktopWorld scene and gesture stream |
 | `aos focus` | Focus-channel management |
 | `aos gate` | Human input gates and local gate record readback |
 | `aos graph` | Display/window graph queries |
@@ -810,6 +811,35 @@ Common follow-ups:
 aos show update --id demo --at 150,120,320,200
 aos show eval --id demo --js 'document.body.style.opacity = "0.7"'
 aos show remove --id demo
+```
+
+### Stream a DesktopWorld Scene
+
+`aos scene --follow` holds one connection-scoped owner/resource lease on the
+singleton `desktop-world/main` stage. It accepts strict bounded NDJSON and does
+not expose the private daemon socket:
+
+```bash
+printf '%s\n' \
+  '{"op":"subscribe","events":["gesture"]}' \
+  '{"op":"inspect"}' \
+  '{"op":"close"}' \
+  | aos scene --stage desktop-world/main \
+      --owner example.consumer --resource companion/main --follow
+```
+
+The operation vocabulary is `mount`, `transact`, `signal`, `play`, `suspend`,
+`resume`, `inspect`, `subscribe`, `unsubscribe`, `remove`, and `close`.
+Subscriptions are scoped to that same lease and currently expose only typed
+`gesture` events. Gesture payloads conform to `aos.scene.event.v1`; they contain
+bounded scene identity, coordinates, topology, arbitration, cancellation, and
+declarative response facts, never product text, prompts, audio, or scene
+document content. Disconnect releases the resource and all native hit regions.
+
+Validate a data-only cartridge without starting the daemon:
+
+```bash
+aos scene cartridge validate ./path/to/cartridge --json
 ```
 
 `show remove --id <root>` is the daemon-facing cleanup primitive for a selected

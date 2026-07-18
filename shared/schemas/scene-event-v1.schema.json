@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/scene-event-v1.schema.json",
+  "title": "AOS DesktopWorld Scene Event v1",
+  "description": "Bounded owner-scoped events emitted by the product-neutral DesktopWorld scene engine.",
+  "type": "object",
+  "required": [
+    "contract",
+    "schemaVersion",
+    "type",
+    "sequence",
+    "stageId",
+    "ownerId",
+    "resourceId",
+    "affordanceId",
+    "interactionId",
+    "gesture",
+    "coordinates",
+    "topology",
+    "response",
+    "at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract": { "const": "aos.scene.event.v1" },
+    "schemaVersion": { "const": 1 },
+    "type": { "const": "gesture" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "stageId": { "const": "desktop-world/main" },
+    "ownerId": { "$ref": "#/$defs/OwnerId" },
+    "resourceId": { "$ref": "#/$defs/ResourceId" },
+    "affordanceId": { "$ref": "#/$defs/DescriptorId" },
+    "interactionId": { "$ref": "#/$defs/DescriptorId" },
+    "gesture": { "$ref": "#/$defs/Gesture" },
+    "coordinates": { "$ref": "#/$defs/Coordinates" },
+    "topology": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/Topology" }
+      ]
+    },
+    "response": { "$ref": "#/$defs/Response" },
+    "at": { "type": "number", "minimum": 0 }
+  },
+  "$defs": {
+    "OwnerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "ResourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
+    },
+    "DescriptorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
+    },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "NullablePoint": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/Point" }
+      ]
+    },
+    "Gesture": {
+      "type": "object",
+      "required": ["id", "kind", "phase", "pointerSessionId", "cancellationReason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "kind": { "enum": ["tap", "drag", "long_press", "radial"] },
+        "phase": { "enum": ["start", "update", "end", "cancel"] },
+        "pointerSessionId": { "type": ["string", "null"], "maxLength": 256 },
+        "cancellationReason": {
+          "type": ["string", "null"],
+          "enum": [
+            null,
+            "escape",
+            "owner_disconnected",
+            "pointer_cancelled",
+            "resource_changed",
+            "resource_removed",
+            "resource_suspended",
+            "stage_disposed",
+            "topology_changed"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "phase": { "const": "cancel" } }, "required": ["phase"] },
+          "then": { "properties": { "cancellationReason": { "type": "string" } } },
+          "else": { "properties": { "cancellationReason": { "type": "null" } } }
+        }
+      ]
+    },
+    "Coordinates": {
+      "type": "object",
+      "required": ["origin", "previous", "current", "desktopWorld", "native", "delta", "totalDelta"],
+      "additionalProperties": false,
+      "properties": {
+        "origin": { "$ref": "#/$defs/NullablePoint" },
+        "previous": { "$ref": "#/$defs/NullablePoint" },
+        "current": { "$ref": "#/$defs/NullablePoint" },
+        "desktopWorld": { "$ref": "#/$defs/NullablePoint" },
+        "native": { "$ref": "#/$defs/NullablePoint" },
+        "delta": { "$ref": "#/$defs/NullablePoint" },
+        "totalDelta": { "$ref": "#/$defs/NullablePoint" }
+      }
+    },
+    "Topology": {
+      "type": "object",
+      "required": ["displays"],
+      "additionalProperties": false,
+      "properties": {
+        "displays": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": ["displayId", "index", "bounds"],
+            "additionalProperties": false,
+            "properties": {
+              "displayId": { "type": ["integer", "string", "null"], "maxLength": 128 },
+              "index": { "type": ["integer", "null"], "minimum": 0, "maximum": 1024 },
+              "bounds": {
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": { "type": "number" }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "Applied": {
+      "type": "object",
+      "properties": {
+        "applied": { "type": "boolean" },
+        "revision": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Response": {
+      "oneOf": [
+        { "$ref": "#/$defs/TranslateResponse" },
+        { "$ref": "#/$defs/AimCommitResponse" },
+        { "$ref": "#/$defs/DropResponse" },
+        { "$ref": "#/$defs/SignalGraphResponse" }
+      ]
+    },
+    "TranslateResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/Applied" },
+        {
+          "type": "object",
+          "required": ["kind", "objectId", "position"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "translate" },
+            "objectId": { "$ref": "#/$defs/DescriptorId" },
+            "position": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": { "type": "number" }
+            },
+            "applied": { "type": "boolean" },
+            "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "AimCommitResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/Applied" },
+        {
+          "type": "object",
+          "required": ["kind", "objectId", "origin", "pointer", "angle", "distance", "route"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "aim_commit" },
+            "objectId": { "$ref": "#/$defs/DescriptorId" },
+            "origin": { "$ref": "#/$defs/NullablePoint" },
+            "pointer": { "$ref": "#/$defs/NullablePoint" },
+            "angle": { "type": "number" },
+            "distance": { "type": "number", "minimum": 0 },
+            "route": { "enum": ["line", "wormhole"] },
+            "applied": { "type": "boolean" },
+            "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "DropResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/Applied" },
+        {
+          "type": "object",
+          "required": ["kind", "objectId", "point"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "drop" },
+            "objectId": { "$ref": "#/$defs/DescriptorId" },
+            "point": { "$ref": "#/$defs/NullablePoint" },
+            "applied": { "type": "boolean" },
+            "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "Signal": {
+      "type": "object",
+      "required": ["signalId", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "signalId": { "$ref": "#/$defs/DescriptorId" },
+        "value": { "type": "number" }
+      }
+    },
+    "SignalGraphResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/Applied" },
+        {
+          "type": "object",
+          "required": ["kind", "signals"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "signal_graph" },
+            "signals": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Signal" } },
+            "appliedSignals": { "type": "integer", "minimum": 0, "maximum": 32 },
+            "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    }
+  }
+}
