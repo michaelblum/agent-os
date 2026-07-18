@@ -175,6 +175,10 @@ The route uses global `origin`/`pointer` coordinates, while the committed
 
 Aim responses may declare bounded arrow and wormhole styles, duration, and one
 of `linear`, `smoothstep`, `ease_in_out_cubic`, or `ease_out_quart` easing.
+The stock arrow vocabulary includes a distance-scaled two-wing head, animated
+dash pattern, glow shaft, pointer reticle, origin ring, origin inset, and a
+bounded optional trail pool. These are finite data-only cartridge values; the
+trusted AOS renderer remains the only implementation boundary.
 Radial recognizers may declare up to 32 ID/color/disabled item descriptors and
 a bounded stock style. Item zero is centered at the top, placement clamps to
 the containing display, and `selection_index` / `selection_active` expose only
@@ -182,8 +186,9 @@ numeric selection state through a declarative signal graph. Product labels,
 commands, and action semantics stay in the cartridge owner.
 
 The daemon DesktopWorld outlet adapts this controller to a preallocated Three
-pool: arrow and trail geometry, a 64-sample route path, two wormhole rings, one
-flash, and 32 radial item meshes. It shares the outlet's existing render loop,
+pool: glow and dash geometry, arrowhead and reticle geometry, optional arrow
+trails, a 64-sample route path, two wormhole rings, one flash, and 32 radial
+item meshes. It shares the outlet's existing render loop,
 coalesces pointer updates at that cadence, and disposes every pooled GPU
 resource with the mounted scene. The same global route appears continuously
 across display segments because each segment projects the same DesktopWorld

@@ -284,12 +284,35 @@ function validateResponseParameters(value, path, errors) {
       const arrow = parameters.arrow
       if (!isRecord(arrow)) errors.push({ code: 'invalid_visual_style', path: arrowPath, message: 'Scene arrow style must be an object.' })
       else {
-        exactKeys(arrow, new Set(['accentColor', 'color', 'headLength', 'headWidth', 'pulseHz', 'shaftWidth', 'trailCount', 'trailOpacity', 'trailSpacing']), arrowPath, errors)
-        for (const key of ['accentColor', 'color']) if (arrow[key] !== undefined && !SAFE_COLOR.test(arrow[key])) errors.push({ code: 'invalid_color', path: `${arrowPath}.${key}`, message: 'Scene colors must use bounded hexadecimal notation.' })
-        for (const [key, min, max] of [['headLength', 4, 128], ['headWidth', 4, 128], ['pulseHz', 0, 20], ['shaftWidth', 1, 32], ['trailCount', 0, 16], ['trailOpacity', 0, 1], ['trailSpacing', 0, 1]]) {
+        exactKeys(arrow, new Set([
+          'accentColor', 'color', 'dashColor', 'dashGap', 'dashLength', 'dashOpacity',
+          'dashSpeed', 'dashWidth', 'glowColor', 'glowOpacity', 'glowWidth', 'headLength',
+          'headLengthDistanceFactor', 'headLengthMax', 'headLengthMin', 'headWidth',
+          'headWingRadians', 'originInset', 'originRingColor', 'originRingOpacity',
+          'originRingRadius', 'pulseHz', 'reticleColor', 'reticlePulse', 'reticleRadius',
+          'shaftWidth', 'trailCount', 'trailOpacity', 'trailSpacing',
+        ]), arrowPath, errors)
+        for (const key of [
+          'accentColor', 'color', 'dashColor', 'glowColor', 'originRingColor', 'reticleColor',
+        ]) if (arrow[key] !== undefined && !SAFE_COLOR.test(arrow[key])) errors.push({ code: 'invalid_color', path: `${arrowPath}.${key}`, message: 'Scene colors must use bounded hexadecimal notation.' })
+        for (const [key, min, max] of [
+          ['dashGap', 1, 128], ['dashLength', 1, 128], ['dashOpacity', 0, 1],
+          ['dashSpeed', -512, 512], ['dashWidth', 1, 32], ['glowOpacity', 0, 1],
+          ['glowWidth', 1, 64], ['headLength', 4, 128], ['headLengthDistanceFactor', 0, 1],
+          ['headLengthMax', 4, 128], ['headLengthMin', 4, 128], ['headWidth', 4, 128],
+          ['headWingRadians', 0.1, Math.PI], ['originInset', 0, 512],
+          ['originRingOpacity', 0, 1], ['originRingRadius', 2, 512], ['pulseHz', 0, 20],
+          ['reticlePulse', 0, 64], ['reticleRadius', 2, 512], ['shaftWidth', 1, 32],
+          ['trailCount', 0, 16], ['trailOpacity', 0, 1], ['trailSpacing', 0, 1],
+        ]) {
           const entry = arrow[key]
           if (entry !== undefined && (!Number.isFinite(entry) || entry < min || entry > max || (key === 'trailCount' && !Number.isInteger(entry)))) errors.push({ code: 'invalid_visual_style', path: `${arrowPath}.${key}`, message: 'Scene arrow style value must be finite and bounded.' })
         }
+        if (
+          Number.isFinite(arrow.headLengthMin)
+          && Number.isFinite(arrow.headLengthMax)
+          && arrow.headLengthMin > arrow.headLengthMax
+        ) errors.push({ code: 'invalid_visual_style', path: `${arrowPath}.headLengthMin`, message: 'Scene arrow minimum head length cannot exceed its maximum.' })
       }
     }
     if (parameters.wormhole !== undefined) {

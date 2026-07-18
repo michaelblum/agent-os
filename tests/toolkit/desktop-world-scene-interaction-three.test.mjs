@@ -114,9 +114,43 @@ test('radial renderer is bounded and uses one preallocated item pool', () => {
     topology: { displays: [{ displayId: 1, index: 0, bounds: [0, 0, 800, 600] }] },
   }
   visuals.apply(radial)
-  assert.deepEqual(visuals.snapshot().allocations, { geometries: 6, materials: 38, radialItems: 32 })
+  assert.deepEqual(visuals.snapshot().allocations, { geometries: 9, materials: 42, radialItems: 32 })
   assert.equal(visuals.snapshot().radial.itemCount, 4)
   assert.equal(visuals.snapshot().radial.visible, true)
+})
+
+test('historical aim rendering uses the route vector for glow, dashes, head, and reticles', () => {
+  const { projection, scene } = harness()
+  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  const event = aim('start', 0)
+  event.interaction.response.parameters = {
+    route: 'line',
+    arrow: {
+      dashGap: 7, dashLength: 10, dashSpeed: 42, glowWidth: 7,
+      headLengthDistanceFactor: 0.11, headLengthMax: 24, headLengthMin: 12,
+      headWingRadians: Math.PI * 0.78, originInset: 72, originRingRadius: 32,
+      pulseHz: 8 / (Math.PI * 2), reticlePulse: 3, reticleRadius: 13,
+      trailCount: 0,
+    },
+  }
+  visuals.apply(event)
+  visuals.tick(0)
+
+  const dash = scene.getObjectByName('aos.scene.interaction.arrow.dash')
+  const glow = scene.getObjectByName('aos.scene.interaction.arrow.glow')
+  const head = scene.getObjectByName('aos.scene.interaction.arrow.head')
+  const originRing = scene.getObjectByName('aos.scene.interaction.arrow.origin-ring')
+  const reticle = scene.getObjectByName('aos.scene.interaction.arrow.reticle')
+  assert.deepEqual(Array.from(dash.geometry.getAttribute('position').array), [172, 200, 100, 300, 200, 100])
+  assert.deepEqual(Array.from(dash.geometry.getAttribute('lineDistance').array), [0, 128])
+  assert.equal(glow.geometry.getAttribute('position').array[0], 172)
+  assert.equal(head.geometry.getAttribute('position').array[0], 300)
+  assert.equal(head.geometry.getAttribute('position').array[1], 200)
+  assert.equal(originRing.scale.x, 32)
+  assert.equal(reticle.scale.x, 14.5)
+
+  visuals.tick(250)
+  assert.deepEqual(Array.from(dash.geometry.getAttribute('lineDistance').array), [-10.5, 117.5])
 })
 
 test('100 preview and route cycles do not allocate additional GPU resources', () => {
