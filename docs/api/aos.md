@@ -863,12 +863,15 @@ Open, inspect, and close the AOS-owned detachable inspector:
 ```bash
 aos scene devtools open --resource companion/main --json
 aos scene devtools status --json
+aos scene devtools update --session <session-id> --expected-revision <n> --tab performance --recording on --json
+aos scene devtools transfer --session <session-id> --expected-revision <n> --host-kind external --host-id <canvas-id> --json
 aos scene devtools close --session <session-id> --json
 ```
 
 The panel is an AOS surface and does not require an AOS status item. A consumer
-may transfer the same revisioned session into its own approved host through the
-typed SDK; exactly one interactive host owns a session at a time.
+may transfer the same revisioned session into an existing approved AOS canvas
+through the CLI or typed SDK. The daemon suspends the previous host before
+activating the next; exactly one interactive host owns a session at a time.
 
 Replay a deterministic fixture without a daemon or live input:
 

@@ -81,6 +81,8 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const scene = await readFile(path.join(repoRoot, 'skills', 'aos-desktop-world-authoring', 'SKILL.md'), 'utf8');
   assert.match(scene, /Aim-and-commit/);
   assert.match(scene, /scene devtools open/);
+  assert.match(scene, /scene devtools update/);
+  assert.match(scene, /scene devtools transfer/);
   assert.match(scene, /scene replay/);
 
   const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');

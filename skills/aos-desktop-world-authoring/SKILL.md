@@ -76,11 +76,17 @@ Open the AOS-owned inspector anywhere on the desktop:
 ```bash
 ./aos scene devtools open --resource companion/main --json
 ./aos scene devtools status --json
+./aos scene devtools update --session <session-id> --expected-revision <n> \
+  --tab performance --recording on --json
+./aos scene devtools transfer --session <session-id> --expected-revision <n> \
+  --host-kind external --host-id <canvas-id> --json
 ./aos scene devtools close --session <session-id> --json
 ```
 
-A consumer may host the same session through the typed toolkit SDK, but must
-not fork the telemetry model or create a second interactive host.
+A consumer may transfer the same session into an existing AOS canvas through
+the CLI or typed toolkit SDK. The daemon suspends the old host before activating
+the new one; consumers must not fork the telemetry model or create a second
+interactive host.
 
 ## Replay
 
