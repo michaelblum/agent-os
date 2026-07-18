@@ -79,7 +79,15 @@ test('aim preview keeps the object stationary and Escape removes it without a ro
   assert.deepEqual(controller.snapshot().arrow.origin, [100, 200])
   assert.deepEqual(controller.snapshot().arrow.pointer, [100, 80])
   controller.apply(aimEvent('cancel'))
-  assert.deepEqual(controller.snapshot().route, { active: false, kind: 'line', objectId: null, position: [0, 0, 0], progress: 0 })
+  assert.deepEqual(controller.snapshot().route, {
+    active: false,
+    destination: [0, 0, 0],
+    kind: 'line',
+    objectId: null,
+    origin: [0, 0, 0],
+    position: [0, 0, 0],
+    progress: 0,
+  })
   assert.deepEqual(frames.at(-1), { arrow: false, route: false })
 })
 

@@ -93,6 +93,17 @@ export {
   resolveSceneAimVisualStyle,
   resolveSceneRadialVisualStyle,
 } from './scene-interaction-visual.js'
+export {
+  DESKTOP_WORLD_DEVTOOLS_LIMITS,
+  DESKTOP_WORLD_DEVTOOLS_SNAPSHOT_CONTRACT_ID,
+  DESKTOP_WORLD_DEVTOOLS_STAGE_CONTRACT_ID,
+  buildDesktopWorldMinimapLayout,
+  createDesktopWorldGpuTimer,
+  createDesktopWorldDevToolsStageProbe,
+  normalizeDesktopWorldDevToolsSnapshot,
+  normalizeDesktopWorldDevToolsStageSnapshot,
+} from './desktop-world-devtools.js'
+export { createDesktopWorldDevToolsView } from './desktop-world-devtools-view.js'
 
 export { applySceneTransaction } from './scene-transaction.js'
 

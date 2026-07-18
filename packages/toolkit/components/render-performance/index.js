@@ -6,6 +6,7 @@ import {
   normalizeRenderSample,
   summarizeRenderPerformance,
 } from './model.js';
+import { projectDesktopWorldDevToolsPerformance } from '../desktop-world-devtools/compat.js';
 
 const BASE_TITLE = 'Render Performance';
 const DEFAULT_SOURCE = 'panel';
@@ -128,6 +129,7 @@ export default function RenderPerformance(options = {}) {
   let lastFrameAt = null;
   let lastRenderAt = 0;
   let targetFps = Number.isFinite(options.targetFps) ? options.targetFps : 60;
+  let desktopWorldSequence = -1;
   const sources = new Map();
   const events = [];
   const bootAt = wallTime();
@@ -250,7 +252,7 @@ export default function RenderPerformance(options = {}) {
     manifest: {
       name: 'render-performance',
       title: BASE_TITLE,
-      accepts: ['sample', 'frame', 'metrics', 'mark', 'reset', 'target_fps'],
+      accepts: ['sample', 'frame', 'metrics', 'mark', 'reset', 'target_fps', 'desktop_world_devtools.snapshot'],
       emits: [],
       channelPrefix: 'render-performance',
       defaultSize: { w: 520, h: 520 },
@@ -289,6 +291,14 @@ export default function RenderPerformance(options = {}) {
 
     onMessage(msg) {
       const payload = msg.payload || msg;
+      if (msg.type === 'desktop_world_devtools.snapshot') {
+        const projection = projectDesktopWorldDevToolsPerformance(payload);
+        if (projection.sequence <= desktopWorldSequence) return;
+        desktopWorldSequence = projection.sequence;
+        appendSample(projection.sample, projection.sample.source);
+        renderState();
+        return;
+      }
       if (msg.type === 'sample' || msg.type === 'frame' || msg.type === 'metrics') {
         const source = payload.source || 'external';
         appendSample(payload, source);
@@ -312,6 +322,7 @@ export default function RenderPerformance(options = {}) {
       if (msg.type === 'reset') {
         sources.clear();
         events.length = 0;
+        desktopWorldSequence = -1;
         renderState();
       }
     },

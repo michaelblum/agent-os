@@ -64,6 +64,7 @@ export function normalizeRenderSample(input = {}, options = {}) {
     geometries: finiteNumber(input.geometries),
     textures: finiteNumber(input.textures),
     programs: finiteNumber(input.programs),
+    backingPixels: finiteNumber(input.backingPixels),
     heapUsed: finiteNumber(input.heapUsed ?? memory.usedJSHeapSize),
     heapLimit: finiteNumber(input.heapLimit ?? memory.jsHeapSizeLimit),
     label: typeof input.label === 'string' ? input.label : '',

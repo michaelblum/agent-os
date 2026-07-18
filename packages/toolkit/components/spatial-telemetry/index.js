@@ -10,6 +10,7 @@ import {
   formatRect,
   normalizeDisplays,
 } from './model.js';
+import { projectDesktopWorldDevToolsSpatial } from '../desktop-world-devtools/compat.js';
 
 const MAX_EVENTS = 120;
 const BASE_TITLE = 'Spatial Telemetry';
@@ -255,7 +256,7 @@ export default function SpatialTelemetry() {
     manifest: {
       name: 'spatial-telemetry',
       title: BASE_TITLE,
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'desktop_world_devtools.snapshot'],
       emits: [],
       channelPrefix: 'spatial-telemetry',
       requires: ['canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
@@ -282,6 +283,18 @@ export default function SpatialTelemetry() {
 
     onMessage(msg) {
       appendEvent(msg);
+
+      if (msg.type === 'desktop_world_devtools.snapshot') {
+        const projection = projectDesktopWorldDevToolsSpatial(msg.payload || msg);
+        displays = normalizeDisplays(projection.displays);
+        canvases = [...projection.canvases];
+        marksState.marksByCanvas.clear();
+        for (const [canvasId, entry] of projection.marksByCanvas) {
+          applySnapshot(marksState, canvasId, entry.marks, Date.now());
+        }
+        rerender();
+        return;
+      }
 
       if (msg.type === 'bootstrap') {
         const payload = msg.payload || msg;

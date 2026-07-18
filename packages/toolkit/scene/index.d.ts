@@ -2,6 +2,8 @@ import type { SceneAffordanceDescriptor } from './scene-interaction.js';
 
 export * from './scene-interaction.js';
 export * from './scene-interaction-visual.js';
+export * from './desktop-world-devtools.js';
+export * from './desktop-world-devtools-view.js';
 
 export interface ThreeRenderLimits {
   maxDevicePixelRatio: number;

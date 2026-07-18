@@ -14,6 +14,7 @@ test('normalizeRenderSample accepts common frame timing aliases', () => {
     deltaMs: 20,
     renderMs: 8,
     calls: 42,
+    backingPixels: 2073600,
     memory: { usedJSHeapSize: 1024 },
   }, { now: 1000 });
 
@@ -22,6 +23,7 @@ test('normalizeRenderSample accepts common frame timing aliases', () => {
   assert.equal(sample.fps, 50);
   assert.equal(sample.renderMs, 8);
   assert.equal(sample.drawCalls, 42);
+  assert.equal(sample.backingPixels, 2073600);
   assert.equal(sample.heapUsed, 1024);
   assert.equal(sample.ts, 1000);
 });

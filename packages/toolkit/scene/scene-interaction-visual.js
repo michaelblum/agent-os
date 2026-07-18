@@ -370,7 +370,15 @@ export function createSceneInteractionVisualController({ now = () => performance
       arrow: Object.freeze({ visible: model.arrow.visible, origin: [...model.arrow.origin], pointer: [...model.arrow.pointer], distance: model.arrow.distance }),
       disposed,
       radial: Object.freeze({ visible: model.radial.visible, center: [...model.radial.center], itemCount: model.radial.itemCount, selectionIndex: model.radial.selectionIndex }),
-      route: Object.freeze({ active: model.route.active, kind: model.route.kind, objectId: model.route.objectId, position: [...model.route.position], progress: model.route.progress }),
+      route: Object.freeze({
+        active: model.route.active,
+        destination: [...model.route.destination],
+        kind: model.route.kind,
+        objectId: model.route.objectId,
+        origin: [...model.route.origin],
+        position: [...model.route.position],
+        progress: model.route.progress,
+      }),
       suspended,
     })
   }

@@ -95,6 +95,24 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   assert.deepEqual(calls, [['register', regionId]])
   runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
   runtime.handleInput(routed(regionId, 'left_mouse_dragged', 140, 230, 2))
+  const activeDevTools = runtime.devtoolsSnapshot()
+  assert.deepEqual(activeDevTools.hitRegions, [{
+    affordanceId: 'body-hit',
+    frame: [60, 170, 80, 60],
+    id: regionId,
+    registered: true,
+    resourceId: 'companion/main',
+  }])
+  assert.deepEqual(activeDevTools.affordances, [{
+    enabled: true,
+    id: 'body-hit',
+    objectId: 'body',
+    priority: 100,
+    resourceId: 'companion/main',
+  }])
+  assert.equal(activeDevTools.gestures.length, 1)
+  assert.equal(activeDevTools.gestures[0].kind, 'drag')
+  assert.deepEqual(activeDevTools.interactions[0].recognizers, ['aos.scene.gesture.drag'])
   runtime.handleInput(routed(regionId, 'left_mouse_up', 150, 240, 3))
   await new Promise((resolve) => setImmediate(resolve))
 

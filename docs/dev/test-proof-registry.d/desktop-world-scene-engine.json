@@ -61,6 +61,26 @@
       "replaces": [],
       "guard": "disposable Swift model plus JSON-schema fixtures only; no AOS binary, daemon socket, GUI, TCC, or GPU",
       "status": "active"
+    },
+    {
+      "id": "desktop-world-devtools-contract",
+      "path_patterns": [
+        "tests/daemon-desktop-world-devtools-contract.test.mjs",
+        "tests/daemon-desktop-world-devtools-session.sh",
+        "tests/toolkit/desktop-world-devtools-compat.test.mjs",
+        "tests/toolkit/desktop-world-devtools-model.test.mjs",
+        "tests/toolkit/desktop-world-devtools-view.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "desktop-world-devtools",
+      "harness_level": "model_unit",
+      "proof_kind": "desktop_world_devtools_session_contract",
+      "contract": "A daemon-owned revisioned session, one interactive host lease, bounded canonical snapshots, host-neutral tabs, compatibility projections, and disabled-instrumentation cost remain product-neutral.",
+      "worth": "This proves detachable AOS DevTools cannot create competing telemetry owners, duplicate interactive hosts, content leakage, or an idle frame loop.",
+      "command": "bash tests/daemon-desktop-world-devtools-session.sh && node --test tests/daemon-desktop-world-devtools-contract.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs",
+      "replaces": [],
+      "guard": "disposable Swift registry and pure DOM/model fixtures only; no AOS binary, daemon socket, GUI, TCC, WebGL, or live DesktopWorld",
+      "status": "active"
     }
   ]
 }

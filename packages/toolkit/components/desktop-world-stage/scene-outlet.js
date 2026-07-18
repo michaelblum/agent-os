@@ -2,6 +2,7 @@ import * as THREE from '../../vendor/three/three.module.min.js'
 import {
   applySceneTransaction,
   canonicalizeSceneDocument,
+  createDesktopWorldGpuTimer,
   createSceneAnimationController,
   createSceneSignalController,
   createGenericSceneImplementationRegistry,
@@ -32,6 +33,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   let hidden = false
   let contextLost = false
   let segment = null
+  let devtoolsProbe = null
+  let gpuTimer = null
+  let lastRenderAt = null
 
   const updateSegment = (nextSegment) => {
     const projection = deriveOrthoCamera(nextSegment)
@@ -75,7 +79,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return true
   }
 
-  const activate = (key, documentInput) => {
+  const activate = (key, documentInput, identity = {}) => {
     const document = canonicalizeSceneDocument(documentInput)
     const validation = registry.validateDocument(document)
     if (!validation.ok) throw new TypeError('Scene document requires an unavailable or invalid implementation.')
@@ -107,6 +111,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       previous.projection.dispose()
     }
     resources.set(key, {
+      key,
+      owner: identity.owner ?? previous?.owner ?? '',
+      resource: identity.resource ?? previous?.resource ?? key,
       document,
       projection,
       signals,
@@ -128,13 +135,13 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     const operation = payload.operation ?? {}
     if (operation.op === 'mount') {
       if (!resources.has(key) && resources.size >= MAX_RESOURCES) throw new RangeError('DesktopWorld scene resource budget exceeded.')
-      activate(key, operation.document)
+      activate(key, operation.document, payload)
     } else if (operation.op === 'transact') {
       const mounted = resources.get(key)
       if (!mounted) throw new TypeError('Scene resource is not mounted.')
       const result = applySceneTransaction(mounted.document, operation.transaction, { lease: operation.lease })
       if (!result.ok) throw new TypeError(result.code)
-      activate(key, result.document)
+      activate(key, result.document, payload)
     } else if (operation.op === 'signal') {
       const mounted = resources.get(key)
       if (!mounted || !Number.isFinite(operation.value)) return false
@@ -242,6 +249,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
 
   const render = (at) => {
     if (disposed) return
+    const trackPerformance = devtoolsProbe?.isEnabled() === true
+    const trackGpu = devtoolsProbe?.isRecording() === true
+    const updateStartedAt = trackPerformance ? performance.now() : 0
     if (!hidden && !contextLost) {
       for (const mounted of resources.values()) {
         if (mounted.suspended) continue
@@ -249,14 +259,57 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         mounted.animations.tick(elapsed)
         mounted.interactionVisuals?.tick(at)
       }
+      const renderStartedAt = trackPerformance ? performance.now() : 0
+      if (trackGpu && !gpuTimer) gpuTimer = createDesktopWorldGpuTimer(renderer.getContext())
+      if (!trackGpu && gpuTimer) {
+        gpuTimer.dispose()
+        gpuTimer = null
+      }
+      gpuTimer?.begin()
       renderer.render(scene, camera)
+      const gpuMs = gpuTimer?.end() ?? null
+      if (trackPerformance) {
+        const renderEndedAt = performance.now()
+        const info = renderer.info
+        devtoolsProbe.sampleFrame({
+          backingPixels: renderer.domElement.width * renderer.domElement.height,
+          drawCalls: info.render.calls,
+          frameMs: lastRenderAt === null ? null : Math.max(0, at - lastRenderAt),
+          geometries: info.memory.geometries,
+          gpuMs,
+          programs: info.programs?.length ?? null,
+          renderEndedAt,
+          renderMs: Math.max(0, renderEndedAt - renderStartedAt),
+          textures: info.memory.textures,
+          triangles: info.render.triangles,
+          updateMs: Math.max(0, renderStartedAt - updateStartedAt),
+        })
+        lastRenderAt = at
+      }
+    } else if (lastRenderAt !== null) {
+      lastRenderAt = null
     }
+    if ((hidden || contextLost) && gpuTimer) {
+      gpuTimer.dispose()
+      gpuTimer = null
+    }
+    if (!trackPerformance && lastRenderAt !== null) lastRenderAt = null
     frame = hostWindow.requestAnimationFrame(render)
   }
 
   const onVisibility = () => { hidden = document.hidden }
-  const onContextLost = (event) => { event.preventDefault(); contextLost = true }
-  const onContextRestored = () => { contextLost = false; resize() }
+  const onContextLost = (event) => {
+    event.preventDefault()
+    contextLost = true
+    gpuTimer?.dispose()
+    gpuTimer = null
+    devtoolsProbe?.recordEvent({ kind: 'context.lost', code: 'WEBGL_CONTEXT_LOST' })
+  }
+  const onContextRestored = () => {
+    contextLost = false
+    resize()
+    devtoolsProbe?.recordEvent({ kind: 'context.restored' })
+  }
   hostWindow.addEventListener('resize', resize)
   document.addEventListener('visibilitychange', onVisibility)
   canvas.addEventListener('webglcontextlost', onContextLost)
@@ -272,6 +325,68 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       return mounted ? Object.freeze({ document: mounted.document, suspended: mounted.suspended }) : null
     },
     document(key) { return resources.get(key)?.document ?? null },
+    devtoolsSnapshot() {
+      const mountedResources = []
+      const nodes = []
+      const routes = []
+      for (const mounted of resources.values()) {
+        const implementationIds = new Set()
+        const resourceById = new Map(mounted.document.resources.map((entry) => [entry.id, entry]))
+        for (const descriptor of mounted.document.resources) implementationIds.add(descriptor.implementation)
+        for (const object of mounted.document.objects) {
+          for (const component of object.components ?? []) implementationIds.add(component.implementation)
+          const geometry = object.geometryId ? resourceById.get(object.geometryId) : null
+          const material = object.materialId ? resourceById.get(object.materialId) : null
+          const implementation = geometry?.implementation ?? material?.implementation ?? null
+          nodes.push({
+            id: object.id,
+            implementation,
+            kind: object.kind,
+            parentId: object.parentId,
+            position: mounted.projection.objectPosition(object.id) ?? object.transform.position,
+            resourceId: mounted.resource,
+            visible: object.visible !== false && !mounted.suspended,
+          })
+        }
+        const visualSnapshot = mounted.interactionVisuals?.snapshot()
+        if (visualSnapshot?.route?.objectId) {
+          routes.push({
+            active: visualSnapshot.route.active,
+            destination: visualSnapshot.route.destination,
+            kind: visualSnapshot.route.kind,
+            origin: visualSnapshot.route.origin,
+            progress: visualSnapshot.route.progress,
+            resourceId: mounted.resource,
+          })
+        }
+        mountedResources.push({
+          allocations: {
+            geometries: mounted.document.resources.filter((entry) => entry.kind === 'geometry').length,
+            materials: mounted.document.resources.filter((entry) => entry.kind === 'material').length,
+            programs: 0,
+            textures: mounted.document.resources.filter((entry) => entry.kind === 'texture').length,
+          },
+          animationCount: mounted.animations.snapshot().bindings.length,
+          descriptorCount: mounted.document.resources.length,
+          id: mounted.resource,
+          implementations: [...implementationIds],
+          interactionCount: 0,
+          lifecycle: mounted.suspended ? 'suspended' : 'active',
+          objectCount: mounted.document.objects.length,
+          owner: mounted.owner,
+          revision: mounted.document.revision,
+          sceneId: mounted.document.id,
+          signalCount: mounted.signals.snapshot().bindings.length,
+          suspended: mounted.suspended,
+        })
+      }
+      return { nodes, resources: mountedResources, routes }
+    },
+    setDevToolsProbe(probe) {
+      devtoolsProbe = probe ?? null
+      lastRenderAt = null
+      return true
+    },
     updateSegment,
     snapshot() {
       return {
@@ -295,6 +410,8 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       canvas.removeEventListener('webglcontextlost', onContextLost)
       canvas.removeEventListener('webglcontextrestored', onContextRestored)
       for (const key of [...resources.keys()]) release(key)
+      gpuTimer?.dispose()
+      gpuTimer = null
       renderer.dispose()
       renderer.forceContextLoss()
       return true

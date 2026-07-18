@@ -303,6 +303,60 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
   }
 
+  function devtoolsSnapshot() {
+    const hitRegions = []
+    const affordances = []
+    const gestures = []
+    const interactions = []
+    for (const entry of leases.values()) {
+      const controller = entry.controller.snapshot()
+      const recognizers = [...new Set((entry.interactions.interactions ?? [])
+        .map((interaction) => interaction.recognizer?.implementation)
+        .filter(Boolean))]
+      for (const { affordanceId, payload } of entry.regionIds.values()) {
+        hitRegions.push({
+          affordanceId,
+          frame: payload.frame,
+          id: payload.id,
+          registered: entry.registeredIds.has(payload.id),
+          resourceId: entry.resource,
+        })
+      }
+      for (const descriptor of entry.interactions.affordances ?? []) {
+        affordances.push({
+          enabled: descriptor.enabled !== false,
+          id: descriptor.id,
+          objectId: descriptor.objectId,
+          priority: descriptor.priority,
+          resourceId: entry.resource,
+        })
+      }
+      for (const arena of controller.affordances ?? []) {
+        if (!arena.active) continue
+        gestures.push({
+          affordanceId: arena.affordanceId,
+          id: arena.pointerSessionId ?? `${entry.resource}:${arena.affordanceId}`,
+          interactionId: arena.interactionId ?? '',
+          kind: arena.interactionKind ?? 'unknown',
+          phase: 'active',
+          pointerSessionId: arena.pointerSessionId,
+          resourceId: entry.resource,
+        })
+      }
+      interactions.push({
+        active: controller.affordances.some((arena) => arena.active),
+        id: entry.key,
+        owner: entry.owner,
+        recognizers,
+        regionCount: entry.registeredIds.size,
+        regionSyncErrorCode: entry.regionSyncErrorCode,
+        resourceId: entry.resource,
+        suspended: entry.suspended,
+      })
+    }
+    return { affordances, gestures, hitRegions, interactions }
+  }
+
   function configuration(key) {
     const entry = leases.get(key)
     if (!entry) return null
@@ -338,6 +392,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     handleInput,
     cancelAll,
     configuration,
+    devtoolsSnapshot,
     snapshot,
     dispose,
   })

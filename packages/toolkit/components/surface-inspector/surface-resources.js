@@ -1,5 +1,7 @@
 // surface-resources.js — pure model for inspector-visible toolkit resources.
 
+import { projectDesktopWorldDevToolsSurfaceResources } from '../desktop-world-devtools/compat.js'
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim()
   return normalized || fallback
@@ -124,7 +126,18 @@ export function createSurfaceResourceState() {
   return {
     inputRegions: new Map(),
     stageLayerRegistries: new Map(),
+    desktopWorld: { stageLayers: [], inputRegions: [] },
   }
+}
+
+export function applyDesktopWorldDevToolsSnapshot(state, message = {}) {
+  if (!state || message.type !== 'desktop_world_devtools.snapshot') return false
+  const projection = projectDesktopWorldDevToolsSurfaceResources(message.payload || message)
+  state.desktopWorld = {
+    stageLayers: [...projection.stageLayers],
+    inputRegions: [...projection.inputRegions],
+  }
+  return true
 }
 
 export function applyInputRegionMessage(state, message = {}) {
@@ -172,6 +185,10 @@ export function removeSurfaceResourcesForCanvas(state, canvasId) {
   if (!id || !state) return false
   let changed = false
   if (state.stageLayerRegistries?.delete?.(id)) changed = true
+  if (id === 'aos-desktop-world-stage' && state.desktopWorld) {
+    changed = state.desktopWorld.stageLayers.length > 0 || state.desktopWorld.inputRegions.length > 0 || changed
+    state.desktopWorld = { stageLayers: [], inputRegions: [] }
+  }
   return changed
 }
 
@@ -181,9 +198,11 @@ export function buildSurfaceResourceSnapshot(state, {
   const canvasIds = canvasIdSet(canvases)
   const stageLayers = [...(state?.stageLayerRegistries?.values?.() || [])]
     .flat()
+    .concat(state?.desktopWorld?.stageLayers || [])
     .map((layer) => ({ ...layer }))
     .sort((a, b) => a.id.localeCompare(b.id))
   const inputRegions = [...(state?.inputRegions?.values?.() || [])]
+    .concat(state?.desktopWorld?.inputRegions || [])
     .map((region) => ({ ...region }))
     .sort((a, b) => a.id.localeCompare(b.id))
 
