@@ -1,0 +1,48 @@
+{
+  "contract": "aos.scene.event.v1",
+  "schemaVersion": 1,
+  "type": "gesture",
+  "sequence": 4,
+  "stageId": "desktop-world/main",
+  "ownerId": "example.consumer",
+  "resourceId": "companion/main",
+  "affordanceId": "body-hit",
+  "interactionId": "open-menu",
+  "gesture": {
+    "id": "gesture-menu-open",
+    "kind": "tap",
+    "phase": "end",
+    "pointerSessionId": "capture-menu-open",
+    "cancellationReason": null
+  },
+  "coordinates": {
+    "origin": { "x": 100, "y": 200 },
+    "previous": { "x": 100, "y": 200 },
+    "current": { "x": 100, "y": 200 },
+    "desktopWorld": { "x": 100, "y": 200 },
+    "native": null,
+    "delta": { "x": 0, "y": 0 },
+    "totalDelta": { "x": 0, "y": 0 }
+  },
+  "topology": {
+    "displays": [{ "displayId": 1, "index": 0, "bounds": [0, 0, 1440, 900] }]
+  },
+  "response": {
+    "kind": "radial_menu",
+    "action": "open",
+    "menuId": "companion-menu",
+    "origin": { "x": 100, "y": 200 },
+    "items": [
+      { "id": "inspect", "color": "#9b7cff", "disabled": false },
+      { "id": "annotate", "color": "#53f5d7", "disabled": false }
+    ],
+    "radius": 108,
+    "startAngle": -90,
+    "spreadDegrees": 120,
+    "closeOnSelect": true,
+    "style": { "activeColor": "#ffffff", "fillColor": "#201b2f", "itemRadius": 20, "opacity": 0.94 },
+    "applied": true,
+    "revision": 2
+  },
+  "at": 100
+}

@@ -40,6 +40,33 @@ let valid: [String: Any] = [
 ]
 
 require(aosCanonicalSceneEvent(valid) != nil, "valid scene event was rejected")
+var radial = valid
+radial["gesture"] = ["id": "gesture-menu", "kind": "tap", "phase": "end", "pointerSessionId": "capture-menu", "cancellationReason": NSNull()]
+radial["response"] = [
+    "kind": "radial_menu", "action": "open", "menuId": "companion-menu",
+    "origin": ["x": 100.0, "y": 200.0],
+    "items": [
+        ["id": "inspect", "color": "#9b7cff", "disabled": false],
+        ["id": "annotate", "color": "#53f5d7", "disabled": false],
+    ],
+    "radius": 108.0, "startAngle": -90.0, "spreadDegrees": 120.0, "closeOnSelect": true,
+    "style": ["activeColor": "#ffffff", "fillColor": "#201b2f", "itemRadius": 20.0, "opacity": 0.94],
+    "applied": true, "revision": 2,
+]
+require(aosCanonicalSceneEvent(radial) != nil, "valid radial-menu event was rejected")
+var radialSelect = radial
+radialSelect["response"] = ["kind": "radial_menu", "action": "select", "menuId": "companion-menu", "itemId": "annotate", "selectionIndex": 1, "applied": true, "revision": 3]
+require(aosCanonicalSceneEvent(radialSelect) != nil, "valid radial-menu selection was rejected")
+var radialCancel = radial
+radialCancel["gesture"] = ["id": "gesture-menu", "kind": "tap", "phase": "cancel", "pointerSessionId": NSNull(), "cancellationReason": "escape"]
+radialCancel["response"] = ["kind": "radial_menu", "action": "cancel", "menuId": "companion-menu", "applied": true, "revision": 3]
+require(aosCanonicalSceneEvent(radialCancel) != nil, "valid radial-menu cancellation was rejected")
+var radialLeak = radial
+radialLeak["response"] = ["kind": "radial_menu", "action": "select", "menuId": "companion-menu", "itemId": "annotate", "selectionIndex": 1, "command": "private"]
+require(aosCanonicalSceneEvent(radialLeak) == nil, "radial-menu product command was accepted")
+var radialCancelLeak = radialCancel
+radialCancelLeak["response"] = ["kind": "radial_menu", "action": "cancel", "menuId": "companion-menu", "items": [["id": "inspect", "color": "#9b7cff", "disabled": false]]]
+require(aosCanonicalSceneEvent(radialCancelLeak) == nil, "radial-menu cancellation accepted open-state fields")
 var leaked = valid
 leaked["prompt"] = "private product content"
 require(aosCanonicalSceneEvent(leaked) == nil, "unknown top-level product content was accepted")

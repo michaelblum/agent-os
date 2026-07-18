@@ -1,0 +1,38 @@
+{
+  "contract": "aos.scene.event.v1",
+  "schemaVersion": 1,
+  "type": "gesture",
+  "sequence": 6,
+  "stageId": "desktop-world/main",
+  "ownerId": "example.consumer",
+  "resourceId": "companion/main",
+  "affordanceId": "body-hit",
+  "interactionId": "open-menu",
+  "gesture": {
+    "id": "gesture-menu-select",
+    "kind": "tap",
+    "phase": "end",
+    "pointerSessionId": "capture-menu-select",
+    "cancellationReason": null
+  },
+  "coordinates": {
+    "origin": { "x": 100, "y": 200 },
+    "previous": { "x": 100, "y": 92 },
+    "current": { "x": 100, "y": 92 },
+    "desktopWorld": { "x": 100, "y": 92 },
+    "native": null,
+    "delta": { "x": 0, "y": 0 },
+    "totalDelta": { "x": 0, "y": 0 }
+  },
+  "topology": null,
+  "response": {
+    "kind": "radial_menu",
+    "action": "select",
+    "menuId": "companion-menu",
+    "itemId": "inspect",
+    "selectionIndex": 0,
+    "applied": true,
+    "revision": 3
+  },
+  "at": 120
+}

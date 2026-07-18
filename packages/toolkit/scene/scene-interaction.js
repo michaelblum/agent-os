@@ -1,5 +1,10 @@
 import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { createPointerGestureStream } from '../runtime/gesture-stream.js'
+import {
+  resolveSceneRadialMenuResponse,
+  validateSceneRadialMenuParameters,
+  withSceneRadialSelection,
+} from './scene-radial-menu.js'
 
 export const SCENE_EVENT_CONTRACT_ID = 'aos.scene.event.v1'
 export const SCENE_INTERACTIONS_CONTRACT_ID = 'aos.scene.cartridge.interactions.v1'
@@ -48,6 +53,7 @@ const RECOGNIZER_KIND_BY_IMPLEMENTATION = new Map([
 const RESPONSE_KINDS = new Map([
   ['aos.scene.response.aim-commit', 'aim_commit'],
   ['aos.scene.response.drop', 'drop'],
+  ['aos.scene.response.radial-menu', 'radial_menu'],
   ['aos.scene.response.signal-graph', 'signal_graph'],
   ['aos.scene.response.translate', 'translate'],
 ])
@@ -330,6 +336,8 @@ function validateResponseParameters(value, path, errors) {
     }
   } else if (kind === 'drop') {
     exactKeys(parameters, new Set(), `${path}.parameters`, errors)
+  } else if (kind === 'radial_menu') {
+    errors.push(...validateSceneRadialMenuParameters(parameters, `${path}.parameters`))
   } else if (kind === 'signal_graph') {
     exactKeys(parameters, new Set(['offset', 'scale', 'signalId', 'signals', 'source']), `${path}.parameters`, errors)
     if (parameters.signals !== undefined) {
@@ -584,29 +592,6 @@ function normalizedGesturePhase(frame) {
   return frame.phase
 }
 
-function withRadialSelection(frame, interaction) {
-  const parameters = interaction?.recognizer?.parameters ?? {}
-  const items = parameters.items ?? 4
-  const count = Array.isArray(items) ? items.length : finite(items, 4, 1, 32)
-  const total = frame.total_delta ?? { x: 0, y: 0 }
-  const radialDistance = Math.hypot(total.x ?? 0, total.y ?? 0)
-  const radialAngle = Math.atan2(total.y ?? 0, total.x ?? 0)
-  const deadZone = finite(parameters.deadZone, 24, 0, 512)
-  const sector = (Math.PI * 2) / count
-  const normalized = (radialAngle + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2)
-  let selectionIndex = radialDistance < deadZone ? null : Math.floor((normalized + sector / 2) / sector) % count
-  if (selectionIndex !== null && Array.isArray(items) && items[selectionIndex]?.disabled === true) selectionIndex = null
-  return {
-    ...frame,
-    radial: Object.freeze({
-      angle: radialAngle,
-      distance: radialDistance,
-      itemCount: count,
-      selectionIndex,
-    }),
-  }
-}
-
 export function createSceneGestureArena({
   affordance,
   interactions = [],
@@ -650,7 +635,7 @@ export function createSceneGestureArena({
 
   function publish(frame, interaction) {
     const publishedFrame = recognizerKind(interaction) === SCENE_GESTURE_KINDS.radial
-      ? withRadialSelection(frame, interaction)
+      ? withSceneRadialSelection(frame, interaction)
       : frame
     onFrame({
       ...publishedFrame,
@@ -874,6 +859,7 @@ export function resolveSceneGestureResponse({ document, affordance, interaction,
     })
   }
   if (kind === 'drop') return Object.freeze({ kind, objectId: affordance.objectId, point: clonePoint(current) })
+  if (kind === 'radial_menu') return resolveSceneRadialMenuResponse({ frame, interaction })
   return Object.freeze({ kind, signals: signalValues(interaction.response.parameters, frame) })
 }
 

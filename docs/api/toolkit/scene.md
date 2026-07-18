@@ -158,6 +158,15 @@ an object moves. `translate`, `aim_commit`, `drop`, and `signal_graph` are
 separate declarative responses. Aim-and-commit keeps its object fixed and emits
 the route vector for an engine renderer to consume.
 
+Bind `tap` to `aos.scene.response.radial-menu` when a menu must remain open
+after the trigger click while the same affordance also supports drag. The
+response creates one owner/resource-scoped menu lease, clamps its declared arc
+or circle to the containing display, registers bounded item hit regions, and
+emits complete `focus -> select` or `cancel` gesture lifecycles. Escape,
+suspension, topology changes, disconnect, and resource removal tear down the
+lease and every temporary region. Item events contain canonical IDs and numeric
+selection only; commands and product semantics remain in the cartridge owner.
+
 `createSceneInteractionController()` binds the generic arena to one
 owner/resource lease and emits schema-validated `SceneEventEnvelope` values.
 Movement updates are coalesced to render cadence, while start, end, and cancel
@@ -183,7 +192,9 @@ Radial recognizers may declare up to 32 ID/color/disabled item descriptors and
 a bounded stock style. Item zero is centered at the top, placement clamps to
 the containing display, and `selection_index` / `selection_active` expose only
 numeric selection state through a declarative signal graph. Product labels,
-commands, and action semantics stay in the cartridge owner.
+commands, and action semantics stay in the cartridge owner. Persistent
+tap-open menus use the same preallocated stock meshes and may declare bounded
+start angle and spread values for edge-aware arcs.
 
 The daemon DesktopWorld outlet adapts this controller to a preallocated Three
 pool: glow and dash geometry, arrowhead and reticle geometry, optional arrow
@@ -262,8 +273,11 @@ For conventional dragging, bind a `drag` recognizer to `translate`. For
 aim-and-commit, bind the same generic recognizer to `aim_commit`; the object
 remains fixed during start/update, Escape produces `cancel`, and release starts
 the declared line or wormhole route. For a radial menu, use the stock `radial`
-recognizer plus bounded item/style descriptors. The neutral cartridges under
-`packages/toolkit/scene/examples/` are the canonical starting points.
+recognizer plus bounded item/style descriptors. To combine a click-open menu
+and drag behavior on one object, bind `tap` to `radial-menu` and bind `drag` to
+`translate` or `aim_commit`; movement arbitration leaves only one winner. The
+neutral cartridges under `packages/toolkit/scene/examples/` are the canonical
+starting points.
 
 ### Agent Tooling Errors
 

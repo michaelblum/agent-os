@@ -85,6 +85,28 @@ test('deterministic replay enforces sequence and complete gesture lifecycles', (
   assert.throws(() => replayDesktopWorldSceneEvents([{ ...gesture('end', 1), productText: 'must not pass' }]), { code: 'INVALID_SCENE_REPLAY_EVENT' })
 })
 
+test('deterministic replay accepts strict persistent radial-menu lifecycles', () => {
+  const open = {
+    kind: 'radial_menu', action: 'open', menuId: 'companion-menu', origin: { x: 10, y: 20 },
+    items: [
+      { id: 'inspect', color: '#9b7cff', disabled: false },
+      { id: 'annotate', color: '#53f5d7', disabled: false },
+    ],
+    radius: 108, startAngle: -90, spreadDegrees: 120, closeOnSelect: true,
+    style: { activeColor: '#ffffff', fillColor: '#201b2f', itemRadius: 20, opacity: 0.94 },
+  }
+  const summary = replayDesktopWorldSceneEvents([
+    gesture('start', 1, open),
+    gesture('end', 2, open),
+    gesture('start', 3, { kind: 'radial_menu', action: 'focus', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
+    gesture('end', 4, { kind: 'radial_menu', action: 'select', menuId: 'companion-menu', itemId: 'inspect', selectionIndex: 0 }),
+  ])
+  assert.equal(summary.completedGestures, 2)
+  assert.throws(() => replayDesktopWorldSceneEvents([
+    gesture('start', 1, { kind: 'radial_menu', action: 'cancel', menuId: 'companion-menu', items: open.items }),
+  ]), { code: 'INVALID_SCENE_REPLAY_EVENT' })
+})
+
 test('transport-injected client emits familiar scene actions without owning a socket', async () => {
   const requests = []
   const subscriptions = []

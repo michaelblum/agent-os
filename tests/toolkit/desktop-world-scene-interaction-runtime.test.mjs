@@ -46,6 +46,7 @@ function harness({
   register = async () => {},
   remove = async () => {},
   update = async () => {},
+  applyResponse = (event) => ({ ...event.response, applied: true, revision: 1 }),
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
 } = {}) {
   const calls = []
@@ -55,7 +56,7 @@ function harness({
     document: () => document,
     applyInteractionResponse(_key, event) {
       responses.push(event)
-      return { ...event.response, applied: true, revision: 1 }
+      return applyResponse(event)
     },
   }
   const runtime = createDesktopWorldSceneInteractionRuntime({
@@ -84,6 +85,18 @@ function routed(regionId, type, x, y, sequenceValue) {
     sequenceValue,
     gestureId: 'gesture-1',
   })
+}
+
+function escapeKey(sequenceValue) {
+  return {
+    input_schema_version: 2,
+    event_kind: 'key',
+    type: 'key_down',
+    timestamp_monotonic_ms: sequenceValue,
+    sequence: { source: 'daemon', value: sequenceValue },
+    key: { physical_key_code: 53, logical: 'Escape', repeat: false, is_printable: false },
+    modifiers: { shift: false, ctrl: false, cmd: false, opt: false, fn: false, caps_lock: false },
+  }
 }
 
 test('stage interaction runtime registers one owner-scoped region and applies the full drag lifecycle', async () => {
@@ -245,4 +258,284 @@ test('accepted aim-and-commit release refreshes the destination hit region', asy
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.deepEqual(calls, [['register', regionId], ['update', regionId]])
+})
+
+test('tap-open radial menu coexists with aim-and-commit drag and cleans temporary item regions', async () => {
+  const { calls, events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [
+    {
+      ...menuInteractions.interactions[0],
+      id: 'aim-body',
+      response: { implementation: 'aos.scene.response.aim-commit', parameters: { route: 'line' } },
+    },
+    {
+      id: 'open-menu',
+      affordanceId: 'body-hit',
+      recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+      response: {
+        implementation: 'aos.scene.response.radial-menu',
+        parameters: {
+          closeOnSelect: true,
+          items: [
+            { id: 'inspect', color: '#9b7cff' },
+            { id: 'annotate', color: '#53f5d7' },
+            { id: 'settings', color: '#f2f5ff' },
+          ],
+          menuId: 'companion-menu',
+          radius: 100,
+          spreadDegrees: 120,
+          startAngle: -150,
+          style: { activeColor: '#ffffff', fillColor: '#201b2f', itemRadius: 20, opacity: 0.94 },
+        },
+      },
+    },
+  ]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 101, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const opened = runtime.snapshot(key).radialMenus[0]
+  assert.equal(opened.menuId, 'companion-menu')
+  assert.equal(opened.regions.length, 3)
+  assert.equal(runtime.devtoolsSnapshot().hitRegions.length, 4)
+  const firstRegion = opened.regions[0]
+  const [left, top, width, height] = firstRegion.frame
+  runtime.handleInput(routed(firstRegion.id, 'left_mouse_down', left + width / 2, top + height / 2, 3))
+  runtime.handleInput(routed(firstRegion.id, 'left_mouse_up', left + width / 2, top + height / 2, 4))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(events.map(({ event }) => [event.gesture.phase, event.response.kind, event.response.action ?? null]), [
+    ['start', 'radial_menu', 'open'],
+    ['update', 'radial_menu', 'open'],
+    ['end', 'radial_menu', 'open'],
+    ['start', 'radial_menu', 'focus'],
+    ['end', 'radial_menu', 'select'],
+  ])
+  assert.deepEqual(events.map(({ event }) => event.sequence), [1, 2, 3, 4, 5])
+  assert.equal(events.at(-1).event.response.itemId, 'inspect')
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(calls.filter(([kind, id]) => kind === 'remove' && id.includes(':menu:')).length, 3)
+
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 5))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_dragged', 250, 350, 6))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 250, 350, 7))
+  assert.equal(events.at(-1).event.response.kind, 'aim_commit')
+  assert.equal(events.at(-1).event.gesture.phase, 'end')
+})
+
+test('Escape dismisses an open radial menu and removes every temporary item region', async () => {
+  const { calls, events, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        items: [{ id: 'inspect' }, { id: 'annotate' }],
+        menuId: 'companion-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  assert.equal(runtime.handleInput(escapeKey(3)), true)
+  await runtime.dispose()
+
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(calls.filter(([kind, id]) => kind === 'remove' && id.includes(':menu:')).length, 2)
+  assert.deepEqual(events.slice(-2).map(({ event }) => [event.gesture.phase, event.response.action]), [
+    ['start', 'cancel'],
+    ['cancel', 'cancel'],
+  ])
+  assert.equal(events.at(-1).event.gesture.cancellationReason, 'escape')
+})
+
+test('reopening a radial menu closes the old lease before rendering the replacement', async () => {
+  const { events, responses, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }, { id: 'annotate' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 110, 210, 3))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 110, 210, 4))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  assert.equal(responses.at(-1).response.action, 'open')
+  assert.equal(events.at(-1).event.response.action, 'open')
+  assert.equal(events.at(-1).event.gesture.phase, 'end')
+  assert.ok(events.some(({ event }) => event.response.action === 'cancel'))
+  await runtime.dispose()
+})
+
+test('late stale-region cleanup cannot close or overwrite a replacement radial menu', async () => {
+  let releaseOldRegistration
+  const oldRegistration = new Promise((resolve) => { releaseOldRegistration = resolve })
+  let menuRegistrations = 0
+  let menuRemovals = 0
+  const { calls, runtime } = harness({
+    register: async (payload) => {
+      if (!payload.id.includes(':menu:')) return
+      menuRegistrations += 1
+      if (menuRegistrations === 1) await oldRegistration
+    },
+    remove: async (id) => {
+      if (!id.includes(':menu:')) return
+      menuRemovals += 1
+      if (menuRemovals === 1) throw new Error('fixture stale cleanup failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 110, 210, 3))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 110, 210, 4))
+  releaseOldRegistration()
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  assert.equal(runtime.snapshot(key).radialMenus[0].regions.length, 1)
+  assert.equal(menuRegistrations, 2)
+  assert.equal(menuRemovals, 2)
+  assert.equal(calls.filter(([kind, id]) => kind === 'register' && id.includes(':menu:')).length, 2)
+  await runtime.dispose()
+})
+
+test('persistent stale-region cleanup failure blocks replacement activation until teardown can recover', async () => {
+  let failRemoval = true
+  let menuRegistrations = 0
+  const { calls, runtime } = harness({
+    register: async (payload) => {
+      if (payload.id.includes(':menu:')) menuRegistrations += 1
+    },
+    remove: async (id) => {
+      if (failRemoval && id.includes(':menu:')) throw new Error('fixture persistent cleanup failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 110, 210, 3))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 110, 210, 4))
+  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(menuRegistrations, 1)
+  assert.equal(calls.filter(([kind, id]) => kind === 'remove' && id.includes(':menu:')).length, 4)
+
+  failRemoval = false
+  await runtime.dispose()
+  assert.equal(calls.filter(([kind, id]) => kind === 'remove' && id.includes(':menu:')).length, 5)
+})
+
+test('partial radial-menu registration failure rolls back every accepted temporary region', async () => {
+  let registrationCount = 0
+  const { calls, runtime } = harness({
+    register: async () => {
+      registrationCount += 1
+      if (registrationCount === 4) throw new Error('fixture registration failure')
+    },
+  })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        items: [{ id: 'inspect' }, { id: 'annotate' }, { id: 'settings' }],
+        menuId: 'companion-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+  await runtime.dispose()
+
+  assert.equal(registrationCount, 4)
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(calls.filter(([kind, id]) => kind === 'remove' && id.includes(':menu:')).length, 2)
+})
+
+test('a rejected radial-menu visual does not acquire temporary input regions', async () => {
+  const { calls, events, runtime } = harness({ applyResponse: () => ({ applied: false, revision: 1 }) })
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: { items: [{ id: 'inspect' }], menuId: 'companion-menu' },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  assert.equal(calls.filter(([kind, id]) => kind === 'register' && id.includes(':menu:')).length, 0)
+  assert.equal(events.at(-1).event.response.applied, false)
+  await runtime.dispose()
 })

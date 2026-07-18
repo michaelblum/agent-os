@@ -165,6 +165,7 @@
         { "$ref": "#/$defs/TranslateResponse" },
         { "$ref": "#/$defs/AimCommitResponse" },
         { "$ref": "#/$defs/DropResponse" },
+        { "$ref": "#/$defs/RadialMenuResponse" },
         { "$ref": "#/$defs/SignalGraphResponse" }
       ]
     },
@@ -242,6 +243,91 @@
         "signalId": { "$ref": "#/$defs/DescriptorId" },
         "value": { "type": "number" }
       }
+    },
+    "RadialMenuItem": {
+      "type": "object",
+      "required": ["id", "color", "disabled"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/DescriptorId" },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
+        "disabled": { "type": "boolean" }
+      }
+    },
+    "RadialMenuStyle": {
+      "type": "object",
+      "required": ["activeColor", "fillColor", "itemRadius", "opacity"],
+      "additionalProperties": false,
+      "properties": {
+        "activeColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
+        "fillColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$" },
+        "itemRadius": { "type": "number", "minimum": 2, "maximum": 128 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "RadialMenuResponse": {
+      "allOf": [
+        { "$ref": "#/$defs/Applied" },
+        {
+          "type": "object",
+          "required": ["kind", "action", "menuId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "radial_menu" },
+            "action": { "enum": ["open", "focus", "select", "cancel"] },
+            "menuId": { "$ref": "#/$defs/DescriptorId" },
+            "origin": { "$ref": "#/$defs/NullablePoint" },
+            "items": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/$defs/RadialMenuItem" } },
+            "radius": { "type": "number", "minimum": 1, "maximum": 2048 },
+            "startAngle": { "type": "number", "minimum": -3600, "maximum": 3600 },
+            "spreadDegrees": { "type": "number", "minimum": 1, "maximum": 360 },
+            "closeOnSelect": { "type": "boolean" },
+            "style": { "$ref": "#/$defs/RadialMenuStyle" },
+            "itemId": { "$ref": "#/$defs/DescriptorId" },
+            "selectionIndex": { "type": "integer", "minimum": 0, "maximum": 31 },
+            "applied": { "type": "boolean" },
+            "revision": { "type": "integer", "minimum": 0 }
+          },
+          "oneOf": [
+            {
+              "properties": { "action": { "const": "open" } },
+              "required": ["origin", "items", "radius", "startAngle", "spreadDegrees", "closeOnSelect", "style"],
+              "not": { "anyOf": [{ "required": ["itemId"] }, { "required": ["selectionIndex"] }] }
+            },
+            {
+              "properties": { "action": { "enum": ["focus", "select"] } },
+              "required": ["itemId", "selectionIndex"],
+              "not": {
+                "anyOf": [
+                  { "required": ["origin"] },
+                  { "required": ["items"] },
+                  { "required": ["radius"] },
+                  { "required": ["startAngle"] },
+                  { "required": ["spreadDegrees"] },
+                  { "required": ["closeOnSelect"] },
+                  { "required": ["style"] }
+                ]
+              }
+            },
+            {
+              "properties": { "action": { "const": "cancel" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["origin"] },
+                  { "required": ["items"] },
+                  { "required": ["radius"] },
+                  { "required": ["startAngle"] },
+                  { "required": ["spreadDegrees"] },
+                  { "required": ["closeOnSelect"] },
+                  { "required": ["style"] },
+                  { "required": ["itemId"] },
+                  { "required": ["selectionIndex"] }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     "SignalGraphResponse": {
       "allOf": [
