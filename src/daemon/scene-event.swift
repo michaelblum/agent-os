@@ -53,6 +53,16 @@ private func aosSceneIdentifier(_ value: Any?, allowSlash: Bool) -> String? {
     return value
 }
 
+private func aosSceneColor(_ value: Any?) -> Bool {
+    guard let value = value as? String, value.count == 7 || value.count == 9,
+          value.first == "#" else { return false }
+    return value.dropFirst().unicodeScalars.allSatisfy { scalar in
+        (scalar.value >= 48 && scalar.value <= 57)
+            || (scalar.value >= 65 && scalar.value <= 70)
+            || (scalar.value >= 97 && scalar.value <= 102)
+    }
+}
+
 private func aosSceneNullablePoint(_ value: Any?) -> Bool {
     if value is NSNull { return true }
     guard let point = value as? [String: Any],
@@ -141,6 +151,45 @@ private func aosSceneResponse(_ value: Any?) -> Bool {
               aosSceneAppliedFields(response, allowed: required.union(["applied", "revision"])),
               aosSceneIdentifier(response["objectId"], allowSlash: true) != nil,
               aosSceneNullablePoint(response["point"]) else { return false }
+    case "radial_menu":
+        let required = Set(["kind", "action", "menuId"])
+        guard required.isSubset(of: Set(response.keys)),
+              let action = response["action"] as? String,
+              ["open", "focus", "select", "cancel"].contains(action),
+              aosSceneIdentifier(response["menuId"], allowSlash: true) != nil else { return false }
+        if action == "open" {
+            let allowed = required.union([
+                "origin", "items", "radius", "startAngle", "spreadDegrees", "closeOnSelect", "style",
+                "applied", "revision",
+            ])
+            guard aosSceneAppliedFields(response, allowed: allowed),
+                  aosSceneNullablePoint(response["origin"]),
+                  let items = response["items"] as? [Any], !items.isEmpty, items.count <= 32,
+                  let radius = aosSceneFiniteNumber(response["radius"]), radius >= 1, radius <= 2_048,
+                  let startAngle = aosSceneFiniteNumber(response["startAngle"]), abs(startAngle) <= 3_600,
+                  let spread = aosSceneFiniteNumber(response["spreadDegrees"]), spread >= 1, spread <= 360,
+                  response["closeOnSelect"] is Bool,
+                  let style = response["style"] as? [String: Any],
+                  aosSceneExactKeys(style, ["activeColor", "fillColor", "itemRadius", "opacity"]),
+                  aosSceneColor(style["activeColor"]), aosSceneColor(style["fillColor"]),
+                  let itemRadius = aosSceneFiniteNumber(style["itemRadius"]), itemRadius >= 2, itemRadius <= 128,
+                  let opacity = aosSceneFiniteNumber(style["opacity"]), opacity >= 0, opacity <= 1 else { return false }
+            var ids = Set<String>()
+            for value in items {
+                guard let item = value as? [String: Any],
+                      aosSceneExactKeys(item, ["id", "color", "disabled"]),
+                      let id = aosSceneIdentifier(item["id"], allowSlash: true), !ids.contains(id),
+                      aosSceneColor(item["color"]), item["disabled"] is Bool else { return false }
+                ids.insert(id)
+            }
+        } else if action == "focus" || action == "select" {
+            let allowed = required.union(["itemId", "selectionIndex", "applied", "revision"])
+            guard aosSceneAppliedFields(response, allowed: allowed),
+                  aosSceneIdentifier(response["itemId"], allowSlash: true) != nil,
+                  aosSceneInteger(response["selectionIndex"], minimum: 0, maximum: 31) != nil else { return false }
+        } else {
+            guard aosSceneAppliedFields(response, allowed: required.union(["applied", "revision"])) else { return false }
+        }
     case "signal_graph":
         let required = Set(["kind", "signals"])
         guard required.isSubset(of: Set(response.keys)),

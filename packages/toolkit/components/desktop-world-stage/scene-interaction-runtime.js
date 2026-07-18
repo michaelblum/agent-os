@@ -3,6 +3,7 @@ import {
   validateSceneInteractionDocument,
 } from '../../scene/index.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { createDesktopWorldSceneRadialMenuRuntime } from './scene-radial-menu-runtime.js'
 
 const MAX_LEASES = 32
 
@@ -60,6 +61,26 @@ export function createDesktopWorldSceneInteractionRuntime({
   }
   const leases = new Map()
 
+  function publishEntryEvent(entry, event) {
+    if (!isPrimary()) return
+    entry.sequence += 1
+    emitEvent({ lease_key: entry.key, event_type: event.type, event: { ...event, sequence: entry.sequence } })
+  }
+
+  const radialMenus = createDesktopWorldSceneRadialMenuRuntime({
+    stageCanvasId,
+    registerRegion,
+    removeRegion,
+    outlet,
+    topology,
+    isPrimary,
+    now,
+    publishEvent(session, event) {
+      const entry = leases.get(session.key)
+      if (entry) publishEntryEvent(entry, event)
+    },
+  })
+
   function createController(entry) {
     return createSceneInteractionController({
       identity: {
@@ -75,6 +96,17 @@ export function createDesktopWorldSceneInteractionRuntime({
       scheduleTimer,
       cancelTimer,
       onResponse(event) {
+        if (event.response.kind === 'radial_menu' && event.frame.phase === 'end') {
+          return radialMenus.open({
+            key: entry.key,
+            owner: entry.owner,
+            resource: entry.resource,
+            affordance: event.affordance,
+            interaction: event.interaction,
+            response: event.response,
+            frame: event.frame,
+          })
+        }
         const result = outlet.applyInteractionResponse(entry.key, { ...event, topology: topology() })
         if (['aim_commit', 'translate'].includes(event.response.kind) && event.frame.phase === 'end' && result?.applied) {
           scheduleRegionRefresh(entry)
@@ -82,7 +114,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         return result
       },
       onEvent(event) {
-        if (isPrimary()) emitEvent({ lease_key: entry.key, event_type: event.type, event })
+        publishEntryEvent(entry, event)
       },
     })
   }
@@ -180,6 +212,7 @@ export function createDesktopWorldSceneInteractionRuntime({
       generation: 0,
       regionSync: Promise.resolve(),
       regionSyncErrorCode: null,
+      sequence: 0,
     }
     entry.controller = createController(entry)
     leases.set(key, entry)
@@ -226,7 +259,8 @@ export function createDesktopWorldSceneInteractionRuntime({
   }
 
   function cancel(key, reason = 'resource_changed') {
-    return leases.get(key)?.controller.cancel(reason) ?? false
+    const gesture = leases.get(key)?.controller.cancel(reason) ?? false
+    return radialMenus.close(key, reason) || gesture
   }
 
   async function suspend(key) {
@@ -236,8 +270,10 @@ export function createDesktopWorldSceneInteractionRuntime({
       entry.suspended = true
       entry.generation += 1
       entry.controller.cancel('resource_suspended')
+      radialMenus.close(key, 'resource_suspended')
     }
     await entry.regionSync
+    await radialMenus.settle(key, { requireClean: true })
     await removeRegions(entry)
     return true
   }
@@ -254,7 +290,9 @@ export function createDesktopWorldSceneInteractionRuntime({
   async function topologyChanged() {
     for (const entry of leases.values()) {
       entry.controller.cancel('topology_changed')
+      radialMenus.close(entry.key, 'topology_changed')
       await entry.regionSync
+      await radialMenus.settle(entry.key, { requireClean: true })
       await syncRegions(entry, true)
     }
   }
@@ -265,13 +303,16 @@ export function createDesktopWorldSceneInteractionRuntime({
     entry.disposed = true
     entry.generation += 1
     entry.controller.dispose(reason)
+    radialMenus.close(key, reason)
     await entry.regionSync
+    await radialMenus.settle(key, { requireClean: true })
     await removeRegions(entry)
     leases.delete(key)
     return true
   }
 
   function handleInput(message) {
+    if (radialMenus.handleInput(message)) return true
     const input = normalizeCanvasInputMessage(message)
     const regionId = input?.regionId
     if (!regionId) return false
@@ -283,7 +324,7 @@ export function createDesktopWorldSceneInteractionRuntime({
   }
 
   function cancelAll(reason = 'stage_disposed') {
-    return [...leases.values()].map((entry) => entry.controller.cancel(reason)).some(Boolean)
+    return [...leases.values()].map((entry) => cancel(entry.key, reason)).some(Boolean)
   }
 
   function snapshot(key = null) {
@@ -300,6 +341,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         controller: entry.controller.snapshot(),
       })),
       maxLeases: MAX_LEASES,
+      radialMenus: radialMenus.snapshot(key),
     }
   }
 
@@ -354,6 +396,15 @@ export function createDesktopWorldSceneInteractionRuntime({
         suspended: entry.suspended,
       })
     }
+    for (const menu of radialMenus.snapshot()) {
+      for (const region of menu.regions) hitRegions.push({
+        affordanceId: menu.menuId,
+        frame: region.frame,
+        id: region.id,
+        registered: true,
+        resourceId: menu.resource,
+      })
+    }
     return { affordances, gestures, hitRegions, interactions }
   }
 
@@ -377,6 +428,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         failures.push(error)
       }
     }
+    await radialMenus.dispose(reason)
     if (failures.length > 0) throw new AggregateError(failures, 'DesktopWorld scene interaction disposal failed.')
   }
 

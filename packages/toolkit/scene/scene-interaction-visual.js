@@ -1,3 +1,5 @@
+import { resolveSceneRadialMenuLayout } from './scene-radial-menu.js'
+
 const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
 
 export const SCENE_INTERACTION_VISUAL_LIMITS = Object.freeze({
@@ -178,7 +180,7 @@ export function resolveSceneRadialVisualStyle(parameters = {}) {
       index,
     }))),
     opacity: finite(style.opacity, DEFAULT_RADIAL_STYLE.opacity, 0, 1),
-    radius: finite(parameters?.radius, DEFAULT_RADIAL_STYLE.radius, 8, 512),
+    radius: finite(parameters?.radius, DEFAULT_RADIAL_STYLE.radius, 1, 2048),
   })
 }
 
@@ -290,6 +292,39 @@ export function createSceneInteractionVisualController({ now = () => performance
     model.radial.visible = frame.phase !== 'cancel' && frame.phase !== 'end'
   }
 
+  function updatePersistentRadial(event) {
+    if (event.response.action === 'focus') {
+      model.radial.selectionIndex = Number.isInteger(event.response.selectionIndex) ? event.response.selectionIndex : -1
+      return
+    }
+    if (event.response.action !== 'open') {
+      model.radial.visible = false
+      model.radial.selectionIndex = Number.isInteger(event.response.selectionIndex) ? event.response.selectionIndex : -1
+      return
+    }
+    const layout = resolveSceneRadialMenuLayout(event.response, event.topology)
+    const style = resolveSceneRadialVisualStyle(event.response)
+    copyPoint(model.radial.center, layout.center)
+    model.radial.itemCount = layout.items.length
+    model.radial.selectionIndex = -1
+    model.radial.style = style
+    for (let index = 0; index < SCENE_INTERACTION_VISUAL_LIMITS.maxRadialItems; index += 1) {
+      const item = layout.items[index]
+      if (!item) {
+        radialPositions[index * 2] = 0
+        radialPositions[index * 2 + 1] = 0
+        radialColors[index] = null
+        radialDisabled[index] = 0
+        continue
+      }
+      radialPositions[index * 2] = item.center.x
+      radialPositions[index * 2 + 1] = item.center.y
+      radialColors[index] = item.color
+      radialDisabled[index] = item.disabled ? 1 : 0
+    }
+    model.radial.visible = true
+  }
+
   function beginRoute(event, style, at) {
     const response = event.response
     copyPoint(model.route.origin, response.origin)
@@ -330,6 +365,11 @@ export function createSceneInteractionVisualController({ now = () => performance
       publish(event.frame.timing?.t)
       if (event.frame.phase === 'end' || event.frame.phase === 'cancel') aimStyle = null
       return event.frame.phase === 'end' ? STARTED_ROUTE_RESULT : ACCEPTED_VISUAL_RESULT
+    }
+    if (event.response.kind === 'radial_menu') {
+      updatePersistentRadial(event)
+      publish(event.frame.timing?.t)
+      return ACCEPTED_VISUAL_RESULT
     }
     if (recognizer?.implementation === 'aos.scene.gesture.radial') {
       publish(event.frame.timing?.t)

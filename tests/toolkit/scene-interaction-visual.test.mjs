@@ -54,6 +54,23 @@ function radialEvent(phase, selectionIndex = 0, origin = { x: 8, y: 8 }) {
   }
 }
 
+function persistentRadialEvent(action = 'open', selectionIndex = undefined) {
+  return {
+    frame: { phase: action === 'focus' ? 'start' : 'end', origin: { x: 8, y: 8 }, current: { x: 8, y: 8 }, timing: { t: 10 } },
+    interaction: { recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { threshold: 4 } }, response: { implementation: 'aos.scene.response.radial-menu', parameters: {} } },
+    response: {
+      kind: 'radial_menu', action, menuId: 'sample-menu', origin: { x: 8, y: 8 },
+      ...(action === 'open' ? {
+        closeOnSelect: true,
+        items: [{ id: 'top', color: '#9b7cff', disabled: false }, { id: 'right', color: '#53f5d7', disabled: false }],
+        radius: 50, spreadDegrees: 90, startAngle: -90,
+        style: { activeColor: '#ffffff', fillColor: '#201b2f', itemRadius: 20, opacity: 0.94 },
+      } : { itemId: 'top', selectionIndex }),
+    },
+    topology: { displays: [{ displayId: 1, index: 0, bounds: [0, 0, 400, 300] }] },
+  }
+}
+
 test('aim visual styles are deterministic and bounded', () => {
   const style = resolveSceneAimVisualStyle({
     route: 'wormhole',
@@ -193,6 +210,17 @@ test('radial menus place item zero at top and clamp the menu inside its display'
   assert.equal(model.radial.disabled[1], 1)
   controller.apply(radialEvent('cancel'))
   assert.equal(model.radial.visible, false)
+})
+
+test('tap-open radial menus remain visible across pointer sessions and close after selection', () => {
+  const controller = createSceneInteractionVisualController()
+  assert.equal(controller.apply(persistentRadialEvent()).accepted, true)
+  assert.equal(controller.snapshot().radial.visible, true)
+  assert.deepEqual(controller.snapshot().radial.center.map(Math.round), [24, 74])
+  controller.apply(persistentRadialEvent('focus', 0))
+  assert.equal(controller.snapshot().radial.selectionIndex, 0)
+  controller.apply(persistentRadialEvent('select', 0))
+  assert.equal(controller.snapshot().radial.visible, false)
 })
 
 test('radial style resolution caps descriptors and suspend pauses route time', () => {

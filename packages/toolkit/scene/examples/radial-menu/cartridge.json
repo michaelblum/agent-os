@@ -1,8 +1,8 @@
 {
   "contract":"aos.scene.cartridge.v1","schemaVersion":1,"id":"samples/radial-menu","revision":1,
-  "files":{"scene":{"path":"scene.json","sha256":"f9d4d27a36bd5da20da5610f577e1675559b1eeed553541c7362b308e0515742"},"animations":{"path":"animations.json","sha256":"bb3b06905609e4923cdc4f7bd8ecc4daef0026bff9dac8726710684149178903"},"interactions":{"path":"interactions.json","sha256":"35f34a54937ef3c9a446d0df23093104e70466c525c0ee3c17dba727d61c5a6b"}},
-  "implementations":[{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.gesture.radial","kind":"recognizer"},{"id":"aos.scene.material.surface","kind":"material"},{"id":"aos.scene.response.signal-graph","kind":"response"}],
+  "files":{"scene":{"path":"scene.json","sha256":"f9d4d27a36bd5da20da5610f577e1675559b1eeed553541c7362b308e0515742"},"animations":{"path":"animations.json","sha256":"bb3b06905609e4923cdc4f7bd8ecc4daef0026bff9dac8726710684149178903"},"interactions":{"path":"interactions.json","sha256":"26ffef6a3f3bf917d4e082ee7753759e8039d062b2647ccfa756182e2fa54b6d"}},
+  "implementations":[{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.gesture.tap","kind":"recognizer"},{"id":"aos.scene.material.surface","kind":"material"},{"id":"aos.scene.response.radial-menu","kind":"response"}],
   "assets":[],
   "budgets":{"maxAnimations":0,"maxAssets":0,"maxAssetBytes":0,"maxInteractions":1,"maxObjects":2,"maxResources":2},
-  "metadata":{"description":"A bounded radial recognizer that emits a declarative selection signal.","title":"Radial menu"}
+  "metadata":{"description":"A tap-open radial menu with bounded AOS-owned item hit regions.","title":"Radial menu"}
 }

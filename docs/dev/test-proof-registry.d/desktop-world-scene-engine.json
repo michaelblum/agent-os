@@ -8,6 +8,7 @@
       "path_patterns": [
         "tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs",
         "tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs",
+        "tests/toolkit/scene-radial-menu.test.mjs",
         "tests/toolkit/scene-interaction.test.mjs"
       ],
       "fixture_patterns": [],
@@ -16,7 +17,7 @@
       "proof_kind": "scene_interaction_engine_contract",
       "contract": "Owner-scoped affordances, deterministic recognizer arbitration, generic gesture responses, native-region lifecycle, and failed-activation rollback remain product-neutral and bounded.",
       "worth": "This proves reusable DesktopWorld input mechanics without restoring embedded product policy or requiring live input and TCC.",
-      "command": "node --test tests/toolkit/scene-interaction.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs",
+      "command": "node --test tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-radial-menu.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs",
       "replaces": [],
       "guard": "pure model tests with fake input-region bridges and deterministic clocks; no AOS binary, daemon, GUI, TCC, or GPU",
       "status": "active"

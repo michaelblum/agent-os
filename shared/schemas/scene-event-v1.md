@@ -24,8 +24,13 @@ loss, resource mutation/removal/suspension, topology change, or stage disposal.
 
 Coordinates preserve origin, previous/current points, deltas, DesktopWorld and
 native projections, plus a bounded display-topology snapshot. Declarative
-responses are `translate`, `aim_commit`, `drop`, or `signal_graph`. Drag itself
-does not imply translation.
+responses are `translate`, `aim_commit`, `drop`, `radial_menu`, or
+`signal_graph`. Drag itself does not imply translation.
+
+`radial_menu` responses contain only bounded visual data and canonical item
+IDs. A tap-open menu keeps a transient AOS-owned hit-region lease after the
+trigger gesture. Item focus/selection and menu cancellation emit complete
+gesture lifecycles; no product command or label crosses this event boundary.
 
 An `aim_commit` response keeps the projected object at its origin through
 `start` and `update`. It carries the bounded parent-local destination in

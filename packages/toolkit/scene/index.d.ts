@@ -2,6 +2,7 @@ import type { SceneAffordanceDescriptor } from './scene-interaction.js';
 
 export * from './scene-interaction.js';
 export * from './scene-interaction-visual.js';
+export * from './scene-radial-menu.js';
 export * from './desktop-world-devtools.js';
 export * from './desktop-world-devtools-view.js';
 export * from './desktop-world-client.js';
@@ -564,6 +565,7 @@ export const SCENE_CARTRIDGE_IMPLEMENTATIONS: Readonly<{
   tapRecognizer: 'aos.scene.gesture.tap';
   aimCommitResponse: 'aos.scene.response.aim-commit';
   dropResponse: 'aos.scene.response.drop';
+  radialMenuResponse: 'aos.scene.response.radial-menu';
   signalGraphResponse: 'aos.scene.response.signal-graph';
   translateResponse: 'aos.scene.response.translate';
 }>;

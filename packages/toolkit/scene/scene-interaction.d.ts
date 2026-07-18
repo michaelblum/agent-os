@@ -106,9 +106,41 @@ export interface SceneSignalGraphResponse extends SceneGestureAppliedResponse {
   appliedSignals?: number;
 }
 
+export interface SceneRadialMenuResponseBase extends SceneGestureAppliedResponse {
+  kind: 'radial_menu';
+  menuId: string;
+}
+
+export interface SceneRadialMenuOpenResponse extends SceneRadialMenuResponseBase {
+  action: 'open';
+  origin: ScenePoint | null;
+  items: Array<{ id: string; color: string; disabled: boolean }>;
+  radius: number;
+  startAngle: number;
+  spreadDegrees: number;
+  closeOnSelect: boolean;
+  style: { activeColor: string; fillColor: string; itemRadius: number; opacity: number };
+}
+
+export interface SceneRadialMenuSelectionResponse extends SceneRadialMenuResponseBase {
+  action: 'focus' | 'select';
+  itemId: string;
+  selectionIndex: number;
+}
+
+export interface SceneRadialMenuCancelResponse extends SceneRadialMenuResponseBase {
+  action: 'cancel';
+}
+
+export type SceneRadialMenuResponse =
+  | SceneRadialMenuOpenResponse
+  | SceneRadialMenuSelectionResponse
+  | SceneRadialMenuCancelResponse;
+
 export type SceneGestureResponse =
   | SceneAimCommitResponse
   | SceneDropResponse
+  | SceneRadialMenuResponse
   | SceneSignalGraphResponse
   | SceneTranslateResponse;
 

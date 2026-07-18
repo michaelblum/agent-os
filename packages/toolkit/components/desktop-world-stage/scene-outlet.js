@@ -216,6 +216,12 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     if (interaction?.recognizer?.implementation === 'aos.scene.gesture.radial') {
       ensureInteractionVisuals(mounted).apply({ frame, interaction, response, topology })
     }
+    if (response.kind === 'radial_menu') {
+      if (response.action !== 'open' || frame.phase === 'end') {
+        ensureInteractionVisuals(mounted).apply({ frame, interaction, response, topology })
+      }
+      return { ...response, applied: true, revision: mounted.document.revision }
+    }
     if (response.kind === 'translate') {
       const originKey = `${frame.interactionId}:${frame.gesture_id}`
       if (frame.phase === 'start') {

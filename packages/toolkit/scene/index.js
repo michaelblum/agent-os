@@ -88,6 +88,15 @@ export {
 } from './scene-interaction.js'
 
 export {
+  SCENE_RADIAL_MENU_LIMITS,
+  normalizeSceneRadialMenuParameters,
+  resolveSceneRadialMenuLayout,
+  resolveSceneRadialMenuResponse,
+  validateSceneRadialMenuParameters,
+  withSceneRadialSelection,
+} from './scene-radial-menu.js'
+
+export {
   SCENE_INTERACTION_VISUAL_LIMITS,
   createSceneInteractionVisualController,
   resolveSceneAimVisualStyle,

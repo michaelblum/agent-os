@@ -143,6 +143,44 @@ function replayApplied(value) {
   }
 }
 
+function replayRadialMenuResponse(value, applied) {
+  const commonOptional = ['applied', 'revision']
+  if (!['open', 'focus', 'select', 'cancel'].includes(value.action) || !descriptorId(value.menuId)) {
+    fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu response is invalid.')
+  }
+  if (value.action === 'open') {
+    const required = ['kind', 'action', 'menuId', 'origin', 'items', 'radius', 'startAngle', 'spreadDegrees', 'closeOnSelect', 'style']
+    if (!hasExactKeys(value, required, commonOptional) || !Array.isArray(value.items) || value.items.length < 1 || value.items.length > 32
+        || !Number.isFinite(value.radius) || value.radius < 1 || value.radius > 2048
+        || !Number.isFinite(value.startAngle) || Math.abs(value.startAngle) > 3600
+        || !Number.isFinite(value.spreadDegrees) || value.spreadDegrees < 1 || value.spreadDegrees > 360
+        || typeof value.closeOnSelect !== 'boolean'
+        || !hasExactKeys(value.style, ['activeColor', 'fillColor', 'itemRadius', 'opacity'])
+        || !Number.isFinite(value.style.itemRadius) || value.style.itemRadius < 2 || value.style.itemRadius > 128
+        || !Number.isFinite(value.style.opacity) || value.style.opacity < 0 || value.style.opacity > 1) {
+      fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu open response is invalid.')
+    }
+    const ids = new Set()
+    const items = value.items.map((item) => {
+      if (!hasExactKeys(item, ['id', 'color', 'disabled']) || !descriptorId(item.id) || ids.has(item.id)
+          || typeof item.color !== 'string' || !/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu.test(item.color)
+          || typeof item.disabled !== 'boolean') fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu item is invalid.')
+      ids.add(item.id)
+      return Object.freeze({ ...item })
+    })
+    return Object.freeze({ ...value, origin: replayPoint(value.origin), items: Object.freeze(items), style: Object.freeze({ ...value.style }), ...applied })
+  }
+  if (value.action === 'focus' || value.action === 'select') {
+    if (!hasExactKeys(value, ['kind', 'action', 'menuId', 'itemId', 'selectionIndex'], commonOptional)
+        || !descriptorId(value.itemId) || !Number.isInteger(value.selectionIndex) || value.selectionIndex < 0 || value.selectionIndex > 31) {
+      fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu selection response is invalid.')
+    }
+  } else if (!hasExactKeys(value, ['kind', 'action', 'menuId'], commonOptional)) {
+    fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay radial-menu cancellation response is invalid.')
+  }
+  return Object.freeze({ ...value, ...applied })
+}
+
 function replayResponse(value) {
   if (!isRecord(value)) fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay response is invalid.')
   const applied = replayApplied(value)
@@ -163,6 +201,7 @@ function replayResponse(value) {
     if (!hasExactKeys(value, ['kind', 'objectId', 'point'], ['applied', 'revision']) || !descriptorId(value.objectId)) fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay drop response is invalid.')
     return Object.freeze({ kind: value.kind, objectId: value.objectId, point: replayPoint(value.point), ...applied })
   }
+  if (value.kind === 'radial_menu') return replayRadialMenuResponse(value, applied)
   if (value.kind === 'signal_graph') {
     if (!hasExactKeys(value, ['kind', 'signals'], ['applied', 'appliedSignals', 'revision']) || !Array.isArray(value.signals) || value.signals.length > 32
         || (value.appliedSignals != null && (!Number.isInteger(value.appliedSignals) || value.appliedSignals < 0 || value.appliedSignals > 32))) {
