@@ -1,3 +1,9 @@
+import {
+  hasCanonicalScenePathSegments,
+  isSceneRecord as isRecord,
+  matchesSceneIdSyntax,
+} from './scene-contract-primitives.js'
+
 export const SCENE_DOCUMENT_CONTRACT_ID = 'aos.scene.document.v1'
 export const SCENE_TRANSACTION_CONTRACT_ID = 'aos.scene.transaction.v1'
 export const SCENE_LEASE_CONTRACT_ID = 'aos.scene.lease.v1'
@@ -14,7 +20,6 @@ export const SCENE_DOCUMENT_LIMITS = Object.freeze({
   maxAssetBytes: 256 * 1024 * 1024,
 })
 
-const SAFE_ID = /^[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/u
 const IMPLEMENTATION_ID = /^[a-z][a-z0-9]*(?:[._/-][a-z0-9]+)*$/u
 const SHA256 = /^[a-f0-9]{64}$/u
 const MEDIA_TYPE = /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/u
@@ -27,16 +32,6 @@ const OPERATION_KINDS = new Set([
   'put_resource',
   'remove_resource',
 ])
-
-function isRecord(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  try {
-    const prototype = Object.getPrototypeOf(value)
-    return prototype === Object.prototype || prototype === null
-  } catch {
-    return false
-  }
-}
 
 function addError(errors, code, path, message) {
   errors.push({ code, path, message })
@@ -51,11 +46,11 @@ function validateExactKeys(value, allowed, path, errors) {
 }
 
 function validateId(value, path, errors) {
-  if (typeof value !== 'string' || !SAFE_ID.test(value)) {
+  if (!matchesSceneIdSyntax(value)) {
     addError(errors, 'invalid_id', path, 'Scene identifiers must be bounded lowercase resource paths.')
     return false
   }
-  if (value.includes('//') || value.split('/').some((part) => part === '.' || part === '..')) {
+  if (!hasCanonicalScenePathSegments(value)) {
     addError(errors, 'invalid_id', path, 'Scene identifiers cannot contain empty or relative path segments.')
     return false
   }

@@ -1,26 +1,16 @@
+import {
+  isCanonicalSceneId as validId,
+  isSceneRecord as isRecord,
+  sceneFinite as finite,
+} from './scene-contract-primitives.js'
+
 export const SCENE_RADIAL_MENU_LIMITS = Object.freeze({
   maxItems: 32,
   maxRadius: 2048,
   maxItemRadius: 128,
 })
 
-const SAFE_ID = /^[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/u
 const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
-
-function finite(value, fallback, min = -Infinity, max = Infinity) {
-  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
-}
-
-function isRecord(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function validId(value) {
-  return typeof value === 'string'
-    && SAFE_ID.test(value)
-    && !value.includes('//')
-    && !value.split('/').some((part) => !part || part === '.' || part === '..')
-}
 
 function error(code, path, message) {
   return { code, path, message }

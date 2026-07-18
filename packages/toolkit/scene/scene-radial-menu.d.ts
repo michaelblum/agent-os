@@ -48,6 +48,6 @@ export function resolveSceneRadialMenuLayout(response: SceneRadialMenuParameters
   center: Readonly<ScenePoint>;
   items: ReadonlyArray<Readonly<SceneRadialMenuItemDescriptor & { index: number; center: Readonly<ScenePoint>; hitRadius: number }>>;
   parameters: Readonly<NormalizedSceneRadialMenuParameters>;
-}>; 
+}>;
 export function resolveSceneRadialMenuResponse(options: { frame: SceneGestureFrame; interaction: SceneCartridgeInteraction }): Readonly<Record<string, unknown>>;
 export function withSceneRadialSelection(frame: SceneGestureFrame, interaction: SceneCartridgeInteraction): SceneGestureFrame;
