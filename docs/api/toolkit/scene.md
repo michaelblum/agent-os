@@ -61,6 +61,7 @@ import {
   createDesktopWorldSceneHost,
   createSceneAnimationController,
   createSceneInteractionController,
+  createSceneInteractionVisualController,
   createLocalSceneViewportHost,
   createSceneImplementationRegistry,
   createSceneLease,
@@ -155,6 +156,31 @@ owner/resource lease and emits schema-validated `SceneEventEnvelope` values.
 Movement updates are coalesced to render cadence, while start, end, and cancel
 are never dropped. Long-press uses a timer only while an undecided pointer
 session exists; an idle scene creates no timer or additional frame loop.
+
+`createSceneInteractionVisualController()` is the pure, deterministic visual
+state machine for aim-and-commit routes and stock radial menus. It owns no
+scheduler or renderer. A host supplies its existing clock through `tick()` and
+projects the returned bounded models. `start` and `update` expose a full-stage
+arrow while the target object remains fixed; `end` starts a line or wormhole
+route; `cancel` removes the preview without changing the scene document.
+The route uses global `origin`/`pointer` coordinates, while the committed
+`position` remains parent-local so nested objects project and persist correctly.
+
+Aim responses may declare bounded arrow and wormhole styles, duration, and one
+of `linear`, `smoothstep`, `ease_in_out_cubic`, or `ease_out_quart` easing.
+Radial recognizers may declare up to 32 ID/color/disabled item descriptors and
+a bounded stock style. Item zero is centered at the top, placement clamps to
+the containing display, and `selection_index` / `selection_active` expose only
+numeric selection state through a declarative signal graph. Product labels,
+commands, and action semantics stay in the cartridge owner.
+
+The daemon DesktopWorld outlet adapts this controller to a preallocated Three
+pool: arrow and trail geometry, a 64-sample route path, two wormhole rings, one
+flash, and 32 radial item meshes. It shares the outlet's existing render loop,
+coalesces pointer updates at that cadence, and disposes every pooled GPU
+resource with the mounted scene. The same global route appears continuously
+across display segments because each segment projects the same DesktopWorld
+coordinates through its own clipped orthographic camera.
 
 ## Implementations, Animation, Signals, And Hosts
 

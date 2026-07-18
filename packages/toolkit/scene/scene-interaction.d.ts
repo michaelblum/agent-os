@@ -56,6 +56,12 @@ export interface SceneGestureFrame {
   pointer?: { capture_id?: string | null };
   timing?: { t?: number; frame_index?: number };
   cancelReason?: SceneGestureCancellationReason | null;
+  radial?: {
+    angle: number;
+    distance: number;
+    itemCount: number;
+    selectionIndex: number | null;
+  };
 }
 
 export interface SceneTopologySnapshot {
@@ -82,6 +88,7 @@ export interface SceneAimCommitResponse extends SceneGestureAppliedResponse {
   objectId: string;
   origin: ScenePoint | null;
   pointer: ScenePoint | null;
+  position: [number, number, number];
   angle: number;
   distance: number;
   route: 'line' | 'wormhole';

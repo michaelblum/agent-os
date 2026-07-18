@@ -99,6 +99,7 @@ test('stage interaction runtime registers one owner-scoped region and applies th
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.deepEqual(responses.map(({ frame }) => frame.phase), ['start', 'update', 'end'])
+  assert.deepEqual(responses[0].topology, { displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] })
   assert.deepEqual(events.map(({ event }) => event.gesture.phase), ['start', 'update', 'end'])
   assert.deepEqual(calls, [['register', regionId], ['update', regionId]])
   assert.equal(runtime.snapshot(key).leases[0].registered, 1)
@@ -208,4 +209,22 @@ test('translated hit-region refresh retries once without duplicating the gesture
     ['update', regionId],
     ['update', regionId],
   ])
+})
+
+test('accepted aim-and-commit release refreshes the destination hit region', async () => {
+  const { calls, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const regionId = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const aimInteractions = structuredClone(interactions)
+  aimInteractions.interactions[0].response = {
+    implementation: 'aos.scene.response.aim-commit',
+    parameters: { coordinates: 'world', durationMs: 220, easing: 'ease_out_quart', route: 'line' },
+  }
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: aimInteractions })
+  runtime.handleInput(routed(regionId, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(regionId, 'left_mouse_dragged', 260, 320, 2))
+  runtime.handleInput(routed(regionId, 'left_mouse_up', 260, 320, 3))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(calls, [['register', regionId], ['update', regionId]])
 })

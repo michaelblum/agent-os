@@ -125,11 +125,13 @@ private func aosSceneResponse(_ value: Any?) -> Bool {
               let position = response["position"] as? [Any], position.count == 3,
               position.allSatisfy({ aosSceneFiniteNumber($0) != nil }) else { return false }
     case "aim_commit":
-        let required = Set(["kind", "objectId", "origin", "pointer", "angle", "distance", "route"])
+        let required = Set(["kind", "objectId", "origin", "pointer", "position", "angle", "distance", "route"])
         guard required.isSubset(of: Set(response.keys)),
               aosSceneAppliedFields(response, allowed: required.union(["applied", "revision"])),
               aosSceneIdentifier(response["objectId"], allowSlash: true) != nil,
               aosSceneNullablePoint(response["origin"]), aosSceneNullablePoint(response["pointer"]),
+              let position = response["position"] as? [Any], position.count == 3,
+              position.allSatisfy({ aosSceneFiniteNumber($0) != nil }),
               aosSceneFiniteNumber(response["angle"]) != nil,
               let distance = aosSceneFiniteNumber(response["distance"]), distance >= 0,
               let route = response["route"] as? String, ["line", "wormhole"].contains(route) else { return false }

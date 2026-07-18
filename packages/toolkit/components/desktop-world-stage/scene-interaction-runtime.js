@@ -75,8 +75,8 @@ export function createDesktopWorldSceneInteractionRuntime({
       scheduleTimer,
       cancelTimer,
       onResponse(event) {
-        const result = outlet.applyInteractionResponse(entry.key, event)
-        if (event.response.kind === 'translate' && event.frame.phase === 'end' && result?.applied) {
+        const result = outlet.applyInteractionResponse(entry.key, { ...event, topology: topology() })
+        if (['aim_commit', 'translate'].includes(event.response.kind) && event.frame.phase === 'end' && result?.applied) {
           scheduleRegionRefresh(entry)
         }
         return result

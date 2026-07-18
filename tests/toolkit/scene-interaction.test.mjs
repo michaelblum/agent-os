@@ -125,11 +125,11 @@ test('scene interaction parameters reject unknown, executable, and unbounded imp
       threshold: 500,
     })],
   }
-  candidate.interactions[0].response.parameters = { route: 'teleport', secretMode: true }
+  candidate.interactions[0].response.parameters = { easing: 'spring', route: 'teleport', secretMode: true }
 
   const result = validateSceneInteractionDocument(candidate, { scene: document })
   assert.equal(result.ok, false)
-  for (const code of ['unknown_field', 'executable_field', 'remote_runtime_value', 'invalid_recognizer_threshold', 'invalid_aim_route']) {
+  for (const code of ['unknown_field', 'executable_field', 'remote_runtime_value', 'invalid_recognizer_threshold', 'invalid_aim_route', 'invalid_route_easing']) {
     assert.ok(result.errors.some((error) => error.code === code), code)
   }
 })
@@ -240,6 +240,7 @@ test('generic responses keep aim-and-commit stationary and translate only when s
   })
   assert.equal(aimed.kind, 'aim_commit')
   assert.equal(aimed.distance, Math.hypot(40, -20))
+  assert.deepEqual(aimed.position, [140, 180, 0])
   assert.deepEqual(document.objects[1].transform.position, [100, 200, 0])
   assert.deepEqual(translated.position, [140, 180, 0])
 })
@@ -254,6 +255,7 @@ test('scene event envelopes carry stable lease identity without product semantic
     },
     response: {
       kind: 'aim_commit', objectId: 'body', origin: { x: 1, y: 2 }, pointer: { x: 5, y: 6 },
+      position: [5, 6, 0],
       angle: Math.PI / 4, distance: Math.hypot(4, 4), route: 'line', applied: false, revision: 1,
     },
     sequence: 7,
