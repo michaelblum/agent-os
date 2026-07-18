@@ -134,6 +134,37 @@ test('scene interaction parameters reject unknown, executable, and unbounded imp
   }
 })
 
+test('scene interaction validation accepts bounded historical arrow descriptors', () => {
+  const candidate = {
+    contract: 'aos.scene.cartridge.interactions.v1',
+    schemaVersion: 1,
+    affordances: [affordance],
+    interactions: [interaction('aim-body', 'aos.scene.gesture.drag', 'aos.scene.response.aim-commit', {
+      threshold: 4,
+    })],
+  }
+  candidate.interactions[0].response.parameters = {
+    durationMs: 220,
+    easing: 'ease_out_quart',
+    route: 'line',
+    arrow: {
+      dashColor: '#ffffff', dashGap: 7, dashLength: 10, dashOpacity: 0.9,
+      dashSpeed: 42, dashWidth: 2, glowColor: '#53f5d7', glowOpacity: 0.48,
+      glowWidth: 7, headLengthDistanceFactor: 0.11, headLengthMax: 24,
+      headLengthMin: 12, headWingRadians: Math.PI * 0.78, originInset: 72,
+      originRingColor: '#ffffff', originRingOpacity: 0.38, originRingRadius: 32,
+      pulseHz: 8 / (Math.PI * 2), reticleColor: '#53f5d7', reticlePulse: 3,
+      reticleRadius: 13, trailCount: 0,
+    },
+  }
+  assert.deepEqual(validateSceneInteractionDocument(candidate, { scene: document }), { ok: true, errors: [] })
+
+  candidate.interactions[0].response.parameters.arrow.dashSpeed = 513
+  const invalid = validateSceneInteractionDocument(candidate, { scene: document })
+  assert.equal(invalid.ok, false)
+  assert.ok(invalid.errors.some((error) => error.code === 'invalid_visual_style'))
+})
+
 test('gesture arena deterministically claims drag and coalesces updates without dropping terminal frames', () => {
   const callbacks = []
   const frames = []

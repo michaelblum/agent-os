@@ -71,6 +71,40 @@ test('aim visual styles are deterministic and bounded', () => {
   assert.equal(resolveSceneAimVisualStyle({ durationMs: Infinity }).durationMs, 220)
 })
 
+test('historical arrow vocabulary resolves to bounded data-only visual parameters', () => {
+  const style = resolveSceneAimVisualStyle({
+    arrow: {
+      dashColor: '#ffffff', dashGap: 7, dashLength: 10, dashOpacity: 0.9,
+      dashSpeed: 42, dashWidth: 2, glowColor: '#53f5d7', glowOpacity: 0.48,
+      glowWidth: 7, headLengthDistanceFactor: 0.11, headLengthMax: 24,
+      headLengthMin: 12, headWingRadians: Math.PI * 0.78, originInset: 72,
+      originRingColor: '#ffffff', originRingOpacity: 0.38, originRingRadius: 32,
+      pulseHz: 8 / (Math.PI * 2), reticleColor: '#53f5d7', reticlePulse: 3,
+      reticleRadius: 13, trailCount: 0,
+    },
+  })
+  assert.deepEqual({
+    dash: [style.arrow.dashLength, style.arrow.dashGap, style.arrow.dashSpeed],
+    head: [style.arrow.headLengthMin, style.arrow.headLengthMax, style.arrow.headLengthDistanceFactor],
+    origin: [style.arrow.originInset, style.arrow.originRingRadius, style.arrow.originRingOpacity],
+    reticle: [style.arrow.reticleRadius, style.arrow.reticlePulse],
+  }, {
+    dash: [10, 7, 42],
+    head: [12, 24, 0.11],
+    origin: [72, 32, 0.38],
+    reticle: [13, 3],
+  })
+  const bounded = resolveSceneAimVisualStyle({ arrow: {
+    dashSpeed: 1e9, headLengthMax: 1e9, headLengthMin: -1,
+    originInset: 1e9, reticleRadius: 1e9,
+  } })
+  assert.equal(bounded.arrow.dashSpeed, 512)
+  assert.equal(bounded.arrow.headLengthMax, 128)
+  assert.equal(bounded.arrow.headLengthMin, 4)
+  assert.equal(bounded.arrow.originInset, 512)
+  assert.equal(bounded.arrow.reticleRadius, 512)
+})
+
 test('aim preview keeps the object stationary and Escape removes it without a route', () => {
   const frames = []
   const controller = createSceneInteractionVisualController({ onFrame(model) { frames.push({ arrow: model.arrow.visible, route: model.route.active }) } })

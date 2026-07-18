@@ -9,9 +9,29 @@ export const SCENE_INTERACTION_VISUAL_LIMITS = Object.freeze({
 const DEFAULT_ARROW_STYLE = Object.freeze({
   accentColor: '#9b7cff',
   color: '#f7f5ff',
+  dashColor: '#ffffff',
+  dashGap: 7,
+  dashLength: 10,
+  dashOpacity: 0.9,
+  dashSpeed: 42,
+  dashWidth: 2,
+  glowColor: '#53f5d7',
+  glowOpacity: 0.48,
+  glowWidth: 7,
   headLength: 28,
+  headLengthDistanceFactor: 0.11,
+  headLengthMax: 24,
+  headLengthMin: 12,
+  headWingRadians: Math.PI * 0.78,
   headWidth: 18,
+  originInset: 0,
+  originRingColor: '#ffffff',
+  originRingOpacity: 0.38,
+  originRingRadius: 10,
   pulseHz: 1.5,
+  reticleColor: '#53f5d7',
+  reticlePulse: 3,
+  reticleRadius: 13,
   shaftWidth: 4,
   trailCount: 6,
   trailOpacity: 0.38,
@@ -96,9 +116,29 @@ export function resolveSceneAimVisualStyle(parameters = {}) {
     arrow: Object.freeze({
       accentColor: color(arrow.accentColor, DEFAULT_ARROW_STYLE.accentColor),
       color: color(arrow.color, DEFAULT_ARROW_STYLE.color),
+      dashColor: color(arrow.dashColor, DEFAULT_ARROW_STYLE.dashColor),
+      dashGap: finite(arrow.dashGap, DEFAULT_ARROW_STYLE.dashGap, 1, 128),
+      dashLength: finite(arrow.dashLength, DEFAULT_ARROW_STYLE.dashLength, 1, 128),
+      dashOpacity: finite(arrow.dashOpacity, DEFAULT_ARROW_STYLE.dashOpacity, 0, 1),
+      dashSpeed: finite(arrow.dashSpeed, DEFAULT_ARROW_STYLE.dashSpeed, -512, 512),
+      dashWidth: finite(arrow.dashWidth, arrow.shaftWidth ?? DEFAULT_ARROW_STYLE.dashWidth, 1, 32),
+      glowColor: color(arrow.glowColor, DEFAULT_ARROW_STYLE.glowColor),
+      glowOpacity: finite(arrow.glowOpacity, DEFAULT_ARROW_STYLE.glowOpacity, 0, 1),
+      glowWidth: finite(arrow.glowWidth, DEFAULT_ARROW_STYLE.glowWidth, 1, 64),
       headLength: finite(arrow.headLength, DEFAULT_ARROW_STYLE.headLength, 4, 128),
+      headLengthDistanceFactor: finite(arrow.headLengthDistanceFactor, DEFAULT_ARROW_STYLE.headLengthDistanceFactor, 0, 1),
+      headLengthMax: finite(arrow.headLengthMax, arrow.headLength ?? DEFAULT_ARROW_STYLE.headLengthMax, 4, 128),
+      headLengthMin: finite(arrow.headLengthMin, Math.min(arrow.headLength ?? DEFAULT_ARROW_STYLE.headLengthMin, arrow.headLengthMax ?? DEFAULT_ARROW_STYLE.headLengthMax), 4, 128),
+      headWingRadians: finite(arrow.headWingRadians, DEFAULT_ARROW_STYLE.headWingRadians, 0.1, Math.PI),
       headWidth: finite(arrow.headWidth, DEFAULT_ARROW_STYLE.headWidth, 4, 128),
+      originInset: finite(arrow.originInset, DEFAULT_ARROW_STYLE.originInset, 0, 512),
+      originRingColor: color(arrow.originRingColor, DEFAULT_ARROW_STYLE.originRingColor),
+      originRingOpacity: finite(arrow.originRingOpacity, DEFAULT_ARROW_STYLE.originRingOpacity, 0, 1),
+      originRingRadius: finite(arrow.originRingRadius, DEFAULT_ARROW_STYLE.originRingRadius, 2, 512),
       pulseHz: finite(arrow.pulseHz, DEFAULT_ARROW_STYLE.pulseHz, 0, 20),
+      reticleColor: color(arrow.reticleColor, DEFAULT_ARROW_STYLE.reticleColor),
+      reticlePulse: finite(arrow.reticlePulse, DEFAULT_ARROW_STYLE.reticlePulse, 0, 64),
+      reticleRadius: finite(arrow.reticleRadius, DEFAULT_ARROW_STYLE.reticleRadius, 2, 512),
       shaftWidth: finite(arrow.shaftWidth, DEFAULT_ARROW_STYLE.shaftWidth, 1, 32),
       trailCount: Math.round(finite(arrow.trailCount, DEFAULT_ARROW_STYLE.trailCount, 0, SCENE_INTERACTION_VISUAL_LIMITS.maxTrailCount)),
       trailOpacity: finite(arrow.trailOpacity, DEFAULT_ARROW_STYLE.trailOpacity, 0, 1),
@@ -304,7 +344,7 @@ export function createSceneInteractionVisualController({ now = () => performance
     let changed = false
     if (model.arrow.visible) {
       const hz = model.arrow.style.pulseHz
-      model.arrow.pulse = hz === 0 ? 1 : 0.86 + Math.sin((at / 1000) * Math.PI * 2 * hz) * 0.14
+      model.arrow.pulse = hz === 0 ? 1 : 0.5 + Math.sin((at / 1000) * Math.PI * 2 * hz) * 0.5
       changed = true
     }
     if (model.route.active) {
