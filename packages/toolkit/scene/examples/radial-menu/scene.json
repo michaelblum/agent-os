@@ -1,0 +1,6 @@
+{
+  "contract":"aos.scene.document.v1","schemaVersion":1,"id":"samples/radial-menu","revision":1,"rootObjectId":"root",
+  "objects":[{"id":"root","parentId":null,"kind":"group","transform":{"position":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},"visible":true,"geometryId":null,"materialId":null,"components":[]},{"id":"body","parentId":"root","kind":"mesh","transform":{"position":[320,240,0],"rotation":[0,0,0],"scale":[64,64,64]},"visible":true,"geometryId":"geometry/body","materialId":"material/body","components":[]}],
+  "resources":[{"id":"geometry/body","kind":"geometry","implementation":"aos.scene.geometry.primitive","parameters":{"primitive":"icosahedron","radius":1},"asset":null},{"id":"material/body","kind":"material","implementation":"aos.scene.material.surface","parameters":{"color":"#f2f5ff","emissive":"#6655bb","emissiveIntensity":0.8,"metalness":0.45,"roughness":0.32},"asset":null}],
+  "metadata":{"sample":"radial-menu"}
+}

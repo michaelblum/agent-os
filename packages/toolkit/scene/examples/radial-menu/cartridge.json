@@ -1,0 +1,8 @@
+{
+  "contract":"aos.scene.cartridge.v1","schemaVersion":1,"id":"samples/radial-menu","revision":1,
+  "files":{"scene":{"path":"scene.json","sha256":"f9d4d27a36bd5da20da5610f577e1675559b1eeed553541c7362b308e0515742"},"animations":{"path":"animations.json","sha256":"bb3b06905609e4923cdc4f7bd8ecc4daef0026bff9dac8726710684149178903"},"interactions":{"path":"interactions.json","sha256":"e7031350e2b47d72f5c813f94eaa473d5e0d6165474b1925d1f5962dfb211846"}},
+  "implementations":[{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.gesture.radial","kind":"recognizer"},{"id":"aos.scene.material.surface","kind":"material"},{"id":"aos.scene.response.signal-graph","kind":"response"}],
+  "assets":[],
+  "budgets":{"maxAnimations":0,"maxAssets":0,"maxAssetBytes":0,"maxInteractions":1,"maxObjects":2,"maxResources":2},
+  "metadata":{"description":"A bounded radial recognizer that emits a declarative selection signal.","title":"Radial menu"}
+}

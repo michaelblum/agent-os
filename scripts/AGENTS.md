@@ -109,8 +109,12 @@ commands, runtime helpers, wiki tools, and command adapters.
   Install signal and parent-exit handling before auto-start, forward shutdown
   to that child, and await confirmed child exit before the listener exits.
 - `aos-scene.mjs` owns the bounded public NDJSON adapter for connection-scoped
-  DesktopWorld scene leases. It accepts only the documented operation set,
-  bounds input/output, and never exposes the daemon socket to consumers.
+  DesktopWorld scene leases and the read-only cartridge-validation command.
+  Follow mode accepts only the documented operation set, bounds input/output,
+  and never exposes the daemon socket to consumers. Cartridge validation uses
+  `lib/aos-scene-cartridge.mjs` to reject links, traversal, undeclared files,
+  digest drift, executable data, remote runtime assets, and unsafe budgets
+  without starting the daemon or exposing absolute paths.
 - `aos-shortcut.mjs` owns explicit Apple Shortcut execution through
   `/usr/bin/shortcuts`. It passes one exact shortcut name as an argv item,
   never invokes a shell, bounds time and output, and never returns captured

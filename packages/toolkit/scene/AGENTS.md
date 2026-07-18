@@ -7,7 +7,8 @@
 
 `scene/` is the narrow package facade for product-neutral scene authoring. It
 owns the public contracts for the DesktopWorld stage 3D outlet and currently
-exposes declarative scene contracts, implementation registration, atomic scene
+exposes data-only cartridge contracts, declarative scene contracts,
+implementation registration, atomic scene
 transactions, numeric signal and elapsed-clock animation bindings,
 dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
 the bounded generic Three implementation registry/projector,
@@ -41,6 +42,11 @@ stage internals.
 - Scene documents never carry implementation code. Only trusted registry
   entries and projection factories may execute, and failed preparation must
   leave the active document and projection unchanged.
+- Scene cartridges use the canonical `cartridge.json`, `scene.json`,
+  `animations.json`, `interactions.json`, and `assets/` layout. Payload files
+  and local assets are digest-bound, budgets are explicit, and the filesystem
+  loader belongs in `scripts/lib/aos-scene-cartridge.mjs`; Node filesystem APIs
+  must not enter this browser-safe package facade.
 - Signal and animation bindings carry finite numeric values only. Text, audio,
   prompts, product state vocabularies, and arbitrary timelines stay outside
   this contract.
@@ -50,6 +56,6 @@ stage internals.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs`
+- `node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs`
 
 ## Child DOX Index

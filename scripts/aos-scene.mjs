@@ -3,6 +3,7 @@
 import readline from 'node:readline'
 import { randomUUID } from 'node:crypto'
 import { connectWithAutoStart, stopManagedDaemon } from './lib/aos-daemon-client.mjs'
+import { loadSceneCartridge } from './lib/aos-scene-cartridge.mjs'
 
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
@@ -21,7 +22,7 @@ function valueAfter(args, token) {
   return args[index + 1]
 }
 
-function parseArgs(args) {
+function parseFollowArgs(args) {
   const allowed = new Set(['--stage', '--owner', '--resource', '--follow'])
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
@@ -38,12 +39,34 @@ function parseArgs(args) {
   return { stage, owner, resource }
 }
 
+function parseCartridgeArgs(args) {
+  if (args[0] !== 'cartridge' || args[1] !== 'validate') {
+    fail('UNKNOWN_SUBCOMMAND', 'scene cartridge requires the validate subcommand')
+  }
+  const tail = args.slice(2)
+  const json = tail.includes('--json')
+  const positional = tail.filter((arg) => arg !== '--json')
+  if (positional.some((arg) => arg.startsWith('--'))) fail('UNKNOWN_FLAG', 'Unknown scene cartridge flag')
+  if (positional.length !== 1) fail('MISSING_ARG', 'scene cartridge validate requires one directory path')
+  return { directory: positional[0], json }
+}
+
 function safeError(error) {
   return JSON.stringify({ code: error?.code ?? 'SCENE_TRANSPORT_FAILED', error: error?.message ?? 'scene transport failed' })
 }
 
-async function main() {
-  const identity = parseArgs(process.argv.slice(2))
+async function runCartridgeValidate(args) {
+  const options = parseCartridgeArgs(args)
+  const loaded = await loadSceneCartridge(options.directory)
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(loaded.summary)}\n`)
+  } else {
+    process.stdout.write(`valid=true id=${loaded.summary.id} revision=${loaded.summary.revision} digest=${loaded.summary.digest}\n`)
+  }
+}
+
+async function runSceneFollow(args) {
+  const identity = parseFollowArgs(args)
   const ref = randomUUID()
   const startupAbort = new AbortController()
   let shutdownRequested = false
@@ -137,6 +160,12 @@ async function main() {
     }
   }
   if (!closed) await cleanup(0)
+}
+
+async function main() {
+  const args = process.argv.slice(2)
+  if (args[0] === 'cartridge') return runCartridgeValidate(args)
+  return runSceneFollow(args)
 }
 
 main().catch((error) => {

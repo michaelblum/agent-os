@@ -226,6 +226,25 @@
       "status": "active"
     },
     {
+      "id": "scene-cartridge-contract",
+      "path_patterns": [
+        "tests/scene-cartridge-cli.test.mjs",
+        "tests/toolkit/scene-cartridge.test.mjs"
+      ],
+      "fixture_patterns": [
+        "packages/toolkit/scene/examples/**"
+      ],
+      "owner": "toolkit-scene",
+      "harness_level": "model_unit",
+      "proof_kind": "scene_cartridge_contract",
+      "contract": "Data-only scene cartridges validate canonical paths, digests, implementation declarations, budgets, local assets, and safe resolution without daemon access.",
+      "worth": "This proves consumers can package reusable DesktopWorld scenes and interactions without executable cartridge code, remote runtime dependencies, or a competing scene transport.",
+      "command": "node --test tests/toolkit/scene-cartridge.test.mjs tests/scene-cartridge-cli.test.mjs",
+      "replaces": [],
+      "guard": "filesystem fixtures and pure Node validation only; no AOS binary, daemon, GUI, TCC, network, or GPU",
+      "status": "active"
+    },
+    {
       "id": "runtime-surface-model-contract",
       "path_patterns": [
         "tests/toolkit/render-performance-model.test.mjs",

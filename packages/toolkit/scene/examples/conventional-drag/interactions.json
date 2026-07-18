@@ -1,0 +1,1 @@
+{"contract":"aos.scene.cartridge.interactions.v1","schemaVersion":1,"interactions":[{"id":"move-body","affordanceId":"body","recognizer":{"implementation":"aos.scene.gesture.drag","parameters":{"button":0,"threshold":4}},"response":{"implementation":"aos.scene.response.translate","parameters":{"coordinates":"world","snap":false}}}]}

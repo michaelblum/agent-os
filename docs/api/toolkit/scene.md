@@ -17,6 +17,12 @@ to the client connection and removed on disconnect. Documents contain only
 registered declarative implementation IDs; implementation code never crosses
 the transport.
 
+Data-only cartridges can be validated without starting the daemon:
+
+```bash
+aos scene cartridge validate ./my-cartridge --json
+```
+
 The daemon-backed outlet interprets scene object positions and scales in the
 global DesktopWorld coordinate plane. It uses one orthographic camera per
 physical display segment, so a resource appears at its declared desktop point
@@ -55,6 +61,37 @@ imports into `runtime/` or `workbench/` are not part of this external package
 contract.
 
 ## Declarative Scene Contracts
+
+### Scene Cartridges
+
+`aos.scene.cartridge.v1` packages a scene as a familiar, declarative runtime
+unit:
+
+```text
+cartridge.json
+scene.json
+animations.json
+interactions.json
+assets/
+```
+
+`cartridge.json` binds the other three JSON files and every local asset by
+SHA-256. It also declares the exact trusted implementation IDs and resource
+budgets. Paths are canonical and relative to the cartridge root. Raster images
+and binary glTF are the only V1 asset media types. Runtime URLs, executable
+source fields, functions, links, special files, traversal, undeclared files,
+unknown implementations, and values above engine limits fail validation.
+
+`validateSceneCartridgeManifest()` validates the manifest alone.
+`validateSceneCartridge()` validates the complete in-memory package against a
+trusted scene implementation registry. `resolveSceneCartridge()` returns the
+canonical existing `aos.scene.document.v1` plus its animation and interaction
+descriptors; it does not create a second renderer or transport.
+
+The repository includes neutral cartridges under
+`packages/toolkit/scene/examples/` for a spinning object, conventional drag,
+aim-and-commit, and a radial menu. Interaction descriptors are data contracts;
+only AOS-owned registered recognizers and responses may execute them.
 
 `aos.scene.document.v1` describes a bounded object/resource graph without
 consumer JavaScript. `canonicalizeSceneDocument()` validates exact fields,

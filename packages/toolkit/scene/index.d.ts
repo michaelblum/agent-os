@@ -452,6 +452,124 @@ export function validateSceneTransaction(transaction: unknown): SceneValidationR
 export function validateSceneLease(lease: unknown): SceneValidationResult;
 export function createSceneLease(input: Omit<SceneLease, 'contract'>): Readonly<SceneLease>;
 
+export type SceneCartridgeImplementationKind =
+  | SceneImplementationKind
+  | 'interaction'
+  | 'recognizer'
+  | 'response';
+
+export interface SceneCartridgeDigestFile {
+  path: string;
+  sha256: string;
+}
+
+export interface SceneCartridgeAsset extends SceneCartridgeDigestFile {
+  bytes: number;
+  mediaType: 'image/avif' | 'image/jpeg' | 'image/png' | 'image/webp' | 'model/gltf-binary';
+}
+
+export interface SceneCartridgeBudgets {
+  maxAnimations: number;
+  maxAssets: number;
+  maxAssetBytes: number;
+  maxInteractions: number;
+  maxObjects: number;
+  maxResources: number;
+}
+
+export interface SceneCartridgeImplementationDeclaration {
+  id: string;
+  kind: SceneCartridgeImplementationKind;
+}
+
+export interface SceneCartridgeManifest {
+  contract: typeof SCENE_CARTRIDGE_CONTRACT_ID;
+  schemaVersion: 1;
+  id: string;
+  revision: number;
+  files: {
+    animations: SceneCartridgeDigestFile & { path: 'animations.json' };
+    interactions: SceneCartridgeDigestFile & { path: 'interactions.json' };
+    scene: SceneCartridgeDigestFile & { path: 'scene.json' };
+  };
+  implementations: SceneCartridgeImplementationDeclaration[];
+  assets: SceneCartridgeAsset[];
+  budgets: SceneCartridgeBudgets;
+  metadata: Record<string, SceneJsonValue>;
+}
+
+export interface SceneCartridgeAnimation {
+  id: string;
+  bindingIds: string[];
+  autoplay: boolean;
+}
+
+export interface SceneCartridgeAnimations {
+  contract: typeof SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID;
+  schemaVersion: 1;
+  animations: SceneCartridgeAnimation[];
+}
+
+export interface SceneCartridgeInteractionImplementation {
+  implementation: string;
+  parameters: Record<string, SceneJsonValue>;
+}
+
+export interface SceneCartridgeInteraction {
+  id: string;
+  affordanceId: string;
+  recognizer: SceneCartridgeInteractionImplementation;
+  response: SceneCartridgeInteractionImplementation;
+}
+
+export interface SceneCartridgeInteractions {
+  contract: typeof SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID;
+  schemaVersion: 1;
+  interactions: SceneCartridgeInteraction[];
+}
+
+export interface SceneCartridge {
+  manifest: SceneCartridgeManifest;
+  scene: SceneDocument;
+  animations: SceneCartridgeAnimations;
+  interactions: SceneCartridgeInteractions;
+  assets?: SceneCartridgeAsset[];
+}
+
+export interface ResolvedSceneCartridge {
+  manifest: SceneCartridgeManifest;
+  document: SceneDocument;
+  animations: SceneCartridgeAnimations;
+  interactions: SceneCartridgeInteractions;
+  assets: SceneCartridgeAsset[];
+  requiredImplementations: string[];
+}
+
+export const SCENE_CARTRIDGE_CONTRACT_ID: 'aos.scene.cartridge.v1';
+export const SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID: 'aos.scene.cartridge.animations.v1';
+export const SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID: 'aos.scene.cartridge.interactions.v1';
+export const SCENE_CARTRIDGE_IMPLEMENTATIONS: Readonly<{
+  dragRecognizer: 'aos.scene.gesture.drag';
+  longPressRecognizer: 'aos.scene.gesture.long-press';
+  radialRecognizer: 'aos.scene.gesture.radial';
+  tapRecognizer: 'aos.scene.gesture.tap';
+  aimCommitResponse: 'aos.scene.response.aim-commit';
+  dropResponse: 'aos.scene.response.drop';
+  signalGraphResponse: 'aos.scene.response.signal-graph';
+  translateResponse: 'aos.scene.response.translate';
+}>;
+export const SCENE_CARTRIDGE_LIMITS: Readonly<SceneCartridgeBudgets>;
+
+export function validateSceneCartridgeManifest(manifest: unknown): SceneValidationResult;
+export function validateSceneCartridge(
+  cartridge: unknown,
+  options?: { registry?: SceneImplementationRegistry },
+): SceneValidationResult;
+export function resolveSceneCartridge(
+  cartridge: SceneCartridge,
+  options?: { registry?: SceneImplementationRegistry },
+): Readonly<ResolvedSceneCartridge>;
+
 export interface SceneTransactionSuccess {
   ok: true;
   document: SceneDocument;

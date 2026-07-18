@@ -1,0 +1,8 @@
+{
+  "contract":"aos.scene.cartridge.v1","schemaVersion":1,"id":"samples/conventional-drag","revision":1,
+  "files":{"scene":{"path":"scene.json","sha256":"2ca76599cd84c00b9cd5e9154b42a40af1bb9d543439923020cd877793c18e23"},"animations":{"path":"animations.json","sha256":"bb3b06905609e4923cdc4f7bd8ecc4daef0026bff9dac8726710684149178903"},"interactions":{"path":"interactions.json","sha256":"638bf15f658b58f1d107f5459a3ec21436c8fa99554a07b7ab9bdc1c9fc0ae15"}},
+  "implementations":[{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.gesture.drag","kind":"recognizer"},{"id":"aos.scene.material.surface","kind":"material"},{"id":"aos.scene.response.translate","kind":"response"}],
+  "assets":[],
+  "budgets":{"maxAnimations":0,"maxAssets":0,"maxAssetBytes":0,"maxInteractions":1,"maxObjects":2,"maxResources":2},
+  "metadata":{"description":"A conventional drag response that translates an object.","title":"Conventional drag"}
+}
