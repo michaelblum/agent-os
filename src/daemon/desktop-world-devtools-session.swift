@@ -30,6 +30,71 @@ struct AOSDesktopWorldDevToolsFilters: Equatable {
     var errorsOnly = false
 }
 
+enum AOSDesktopWorldDevToolsFieldPatch<Value> {
+    case unchanged
+    case clear
+    case set(Value)
+}
+
+struct AOSDesktopWorldDevToolsUpdateRequest {
+    let selectedResource: AOSDesktopWorldDevToolsFieldPatch<String>
+    let activeTab: AOSDesktopWorldDevToolsTab?
+    let filters: AOSDesktopWorldDevToolsFilters?
+    let recording: Bool?
+
+    static func parse(_ payload: [String: Any]) -> AOSDesktopWorldDevToolsUpdateRequest? {
+        let selectedResource: AOSDesktopWorldDevToolsFieldPatch<String>
+        if !payload.keys.contains("selected_resource") {
+            selectedResource = .unchanged
+        } else if payload["selected_resource"] is NSNull {
+            selectedResource = .clear
+        } else if let value = payload["selected_resource"] as? String {
+            selectedResource = .set(value)
+        } else {
+            return nil
+        }
+
+        let activeTab: AOSDesktopWorldDevToolsTab?
+        if payload.keys.contains("active_tab") {
+            guard let value = payload["active_tab"] as? String,
+                  let parsed = AOSDesktopWorldDevToolsTab(rawValue: value) else { return nil }
+            activeTab = parsed
+        } else {
+            activeTab = nil
+        }
+
+        let filters: AOSDesktopWorldDevToolsFilters?
+        if payload.keys.contains("filters") {
+            guard let input = payload["filters"] as? [String: Any] else { return nil }
+            guard Set(input.keys).isSubset(of: ["query", "event_kinds", "errors_only"]),
+                  !input.keys.contains("query") || input["query"] is String,
+                  !input.keys.contains("event_kinds") || input["event_kinds"] is [String],
+                  !input.keys.contains("errors_only") || input["errors_only"] is Bool else { return nil }
+            filters = AOSDesktopWorldDevToolsFilters(
+                query: input["query"] as? String ?? "",
+                eventKinds: input["event_kinds"] as? [String] ?? [],
+                errorsOnly: input["errors_only"] as? Bool ?? false
+            )
+        } else {
+            filters = nil
+        }
+
+        let recording: Bool?
+        if payload.keys.contains("recording") {
+            guard let value = payload["recording"] as? Bool else { return nil }
+            recording = value
+        } else {
+            recording = nil
+        }
+        return AOSDesktopWorldDevToolsUpdateRequest(
+            selectedResource: selectedResource,
+            activeTab: activeTab,
+            filters: filters,
+            recording: recording
+        )
+    }
+}
+
 struct AOSDesktopWorldDevToolsSessionState: Equatable {
     let id: String
     var revision: Int
@@ -342,7 +407,7 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
     func update(
         sessionID: String,
         expectedRevision: Int,
-        selectedResource: String?? = nil,
+        selectedResource: AOSDesktopWorldDevToolsFieldPatch<String> = .unchanged,
         activeTab: AOSDesktopWorldDevToolsTab? = nil,
         filters: AOSDesktopWorldDevToolsFilters? = nil,
         recording: Bool? = nil
@@ -352,9 +417,14 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         guard var state = sessions[sessionID] else { return .notFound }
         guard state.revision == expectedRevision else { return .conflict(currentRevision: state.revision) }
         guard pendingBySession[sessionID] == nil else { return .busy }
-        if let selectedResource {
-            guard selectedResource == nil || Self.validIdentifier(selectedResource!) else { return .invalid }
-            state.selectedResource = selectedResource
+        switch selectedResource {
+        case .unchanged:
+            break
+        case .clear:
+            state.selectedResource = nil
+        case .set(let value):
+            guard Self.validIdentifier(value) else { return .invalid }
+            state.selectedResource = value
         }
         if let activeTab { state.activeTab = activeTab }
         if let filters {

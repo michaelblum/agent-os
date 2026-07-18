@@ -9,18 +9,25 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 
 test('daemon routes bounded stage snapshots and every revisioned session action', () => {
   const unified = read('src/daemon/unified.swift')
+  const controller = read('src/daemon/desktop-world-devtools-controller.swift')
+  const session = read('src/daemon/desktop-world-devtools-session.swift')
 
   assert.match(unified, /case "desktop_world_stage\.devtools\.snapshot":\s*if canvasID == self\.sceneStageCanvasID/)
   for (const action of ['devtools_open', 'devtools_status', 'devtools_update', 'devtools_transfer', 'devtools_close', 'devtools_monitor']) {
     assert.match(unified, new RegExp(`case \\(\\"scene\\", \\"${action}\\"\\)`))
   }
-  assert.match(unified, /mutateDesktopWorldDevToolsCanvas[\s\S]*canvasManager\.hasCanvas\(self\.sceneStageCanvasID\)/)
-  assert.match(unified, /guard !Thread\.isMainThread, ensureSceneStage\(\) else \{ return false \}/)
-  assert.match(unified, /aos:\/\/toolkit\/components\/desktop-world-devtools\/index\.html/)
-  assert.match(unified, /closeDesktopWorldDevToolsSessionHosts/)
-  assert.match(unified, /state\.ownedPanelIDs where panelID != state\.host\?\.id/)
-  assert.match(unified, /json\["headless"\] as\? Bool == true/)
-  assert.match(unified, /let enabled = configuration\.enabled \|\| hasMonitor/)
+  assert.match(unified, /AOSDesktopWorldDevToolsController/)
+  assert.doesNotMatch(unified, /mutateDesktopWorldDevToolsCanvas|transferDesktopWorldDevToolsHost|String\?\?/)
+  assert.match(controller, /final class AOSDesktopWorldDevToolsController/)
+  assert.match(controller, /guard !Thread\.isMainThread, ensureSceneStage\(\) else \{ return false \}/)
+  assert.match(controller, /aos:\/\/toolkit\/components\/desktop-world-devtools\/index\.html/)
+  assert.match(controller, /closeSessionHosts/)
+  assert.match(controller, /state\.ownedPanelIDs where panelID != state\.host\?\.id/)
+  assert.match(controller, /payload\["headless"\] as\? Bool == true/)
+  assert.match(controller, /let enabled = configuration\.enabled \|\| hasSceneMonitor\(\)/)
+  assert.match(session, /enum AOSDesktopWorldDevToolsFieldPatch<Value>/)
+  assert.match(session, /struct AOSDesktopWorldDevToolsUpdateRequest/)
+  assert.doesNotMatch(session, /String\?\?/)
   assert.match(unified, /let hadSceneMonitor = subscribers\[connectionID\]\?\.sceneMonitorResource != nil/)
   assert.match(unified, /guard connection\.sceneMonitorReady/)
   assert.match(unified, /event: "monitor"/)
