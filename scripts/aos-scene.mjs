@@ -18,6 +18,8 @@ const MAX_STDERR_BYTES = 32 * 1024
 const MAX_REPLAY_BYTES = 16 * 1024 * 1024
 const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
 const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
+const DEVTOOLS_TABS = new Set(['world', 'resources', 'interactions', 'performance', 'events'])
+const DEVTOOLS_HOST_KINDS = new Set(['compatibility', 'external', 'panel'])
 
 function fail(code, message) {
   const error = new Error(message)
@@ -69,6 +71,101 @@ function validateResource(value) {
   return value
 }
 
+function validateDevToolsIdentifier(value, label) {
+  if (!/^[a-z0-9][a-z0-9._/-]{0,127}$/u.test(value ?? '') || value.split('/').some((part) => part === '' || part === '.' || part === '..')) {
+    fail(`INVALID_DEVTOOLS_${label.toUpperCase()}`, `DesktopWorld DevTools ${label} identifier is invalid`)
+  }
+  return value
+}
+
+function parseRevision(value) {
+  if (!/^(?:0|[1-9][0-9]*)$/u.test(value ?? '')) fail('INVALID_DEVTOOLS_REVISION', 'DesktopWorld DevTools revision must be a non-negative integer')
+  const revision = Number(value)
+  if (!Number.isSafeInteger(revision)) fail('INVALID_DEVTOOLS_REVISION', 'DesktopWorld DevTools revision exceeds the supported range')
+  return revision
+}
+
+function parseToggle(value, token) {
+  if (value === 'on') return true
+  if (value === 'off') return false
+  fail('INVALID_DEVTOOLS_TOGGLE', `${token} requires on or off`)
+}
+
+function parseEventKinds(value) {
+  const values = value === '' ? [] : value.split(',')
+  if (values.length > 16 || values.some((entry) => !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(entry))) {
+    fail('INVALID_DEVTOOLS_FILTER', '--event-kinds must contain at most 16 comma-separated event identifiers')
+  }
+  return [...new Set(values)]
+}
+
+function parseDevToolsArgs(action, args) {
+  if (!['open', 'status', 'update', 'transfer', 'close'].includes(action)) {
+    fail('UNKNOWN_SUBCOMMAND', 'scene devtools requires open, status, update, transfer, or close')
+  }
+  const allowed = {
+    open: new Set(['--resource']),
+    status: new Set(['--session']),
+    update: new Set(['--session', '--expected-revision', '--resource', '--clear-resource', '--tab', '--query', '--event-kinds', '--errors-only', '--recording']),
+    transfer: new Set(['--session', '--expected-revision', '--host-kind', '--host-id']),
+    close: new Set(['--session']),
+  }[action]
+  const valueLess = new Set(['--clear-resource'])
+  const values = new Map()
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index]
+    if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown scene devtools flag: ${token}`)
+    if (values.has(token)) fail('DUPLICATE_FLAG', `${token} may be supplied once`)
+    if (valueLess.has(token)) {
+      values.set(token, true)
+      continue
+    }
+    if (args[index + 1] == null || args[index + 1].startsWith('--')) fail('MISSING_ARG', `${token} requires a value`)
+    values.set(token, args[index + 1])
+    index += 1
+  }
+
+  const session = values.has('--session') ? validateDevToolsIdentifier(values.get('--session'), 'session') : null
+  if (['update', 'transfer', 'close'].includes(action) && session == null) fail('MISSING_ARG', `scene devtools ${action} requires --session`)
+  const expectedRevision = values.has('--expected-revision') ? parseRevision(values.get('--expected-revision')) : null
+  if (['update', 'transfer'].includes(action) && expectedRevision == null) fail('MISSING_ARG', `scene devtools ${action} requires --expected-revision`)
+
+  const resource = values.has('--resource') ? validateResource(values.get('--resource')) : null
+  if (values.has('--clear-resource') && values.has('--resource')) fail('CONFLICTING_FLAGS', '--resource and --clear-resource cannot be combined')
+
+  if (action === 'update') {
+    const changes = {}
+    if (values.has('--resource')) changes.selected_resource = resource
+    if (values.has('--clear-resource')) changes.selected_resource = null
+    if (values.has('--tab')) {
+      const tab = values.get('--tab')
+      if (!DEVTOOLS_TABS.has(tab)) fail('INVALID_DEVTOOLS_TAB', 'DesktopWorld DevTools tab is invalid')
+      changes.active_tab = tab
+    }
+    const filters = {}
+    if (values.has('--query')) {
+      const query = values.get('--query')
+      if (Buffer.byteLength(query) > 128) fail('INVALID_DEVTOOLS_FILTER', '--query exceeds the 128-byte limit')
+      filters.query = query
+    }
+    if (values.has('--event-kinds')) filters.event_kinds = parseEventKinds(values.get('--event-kinds'))
+    if (values.has('--errors-only')) filters.errors_only = parseToggle(values.get('--errors-only'), '--errors-only')
+    if (Object.keys(filters).length > 0) changes.filters = filters
+    if (values.has('--recording')) changes.recording = parseToggle(values.get('--recording'), '--recording')
+    if (Object.keys(changes).length === 0) fail('MISSING_ARG', 'scene devtools update requires at least one update flag')
+    return { action, session, expectedRevision, changes }
+  }
+
+  if (action === 'transfer') {
+    if (!values.has('--host-kind') || !values.has('--host-id')) fail('MISSING_ARG', 'scene devtools transfer requires --host-kind and --host-id')
+    const kind = values.get('--host-kind')
+    if (!DEVTOOLS_HOST_KINDS.has(kind)) fail('INVALID_DEVTOOLS_HOST_KIND', 'DesktopWorld DevTools host kind is invalid')
+    return { action, session, expectedRevision, host: { kind, id: validateDevToolsIdentifier(values.get('--host-id'), 'host') } }
+  }
+
+  return { action, session, resource }
+}
+
 function parseToolArgs(args) {
   const command = args[0]
   const tail = args.slice(1)
@@ -106,20 +203,7 @@ function parseToolArgs(args) {
   }
   if (command === 'devtools') {
     const action = withoutJson[0]
-    const rest = withoutJson.slice(1)
-    if (!['open', 'status', 'close'].includes(action)) fail('UNKNOWN_SUBCOMMAND', 'scene devtools requires open, status, or close')
-    const allowed = action === 'open' ? new Set(['--resource']) : action === 'status' ? new Set(['--session']) : new Set(['--session'])
-    for (let index = 0; index < rest.length; index += 2) {
-      if (!allowed.has(rest[index])) fail('UNKNOWN_FLAG', `Unknown scene devtools flag: ${rest[index]}`)
-    }
-    if (rest.filter((value) => value === '--resource').length > 1 || rest.filter((value) => value === '--session').length > 1) {
-      fail('DUPLICATE_FLAG', 'scene devtools flags may be supplied once')
-    }
-    const resource = action === 'open' && rest.includes('--resource') ? validateResource(valueAfter(rest, '--resource')) : null
-    const session = rest.includes('--session') ? valueAfter(rest, '--session') : null
-    if (session != null && !/^[a-z0-9][a-z0-9._-]{0,127}$/u.test(session)) fail('INVALID_DEVTOOLS_SESSION', 'DesktopWorld DevTools session identifier is invalid')
-    if (action === 'close' && session == null) fail('MISSING_ARG', 'scene devtools close requires --session')
-    return { command, action, json, resource, session }
+    return { command, json, ...parseDevToolsArgs(action, withoutJson.slice(1)) }
   }
   return null
 }
@@ -223,6 +307,8 @@ async function runToolCommand(options) {
     else if (options.command === 'perf') result = await client.perf(options.resource)
     else if (options.command === 'devtools' && options.action === 'open') result = await client.devtools.open({ resource: options.resource })
     else if (options.command === 'devtools' && options.action === 'status') result = await client.devtools.status(options.session)
+    else if (options.command === 'devtools' && options.action === 'update') result = await client.devtools.update(options.session, options.expectedRevision, options.changes)
+    else if (options.command === 'devtools' && options.action === 'transfer') result = await client.devtools.transfer(options.session, options.expectedRevision, options.host)
     else if (options.command === 'devtools' && options.action === 'close') result = await client.devtools.close(options.session)
     else fail('UNKNOWN_SUBCOMMAND', 'Unknown scene command')
     writeToolResult(result, options.json, options.action ?? options.command)

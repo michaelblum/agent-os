@@ -18,13 +18,13 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 53
-- Concrete forms: 216
-- Consumer-discoverable forms: 207
+- Command paths: 55
+- Concrete forms: 218
+- Consumer-discoverable forms: 209
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 119
+- Mutating or conditionally mutating forms: 121
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 211
+- Forms with JSON output path: 213
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -43,7 +43,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Diagnostics/debug | 6 |
 | Operator input | 7 |
 | Operator messaging | 10 |
-| Overlay/display | 25 |
+| Overlay/display | 27 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 16 |
 | Saved workspace | 6 |
@@ -108,6 +108,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene replay` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs replay` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools open` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools open` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools status` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene devtools update` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene devtools transfer` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools transfer` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools close` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools close` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 
 ## Concrete Forms
@@ -329,4 +331,6 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene replay` | `scene-replay` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs replay` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools open` | `scene-devtools-open` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools open` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools status` | `scene-devtools-status` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene devtools update` | `scene-devtools-update` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene devtools transfer` | `scene-devtools-transfer` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools transfer` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools close` | `scene-devtools-close` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools close` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

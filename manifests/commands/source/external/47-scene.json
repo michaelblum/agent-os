@@ -63,6 +63,18 @@
     "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "status"],
     "cwd": "repo", "stdio": "inherit"
   }, {
+    "path": ["scene", "devtools", "update"],
+    "summary": "Update a revisioned DesktopWorld inspector session",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "update"],
+    "cwd": "repo", "stdio": "inherit"
+  }, {
+    "path": ["scene", "devtools", "transfer"],
+    "summary": "Transfer a DesktopWorld inspector host lease",
+    "executable": "/usr/bin/env",
+    "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "transfer"],
+    "cwd": "repo", "stdio": "inherit"
+  }, {
     "path": ["scene", "devtools", "close"],
     "summary": "Close a DesktopWorld inspector session",
     "executable": "/usr/bin/env",

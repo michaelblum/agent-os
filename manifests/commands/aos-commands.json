@@ -12804,6 +12804,204 @@
       "path" : [
         "scene",
         "devtools",
+        "update"
+      ],
+      "summary" : "Update one revisioned DesktopWorld inspector session",
+      "forms" : [
+        {
+          "id" : "scene-devtools-update",
+          "usage" : "aos scene devtools update --session <id> --expected-revision <n> [view options] --json",
+          "args" : [
+            {
+              "id" : "session",
+              "kind" : "flag",
+              "token" : "--session",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "DevTools session identifier"
+            },
+            {
+              "id" : "expected-revision",
+              "kind" : "flag",
+              "token" : "--expected-revision",
+              "value_type" : "int",
+              "required" : true,
+              "summary" : "Current session revision"
+            },
+            {
+              "id" : "resource",
+              "kind" : "flag",
+              "token" : "--resource",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Selected scene resource"
+            },
+            {
+              "id" : "clear-resource",
+              "kind" : "flag",
+              "token" : "--clear-resource",
+              "value_type" : "bool",
+              "required" : false,
+              "summary" : "Clear the selected scene resource"
+            },
+            {
+              "id" : "tab",
+              "kind" : "flag",
+              "token" : "--tab",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "World, resources, interactions, performance, or events"
+            },
+            {
+              "id" : "query",
+              "kind" : "flag",
+              "token" : "--query",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Bounded inspector query"
+            },
+            {
+              "id" : "event-kinds",
+              "kind" : "flag",
+              "token" : "--event-kinds",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Comma-separated event-kind filter"
+            },
+            {
+              "id" : "errors-only",
+              "kind" : "flag",
+              "token" : "--errors-only",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Set the error-only filter to on or off"
+            },
+            {
+              "id" : "recording",
+              "kind" : "flag",
+              "token" : "--recording",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Set opt-in telemetry recording to on or off"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit the updated session snapshot"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene devtools update --session devtools-example --expected-revision 2 --tab performance --recording on --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "devtools",
+        "transfer"
+      ],
+      "summary" : "Transfer the sole interactive host for a DesktopWorld inspector",
+      "forms" : [
+        {
+          "id" : "scene-devtools-transfer",
+          "usage" : "aos scene devtools transfer --session <id> --expected-revision <n> --host-kind <kind> --host-id <id> --json",
+          "args" : [
+            {
+              "id" : "session",
+              "kind" : "flag",
+              "token" : "--session",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "DevTools session identifier"
+            },
+            {
+              "id" : "expected-revision",
+              "kind" : "flag",
+              "token" : "--expected-revision",
+              "value_type" : "int",
+              "required" : true,
+              "summary" : "Current session revision"
+            },
+            {
+              "id" : "host-kind",
+              "kind" : "flag",
+              "token" : "--host-kind",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Panel, external, or compatibility host kind"
+            },
+            {
+              "id" : "host-id",
+              "kind" : "flag",
+              "token" : "--host-id",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Canonical AOS canvas host identifier"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit the transferred session snapshot"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene devtools transfer --session devtools-example --expected-revision 2 --host-kind external --host-id sigil/companion-studio --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "devtools",
         "close"
       ],
       "summary" : "Close one AOS-owned DesktopWorld inspector session",

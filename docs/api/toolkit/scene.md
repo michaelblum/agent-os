@@ -237,8 +237,16 @@ aos scene perf --resource companion/main --json
 aos scene replay --events packages/toolkit/scene/fixtures/aim-commit.ndjson --json
 aos scene devtools open --resource companion/main --json
 aos scene devtools status --json
+aos scene devtools update --session <session-id> --expected-revision <n> --tab performance --recording on --json
+aos scene devtools transfer --session <session-id> --expected-revision <n> --host-kind external --host-id <canvas-id> --json
 aos scene devtools close --session <session-id> --json
 ```
+
+`update` and `transfer` use optimistic session revisions. A transfer target is
+an existing AOS canvas host; the daemon suspends the previous host before
+activating the target, so detached and consumer-aligned views never become two
+interactive inspectors. Filters and recording remain daemon-owned session
+state, and recording is opt-in.
 
 The deterministic replay helper enforces monotonic owner/resource sequences,
 complete start/update/end-or-cancel gesture lifecycles, and fixed event/resource

@@ -65,6 +65,7 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
         const reply = (value) => socket.write(`${JSON.stringify({ v: 1, ref: request.ref, ...value })}\n`)
         if (request.action === 'devtools_open') reply({ status: 'ok', session: snapshot() })
         else if (request.action === 'devtools_status') reply(request.data.session ? { status: 'ok', session: snapshot() } : { status: 'ok', sessions: [snapshot()] })
+        else if (request.action === 'devtools_update' || request.action === 'devtools_transfer') reply({ status: 'ok', session: snapshot() })
         else if (request.action === 'devtools_close') reply({ status: 'ok', session: request.data.session, closed: true })
         else if (request.action === 'devtools_monitor') {
           socket.write(`${JSON.stringify({
@@ -85,6 +86,8 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
       [['perf', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.performance.currentFps, 60)],
       [['devtools', 'open', '--resource', 'companion/main', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
       [['devtools', 'status', '--json'], (value) => assert.equal(value.sessions.length, 1)],
+      [['devtools', 'update', '--session', 'devtools-test', '--expected-revision', '1', '--tab', 'performance', '--query', 'companion', '--event-kinds', 'gesture,error', '--errors-only', 'on', '--recording', 'on', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
+      [['devtools', 'transfer', '--session', 'devtools-test', '--expected-revision', '1', '--host-kind', 'external', '--host-id', 'sigil/companion-studio', '--json'], (value) => assert.equal(value.session.session.id, 'devtools-test')],
       [['devtools', 'close', '--session', 'devtools-test', '--json'], (value) => assert.equal(value.closed, true)],
     ]) {
       const result = await run(args, env)
@@ -95,6 +98,13 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     assert.equal(monitor.code, 0, monitor.stderr)
     assert.equal(JSON.parse(monitor.stdout).data.snapshot.resources[0].id, 'companion/main')
     assert.ok(received.filter((entry) => entry.action === 'devtools_open' && entry.data.headless === true).length >= 3)
+    assert.deepEqual(received.find((entry) => entry.action === 'devtools_update')?.data, {
+      session: 'devtools-test', expected_revision: 1, active_tab: 'performance',
+      filters: { query: 'companion', event_kinds: ['gesture', 'error'], errors_only: true }, recording: true,
+    })
+    assert.deepEqual(received.find((entry) => entry.action === 'devtools_transfer')?.data, {
+      session: 'devtools-test', expected_revision: 1, host: { kind: 'external', id: 'sigil/companion-studio' },
+    })
   } finally {
     await new Promise((resolve) => server.close(resolve))
     await rm(root, { recursive: true, force: true })
@@ -153,6 +163,11 @@ test('scene tooling rejects missing machine mode and duplicate identity flags be
     [['list'], 'MISSING_ARG'],
     [['inspect', '--resource', 'one', '--resource', 'two', '--json'], 'DUPLICATE_FLAG'],
     [['devtools', 'close', '--json'], 'MISSING_ARG'],
+    [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--json'], 'MISSING_ARG'],
+    [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--recording', 'yes', '--json'], 'INVALID_DEVTOOLS_TOGGLE'],
+    [['devtools', 'update', '--session', 'one', '--expected-revision', '1', '--query', 'x'.repeat(129), '--json'], 'INVALID_DEVTOOLS_FILTER'],
+    [['devtools', 'transfer', '--session', 'one', '--expected-revision', '1', '--host-kind', 'browser', '--host-id', 'host', '--json'], 'INVALID_DEVTOOLS_HOST_KIND'],
+    [['devtools', 'transfer', '--session', 'one', '--expected-revision', '1', '--host-kind', 'external', '--host-id', 'host/', '--json'], 'INVALID_DEVTOOLS_HOST'],
   ]) {
     const result = await run(args, { AOS_STATE_ROOT: path.join(os.tmpdir(), 'must-not-connect') })
     assert.equal(result.code, 1)
