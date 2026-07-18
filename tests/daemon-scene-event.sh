@@ -35,7 +35,7 @@ let valid: [String: Any] = [
         "native": NSNull(), "delta": ["x": 10.0, "y": 10.0], "totalDelta": ["x": 20.0, "y": 20.0],
     ],
     "topology": ["displays": [["displayId": 1, "index": 0, "bounds": [0.0, 0.0, 1440.0, 900.0]]]],
-    "response": ["kind": "aim_commit", "objectId": "body", "origin": ["x": 100.0, "y": 200.0], "pointer": ["x": 120.0, "y": 220.0], "angle": 0.7, "distance": 28.0, "route": "line", "applied": true, "revision": 2],
+    "response": ["kind": "aim_commit", "objectId": "body", "origin": ["x": 100.0, "y": 200.0], "pointer": ["x": 120.0, "y": 220.0], "position": [120.0, 220.0, 0.0], "angle": 0.7, "distance": 28.0, "route": "line", "applied": true, "revision": 2],
     "at": 100.0,
 ]
 
@@ -44,7 +44,7 @@ var leaked = valid
 leaked["prompt"] = "private product content"
 require(aosCanonicalSceneEvent(leaked) == nil, "unknown top-level product content was accepted")
 var badResponse = valid
-badResponse["response"] = ["kind": "aim_commit", "objectId": "body", "origin": NSNull(), "pointer": NSNull(), "angle": 0.0, "distance": 0.0, "route": "line", "spokenText": "private"]
+badResponse["response"] = ["kind": "aim_commit", "objectId": "body", "origin": NSNull(), "pointer": NSNull(), "position": [0.0, 0.0, 0.0], "angle": 0.0, "distance": 0.0, "route": "line", "spokenText": "private"]
 require(aosCanonicalSceneEvent(badResponse) == nil, "unknown nested response content was accepted")
 var badCancel = valid
 badCancel["gesture"] = ["id": "gesture-1", "kind": "drag", "phase": "cancel", "pointerSessionId": "capture-1", "cancellationReason": "product_reason"]

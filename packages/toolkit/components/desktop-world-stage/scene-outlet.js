@@ -7,7 +7,9 @@ import {
   createGenericSceneImplementationRegistry,
   createGenericThreeSceneProjection,
   deriveOrthoCamera,
+  resolveThreeRenderMetrics,
 } from '../../scene/index.js'
+import { createDesktopWorldSceneInteractionThree } from './scene-interaction-three.js'
 
 const MAX_RESOURCES = 32
 const MAX_SIGNALS_PER_SECOND = 30
@@ -46,14 +48,18 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   }
 
   const resize = () => {
-    const width = Math.max(1, Math.min(4096, Math.floor(canvas.clientWidth || hostWindow.innerWidth || 1)))
-    const height = Math.max(1, Math.min(4096, Math.floor(canvas.clientHeight || hostWindow.innerHeight || 1)))
-    const dpr = Math.min(2, Math.max(1, hostWindow.devicePixelRatio || 1))
-    renderer.setPixelRatio(dpr)
-    renderer.setSize(width, height, false)
+    const metrics = resolveThreeRenderMetrics({
+      width: canvas.clientWidth || hostWindow.innerWidth,
+      height: canvas.clientHeight || hostWindow.innerHeight,
+      devicePixelRatio: hostWindow.devicePixelRatio,
+    })
+    if (!metrics) return false
+    renderer.setPixelRatio(metrics.effectiveDevicePixelRatio)
+    renderer.setSize(metrics.cssWidth, metrics.cssHeight, false)
     renderer.clear(true, true, true)
-    camera.aspect = width / height
+    camera.aspect = metrics.cssWidth / metrics.cssHeight
     camera.updateProjectionMatrix()
+    return true
   }
 
   const release = (key) => {
@@ -62,6 +68,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     scene.remove(mounted.projection.object)
     mounted.animations.dispose()
     mounted.signals.dispose()
+    mounted.interactionVisuals?.dispose()
     mounted.projection.dispose()
     mounted.interactionOrigins.clear()
     resources.delete(key)
@@ -83,16 +90,20 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       signals = createSceneSignalController(document, {
         apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
       })
+      scene.add(projection.object)
     } catch (error) {
+      scene.remove(projection.object)
+      animations?.dispose()
+      signals?.dispose()
       projection.dispose()
       throw error
     }
     projection.object.position.copy(previous?.projection.object.position ?? new THREE.Vector3())
-    scene.add(projection.object)
     if (previous) {
       scene.remove(previous.projection.object)
       previous.animations.dispose()
       previous.signals.dispose()
+      previous.interactionVisuals?.dispose()
       previous.projection.dispose()
     }
     resources.set(key, {
@@ -100,6 +111,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       projection,
       signals,
       animations,
+      interactionVisuals: null,
       suspended: false,
       signalWindowAt: 0,
       signalWindowCount: 0,
@@ -141,6 +153,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       if (mounted) {
         mounted.suspended = operation.op === 'suspend'
         mounted.projection[operation.op]()
+        mounted.interactionVisuals?.[operation.op]()
       }
     } else if (operation.op === 'remove' || operation.op === 'close') {
       release(key)
@@ -168,9 +181,34 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return mounted.document.revision
   }
 
-  const applyInteractionResponse = (key, { frame, response } = {}) => {
+  const ensureInteractionVisuals = (mounted) => {
+    if (!mounted.interactionVisuals) {
+      mounted.interactionVisuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection: mounted.projection })
+    }
+    return mounted.interactionVisuals
+  }
+
+  const applyInteractionResponse = (key, { frame, interaction, response, topology } = {}) => {
     const mounted = resources.get(key)
     if (!mounted || !response?.kind || !frame?.interactionId) return null
+    if (response.kind === 'aim_commit') {
+      const interactionVisuals = ensureInteractionVisuals(mounted)
+      if (frame.phase !== 'end') {
+        interactionVisuals.apply({ frame, interaction, response, topology })
+        return { ...response, applied: false, revision: mounted.document.revision }
+      }
+      const revision = commitObjectPosition(mounted, response.objectId, response.position)
+      if (revision === null) {
+        interactionVisuals.cancel()
+        return { ...response, applied: false, revision: mounted.document.revision }
+      }
+      const visual = interactionVisuals.apply({ frame, interaction, response, topology })
+      if (!visual.routeStarted) mounted.projection.setObjectPosition(response.objectId, response.position)
+      return { ...response, applied: true, revision }
+    }
+    if (interaction?.recognizer?.implementation === 'aos.scene.gesture.radial') {
+      ensureInteractionVisuals(mounted).apply({ frame, interaction, response, topology })
+    }
     if (response.kind === 'translate') {
       const originKey = `${frame.interactionId}:${frame.gesture_id}`
       if (frame.phase === 'start') {
@@ -209,6 +247,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         if (mounted.suspended) continue
         const elapsed = at - (mounted.playStartedAt ?? at)
         mounted.animations.tick(elapsed)
+        mounted.interactionVisuals?.tick(at)
       }
       renderer.render(scene, camera)
     }
@@ -243,6 +282,8 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
         projection: 'desktop-world-orthographic',
         renderer: 'three',
         resources: resources.size,
+        interactionVisuals: [...resources.values()].filter((entry) => entry.interactionVisuals && !entry.suspended).length,
+        backingPixels: renderer.domElement.width * renderer.domElement.height,
       }
     },
     dispose() {

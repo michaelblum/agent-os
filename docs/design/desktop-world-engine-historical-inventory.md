@@ -12,6 +12,7 @@ evidence only; active Sigil product authority remains external to AOS.
 | Historical source | SHA-256 | Disposition |
 | --- | --- | --- |
 | `apps/sigil/renderer/live-modules/fast-travel.js` | `a6b5a8b50dff00513392221758150ca8402272f895cc161e18f3071498615774` | Retired product fixture; line/wormhole reference |
+| `apps/sigil/renderer/live-modules/interaction-overlay.js` | `07a3a5644e866f2b9bac73a7fc023aa59e19a741a0c9edc20d2a9091d3542071` | Retired product fixture; aim-arrow geometry and color reference |
 | `apps/sigil/renderer/live-modules/radial-gesture-menu.js` | `ab274d88b2019239a9f8d302c2d239ba20d4cd201d9c5634c1efdfd92e4e8ee2` | Retired product fixture; interaction composition reference |
 | `apps/sigil/renderer/live-modules/radial-gesture-runtime.js` | `2087192e25559afa1fb1a1cefa3245cd5ff7c2524d17ed2f4ed880810feafe11` | Compatibility wrapper; product semantics remain retired |
 | `apps/sigil/renderer/live-modules/radial-gesture-visuals.js` | `ca55121e4af04a04a378f7c9b2511da040ebbe59c9463703eeea4e9d3ac97d63` | Retired product fixture; visual reference |
@@ -44,6 +45,13 @@ phase timings, arrow geometry, colors, trails, easing, and resource-disposal
 evidence. The current bounded CSS travel animation is explicitly a degraded
 fallback and is not a reference implementation.
 
-Reference screenshots and motion traces will be generated from the locked
-commit in the interaction-rendering slice. They must be digest-addressed and
-reviewed before any implementation claims historical visual parity.
+The source-derived reference is locked at
+`tests/fixtures/scene/historical-fast-travel/reference.json`. It records the
+horizontal, vertical, diagonal, cross-display, release, and Escape-cancel
+vectors; fixed-time line trace; arrow geometry; colors; trail behavior; and
+wormhole timing. Its contract test verifies the historical source digests.
+
+Historical screenshots were not present in the sealed fixture and have not
+been fabricated. Fixed-view captures from the rebuilt engine remain explicitly
+`pending_michael_signoff`; neither this inventory nor the generic renderer is
+evidence of completed Sigil visual parity.

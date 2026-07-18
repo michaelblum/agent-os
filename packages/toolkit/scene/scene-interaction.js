@@ -53,6 +53,7 @@ const RESPONSE_KINDS = new Map([
 ])
 const REMOTE_OR_EXECUTABLE_VALUE = /^(?:data|file|https?|javascript|vbscript):/iu
 const EXECUTABLE_FIELD = /^(?:callback|code|eval|function|module|script|sourceCode)$/iu
+const SAFE_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu
 const DEFAULT_RECOGNIZER_PRIORITY = Object.freeze({
   long_press: 400,
   radial: 300,
@@ -179,6 +180,7 @@ function validateRecognizerParameters(value, path, errors) {
     allowed.add('deadZone')
     allowed.add('items')
     allowed.add('radius')
+    allowed.add('style')
   }
   exactKeys(value.parameters, allowed, `${path}.parameters`, errors)
   const { button, holdMs, priority, threshold } = value.parameters
@@ -203,8 +205,41 @@ function validateRecognizerParameters(value, path, errors) {
       errors.push({ code: 'invalid_radial_geometry', path: `${path}.parameters.${key}`, message: 'Scene radial geometry must be finite and bounded.' })
     }
   }
-  if (value.parameters.items !== undefined && (!Number.isInteger(value.parameters.items) || value.parameters.items < 1 || value.parameters.items > 32)) {
-    errors.push({ code: 'invalid_radial_items', path: `${path}.parameters.items`, message: 'Scene radial item count must be a bounded integer.' })
+  if (value.parameters.items !== undefined) {
+    if (Number.isInteger(value.parameters.items)) {
+      if (value.parameters.items < 1 || value.parameters.items > 32) {
+        errors.push({ code: 'invalid_radial_items', path: `${path}.parameters.items`, message: 'Scene radial item count must be bounded.' })
+      }
+    } else if (Array.isArray(value.parameters.items) && value.parameters.items.length >= 1 && value.parameters.items.length <= 32) {
+      const ids = new Set()
+      value.parameters.items.forEach((item, index) => {
+        const itemPath = `${path}.parameters.items.${index}`
+        if (!isRecord(item)) {
+          errors.push({ code: 'invalid_radial_item', path: itemPath, message: 'Scene radial items must be declarative objects.' })
+          return
+        }
+        exactKeys(item, new Set(['color', 'disabled', 'id']), itemPath, errors)
+        if (!validId(item.id) || ids.has(item.id)) errors.push({ code: 'invalid_radial_item', path: `${itemPath}.id`, message: 'Scene radial item IDs must be canonical and unique.' })
+        ids.add(item.id)
+        if (item.color !== undefined && !SAFE_COLOR.test(item.color)) errors.push({ code: 'invalid_color', path: `${itemPath}.color`, message: 'Scene colors must use bounded hexadecimal notation.' })
+        if (item.disabled !== undefined && typeof item.disabled !== 'boolean') errors.push({ code: 'invalid_radial_item', path: `${itemPath}.disabled`, message: 'Scene radial item disabled state must be boolean.' })
+      })
+    } else {
+      errors.push({ code: 'invalid_radial_items', path: `${path}.parameters.items`, message: 'Scene radial items must be a bounded count or descriptor list.' })
+    }
+  }
+  if (value.parameters.style !== undefined) {
+    const stylePath = `${path}.parameters.style`
+    const style = value.parameters.style
+    if (!isRecord(style)) errors.push({ code: 'invalid_visual_style', path: stylePath, message: 'Scene radial style must be an object.' })
+    else {
+      exactKeys(style, new Set(['activeColor', 'fillColor', 'itemRadius', 'opacity']), stylePath, errors)
+      for (const key of ['activeColor', 'fillColor']) {
+        if (style[key] !== undefined && !SAFE_COLOR.test(style[key])) errors.push({ code: 'invalid_color', path: `${stylePath}.${key}`, message: 'Scene colors must use bounded hexadecimal notation.' })
+      }
+      if (style.itemRadius !== undefined && (!Number.isFinite(style.itemRadius) || style.itemRadius < 2 || style.itemRadius > 128)) errors.push({ code: 'invalid_visual_style', path: `${stylePath}.itemRadius`, message: 'Scene radial item radius must be bounded.' })
+      if (style.opacity !== undefined && (!Number.isFinite(style.opacity) || style.opacity < 0 || style.opacity > 1)) errors.push({ code: 'invalid_visual_style', path: `${stylePath}.opacity`, message: 'Scene radial opacity must be bounded.' })
+    }
   }
 }
 
@@ -215,7 +250,7 @@ function validateSignalDescriptor(value, path, errors) {
   }
   exactKeys(value, new Set(['offset', 'scale', 'signalId', 'source']), path, errors)
   if (!validId(value.signalId)) errors.push({ code: 'invalid_signal_id', path: `${path}.signalId`, message: 'Scene signal response ID is invalid.' })
-  if (value.source !== undefined && !['constant', 'distance', 'x', 'y'].includes(value.source)) {
+  if (value.source !== undefined && !['constant', 'distance', 'selection_active', 'selection_index', 'x', 'y'].includes(value.source)) {
     errors.push({ code: 'invalid_signal_source', path: `${path}.source`, message: 'Scene signal response source is invalid.' })
   }
   for (const key of ['scale', 'offset']) {
@@ -237,11 +272,39 @@ function validateResponseParameters(value, path, errors) {
     if (parameters.coordinates !== undefined && parameters.coordinates !== 'world') errors.push({ code: 'invalid_response_coordinates', path: `${path}.parameters.coordinates`, message: 'Scene translation coordinates must use world space.' })
     if (parameters.snap !== undefined && typeof parameters.snap !== 'boolean') errors.push({ code: 'invalid_translate_snap', path: `${path}.parameters.snap`, message: 'Scene translation snap must be boolean.' })
   } else if (kind === 'aim_commit') {
-    exactKeys(parameters, new Set(['coordinates', 'route']), `${path}.parameters`, errors)
+    exactKeys(parameters, new Set(['arrow', 'coordinates', 'durationMs', 'easing', 'route', 'wormhole']), `${path}.parameters`, errors)
     if (parameters.route !== undefined && !['line', 'wormhole'].includes(parameters.route)) {
       errors.push({ code: 'invalid_aim_route', path: `${path}.parameters.route`, message: 'Scene aim-and-commit route is invalid.' })
     }
     if (parameters.coordinates !== undefined && parameters.coordinates !== 'world') errors.push({ code: 'invalid_response_coordinates', path: `${path}.parameters.coordinates`, message: 'Scene aim-and-commit coordinates must use world space.' })
+    if (parameters.easing !== undefined && !['ease_in_out_cubic', 'ease_out_quart', 'linear', 'smoothstep'].includes(parameters.easing)) errors.push({ code: 'invalid_route_easing', path: `${path}.parameters.easing`, message: 'Scene route easing implementation is unavailable.' })
+    if (parameters.durationMs !== undefined && (!Number.isFinite(parameters.durationMs) || parameters.durationMs < 50 || parameters.durationMs > 5000)) errors.push({ code: 'invalid_route_duration', path: `${path}.parameters.durationMs`, message: 'Scene route duration must be finite and bounded.' })
+    if (parameters.arrow !== undefined) {
+      const arrowPath = `${path}.parameters.arrow`
+      const arrow = parameters.arrow
+      if (!isRecord(arrow)) errors.push({ code: 'invalid_visual_style', path: arrowPath, message: 'Scene arrow style must be an object.' })
+      else {
+        exactKeys(arrow, new Set(['accentColor', 'color', 'headLength', 'headWidth', 'pulseHz', 'shaftWidth', 'trailCount', 'trailOpacity', 'trailSpacing']), arrowPath, errors)
+        for (const key of ['accentColor', 'color']) if (arrow[key] !== undefined && !SAFE_COLOR.test(arrow[key])) errors.push({ code: 'invalid_color', path: `${arrowPath}.${key}`, message: 'Scene colors must use bounded hexadecimal notation.' })
+        for (const [key, min, max] of [['headLength', 4, 128], ['headWidth', 4, 128], ['pulseHz', 0, 20], ['shaftWidth', 1, 32], ['trailCount', 0, 16], ['trailOpacity', 0, 1], ['trailSpacing', 0, 1]]) {
+          const entry = arrow[key]
+          if (entry !== undefined && (!Number.isFinite(entry) || entry < min || entry > max || (key === 'trailCount' && !Number.isInteger(entry)))) errors.push({ code: 'invalid_visual_style', path: `${arrowPath}.${key}`, message: 'Scene arrow style value must be finite and bounded.' })
+        }
+      }
+    }
+    if (parameters.wormhole !== undefined) {
+      const wormholePath = `${path}.parameters.wormhole`
+      const wormhole = parameters.wormhole
+      if (!isRecord(wormhole)) errors.push({ code: 'invalid_visual_style', path: wormholePath, message: 'Scene wormhole style must be an object.' })
+      else {
+        exactKeys(wormhole, new Set(['color', 'flash', 'ringRadius', 'spin']), wormholePath, errors)
+        if (wormhole.color !== undefined && !SAFE_COLOR.test(wormhole.color)) errors.push({ code: 'invalid_color', path: `${wormholePath}.color`, message: 'Scene colors must use bounded hexadecimal notation.' })
+        for (const [key, min, max] of [['flash', 0, 4], ['ringRadius', 8, 512], ['spin', -20, 20]]) {
+          const entry = wormhole[key]
+          if (entry !== undefined && (!Number.isFinite(entry) || entry < min || entry > max)) errors.push({ code: 'invalid_visual_style', path: `${wormholePath}.${key}`, message: 'Scene wormhole style value must be finite and bounded.' })
+        }
+      }
+    }
   } else if (kind === 'drop') {
     exactKeys(parameters, new Set(), `${path}.parameters`, errors)
   } else if (kind === 'signal_graph') {
@@ -386,9 +449,7 @@ function transformPoint(matrix, value) {
   }
 }
 
-function parentLocalDelta(document, object, value) {
-  if (!object?.parentId) return value
-  const matrix = sceneObjectTransform(document, object.parentId)
+function inverseLinearPoint(matrix, value) {
   const determinant = matrix.a * matrix.d - matrix.b * matrix.c
   if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-9) {
     throw new TypeError('Scene interaction target has a non-invertible parent transform.')
@@ -397,6 +458,17 @@ function parentLocalDelta(document, object, value) {
     x: (matrix.d * value.x - matrix.c * value.y) / determinant,
     y: (-matrix.b * value.x + matrix.a * value.y) / determinant,
   }
+}
+
+function parentLocalDelta(document, object, value) {
+  if (!object?.parentId) return value
+  return inverseLinearPoint(sceneObjectTransform(document, object.parentId), value)
+}
+
+function parentLocalPoint(document, object, value) {
+  if (!object?.parentId) return value
+  const matrix = sceneObjectTransform(document, object.parentId)
+  return inverseLinearPoint(matrix, { x: value.x - matrix.e, y: value.y - matrix.f })
 }
 
 export function resolveSceneAffordanceFrame(document, descriptor) {
@@ -489,6 +561,29 @@ function normalizedGesturePhase(frame) {
   return frame.phase
 }
 
+function withRadialSelection(frame, interaction) {
+  const parameters = interaction?.recognizer?.parameters ?? {}
+  const items = parameters.items ?? 4
+  const count = Array.isArray(items) ? items.length : finite(items, 4, 1, 32)
+  const total = frame.total_delta ?? { x: 0, y: 0 }
+  const radialDistance = Math.hypot(total.x ?? 0, total.y ?? 0)
+  const radialAngle = Math.atan2(total.y ?? 0, total.x ?? 0)
+  const deadZone = finite(parameters.deadZone, 24, 0, 512)
+  const sector = (Math.PI * 2) / count
+  const normalized = (radialAngle + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2)
+  let selectionIndex = radialDistance < deadZone ? null : Math.floor((normalized + sector / 2) / sector) % count
+  if (selectionIndex !== null && Array.isArray(items) && items[selectionIndex]?.disabled === true) selectionIndex = null
+  return {
+    ...frame,
+    radial: Object.freeze({
+      angle: radialAngle,
+      distance: radialDistance,
+      itemCount: count,
+      selectionIndex,
+    }),
+  }
+}
+
 export function createSceneGestureArena({
   affordance,
   interactions = [],
@@ -531,12 +626,15 @@ export function createSceneGestureArena({
   }
 
   function publish(frame, interaction) {
+    const publishedFrame = recognizerKind(interaction) === SCENE_GESTURE_KINDS.radial
+      ? withRadialSelection(frame, interaction)
+      : frame
     onFrame({
-      ...frame,
-      phase: normalizedGesturePhase(frame),
+      ...publishedFrame,
+      phase: normalizedGesturePhase(publishedFrame),
       affordanceId: affordance.id,
       interactionId: interaction.id,
-      cancelReason: frame.cancel_reason ?? null,
+      cancelReason: publishedFrame.cancel_reason ?? null,
     }, interaction)
   }
 
@@ -679,6 +777,8 @@ function signalValues(parameters, frame) {
   const sources = {
     constant: 1,
     distance: Math.hypot(total.x ?? 0, total.y ?? 0),
+    selection_active: Number.isInteger(frame.radial?.selectionIndex) ? 1 : 0,
+    selection_index: Number.isInteger(frame.radial?.selectionIndex) ? frame.radial.selectionIndex : -1,
     x: total.x ?? 0,
     y: total.y ?? 0,
   }
@@ -736,13 +836,16 @@ export function resolveSceneGestureResponse({ document, affordance, interaction,
     })
   }
   if (kind === 'aim_commit') {
+    const routeOrigin = transformPoint(sceneObjectTransform(document, affordance.objectId), { x: 0, y: 0 })
+    const targetPosition = parentLocalPoint(document, object, current)
     return Object.freeze({
       kind,
       objectId: affordance.objectId,
-      origin: clonePoint(frame.origin),
+      origin: routeOrigin,
       pointer: clonePoint(current),
-      angle: angle(frame.origin, current),
-      distance: distance(frame.origin, current),
+      position: [targetPosition.x, targetPosition.y, originPosition[2] ?? 0],
+      angle: angle(routeOrigin, current),
+      distance: distance(routeOrigin, current),
       route: interaction.response.parameters?.route ?? 'line',
     })
   }

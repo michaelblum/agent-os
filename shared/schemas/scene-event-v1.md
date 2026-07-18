@@ -27,6 +27,13 @@ native projections, plus a bounded display-topology snapshot. Declarative
 responses are `translate`, `aim_commit`, `drop`, or `signal_graph`. Drag itself
 does not imply translation.
 
+An `aim_commit` response keeps the projected object at its origin through
+`start` and `update`. It carries the bounded parent-local destination in
+`position`; `pointer` remains the global DesktopWorld destination used for the
+route visual. Only an accepted `end` commits the parent-local destination and
+starts the selected line or wormhole route. Cancellation leaves the document
+unchanged.
+
 ## Data Boundary
 
 The schema rejects additional fields. Events never carry scene documents,

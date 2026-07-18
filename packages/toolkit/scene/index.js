@@ -87,6 +87,13 @@ export {
   validateSceneInteractionDocument,
 } from './scene-interaction.js'
 
+export {
+  SCENE_INTERACTION_VISUAL_LIMITS,
+  createSceneInteractionVisualController,
+  resolveSceneAimVisualStyle,
+  resolveSceneRadialVisualStyle,
+} from './scene-interaction-visual.js'
+
 export { applySceneTransaction } from './scene-transaction.js'
 
 export {

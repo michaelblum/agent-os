@@ -195,13 +195,19 @@
         { "$ref": "#/$defs/Applied" },
         {
           "type": "object",
-          "required": ["kind", "objectId", "origin", "pointer", "angle", "distance", "route"],
+          "required": ["kind", "objectId", "origin", "pointer", "position", "angle", "distance", "route"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "aim_commit" },
             "objectId": { "$ref": "#/$defs/DescriptorId" },
             "origin": { "$ref": "#/$defs/NullablePoint" },
             "pointer": { "$ref": "#/$defs/NullablePoint" },
+            "position": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": { "type": "number" }
+            },
             "angle": { "type": "number" },
             "distance": { "type": "number", "minimum": 0 },
             "route": { "enum": ["line", "wormhole"] },

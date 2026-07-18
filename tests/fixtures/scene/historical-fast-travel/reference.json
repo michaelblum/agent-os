@@ -1,0 +1,83 @@
+{
+  "contract": "aos.scene.historical-fast-travel-reference.v1",
+  "referenceCommit": "27058618dc08c2b36d22d599109fb81f2f658b49",
+  "sources": [
+    {
+      "path": "apps/sigil/renderer/live-modules/fast-travel.js",
+      "sha256": "a6b5a8b50dff00513392221758150ca8402272f895cc161e18f3071498615774"
+    },
+    {
+      "path": "apps/sigil/renderer/live-modules/interaction-overlay.js",
+      "sha256": "07a3a5644e866f2b9bac73a7fc023aa59e19a741a0c9edc20d2a9091d3542071"
+    }
+  ],
+  "line": {
+    "durationMs": 220,
+    "easing": "ease_out_quart",
+    "trail": {
+      "enabled": true,
+      "repeatCount": 10,
+      "repeatDurationSeconds": 2,
+      "mode": "fade",
+      "lagFactor": 0.05,
+      "scale": 1.5
+    }
+  },
+  "arrow": {
+    "pulseRadiansPerSecond": 8,
+    "headLengthMin": 12,
+    "headLengthMax": 24,
+    "headLengthDistanceFactor": 0.11,
+    "headWingRadians": 2.450442269800039,
+    "glowColor": "rgba(83, 245, 215, 0.95)",
+    "glowWidth": 7,
+    "dashColor": "rgba(255, 255, 255, 0.86)",
+    "dashPattern": [10, 7],
+    "dashSpeed": 42,
+    "dashWidth": 2,
+    "reticleColor": "rgba(83, 245, 215, 0.95)",
+    "reticleRadiusBase": 13,
+    "reticleRadiusPulse": 3,
+    "originRingOpacity": 0.38,
+    "originRingRadiusHitFactor": 0.42
+  },
+  "wormhole": {
+    "captureRadius": 96,
+    "distortionStrength": 1.2,
+    "twistRadians": 3.141592653589793,
+    "zoom": 3.5,
+    "particleDensity": 0.05,
+    "flashIntensity": 1.5,
+    "starburstIntensity": 0.95,
+    "lensFlareIntensity": 0.8,
+    "openingMs": 1500,
+    "objectTravelMs": 500,
+    "closeMs": 1200
+  },
+  "topology": {
+    "displays": [
+      { "displayId": 1, "index": 0, "bounds": [0, 0, 1440, 900] },
+      { "displayId": 2, "index": 1, "bounds": [1440, 0, 1920, 1080] }
+    ]
+  },
+  "fixedProgress": [
+    { "atMs": 0, "linear": 0, "eased": 0 },
+    { "atMs": 55, "linear": 0.25, "eased": 0.68359375 },
+    { "atMs": 110, "linear": 0.5, "eased": 0.9375 },
+    { "atMs": 165, "linear": 0.75, "eased": 0.99609375 },
+    { "atMs": 220, "linear": 1, "eased": 1 }
+  ],
+  "scenarios": [
+    { "id": "horizontal", "origin": [200, 450], "destination": [1000, 450], "vector": [800, 0] },
+    { "id": "vertical", "origin": [720, 160], "destination": [720, 740], "vector": [0, 580] },
+    { "id": "diagonal", "origin": [240, 180], "destination": [1080, 720], "vector": [840, 540] },
+    { "id": "cross-display", "origin": [1200, 450], "destination": [1800, 540], "vector": [600, 90] },
+    { "id": "release", "origin": [300, 300], "destination": [900, 600], "terminalPhase": "end", "commitsDestination": true },
+    { "id": "escape-cancel", "origin": [300, 300], "destination": [900, 600], "terminalPhase": "cancel", "cancellationReason": "escape", "commitsDestination": false }
+  ],
+  "visualComparison": {
+    "status": "pending_michael_signoff",
+    "requiredCaptures": ["horizontal", "vertical", "diagonal", "cross-display", "release", "escape-cancel"],
+    "claim": "This fixture locks source-derived geometry, timing, and traces. It is not evidence of completed visual parity."
+  }
+}
