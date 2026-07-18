@@ -474,6 +474,14 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
         }
     }
 
+    func stageSnapshot(resourceID: String? = nil) -> [String: Any]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let resourceID else { return stageSnapshot }
+        guard Self.validIdentifier(resourceID) else { return nil }
+        return Self.filteredStageSnapshot(stageSnapshot, resourceID: resourceID)
+    }
+
     func activeHostSnapshots() -> [(host: AOSDesktopWorldDevToolsHost, snapshot: [String: Any])] {
         lock.lock()
         defer { lock.unlock() }
@@ -585,6 +593,60 @@ final class AOSDesktopWorldDevToolsSessionRegistry {
             "events": [],
             "lastError": NSNull(),
         ]
+    }
+
+    private static func filteredStageSnapshot(_ stage: [String: Any], resourceID: String) -> [String: Any]? {
+        guard var world = stage["world"] as? [String: Any],
+              let allResources = stage["resources"] as? [[String: Any]],
+              let interactions = stage["interactions"] as? [[String: Any]],
+              let events = stage["events"] as? [[String: Any]] else { return nil }
+        let resources = allResources.filter { $0["id"] as? String == resourceID }
+        guard resources.count == 1 else { return nil }
+        func filtered(_ key: String) -> [[String: Any]] {
+            (world[key] as? [[String: Any]] ?? []).filter { $0["resourceId"] as? String == resourceID }
+        }
+        let nodes = filtered("nodes")
+        let hitRegions = filtered("hitRegions")
+        let affordances = filtered("affordances")
+        let gestures = filtered("gestures")
+        let routes = filtered("routes")
+        let selectedInteractions = interactions.filter { $0["resourceId"] as? String == resourceID }
+        let selectedEvents = events.filter {
+            guard let eventResource = $0["resourceId"] else { return true }
+            return eventResource is NSNull || eventResource as? String == resourceID
+        }
+        world["nodes"] = nodes
+        world["hitRegions"] = hitRegions
+        world["affordances"] = affordances
+        world["gestures"] = gestures
+        world["routes"] = routes
+        var selected = stage
+        selected["world"] = world
+        selected["resources"] = resources
+        selected["interactions"] = selectedInteractions
+        selected["events"] = selectedEvents
+        let resourceErrors = resources.filter { value in
+            guard let error = value["errorCode"] else { return false }
+            return !(error is NSNull)
+        }.count
+        let interactionErrors = selectedInteractions.filter { value in
+            guard let error = value["errorCode"] else { return false }
+            return !(error is NSNull)
+        }.count
+        selected["counters"] = [
+            "displays": (world["displays"] as? [Any])?.count ?? 0,
+            "resources": resources.count,
+            "nodes": nodes.count,
+            "hitRegions": hitRegions.count,
+            "affordances": affordances.count,
+            "activeGestures": gestures.filter {
+                guard let phase = $0["phase"] as? String else { return false }
+                return phase != "end" && phase != "cancel"
+            }.count,
+            "activeRoutes": routes.filter { $0["active"] as? Bool == true }.count,
+            "errors": resourceErrors + interactionErrors,
+        ]
+        return selected
     }
 
     private static func validToken(_ value: String, limit: Int) -> Bool {

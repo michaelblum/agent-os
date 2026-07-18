@@ -124,6 +124,10 @@ let canonical = registry.snapshot(sessionID: first.id)!
 let stage = canonical["stage"] as! [String: Any]
 require(stage["transcript"] == nil, "unknown renderer content crossed the daemon boundary")
 require((canonical["contract"] as? String) == aosDesktopWorldDevToolsSnapshotContract, "session snapshot contract mismatch")
+let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
+let selectedResources = selectedStage["resources"] as! [[String: Any]]
+require(selectedResources.count == 1 && selectedResources[0]["id"] as? String == "companion/main", "resource snapshot was not filtered")
+require(registry.stageSnapshot(resourceID: "missing/resource") == nil, "missing resource snapshot did not fail closed")
 
 var oversized = stageSnapshot()
 var world = oversized["world"] as! [String: Any]

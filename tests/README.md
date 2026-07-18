@@ -199,6 +199,9 @@ the repo AOS binary or require TCC:
 bash tests/daemon-desktop-world-devtools-session.sh
 node --test \
   tests/daemon-desktop-world-devtools-contract.test.mjs \
+  tests/scene-agent-tooling-cli.test.mjs \
+  tests/schemas/desktop-world-scene-tooling.test.mjs \
+  tests/toolkit/desktop-world-client.test.mjs \
   tests/toolkit/desktop-world-devtools-model.test.mjs \
   tests/toolkit/desktop-world-devtools-view.test.mjs \
   tests/toolkit/desktop-world-devtools-compat.test.mjs \
@@ -211,7 +214,8 @@ node --test \
 The DevTools session owns one interactive canvas host at a time. Model tests
 must prove revision conflicts, transfer rollback, bounded content-free
 snapshots, disabled instrumentation with no scheduler, and focused historical
-views projected from the same canonical snapshot.
+views projected from the same canonical snapshot. The agent-tooling CLI test
+uses only a temporary fake Unix socket; it must not execute or rebuild `./aos`.
 
 ## Toolkit Radial / Wiki Surface Family
 

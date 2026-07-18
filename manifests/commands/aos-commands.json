@@ -12419,6 +12419,441 @@
           ]
         }
       ]
+    },
+    {
+      "path" : [
+        "scene",
+        "list"
+      ],
+      "summary" : "List bounded DesktopWorld scene resources",
+      "forms" : [
+        {
+          "id" : "scene-list",
+          "usage" : "aos scene list --json",
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit machine-readable resource summaries"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene list --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "inspect"
+      ],
+      "summary" : "Inspect one DesktopWorld scene resource",
+      "forms" : [
+        {
+          "id" : "scene-inspect",
+          "usage" : "aos scene inspect --resource <id> --json",
+          "args" : [
+            {
+              "id" : "resource",
+              "kind" : "flag",
+              "token" : "--resource",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Owner-scoped scene resource identifier"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit a bounded machine-readable snapshot"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene inspect --resource companion/main --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "monitor"
+      ],
+      "summary" : "Follow bounded DesktopWorld snapshots for one resource",
+      "forms" : [
+        {
+          "id" : "scene-monitor",
+          "usage" : "aos scene monitor --resource <id> --follow --json",
+          "args" : [
+            {
+              "id" : "resource",
+              "kind" : "flag",
+              "token" : "--resource",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Owner-scoped scene resource identifier"
+            },
+            {
+              "id" : "follow",
+              "kind" : "flag",
+              "token" : "--follow",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Keep the connection-scoped monitor active"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit NDJSON snapshots"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "ndjson",
+            "error_mode" : "json_stderr",
+            "streaming" : true,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : true,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene monitor --resource companion/main --follow --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "perf"
+      ],
+      "summary" : "Read DesktopWorld render performance for one resource",
+      "forms" : [
+        {
+          "id" : "scene-perf",
+          "usage" : "aos scene perf --resource <id> --json",
+          "args" : [
+            {
+              "id" : "resource",
+              "kind" : "flag",
+              "token" : "--resource",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Owner-scoped scene resource identifier"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit machine-readable performance facts"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene perf --resource companion/main --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "replay"
+      ],
+      "summary" : "Replay a deterministic scene event fixture without live input",
+      "forms" : [
+        {
+          "id" : "scene-replay",
+          "usage" : "aos scene replay --events <fixture.ndjson> --json",
+          "args" : [
+            {
+              "id" : "events",
+              "kind" : "flag",
+              "token" : "--events",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "Local NDJSON scene-event fixture"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit a content-free replay summary"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene replay --events ./fixtures/aim-commit.ndjson --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "devtools",
+        "open"
+      ],
+      "summary" : "Open an AOS-owned detachable DesktopWorld inspector",
+      "forms" : [
+        {
+          "id" : "scene-devtools-open",
+          "usage" : "aos scene devtools open [--resource <id>] --json",
+          "args" : [
+            {
+              "id" : "resource",
+              "kind" : "flag",
+              "token" : "--resource",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Initial selected scene resource"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit the created session snapshot"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene devtools open --resource companion/main --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "devtools",
+        "status"
+      ],
+      "summary" : "Read AOS-owned DesktopWorld inspector sessions",
+      "forms" : [
+        {
+          "id" : "scene-devtools-status",
+          "usage" : "aos scene devtools status [--session <id>] --json",
+          "args" : [
+            {
+              "id" : "session",
+              "kind" : "flag",
+              "token" : "--session",
+              "value_type" : "string",
+              "required" : false,
+              "summary" : "Specific DevTools session identifier"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit machine-readable session state"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene devtools status --json"
+          ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "scene",
+        "devtools",
+        "close"
+      ],
+      "summary" : "Close one AOS-owned DesktopWorld inspector session",
+      "forms" : [
+        {
+          "id" : "scene-devtools-close",
+          "usage" : "aos scene devtools close --session <id> --json",
+          "args" : [
+            {
+              "id" : "session",
+              "kind" : "flag",
+              "token" : "--session",
+              "value_type" : "string",
+              "required" : true,
+              "summary" : "DevTools session identifier"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "value_type" : "bool",
+              "required" : true,
+              "summary" : "Emit machine-readable cleanup state"
+            }
+          ],
+          "stdin" : {
+            "supported" : false,
+            "content_type" : null,
+            "used_when" : "never"
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "examples" : [
+            "aos scene devtools close --session devtools-example --json"
+          ]
+        }
+      ]
     }
   ],
   "name" : "aos",

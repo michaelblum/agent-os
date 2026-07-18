@@ -45,7 +45,9 @@ stage interactive by default. ADR 0024 owns the 3D outlet boundary.
 DesktopWorld DevTools are AOS-owned toolkit views over a daemon-owned session.
 Consumers may host the public inspector view, but one revisioned AOS host lease
 owns interaction and the stage remains the sole telemetry sampler. ADRs 0026
-and 0027 own the cartridge, engine, DevTools, and host-transfer boundaries.
+and 0027 own the cartridge, engine, DevTools, and host-transfer boundaries. The
+scene package's agent client remains transport-injected; socket discovery,
+daemon startup, and public CLI process lifecycle stay outside the toolkit.
 
 Legacy cross-display transfer outlines are superseded by One-World/union-backed
 surfaces. Do not grow that path. The AOS Surface System epic should replace

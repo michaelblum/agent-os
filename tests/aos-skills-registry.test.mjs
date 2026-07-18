@@ -18,7 +18,7 @@ const repoRoot = path.resolve(__dirname, '..');
 test('root skill registry covers current direct skill packages', async () => {
   const result = await validateSkillRegistry({ repoRoot });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.summary.skills, 22);
+  assert.equal(result.summary.skills, 23);
 
   const byName = new Map(result.skills.map((skill) => [skill.name, skill]));
   const installablePack = [
@@ -27,6 +27,7 @@ test('root skill registry covers current direct skill packages', async () => {
     'aos-command-surface-maintenance',
     'aos-core-orientation',
     'aos-desktop',
+    'aos-desktop-world-authoring',
     'aos-focus-sessions',
     'aos-operator-annotations',
     'aos-recipes',
@@ -76,6 +77,11 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   const desktop = await readFile(path.join(repoRoot, 'skills', 'aos-desktop', 'SKILL.md'), 'utf8');
   assert.match(desktop, /Playwright CLI for desktop/);
   assert.match(desktop, /close\/minimize\/maximize\/restore/);
+
+  const scene = await readFile(path.join(repoRoot, 'skills', 'aos-desktop-world-authoring', 'SKILL.md'), 'utf8');
+  assert.match(scene, /Aim-and-commit/);
+  assert.match(scene, /scene devtools open/);
+  assert.match(scene, /scene replay/);
 
   const verification = await readFile(path.join(repoRoot, 'skills', 'aos-verification', 'SKILL.md'), 'utf8');
   assert.match(verification, /act-recapture-verify/);
@@ -154,7 +160,7 @@ test('CLI emits structured validation JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schema_version, 'aos.skills.validation.v0');
   assert.equal(payload.ok, true);
-  assert.equal(payload.summary.skills, 22);
+  assert.equal(payload.summary.skills, 23);
 });
 
 test('validator rejects unsafe targets, missing durable backing, and untracked body bloat', async () => {

@@ -253,6 +253,7 @@
           "properties": {
             "kind": { "const": "signal_graph" },
             "signals": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Signal" } },
+            "applied": { "type": "boolean" },
             "appliedSignals": { "type": "integer", "minimum": 0, "maximum": 32 },
             "revision": { "type": "integer", "minimum": 0 }
           }

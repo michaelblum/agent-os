@@ -104,6 +104,13 @@ export {
   normalizeDesktopWorldDevToolsStageSnapshot,
 } from './desktop-world-devtools.js'
 export { createDesktopWorldDevToolsView } from './desktop-world-devtools-view.js'
+export {
+  DESKTOP_WORLD_SCENE_REPLAY_LIMITS,
+  createDesktopWorldSceneClient,
+  listDesktopWorldResources,
+  replayDesktopWorldSceneEvents,
+  selectDesktopWorldResourceSnapshot,
+} from './desktop-world-client.js'
 
 export { applySceneTransaction } from './scene-transaction.js'
 

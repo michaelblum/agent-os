@@ -2,12 +2,20 @@
 
 import readline from 'node:readline'
 import { randomUUID } from 'node:crypto'
+import { readFile, stat } from 'node:fs/promises'
 import { connectWithAutoStart, stopManagedDaemon } from './lib/aos-daemon-client.mjs'
 import { loadSceneCartridge } from './lib/aos-scene-cartridge.mjs'
+import { connectSceneDaemon, installSceneProcessLifecycle } from './lib/aos-scene-daemon.mjs'
+import {
+  createDesktopWorldSceneClient,
+  replayDesktopWorldSceneEvents,
+  selectDesktopWorldResourceSnapshot,
+} from '../packages/toolkit/scene/desktop-world-client.js'
 
 const MAX_INPUT_LINE_BYTES = 2 * 1024 * 1024
 const MAX_OUTPUT_LINE_BYTES = 64 * 1024
 const MAX_STDERR_BYTES = 32 * 1024
+const MAX_REPLAY_BYTES = 16 * 1024 * 1024
 const ALLOWED_OPERATIONS = new Set(['mount', 'transact', 'signal', 'play', 'suspend', 'resume', 'inspect', 'remove', 'close', 'subscribe', 'unsubscribe'])
 const ALLOWED_SCENE_EVENTS = new Set(['gesture'])
 
@@ -54,6 +62,68 @@ function parseCartridgeArgs(args) {
   return { directory: positional[0], json }
 }
 
+function validateResource(value) {
+  if (!/^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u.test(value ?? '') || value.length > 128) {
+    fail('INVALID_SCENE_RESOURCE', 'scene resource is invalid')
+  }
+  return value
+}
+
+function parseToolArgs(args) {
+  const command = args[0]
+  const tail = args.slice(1)
+  const json = tail.includes('--json')
+  if (tail.filter((value) => value === '--json').length > 1) fail('DUPLICATE_FLAG', '--json may be supplied once')
+  const withoutJson = tail.filter((value) => value !== '--json')
+  if (['list', 'inspect', 'monitor', 'perf', 'replay', 'devtools'].includes(command) && !json) {
+    fail('MISSING_ARG', `scene ${command} requires --json`)
+  }
+  if (command === 'list') {
+    if (withoutJson.length > 0) fail('UNKNOWN_FLAG', 'scene list accepts only --json')
+    return { command, json }
+  }
+  if (['inspect', 'perf', 'monitor'].includes(command)) {
+    const allowed = command === 'monitor' ? new Set(['--resource', '--follow']) : new Set(['--resource'])
+    for (let index = 0; index < withoutJson.length; index += 1) {
+      const token = withoutJson[index]
+      if (!allowed.has(token)) fail('UNKNOWN_FLAG', `Unknown ${command} flag: ${token}`)
+      if (token !== '--follow') index += 1
+    }
+    const resourceFlags = withoutJson.filter((value) => value === '--resource').length
+    if (resourceFlags === 0) fail('MISSING_ARG', `${command} requires --resource`)
+    if (resourceFlags > 1) fail('DUPLICATE_FLAG', '--resource may be supplied once')
+    if (command === 'monitor' && !withoutJson.includes('--follow')) fail('MISSING_ARG', 'scene monitor requires --follow')
+    return { command, json, resource: validateResource(valueAfter(withoutJson, '--resource')) }
+  }
+  if (command === 'replay') {
+    for (let index = 0; index < withoutJson.length; index += 2) {
+      if (withoutJson[index] !== '--events') fail('UNKNOWN_FLAG', `Unknown replay flag: ${withoutJson[index]}`)
+    }
+    const eventFlags = withoutJson.filter((value) => value === '--events').length
+    if (eventFlags === 0) fail('MISSING_ARG', 'replay requires --events')
+    if (eventFlags > 1) fail('DUPLICATE_FLAG', '--events may be supplied once')
+    return { command, json, events: valueAfter(withoutJson, '--events') }
+  }
+  if (command === 'devtools') {
+    const action = withoutJson[0]
+    const rest = withoutJson.slice(1)
+    if (!['open', 'status', 'close'].includes(action)) fail('UNKNOWN_SUBCOMMAND', 'scene devtools requires open, status, or close')
+    const allowed = action === 'open' ? new Set(['--resource']) : action === 'status' ? new Set(['--session']) : new Set(['--session'])
+    for (let index = 0; index < rest.length; index += 2) {
+      if (!allowed.has(rest[index])) fail('UNKNOWN_FLAG', `Unknown scene devtools flag: ${rest[index]}`)
+    }
+    if (rest.filter((value) => value === '--resource').length > 1 || rest.filter((value) => value === '--session').length > 1) {
+      fail('DUPLICATE_FLAG', 'scene devtools flags may be supplied once')
+    }
+    const resource = action === 'open' && rest.includes('--resource') ? validateResource(valueAfter(rest, '--resource')) : null
+    const session = rest.includes('--session') ? valueAfter(rest, '--session') : null
+    if (session != null && !/^[a-z0-9][a-z0-9._-]{0,127}$/u.test(session)) fail('INVALID_DEVTOOLS_SESSION', 'DesktopWorld DevTools session identifier is invalid')
+    if (action === 'close' && session == null) fail('MISSING_ARG', 'scene devtools close requires --session')
+    return { command, action, json, resource, session }
+  }
+  return null
+}
+
 function safeError(error) {
   return JSON.stringify({ code: error?.code ?? 'SCENE_TRANSPORT_FAILED', error: error?.message ?? 'scene transport failed' })
 }
@@ -85,6 +155,78 @@ async function runCartridgeValidate(args) {
   } else {
     process.stdout.write(`valid=true id=${loaded.summary.id} revision=${loaded.summary.revision} digest=${loaded.summary.digest}\n`)
   }
+}
+
+function writeToolResult(value, json, label = 'status') {
+  if (json) process.stdout.write(`${JSON.stringify(value)}\n`)
+  else process.stdout.write(`${label}=ok\n`)
+}
+
+async function withSceneClient(callback, onEvent = () => {}) {
+  const abort = new AbortController()
+  const removeLifecycle = installSceneProcessLifecycle(abort)
+  let transport = null
+  try {
+    transport = await connectSceneDaemon({ signal: abort.signal, onEvent })
+    const client = createDesktopWorldSceneClient({
+      request: (request) => transport.request(request),
+      subscribe: (request) => transport.request(request),
+    })
+    return await callback(client, transport, abort)
+  } finally {
+    removeLifecycle()
+    await transport?.close()
+  }
+}
+
+async function readReplayEvents(file) {
+  let details
+  try { details = await stat(file) }
+  catch { fail('SCENE_REPLAY_UNAVAILABLE', 'Scene replay fixture is unavailable') }
+  if (!details.isFile() || details.size > MAX_REPLAY_BYTES) fail('SCENE_REPLAY_LIMIT_EXCEEDED', 'Scene replay fixture exceeds the input budget')
+  const input = await readFile(file, 'utf8')
+  const events = []
+  for (const line of input.split(/\r?\n/u)) {
+    if (!line.trim()) continue
+    if (Buffer.byteLength(line) > MAX_OUTPUT_LINE_BYTES) fail('SCENE_REPLAY_LINE_TOO_LARGE', 'Scene replay event exceeds the line budget')
+    try { events.push(JSON.parse(line)) }
+    catch { fail('INVALID_SCENE_REPLAY_EVENT', 'Scene replay fixture contains malformed JSON') }
+  }
+  return events
+}
+
+async function runToolCommand(options) {
+  if (options.command === 'replay') {
+    writeToolResult(replayDesktopWorldSceneEvents(await readReplayEvents(options.events)), options.json, 'replay')
+    return
+  }
+  if (options.command === 'monitor') {
+    let resource = options.resource
+    await withSceneClient(async (client, transport, abort) => {
+      await client.monitor(resource, { follow: true })
+      const error = await transport.closed
+      if (error && !abort.signal.aborted) throw error
+    }, (payload, socket) => {
+      if (payload.service !== 'scene' || payload.event !== 'monitor' || payload.data?.resource !== resource) return
+      const snapshot = selectDesktopWorldResourceSnapshot(payload.data.snapshot, resource)
+      if (!process.stdout.write(`${JSON.stringify({ ...payload, data: { resource, snapshot } })}\n`)) {
+        socket.pause()
+        process.stdout.once('drain', () => socket.resume())
+      }
+    })
+    return
+  }
+  await withSceneClient(async (client) => {
+    let result
+    if (options.command === 'list') result = await client.list()
+    else if (options.command === 'inspect') result = await client.inspect(options.resource)
+    else if (options.command === 'perf') result = await client.perf(options.resource)
+    else if (options.command === 'devtools' && options.action === 'open') result = await client.devtools.open({ resource: options.resource })
+    else if (options.command === 'devtools' && options.action === 'status') result = await client.devtools.status(options.session)
+    else if (options.command === 'devtools' && options.action === 'close') result = await client.devtools.close(options.session)
+    else fail('UNKNOWN_SUBCOMMAND', 'Unknown scene command')
+    writeToolResult(result, options.json, options.action ?? options.command)
+  })
 }
 
 async function runSceneFollow(args) {
@@ -206,6 +348,8 @@ async function runSceneFollow(args) {
 async function main() {
   const args = process.argv.slice(2)
   if (args[0] === 'cartridge') return runCartridgeValidate(args)
+  const tool = parseToolArgs(args)
+  if (tool) return runToolCommand(tool)
   return runSceneFollow(args)
 }
 

@@ -116,5 +116,5 @@ test('annotation event vocabulary is strict across desktop selection lifecycle',
 test('scene event vocabulary is strict across results and subscribed gestures', async () => {
   const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
   const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'scene' && !item.if?.properties?.event);
-  assert.deepEqual(rule.then.properties.event.enum, ['result', 'gesture']);
+  assert.deepEqual(rule.then.properties.event.enum, ['result', 'gesture', 'monitor']);
 });

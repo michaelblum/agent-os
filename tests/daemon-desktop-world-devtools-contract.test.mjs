@@ -11,7 +11,7 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   const unified = read('src/daemon/unified.swift')
 
   assert.match(unified, /case "desktop_world_stage\.devtools\.snapshot":\s*if canvasID == self\.sceneStageCanvasID/)
-  for (const action of ['devtools_open', 'devtools_status', 'devtools_update', 'devtools_transfer', 'devtools_close']) {
+  for (const action of ['devtools_open', 'devtools_status', 'devtools_update', 'devtools_transfer', 'devtools_close', 'devtools_monitor']) {
     assert.match(unified, new RegExp(`case \\(\\"scene\\", \\"${action}\\"\\)`))
   }
   assert.match(unified, /mutateDesktopWorldDevToolsCanvas[\s\S]*canvasManager\.hasCanvas\(self\.sceneStageCanvasID\)/)
@@ -19,6 +19,11 @@ test('daemon routes bounded stage snapshots and every revisioned session action'
   assert.match(unified, /aos:\/\/toolkit\/components\/desktop-world-devtools\/index\.html/)
   assert.match(unified, /closeDesktopWorldDevToolsSessionHosts/)
   assert.match(unified, /state\.ownedPanelIDs where panelID != state\.host\?\.id/)
+  assert.match(unified, /json\["headless"\] as\? Bool == true/)
+  assert.match(unified, /let enabled = configuration\.enabled \|\| hasMonitor/)
+  assert.match(unified, /let hadSceneMonitor = subscribers\[connectionID\]\?\.sceneMonitorResource != nil/)
+  assert.match(unified, /guard connection\.sceneMonitorReady/)
+  assert.match(unified, /event: "monitor"/)
 })
 
 test('stock panel closes before first telemetry and declares no status-item owner', () => {

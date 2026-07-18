@@ -189,6 +189,9 @@ class UnifiedDaemon {
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
         var wantsInputEvents: Bool
+        var sceneMonitorResource: String?
+        var sceneMonitorRef: String?
+        var sceneMonitorReady: Bool
     }
 
     struct CanvasPerceptionChannel {
@@ -2521,7 +2524,10 @@ class UnifiedDaemon {
             outbound: outbound,
             perceptionChannelIDs: [],
             isSubscribed: false,
-            wantsInputEvents: false
+            wantsInputEvents: false,
+            sceneMonitorResource: nil,
+            sceneMonitorRef: nil,
+            sceneMonitorReady: false
         )
         subscriberLock.unlock()
 
@@ -2530,12 +2536,14 @@ class UnifiedDaemon {
             annotationSelection.connectionClosed(connectionID)
             cleanupSceneLeases(connectionID)
             subscriberLock.lock()
+            let hadSceneMonitor = subscribers[connectionID]?.sceneMonitorResource != nil
             if let conn = subscribers[connectionID] {
                 perception.attention.removeChannels(conn.perceptionChannelIDs)
             }
             subscribers.removeValue(forKey: connectionID)
             activeConnections.remove(connectionID)
             subscriberLock.unlock()
+            if hadSceneMonitor { _ = configureDesktopWorldDevToolsStage() }
 
             // Clean up connection-scoped canvases on main thread
             DispatchQueue.main.async { [weak self] in
@@ -2705,6 +2713,7 @@ class UnifiedDaemon {
         guard let snapshot = payload["snapshot"] as? [String: Any],
               desktopWorldDevTools.recordStageSnapshot(snapshot) else { return }
         publishDesktopWorldDevToolsSnapshots()
+        publishDesktopWorldSceneMonitorSnapshots()
     }
 
     private func publishDesktopWorldDevToolsSnapshots(hostID: String? = nil) {
@@ -2719,29 +2728,86 @@ class UnifiedDaemon {
 
     private func configureDesktopWorldDevToolsStage() -> Bool {
         let configuration = desktopWorldDevTools.instrumentationConfiguration()
+        subscriberLock.lock()
+        let hasMonitor = subscribers.values.contains(where: { $0.sceneMonitorResource != nil })
+        subscriberLock.unlock()
+        let enabled = configuration.enabled || hasMonitor
         var stageExists = mutateDesktopWorldDevToolsCanvas { [weak self] in
             guard let self else { return false }
             return self.canvasManager.hasCanvas(self.sceneStageCanvasID)
         }
-        if configuration.enabled && !stageExists {
+        if enabled && !stageExists {
             guard !Thread.isMainThread, ensureSceneStage() else { return false }
             stageExists = true
         }
-        if !configuration.enabled && !stageExists { return true }
+        if !enabled && !stageExists { return true }
         canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
             "type": "desktop_world_stage.devtools.configure",
             "payload": [
-                "enabled": configuration.enabled,
+                "enabled": enabled,
                 "recording": configuration.recording,
             ],
         ])
-        if configuration.enabled {
+        if enabled {
             canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
                 "type": "desktop_world_stage.devtools.request",
                 "payload": [:],
             ])
         }
         return true
+    }
+
+    private func publishDesktopWorldSceneMonitorSnapshots() {
+        subscriberLock.lock()
+        let monitors = subscribers.compactMap { _, connection -> (AOSConnectionOutboundWriter, String, String?)? in
+            guard connection.sceneMonitorReady,
+                  let resource = connection.sceneMonitorResource else { return nil }
+            return (connection.outbound, resource, connection.sceneMonitorRef)
+        }
+        subscriberLock.unlock()
+        for (outbound, resource, ref) in monitors {
+            guard let snapshot = desktopWorldDevTools.stageSnapshot(resourceID: resource),
+                  let bytes = envelopeBytes(
+                    service: "scene",
+                    event: "monitor",
+                    data: ["resource": resource, "snapshot": snapshot],
+                    ref: ref
+                  ) else { continue }
+            outbound.enqueue(bytes)
+        }
+    }
+
+    private func handleDesktopWorldSceneMonitor(
+        json: [String: Any],
+        connectionID: UUID,
+        outbound: AOSConnectionOutboundWriter,
+        envelopeActive: Bool,
+        envelopeRef: String?
+    ) {
+        guard let resource = json["resource"] as? String,
+              validSceneIdentifier(resource, allowSlash: true) else {
+            sendResponseJSON(to: outbound, ["error": "Invalid DesktopWorld resource", "code": "INVALID_SCENE_RESOURCE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        subscriberLock.lock()
+        subscribers[connectionID]?.sceneMonitorResource = resource
+        subscribers[connectionID]?.sceneMonitorRef = envelopeRef
+        subscribers[connectionID]?.sceneMonitorReady = false
+        subscriberLock.unlock()
+        guard configureDesktopWorldDevToolsStage() else {
+            subscriberLock.lock()
+            subscribers[connectionID]?.sceneMonitorResource = nil
+            subscribers[connectionID]?.sceneMonitorRef = nil
+            subscribers[connectionID]?.sceneMonitorReady = false
+            subscriberLock.unlock()
+            sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        sendResponseJSON(to: outbound, ["status": "ok", "resource": resource, "following": true], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+        subscriberLock.lock()
+        subscribers[connectionID]?.sceneMonitorReady = true
+        subscriberLock.unlock()
+        publishDesktopWorldSceneMonitorSnapshots()
     }
 
     private func desktopWorldDevToolsHost(_ value: Any?) -> AOSDesktopWorldDevToolsHost? {
@@ -3036,6 +3102,16 @@ class UnifiedDaemon {
                 sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
+            if json["headless"] as? Bool == true {
+                guard !json.keys.contains("host") else {
+                    _ = desktopWorldDevTools.close(sessionID: state.id)
+                    _ = configureDesktopWorldDevToolsStage()
+                    sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                    return
+                }
+                sendDesktopWorldDevToolsMutation(.success(state), outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
             let fallback = AOSDesktopWorldDevToolsHost(kind: .panel, id: "aos-desktop-world-devtools-\(state.id)")
             let host: AOSDesktopWorldDevToolsHost
             if json.keys.contains("host") {
@@ -3312,6 +3388,7 @@ class UnifiedDaemon {
         case ("scene", "devtools_update"):    return "scene-devtools-update"
         case ("scene", "devtools_transfer"):  return "scene-devtools-transfer"
         case ("scene", "devtools_close"):     return "scene-devtools-close"
+        case ("scene", "devtools_monitor"):   return "scene-devtools-monitor"
         case ("system", "ping"):              return "ping"
         // Content server actions
         case ("content", "status"):           return "content_status"
@@ -3466,6 +3543,15 @@ class UnifiedDaemon {
             handleDesktopWorldDevToolsCommand(
                 action: action,
                 json: json,
+                outbound: outbound,
+                envelopeActive: envelopeActive,
+                envelopeRef: envelopeRef
+            )
+
+        case "scene-devtools-monitor":
+            handleDesktopWorldSceneMonitor(
+                json: json,
+                connectionID: connectionID,
                 outbound: outbound,
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
