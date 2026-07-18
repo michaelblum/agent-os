@@ -2668,10 +2668,13 @@ class UnifiedDaemon {
             }
             var request = CanvasRequest(action: "create", id: self.sceneStageCanvasID)
             request.url = self.resolveContentURL("aos://toolkit/components/desktop-world-stage/index.html")
-            request.track = "union"
+            request.surface = "desktop-world"
             request.interactive = false
             request.scope = "global"
             request.cascade = false
+            // DesktopWorld windows span every display. Keep them hidden until
+            // the toolkit manifest follows transparent renderer initialization.
+            request.suspended = true
             available = self.canvasManager.handle(request).status == "success"
             semaphore.signal()
         }
@@ -2681,7 +2684,18 @@ class UnifiedDaemon {
         while Date() < deadline {
             if let manifest = readyManifest(for: sceneStageCanvasID),
                manifest["name"] as? String == "desktop-world-stage" {
-                return true
+                let resumeSemaphore = DispatchSemaphore(value: 0)
+                var resumed = false
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { resumeSemaphore.signal(); return }
+                    resumed = self.canvasManager.handle(CanvasRequest(
+                        action: "resume",
+                        id: self.sceneStageCanvasID
+                    )).status == "success"
+                    resumeSemaphore.signal()
+                }
+                resumeSemaphore.wait()
+                return resumed
             }
             usleep(20_000)
         }

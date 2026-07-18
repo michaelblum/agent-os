@@ -14,6 +14,8 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   ])
   assert.match(outlet, /new THREE\.WebGLRenderer/u)
   assert.equal((outlet.match(/new THREE\.WebGLRenderer/gu) ?? []).length, 1)
+  assert.match(outlet, /renderer\.setClearColor\(0x000000, 0\)/u)
+  assert.match(outlet, /renderer\.setSize\(width, height, false\)[\s\S]*renderer\.clear\(true, true, true\)/u)
   assert.match(outlet, /new THREE\.OrthographicCamera/u)
   assert.doesNotMatch(outlet, /new THREE\.PerspectiveCamera/u)
   assert.match(outlet, /deriveOrthoCamera\(nextSegment\)/u)

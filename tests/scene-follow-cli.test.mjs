@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -59,4 +59,25 @@ test('scene follow rejects invalid stage before opening a socket', async () => {
   const result = await output.exit
   assert.equal(result.code, 1)
   assert.match(output.stderr(), /INVALID_STAGE/u)
+})
+
+test('scene-follow keeps the full-display stage hidden until its manifest is ready', async () => {
+  const source = await readFile(new URL('../src/daemon/unified.swift', import.meta.url), 'utf8')
+  const start = source.indexOf('private func ensureSceneStage() -> Bool')
+  const end = source.indexOf('\n    private func handleSceneFollow(', start)
+  assert.notEqual(start, -1, 'ensureSceneStage is missing')
+  assert.notEqual(end, -1, 'handleSceneFollow boundary is missing')
+  const body = source.slice(start, end)
+  const create = body.indexOf('CanvasRequest(action: "create"')
+  const hidden = body.indexOf('request.suspended = true')
+  const manifest = body.indexOf('manifest["name"] as? String == "desktop-world-stage"')
+  const resume = body.indexOf('CanvasRequest(\n                        action: "resume"')
+
+  assert.ok(create >= 0, 'scene stage create request is missing')
+  assert.ok(hidden > create, 'scene stage must be born hidden')
+  assert.ok(manifest > hidden, 'scene stage readiness must follow hidden creation')
+  assert.ok(resume > manifest, 'scene stage must resume only after manifest readiness')
+  assert.match(body, /request\.surface = "desktop-world"/u)
+  assert.doesNotMatch(body, /request\.track = "union"/u)
+  assert.match(body, /return resumed/u)
 })

@@ -11,6 +11,9 @@ delivery, voice/communication routing, and cleanup.
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.
+The singleton full-display stage must be created hidden and resume only after
+its ready manifest follows transparent renderer initialization. Readiness
+failure leaves the stage hidden.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as
