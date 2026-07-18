@@ -15,6 +15,7 @@ const MAX_SIGNALS_PER_SECOND = 30
 export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = window } = {}) {
   if (!canvas) throw new TypeError('DesktopWorld scene outlet requires a canvas.')
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas, powerPreference: 'low-power' })
+  renderer.setClearColor(0x000000, 0)
   const scene = new THREE.Scene()
   const camera = new THREE.OrthographicCamera(0, 1, 0, 1, -1000, 1000)
   camera.position.set(0, 0, 7)
@@ -50,6 +51,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     const dpr = Math.min(2, Math.max(1, hostWindow.devicePixelRatio || 1))
     renderer.setPixelRatio(dpr)
     renderer.setSize(width, height, false)
+    renderer.clear(true, true, true)
     camera.aspect = width / height
     camera.updateProjectionMatrix()
   }
