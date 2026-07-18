@@ -19,6 +19,8 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
       type: 'desktop_world_stage.scene.operation',
       payload: {
         lease_key: key,
+        owner: previous.configuration?.owner,
+        resource: previous.configuration?.resource,
         operation: { op: 'mount', document: previous.document },
       },
     })

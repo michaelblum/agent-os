@@ -18,6 +18,11 @@ connection handler.
 The singleton full-display stage must be created hidden and resume only after
 its ready manifest follows transparent renderer initialization. Readiness
 failure leaves the stage hidden.
+`desktop-world-devtools-session.swift` owns revisioned inspector state,
+exclusive canvas host leases, bounded canonical stage snapshots, and recording
+admission. Host transfer reserves, suspends, activates, and commits in that
+order; failure restores the previous host. The daemon may create the stock AOS
+panel but owns no DevTools layout or product policy.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as

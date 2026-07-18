@@ -59,6 +59,9 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldSceneHost,
+  createDesktopWorldDevToolsStageProbe,
+  createDesktopWorldDevToolsView,
+  createDesktopWorldGpuTimer,
   createSceneAnimationController,
   createSceneInteractionController,
   createSceneInteractionVisualController,
@@ -68,9 +71,11 @@ import {
   createSceneSignalController,
   createThreeRenderLifecycle,
   createVisualObjectDescriptor,
+  buildDesktopWorldMinimapLayout,
   bindVisualObjectForm,
   validateSceneTransaction,
   validateSceneInteractionDocument,
+  normalizeDesktopWorldDevToolsSnapshot,
 } from '@agent-os/toolkit/scene'
 ```
 
@@ -181,6 +186,41 @@ coalesces pointer updates at that cadence, and disposes every pooled GPU
 resource with the mounted scene. The same global route appears continuously
 across display segments because each segment projects the same DesktopWorld
 coordinates through its own clipped orthographic camera.
+
+## DesktopWorld DevTools
+
+`createDesktopWorldDevToolsStageProbe()` projects the existing DesktopWorld
+render loop into `aos.desktop-world.devtools.stage.v1`. It reports bounded
+display, node, hit-region, affordance, gesture, route, resource, interaction,
+performance, event, counter, and last-error facts. Unknown fields are removed
+at the daemon boundary; text, prompts, audio, scene parameters, and desktop
+content are not part of the snapshot.
+
+The probe owns no scheduler. When disabled, `sampleFrame()` and event recording
+perform no stage read and retain no samples. When enabled but not recording,
+frame samples are throttled to 500 ms and snapshots to 2 Hz. Recording samples
+through the existing stage frame and remains capped at 240 performance samples
+and 256 events. `createDesktopWorldGpuTimer()` uses the platform timer-query
+extension when available, reuses a four-query pool, and reports unavailable
+GPU timing as `null`; the stage creates it only while recording and disposes it
+on stop, context loss, or teardown.
+
+`normalizeDesktopWorldDevToolsSnapshot()` validates the revisioned daemon
+envelope. `buildDesktopWorldMinimapLayout()` maps the canonical multi-display
+world, nodes, and hit regions into a bounded viewport. The host-neutral
+`createDesktopWorldDevToolsView()` renders World, Resources, Interactions,
+Performance, and Events tabs without creating a timer or animation frame.
+
+The daemon owns `DesktopWorldDevToolsSession` state and one interactive host
+lease. A detached AOS panel and an external consumer host use the same view and
+snapshot. Host transfer suspends the prior view before activating the next;
+consumers do not own the telemetry implementation. The focused historical
+Render Performance, Spatial Telemetry, and Surface Inspector panels consume
+compatibility projections of this same snapshot.
+
+Agent-facing scene inspection, monitoring, replay, and DevTools commands are
+documented with their command manifests when that tooling is installed; the
+package model itself never starts the daemon or opens a panel.
 
 ## Implementations, Animation, Signals, And Hosts
 

@@ -5,6 +5,7 @@ import { createVisualObjectDescriptor } from '../../workbench/visual-object-cont
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
+import { createDesktopWorldDevToolsStageProbe } from '../../scene/desktop-world-devtools.js'
 import { registerInputRegion, removeInputRegion, updateInputRegion } from '../../runtime/input-region.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
 import {
@@ -25,6 +26,8 @@ const canvasId = window.__aosSurfaceCanvasId || window.__aosCanvasId || 'aos-des
 const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
 const sceneOutlet = createDesktopWorldSceneOutlet({ canvas: sceneCanvas })
+let sceneInteractions = null
+let lastSceneError = null
 
 function sceneTopologySnapshot() {
   return {
@@ -36,7 +39,44 @@ function sceneTopologySnapshot() {
   }
 }
 
-const sceneInteractions = createDesktopWorldSceneInteractionRuntime({
+const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
+  emit: (snapshot) => {
+    if (surface.isPrimary) emit('desktop_world_stage.devtools.snapshot', { snapshot })
+  },
+  getStageFacts: () => {
+    const outlet = sceneOutlet.devtoolsSnapshot()
+    const interaction = sceneInteractions?.devtoolsSnapshot() ?? {
+      affordances: [],
+      gestures: [],
+      hitRegions: [],
+      interactions: [],
+    }
+    const interactionCountByResource = new Map()
+    for (const entry of interaction.interactions) {
+      interactionCountByResource.set(entry.resourceId, (interactionCountByResource.get(entry.resourceId) ?? 0) + 1)
+    }
+    return {
+      interactions: interaction.interactions,
+      lastError: lastSceneError,
+      resources: outlet.resources.map((entry) => ({
+        ...entry,
+        interactionCount: interactionCountByResource.get(entry.id) ?? 0,
+      })),
+      status: 'available',
+      world: {
+        affordances: interaction.affordances,
+        displays: sceneTopologySnapshot().displays,
+        gestures: interaction.gestures,
+        hitRegions: interaction.hitRegions,
+        nodes: outlet.nodes,
+        routes: outlet.routes,
+      },
+    }
+  },
+})
+sceneOutlet.setDevToolsProbe(devtoolsProbe)
+
+sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   stageCanvasId: canvasId,
   outlet: sceneOutlet,
   registerRegion: registerInputRegion,
@@ -45,7 +85,14 @@ const sceneInteractions = createDesktopWorldSceneInteractionRuntime({
   isPrimary: () => surface.isPrimary,
   topology: sceneTopologySnapshot,
   scheduleFrame: (callback) => window.requestAnimationFrame(() => callback()),
-  emitEvent: (payload) => emit('desktop_world_stage.scene.event', payload),
+  emitEvent: (payload) => {
+    emit('desktop_world_stage.scene.event', payload)
+    devtoolsProbe.recordEvent({
+      code: payload.event?.gesture?.cancellationReason ?? null,
+      kind: `gesture.${payload.event?.gesture?.phase ?? 'unknown'}`,
+      resourceId: payload.event?.resourceId ?? null,
+    })
+  },
 })
 const sceneOperations = createDesktopWorldSceneOperationCoordinator({
   outlet: sceneOutlet,
@@ -175,6 +222,8 @@ declareManifest({
     'desktop_world_stage.clear',
     'desktop_world_stage.scene.operation',
     'desktop_world_stage.scene.release',
+    'desktop_world_stage.devtools.configure',
+    'desktop_world_stage.devtools.request',
     'input_region.event',
   ],
   emits: [
@@ -182,6 +231,7 @@ declareManifest({
     'canvas_object.registry',
     'desktop_world_stage.scene.event',
     'desktop_world_stage.scene.result',
+    'desktop_world_stage.devtools.snapshot',
     'input_region.register',
     'input_region.update',
     'input_region.remove',
@@ -206,14 +256,19 @@ async function applySceneMessage(message) {
         snapshot: sceneOutlet.snapshot(),
       })
     }
+    devtoolsProbe.recordEvent({ kind: `scene.${op}`, resourceId: payload.resource ?? null })
+    lastSceneError = null
   } catch (error) {
+    const code = error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED'
+    lastSceneError = { at: Date.now(), code }
+    devtoolsProbe.recordEvent({ code, kind: `scene.${op}.failed`, resourceId: payload.resource ?? null })
     if (surface.isPrimary) {
       emit('desktop_world_stage.scene.result', {
         lease_key: key,
         operation: op,
         resource: payload.resource ?? null,
         status: 'error',
-        code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+        code,
       })
     }
   }
@@ -225,6 +280,15 @@ function enqueueSceneWork(work) {
 }
 
 wireBridge((message) => {
+  if (message?.type === 'desktop_world_stage.devtools.configure') {
+    devtoolsProbe.configure(message.payload)
+    if (message.payload?.enabled === true) devtoolsProbe.emitSnapshot('configured')
+    return
+  }
+  if (message?.type === 'desktop_world_stage.devtools.request') {
+    devtoolsProbe.emitSnapshot('requested')
+    return
+  }
   if (message?.type === 'input_region.event') {
     sceneInteractions.handleInput(message)
     return
@@ -243,6 +307,7 @@ surface.start({
   },
   onTopologyChange: ({ segment }) => {
     sceneOutlet.updateSegment(segment)
+    devtoolsProbe.recordEvent({ kind: 'topology.changed' })
     void enqueueSceneWork(() => sceneInteractions.topologyChanged())
     render()
   },
@@ -253,6 +318,7 @@ surface.start({
 })
 
 window.addEventListener('pagehide', () => {
+  devtoolsProbe.dispose()
   sceneInteractions.cancelAll('stage_disposed')
   void sceneInteractions.dispose()
 }, { once: true })

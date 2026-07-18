@@ -760,6 +760,7 @@ export function createSceneGestureArena({
         affordanceId: affordance.id,
         active: Boolean(session),
         interactionId: session?.winner?.id ?? null,
+        interactionKind: session?.winner ? recognizerKind(session.winner) : null,
         pendingUpdate: Boolean(pendingMove),
         pointerSessionId: session?.input?.captureId ?? session?.input?.capture_id ?? null,
       })

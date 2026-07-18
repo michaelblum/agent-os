@@ -1,0 +1,76 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+html, body, #desktop-world-devtools-root, .aos-panel { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: #151719; color: #f2f4f3; }
+.aos-content { min-height: 0; overflow: hidden; background: #151719; }
+.desktop-world-devtools-view { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-width: 0; }
+
+.dw-toolbar { display: grid; grid-template-columns: minmax(160px, 260px) minmax(160px, 1fr) auto auto; gap: 10px; align-items: end; padding: 10px 12px; border-bottom: 1px solid #353a3d; background: #1c1f21; }
+.dw-toolbar label { display: grid; gap: 4px; min-width: 0; }
+.dw-toolbar label > span { color: #aeb7b7; font-size: 10px; font-weight: 650; text-transform: uppercase; }
+.dw-toolbar select, .dw-toolbar input[type="text"], .dw-toolbar input:not([type]) { width: 100%; min-width: 0; height: 30px; box-sizing: border-box; border: 1px solid #41494c; border-radius: 4px; background: #111315; color: #f2f4f3; padding: 0 8px; }
+.dw-toolbar .dw-record { display: flex; align-items: center; gap: 6px; height: 30px; }
+.dw-toolbar .dw-record span { color: #d6dddd; font-size: 12px; text-transform: none; }
+.dw-icon-command { width: 30px; height: 30px; border: 1px solid #41494c; border-radius: 4px; background: #272c2e; color: #f2f4f3; font-size: 16px; }
+
+.dw-tabs { display: flex; min-height: 34px; border-bottom: 1px solid #353a3d; background: #171a1c; overflow-x: auto; }
+.dw-tabs button { min-width: 86px; border: 0; border-right: 1px solid #2b3032; border-bottom: 2px solid transparent; background: transparent; color: #aeb7b7; font: inherit; font-size: 12px; }
+.dw-tabs button[aria-selected="true"] { border-bottom-color: #54d6c6; color: #ffffff; background: #202527; }
+.dw-tabs button:focus-visible, .dw-icon-command:focus-visible, .dw-row-command:focus-visible { outline: 2px solid #54d6c6; outline-offset: -2px; }
+
+.dw-view { min-height: 0; overflow: auto; }
+.dw-world-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; min-height: 100%; }
+.dw-minimap { min-width: 0; padding: 18px; background: #111315; }
+.dw-minimap svg { display: block; width: 100%; height: auto; max-height: 100%; }
+.dw-display { fill: #202629; stroke: #778184; stroke-width: 1; }
+.dw-minimap text { fill: #b9c2c2; font-size: 11px; }
+.dw-hit-region { fill: rgba(255, 198, 84, 0.08); stroke: #a98235; stroke-width: 1; stroke-dasharray: 4 3; }
+.dw-hit-region.registered { fill: rgba(255, 198, 84, 0.18); stroke: #ffc654; }
+.dw-node { fill: #54d6c6; stroke: #e9fffc; stroke-width: 1; }
+.dw-world-facts { border-left: 1px solid #353a3d; background: #1b1e20; padding: 14px; }
+.dw-world-facts dl, .dw-performance dl { margin: 0; }
+.dw-world-facts dl div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #2f3436; }
+.dw-world-facts dt, .dw-world-facts dd { margin: 0; font-size: 12px; }
+.dw-world-facts dt { color: #aeb7b7; }
+.dw-world-facts h3, .dw-split-tables h2 { margin: 18px 0 8px; font-size: 11px; text-transform: uppercase; color: #dbe1e1; }
+.dw-world-facts ul { list-style: none; margin: 0; padding: 0; }
+.dw-world-facts li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; padding: 5px 0; font-size: 11px; }
+.dw-world-facts li span { overflow: hidden; text-overflow: ellipsis; color: #aeb7b7; }
+.dw-world-facts li em { color: #ffc654; font-style: normal; }
+.dw-world-facts li small { grid-column: 1 / -1; overflow: hidden; color: #778184; text-overflow: ellipsis; }
+
+.dw-table-wrap { width: 100%; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { position: sticky; top: 0; z-index: 1; padding: 8px 10px; background: #24292b; color: #b9c2c2; text-align: left; font-weight: 650; }
+td { padding: 8px 10px; border-bottom: 1px solid #2b3032; vertical-align: top; }
+tbody tr:hover { background: #1d2224; }
+td small { display: block; margin-top: 3px; color: #7f898b; }
+.dw-row-command { border: 0; padding: 0; background: transparent; color: #7ce3d7; font: inherit; text-align: left; }
+.dw-state { color: #9da6a8; }
+.dw-state.active { color: #54d6c6; }
+.dw-split-tables section { border-bottom: 1px solid #353a3d; }
+.dw-split-tables h2 { padding: 0 12px; }
+
+.dw-performance header { display: flex; gap: 14px; align-items: baseline; padding: 14px; border-bottom: 1px solid #353a3d; }
+.dw-performance header span { color: #aeb7b7; font-size: 11px; }
+.dw-health { text-transform: uppercase; font-size: 12px; }
+.dw-health.stable { color: #54d6c6; }
+.dw-health.warn { color: #ffc654; }
+.dw-health.hot { color: #ff6b78; }
+.dw-performance dl { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); }
+.dw-performance dl div { padding: 16px; border-right: 1px solid #2f3436; border-bottom: 1px solid #2f3436; }
+.dw-performance dt { color: #97a1a3; font-size: 10px; text-transform: uppercase; }
+.dw-performance dd { margin: 7px 0 0; color: #ffffff; font: 600 18px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.dw-empty { display: grid; place-items: center; min-height: 180px; color: #889294; font-size: 12px; }
+.dw-muted { color: #7f898b; }
+
+@media (max-width: 720px) {
+  .dw-toolbar { grid-template-columns: 1fr 1fr; }
+  .dw-world-layout { grid-template-columns: 1fr; }
+  .dw-world-facts { border-left: 0; border-top: 1px solid #353a3d; }
+  .dw-performance dl { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
+}

@@ -189,6 +189,30 @@ Examples:
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
 
+## DesktopWorld Scene Engine And DevTools
+
+Use this static family for cartridge, interaction, route, DevTools session,
+host-neutral view, and compatibility-projection changes. It does not execute
+the repo AOS binary or require TCC:
+
+```bash
+bash tests/daemon-desktop-world-devtools-session.sh
+node --test \
+  tests/daemon-desktop-world-devtools-contract.test.mjs \
+  tests/toolkit/desktop-world-devtools-model.test.mjs \
+  tests/toolkit/desktop-world-devtools-view.test.mjs \
+  tests/toolkit/desktop-world-devtools-compat.test.mjs \
+  tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs \
+  tests/toolkit/desktop-world-scene-outlet.test.mjs \
+  tests/toolkit/scene-interaction.test.mjs \
+  tests/toolkit/scene-interaction-visual.test.mjs
+```
+
+The DevTools session owns one interactive canvas host at a time. Model tests
+must prove revision conflicts, transfer rollback, bounded content-free
+snapshots, disabled instrumentation with no scheduler, and focused historical
+views projected from the same canonical snapshot.
+
 ## Toolkit Radial / Wiki Surface Family
 
 Use this focused family when a change touches generic radial-menu projection,
