@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/desktop-world-devtools-stage-v1.schema.json",
+  "title": "AOS DesktopWorld DevTools Stage Snapshot v1",
+  "description": "Content-free bounded engine facts shared by CLI, SDK, and host-neutral DevTools views.",
+  "type": "object",
+  "required": ["contract", "sequence", "status", "world", "resources", "interactions", "performance", "counters", "events", "lastError"],
+  "additionalProperties": false,
+  "properties": {
+    "contract": { "const": "aos.desktop-world.devtools.stage.v1" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "status": { "enum": ["available", "unavailable", "unknown"] },
+    "world": {
+      "type": "object",
+      "required": ["displays", "nodes", "hitRegions", "affordances", "gestures", "routes"],
+      "additionalProperties": false,
+      "properties": {
+        "displays": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/Display" } },
+        "nodes": { "type": "array", "maxItems": 1024, "items": { "$ref": "#/$defs/Node" } },
+        "hitRegions": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/HitRegion" } },
+        "affordances": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Affordance" } },
+        "gestures": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Gesture" } },
+        "routes": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Route" } }
+      }
+    },
+    "resources": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Resource" } },
+    "interactions": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Interaction" } },
+    "performance": { "$ref": "#/$defs/Performance" },
+    "counters": { "$ref": "#/$defs/Counters" },
+    "events": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/Event" } },
+    "lastError": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/LastError" }] }
+  },
+  "$defs": {
+    "Identifier": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "ResourceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$" },
+    "Point2": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "Point3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "Rect": { "type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number", "exclusiveMinimum": 0 }, { "type": "number", "exclusiveMinimum": 0 }], "items": false },
+    "Display": {
+      "type": "object", "required": ["id", "index", "bounds"], "additionalProperties": false,
+      "properties": { "id": { "$ref": "#/$defs/Identifier" }, "index": { "type": "integer", "minimum": 0, "maximum": 31 }, "bounds": { "$ref": "#/$defs/Rect" } }
+    },
+    "Node": {
+      "type": "object", "required": ["id", "resourceId", "parentId", "kind", "implementation", "position", "visible"], "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Identifier" }, "resourceId": { "$ref": "#/$defs/ResourceId" },
+        "parentId": { "type": ["string", "null"], "maxLength": 256 }, "kind": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "implementation": { "type": ["string", "null"], "maxLength": 256 }, "position": { "$ref": "#/$defs/Point3" }, "visible": { "type": "boolean" }
+      }
+    },
+    "HitRegion": {
+      "type": "object", "required": ["id", "resourceId", "affordanceId", "frame", "registered"], "additionalProperties": false,
+      "properties": { "id": { "$ref": "#/$defs/Identifier" }, "resourceId": { "$ref": "#/$defs/ResourceId" }, "affordanceId": { "$ref": "#/$defs/Identifier" }, "frame": { "$ref": "#/$defs/Rect" }, "registered": { "type": "boolean" } }
+    },
+    "Affordance": {
+      "type": "object", "required": ["id", "resourceId", "objectId", "enabled", "priority"], "additionalProperties": false,
+      "properties": { "id": { "$ref": "#/$defs/Identifier" }, "resourceId": { "$ref": "#/$defs/ResourceId" }, "objectId": { "$ref": "#/$defs/Identifier" }, "enabled": { "type": "boolean" }, "priority": { "type": "integer", "minimum": 0, "maximum": 1000 } }
+    },
+    "Gesture": {
+      "type": "object", "required": ["id", "resourceId", "affordanceId", "interactionId", "kind", "phase", "pointerSessionId"], "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Identifier" }, "resourceId": { "$ref": "#/$defs/ResourceId" }, "affordanceId": { "$ref": "#/$defs/Identifier" },
+        "interactionId": { "$ref": "#/$defs/Identifier" }, "kind": { "enum": ["tap", "drag", "long_press", "radial"] },
+        "phase": { "enum": ["start", "update", "end", "cancel"] }, "pointerSessionId": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "Route": {
+      "type": "object", "required": ["resourceId", "kind", "active", "progress", "origin", "destination"], "additionalProperties": false,
+      "properties": { "resourceId": { "$ref": "#/$defs/ResourceId" }, "kind": { "enum": ["line", "wormhole"] }, "active": { "type": "boolean" }, "progress": { "type": "number", "minimum": 0, "maximum": 1 }, "origin": { "$ref": "#/$defs/Point2" }, "destination": { "$ref": "#/$defs/Point2" } }
+    },
+    "Allocations": {
+      "type": "object", "required": ["geometries", "materials", "textures", "programs"], "additionalProperties": false,
+      "properties": { "geometries": { "$ref": "#/$defs/Count" }, "materials": { "$ref": "#/$defs/Count" }, "textures": { "$ref": "#/$defs/Count" }, "programs": { "$ref": "#/$defs/Count" } }
+    },
+    "Count": { "type": "integer", "minimum": 0, "maximum": 100000 },
+    "Resource": {
+      "type": "object", "required": ["id", "owner", "sceneId", "revision", "suspended", "objectCount", "descriptorCount", "animationCount", "signalCount", "interactionCount", "implementations", "allocations", "lifecycle", "errorCode"], "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/ResourceId" }, "owner": { "$ref": "#/$defs/Identifier" }, "sceneId": { "$ref": "#/$defs/Identifier" },
+        "revision": { "type": "integer", "minimum": 0 }, "suspended": { "type": "boolean" }, "objectCount": { "$ref": "#/$defs/Count" },
+        "descriptorCount": { "$ref": "#/$defs/Count" }, "animationCount": { "$ref": "#/$defs/Count" }, "signalCount": { "$ref": "#/$defs/Count" },
+        "interactionCount": { "$ref": "#/$defs/Count" }, "implementations": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/$defs/Identifier" } },
+        "allocations": { "$ref": "#/$defs/Allocations" }, "lifecycle": { "type": "string", "minLength": 1, "maxLength": 32 }, "errorCode": { "type": ["string", "null"], "maxLength": 64 }
+      }
+    },
+    "Interaction": {
+      "type": "object", "required": ["id", "resourceId", "owner", "active", "suspended", "recognizers", "regionCount", "errorCode"], "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Identifier" }, "resourceId": { "$ref": "#/$defs/ResourceId" }, "owner": { "$ref": "#/$defs/Identifier" },
+        "active": { "type": "boolean" }, "suspended": { "type": "boolean" }, "recognizers": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/Identifier" } },
+        "regionCount": { "type": "integer", "minimum": 0, "maximum": 256 }, "errorCode": { "type": ["string", "null"], "maxLength": 64 }
+      }
+    },
+    "NullableMetric": { "type": ["number", "null"], "minimum": 0, "maximum": 1000000000 },
+    "Performance": {
+      "type": "object", "required": ["enabled", "recording", "sampleCount", "currentFps", "p95FrameMs", "avgFrameMs", "avgRenderMs", "avgUpdateMs", "avgGpuMs", "drawCalls", "triangles", "geometries", "textures", "programs", "backingPixels", "state"], "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }, "recording": { "type": "boolean" }, "sampleCount": { "type": "integer", "minimum": 0, "maximum": 240 },
+        "currentFps": { "type": ["number", "null"], "minimum": 0, "maximum": 1000 }, "p95FrameMs": { "$ref": "#/$defs/NullableMetric" }, "avgFrameMs": { "$ref": "#/$defs/NullableMetric" },
+        "avgRenderMs": { "$ref": "#/$defs/NullableMetric" }, "avgUpdateMs": { "$ref": "#/$defs/NullableMetric" }, "avgGpuMs": { "$ref": "#/$defs/NullableMetric" },
+        "drawCalls": { "$ref": "#/$defs/NullableMetric" }, "triangles": { "$ref": "#/$defs/NullableMetric" }, "geometries": { "$ref": "#/$defs/NullableMetric" },
+        "textures": { "$ref": "#/$defs/NullableMetric" }, "programs": { "$ref": "#/$defs/NullableMetric" }, "backingPixels": { "$ref": "#/$defs/NullableMetric" },
+        "state": { "enum": ["hot", "idle", "stable", "warn"] }
+      }
+    },
+    "Counters": {
+      "type": "object", "required": ["displays", "resources", "nodes", "hitRegions", "affordances", "activeGestures", "activeRoutes", "errors"], "additionalProperties": false,
+      "properties": { "displays": { "$ref": "#/$defs/Count" }, "resources": { "$ref": "#/$defs/Count" }, "nodes": { "$ref": "#/$defs/Count" }, "hitRegions": { "$ref": "#/$defs/Count" }, "affordances": { "$ref": "#/$defs/Count" }, "activeGestures": { "$ref": "#/$defs/Count" }, "activeRoutes": { "$ref": "#/$defs/Count" }, "errors": { "$ref": "#/$defs/Count" } }
+    },
+    "Event": {
+      "type": "object", "required": ["sequence", "kind", "resourceId", "code", "at"], "additionalProperties": false,
+      "properties": { "sequence": { "type": "integer", "minimum": 0 }, "kind": { "type": "string", "minLength": 1, "maxLength": 64 }, "resourceId": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ResourceId" }] }, "code": { "type": ["string", "null"], "maxLength": 64 }, "at": { "type": "number", "minimum": 0 } }
+    },
+    "LastError": {
+      "type": "object", "required": ["code", "at"], "additionalProperties": false,
+      "properties": { "code": { "type": "string", "minLength": 1, "maxLength": 64 }, "at": { "type": "number", "minimum": 0 } }
+    }
+  }
+}

@@ -47,7 +47,7 @@ part of the installable AOS desktop product pack.
 - `registry.json` indexes root skill packages, installability status, target
   support, references, and durable backing.
 - `aos-core-orientation/`, `aos-runtime-readiness/`, `aos-desktop/`,
-  `aos-saved-workspace/`, `aos-canvas-vision/`, `aos-focus-sessions/`,
+  `aos-desktop-world-authoring/`, `aos-saved-workspace/`, `aos-canvas-vision/`, `aos-focus-sessions/`,
   `aos-browser/`, `aos-verification/`, `aos-operator-annotations/`,
   `aos-work-records/`, `aos-recipes/`, and
   `aos-command-surface-maintenance/` are the installable AOS root skill pack.

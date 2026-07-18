@@ -842,6 +842,45 @@ Validate a data-only cartridge without starting the daemon:
 aos scene cartridge validate ./path/to/cartridge --json
 ```
 
+Inspect and profile the same canonical stage without opening a private socket:
+
+```bash
+aos scene list --json
+aos scene inspect --resource companion/main --json
+aos scene perf --resource companion/main --json
+aos scene monitor --resource companion/main --follow --json
+```
+
+`list`, `inspect`, and `perf` use a bounded headless DevTools session and close
+it even when inspection fails. `monitor` is connection-scoped, emits at most
+two canonical snapshots per second through the existing stage probe, and turns
+instrumentation off when the final monitor disconnects. None of these commands
+return scene parameters, product text, prompts, audio, captures, or desktop
+content.
+
+Open, inspect, and close the AOS-owned detachable inspector:
+
+```bash
+aos scene devtools open --resource companion/main --json
+aos scene devtools status --json
+aos scene devtools close --session <session-id> --json
+```
+
+The panel is an AOS surface and does not require an AOS status item. A consumer
+may transfer the same revisioned session into its own approved host through the
+typed SDK; exactly one interactive host owns a session at a time.
+
+Replay a deterministic fixture without a daemon or live input:
+
+```bash
+aos scene replay \
+  --events packages/toolkit/scene/fixtures/aim-commit.ndjson \
+  --json
+```
+
+Replay validates monotonic sequences and complete gesture lifecycles, caps the
+fixture at 10,000 events and 128 resources, and returns a content-free summary.
+
 `show remove --id <root>` is the daemon-facing cleanup primitive for a selected
 canvas lifecycle tree. Removing a root canvas removes cascade-owned child
 canvases and daemon input regions owned by those canvases. Children created

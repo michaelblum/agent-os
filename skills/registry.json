@@ -129,6 +129,33 @@
       ]
     },
     {
+      "name": "aos-desktop-world-authoring",
+      "path": "skills/aos-desktop-world-authoring",
+      "description": "Author, validate, mount, inspect, profile, and replay data-only AOS DesktopWorld scene cartridges. Trigger when an agent needs a 3D desktop scene, drag or aim-and-commit gestures, radial menus, scene telemetry, or detachable engine DevTools.",
+      "status": "installable",
+      "installable": true,
+      "invocation": "enabled",
+      "target_support": [
+        "agents",
+        "claude",
+        "codex",
+        "path"
+      ],
+      "ownership": "AOS-owned installable DesktopWorld scene-authoring and engine-inspection skill.",
+      "references": [
+        "docs/api/toolkit/scene.md",
+        "docs/api/aos.md",
+        "shared/schemas/scene-event-v1.schema.json",
+        "shared/schemas/desktop-world-devtools-stage-v1.schema.json"
+      ],
+      "claims_durable_behavior": true,
+      "backing": [
+        "docs/api/toolkit/scene.md",
+        "docs/api/aos.md",
+        "manifests/commands/source/aos/39-scene.json"
+      ]
+    },
+    {
       "name": "aos-canvas-vision",
       "path": "skills/aos-canvas-vision",
       "description": "Use AOS canvas and vision fallback safely. Trigger when a task needs regions, coordinates, xray, labels, canvas refs, visual evidence, or a decision about coordinate fallback.",

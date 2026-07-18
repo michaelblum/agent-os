@@ -317,7 +317,7 @@
         "properties": { "service": { "const": "scene" } }
       },
       "then": {
-        "properties": { "event": { "enum": ["result", "gesture"] } }
+        "properties": { "event": { "enum": ["result", "gesture", "monitor"] } }
       }
     },
     {
@@ -333,6 +333,13 @@
         "properties": { "service": { "const": "scene" }, "event": { "const": "gesture" } }
       },
       "then": { "properties": { "data": { "$ref": "scene-event-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "scene" }, "event": { "const": "monitor" } }
+      },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SceneMonitorData" } } }
     },
     {
       "if": {
@@ -426,6 +433,20 @@
             "projection": { "const": "desktop-world-orthographic" }
           }
         }
+      }
+    },
+    "SceneMonitorData": {
+      "type": "object",
+      "required": ["resource", "snapshot"],
+      "additionalProperties": false,
+      "properties": {
+        "resource": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
+        },
+        "snapshot": { "$ref": "desktop-world-devtools-stage-v1.schema.json" }
       }
     },
     "Bounds": {

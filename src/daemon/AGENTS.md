@@ -22,7 +22,9 @@ failure leaves the stage hidden.
 exclusive canvas host leases, bounded canonical stage snapshots, and recording
 admission. Host transfer reserves, suspends, activates, and commits in that
 order; failure restores the previous host. The daemon may create the stock AOS
-panel but owns no DevTools layout or product policy.
+panel but owns no DevTools layout or product policy. Connection-scoped scene
+monitors consume the same canonical stage snapshot and existing probe cadence;
+they must not add another sampler or survive their owning connection.
 
 Use generic nouns in daemon contracts. Prefer `canvas`, `surface`,
 `input_region`, `binding`, `channel`, and `lifecycle` over product names such as

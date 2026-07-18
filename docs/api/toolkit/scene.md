@@ -59,6 +59,7 @@ import {
   applySceneTransaction,
   canonicalizeSceneDocument,
   createDesktopWorldSceneHost,
+  createDesktopWorldSceneClient,
   createDesktopWorldDevToolsStageProbe,
   createDesktopWorldDevToolsView,
   createDesktopWorldGpuTimer,
@@ -76,6 +77,7 @@ import {
   validateSceneTransaction,
   validateSceneInteractionDocument,
   normalizeDesktopWorldDevToolsSnapshot,
+  replayDesktopWorldSceneEvents,
 } from '@agent-os/toolkit/scene'
 ```
 
@@ -218,9 +220,61 @@ consumers do not own the telemetry implementation. The focused historical
 Render Performance, Spatial Telemetry, and Surface Inspector panels consume
 compatibility projections of this same snapshot.
 
-Agent-facing scene inspection, monitoring, replay, and DevTools commands are
-documented with their command manifests when that tooling is installed; the
-package model itself never starts the daemon or opens a panel.
+`createDesktopWorldSceneClient()` is the host-neutral typed facade for resource
+listing, inspection, performance, monitoring, deterministic replay, and
+revisioned DevTools session operations. A consumer injects `request` and
+`subscribe`; the package never discovers a socket, starts a daemon, or owns a
+panel. One-shot observations create a bounded headless session, poll the
+canonical stage snapshot, and close in `finally`.
+
+The matching commands are:
+
+```bash
+aos scene list --json
+aos scene inspect --resource companion/main --json
+aos scene monitor --resource companion/main --follow --json
+aos scene perf --resource companion/main --json
+aos scene replay --events packages/toolkit/scene/fixtures/aim-commit.ndjson --json
+aos scene devtools open --resource companion/main --json
+aos scene devtools status --json
+aos scene devtools close --session <session-id> --json
+```
+
+The deterministic replay helper enforces monotonic owner/resource sequences,
+complete start/update/end-or-cancel gesture lifecycles, and fixed event/resource
+budgets. Its summary contains counts, resource IDs, and final committed numeric
+positions only. It does not render, mutate a stage, or require live TCC input.
+
+For conventional dragging, bind a `drag` recognizer to `translate`. For
+aim-and-commit, bind the same generic recognizer to `aim_commit`; the object
+remains fixed during start/update, Escape produces `cancel`, and release starts
+the declared line or wormhole route. For a radial menu, use the stock `radial`
+recognizer plus bounded item/style descriptors. The neutral cartridges under
+`packages/toolkit/scene/examples/` are the canonical starting points.
+
+### Agent Tooling Errors
+
+| Code | Meaning |
+|---|---|
+| `INVALID_SCENE_RESOURCE` | Resource ID is noncanonical or over its bound. |
+| `SCENE_RESOURCE_NOT_FOUND` | A canonical snapshot does not contain the requested resource. |
+| `SCENE_SNAPSHOT_TIMEOUT` | The headless session did not receive an available stage snapshot in time. |
+| `SCENE_DAEMON_TIMEOUT` | A bounded daemon request did not settle. |
+| `SCENE_DAEMON_LINE_TOO_LARGE` | One daemon NDJSON frame exceeded 768 KiB. |
+| `SCENE_REPLAY_LIMIT_EXCEEDED` | Replay exceeded 10,000 events or 128 resources. |
+| `INVALID_SCENE_REPLAY_EVENT` | A replay frame did not match `aos.scene.event.v1`. |
+| `SCENE_REPLAY_SEQUENCE_INVALID` | Sequence did not increase for one owner/resource. |
+| `SCENE_REPLAY_LIFECYCLE_INVALID` | A gesture phase did not follow a valid active lease. |
+| `SCENE_REPLAY_INCOMPLETE` | Replay ended with an active gesture. |
+| `DEVTOOLS_SESSION_NOT_FOUND` | The requested revisioned session no longer exists. |
+| `DEVTOOLS_REVISION_CONFLICT` | A mutating session request used a stale revision. |
+| `DEVTOOLS_HOST_BUSY` | Another session owns the requested interactive host. |
+
+`scene.monitor` event envelopes carry exactly `{resource, snapshot}`. Snapshot
+shape is `desktop-world-devtools-stage-v1.schema.json`; replay summary shape is
+`scene-replay-v1.schema.json`. Daemon event vocabulary is source-controlled and
+tested in `daemon-event.schema.json`; command help is generated from the source
+manifests.
 
 ## Implementations, Animation, Signals, And Hosts
 

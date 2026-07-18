@@ -10,8 +10,8 @@ owns the public contracts for the DesktopWorld stage 3D outlet and currently
 exposes data-only cartridge contracts, declarative scene contracts,
 implementation registration, atomic scene transactions, owner-scoped
 affordances, deterministic gesture arbitration, bounded stock interaction
-visuals and typed scene events, bounded DesktopWorld DevTools snapshots and a
-host-neutral inspector view, numeric
+visuals and typed scene events, bounded DesktopWorld DevTools snapshots, a
+host-neutral inspector view, and a transport-injected agent SDK, numeric
 signal and elapsed-clock animation bindings,
 dependency-injected local/DesktopWorld hosts, the standalone Three adapter,
 the bounded generic Three implementation registry/projector,
@@ -70,6 +70,10 @@ stage internals.
 - Focused compatibility panels consume the canonical DevTools snapshot through
   `components/desktop-world-devtools/compat.js`. They must not introduce a
   second DesktopWorld sampler or competing session model.
+- Agent SDK methods inject request/subscription transport. They must not import
+  Node socket APIs, discover runtime paths, auto-start daemons, or create a
+  second snapshot model. One-shot reads use headless DevTools sessions and
+  close them in `finally`; monitor state is connection-scoped.
 - Only the primary DesktopWorld segment registers native hit regions or emits
   typed gesture events. Every segment applies the same visual response, and a
   failed region activation must restore the previous scene or fail closed with
@@ -77,7 +81,7 @@ stage internals.
 
 ## Verification
 
-- `node --test tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs`
+- `node --test tests/toolkit/desktop-world-client.test.mjs tests/toolkit/desktop-world-devtools-compat.test.mjs tests/toolkit/desktop-world-devtools-model.test.mjs tests/toolkit/desktop-world-devtools-view.test.mjs tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-interaction-three.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs tests/toolkit/scene-cartridge.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-historical-fast-travel-reference.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-interaction.test.mjs tests/toolkit/scene-interaction-visual.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs tests/scene-cartridge-cli.test.mjs tests/scene-agent-tooling-cli.test.mjs`
 - `bash tests/daemon-desktop-world-devtools-session.sh`
 
 ## Child DOX Index

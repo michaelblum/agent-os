@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/scene-replay-v1.schema.json",
+  "title": "AOS DesktopWorld Scene Replay Summary v1",
+  "type": "object",
+  "required": ["status", "contract", "eventCount", "resourceCount", "resources", "completedGestures", "canceledGestures", "finalPositions"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "const": "ok" },
+    "contract": { "const": "aos.scene.replay.v1" },
+    "eventCount": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "resourceCount": { "type": "integer", "minimum": 0, "maximum": 128 },
+    "resources": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/$defs/ResourceId" } },
+    "completedGestures": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "canceledGestures": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "finalPositions": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": { "$ref": "#/$defs/ResourceId" },
+      "additionalProperties": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
+    }
+  },
+  "$defs": {
+    "ResourceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$" }
+  }
+}
