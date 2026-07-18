@@ -66,24 +66,27 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return true
   }
 
-  const release = (key) => {
-    const mounted = resources.get(key)
-    if (!mounted) return false
+  const disposeMounted = (mounted, { preserveInteractionOrigins = false } = {}) => {
     scene.remove(mounted.projection.object)
     mounted.animations.dispose()
     mounted.signals.dispose()
     mounted.interactionVisuals?.dispose()
     mounted.projection.dispose()
-    mounted.interactionOrigins.clear()
+    if (!preserveInteractionOrigins) mounted.interactionOrigins.clear()
+  }
+
+  const release = (key) => {
+    const mounted = resources.get(key)
+    if (!mounted) return false
+    disposeMounted(mounted)
     resources.delete(key)
     return true
   }
 
-  const activate = (key, documentInput, identity = {}) => {
+  const prepareMounted = (key, documentInput, identity = {}, previous = resources.get(key)) => {
     const document = canonicalizeSceneDocument(documentInput)
     const validation = registry.validateDocument(document)
     if (!validation.ok) throw new TypeError('Scene document requires an unavailable or invalid implementation.')
-    const previous = resources.get(key)
     const projection = createGenericThreeSceneProjection({ THREE, document })
     let animations
     let signals
@@ -94,23 +97,14 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       signals = createSceneSignalController(document, {
         apply: (binding, value, input, at) => projection.applySignal(binding, value, input, at),
       })
-      scene.add(projection.object)
     } catch (error) {
-      scene.remove(projection.object)
       animations?.dispose()
       signals?.dispose()
       projection.dispose()
       throw error
     }
     projection.object.position.copy(previous?.projection.object.position ?? new THREE.Vector3())
-    if (previous) {
-      scene.remove(previous.projection.object)
-      previous.animations.dispose()
-      previous.signals.dispose()
-      previous.interactionVisuals?.dispose()
-      previous.projection.dispose()
-    }
-    resources.set(key, {
+    return {
       key,
       owner: identity.owner ?? previous?.owner ?? '',
       resource: identity.resource ?? previous?.resource ?? key,
@@ -123,8 +117,56 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       signalWindowAt: 0,
       signalWindowCount: 0,
       interactionOrigins: previous?.interactionOrigins ?? new Map(),
+    }
+  }
+
+  const prepareReplacement = (message) => {
+    const payload = message?.payload ?? {}
+    const key = payload.lease_key
+    const operation = payload.operation ?? {}
+    if (message?.type !== 'desktop_world_stage.scene.operation' || typeof key !== 'string') {
+      throw new TypeError('Scene replacement requires a scene operation and lease key.')
+    }
+    if (operation.op !== 'mount' && operation.op !== 'transact') {
+      throw new TypeError('Only scene mount and transact operations can be prepared.')
+    }
+    const previous = resources.get(key) ?? null
+    if (!previous && resources.size >= MAX_RESOURCES) throw new RangeError('DesktopWorld scene resource budget exceeded.')
+    let document = operation.document
+    if (operation.op === 'transact') {
+      if (!previous) throw new TypeError('Scene resource is not mounted.')
+      const result = applySceneTransaction(previous.document, operation.transaction, { lease: operation.lease })
+      if (!result.ok) throw new TypeError(result.code)
+      document = result.document
+    }
+    const candidate = prepareMounted(key, document, payload, previous)
+    let state = 'prepared'
+
+    return Object.freeze({
+      document: candidate.document,
+      assertCurrent() {
+        if (state !== 'prepared') throw new TypeError('Scene replacement is no longer pending.')
+        if ((resources.get(key) ?? null) !== previous) throw new TypeError('Scene replacement base changed before commit.')
+        return true
+      },
+      commit() {
+        this.assertCurrent()
+        scene.add(candidate.projection.object)
+        if (previous) disposeMounted(previous, { preserveInteractionOrigins: true })
+        resources.set(key, candidate)
+        state = 'committed'
+        return true
+      },
+      rollback() {
+        if (state !== 'prepared') return false
+        candidate.animations.dispose()
+        candidate.signals.dispose()
+        candidate.interactionVisuals?.dispose()
+        candidate.projection.dispose()
+        state = 'rolled_back'
+        return true
+      },
     })
-    return document.revision
   }
 
   const apply = (message) => {
@@ -134,14 +176,9 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     if (message?.type !== 'desktop_world_stage.scene.operation' || typeof key !== 'string') return false
     const operation = payload.operation ?? {}
     if (operation.op === 'mount') {
-      if (!resources.has(key) && resources.size >= MAX_RESOURCES) throw new RangeError('DesktopWorld scene resource budget exceeded.')
-      activate(key, operation.document, payload)
+      prepareReplacement(message).commit()
     } else if (operation.op === 'transact') {
-      const mounted = resources.get(key)
-      if (!mounted) throw new TypeError('Scene resource is not mounted.')
-      const result = applySceneTransaction(mounted.document, operation.transaction, { lease: operation.lease })
-      if (!result.ok) throw new TypeError(result.code)
-      activate(key, result.document, payload)
+      prepareReplacement(message).commit()
     } else if (operation.op === 'signal') {
       const mounted = resources.get(key)
       if (!mounted || !Number.isFinite(operation.value)) return false
@@ -326,6 +363,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   return Object.freeze({
     apply,
     applyInteractionResponse,
+    prepareReplacement,
     configuration(key) {
       const mounted = resources.get(key)
       return mounted ? Object.freeze({ document: mounted.document, suspended: mounted.suspended }) : null

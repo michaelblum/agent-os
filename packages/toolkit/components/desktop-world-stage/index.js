@@ -290,7 +290,7 @@ wireBridge((message) => {
     return
   }
   if (message?.type === 'input_region.event') {
-    sceneInteractions.handleInput(message)
+    sceneOperations.handleInput(message)
     return
   }
   if (message?.type?.startsWith('desktop_world_stage.scene.')) {
