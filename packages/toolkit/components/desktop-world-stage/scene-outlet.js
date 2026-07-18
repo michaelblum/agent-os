@@ -63,6 +63,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     mounted.animations.dispose()
     mounted.signals.dispose()
     mounted.projection.dispose()
+    mounted.interactionOrigins.clear()
     resources.delete(key)
     return true
   }
@@ -90,6 +91,8 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     scene.add(projection.object)
     if (previous) {
       scene.remove(previous.projection.object)
+      previous.animations.dispose()
+      previous.signals.dispose()
       previous.projection.dispose()
     }
     resources.set(key, {
@@ -100,6 +103,7 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
       suspended: false,
       signalWindowAt: 0,
       signalWindowCount: 0,
+      interactionOrigins: previous?.interactionOrigins ?? new Map(),
     })
     return document.revision
   }
@@ -144,6 +148,60 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
     return true
   }
 
+  const commitObjectPosition = (mounted, objectId, position) => {
+    const index = mounted.document.objects.findIndex((object) => object.id === objectId)
+    if (index < 0) return null
+    const objects = [...mounted.document.objects]
+    const object = objects[index]
+    objects[index] = {
+      ...object,
+      transform: {
+        ...object.transform,
+        position: [...position],
+      },
+    }
+    mounted.document = canonicalizeSceneDocument({
+      ...mounted.document,
+      revision: mounted.document.revision + 1,
+      objects,
+    })
+    return mounted.document.revision
+  }
+
+  const applyInteractionResponse = (key, { frame, response } = {}) => {
+    const mounted = resources.get(key)
+    if (!mounted || !response?.kind || !frame?.interactionId) return null
+    if (response.kind === 'translate') {
+      const originKey = `${frame.interactionId}:${frame.gesture_id}`
+      if (frame.phase === 'start') {
+        const origin = mounted.projection.objectPosition(response.objectId)
+        if (origin) mounted.interactionOrigins.set(originKey, origin)
+      }
+      if (frame.phase === 'cancel') {
+        const origin = mounted.interactionOrigins.get(originKey)
+        if (origin) mounted.projection.setObjectPosition(response.objectId, origin)
+        mounted.interactionOrigins.delete(originKey)
+        return { ...response, applied: Boolean(origin), revision: mounted.document.revision }
+      }
+      const applied = mounted.projection.setObjectPosition(response.objectId, response.position)
+      let revision = mounted.document.revision
+      if (applied && frame.phase === 'end') {
+        revision = commitObjectPosition(mounted, response.objectId, response.position) ?? revision
+        mounted.interactionOrigins.delete(originKey)
+      }
+      return { ...response, applied, revision }
+    }
+    if (response.kind === 'signal_graph') {
+      let appliedSignals = 0
+      for (const signal of response.signals ?? []) {
+        if (!Number.isFinite(signal.value)) continue
+        if (mounted.signals.publish(signal.signalId, signal.value, frame.timing?.t ?? Date.now())) appliedSignals += 1
+      }
+      return { ...response, appliedSignals, revision: mounted.document.revision }
+    }
+    return { ...response, applied: false, revision: mounted.document.revision }
+  }
+
   const render = (at) => {
     if (disposed) return
     if (!hidden && !contextLost) {
@@ -169,6 +227,12 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
 
   return Object.freeze({
     apply,
+    applyInteractionResponse,
+    configuration(key) {
+      const mounted = resources.get(key)
+      return mounted ? Object.freeze({ document: mounted.document, suspended: mounted.suspended }) : null
+    },
+    document(key) { return resources.get(key)?.document ?? null },
     updateSegment,
     snapshot() {
       return {

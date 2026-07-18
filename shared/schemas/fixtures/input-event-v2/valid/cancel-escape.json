@@ -1,0 +1,10 @@
+{
+  "input_schema_version": 2,
+  "type": "pointer_cancel",
+  "event_kind": "cancel",
+  "phase": "cancel",
+  "timestamp_monotonic_ms": 123456792,
+  "sequence": { "source": "daemon", "value": 46 },
+  "gesture_id": "gesture-escape-46",
+  "cancel_reason": "escape"
+}

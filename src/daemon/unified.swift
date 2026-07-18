@@ -120,10 +120,7 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
-    private let sceneLeaseLock = NSLock()
-    private var sceneLeaseOwners: [String: UUID] = [:]
-    private var sceneLeasesByConnection: [UUID: Set<String>] = [:]
-    private var sceneLeaseRefs: [String: String] = [:]
+    private let sceneLeases = AOSSceneLeaseRegistry()
     private let voiceTelemetryLock = NSLock()
     let canvasInspectorBundleLock = NSLock()
     var canvasInspectorBundleInFlight = false
@@ -337,6 +334,9 @@ class UnifiedDaemon {
                     return
                 case "desktop_world_stage.scene.result":
                     self.handleSceneStageResult(inner ?? [:])
+                    return
+                case "desktop_world_stage.scene.event":
+                    self.handleSceneStageEvent(inner ?? [:])
                     return
                 case "capture.region":
                     self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
@@ -2619,39 +2619,71 @@ class UnifiedDaemon {
         return "\(owner)::\(resource)"
     }
 
-    private func cleanupSceneLeases(_ connectionID: UUID) {
-        sceneLeaseLock.lock()
-        let keys = sceneLeasesByConnection.removeValue(forKey: connectionID) ?? []
-        for key in keys where sceneLeaseOwners[key] == connectionID {
-            sceneLeaseOwners.removeValue(forKey: key)
-            sceneLeaseRefs.removeValue(forKey: key)
+    private func validSceneIdentifier(_ value: String, allowSlash: Bool) -> Bool {
+        let scalars = Array(value.unicodeScalars)
+        guard !scalars.isEmpty, scalars.count <= 128 else { return false }
+        func alphaNumeric(_ scalar: UnicodeScalar) -> Bool {
+            return (scalar.value >= 97 && scalar.value <= 122)
+                || (scalar.value >= 48 && scalar.value <= 57)
         }
-        sceneLeaseLock.unlock()
-        for key in keys {
+        guard let first = scalars.first, alphaNumeric(first) else { return false }
+        guard scalars.allSatisfy({ scalar in
+            alphaNumeric(scalar)
+                || scalar == "."
+                || scalar == "_"
+                || scalar == "-"
+                || (allowSlash && scalar == "/")
+        }) else { return false }
+        return !allowSlash || !value.split(separator: "/", omittingEmptySubsequences: false).contains(where: {
+            $0.isEmpty || $0 == "." || $0 == ".."
+        })
+    }
+
+    private func cleanupSceneLeases(_ connectionID: UUID) {
+        for key in sceneLeases.releaseAll(connectionID: connectionID) {
             canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
                 "type": "desktop_world_stage.scene.release",
-                "payload": ["lease_key": key],
+                "payload": ["lease_key": key, "reason": "owner_disconnected"],
             ])
         }
     }
 
     private func handleSceneStageResult(_ payload: [String: Any]) {
         guard let key = payload["lease_key"] as? String else { return }
-        sceneLeaseLock.lock()
-        let owner = sceneLeaseOwners[key]
-        let ref = sceneLeaseRefs[key]
-        sceneLeaseLock.unlock()
+        guard let route = sceneLeases.routeResult(key: key) else { return }
         var eventData = payload
         eventData.removeValue(forKey: "lease_key")
-        guard let owner,
-              let bytes = envelopeBytes(
+        guard let bytes = envelopeBytes(
                 service: "scene",
                 event: "result",
                 data: eventData,
-                ref: ref
+                ref: route.ref
               ) else { return }
         subscriberLock.lock()
-        let writer = subscribers[owner]?.outbound
+        let writer = subscribers[route.connectionID]?.outbound
+        subscriberLock.unlock()
+        writer?.enqueue(bytes)
+    }
+
+    private func handleSceneStageEvent(_ payload: [String: Any]) {
+        guard let key = payload["lease_key"] as? String,
+              let eventType = payload["event_type"] as? String,
+              let event = payload["event"] as? [String: Any] else { return }
+        guard let canonicalEvent = aosCanonicalSceneEvent(event),
+              let route = sceneLeases.routeEvent(key: key, event: eventType),
+              eventType == "gesture",
+              canonicalEvent["type"] as? String == eventType,
+              let ownerID = canonicalEvent["ownerId"] as? String,
+              let resourceID = canonicalEvent["resourceId"] as? String,
+              sceneLeaseKey(owner: ownerID, resource: resourceID) == key,
+              let bytes = envelopeBytes(
+                service: "scene",
+                event: eventType,
+                data: canonicalEvent,
+                ref: route.ref
+              ) else { return }
+        subscriberLock.lock()
+        let writer = subscribers[route.connectionID]?.outbound
         subscriberLock.unlock()
         writer?.enqueue(bytes)
     }
@@ -2717,27 +2749,56 @@ class UnifiedDaemon {
             sendResponseJSON(to: outbound, ["error": "Invalid scene request", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        let allowed = Set(["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close"])
+        guard validSceneIdentifier(owner, allowSlash: false),
+              validSceneIdentifier(resource, allowSlash: true) else {
+            sendResponseJSON(to: outbound, ["error": "Invalid scene owner or resource", "code": "INVALID_SCENE_IDENTITY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
+        let allowed = Set(["mount", "transact", "signal", "play", "suspend", "resume", "inspect", "remove", "close", "subscribe", "unsubscribe"])
         guard allowed.contains(op) else {
             sendResponseJSON(to: outbound, ["error": "Unsupported scene operation", "code": "INVALID_SCENE_OPERATION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
-        let key = sceneLeaseKey(owner: owner, resource: resource)
-        sceneLeaseLock.lock()
-        let currentOwner = sceneLeaseOwners[key]
-        if currentOwner == nil || currentOwner == connectionID {
-            sceneLeaseOwners[key] = connectionID
-            if let envelopeRef { sceneLeaseRefs[key] = envelopeRef }
-            var connectionKeys = sceneLeasesByConnection[connectionID] ?? []
-            connectionKeys.insert(key)
-            sceneLeasesByConnection[connectionID] = connectionKeys
+        let supportedSceneEvents = Set(["gesture"])
+        let requestedSceneEvents = operation["events"] as? [String] ?? []
+        if op == "subscribe" || op == "unsubscribe" {
+            guard Set(operation.keys).isSubset(of: Set(["op", "events"])),
+                  requestedSceneEvents.count <= 8,
+                  requestedSceneEvents.allSatisfy({ supportedSceneEvents.contains($0) }),
+                  op != "subscribe" || !requestedSceneEvents.isEmpty else {
+                sendResponseJSON(to: outbound, ["error": "Invalid scene event subscription", "code": "INVALID_SCENE_SUBSCRIPTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                return
+            }
         }
-        sceneLeaseLock.unlock()
-        guard currentOwner == nil || currentOwner == connectionID else {
+        let key = sceneLeaseKey(owner: owner, resource: resource)
+        let acquisition = sceneLeases.acquire(
+            key: key,
+            connectionID: connectionID,
+            ref: envelopeRef
+        )
+        guard case .acquired(let isNewLease) = acquisition else {
             sendResponseJSON(to: outbound, ["error": "Scene resource already has an active lease", "code": "SCENE_LEASE_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
+        if op == "subscribe" || op == "unsubscribe" {
+            let requested = Set(requestedSceneEvents)
+            let events = sceneLeases.updateSubscriptions(
+                key: key,
+                connectionID: connectionID,
+                adding: op == "subscribe" ? requested : [],
+                removing: op == "unsubscribe" ? requested : [],
+                removeAll: op == "unsubscribe" && requested.isEmpty
+            ) ?? []
+            sendResponseJSON(to: outbound, [
+                "status": "ok",
+                "operation": op,
+                "resource": resource,
+                "events": events.sorted(),
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            return
+        }
         guard ensureSceneStage() else {
+            if isNewLease { _ = sceneLeases.release(key: key, connectionID: connectionID) }
             sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
@@ -2751,11 +2812,7 @@ class UnifiedDaemon {
             ],
         ])
         if op == "close" {
-            sceneLeaseLock.lock()
-            sceneLeaseOwners.removeValue(forKey: key)
-            sceneLeaseRefs.removeValue(forKey: key)
-            sceneLeasesByConnection[connectionID]?.remove(key)
-            sceneLeaseLock.unlock()
+            _ = sceneLeases.release(key: key, connectionID: connectionID)
         }
         sendResponseJSON(to: outbound, [
             "status": "ok",
@@ -4015,6 +4072,9 @@ class UnifiedDaemon {
     }
 
     private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {
+        if let escapeConsumed = routeInputRegionEscapeCancellation(event: event, data: data) {
+            return escapeConsumed
+        }
         if let regionConsumed = routeInputRegionEvent(event: event, data: data) {
             return regionConsumed
         }
@@ -4030,6 +4090,32 @@ class UnifiedDaemon {
             fputs("[input-surface] event=\(event) point=\(Int(point.x)),\(Int(point.y)) decision=\(decision)\n", stderr)
         }
         return decision.shouldConsume
+    }
+
+    private func routeInputRegionEscapeCancellation(event: String, data: [String: Any]) -> Bool? {
+        guard event == "key_down",
+              AOSCanonicalInputEvent(canonicalData: data) != nil,
+              let key = data["key"] as? [String: Any],
+              key["logical"] as? String == "Escape" else { return nil }
+        let sourceSequence = inputEventSourceSequenceString(data)
+        inputRegionLock.lock()
+        let decision = inputRegions.cancelActiveCapture(
+            reason: .escape,
+            sourceSequence: sourceSequence,
+            gestureID: sourceSequence.map { "escape:\($0)" }
+        )
+        inputRegionLock.unlock()
+        guard let decision else { return nil }
+        switch decision {
+        case .failOpen:
+            return false
+        case .deliver(let delivery):
+            canvasManager.postMessageAsync(
+                to: delivery.ownerCanvasGeneration,
+                payload: delivery.payload
+            )
+            return true
+        }
     }
 
     private func currentFrontToBackWindowNumbers() -> [Int] {

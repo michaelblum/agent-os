@@ -69,6 +69,10 @@ The native daemon tap currently emits v2 scroll events from `.scrollWheel`
 because it can populate `scroll.dx`, `scroll.dy`, and `scroll.unit: "point"`.
 Synthetic or helper-only cancel events may claim v2 only when they include
 `cancel_reason`; otherwise they remain legacy-shaped compatibility payloads.
+When Escape cancels an active daemon-owned input-region capture, the daemon
+emits one routed cancel with `cancel_reason: "escape"`, the existing capture and
+gesture identity, and the last authoritative coordinates. Repeated Escape after
+that atomic cancellation is not delivered to the former owner.
 
 Routed envelopes require `gesture_id`, `desktop_world`,
 `coordinate_authority`, `source_origin`, and `source_event`. Routed pointer

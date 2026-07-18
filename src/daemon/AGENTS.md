@@ -11,6 +11,10 @@ delivery, voice/communication routing, and cleanup.
 Scene transport owns only connection-scoped owner/resource leases and delivery
 to the singleton toolkit DesktopWorld stage. Declarative validation and render
 policy remain in the scene toolkit; disconnect always releases owned scenes.
+`scene-lease-registry.swift` is the single atomic owner for scene lease
+admission, typed subscriptions, stage result/event routing, and disconnect
+cleanup. Do not recreate parallel scene ownership or subscription maps in the
+connection handler.
 The singleton full-display stage must be created hidden and resume only after
 its ready manifest follows transparent renderer initialization. Readiness
 failure leaves the stage hidden.

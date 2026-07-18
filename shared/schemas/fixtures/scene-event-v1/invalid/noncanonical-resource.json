@@ -1,0 +1,16 @@
+{
+  "contract": "aos.scene.event.v1",
+  "schemaVersion": 1,
+  "type": "gesture",
+  "sequence": 1,
+  "stageId": "desktop-world/main",
+  "ownerId": "example.consumer",
+  "resourceId": "companion//main",
+  "affordanceId": "body-hit",
+  "interactionId": "drag-body",
+  "gesture": {"id":"gesture-1","kind":"drag","phase":"update","pointerSessionId":"capture-1","cancellationReason":null},
+  "coordinates": {"origin":{"x":1,"y":2},"previous":{"x":2,"y":3},"current":{"x":3,"y":4},"desktopWorld":{"x":3,"y":4},"native":null,"delta":{"x":1,"y":1},"totalDelta":{"x":2,"y":2}},
+  "topology": null,
+  "response": {"kind":"translate","objectId":"body","position":[3,4,0]},
+  "at": 100
+}

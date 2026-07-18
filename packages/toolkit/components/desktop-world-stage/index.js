@@ -3,6 +3,9 @@ import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
+import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
+import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
+import { registerInputRegion, removeInputRegion, updateInputRegion } from '../../runtime/input-region.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
 import {
   createVisualObjectResourceLifecycleEvidence,
@@ -22,6 +25,33 @@ const canvasId = window.__aosSurfaceCanvasId || window.__aosCanvasId || 'aos-des
 const surface = new DesktopWorldSurface2D({ canvasId })
 const state = createDesktopWorldStageState()
 const sceneOutlet = createDesktopWorldSceneOutlet({ canvas: sceneCanvas })
+
+function sceneTopologySnapshot() {
+  return {
+    displays: surface.topology.slice(0, 16).map((segment) => ({
+      displayId: segment.display_id ?? null,
+      index: segment.index ?? null,
+      bounds: Array.isArray(segment.dw_bounds) ? segment.dw_bounds.slice(0, 4) : null,
+    })),
+  }
+}
+
+const sceneInteractions = createDesktopWorldSceneInteractionRuntime({
+  stageCanvasId: canvasId,
+  outlet: sceneOutlet,
+  registerRegion: registerInputRegion,
+  updateRegion: updateInputRegion,
+  removeRegion: removeInputRegion,
+  isPrimary: () => surface.isPrimary,
+  topology: sceneTopologySnapshot,
+  scheduleFrame: (callback) => window.requestAnimationFrame(() => callback()),
+  emitEvent: (payload) => emit('desktop_world_stage.scene.event', payload),
+})
+const sceneOperations = createDesktopWorldSceneOperationCoordinator({
+  outlet: sceneOutlet,
+  interactions: sceneInteractions,
+})
+let sceneOperationQueue = Promise.resolve()
 
 function render() {
   if (!root) return
@@ -145,37 +175,62 @@ declareManifest({
     'desktop_world_stage.clear',
     'desktop_world_stage.scene.operation',
     'desktop_world_stage.scene.release',
+    'input_region.event',
   ],
-  emits: ['ready', 'canvas_object.registry'],
+  emits: [
+    'ready',
+    'canvas_object.registry',
+    'desktop_world_stage.scene.event',
+    'desktop_world_stage.scene.result',
+    'input_region.register',
+    'input_region.update',
+    'input_region.remove',
+  ],
   surface: 'desktop-world',
 })
 
-wireBridge((message) => {
-  if (message?.type?.startsWith('desktop_world_stage.scene.')) {
-    const payload = message.payload ?? {}
-    try {
-      const applied = sceneOutlet.apply(message)
-      window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
-      if (surface.isPrimary) {
-        emit('desktop_world_stage.scene.result', {
-          lease_key: payload.lease_key,
-          operation: payload.operation?.op ?? 'release',
-          resource: payload.resource ?? null,
-          status: applied ? 'ok' : 'ignored',
-          snapshot: sceneOutlet.snapshot(),
-        })
-      }
-    } catch (error) {
-      if (surface.isPrimary) {
-        emit('desktop_world_stage.scene.result', {
-          lease_key: payload.lease_key,
-          operation: payload.operation?.op ?? 'unknown',
-          resource: payload.resource ?? null,
-          status: 'error',
-          code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
-        })
-      }
+async function applySceneMessage(message) {
+  const payload = message.payload ?? {}
+  const key = payload.lease_key
+  const op = payload.operation?.op ?? (message.type === 'desktop_world_stage.scene.release' ? 'release' : 'unknown')
+  try {
+    const { applied } = await sceneOperations.apply(message)
+    window.__desktopWorldSceneOutlet = sceneOutlet.snapshot()
+    window.__desktopWorldSceneInteractions = sceneInteractions.snapshot()
+    if (surface.isPrimary) {
+      emit('desktop_world_stage.scene.result', {
+        lease_key: key,
+        operation: op,
+        resource: payload.resource ?? null,
+        status: applied ? 'ok' : 'ignored',
+        snapshot: sceneOutlet.snapshot(),
+      })
     }
+  } catch (error) {
+    if (surface.isPrimary) {
+      emit('desktop_world_stage.scene.result', {
+        lease_key: key,
+        operation: op,
+        resource: payload.resource ?? null,
+        status: 'error',
+        code: error instanceof RangeError ? 'SCENE_BUDGET_EXCEEDED' : 'SCENE_PROJECTION_FAILED',
+      })
+    }
+  }
+}
+
+function enqueueSceneWork(work) {
+  sceneOperationQueue = sceneOperationQueue.then(work, work)
+  return sceneOperationQueue
+}
+
+wireBridge((message) => {
+  if (message?.type === 'input_region.event') {
+    sceneInteractions.handleInput(message)
+    return
+  }
+  if (message?.type?.startsWith('desktop_world_stage.scene.')) {
+    void enqueueSceneWork(() => applySceneMessage(message))
     return
   }
   if (applyDesktopWorldStageMessage(state, message)) render()
@@ -188,6 +243,7 @@ surface.start({
   },
   onTopologyChange: ({ segment }) => {
     sceneOutlet.updateSegment(segment)
+    void enqueueSceneWork(() => sceneInteractions.topologyChanged())
     render()
   },
 }).then(() => {
@@ -195,5 +251,10 @@ surface.start({
   installVisualObjectLiveProof()
   emitReady()
 })
+
+window.addEventListener('pagehide', () => {
+  sceneInteractions.cancelAll('stage_disposed')
+  void sceneInteractions.dispose()
+}, { once: true })
 
 render()

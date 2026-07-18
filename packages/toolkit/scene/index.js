@@ -71,6 +71,22 @@ export {
   validateSceneCartridgeManifest,
 } from './scene-cartridge.js'
 
+export {
+  SCENE_AFFORDANCE_LIMITS,
+  SCENE_EVENT_CONTRACT_ID,
+  SCENE_INTERACTIONS_CONTRACT_ID,
+  SCENE_GESTURE_CANCELLATION_REASONS,
+  SCENE_GESTURE_KINDS,
+  SCENE_GESTURE_PHASES,
+  createSceneEventEnvelope,
+  createSceneGestureArena,
+  createSceneInteractionController,
+  resolveSceneAffordanceFrame,
+  resolveSceneGestureResponse,
+  validateSceneAffordanceDescriptor,
+  validateSceneInteractionDocument,
+} from './scene-interaction.js'
+
 export { applySceneTransaction } from './scene-transaction.js'
 
 export {

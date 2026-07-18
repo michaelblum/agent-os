@@ -1,0 +1,40 @@
+{
+  "contract": "aos.scene.event.v1",
+  "schemaVersion": 1,
+  "type": "gesture",
+  "sequence": 2,
+  "stageId": "desktop-world/main",
+  "ownerId": "example.consumer",
+  "resourceId": "companion/main",
+  "affordanceId": "body-hit",
+  "interactionId": "drag-body",
+  "gesture": {
+    "id": "drag:1",
+    "kind": "drag",
+    "phase": "update",
+    "pointerSessionId": "capture:body-hit",
+    "cancellationReason": null
+  },
+  "coordinates": {
+    "origin": { "x": 100, "y": 200 },
+    "previous": { "x": 100, "y": 200 },
+    "current": { "x": 140, "y": 230 },
+    "desktopWorld": { "x": 140, "y": 230 },
+    "native": { "x": 140, "y": 230 },
+    "delta": { "x": 40, "y": 30 },
+    "totalDelta": { "x": 40, "y": 30 }
+  },
+  "topology": {
+    "displays": [
+      { "displayId": 1, "index": 0, "bounds": [0, 0, 1728, 1117] }
+    ]
+  },
+  "response": {
+    "kind": "translate",
+    "objectId": "body",
+    "position": [140, 230, 0],
+    "applied": true,
+    "revision": 1
+  },
+  "at": 123456
+}

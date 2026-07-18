@@ -11,6 +11,7 @@
     "test-proof-registry.d/skills.json",
     "test-proof-registry.d/voice-io.json",
     "test-proof-registry.d/toolkit.json",
+    "test-proof-registry.d/desktop-world-scene-engine.json",
     "test-proof-registry.d/substrate-reclassification.json",
     "test-proof-registry.d/runtime-readiness.json",
     "test-proof-registry.d/legacy-sigil-fixture.json",

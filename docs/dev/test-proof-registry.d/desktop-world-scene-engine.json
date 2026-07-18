@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof ownership for the product-neutral DesktopWorld scene interaction engine and typed event stream.",
+  "entries": [
+    {
+      "id": "desktop-world-scene-interaction-contract",
+      "path_patterns": [
+        "tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs",
+        "tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs",
+        "tests/toolkit/scene-interaction.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "toolkit-scene",
+      "harness_level": "model_unit",
+      "proof_kind": "scene_interaction_engine_contract",
+      "contract": "Owner-scoped affordances, deterministic recognizer arbitration, generic gesture responses, native-region lifecycle, and failed-activation rollback remain product-neutral and bounded.",
+      "worth": "This proves reusable DesktopWorld input mechanics without restoring embedded product policy or requiring live input and TCC.",
+      "command": "node --test tests/toolkit/scene-interaction.test.mjs tests/toolkit/desktop-world-scene-interaction-runtime.test.mjs tests/toolkit/desktop-world-scene-operation-coordinator.test.mjs",
+      "replaces": [],
+      "guard": "pure model tests with fake input-region bridges and deterministic clocks; no AOS binary, daemon, GUI, TCC, or GPU",
+      "status": "active"
+    },
+    {
+      "id": "desktop-world-scene-event-contract",
+      "path_patterns": [
+        "tests/daemon-scene-lease-registry.sh",
+        "tests/daemon-scene-event.sh",
+        "tests/schemas/scene-event-v1.test.mjs"
+      ],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/scene-*.json",
+        "shared/schemas/fixtures/scene-event-v1/**/*.json"
+      ],
+      "owner": "scene-transport",
+      "harness_level": "schema",
+      "proof_kind": "scene_event_subscription_contract",
+      "contract": "Scene leases atomically own subscriptions and route strict bounded gesture events only to the current owner connection.",
+      "worth": "This prevents cross-owner event leakage, stale subscription delivery, and product payloads in the public scene stream.",
+      "command": "bash tests/daemon-scene-lease-registry.sh && bash tests/daemon-scene-event.sh && node --test tests/schemas/scene-event-v1.test.mjs tests/schemas/daemon-event.test.mjs",
+      "replaces": [],
+      "guard": "disposable Swift model plus JSON-schema fixtures only; no AOS binary, daemon socket, GUI, TCC, or GPU",
+      "status": "active"
+    }
+  ]
+}

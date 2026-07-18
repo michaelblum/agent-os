@@ -41,11 +41,13 @@ test('scene follow forwards bounded operations and preserves owner identity', as
     '--resource', 'companion/main', '--follow',
   ], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, AOS_STATE_ROOT: root, AOS_RUNTIME_MODE: 'repo' }, stdio: ['pipe', 'pipe', 'pipe'] })
   const output = await collect(child)
-  child.stdin.end('{"op":"inspect"}\n{"op":"close"}\n')
+  child.stdin.end('{"op":"subscribe","events":["gesture"]}\n{"op":"inspect"}\n{"op":"unsubscribe","events":["gesture"]}\n{"op":"close"}\n')
   const result = await output.exit
   assert.equal(result.code, 0, output.stderr())
   assert.deepEqual(received.map(({ data }) => [data.owner, data.resource, data.operation.op]), [
+    ['example.consumer', 'companion/main', 'subscribe'],
     ['example.consumer', 'companion/main', 'inspect'],
+    ['example.consumer', 'companion/main', 'unsubscribe'],
     ['example.consumer', 'companion/main', 'close'],
   ])
   assert.match(output.stdout(), /"operation":"close"/u)
@@ -59,6 +61,41 @@ test('scene follow rejects invalid stage before opening a socket', async () => {
   const result = await output.exit
   assert.equal(result.code, 1)
   assert.match(output.stderr(), /INVALID_STAGE/u)
+})
+
+test('scene follow rejects noncanonical resource paths before opening a socket', async () => {
+  const child = spawn(process.execPath, ['scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'example.consumer', '--resource', 'companion//main', '--follow'], { cwd: path.resolve(import.meta.dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] })
+  const output = await collect(child)
+  const result = await output.exit
+  assert.equal(result.code, 1)
+  assert.match(output.stderr(), /INVALID_RESOURCE/u)
+})
+
+test('scene follow rejects malformed, unterminated, and terminated oversized daemon output', async () => {
+  for (const [label, reply, expected] of [
+    ['malformed', '{not-json}\n', 'INVALID_SCENE_EVENT'],
+    ['over-u', 'x'.repeat(64 * 1024 + 1), 'SCENE_EVENT_TOO_LARGE'],
+    ['over-t', `${JSON.stringify({ payload: 'x'.repeat(64 * 1024) })}\n`, 'SCENE_EVENT_TOO_LARGE'],
+  ]) {
+    const root = await mkdtemp(path.join(os.tmpdir(), `aos-scene-follow-${label}-`))
+    const state = path.join(root, 'repo')
+    await mkdir(state, { recursive: true })
+    const socketPath = path.join(state, 'sock')
+    const server = net.createServer((socket) => socket.once('data', () => socket.write(reply)))
+    await new Promise((resolve, reject) => server.listen(socketPath, resolve).once('error', reject))
+    const child = spawn(process.execPath, [
+      'scripts/aos-scene.mjs', '--stage', 'desktop-world/main', '--owner', 'example.consumer',
+      '--resource', 'companion/main', '--follow',
+    ], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, AOS_STATE_ROOT: root, AOS_RUNTIME_MODE: 'repo' }, stdio: ['pipe', 'pipe', 'pipe'] })
+    const output = await collect(child)
+    child.stdin.end('{"op":"inspect"}\n{"op":"close"}\n')
+    const result = await output.exit
+    assert.equal(result.code, 1, label)
+    assert.equal(output.stdout(), '', label)
+    assert.match(output.stderr(), new RegExp(expected, 'u'), label)
+    await new Promise((resolve) => server.close(resolve))
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('scene-follow keeps the full-display stage hidden until its manifest is ready', async () => {

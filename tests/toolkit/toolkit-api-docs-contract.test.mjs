@@ -81,6 +81,10 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/scene.md'], /global DesktopWorld coordinate plane/);
   assert.match(docs['docs/api/toolkit/scene.md'], /primary segment emits the single authoritative/);
   assert.match(docs['docs/api/toolkit/scene.md'], /grants no AOS command execution/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /SceneAffordanceDescriptor/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /createSceneInteractionController/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /start, end, and cancel\s+are never dropped/);
+  assert.match(docs['docs/api/toolkit/scene.md'], /never carry product text, audio, prompts/);
 
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createButtonGroup/);

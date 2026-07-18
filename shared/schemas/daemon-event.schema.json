@@ -313,10 +313,26 @@
     },
     {
       "if": {
+        "required": ["service"],
+        "properties": { "service": { "const": "scene" } }
+      },
+      "then": {
+        "properties": { "event": { "enum": ["result", "gesture"] } }
+      }
+    },
+    {
+      "if": {
         "required": ["service", "event"],
         "properties": { "service": { "const": "scene" }, "event": { "const": "result" } }
       },
       "then": { "properties": { "data": { "$ref": "#/$defs/SceneResultData" } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "scene" }, "event": { "const": "gesture" } }
+      },
+      "then": { "properties": { "data": { "$ref": "scene-event-v1.schema.json" } } }
     },
     {
       "if": {
@@ -405,7 +421,9 @@
             "hidden": { "type": "boolean" },
             "resources": { "type": "integer", "minimum": 0, "maximum": 32 },
             "renderer": { "const": "three" },
-            "maxResources": { "const": 32 }
+            "maxResources": { "const": 32 },
+            "displayId": { "type": ["integer", "string", "null"] },
+            "projection": { "const": "desktop-world-orthographic" }
           }
         }
       }

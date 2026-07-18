@@ -30,6 +30,9 @@ tests.
 - Voice transport unit tests must use disposable Swift or fake-socket harnesses
   by default. Live microphone, global-hotkey, and audio-output proof is a
   separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
+- DesktopWorld gesture and scene-follow tests must use deterministic clocks,
+  fake input-region bridges, disposable sockets, and schema fixtures. Static
+  scene contract work must not execute the repo AOS binary or require TCC.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human

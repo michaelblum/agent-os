@@ -300,6 +300,7 @@
             "cancel_reason": {
               "type": "string",
               "enum": [
+                "escape",
                 "os_cancelled",
                 "surface_removed",
                 "surface_suspended",

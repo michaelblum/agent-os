@@ -1,3 +1,7 @@
+import type { SceneAffordanceDescriptor } from './scene-interaction.js';
+
+export * from './scene-interaction.js';
+
 export interface ThreeRenderLimits {
   maxDevicePixelRatio: number;
   maxBackingDimension: number;
@@ -525,6 +529,7 @@ export interface SceneCartridgeInteraction {
 export interface SceneCartridgeInteractions {
   contract: typeof SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID;
   schemaVersion: 1;
+  affordances?: SceneAffordanceDescriptor[];
   interactions: SceneCartridgeInteraction[];
 }
 

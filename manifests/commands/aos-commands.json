@@ -12361,7 +12361,7 @@
             "supports_dry_run" : false
           },
           "examples" : [
-            "printf '%s\\n' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"
+            "printf '%s\\n' '{\"op\":\"subscribe\",\"events\":[\"gesture\"]}' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"
           ]
         }
       ]

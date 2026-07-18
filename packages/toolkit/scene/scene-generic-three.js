@@ -175,6 +175,20 @@ export function createGenericThreeSceneProjection({ THREE, document }) {
   return {
     object: root,
     activate() {},
+    objectPosition(objectId) {
+      const object = objects.get(objectId)
+      return object ? [object.position.x, object.position.y, object.position.z] : null
+    },
+    setObjectPosition(objectId, position) {
+      const object = objects.get(objectId)
+      if (!object || !Array.isArray(position) || position.length < 2) return false
+      object.position.set(
+        finite(position[0]),
+        finite(position[1]),
+        finite(position[2], object.position.z),
+      )
+      return true
+    },
     applyAnimation(binding, value) { return setTarget(root, binding.objectId, binding.target, value) },
     applySignal(binding, value) { return setTarget(root, binding.objectId, binding.target, value) },
     suspend() { root.visible = false },
