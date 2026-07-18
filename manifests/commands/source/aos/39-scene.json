@@ -19,5 +19,20 @@
       "execution":{"auto_starts_daemon":true,"interactive":false,"mutates_state":true,"read_only":false,"requires_permissions":false,"streaming":true,"supports_dry_run":false},
       "examples":["printf '%s\\n' '{\"op\":\"inspect\"}' '{\"op\":\"close\"}' | aos scene --stage desktop-world/main --owner example.consumer --resource companion/main --follow"]
     }]
+  }, {
+    "path": ["scene", "cartridge", "validate"],
+    "summary": "Validate a data-only DesktopWorld scene cartridge",
+    "forms": [{
+      "id": "scene-cartridge-validate",
+      "usage": "aos scene cartridge validate <path> [--json]",
+      "args": [
+        {"id":"path","kind":"positional","value_type":"string","required":true,"summary":"Local scene cartridge directory"},
+        {"id":"json","kind":"flag","token":"--json","value_type":"bool","required":false,"summary":"Emit a machine-readable validation summary"}
+      ],
+      "stdin":{"supported":false,"content_type":null,"used_when":"never"},
+      "output":{"default_mode":"text","error_mode":"json_stderr","streaming":false,"supports_json_flag":true},
+      "execution":{"auto_starts_daemon":false,"interactive":false,"mutates_state":false,"read_only":true,"requires_permissions":false,"streaming":false,"supports_dry_run":false},
+      "examples":["aos scene cartridge validate ./examples/spinning-object --json"]
+    }]
   }]
 }

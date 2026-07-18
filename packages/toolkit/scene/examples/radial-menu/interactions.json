@@ -1,0 +1,1 @@
+{"contract":"aos.scene.cartridge.interactions.v1","schemaVersion":1,"interactions":[{"id":"open-menu","affordanceId":"body","recognizer":{"implementation":"aos.scene.gesture.radial","parameters":{"cancelKey":"Escape","deadZone":28,"items":4,"radius":108}},"response":{"implementation":"aos.scene.response.signal-graph","parameters":{"signalId":"menu.selection"}}}]}

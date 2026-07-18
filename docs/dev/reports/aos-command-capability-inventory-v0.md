@@ -18,13 +18,13 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 44
-- Concrete forms: 207
-- Consumer-discoverable forms: 198
+- Command paths: 45
+- Concrete forms: 208
+- Consumer-discoverable forms: 199
 - Internal/transitional command paths: 1
 - Mutating or conditionally mutating forms: 117
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 202
+- Forms with JSON output path: 203
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -43,7 +43,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | Diagnostics/debug | 6 |
 | Operator input | 7 |
 | Operator messaging | 10 |
-| Overlay/display | 16 |
+| Overlay/display | 17 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 16 |
 | Saved workspace | 6 |
@@ -100,6 +100,7 @@ current command tree before public CLI and self-hosting boundary changes.
 | `skills` | 3 | Skills and recipes | yes | mutates, read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills companion` | 2 | Browser companion | yes | read-only | --json | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene` | 1 | Overlay/display | yes | mutates | default | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene cartridge validate` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 
 ## Concrete Forms
 
@@ -312,3 +313,4 @@ current command tree before public CLI and self-hosting boundary changes.
 | `skills companion check` | `skills-companion-check` | Browser companion | yes | read-only | --json | no | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion check` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `skills companion install` | `skills-companion-install` | Browser companion | yes | read-only | --json | yes | `manifests/commands/source/aos/38-skills.json` | `node scripts/aos-skills.mjs companion install` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene` | `scene-follow` | Overlay/display | yes | mutates | default | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `scene cartridge validate` | `scene-cartridge-validate` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs cartridge validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

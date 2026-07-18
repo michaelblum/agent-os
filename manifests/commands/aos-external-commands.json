@@ -2847,6 +2847,14 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
+    },
+    {
+      "path": ["scene", "cartridge", "validate"],
+      "summary": "Validate a data-only DesktopWorld scene cartridge",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-scene.mjs", "cartridge", "validate"],
+      "cwd": "repo",
+      "stdio": "inherit"
     }
   ]
 }

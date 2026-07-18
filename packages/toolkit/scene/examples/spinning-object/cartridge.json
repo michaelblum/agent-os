@@ -1,0 +1,8 @@
+{
+  "contract":"aos.scene.cartridge.v1","schemaVersion":1,"id":"samples/spinning-object","revision":1,
+  "files":{"scene":{"path":"scene.json","sha256":"87d86b8bf619e5f89b213487042fa920d6c2b8b17768f1c2f1f5f85f1f60f67d"},"animations":{"path":"animations.json","sha256":"bd770c354b3f4102dbf9bac85671b1c49a41da3acec9c72a70e67fd5542dd2fc"},"interactions":{"path":"interactions.json","sha256":"954dcb948432c2c90759b1d9e65bd3863a14cfadbcd9877f79a42a5645b44cb2"}},
+  "implementations":[{"id":"aos.scene.animation.bind","kind":"component"},{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.material.surface","kind":"material"}],
+  "assets":[],
+  "budgets":{"maxAnimations":1,"maxAssets":0,"maxAssetBytes":0,"maxInteractions":0,"maxObjects":2,"maxResources":2},
+  "metadata":{"description":"One bounded object with a deterministic elapsed-clock rotation.","title":"Spinning object"}
+}

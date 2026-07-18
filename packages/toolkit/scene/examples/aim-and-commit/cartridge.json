@@ -1,0 +1,8 @@
+{
+  "contract":"aos.scene.cartridge.v1","schemaVersion":1,"id":"samples/aim-and-commit","revision":1,
+  "files":{"scene":{"path":"scene.json","sha256":"848ef0a7dfe1afec4254974db6c99bd2a6a431d36ab8d1a3d7b0da35af6f88eb"},"animations":{"path":"animations.json","sha256":"bb3b06905609e4923cdc4f7bd8ecc4daef0026bff9dac8726710684149178903"},"interactions":{"path":"interactions.json","sha256":"7f32706e31803cb216db479d6941dd24fb6d7c6ca4d17c2a53e7402c3d29c1ae"}},
+  "implementations":[{"id":"aos.scene.geometry.primitive","kind":"geometry"},{"id":"aos.scene.gesture.drag","kind":"recognizer"},{"id":"aos.scene.material.surface","kind":"material"},{"id":"aos.scene.response.aim-commit","kind":"response"}],
+  "assets":[],
+  "budgets":{"maxAnimations":0,"maxAssets":0,"maxAssetBytes":0,"maxInteractions":1,"maxObjects":2,"maxResources":2},
+  "metadata":{"description":"A drag gesture that aims while the object remains fixed, then commits a route on release.","title":"Aim and commit"}
+}

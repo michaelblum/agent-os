@@ -60,6 +60,17 @@ export {
   validateSceneTransaction,
 } from './scene-document.js'
 
+export {
+  SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID,
+  SCENE_CARTRIDGE_CONTRACT_ID,
+  SCENE_CARTRIDGE_IMPLEMENTATIONS,
+  SCENE_CARTRIDGE_INTERACTIONS_CONTRACT_ID,
+  SCENE_CARTRIDGE_LIMITS,
+  resolveSceneCartridge,
+  validateSceneCartridge,
+  validateSceneCartridgeManifest,
+} from './scene-cartridge.js'
+
 export { applySceneTransaction } from './scene-transaction.js'
 
 export {
