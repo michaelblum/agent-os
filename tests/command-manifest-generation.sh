@@ -43,7 +43,6 @@ assert all(command["path"][0] != "dev" for command in registry["commands"]), "ge
 registry_text = json.dumps(registry).lower()
 for retired_route in [
     "aos launch sigil",
-    "aos experience menu invoke sigil",
     "sigil/start",
     "apps/sigil",
 ]:

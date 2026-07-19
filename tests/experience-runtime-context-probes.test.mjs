@@ -6,7 +6,6 @@ import path from 'node:path';
 import { buildExperienceRuntimeContext } from '../scripts/lib/experience-runtime-context.mjs';
 import {
   baseResponses,
-  dryRunToggleURL,
   readFakeAosCalls,
   runContext,
   runNode,
@@ -46,18 +45,10 @@ test('experience runtime passive AOS readbacks run from normalized repo root', a
     id,
     contentRootKey: 'cwdroot',
     contentRootPath: contentRoot,
-    surfaceId: 'cwd-root-surface',
-    expectedURL,
   });
 
   const responses = baseResponses(stateRoot, {
     contentRoots: { cwdroot: contentRoot },
-    canvases: [{
-      id: 'cwd-root-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeCwdRecordingFakeAos(tmp, responses);
   const env = {
@@ -82,16 +73,14 @@ test('experience runtime passive AOS readbacks run from normalized repo root', a
     'content status --json',
     'permissions check --json',
     'service status --mode repo --json',
-    'show list --json',
   ].sort());
   assert.deepEqual([...new Set(calls.map((entry) => entry.cwd))], [expectedCwd]);
 });
 
 test('experience status hard-bounds passive AOS probes that ignore SIGTERM', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-timeout-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -100,19 +89,12 @@ test('experience status hard-bounds passive AOS probes that ignore SIGTERM', asy
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
 
   const { fake, log } = await writeSigtermIgnoringFakeAos(tmp);
   const startedAt = Date.now();
-  const result = runNode(['scripts/aos-experience.mjs', 'status', 'operator-fixture', '--json'], {
+  const result = runNode(['scripts/aos-experience.mjs', 'status', 'runtime-context-fixture', '--json'], {
     AOS_STATE_ROOT: tmp,
     AOS_PATH: fake,
     AOS_EXPERIENCE_RUNTIME_PROBE_TIMEOUT_MS: '1000',
@@ -127,7 +109,6 @@ test('experience status hard-bounds passive AOS probes that ignore SIGTERM', asy
   assert.equal(payload.runtime.service.command_status, 'timeout');
   assert.equal(payload.runtime.permissions.command_status, 'timeout');
   assert.equal(payload.content_roots.command_status, 'timeout');
-  assert.equal(payload.status_item.mounted_surface.show_list_status, 'timeout');
   assert.equal(payload.content_roots.roots[0].repair_action, 'inspect_runtime');
   assert(payload.diagnostics.some((item) => (
     item.id === 'content-root-live-readback-unknown:toolkit'
@@ -139,6 +120,5 @@ test('experience status hard-bounds passive AOS probes that ignore SIGTERM', asy
     'content status --json',
     'permissions check --json',
     'service status --mode repo --json',
-    'show list --json',
   ].sort());
 });

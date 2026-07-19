@@ -4,13 +4,6 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  branchScopedContentRootsEnabled,
-  equivalentContentURLs,
-  projectedToggleURL,
-  rootMap,
-  scopedRootName,
-} from './lib/experience-manifest.mjs';
 import { explicitStateRootOverride } from './lib/aos-cli.mjs';
 
 function prettyError(message, code) {
@@ -237,31 +230,6 @@ function readExperienceManifest(id) {
   return manifest;
 }
 
-function resolveRepoPath(relPath) {
-  if (typeof relPath !== 'string' || !relPath || path.isAbsolute(relPath)) return null;
-  const repoRoot = process.cwd();
-  const resolved = path.resolve(repoRoot, relPath);
-  if (resolved !== repoRoot && !resolved.startsWith(`${repoRoot}${path.sep}`)) return null;
-  return resolved;
-}
-
-function resolveExperienceContentRoots(manifest) {
-  const useBranchScopedRoots = branchScopedContentRootsEnabled(process.env);
-  return (manifest?.content_roots || []).flatMap((root) => {
-    const resolved = resolveRepoPath(root.path);
-    if (!root.id || !resolved) return [];
-    const declaredBranchScoped = root.branch_scoped !== false;
-    const activeBranchScoped = useBranchScopedRoots && declaredBranchScoped;
-    return [{
-      id: root.id,
-      key: activeBranchScoped ? scopedRootName(root.id) : root.id,
-      path: resolved,
-      branch_scoped: activeBranchScoped,
-      declared_branch_scoped: declaredBranchScoped,
-    }];
-  });
-}
-
 function activeExperienceContext(mode) {
   const id = activeExperience(mode);
   const manifest = readExperienceManifest(id);
@@ -270,96 +238,18 @@ function activeExperienceContext(mode) {
       id,
       manifest: null,
       preserveCanvasIDs: new Set(),
-      toggleSurface: null,
-      expectedStatusItemURL: null,
     };
-  }
-
-  const roots = resolveExperienceContentRoots(manifest);
-  const rootsByID = rootMap(roots);
-  const toggleSurface = manifest.status_item?.toggle_surface || null;
-  let expectedStatusItemURL = null;
-  if (toggleSurface) {
-    try {
-      expectedStatusItemURL = projectedToggleURL(manifest, toggleSurface, rootsByID, { mode, repoRoot: process.cwd() });
-    } catch {
-      expectedStatusItemURL = null;
-    }
   }
   const preserveCanvasIDs = new Set(
     Array.isArray(manifest.cleanup?.preserve_canvas_ids)
       ? manifest.cleanup.preserve_canvas_ids.filter((id) => typeof id === 'string' && id.length > 0)
       : [],
   );
-  if (typeof toggleSurface?.id === 'string' && toggleSurface.id.length > 0) {
-    preserveCanvasIDs.add(toggleSurface.id);
-  }
 
   return {
     id,
     manifest,
     preserveCanvasIDs,
-    toggleSurface,
-    expectedStatusItemURL,
-  };
-}
-
-function liveContentRoots(mode) {
-  const env = { ...process.env, AOS_RUNTIME_MODE: mode };
-  const result = run(aosPath(), ['content', 'status', '--json'], { env });
-  if (result.status !== 0) return null;
-  const payload = parseJSON(result.stdout);
-  return payload && typeof payload.roots === 'object' ? payload.roots : null;
-}
-
-function contentRootKeysFromStatusItemURL(rawURL) {
-  if (typeof rawURL !== 'string' || !rawURL.startsWith('aos://')) return [];
-  try {
-    const parsed = new URL(rawURL);
-    const keys = new Set();
-    if (parsed.hostname) keys.add(parsed.hostname);
-    for (const [key, value] of parsed.searchParams) {
-      if (key === 'root' || key.endsWith('-root') || key.endsWith('_root')) keys.add(value);
-    }
-    return [...keys];
-  } catch {
-    return [];
-  }
-}
-
-function activeExperienceStatusItemDrift(mode, canvases, context = activeExperienceContext(mode)) {
-  if (!context.manifest) return null;
-  const config = readJSONFile(path.join(stateDir(mode), 'config.json')) || {};
-  const statusItem = config.status_item || {};
-  if (statusItem.enabled !== true) return null;
-  const roots = liveContentRoots(mode) || config.content?.roots || {};
-  const toggleURL = statusItem.toggle_url || '';
-  const expectedURL = context.expectedStatusItemURL || '';
-  const toggleID = statusItem.toggle_id || context.toggleSurface?.id;
-  const missingRoots = contentRootKeysFromStatusItemURL(toggleURL).filter((key) => roots[key] == null);
-  const toggleCanvas = canvases.find((canvas) => canvas.id === toggleID);
-  const toggleCanvasURL = typeof toggleCanvas?.url === 'string' ? toggleCanvas.url : null;
-  const toggleCanvasDrift = toggleCanvasURL != null
-    && !equivalentContentURLs(toggleCanvasURL, toggleURL)
-    && (expectedURL.length === 0 || !equivalentContentURLs(toggleCanvasURL, expectedURL));
-  const targetDrift = expectedURL.length > 0 && !equivalentContentURLs(toggleURL, expectedURL);
-  if (!targetDrift && missingRoots.length === 0 && !toggleCanvasDrift) return null;
-  const notes = [];
-  if (targetDrift) {
-    notes.push(`Active experience ${context.id} status item target drift: status_item.toggle_url=${toggleURL || '<empty>'}; expected ${expectedURL}. Run './aos experience activate ${context.id}'.`);
-  }
-  if (missingRoots.length > 0) {
-    notes.push(`Active experience ${context.id} status item references missing content root(s): ${missingRoots.join(', ')}. Run './aos experience activate ${context.id}'.`);
-  }
-  if (toggleCanvasDrift) {
-    notes.push(`Active experience ${context.id} canvas ${toggleCanvas.id} is loaded at ${toggleCanvasURL}, which differs from status_item.toggle_url. Run './aos show remove --id ${toggleCanvas.id}' or './aos experience activate ${context.id}'.`);
-  }
-  return {
-    expectedURL,
-    toggleURL,
-    missingRoots,
-    canvases: toggleCanvasDrift ? [toggleCanvas] : [],
-    notes,
   };
 }
 
@@ -606,20 +496,11 @@ function runClean(dryRun) {
     }
   }
 
-  const activeContext = activeExperienceContext(mode);
-  const listedCurrentCanvases = listCanvases(mode);
-  const experienceDrift = activeExperienceStatusItemDrift(mode, listedCurrentCanvases, activeContext);
   let currentCanvases = parentFirstCanvases(staleCanvasesForMode(mode));
-  if (experienceDrift?.canvases?.length) {
-    const byID = new Map(currentCanvases.map((canvas) => [canvas.id, canvas]));
-    for (const canvas of experienceDrift.canvases) byID.set(canvas.id, canvas);
-    currentCanvases = parentFirstCanvases(Array.from(byID.values()));
-  }
   let otherCanvases = parentFirstCanvases(staleCanvasesForMode(alternateMode));
   if (otherCanvases.length > 0) {
     notes.push(`${otherCanvases.length} canvas(es) on ${alternateMode}-mode daemon`);
   }
-  if (experienceDrift) notes.push(...experienceDrift.notes);
   const canvases = [...currentCanvases, ...otherCanvases];
 
   if (!dryRun && canvases.length > 0) {

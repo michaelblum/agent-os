@@ -4,6 +4,24 @@
   "summary": "Proof ownership for generic AOS contracts separated from the retired embedded product.",
   "entries": [
     {
+      "id": "desktop-capability-map-contract",
+      "path_patterns": [
+        "tests/aos-desktop-capabilities.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "desktop-command-surface",
+      "harness_level": "model_unit",
+      "proof_kind": "capability_documentation_contract",
+      "contract": "The desktop capability map stays backed by current command manifest forms and does not advertise retired status-item or unsupported desktop verbs.",
+      "worth": "This prevents active desktop guidance from preserving retired experience status-item invocation or claiming unsupported macOS semantics.",
+      "command": "node --test tests/aos-desktop-capabilities.test.mjs",
+      "replaces": [
+        "experience status-item menu invoke as active desktop capability"
+      ],
+      "guard": "manifest and docs assertions only; no daemon",
+      "status": "active"
+    },
+    {
       "id": "agent-terminal-substrate-contract",
       "path_patterns": [
         "packages/toolkit/components/agent-terminal/launch.sh",
@@ -286,17 +304,22 @@
     {
       "id": "experience-runtime-context-contract",
       "path_patterns": [
+        "tests/experience-runtime-context-content-roots.test.mjs",
+        "tests/experience-runtime-context-env.test.mjs",
         "tests/experience-runtime-context-pending-annotations.test.mjs",
-        "tests/experience-runtime-context-status-item.test.mjs",
-        "tests/status-item-readiness-contract.test.mjs"
+        "tests/experience-runtime-context-probes.test.mjs",
+        "tests/lib/experience-runtime-fixtures.mjs",
+        "tests/schemas/aos-experience-runtime-context-v0.test.mjs"
       ],
-      "fixture_patterns": [],
+      "fixture_patterns": [
+        "tests/fixtures/experiences/runtime-context-fixture/aos-experience.json"
+      ],
       "owner": "experience-runtime",
       "harness_level": "model_unit",
       "proof_kind": "experience_runtime_contract",
-      "contract": "Experience status and status-item readiness project neutral mounted-surface, annotation, permission, and mismatch facts without product-private state.",
-      "worth": "This keeps the reusable experience contract centered on operator-fixture after product experience discovery is removed.",
-      "command": "node --test tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-status-item.test.mjs tests/status-item-readiness-contract.test.mjs",
+      "contract": "Experience status projects neutral content-root, annotation, permission, and mismatch facts from explicit test-owned manifests without reading or projecting retired config-driven status-item state.",
+      "worth": "This keeps the reusable experience readback centered on active experience and annotation facts and removes the obsolete config-driven native host from the live contract.",
+      "command": "node --test --test-concurrency=1 tests/experience-runtime-context-content-roots.test.mjs tests/experience-runtime-context-env.test.mjs tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-probes.test.mjs tests/schemas/aos-experience-runtime-context-v0.test.mjs",
       "replaces": [
         "embedded Sigil experience and status-item behavior tests"
       ],

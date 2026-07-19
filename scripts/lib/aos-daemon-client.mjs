@@ -117,6 +117,7 @@ export async function connectWithAutoStart(options = {}) {
     return null;
   }
   if (socket) return { socket, daemon: null };
+  if (options.allowStart === false) return null;
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
     return null;

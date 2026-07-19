@@ -2,11 +2,6 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { explicitStateRootOverride } from './aos-cli.mjs';
-import {
-  MOUNTED_SURFACE_MENU_QUERY_PARAM,
-  mountedSurfaceMenuItemsForSurface,
-  mountedSurfaceMenuProjectionEnvelope,
-} from '../../packages/toolkit/contracts/mounted-surface-menu-projection.js';
 import { experienceRuntimeEnv } from './experience-runtime-env.mjs';
 
 export class ExperienceManifestError extends Error {
@@ -191,41 +186,3 @@ export function equivalentContentURLs(left, right) {
     && leftIdentity.path === rightIdentity.path
     && leftIdentity.query === rightIdentity.query;
 }
-
-export function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = mountedSurfaceMenuItemsForSurface(manifest.menu, surfaceID);
-  return Buffer.from(JSON.stringify(mountedSurfaceMenuProjectionEnvelope({
-    experienceId: manifest.id,
-    surfaceId: surfaceID,
-    menu,
-  })), 'utf8').toString('base64url');
-}
-
-export function appendQueryParam(rawURL, key, value) {
-  if (!rawURL || !value) return rawURL;
-  const separator = rawURL.includes('?') ? '&' : '?';
-  return `${rawURL}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-}
-
-export function projectedToggleURL(manifest, surface, rootsByID, {
-  mode = 'repo',
-  repoRoot = process.cwd(),
-} = {}) {
-  const nextURL = template(surface.url, rootsByID, { mode, repoRoot });
-  if (mountedSurfaceMenuItemsForSurface(manifest.menu, surface.id).length === 0) return nextURL;
-  return appendQueryParam(nextURL, MOUNTED_SURFACE_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
-}
-
-export function mountedSurfaceMenuProjectionFromURL(rawURL) {
-  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
-  try {
-    const parsed = new URL(rawURL);
-    const encoded = parsed.searchParams.get(MOUNTED_SURFACE_MENU_QUERY_PARAM);
-    if (!encoded) return null;
-    return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-  } catch {
-    return false;
-  }
-}
-
-export { mountedSurfaceMenuItemsForSurface };

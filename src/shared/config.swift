@@ -11,7 +11,6 @@ struct AosConfig: Codable {
     var perception: PerceptionConfig
     var feedback: FeedbackConfig
     var content: ContentConfig?         // content server port and document roots
-    var status_item: StatusItemConfig?
     var hotkeys: HotkeysConfig?
     var see: SeeConfig?
 
@@ -90,15 +89,6 @@ struct AosConfig: Codable {
         var roots: [String: String]  // prefix -> directory path
     }
 
-    struct StatusItemConfig: Codable {
-        var enabled: Bool
-        var toggle_id: String
-        var toggle_url: String
-        var toggle_at: [Double]
-        var toggle_track: String?
-        var icon: String
-    }
-
     static let defaults = AosConfig(
         voice: VoiceConfig(
             enabled: false,
@@ -116,7 +106,6 @@ struct AosConfig: Codable {
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
         content: nil,
-        status_item: nil,
         hotkeys: nil,
         see: SeeConfig(
             canvas_inspector_bundle: CanvasInspectorBundleConfig(
@@ -354,46 +343,6 @@ func setConfigValue(key: String, value: String) {
         let rootName = String(key.dropFirst("content.roots.".count))
         guard !rootName.isEmpty else { exitError("content.roots requires a name", code: "INVALID_VALUE") }
         config.content?.roots[rootName] = value
-    case "status_item.enabled":
-        if config.status_item == nil {
-            config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
-                toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
-            )
-        }
-        config.status_item?.enabled = (value == "true" || value == "1")
-    case "status_item.toggle_id":
-        if config.status_item == nil {
-            config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
-                toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
-            )
-        }
-        config.status_item?.toggle_id = value
-    case "status_item.toggle_url":
-        if config.status_item == nil {
-            config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
-                toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
-            )
-        }
-        config.status_item?.toggle_url = value
-    case "status_item.toggle_track":
-        if config.status_item == nil {
-            config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
-                toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
-            )
-        }
-        config.status_item?.toggle_track = value == "none" ? nil : value
-    case "status_item.icon":
-        if config.status_item == nil {
-            config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
-                toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
-            )
-        }
-        config.status_item?.icon = value
     case "hotkeys.cancel_speech":
         if config.hotkeys == nil { config.hotkeys = AosConfig.HotkeysConfig(cancel_speech: nil) }
         if value == "none" || value == "disabled" {

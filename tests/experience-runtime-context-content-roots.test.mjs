@@ -6,7 +6,6 @@ import path from 'node:path';
 import { buildExperienceRuntimeContext } from '../scripts/lib/experience-runtime-context.mjs';
 import {
   baseResponses,
-  dryRunToggleURL,
   readFakeAosCalls,
   runContext,
   runNode,
@@ -20,10 +19,10 @@ import {
   writeSigtermIgnoringFakeAos,
 } from './lib/experience-runtime-fixtures.mjs';
 
-test('experience status reports stale target, missing content root, and uninitialized pending state', async () => {
+test('experience status reports missing content root and uninitialized pending state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-drift-'));
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -32,32 +31,17 @@ test('experience status reports stale target, missing content root, and uninitia
         toolkit: path.join(tmp, 'stale-toolkit'),
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: 'aos://toolkit/runtime/_smoke/stale.html',
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp, {
     contentRoots: {},
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: 'aos://toolkit/runtime/_smoke/stale.html',
-      lifecycleState: 'active',
-    }],
   }));
 
   assert.equal(payload.status, 'degraded');
   assert.equal(payload.content_roots.roots[0].configured_status, 'stale');
   assert.equal(payload.content_roots.roots[0].live_status, 'missing');
-  assert.equal(payload.status_item.target.status, 'drift');
-  assert.equal(payload.status_item.mounted_surface.status, 'stale');
   assert.equal(payload.pending_annotations.status, 'not_initialized');
   assert(payload.recommended_next.some((item) => item.id === 'activate-requested-experience'));
-  assert(payload.recommended_next.some((item) => item.id === 'remove-stale-mounted-surface'));
   assert(payload.recommended_next.some((item) => (
     item.id === 'pending-annotation-create-display-only'
     && item.display_only === true
@@ -88,17 +72,9 @@ test('experience status recommends activation for repairable content-root drift'
     id,
     contentRootKey: 'repairroot',
     contentRootPath: staleRoot,
-    surfaceId: 'repair-root-surface',
-    expectedURL,
   });
   const responses = baseResponses(stateRoot, {
     contentRoots: {},
-    canvases: [{
-      id: 'repair-root-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeFakeAos(tmp, responses);
   const env = {
@@ -150,17 +126,9 @@ test('experience status does not mark a regular file content root current', asyn
     id,
     contentRootKey: 'badroot',
     contentRootPath: rootFile,
-    surfaceId: 'file-root-surface',
-    expectedURL,
   });
   const responses = baseResponses(stateRoot, {
     contentRoots: { badroot: rootFile },
-    canvases: [{
-      id: 'file-root-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeFakeAos(tmp, responses);
   const env = {

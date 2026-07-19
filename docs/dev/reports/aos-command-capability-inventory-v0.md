@@ -18,13 +18,13 @@ current command tree before public CLI and self-hosting boundary changes.
 
 ## Summary
 
-- Command paths: 55
-- Concrete forms: 218
-- Consumer-discoverable forms: 209
+- Command paths: 60
+- Concrete forms: 222
+- Consumer-discoverable forms: 213
 - Internal/transitional command paths: 1
-- Mutating or conditionally mutating forms: 121
+- Mutating or conditionally mutating forms: 123
 - Forms with unspecified mutability metadata: 0
-- Forms with JSON output path: 213
+- Forms with JSON output path: 217
 - Forms with dry-run support: 37
 
 ## Capability Group Counts
@@ -36,14 +36,14 @@ current command tree before public CLI and self-hosting boundary changes.
 | Capture and perception | 7 |
 | CLI metadata | 2 |
 | Content/wiki | 18 |
-| Core desktop | 9 |
+| Core desktop | 8 |
 | Core readiness | 7 |
 | Desktop discovery | 4 |
 | Desktop/native control | 19 |
 | Diagnostics/debug | 6 |
 | Operator input | 7 |
 | Operator messaging | 10 |
-| Overlay/display | 27 |
+| Overlay/display | 32 |
 | Pointer and keyboard | 9 |
 | Runtime/service | 16 |
 | Saved workspace | 6 |
@@ -60,7 +60,6 @@ current command tree before public CLI and self-hosting boundary changes.
 | `experience` | 0 | Core desktop | yes | family only | family only | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience status` | 1 | Core desktop | yes | read-only | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience activate` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs activate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `experience menu invoke` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs menu invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience deactivate` | 1 | Core desktop | yes | mutates | --json | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs deactivate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see` | 13 | Capture and perception, Saved workspace | yes | conditional --save, mutates, read-only | --json, default | `manifests/commands/source/aos/03-see-01-capture.json, manifests/commands/source/aos/03-see-02-workspace.json` | `node scripts/aos-help-proxy.mjs see [missing child]; node scripts/aos-see-native.mjs capture [not capture/observe/cursor/list...]` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see zone` | 4 | Canvas and vision | yes | mutates | default | `manifests/commands/source/aos/03-see-03-zone.json` | `node scripts/aos-subcommand-router.mjs see zone MISSING_SUBCOMMAND see zone requires a subcommand. Usage: aos see zone <save\|define\|list\|delete> ... UNKNOWN_SUBCOMMAND see zone subcommand` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -111,6 +110,12 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene devtools update` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools transfer` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools transfer` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools close` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools close` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item` | 0 | Overlay/display | yes | family only | family only | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item validate` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item register` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs register` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item update` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item inspect` | 1 | Overlay/display | yes | read-only | --json | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item invoke` | 1 | Overlay/display | yes | mutates | --json | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 
 ## Concrete Forms
 
@@ -119,7 +124,6 @@ current command tree before public CLI and self-hosting boundary changes.
 | `launch` | `launch-app` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/01-launch.json` | `node scripts/aos-launch.mjs` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience status` | `experience-status` | Core desktop | yes | read-only | --json | no | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs status` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience activate` | `activate-experience` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs activate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
-| `experience menu invoke` | `experience-menu-invoke` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs menu invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `experience deactivate` | `deactivate-experience` | Core desktop | yes | mutates | --json | yes | `manifests/commands/source/aos/02-experience.json` | `node scripts/aos-experience.mjs deactivate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see cursor` | `see-cursor` | Capture and perception | yes | read-only | default | no | `manifests/commands/source/aos/03-see-01-capture.json` | `node scripts/aos-see-native.mjs cursor` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `see capture` | `see-capture` | Capture and perception | yes | conditional --save | default | no | `manifests/commands/source/aos/03-see-01-capture.json` | `node scripts/aos-see-native.mjs capture` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
@@ -334,3 +338,8 @@ current command tree before public CLI and self-hosting boundary changes.
 | `scene devtools update` | `scene-devtools-update` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools transfer` | `scene-devtools-transfer` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools transfer` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
 | `scene devtools close` | `scene-devtools-close` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/39-scene.json` | `node scripts/aos-scene.mjs devtools close` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item validate` | `status-item-validate` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs validate` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item register` | `status-item-register` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs register` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item update` | `status-item-update` | Overlay/display | yes | mutates | --json | no | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs update` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item inspect` | `status-item-inspect` | Overlay/display | yes | read-only | --json | no | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs inspect` | `docs/api/aos.md, docs/api/aos-capabilities.md` |
+| `status-item invoke` | `status-item-invoke` | Overlay/display | yes | mutates | --json | yes | `manifests/commands/source/aos/40-status-item.json` | `node scripts/aos-status-item.mjs invoke` | `docs/api/aos.md, docs/api/aos-capabilities.md` |

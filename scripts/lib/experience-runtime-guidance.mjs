@@ -28,7 +28,6 @@ export function commandIdentity(prefix, id) {
 
 export function buildCapabilities({
   runtime,
-  statusItem,
   pendingAnnotations,
 }) {
   const serviceReady = runtime.service.status === 'ready';
@@ -43,18 +42,14 @@ export function buildCapabilities({
   const requiredPermissionBlockers = (ids) => ids
     .filter((id) => !permissions[id])
     .map((id) => `${id}_missing`);
-  const targetReady = statusItem.target.status === 'current';
-  const mountedReady = ['current', 'not_applicable'].includes(statusItem.mounted_surface.status);
   const annotationStoreCorrupt = pendingAnnotations.supported === true && pendingAnnotations.status === 'corrupt';
   const annotation = pendingAnnotations.supported === false
     ? capability('unsupported', [])
     : capability(
-      annotationStoreCorrupt ? 'blocked' : (serviceReady && permissionReady && targetReady && mountedReady ? 'ready' : 'degraded'),
+      annotationStoreCorrupt ? 'blocked' : (serviceReady && permissionReady ? 'ready' : 'degraded'),
       [
         ...(!serviceReady ? ['service_not_ready'] : []),
         ...permissionBlockers,
-        ...(!targetReady ? ['status_item_target_not_current'] : []),
-        ...(!mountedReady ? ['mounted_surface_not_current'] : []),
         ...(annotationStoreCorrupt ? ['pending_annotation_state_corrupt'] : []),
       ],
     );
@@ -88,7 +83,6 @@ export function diagnosticsFor({
   requestedId,
   config,
   contentRoots,
-  statusItem,
   pendingAnnotations,
   runtime,
 }) {
@@ -147,22 +141,6 @@ export function diagnosticsFor({
       });
     }
   }
-  if (statusItem.target.status !== 'current' && statusItem.target.status !== 'not_applicable') {
-    add('status-item-target-drift', 'warning', 'Status item target does not match the requested experience.', {
-      status: statusItem.target.status,
-      repair_action: 'activate_experience',
-      current_url: statusItem.target.current_url,
-      expected_url: statusItem.target.expected_url,
-    });
-  }
-  if (!['current', 'not_applicable'].includes(statusItem.mounted_surface.status)) {
-    add('mounted-surface-drift', 'warning', 'Mounted status surface is missing, stale, or unknown.', {
-      status: statusItem.mounted_surface.status,
-      repair_action: 'activate_experience',
-      surface_id: statusItem.mounted_surface.id,
-      url: statusItem.mounted_surface.url,
-    });
-  }
   if (pendingAnnotations.status === 'corrupt') {
     add('pending-annotation-state-corrupt', 'error', 'Pending annotation state is corrupt.', {
       root: pendingAnnotations.root,
@@ -190,7 +168,6 @@ export function attachRecommendations({
   recommendations,
   prefix,
   requestedId,
-  statusItem,
   contentRoots,
   pendingAnnotations,
   runtime,
@@ -201,20 +178,12 @@ export function attachRecommendations({
     const id = addRecommendation(recommendations, {
       id: 'activate-requested-experience',
       kind: 'command',
-      reason: 'Reconcile active experience, content roots, status item target, and mounted surface.',
+      reason: 'Reconcile active experience and content roots.',
       argv: commandArgv(prefix, 'experience', 'activate', requestedId, '--json', '--allow-start'),
     });
     for (const item of activationDiagnostics) {
       item.recommended_next_id = id;
     }
-  }
-  if (statusItem.mounted_surface.status === 'stale') {
-    addRecommendation(recommendations, {
-      id: 'remove-stale-mounted-surface',
-      kind: 'command',
-      reason: 'Remove the stale mounted surface before reactivation if activation cannot reconcile it.',
-      argv: commandArgv(prefix, 'show', 'remove', '--id', statusItem.mounted_surface.id),
-    });
   }
   if (runtime.readiness.status !== 'ready') {
     addRecommendation(recommendations, {

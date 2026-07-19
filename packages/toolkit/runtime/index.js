@@ -117,15 +117,6 @@ export {
   normalizeMenuActivationTransition,
 } from './menu-activation.js'
 export {
-  MOUNTED_SURFACE_MENU_PROJECTION_SCHEMA_VERSION,
-  MOUNTED_SURFACE_MENU_QUERY_PARAM,
-  OPERATOR_ANNOTATION_MENU_KIND,
-  OPERATOR_ANNOTATION_START_EVENT,
-  operatorAnnotationMenuRoutes,
-  operatorAnnotationStatusMenuItems,
-  routeOperatorAnnotationMenuAction,
-} from './operator-annotation-menu.js'
-export {
   OPERATOR_ANNOTATION_SURFACE_STATES,
   createOperatorAnnotationSurface,
 } from './operator-annotation-surface.js'

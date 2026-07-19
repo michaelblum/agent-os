@@ -6,8 +6,8 @@ import path from 'node:path';
 import { buildExperienceRuntimeContext } from '../../scripts/lib/experience-runtime-context.mjs';
 import {
   baseResponses,
-  dryRunToggleURL,
   runContext,
+  testExperiencesRoot,
   toolkitRoot,
   validateJSONAgainstSchema,
   rejectJSONAgainstSchema,
@@ -24,9 +24,9 @@ async function validatePayload(payload, prefix) {
   return instancePath;
 }
 
-async function writeOperatorFixtureState(tmp, expectedURL) {
+async function writeRuntimeContextFixtureState(tmp) {
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -35,30 +35,15 @@ async function writeOperatorFixtureState(tmp, expectedURL) {
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
 }
 
 test('experience runtime context schema accepts a healthy status envelope', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-healthy-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
-  await writeOperatorFixtureState(tmp, expectedURL);
+  await writeRuntimeContextFixtureState(tmp);
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
 
   assert.equal(payload.status, 'ok');
   assert.match(payload.collected_at, /^\d{4}-\d{2}-\d{2}T/);
@@ -67,17 +52,10 @@ test('experience runtime context schema accepts a healthy status envelope', asyn
 
 test('experience runtime context schema accepts a degraded status envelope', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-degraded-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
-  await writeOperatorFixtureState(tmp, expectedURL);
+  await writeRuntimeContextFixtureState(tmp);
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp, {
     service: {
       status: 'degraded',
       running: true,
@@ -96,31 +74,21 @@ test('experience runtime context schema accepts a degraded status envelope', asy
 
 test('experience runtime context schema validates normalized fallback runtime mode', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-invalid-mode-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', {
-    AOS_STATE_ROOT: tmp,
-    AOS_RUNTIME_MODE: 'bogus',
-  });
-  await writeOperatorFixtureState(tmp, expectedURL);
+  await writeRuntimeContextFixtureState(tmp);
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
-  const responses = baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  });
+  const responses = baseResponses(tmp);
   const { fake, log } = await writeFakeAos(tmp);
   const env = {
     ...process.env,
     AOS_STATE_ROOT: tmp,
+    AOS_EXPERIENCES_DIR: testExperiencesRoot,
     AOS_PATH: fake,
     AOS_RUNTIME_MODE: 'bogus',
     FAKE_AOS_LOG: log,
     FAKE_AOS_RESPONSES: JSON.stringify(responses),
   };
 
-  const payload = await buildExperienceRuntimeContext('operator-fixture', { env });
+  const payload = await buildExperienceRuntimeContext('runtime-context-fixture', { env });
   assert.equal(payload.runtime.mode, 'repo');
   await validatePayload(payload, 'aos-runtime-context-schema-invalid-mode-instance-');
 });
@@ -154,18 +122,10 @@ test('experience runtime context schema accepts unsupported annotation status wi
     id,
     contentRootKey: 'plainroot',
     contentRootPath: contentRoot,
-    surfaceId: 'plain-schema-surface',
-    expectedURL,
   });
   await fs.writeFile(path.join(stateRoot, 'repo', 'pending-annotations'), 'corrupt if inspected\n', 'utf8');
   const responses = baseResponses(stateRoot, {
     contentRoots: { plainroot: contentRoot },
-    canvases: [{
-      id: 'plain-schema-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeFakeAos(tmp);
   const env = {
@@ -203,20 +163,12 @@ test('experience runtime context schema accepts unsupported annotation status wi
 
 test('experience runtime context schema accepts corrupt pending annotation state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-corrupt-pending-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
-  await writeOperatorFixtureState(tmp, expectedURL);
+  await writeRuntimeContextFixtureState(tmp);
   const corruptRecordPath = path.join(tmp, 'repo', 'pending-annotations', 'records', 'ann-bad-json.json');
   await fs.mkdir(path.dirname(corruptRecordPath), { recursive: true });
   await fs.writeFile(corruptRecordPath, '{bad json', 'utf8');
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
 
   assert.equal(payload.status, 'blocked');
   assert.equal(payload.pending_annotations.records_status, 'corrupt');
@@ -248,17 +200,9 @@ test('experience runtime context schema accepts invalid content root status outp
     id,
     contentRootKey: 'badroot',
     contentRootPath: rootFile,
-    surfaceId: 'file-root-schema-surface',
-    expectedURL,
   });
   const responses = baseResponses(stateRoot, {
     contentRoots: { badroot: rootFile },
-    canvases: [{
-      id: 'file-root-schema-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeFakeAos(tmp);
   const env = {
@@ -287,25 +231,17 @@ test('experience runtime context schema accepts invalid content root status outp
 
 test('experience runtime context schema rejects non-status command argv', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-runtime-context-schema-invalid-command-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
-  await writeOperatorFixtureState(tmp, expectedURL);
+  await writeRuntimeContextFixtureState(tmp);
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
   const invalid = JSON.parse(JSON.stringify(payload));
-  invalid.command.argv = ['./aos', 'experience', 'activate', 'operator-fixture', '--json'];
+  invalid.command.argv = ['./aos', 'experience', 'activate', 'runtime-context-fixture', '--json'];
   const instancePath = await writeTempRuntimeContextPayload(invalid, 'aos-runtime-context-schema-invalid-command-instance-');
   rejectJSONAgainstSchema(instancePath);
 
   for (const flag of ['--dry-run', '--allow-start']) {
     const invalidFlag = JSON.parse(JSON.stringify(payload));
-    invalidFlag.command.argv = ['./aos', 'experience', 'status', 'operator-fixture', '--json', flag];
+    invalidFlag.command.argv = ['./aos', 'experience', 'status', 'runtime-context-fixture', '--json', flag];
     rejectJSONAgainstSchema(await writeTempRuntimeContextPayload(
       invalidFlag,
       `aos-runtime-context-schema-invalid-command-${flag.slice(2)}-instance-`,

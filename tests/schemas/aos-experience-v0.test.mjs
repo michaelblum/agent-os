@@ -10,7 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-v0.schema.json');
 const legacySigilManifestPath = path.join(repoRoot, 'tests/fixtures/legacy-sigil/aos-experience.fixture.json');
-const operatorFixtureManifestPath = path.join(repoRoot, 'experiences/operator-fixture/aos-experience.json');
+const testExperiencesRoot = path.join(repoRoot, 'tests/fixtures/experiences');
+const runtimeContextFixtureManifestPath = path.join(testExperiencesRoot, 'runtime-context-fixture/aos-experience.json');
+const testEnv = { ...process.env, AOS_EXPERIENCES_DIR: testExperiencesRoot };
 
 function scopedRootName(prefix) {
   const result = spawnSync('git', ['-C', repoRoot, 'branch', '--show-current'], { encoding: 'utf8' });
@@ -52,23 +54,23 @@ test('legacy Sigil fixture manifest validates against the experience schema', ()
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
-test('operator fixture experience proves reusable annotation menu affordance', async () => {
-  const result = validate(operatorFixtureManifestPath);
+test('test-owned runtime context fixture proves reusable annotation menu affordance', async () => {
+  const result = validate(runtimeContextFixtureManifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   const annotationItem = manifest.menu.find((item) => item.kind === 'operator_annotation');
-  assert.equal(manifest.id, 'operator-fixture');
-  assert.equal(manifest.status_item.toggle_surface.id, 'operator-fixture-surface');
+  assert.equal(manifest.id, 'runtime-context-fixture');
+  assert.equal(manifest.status_item.toggle_surface.id, 'runtime-context-surface');
   assert.equal(annotationItem.id, 'annotate-visible-target');
-  assert.equal(annotationItem.surface, 'operator-fixture-surface');
-  assert.equal(annotationItem.action_id, 'aos.operator_fixture.annotation');
+  assert.equal(annotationItem.surface, 'runtime-context-surface');
+  assert.equal(annotationItem.action_id, 'aos.runtime_context.annotation');
   assert(!JSON.stringify(manifest).includes('sigil'));
 
-  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
     },
@@ -77,26 +79,18 @@ test('operator fixture experience proves reusable annotation menu affordance', a
   assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
   const payload = JSON.parse(dryRun.stdout);
   assert.equal(payload.status, 'dry_run');
-  assert.equal(payload.experience.id, 'operator-fixture');
-  assert.equal(payload.status_item.toggle_surface.id, 'operator-fixture-surface');
-  assert.match(payload.status_item.toggle_surface.url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_mounted_surface_menu=/);
-  const projectedURL = new URL(payload.status_item.toggle_surface.url);
-  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
-  assert.equal(projection.schema_version, 'aos.mounted-surface-menu-projection.v0');
-  assert.equal(projection.experience_id, 'operator-fixture');
-  assert.equal(projection.surface_id, 'operator-fixture-surface');
-  assert(Array.isArray(projection.menu));
-  assert.equal(projection.menu.length, 1);
-  assert(projection.menu.every((item) => item.kind === 'operator_annotation'));
-  assert(projection.menu.every((item) => item.surface === 'operator-fixture-surface'));
-  assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'operator-fixture-surface');
+  assert.equal(payload.experience.id, 'runtime-context-fixture');
+  assert.equal(Object.hasOwn(payload, 'status_item'), false);
+  assert.equal(Object.hasOwn(payload, 'default_activation'), false);
+  assert.deepEqual(payload.vanilla_fallback, { tools: ['operator-annotation'] });
+  assert.equal(payload.menu.find((item) => item.kind === 'operator_annotation')?.surface, 'runtime-context-surface');
 });
 
 test('legacy Sigil is absent from active experience discovery', () => {
   const result = spawnSync('node', ['scripts/aos-experience.mjs', 'status', 'sigil', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_RUNTIME_MODE: 'repo',
     },
     encoding: 'utf8',
@@ -109,135 +103,15 @@ test('legacy Sigil is absent from active experience discovery', () => {
 
 test('experience activation does not import operator annotation runtime contracts', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'scripts/aos-experience.mjs'), 'utf8');
-  assert(!source.includes('operator-annotation-menu-contract.js'));
   assert(!source.includes('../packages/toolkit/runtime/'));
-  assert(!source.includes('OPERATOR_ANNOTATION_MENU_QUERY_PARAM'));
-  assert(!source.includes('OPERATOR_ANNOTATION_MENU_PROJECTION_SCHEMA_VERSION'));
 });
 
-test('mounted-surface menu projection literals have one source owner', async () => {
-  const roots = ['experiences', 'packages', 'scripts'];
-  const sourceFiles = [];
-  async function collect(dir) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await collect(fullPath);
-      } else if (/\.(mjs|js)$/.test(entry.name)) {
-        sourceFiles.push(fullPath);
-      }
-    }
-  }
-  for (const root of roots) await collect(path.join(repoRoot, root));
-
-  const literalOwners = [];
-  for (const file of sourceFiles) {
-    const source = await fs.readFile(file, 'utf8');
-    if (
-      source.includes("'aos_mounted_surface_menu'")
-      || source.includes("'aos_manifest_menu'")
-      || source.includes("'aos.mounted-surface-menu-projection.v0'")
-      || source.includes('function mountedSurfaceMenuProjectionEnvelope')
-    ) {
-      literalOwners.push(path.relative(repoRoot, file));
-    }
-  }
-  assert.deepEqual(literalOwners, [
-    'packages/toolkit/contracts/mounted-surface-menu-projection.js',
-  ]);
-});
-
-test('operator annotation projection ignores unrelated non-annotation menu changes', async () => {
-  const base = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
-    },
-    encoding: 'utf8',
-  });
-  assert.equal(base.status, 0, `${base.stdout}${base.stderr}`);
-  const basePayload = JSON.parse(base.stdout);
-  const baseURL = basePayload.status_item.toggle_surface.url;
-
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-unrelated-menu-'));
-  const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
-  await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
-  manifest.menu.push({
-    id: 'unrelated-status-item-entry',
-    label: 'Unrelated Entry',
-    kind: 'future_tool',
-    tool: 'irrelevant',
-  });
-  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-
-  const changed = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      AOS_EXPERIENCES_DIR: experiencesRoot,
-      AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
-    },
-    encoding: 'utf8',
-  });
-  assert.equal(changed.status, 0, `${changed.stdout}${changed.stderr}`);
-  const changedPayload = JSON.parse(changed.stdout);
-  assert.equal(changedPayload.status_item.toggle_surface.url, baseURL);
-});
-
-test('experience activation projects mounted-surface menu entries for the target surface only', async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-mounted-menu-'));
-  const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
-  await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
-  manifest.menu.push({
-    id: 'same-surface-future-tool',
-    label: 'Same Surface Future Tool',
-    kind: 'future_tool',
-    surface: 'operator-fixture-surface',
-    tool: 'future',
-  });
-  manifest.menu.push({
-    id: 'unmounted-future-tool',
-    label: 'Unmounted Future Tool',
-    kind: 'future_tool',
-    tool: 'unmounted',
-  });
-  await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-
-  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      AOS_EXPERIENCES_DIR: experiencesRoot,
-      AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
-    },
-    encoding: 'utf8',
-  });
-  assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
-  const payload = JSON.parse(dryRun.stdout);
-  const projectedURL = new URL(payload.status_item.toggle_surface.url);
-  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
-  assert.deepEqual(projection.menu.map((item) => item.id), [
-    'annotate-visible-target',
-    'same-surface-future-tool',
-  ]);
-  assert(projection.menu.every((item) => item.surface === 'operator-fixture-surface'));
-});
-
-test('experience activation accepts declared non-toggle menu surfaces without projecting them', async () => {
+test('experience activation accepts declared menu surfaces without status-item projection', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-two-surface-menu-'));
   const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  const fixtureDir = path.join(experiencesRoot, 'runtime-context-fixture');
   await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   manifest.default_activation.primary_entry = 'surface-a';
   manifest.status_item.toggle_surface.id = 'surface-a';
   manifest.surfaces = {
@@ -266,10 +140,10 @@ test('experience activation accepts declared non-toggle menu surfaces without pr
   ];
   await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
@@ -278,20 +152,16 @@ test('experience activation accepts declared non-toggle menu surfaces without pr
   });
   assert.equal(dryRun.status, 0, `${dryRun.stdout}${dryRun.stderr}`);
   const payload = JSON.parse(dryRun.stdout);
-  assert.equal(payload.status_item.toggle_surface.id, 'surface-a');
+  assert.equal(Object.hasOwn(payload, 'status_item'), false);
+  assert.equal(Object.hasOwn(payload, 'default_activation'), false);
   assert.deepEqual(payload.menu.map((item) => item.id), ['surface-a-entry', 'surface-b-entry']);
-  const projectedURL = new URL(payload.status_item.toggle_surface.url);
-  const projection = JSON.parse(Buffer.from(projectedURL.searchParams.get('aos_mounted_surface_menu'), 'base64url').toString('utf8'));
-  assert.equal(projection.surface_id, 'surface-a');
-  assert.deepEqual(projection.menu.map((item) => item.id), ['surface-a-entry']);
-  assert(projection.menu.every((item) => item.surface === 'surface-a'));
 
   manifest.menu[1].surface = 'surface-c';
   await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-  const invalid = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const invalid = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
@@ -307,7 +177,7 @@ test('experience activation accepts declared non-toggle menu surfaces without pr
 test('operator annotation experience menu items require a target surface', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-invalid-operator-menu-'));
   const invalidPath = path.join(tmp, 'aos-experience.json');
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   delete manifest.menu[0].surface;
   await fs.writeFile(invalidPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
@@ -319,16 +189,16 @@ test('operator annotation experience menu items require a target surface', async
 test('experience activation rejects operator menu targets outside declared mounted surfaces', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-invalid-target-'));
   const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  const fixtureDir = path.join(experiencesRoot, 'runtime-context-fixture');
   await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   manifest.menu[0].surface = 'missing-operator-surface';
   await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const dryRun = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
@@ -341,246 +211,7 @@ test('experience activation rejects operator menu targets outside declared mount
   assert.match(payload.error, /targets undeclared surface: missing-operator-surface/);
 });
 
-test('experience activation removes same-id stale toggle canvas even when previous target differed', async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-stale-toggle-canvas-'));
-  const fakeAos = path.join(tmp, 'fake-aos.mjs');
-  const logPath = path.join(tmp, 'aos-calls.jsonl');
-  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
-  await fs.writeFile(fakeAos, `#!/usr/bin/env node
-import fs from 'node:fs';
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
-if (args.join('\\0') === ['content', 'status', '--json'].join('\\0')) {
-  console.log(JSON.stringify({ roots: { toolkit: '${path.join(repoRoot, 'packages/toolkit')}' } }));
-}
-if (args.join('\\0') === ['show', 'list', '--json'].join('\\0')) {
-  console.log(JSON.stringify({
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: 'http://127.0.0.1:58012/legacy-root/old-surface.html',
-      lifecycleState: 'active',
-    }],
-  }));
-}
-process.exit(0);
-`, { mode: 0o755 });
-  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
-    content: {
-      roots: {
-        toolkit: path.join(repoRoot, 'packages/toolkit'),
-      },
-    },
-    status_item: {
-      enabled: true,
-      toggle_id: 'previous-surface',
-      toggle_url: 'aos://legacy-root/old-surface.html',
-      toggle_track: 'union',
-      icon: 'aos',
-    },
-  }));
-
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      AOS_PATH: fakeAos,
-      AOS_STATE_ROOT: tmp,
-      AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
-      FAKE_AOS_LOG: logPath,
-    },
-    encoding: 'utf8',
-  });
-  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
-  const payload = JSON.parse(activate.stdout);
-  const staleStep = payload.steps.find((step) => step.id === 'status-item:stale-target:operator-fixture-surface');
-  assert.equal(staleStep.status, 'success');
-  assert.equal(staleStep.canvas_url, 'http://127.0.0.1:58012/legacy-root/old-surface.html');
-  assert.match(staleStep.current_url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_mounted_surface_menu=/);
-
-  const calls = (await fs.readFile(logPath, 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
-  const callText = calls.map((args) => args.join('\0'));
-  const removeIndex = callText.indexOf(['show', 'remove', '--id', 'operator-fixture-surface'].join('\0'));
-  const createIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
-  const waitIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
-  assert.notEqual(removeIndex, -1, calls);
-  assert.notEqual(createIndex, -1, calls);
-  assert.notEqual(waitIndex, -1, calls);
-  assert(removeIndex < createIndex && createIndex < waitIndex, calls);
-
-  const prepareIndex = payload.steps.findIndex((step) => step.id === 'status-item:prepare');
-  const createStepIndex = payload.steps.findIndex((step) => step.id === 'status-item:mounted-surface:operator-fixture-surface');
-  const readyStepIndex = payload.steps.findIndex((step) => step.id === 'status-item:mounted-surface-ready:operator-fixture-surface');
-  const commitIndex = payload.steps.findIndex((step) => step.id === 'status-item');
-  const activeIndex = payload.steps.findIndex((step) => step.id === 'experience:active');
-  assert(prepareIndex >= 0, payload.steps);
-  assert(createStepIndex >= 0, payload.steps);
-  assert(readyStepIndex >= 0, payload.steps);
-  assert(commitIndex >= 0, payload.steps);
-  assert(activeIndex >= 0, payload.steps);
-  assert(prepareIndex < createStepIndex && createStepIndex < readyStepIndex && readyStepIndex < commitIndex && commitIndex < activeIndex, payload.steps);
-
-  const finalConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
-  assert.equal(finalConfig.status_item.enabled, true);
-  assert.equal(finalConfig.status_item.toggle_id, 'operator-fixture-surface');
-  assert.match(finalConfig.status_item.toggle_url, /^aos:\/\/toolkit\/runtime\/_smoke\/operator-annotation.html\?aos_mounted_surface_menu=/);
-});
-
-test('experience activation rolls back status item config and active state when mounted surface readiness fails', async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-activation-rollback-'));
-  const fakeAos = path.join(tmp, 'fake-aos.mjs');
-  const logPath = path.join(tmp, 'aos-calls.jsonl');
-  const canvasStatePath = path.join(tmp, 'canvases.json');
-  const previousConfig = {
-    content: {
-      roots: {
-        toolkit: path.join(repoRoot, 'packages/toolkit'),
-        toolkit_previous: path.join(repoRoot, 'packages/toolkit'),
-      },
-    },
-    status_item: {
-      enabled: true,
-      toggle_id: 'previous-surface',
-      toggle_url: 'aos://previous/renderer/index.html',
-      toggle_at: [10, 20, 30, 40],
-      toggle_track: 'union',
-      icon: 'previous',
-    },
-  };
-  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
-  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify(previousConfig, null, 2));
-  await fs.writeFile(path.join(tmp, 'repo', 'experience-state.json'), JSON.stringify({ active_experience: 'previous-experience', exclusive: true }));
-  await fs.writeFile(canvasStatePath, JSON.stringify({
-    canvases: {
-      'previous-surface': {
-        id: 'previous-surface',
-        url: 'aos://previous/renderer/index.html',
-        lifecycleState: 'active',
-      },
-    },
-  }, null, 2));
-  await fs.writeFile(fakeAos, `#!/usr/bin/env node
-import fs from 'node:fs';
-const args = process.argv.slice(2);
-const key = args.join('\\0');
-fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(args) + '\\n');
-function readCanvasState() {
-  return JSON.parse(fs.readFileSync(process.env.FAKE_AOS_CANVASES, 'utf8'));
-}
-function writeCanvasState(state) {
-  fs.writeFileSync(process.env.FAKE_AOS_CANVASES, JSON.stringify(state, null, 2));
-}
-if (key === ['content', 'status', '--json'].join('\\0')) {
-  console.log(JSON.stringify({ roots: { toolkit: '${path.join(repoRoot, 'packages/toolkit')}' } }));
-  process.exit(0);
-}
-if (key === ['show', 'list', '--json'].join('\\0')) {
-  const state = readCanvasState();
-  console.log(JSON.stringify({ canvases: Object.values(state.canvases) }));
-  process.exit(0);
-}
-if (args[0] === 'show' && args[1] === 'remove' && args[2] === '--id') {
-  const state = readCanvasState();
-  delete state.canvases[args[3]];
-  writeCanvasState(state);
-  process.exit(0);
-}
-if (args[0] === 'show' && args[1] === 'create' && args[2] === '--id') {
-  const state = readCanvasState();
-  const id = args[3];
-  const urlIndex = args.indexOf('--url');
-  if (id === 'previous-surface' && state.canvases['operator-fixture-surface']) {
-    console.error('next surface still present before restoring previous');
-    process.exit(22);
-  }
-  state.canvases[id] = {
-    id,
-    url: urlIndex >= 0 ? args[urlIndex + 1] : '',
-    lifecycleState: 'active',
-  };
-  writeCanvasState(state);
-  process.exit(0);
-}
-if (key === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\\0')) {
-  console.error('surface never became ready');
-  process.exit(17);
-}
-process.exit(0);
-`, { mode: 0o755 });
-
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      AOS_PATH: fakeAos,
-      AOS_STATE_ROOT: tmp,
-      AOS_RUNTIME_MODE: 'repo',
-      AOS_BYPASS_PREFLIGHT: '1',
-      FAKE_AOS_LOG: logPath,
-      FAKE_AOS_CANVASES: canvasStatePath,
-    },
-    encoding: 'utf8',
-  });
-  assert.notEqual(activate.status, 0, `${activate.stdout}${activate.stderr}`);
-  const failure = JSON.parse(activate.stderr);
-  assert.equal(failure.code, 'COMMAND_FAILED');
-  assert.match(failure.error, /wait for mounted status surface operator-fixture-surface/);
-
-  const rolledBackConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
-  assert.deepEqual(rolledBackConfig, previousConfig);
-  const activeState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
-  assert.equal(activeState.active_experience, 'previous-experience');
-
-  const calls = (await fs.readFile(logPath, 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
-  const callText = calls.map((args) => args.join('\0'));
-  const removePreviousIndex = callText.indexOf(['show', 'remove', '--id', 'previous-surface'].join('\0'));
-  const createNextIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0')));
-  const waitNextIndex = callText.indexOf(['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0'));
-  const removeNextIndex = callText.indexOf(['show', 'remove', '--id', 'operator-fixture-surface'].join('\0'));
-  const restorePreviousIndex = callText.findIndex((line) => line.startsWith(['show', 'create', '--id', 'previous-surface'].join('\0')));
-  assert.notEqual(removePreviousIndex, -1, calls);
-  assert.notEqual(createNextIndex, -1, calls);
-  assert.notEqual(waitNextIndex, -1, calls);
-  assert.notEqual(removeNextIndex, -1, calls);
-  assert.notEqual(restorePreviousIndex, -1, calls);
-  assert(
-    removePreviousIndex < createNextIndex
-      && createNextIndex < waitNextIndex
-      && waitNextIndex < removeNextIndex
-      && removeNextIndex < restorePreviousIndex,
-    calls,
-  );
-  assert(calls.some((args) => args.join('\0').startsWith(['show', 'create', '--id', 'operator-fixture-surface'].join('\0'))), calls);
-  assert(calls.some((args) => args.join('\0') === ['show', 'wait', '--id', 'operator-fixture-surface', '--timeout', '30s', '--json'].join('\0')), calls);
-  const finalCanvasState = JSON.parse(await fs.readFile(canvasStatePath, 'utf8'));
-  assert.deepEqual(Object.keys(finalCanvasState.canvases).sort(), ['previous-surface']);
-  assert.equal(finalCanvasState.canvases['previous-surface'].url, 'aos://previous/renderer/index.html');
-});
-
-test('operator fixture experience is exclusive and status-item-first', async () => {
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
-  assert.equal(manifest.id, 'operator-fixture');
-  assert.equal(manifest.exclusive, true);
-  assert.equal(manifest.default_activation.kind, 'status_item');
-  assert.equal(manifest.default_activation.status_item_first, true);
-  assert.equal(manifest.default_activation.primary_entry, 'operator-fixture-surface');
-  assert.equal(manifest.status_item.toggle_surface.id, 'operator-fixture-surface');
-  const annotationItem = manifest.menu.find((item) => item.kind === 'operator_annotation');
-  assert.equal(annotationItem.id, 'annotate-visible-target');
-  assert.equal(annotationItem.surface, 'operator-fixture-surface');
-  assert.equal(annotationItem.action_id, 'aos.operator_fixture.annotation');
-  assert.equal(manifest.surfaces['operator-fixture-surface'].summary.includes('operator annotation'), true);
-  assert.equal(manifest.branding.display_name, 'Operator Fixture');
-  assert.deepEqual(manifest.vanilla_fallback.tools, ['operator-annotation']);
-});
-
-test('experience deactivate reports and writes honest disabled status-item config', async () => {
+test('experience deactivate clears active state without mutating runtime config', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-deactivate-'));
   const fakeAos = path.join(tmp, 'fake-aos.mjs');
   const logPath = path.join(tmp, 'aos-calls.jsonl');
@@ -591,7 +222,7 @@ process.exit(0);
 `, { mode: 0o755 });
 
   const env = {
-    ...process.env,
+    ...testEnv,
     AOS_PATH: fakeAos,
     AOS_STATE_ROOT: tmp,
     AOS_RUNTIME_MODE: 'repo',
@@ -606,14 +237,6 @@ process.exit(0);
         toolkit: path.join(repoRoot, 'packages/toolkit'),
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'retired-surface',
-      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
-      toggle_at: [200, 200, 300, 300],
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   }));
 
   const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {
@@ -626,18 +249,15 @@ process.exit(0);
   assert.equal(inactiveState.active_experience, null);
   const payload = JSON.parse(deactivate.stdout);
   assert.equal(payload.active_experience, null);
-  assert.equal(payload.status_item.enabled, false);
-  assert.deepEqual(payload.status_item.menu, []);
+  assert.equal(Object.hasOwn(payload, 'status_item'), false);
 
-  const calls = (await fs.readFile(logPath, 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
-  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'status-item-canvas'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_track', 'none'].join('\0')), calls);
+  const log = await fs.readFile(logPath, 'utf8').catch(() => '');
+  const calls = log.trim() ? log.trim().split('\n').map((line) => JSON.parse(line)) : [];
+  assert(!calls.some((args) => args[0] === 'config' && args[1] === 'set'), calls);
   assert(!calls.some((args) => args[0] === 'service'), calls);
+
+  const finalConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
+  assert.equal(finalConfig.content.roots.toolkit, path.join(repoRoot, 'packages/toolkit'));
 });
 
 test('experience activation does not rewrite equivalent relative canonical content roots', async () => {
@@ -674,20 +294,12 @@ process.exit(0);
         toolkit: 'packages/toolkit',
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
-      toggle_at: [200, 200, 300, 300],
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   }));
 
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_PATH: fakeAos,
       AOS_STATE_ROOT: tmp,
       AOS_RUNTIME_MODE: 'repo',
@@ -718,10 +330,10 @@ test('experience activation restarts service when live content server still expo
   const fakeAos = path.join(tmp, 'fake-aos.mjs');
   const logPath = path.join(tmp, 'aos-calls.jsonl');
   const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  const fixtureDir = path.join(experiencesRoot, 'runtime-context-fixture');
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
   await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   manifest.content_roots[0].branch_scoped = true;
   await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
@@ -745,20 +357,12 @@ process.exit(0);
         toolkit: path.join(repoRoot, 'packages/toolkit'),
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: 'aos://toolkit/runtime/_smoke/operator-annotation.html',
-      toggle_at: [200, 200, 300, 300],
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   }));
 
-  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--json'], {
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_PATH: fakeAos,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
@@ -787,16 +391,16 @@ process.exit(0);
 test('branch-scoped experience content roots require explicit opt-in isolated state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-branch-roots-'));
   const experiencesRoot = path.join(tmp, 'experiences');
-  const fixtureDir = path.join(experiencesRoot, 'operator-fixture');
+  const fixtureDir = path.join(experiencesRoot, 'runtime-context-fixture');
   await fs.mkdir(fixtureDir, { recursive: true });
-  const manifest = JSON.parse(await fs.readFile(operatorFixtureManifestPath, 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(runtimeContextFixtureManifestPath, 'utf8'));
   manifest.content_roots[0].branch_scoped = true;
   await fs.writeFile(path.join(fixtureDir, 'aos-experience.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-  const canonical = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const canonical = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
       AOS_RUNTIME_MODE: 'repo',
@@ -808,10 +412,10 @@ test('branch-scoped experience content roots require explicit opt-in isolated st
   const canonicalPayload = JSON.parse(canonical.stdout);
   assert.equal(canonicalPayload.content_roots.find((root) => root.id === 'toolkit')?.key, 'toolkit');
 
-  const branchScoped = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const branchScoped = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: tmp,
       AOS_CONTENT_ROOT_SCOPE: 'branch',
@@ -824,10 +428,10 @@ test('branch-scoped experience content roots require explicit opt-in isolated st
   const branchPayload = JSON.parse(branchScoped.stdout);
   assert.equal(branchPayload.content_roots.find((root) => root.id === 'toolkit')?.key, scopedRootName('toolkit'));
 
-  const rejected = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'operator-fixture', '--dry-run', '--json'], {
+  const rejected = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'runtime-context-fixture', '--dry-run', '--json'], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...testEnv,
       AOS_EXPERIENCES_DIR: experiencesRoot,
       AOS_STATE_ROOT: '',
       AOS_CONTENT_ROOT_SCOPE: 'branch',

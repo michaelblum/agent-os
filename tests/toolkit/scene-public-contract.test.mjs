@@ -120,6 +120,11 @@ test('scene package facade exposes only the reviewed scene-authoring contract', 
       import: './scene/index.js',
       default: './scene/index.js',
     },
+    './status-item': {
+      types: './status-item/index.d.ts',
+      import: './status-item/index.js',
+      default: './status-item/index.js',
+    },
   })
 })
 

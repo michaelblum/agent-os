@@ -1,14 +1,14 @@
 {
-  "$schema": "../../shared/schemas/aos-experience-v0.schema.json",
+  "$schema": "../../../../shared/schemas/aos-experience-v0.schema.json",
   "schema_version": 0,
-  "id": "operator-fixture",
-  "title": "Operator Fixture",
+  "id": "runtime-context-fixture",
+  "title": "Runtime Context Fixture",
   "version": "0.1.0",
   "exclusive": true,
   "default_activation": {
     "kind": "status_item",
     "status_item_first": true,
-    "primary_entry": "operator-fixture-surface"
+    "primary_entry": "runtime-context-surface"
   },
   "vanilla_fallback": {
     "status_item": true,
@@ -23,34 +23,34 @@
   ],
   "status_item": {
     "enabled": true,
-    "label": "Operator Fixture",
+    "label": "Runtime Context Fixture",
     "icon": "aos",
     "toggle_surface": {
-      "id": "operator-fixture-surface",
-      "url": "aos://${root:toolkit}/runtime/_smoke/operator-annotation.html",
+      "id": "runtime-context-surface",
+      "url": "aos://${root:toolkit}/runtime/_smoke/lifecycle-timeout.html",
       "track": "union"
     }
   },
   "branding": {
-    "display_name": "Operator Fixture",
-    "surface_title_prefix": "Operator",
+    "display_name": "Runtime Context Fixture",
+    "surface_title_prefix": "Context Fixture",
     "theme_ref": "packages/toolkit/runtime",
-    "about": "Fixture experience proving the reusable app-owned operator annotation contract."
+    "about": "Test-owned fixture for experience runtime context compatibility."
   },
   "menu": [
     {
       "id": "annotate-visible-target",
       "label": "Annotate Visible Target",
       "kind": "operator_annotation",
-      "surface": "operator-fixture-surface",
-      "action_id": "aos.operator_fixture.annotation",
+      "surface": "runtime-context-surface",
+      "action_id": "aos.runtime_context.annotation",
       "mode": "selection_annotation",
       "create_pending_annotation": true
     }
   ],
   "surfaces": {
-    "operator-fixture-surface": {
-      "summary": "Fixture status-item surface that receives operator annotation menu actions."
+    "runtime-context-surface": {
+      "summary": "Test-owned surface for runtime context compatibility."
     }
   }
 }

@@ -206,25 +206,6 @@ function ensureContentRoots(roots, steps, allowStart) {
   steps.push({ id: 'content:wait', status: 'success', roots: roots.map((root) => root.key) });
 }
 
-function configureStatusItem(manifest, entries, rootsByID, steps) {
-  const item = manifest.status_item;
-  if (!item) return;
-  const toggleEntry = entries[item.toggle_entry];
-  const toggleSurface = toggleEntry?.surfaces?.[0];
-  if (!toggleSurface) throw new LaunchFailure(`status_item.toggle_entry has no surface: ${item.toggle_entry}`, 'INVALID_APP_MANIFEST');
-  const context = { rootsByID };
-  const values = [
-    ['status_item.enabled', String(Boolean(item.enabled))],
-    ['status_item.toggle_id', template(toggleSurface.id, context)],
-    ['status_item.toggle_url', template(toggleSurface.url, context)],
-  ];
-  if (item.toggle_track) values.push(['status_item.toggle_track', item.toggle_track]);
-  for (const [key, value] of values) {
-    requireSuccess(runAos(['set', key, value]), `set ${key}`);
-  }
-  steps.push({ id: 'status-item', status: 'success', toggle_entry: item.toggle_entry });
-}
-
 function displayPayload() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const result = runAos(['graph', 'displays'], { timeout: 2000 });
@@ -389,7 +370,6 @@ function plan(manifest, entryName, roots) {
     mode,
     dry_run: true,
     content_roots: roots,
-    status_item: manifest.status_item || null,
     entries,
   };
 }
@@ -408,7 +388,6 @@ function launch(manifest, entryName, roots, asJSON, dryRun, allowStart) {
   const context = { rootsByID };
   requireLivePermission('launch.activate', allowStart);
   ensureContentRoots(roots, steps, allowStart);
-  configureStatusItem(manifest, manifest.entries, rootsByID, steps);
   requireSuccess(runAos(['service', 'start', '--mode', mode]), 'start service');
   steps.push({ id: 'service:start', status: 'success' });
 
