@@ -120,8 +120,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   without starting the daemon or exposing absolute paths.
   `lib/aos-scene-daemon.mjs` owns the agent-tooling request transport: bounded
   incremental NDJSON reads, request/ref correlation, timeouts, signal and
-  parent-loss handling, and cleanup of only a daemon it started. It must not
-  replace the canonical stage snapshot or carry product content.
+  parent-loss handling, canonical daemon-response envelope validation and data
+  unwrapping, and cleanup of only a daemon it started. It must not replace the
+  canonical stage snapshot or carry product content.
 - `aos-shortcut.mjs` owns explicit Apple Shortcut execution through
   `/usr/bin/shortcuts`. It passes one exact shortcut name as an argv item,
   never invokes a shell, bounds time and output, and never returns captured

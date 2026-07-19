@@ -12,6 +12,14 @@ function fail(code, message) {
   return error
 }
 
+function responseData(payload) {
+  if (payload.v !== 1 || payload.status !== 'success'
+      || !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+    throw fail('INVALID_SCENE_DAEMON_RESPONSE', 'DesktopWorld daemon returned an invalid success response.')
+  }
+  return payload.data
+}
+
 class BoundedLineReader {
   #buffer = Buffer.alloc(0)
   #onLine
@@ -84,7 +92,10 @@ export async function connectSceneDaemon({ signal = null, onEvent = () => {} } =
       pending.delete(payload.ref)
       clearTimeout(request.timer)
       if (typeof payload.code === 'string' && typeof payload.error === 'string') request.reject(fail(payload.code, payload.error))
-      else request.resolve(payload)
+      else {
+        try { request.resolve(responseData(payload)) }
+        catch (error) { request.reject(error) }
+      }
       return
     }
     if (typeof payload.ref === 'string') return
