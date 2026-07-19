@@ -53,11 +53,55 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     throw cause
   }
 
+  async function replace(message, op) {
+    const payload = message?.payload ?? {}
+    const operation = payload.operation ?? {}
+    const outletReplacement = outlet.prepareReplacement(message)
+    let interactionReplacement = null
+    let committed = false
+    try {
+      interactionReplacement = await interactions.prepareReplacement({
+        key: payload.lease_key,
+        owner: payload.owner,
+        resource: payload.resource,
+        document: outletReplacement.document,
+        interactions: op === 'mount' ? operation.interactions ?? null : operation.interactions,
+      })
+      outletReplacement.assertCurrent()
+      interactionReplacement.assertCurrent()
+      interactionReplacement.commit(() => outletReplacement.commit())
+      committed = true
+      const settled = await interactionReplacement.settle()
+      if (!settled) throw new Error('DesktopWorld scene input-region settlement failed.')
+      return { applied: true, op }
+    } catch (error) {
+      const rollbackFailures = []
+      if (committed) {
+        try { await interactionReplacement?.failClosed() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+        try {
+          outlet.apply({ type: 'desktop_world_stage.scene.release', payload: { lease_key: payload.lease_key } })
+        } catch (rollbackError) {
+          rollbackFailures.push(rollbackError)
+        }
+      } else if (interactionReplacement) {
+        try { await interactionReplacement.rollback() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+      }
+      if (!committed) {
+        try { outletReplacement.rollback() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+      }
+      if (rollbackFailures.length > 0) {
+        throw new AggregateError([error, ...rollbackFailures], 'DesktopWorld scene replacement and rollback both failed.')
+      }
+      throw error
+    }
+  }
+
   async function apply(message) {
     const payload = message?.payload ?? {}
     const key = payload.lease_key
-    const operation = payload.operation ?? {}
     const op = operationName(message)
+    if (op === 'mount' || op === 'transact') return replace(message, op)
+
     const previousOutlet = outlet.configuration(key)
     const previous = {
       configuration: interactions.configuration(key),
@@ -66,32 +110,26 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     }
 
     try {
-      if (op === 'transact') interactions.cancel(key, 'resource_changed')
       if (op === 'suspend') await interactions.suspend(key)
       if (op === 'remove' || op === 'close' || op === 'release') {
         await interactions.release(key, payload.reason ?? 'resource_removed')
       }
 
       const applied = outlet.apply(message)
-      if (op === 'mount' || op === 'transact') {
-        await interactions.reconcile({
-          key,
-          owner: payload.owner,
-          resource: payload.resource,
-          document: outlet.document(key),
-          interactions: op === 'mount' ? operation.interactions ?? null : operation.interactions,
-        })
-      } else if (op === 'resume') {
+      if (op === 'resume') {
         await interactions.resume(key)
       }
       return { applied, op }
     } catch (error) {
-      if (['mount', 'transact', 'resume'].includes(op)) {
+      if (op === 'resume') {
         return rollback(key, previous, error)
       }
       throw error
     }
   }
 
-  return Object.freeze({ apply })
+  return Object.freeze({
+    apply,
+    handleInput(message) { return interactions.handleInput(message) },
+  })
 }

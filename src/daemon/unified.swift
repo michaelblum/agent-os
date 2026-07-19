@@ -121,7 +121,13 @@ class UnifiedDaemon {
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
     private let sceneLeases = AOSSceneLeaseRegistry()
-    private let desktopWorldDevTools = AOSDesktopWorldDevToolsSessionRegistry()
+    private lazy var desktopWorldDevTools = AOSDesktopWorldDevToolsController(
+        canvasManager: canvasManager,
+        sceneStageCanvasID: sceneStageCanvasID,
+        ensureSceneStage: { [weak self] in self?.ensureSceneStage() ?? false },
+        hasSceneMonitor: { [weak self] in self?.hasDesktopWorldSceneMonitor() ?? false },
+        resolveContentURL: { [weak self] value in self?.resolveContentURL(value) ?? value }
+    )
     private let voiceTelemetryLock = NSLock()
     let canvasInspectorBundleLock = NSLock()
     var canvasInspectorBundleInFlight = false
@@ -430,7 +436,7 @@ class UnifiedDaemon {
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
             if action == "removed" {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
-                _ = self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
+                self.desktopWorldDevTools.detachHost(id: canvasInfo.id)
             } else if canvasInfo.suspended == true {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: false)
             }
@@ -2709,52 +2715,23 @@ class UnifiedDaemon {
         writer?.enqueue(bytes)
     }
 
+    private func hasDesktopWorldSceneMonitor() -> Bool {
+        subscriberLock.lock()
+        defer { subscriberLock.unlock() }
+        return subscribers.values.contains(where: { $0.sceneMonitorResource != nil })
+    }
+
     private func handleDesktopWorldDevToolsStageSnapshot(_ payload: [String: Any]) {
-        guard let snapshot = payload["snapshot"] as? [String: Any],
-              desktopWorldDevTools.recordStageSnapshot(snapshot) else { return }
-        publishDesktopWorldDevToolsSnapshots()
+        guard desktopWorldDevTools.handleStageSnapshot(payload) else { return }
         publishDesktopWorldSceneMonitorSnapshots()
     }
 
     private func publishDesktopWorldDevToolsSnapshots(hostID: String? = nil) {
-        for entry in desktopWorldDevTools.activeHostSnapshots() {
-            if let hostID, entry.host.id != hostID { continue }
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: entry.host.id, payload: [
-                "type": "desktop_world_devtools.snapshot",
-                "payload": entry.snapshot,
-            ])
-        }
+        desktopWorldDevTools.publishSnapshots(hostID: hostID)
     }
 
     private func configureDesktopWorldDevToolsStage() -> Bool {
-        let configuration = desktopWorldDevTools.instrumentationConfiguration()
-        subscriberLock.lock()
-        let hasMonitor = subscribers.values.contains(where: { $0.sceneMonitorResource != nil })
-        subscriberLock.unlock()
-        let enabled = configuration.enabled || hasMonitor
-        var stageExists = mutateDesktopWorldDevToolsCanvas { [weak self] in
-            guard let self else { return false }
-            return self.canvasManager.hasCanvas(self.sceneStageCanvasID)
-        }
-        if enabled && !stageExists {
-            guard !Thread.isMainThread, ensureSceneStage() else { return false }
-            stageExists = true
-        }
-        if !enabled && !stageExists { return true }
-        canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-            "type": "desktop_world_stage.devtools.configure",
-            "payload": [
-                "enabled": enabled,
-                "recording": configuration.recording,
-            ],
-        ])
-        if enabled {
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: sceneStageCanvasID, payload: [
-                "type": "desktop_world_stage.devtools.request",
-                "payload": [:],
-            ])
-        }
-        return true
+        desktopWorldDevTools.configureStage()
     }
 
     private func publishDesktopWorldSceneMonitorSnapshots() {
@@ -2810,264 +2787,8 @@ class UnifiedDaemon {
         publishDesktopWorldSceneMonitorSnapshots()
     }
 
-    private func desktopWorldDevToolsHost(_ value: Any?) -> AOSDesktopWorldDevToolsHost? {
-        guard let object = value as? [String: Any],
-              let kindValue = object["kind"] as? String,
-              let kind = AOSDesktopWorldDevToolsHostKind(rawValue: kindValue),
-              let id = object["id"] as? String else { return nil }
-        return AOSDesktopWorldDevToolsHost(kind: kind, id: id)
-    }
-
-    private func mutateDesktopWorldDevToolsCanvas(_ operation: @escaping () -> Bool) -> Bool {
-        if Thread.isMainThread { return operation() }
-        let semaphore = DispatchSemaphore(value: 0)
-        var result = false
-        DispatchQueue.main.async {
-            result = operation()
-            semaphore.signal()
-        }
-        semaphore.wait()
-        return result
-    }
-
-    private func activateDesktopWorldDevToolsHost(_ host: AOSDesktopWorldDevToolsHost) -> Bool {
-        switch host.kind {
-        case .panel:
-            return mutateDesktopWorldDevToolsCanvas { [weak self] in
-                guard let self else { return false }
-                if self.canvasManager.hasCanvas(host.id) {
-                    return self.canvasManager.handle(CanvasRequest(action: "resume", id: host.id)).status == "success"
-                }
-                let main = CGDisplayBounds(CGMainDisplayID())
-                var request = CanvasRequest(
-                    action: "create",
-                    id: host.id,
-                    at: [main.minX + 48, main.minY + 72, min(960, main.width - 96), min(680, main.height - 120)],
-                    url: self.resolveContentURL("aos://toolkit/components/desktop-world-devtools/index.html"),
-                    interactive: true,
-                    focus: false,
-                    scope: "global",
-                    owner: CanvasOwnerInfo(
-                        consumerID: "daemon.desktop-world-devtools",
-                        harness: "daemon",
-                        pid: Int(getpid()),
-                        cwd: FileManager.default.currentDirectoryPath,
-                        worktreeRoot: aosRepoRootFromBases([FileManager.default.currentDirectoryPath]),
-                        runtimeMode: aosCurrentRuntimeMode().rawValue
-                    )
-                )
-                request.windowLevel = "floating"
-                request.cascade = false
-                return self.canvasManager.handle(request).status == "success"
-            }
-        case .compatibility, .external:
-            let exists = mutateDesktopWorldDevToolsCanvas { [weak self] in
-                self?.canvasManager.hasCanvas(host.id) == true
-            }
-            guard exists else { return false }
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: host.id, payload: [
-                "type": "desktop_world_devtools.host.activate",
-                "payload": [:],
-            ])
-            return true
-        }
-    }
-
-    private func suspendDesktopWorldDevToolsHost(_ host: AOSDesktopWorldDevToolsHost) -> Bool {
-        if host.kind == .panel {
-            return mutateDesktopWorldDevToolsCanvas { [weak self] in
-                guard let self else { return false }
-                if !self.canvasManager.hasCanvas(host.id) { return true }
-                return self.canvasManager.handle(CanvasRequest(action: "suspend", id: host.id)).status == "success"
-            }
-        }
-        let exists = mutateDesktopWorldDevToolsCanvas { [weak self] in
-            self?.canvasManager.hasCanvas(host.id) == true
-        }
-        if exists {
-            canvasManager.postMessageToCurrentCanvasAsync(canvasID: host.id, payload: [
-                "type": "desktop_world_devtools.host.suspend",
-                "payload": [:],
-            ])
-        }
-        return exists
-    }
-
-    private func closeDesktopWorldDevToolsHost(_ host: AOSDesktopWorldDevToolsHost) {
-        if host.kind == .panel {
-            _ = mutateDesktopWorldDevToolsCanvas { [weak self] in
-                guard let self else { return false }
-                if !self.canvasManager.hasCanvas(host.id) { return true }
-                return self.canvasManager.handle(CanvasRequest(action: "remove", id: host.id)).status == "success"
-            }
-            return
-        }
-        canvasManager.postMessageToCurrentCanvasAsync(canvasID: host.id, payload: [
-            "type": "desktop_world_devtools.host.close",
-            "payload": [:],
-        ])
-    }
-
-    private func closeDesktopWorldDevToolsSessionHosts(_ state: AOSDesktopWorldDevToolsSessionState) {
-        if let host = state.host { closeDesktopWorldDevToolsHost(host) }
-        for panelID in state.ownedPanelIDs where panelID != state.host?.id {
-            closeDesktopWorldDevToolsHost(AOSDesktopWorldDevToolsHost(kind: .panel, id: panelID))
-        }
-    }
-
-    private func sendDesktopWorldDevToolsHostError(canvasID: String, code: String) {
-        canvasManager.postMessageToCurrentCanvasAsync(canvasID: canvasID, payload: [
-            "type": "desktop_world_devtools.host.error",
-            "payload": ["code": code],
-        ])
-    }
-
     private func handleDesktopWorldDevToolsHostCommand(callerID: String, payload: [String: Any]) {
-        guard let action = payload["action"] as? String else {
-            sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "INVALID_DEVTOOLS_REQUEST")
-            return
-        }
-        let hostedState = desktopWorldDevTools.state(hostID: callerID)
-        let sessionID = payload["session"] as? String ?? (action == "close" ? hostedState?.id : nil)
-        let expectedRevision = payload["expectedRevision"] as? Int
-            ?? (action == "close" ? hostedState?.revision : nil)
-        guard let sessionID, let expectedRevision,
-              let current = desktopWorldDevTools.state(sessionID: sessionID),
-              current.host?.id == callerID else {
-            sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "DEVTOOLS_HOST_NOT_OWNER")
-            return
-        }
-        if action == "close" {
-            let result = desktopWorldDevTools.close(sessionID: sessionID, expectedRevision: expectedRevision)
-            guard case .success(let closed) = result else {
-                sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "DEVTOOLS_REVISION_CONFLICT")
-                return
-            }
-            closeDesktopWorldDevToolsSessionHosts(closed)
-            _ = configureDesktopWorldDevToolsStage()
-            return
-        }
-        if action == "detach" {
-            let panel = AOSDesktopWorldDevToolsHost(kind: .panel, id: "aos-desktop-world-devtools-\(sessionID)")
-            let result = transferDesktopWorldDevToolsHost(
-                sessionID: sessionID,
-                expectedRevision: expectedRevision,
-                next: panel
-            )
-            if case .success = result { return }
-            sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "DEVTOOLS_HOST_TRANSFER_FAILED")
-            return
-        }
-        guard action == "update" else {
-            sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "INVALID_DEVTOOLS_REQUEST")
-            return
-        }
-        let selectedResource: String?? = payload.keys.contains("selected_resource")
-            ? .some(payload["selected_resource"] as? String)
-            : nil
-        let activeTab: AOSDesktopWorldDevToolsTab?
-        if let value = payload["active_tab"] as? String {
-            guard let parsed = AOSDesktopWorldDevToolsTab(rawValue: value) else {
-                sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "INVALID_DEVTOOLS_REQUEST")
-                return
-            }
-            activeTab = parsed
-        } else {
-            activeTab = nil
-        }
-        var filters: AOSDesktopWorldDevToolsFilters?
-        if let input = payload["filters"] as? [String: Any] {
-            filters = AOSDesktopWorldDevToolsFilters(
-                query: input["query"] as? String ?? "",
-                eventKinds: input["event_kinds"] as? [String] ?? [],
-                errorsOnly: input["errors_only"] as? Bool ?? false
-            )
-        }
-        let result = desktopWorldDevTools.update(
-            sessionID: sessionID,
-            expectedRevision: expectedRevision,
-            selectedResource: selectedResource,
-            activeTab: activeTab,
-            filters: filters,
-            recording: payload["recording"] as? Bool
-        )
-        guard case .success = result else {
-            sendDesktopWorldDevToolsHostError(canvasID: callerID, code: "DEVTOOLS_UPDATE_FAILED")
-            return
-        }
-        _ = configureDesktopWorldDevToolsStage()
-        publishDesktopWorldDevToolsSnapshots(hostID: callerID)
-    }
-
-    private func transferDesktopWorldDevToolsHost(
-        sessionID: String,
-        expectedRevision: Int,
-        next: AOSDesktopWorldDevToolsHost
-    ) -> AOSDesktopWorldDevToolsMutationResult {
-        let plan: AOSDesktopWorldDevToolsTransferPlan
-        switch desktopWorldDevTools.prepareHostTransfer(
-            sessionID: sessionID,
-            expectedRevision: expectedRevision,
-            next: next
-        ) {
-        case .prepared(let prepared): plan = prepared
-        case .notFound: return .notFound
-        case .conflict(let currentRevision): return .conflict(currentRevision: currentRevision)
-        case .busy: return .busy
-        case .invalid: return .invalid
-        }
-
-        if plan.previous != plan.next, let previous = plan.previous,
-           !suspendDesktopWorldDevToolsHost(previous) {
-            _ = desktopWorldDevTools.abortHostTransfer(token: plan.token)
-            return .busy
-        }
-        if plan.previous != plan.next && !activateDesktopWorldDevToolsHost(plan.next) {
-            if let previous = plan.previous { _ = activateDesktopWorldDevToolsHost(previous) }
-            _ = desktopWorldDevTools.abortHostTransfer(token: plan.token)
-            return .invalid
-        }
-        let result = desktopWorldDevTools.commitHostTransfer(token: plan.token)
-        guard case .success(let state) = result else {
-            if plan.previous != plan.next {
-                if plan.next.kind == .panel {
-                    closeDesktopWorldDevToolsHost(plan.next)
-                } else {
-                    _ = suspendDesktopWorldDevToolsHost(plan.next)
-                }
-                if let previous = plan.previous { _ = activateDesktopWorldDevToolsHost(previous) }
-            }
-            _ = desktopWorldDevTools.abortHostTransfer(token: plan.token)
-            return result
-        }
-        publishDesktopWorldDevToolsSnapshots(hostID: state.host?.id)
-        return .success(state)
-    }
-
-    private func sendDesktopWorldDevToolsMutation(
-        _ result: AOSDesktopWorldDevToolsMutationResult,
-        outbound: AOSConnectionOutboundWriter,
-        envelopeActive: Bool,
-        envelopeRef: String?
-    ) {
-        switch result {
-        case .success(let state):
-            guard let snapshot = desktopWorldDevTools.snapshot(sessionID: state.id) else {
-                sendResponseJSON(to: outbound, ["error": "DesktopWorld DevTools session disappeared", "code": "DEVTOOLS_SESSION_NOT_FOUND"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            sendResponseJSON(to: outbound, ["status": "ok", "session": snapshot], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        case .notFound:
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld DevTools session was not found", "code": "DEVTOOLS_SESSION_NOT_FOUND"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        case .conflict(let currentRevision):
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld DevTools revision conflict", "code": "DEVTOOLS_REVISION_CONFLICT", "current_revision": currentRevision], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        case .busy:
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld DevTools host is busy", "code": "DEVTOOLS_HOST_BUSY"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        case .invalid:
-            sendResponseJSON(to: outbound, ["error": "Invalid DesktopWorld DevTools request", "code": "INVALID_DEVTOOLS_REQUEST"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        case .capacity:
-            sendResponseJSON(to: outbound, ["error": "DesktopWorld DevTools session budget exceeded", "code": "DEVTOOLS_SESSION_BUDGET_EXCEEDED"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-        }
+        desktopWorldDevTools.handleHostCommand(callerID: callerID, payload: payload)
     }
 
     private func handleDesktopWorldDevToolsCommand(
@@ -3077,134 +2798,13 @@ class UnifiedDaemon {
         envelopeActive: Bool,
         envelopeRef: String?
     ) {
-        if action == "scene-devtools-status" {
-            if let sessionID = json["session"] as? String {
-                guard let snapshot = desktopWorldDevTools.snapshot(sessionID: sessionID) else {
-                    sendDesktopWorldDevToolsMutation(.notFound, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                    return
-                }
-                sendResponseJSON(to: outbound, ["status": "ok", "session": snapshot], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            } else {
-                sendResponseJSON(to: outbound, ["status": "ok", "sessions": desktopWorldDevTools.snapshots()], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            }
-            return
-        }
-
-        if action == "scene-devtools-open" {
-            let selectedResource = json["resource"] as? String
-            let created = desktopWorldDevTools.create(selectedResource: selectedResource)
-            guard case .success(let state) = created else {
-                sendDesktopWorldDevToolsMutation(created, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            guard configureDesktopWorldDevToolsStage() else {
-                _ = desktopWorldDevTools.close(sessionID: state.id)
-                sendResponseJSON(to: outbound, ["error": "DesktopWorld scene stage is unavailable", "code": "SCENE_STAGE_UNAVAILABLE"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            if json["headless"] as? Bool == true {
-                guard !json.keys.contains("host") else {
-                    _ = desktopWorldDevTools.close(sessionID: state.id)
-                    _ = configureDesktopWorldDevToolsStage()
-                    sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                    return
-                }
-                sendDesktopWorldDevToolsMutation(.success(state), outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            let fallback = AOSDesktopWorldDevToolsHost(kind: .panel, id: "aos-desktop-world-devtools-\(state.id)")
-            let host: AOSDesktopWorldDevToolsHost
-            if json.keys.contains("host") {
-                guard let parsed = desktopWorldDevToolsHost(json["host"]) else {
-                    _ = desktopWorldDevTools.close(sessionID: state.id)
-                    sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                    return
-                }
-                host = parsed
-            } else {
-                host = fallback
-            }
-            let attached = transferDesktopWorldDevToolsHost(sessionID: state.id, expectedRevision: state.revision, next: host)
-            if case .success = attached {
-                sendDesktopWorldDevToolsMutation(attached, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            } else {
-                _ = desktopWorldDevTools.close(sessionID: state.id)
-                _ = configureDesktopWorldDevToolsStage()
-                sendDesktopWorldDevToolsMutation(attached, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            }
-            return
-        }
-
-        guard let sessionID = json["session"] as? String else {
-            sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-
-        if action == "scene-devtools-close" {
-            let revision = json["expected_revision"] as? Int
-            let result = desktopWorldDevTools.close(sessionID: sessionID, expectedRevision: revision)
-            if case .success(let state) = result { closeDesktopWorldDevToolsSessionHosts(state) }
-            _ = configureDesktopWorldDevToolsStage()
-            if case .success = result {
-                sendResponseJSON(to: outbound, ["status": "ok", "session": sessionID, "closed": true], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            } else {
-                sendDesktopWorldDevToolsMutation(result, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            }
-            return
-        }
-
-        guard let expectedRevision = json["expected_revision"] as? Int else {
-            sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        if action == "scene-devtools-transfer" {
-            guard let host = desktopWorldDevToolsHost(json["host"]) else {
-                sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            let result = transferDesktopWorldDevToolsHost(sessionID: sessionID, expectedRevision: expectedRevision, next: host)
-            sendDesktopWorldDevToolsMutation(result, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-
-        guard action == "scene-devtools-update" else {
-            sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            return
-        }
-        let selectedResource: String?? = json.keys.contains("selected_resource")
-            ? .some(json["selected_resource"] as? String)
-            : nil
-        let activeTab: AOSDesktopWorldDevToolsTab?
-        if let value = json["active_tab"] as? String {
-            guard let parsed = AOSDesktopWorldDevToolsTab(rawValue: value) else {
-                sendDesktopWorldDevToolsMutation(.invalid, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            activeTab = parsed
-        } else {
-            activeTab = nil
-        }
-        var filters: AOSDesktopWorldDevToolsFilters?
-        if let input = json["filters"] as? [String: Any] {
-            filters = AOSDesktopWorldDevToolsFilters(
-                query: input["query"] as? String ?? "",
-                eventKinds: input["event_kinds"] as? [String] ?? [],
-                errorsOnly: input["errors_only"] as? Bool ?? false
-            )
-        }
-        let result = desktopWorldDevTools.update(
-            sessionID: sessionID,
-            expectedRevision: expectedRevision,
-            selectedResource: selectedResource,
-            activeTab: activeTab,
-            filters: filters,
-            recording: json["recording"] as? Bool
+        let response = desktopWorldDevTools.handleCommand(action: action, payload: json)
+        sendResponseJSON(
+            to: outbound,
+            response,
+            envelopeActive: envelopeActive,
+            envelopeRef: envelopeRef
         )
-        if case .success = result {
-            _ = configureDesktopWorldDevToolsStage()
-            publishDesktopWorldDevToolsSnapshots()
-        }
-        sendDesktopWorldDevToolsMutation(result, outbound: outbound, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
     private func ensureSceneStage() -> Bool {

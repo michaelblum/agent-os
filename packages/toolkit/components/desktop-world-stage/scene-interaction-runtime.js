@@ -11,13 +11,16 @@ function boundedId(value) {
   return String(value ?? '').replace(/[^a-zA-Z0-9._/-]/gu, '_').slice(0, 128)
 }
 
-export function sceneAffordanceRegionId(owner, resource, affordance) {
-  return `scene:${boundedId(owner)}:${boundedId(resource)}:${boundedId(affordance)}`
+export function sceneAffordanceRegionId(owner, resource, affordance, generation = null) {
+  const base = `scene:${boundedId(owner)}:${boundedId(resource)}:${boundedId(affordance)}`
+  return generation === null || generation === undefined
+    ? base
+    : `${base}:generation:${boundedId(generation)}`
 }
 
 function regionPayload(entry, descriptor, frame) {
   return {
-    id: sceneAffordanceRegionId(entry.owner, entry.resource, descriptor.id),
+    id: sceneAffordanceRegionId(entry.owner, entry.resource, descriptor.id, entry.regionGeneration),
     owner_canvas_id: entry.stageCanvasId,
     frame: [...frame],
     coordinate_space: 'desktop_world',
@@ -32,6 +35,10 @@ function regionPayload(entry, descriptor, frame) {
       scene_affordance: descriptor.id,
     },
   }
+}
+
+function inactiveRegionPayload(payload) {
+  return { ...payload, consume_policy: 'never', enabled: false }
 }
 
 function validateInteractions(interactions, document) {
@@ -60,6 +67,14 @@ export function createDesktopWorldSceneInteractionRuntime({
     if (typeof value !== 'function') throw new TypeError(`DesktopWorld scene interaction runtime requires ${name}.`)
   }
   const leases = new Map()
+  const preparations = new Map()
+  const stagedRegionIds = new Map()
+  const retiredRegions = new Map()
+  let nextRegionGeneration = 0
+  let retiredCleanupAttempt = 0
+  let retiredCleanupScheduled = false
+  let retiredCleanupTimer = null
+  let runtimeDisposed = false
 
   function publishEntryEvent(entry, event) {
     if (!isPrimary()) return
@@ -88,7 +103,7 @@ export function createDesktopWorldSceneInteractionRuntime({
         ownerId: entry.owner,
         resourceId: entry.resource,
       },
-      document: () => outlet.document(entry.key),
+      document: () => leases.get(entry.key) === entry ? outlet.document(entry.key) : entry.document,
       interactions: entry.interactions,
       topology,
       now,
@@ -127,6 +142,61 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
     entry.regionIds = indexed
     return indexed
+  }
+
+  function createEntry({ key, owner, resource, document, interactions, regionGeneration = null }) {
+    const entry = {
+      key,
+      owner,
+      resource,
+      document,
+      stageCanvasId,
+      regionGeneration,
+      interactions,
+      controller: null,
+      regionIds: new Map(),
+      registeredIds: new Set(),
+      suspended: false,
+      disposed: false,
+      generation: 0,
+      regionSync: Promise.resolve(),
+      regionSyncErrorCode: null,
+      sequence: leases.get(key)?.sequence ?? 0,
+    }
+    entry.controller = createController(entry)
+    return entry
+  }
+
+  async function cleanupRetiredRegions(ids = [...retiredRegions.keys()]) {
+    const pending = ids.filter((id) => retiredRegions.has(id))
+    const results = await Promise.allSettled(pending.map((id) => removeRegion(id)))
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') retiredRegions.delete(pending[index])
+    })
+    if (retiredRegions.size === 0) retiredCleanupAttempt = 0
+    if (retiredRegions.size > 0) scheduleRetiredRegionCleanup()
+    return results.every((result) => result.status === 'fulfilled')
+  }
+
+  function scheduleRetiredRegionCleanup() {
+    if (runtimeDisposed || !isPrimary() || retiredCleanupScheduled || retiredRegions.size === 0) return
+    const defer = scheduleTimer ?? ((callback, delay) => setTimeout(callback, delay))
+    const delay = Math.min(100 * (2 ** Math.min(retiredCleanupAttempt, 6)), 5_000)
+    retiredCleanupAttempt += 1
+    retiredCleanupScheduled = true
+    retiredCleanupTimer = defer(async () => {
+      retiredCleanupScheduled = false
+      retiredCleanupTimer = null
+      await cleanupRetiredRegions()
+    }, delay)
+    retiredCleanupTimer?.unref?.()
+  }
+
+  async function retireAndRemoveRegions(entries) {
+    const unique = new Map(entries)
+    for (const [id, payload] of unique) retiredRegions.set(id, payload)
+    await Promise.allSettled([...unique.values()].map((payload) => updateRegion(inactiveRegionPayload(payload))))
+    return cleanupRetiredRegions([...unique.keys()])
   }
 
   async function removeRegions(entry) {
@@ -193,28 +263,193 @@ export function createDesktopWorldSceneInteractionRuntime({
     })
   }
 
+  async function rollbackPreparation(preparation) {
+    if (!preparation || preparation.state !== 'prepared') return false
+    preparation.state = 'rolling_back'
+    preparation.candidate?.controller.dispose('resource_changed')
+    const tasks = []
+    for (const id of preparation.candidate?.regionIds.keys() ?? []) {
+      if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+    }
+    for (const id of preparation.addedIds) {
+      const payload = preparation.candidate?.regionIds.get(id)?.payload
+      tasks.push(removeRegion(id).then(() => {
+        if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+      }, (error) => {
+        if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        if (payload) retiredRegions.set(id, payload)
+        scheduleRetiredRegionCleanup()
+        throw error
+      }))
+    }
+    const results = await Promise.allSettled(tasks)
+    preparations.delete(preparation.key)
+    preparation.state = 'rolled_back'
+    const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+    if (failures.length > 0) throw new AggregateError(failures, 'DesktopWorld scene interaction preparation rollback failed.')
+    return true
+  }
+
+  async function prepareReplacement({ key, owner, resource, document, interactions = undefined }) {
+    if (preparations.has(key)) throw new TypeError('DesktopWorld scene interaction replacement is already pending.')
+    const previous = leases.get(key) ?? null
+    const resolved = interactions === undefined ? previous?.interactions ?? null : interactions
+    const validated = validateInteractions(resolved, document)
+    if (previous && (previous.owner !== owner || previous.resource !== resource)) {
+      throw new TypeError('DesktopWorld scene interaction lease identity cannot change.')
+    }
+    if (validated && !previous && leases.size >= MAX_LEASES) {
+      throw new RangeError('DesktopWorld scene interaction lease budget exceeded.')
+    }
+    const candidate = validated ? createEntry({
+      key,
+      owner,
+      resource,
+      document,
+      interactions: validated,
+      regionGeneration: `r${++nextRegionGeneration}`,
+    }) : null
+    const preparation = {
+      key,
+      previous,
+      candidate,
+      addedIds: new Set(),
+      state: 'prepared',
+    }
+    preparations.set(key, preparation)
+
+    try {
+      if (candidate) {
+        const next = indexRegions(candidate)
+        if (isPrimary() && !candidate.suspended) {
+          for (const [id, { payload }] of next) {
+            stagedRegionIds.set(id, preparation)
+            preparation.addedIds.add(id)
+            await registerRegion(inactiveRegionPayload(payload))
+            candidate.registeredIds.add(id)
+          }
+        }
+      }
+    } catch (error) {
+      try {
+        await rollbackPreparation(preparation)
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], 'DesktopWorld scene interaction preparation and rollback both failed.')
+      }
+      throw error
+    }
+
+    return Object.freeze({
+      assertCurrent() {
+        if (preparation.state !== 'prepared' || preparations.get(key) !== preparation) {
+          throw new TypeError('DesktopWorld scene interaction replacement is no longer pending.')
+        }
+        if ((leases.get(key) ?? null) !== previous) {
+          throw new TypeError('DesktopWorld scene interaction base changed before commit.')
+        }
+        return true
+      },
+      commit(commitOutlet) {
+        this.assertCurrent()
+        previous?.controller.dispose('resource_changed')
+        radialMenus.close(key, 'resource_changed')
+        commitOutlet()
+        if (previous) {
+          previous.disposed = true
+          previous.generation += 1
+        }
+        if (candidate) leases.set(key, candidate)
+        else leases.delete(key)
+        for (const id of candidate?.registeredIds ?? []) retiredRegions.delete(id)
+        preparations.delete(key)
+        preparation.state = 'committed'
+        for (const id of previous?.registeredIds ?? []) {
+          if (!candidate?.registeredIds.has(id)) {
+            const payload = previous?.regionIds.get(id)?.payload
+            if (payload) retiredRegions.set(id, payload)
+          }
+        }
+        return true
+      },
+      async rollback() {
+        return rollbackPreparation(preparation)
+      },
+      async settle() {
+        if (preparation.state !== 'committed') return false
+        for (const id of candidate?.registeredIds ?? []) {
+          const payload = candidate?.regionIds.get(id)?.payload
+          if (!payload) continue
+          try {
+            await updateRegion(payload)
+          } catch {
+            if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
+            return false
+          }
+        }
+        let pending = [...(previous?.registeredIds ?? [])].filter((id) => !candidate?.registeredIds.has(id))
+        for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
+          const results = await Promise.allSettled(pending.map((id) => removeRegion(id)))
+          pending = pending.filter((id, index) => {
+            if (results[index].status === 'fulfilled') {
+              previous?.registeredIds.delete(id)
+              retiredRegions.delete(id)
+              return false
+            }
+            return true
+          })
+        }
+        try {
+          await radialMenus.settle(key, { requireClean: true })
+        } catch {
+          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
+          return false
+        }
+        if (pending.length > 0) {
+          if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
+          return false
+        }
+        for (const id of candidate?.registeredIds ?? []) {
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
+        preparation.state = 'settled'
+        return true
+      },
+      async failClosed() {
+        if (preparation.state !== 'committed') return false
+        preparation.state = 'failing_closed'
+        candidate?.controller.dispose('resource_removed')
+        radialMenus.close(key, 'resource_removed')
+        if (candidate) {
+          candidate.disposed = true
+          candidate.generation += 1
+        }
+        if (leases.get(key) === candidate) leases.delete(key)
+        const entries = new Map()
+        for (const id of previous?.registeredIds ?? []) {
+          const payload = previous?.regionIds.get(id)?.payload ?? retiredRegions.get(id)
+          if (payload) entries.set(id, payload)
+        }
+        for (const id of candidate?.registeredIds ?? []) {
+          const payload = candidate?.regionIds.get(id)?.payload
+          if (payload) entries.set(id, payload)
+        }
+        try { await radialMenus.settle(key, { requireClean: true }) } catch {}
+        await retireAndRemoveRegions(entries)
+        for (const id of candidate?.registeredIds ?? []) {
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
+        preparation.state = 'failed_closed'
+        return true
+      },
+    })
+  }
+
   async function mount({ key, owner, resource, document, interactions }) {
     const validated = validateInteractions(interactions, document)
     await release(key, 'resource_changed')
     if (!validated) return snapshot(key)
     if (leases.size >= MAX_LEASES) throw new RangeError('DesktopWorld scene interaction lease budget exceeded.')
-    const entry = {
-      key,
-      owner,
-      resource,
-      stageCanvasId,
-      interactions: validated,
-      controller: null,
-      regionIds: new Map(),
-      registeredIds: new Set(),
-      suspended: false,
-      disposed: false,
-      generation: 0,
-      regionSync: Promise.resolve(),
-      regionSyncErrorCode: null,
-      sequence: 0,
-    }
-    entry.controller = createController(entry)
+    const entry = createEntry({ key, owner, resource, document, interactions: validated })
     leases.set(key, entry)
     try {
       await syncRegions(entry)
@@ -316,6 +551,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     const input = normalizeCanvasInputMessage(message)
     const regionId = input?.regionId
     if (!regionId) return false
+    if (stagedRegionIds.has(regionId) || retiredRegions.has(regionId)) return true
     for (const entry of leases.values()) {
       const affordanceId = entry.regionIds.get(regionId)?.affordanceId
       if (affordanceId && !entry.suspended) return entry.controller.handle(affordanceId, message)
@@ -421,6 +657,21 @@ export function createDesktopWorldSceneInteractionRuntime({
 
   async function dispose(reason = 'stage_disposed') {
     const failures = []
+    runtimeDisposed = true
+    if (retiredCleanupScheduled && retiredCleanupTimer !== null) {
+      const cancel = cancelTimer ?? (scheduleTimer ? null : clearTimeout)
+      cancel?.(retiredCleanupTimer)
+      retiredCleanupScheduled = false
+      retiredCleanupTimer = null
+      retiredCleanupAttempt = 0
+    }
+    for (const preparation of [...preparations.values()]) {
+      try {
+        await rollbackPreparation(preparation)
+      } catch (error) {
+        failures.push(error)
+      }
+    }
     for (const key of [...leases.keys()]) {
       try {
         await release(key, reason)
@@ -428,12 +679,19 @@ export function createDesktopWorldSceneInteractionRuntime({
         failures.push(error)
       }
     }
+    const retiredIds = [...retiredRegions.keys()]
+    const retiredResults = await Promise.allSettled(retiredIds.map((id) => removeRegion(id)))
+    retiredIds.forEach((id, index) => {
+      if (retiredResults[index].status === 'fulfilled') retiredRegions.delete(id)
+      else failures.push(retiredResults[index].reason)
+    })
     await radialMenus.dispose(reason)
     if (failures.length > 0) throw new AggregateError(failures, 'DesktopWorld scene interaction disposal failed.')
   }
 
   return Object.freeze({
     mount,
+    prepareReplacement,
     reconcile,
     refresh,
     cancel,

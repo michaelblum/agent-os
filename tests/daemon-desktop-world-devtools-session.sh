@@ -55,6 +55,37 @@ func stageSnapshot() -> [String: Any] {
 }
 
 let registry = AOSDesktopWorldDevToolsSessionRegistry()
+guard let parsedUpdate = AOSDesktopWorldDevToolsUpdateRequest.parse([
+    "selected_resource": NSNull(),
+    "active_tab": "interactions",
+    "filters": ["query": "route", "event_kinds": ["gesture.update"], "errors_only": true],
+    "recording": true,
+]) else { fatalError("valid typed update request did not parse") }
+if case .clear = parsedUpdate.selectedResource {} else { fatalError("typed parser lost the clear patch") }
+require(parsedUpdate.activeTab == .interactions, "typed parser lost active tab")
+require(parsedUpdate.filters?.query == "route", "typed parser lost filter query")
+require(parsedUpdate.filters?.eventKinds == ["gesture.update"], "typed parser lost event kinds")
+require(parsedUpdate.filters?.errorsOnly == true, "typed parser lost errors-only filter")
+require(parsedUpdate.recording == true, "typed parser lost recording state")
+require(AOSDesktopWorldDevToolsUpdateRequest.parse(["selected_resource": 7]) == nil, "typed parser accepted an invalid selected resource")
+require(AOSDesktopWorldDevToolsUpdateRequest.parse(["filters": ["unknown": true]]) == nil, "typed parser accepted an unknown filter")
+
+let patchRegistry = AOSDesktopWorldDevToolsSessionRegistry()
+let patchBase = created(patchRegistry.create(selectedResource: "companion/main"))
+let cleared = created(patchRegistry.update(
+    sessionID: patchBase.id,
+    expectedRevision: patchBase.revision,
+    selectedResource: .clear
+))
+require(cleared.selectedResource == nil, "clear patch did not remove selected resource")
+let restored = created(patchRegistry.update(
+    sessionID: patchBase.id,
+    expectedRevision: cleared.revision,
+    selectedResource: .set("companion/main")
+))
+require(restored.selectedResource == "companion/main", "set patch did not restore selected resource")
+_ = patchRegistry.close(sessionID: patchBase.id)
+
 let first = created(registry.create(selectedResource: "companion/main"))
 require(registry.instrumentationConfiguration().enabled, "created session did not enable instrumentation")
 require(!registry.instrumentationConfiguration().recording, "recording enabled unexpectedly")

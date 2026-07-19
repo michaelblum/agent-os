@@ -17,6 +17,11 @@ import {
 import {
   validateSceneInteractionDocument,
 } from './scene-interaction.js'
+import {
+  hasCanonicalScenePathSegments,
+  isSceneRecord as isRecord,
+  matchesSceneIdSyntax,
+} from './scene-contract-primitives.js'
 
 export const SCENE_CARTRIDGE_CONTRACT_ID = 'aos.scene.cartridge.v1'
 export const SCENE_CARTRIDGE_ANIMATIONS_CONTRACT_ID = 'aos.scene.cartridge.animations.v1'
@@ -43,7 +48,6 @@ export const SCENE_CARTRIDGE_LIMITS = Object.freeze({
   maxResources: 256,
 })
 
-const SAFE_ID = /^[a-z0-9](?:[a-z0-9._/-]{0,126}[a-z0-9])?$/u
 const IMPLEMENTATION_ID = /^[a-z][a-z0-9]*(?:[._/-][a-z0-9]+)*$/u
 const SHA256 = /^[a-f0-9]{64}$/u
 const MEDIA_TYPE = /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/u
@@ -68,16 +72,6 @@ const BUILTIN_IMPLEMENTATIONS = new Set([
   SCENE_SIGNAL_BINDING_IMPLEMENTATION_ID,
 ])
 
-function isRecord(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  try {
-    const prototype = Object.getPrototypeOf(value)
-    return prototype === Object.prototype || prototype === null
-  } catch {
-    return false
-  }
-}
-
 function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue)
   if (!isRecord(value)) return value
@@ -96,11 +90,11 @@ function exactKeys(value, allowed, path, errors) {
 }
 
 function validateId(value, path, errors) {
-  if (typeof value !== 'string' || !SAFE_ID.test(value)) {
+  if (!matchesSceneIdSyntax(value)) {
     addError(errors, 'invalid_id', path, 'Cartridge identifiers must be bounded lowercase resource paths.')
     return false
   }
-  if (value.includes('//') || value.split('/').some((part) => part === '.' || part === '..')) {
+  if (!hasCanonicalScenePathSegments(value)) {
     addError(errors, 'invalid_id', path, 'Cartridge identifiers cannot contain empty or relative path segments.')
     return false
   }
