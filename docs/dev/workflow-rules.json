@@ -118,8 +118,10 @@
       "summary": "Reusable toolkit component or runtime browser code changed.",
       "patterns": [
         "packages/toolkit/components/**",
+        "packages/toolkit/contracts/mounted-surface-menu-projection.js",
         "packages/toolkit/panel/**",
         "packages/toolkit/runtime/**",
+        "packages/toolkit/status-item/**",
         "packages/toolkit/package.json",
         "packages/toolkit/package-lock.json"
       ],
@@ -255,6 +257,7 @@
       "patterns": [
         "scripts/aos-*.mjs",
         "scripts/aos-*",
+        "scripts/lib/status-item-output-writer.mjs",
         "scripts/lib/aos-ready-*.mjs",
         "scripts/lib/aos-readiness.mjs",
         "scripts/sign-aos-runtime",

@@ -5,6 +5,7 @@ export const STATUS_ITEM_ANCHOR_SCHEMA_VERSION = 'aos.status_item.anchor.v1'
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/u
 const PATH_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/u
 const ANCHOR_ID_RE = /^native-status-item\/[a-z0-9][a-z0-9._-]{0,127}\/[a-z0-9][a-z0-9._-]{0,127}$/u
+const BOUNDARY_WHITESPACE_RE = /^(?:[ \t\r\n])|(?:[ \t\r\n])$/u
 const EVENT_TYPES = new Set([
   'ready',
   'bounds_changed',
@@ -13,8 +14,6 @@ const EVENT_TYPES = new Set([
   'secondary_activation',
   'menu_selection',
 ])
-const utf8Encoder = new TextEncoder()
-
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key)
 }
@@ -38,10 +37,10 @@ function onlyKeys(value, allowed, label, code) {
 
 function stringValue(value, label, { min = 1, max = 128, code = 'INVALID_STATUS_ITEM_DESCRIPTOR' } = {}) {
   if (typeof value !== 'string') fail(code, `${label} must be a string`)
-  const trimmed = value.trim()
-  const length = utf8Encoder.encode(trimmed).byteLength
-  if (length < min || length > max) fail(code, `${label} is outside its byte limit`)
-  return trimmed
+  if (BOUNDARY_WHITESPACE_RE.test(value)) fail(code, `${label} must not have surrounding whitespace`)
+  const length = [...value].length
+  if (length < min || length > max) fail(code, `${label} is outside its character limit`)
+  return value
 }
 
 function identifier(value, label, { slash = false, code = 'INVALID_STATUS_ITEM_IDENTITY' } = {}) {

@@ -32,13 +32,29 @@
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "status_item_host_contract",
-      "contract": "The product-neutral status-item descriptor, observed anchor/event, pre-listen host admission, registration-before-ready ordering, exact-revision compare-and-swap update, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
+      "contract": "The product-neutral status-item descriptor, canonical Unicode text limits, observed anchor/event, pre-listen host admission, registration-before-ready ordering, canonical response-envelope status, bounded follow-stream backpressure, exact-revision compare-and-swap update, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
       "worth": "This protects the owner-scoped native host contract without requiring a live menu-bar item, TCC, or embedded product fixture.",
       "command": "node --test tests/status-item-contract.test.mjs",
       "replaces": [
         "consumer-owned tray geometry as semantic status-item evidence"
       ],
       "guard": "uses disposable in-process fake sockets only; does not execute ./aos or contact the live daemon",
+      "status": "active"
+    },
+    {
+      "id": "clean-resource-accounting-contract",
+      "path_patterns": [
+        "tests/aos-clean-contract.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "runtime-readiness",
+      "harness_level": "model_unit",
+      "proof_kind": "readiness_contract",
+      "contract": "Clean resource accounting completes after retired experience-drift cleanup state is removed.",
+      "worth": "This catches stale cleanup symbols before a normal clean can mutate resources and then fail during result projection.",
+      "command": "node --test tests/aos-clean-contract.test.mjs",
+      "replaces": [],
+      "guard": "uses an explicit disposable AOS_STATE_ROOT and /usr/bin/false as AOS_PATH; it does not execute ./aos or mutate runtime state",
       "status": "active"
     },
     {

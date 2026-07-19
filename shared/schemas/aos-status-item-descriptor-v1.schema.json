@@ -10,8 +10,8 @@
     "owner": { "$ref": "#/$defs/id" },
     "item_id": { "$ref": "#/$defs/id" },
     "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-    "label": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "help_text": { "type": "string", "maxLength": 256 },
+    "label": { "$ref": "#/$defs/non_empty_text_128" },
+    "help_text": { "$ref": "#/$defs/text_256" },
     "primary_action_id": { "$ref": "#/$defs/path_id" },
     "menu": {
       "type": "array",
@@ -34,10 +34,10 @@
               "kind": { "const": "item" },
               "id": { "$ref": "#/$defs/path_id" },
               "action_id": { "$ref": "#/$defs/path_id" },
-              "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "label": { "$ref": "#/$defs/non_empty_text_128" },
               "enabled": { "type": "boolean" },
               "state": { "enum": ["off", "on", "mixed"] },
-              "key_equivalent": { "type": "string", "maxLength": 8 }
+              "key_equivalent": { "$ref": "#/$defs/text_8" }
             }
           }
         ]
@@ -45,6 +45,22 @@
     }
   },
   "$defs": {
+    "non_empty_text_128": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^ \\t\\r\\n](?:[\\s\\S]*[^ \\t\\r\\n])?$"
+    },
+    "text_256": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^(?:$|[^ \\t\\r\\n](?:[\\s\\S]*[^ \\t\\r\\n])?)$"
+    },
+    "text_8": {
+      "type": "string",
+      "maxLength": 8,
+      "pattern": "^(?:$|[^ \\t\\r\\n](?:[\\s\\S]*[^ \\t\\r\\n])?)$"
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"

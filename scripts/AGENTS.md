@@ -47,6 +47,8 @@ commands, runtime helpers, wiki tools, and command adapters.
 - `aos-status-item.mjs` owns the public descriptor CLI. Register-follow retains
   lease/event ownership; update is exact-revision compare-and-swap, and the
   registration result must be emitted before buffered initial events.
+  `lib/status-item-output-writer.mjs` owns bounded stdout backpressure for that
+  follow stream and pauses its source socket until buffered output drains.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
   saved-ref DTO normalization, artifact-ref DTO normalization, source-capture

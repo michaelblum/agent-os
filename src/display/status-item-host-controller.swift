@@ -6,6 +6,7 @@ import Foundation
 private let aosStatusItemDescriptorSchema = "aos.status_item.descriptor.v1"
 private let aosStatusItemEventSchema = "aos.status_item.event.v1"
 private let maxSafeJSONInteger = 9_007_199_254_740_991.0
+private let aosStatusItemBoundaryWhitespace = CharacterSet(charactersIn: " \t\r\n")
 
 private struct AOSStatusItemLease {
     let owner: UUID
@@ -431,9 +432,11 @@ final class AOSStatusItemHostController {
 
     private func boundedString(_ value: Any?, min: Int, max: Int) -> String? {
         guard let string = value as? String else { return nil }
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        let count = trimmed.utf8.count
-        return count >= min && count <= max ? trimmed : nil
+        let scalars = string.unicodeScalars
+        let hasBoundaryWhitespace = scalars.first.map(aosStatusItemBoundaryWhitespace.contains) == true
+            || scalars.last.map(aosStatusItemBoundaryWhitespace.contains) == true
+        let count = scalars.count
+        return !hasBoundaryWhitespace && count >= min && count <= max ? string : nil
     }
 
     private func intValue(_ value: Any?) -> Int? {

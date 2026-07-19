@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 
 import { connectWithAutoStart, stopManagedDaemon } from './lib/aos-daemon-client.mjs'
+import { createStatusItemOutputWriter } from './lib/status-item-output-writer.mjs'
 import {
   normalizeStatusItemDescriptor,
   normalizeStatusItemEvent,
@@ -22,6 +23,26 @@ function fail(code, message) {
 
 function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`)
+}
+
+function canonicalResponse(payload, makeError) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.v !== 1) {
+    throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon response envelope is malformed')
+  }
+  if (payload.status === 'error') {
+    if (typeof payload.code !== 'string' || typeof payload.error !== 'string') {
+      throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon error envelope is malformed')
+    }
+    throw makeError(payload.code, payload.error)
+  }
+  if (!['success', 'dry_run'].includes(payload.status)
+      || !payload.data
+      || typeof payload.data !== 'object'
+      || Array.isArray(payload.data)
+      || Object.prototype.hasOwnProperty.call(payload.data, 'status')) {
+    throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon success envelope is malformed')
+  }
+  return { ...payload.data, status: payload.status === 'success' ? 'ok' : payload.status }
 }
 
 function safeError(error) {
@@ -186,15 +207,18 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
   const reader = new LineReader((payload) => {
     if (payload.event) {
       if (!payload.data) throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon event is malformed')
-      onEvent({ ...payload, data: normalizeStatusItemEvent(payload.data) })
+      onEvent({ ...payload, data: normalizeStatusItemEvent(payload.data) }, socket)
       return
     }
     const pendingRequest = typeof payload.ref === 'string' ? pending.get(payload.ref) : null
     if (!pendingRequest) throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon response is uncorrelated')
     pending.delete(payload.ref)
     clearTimeout(pendingRequest.timer)
-    if (payload.status === 'error' || payload.code) pendingRequest.reject(makeError(payload.code ?? 'STATUS_ITEM_DAEMON_ERROR', payload.error ?? 'status item daemon error'))
-    else pendingRequest.resolve(payload.data ?? payload)
+    try {
+      pendingRequest.resolve(canonicalResponse(payload, makeError))
+    } catch (error) {
+      pendingRequest.reject(error)
+    }
   })
   socket.on('data', (chunk) => {
     try {
@@ -256,11 +280,13 @@ async function main() {
   if (args.command === 'register') {
     const descriptor = await readDescriptor(args.descriptorPath)
     const startupAbort = new AbortController()
+    const output = createStatusItemOutputWriter()
     const pendingEvents = []
     let registrationEmitted = false
-    const emitLeaseEvent = (value) => {
+    const emitLeaseEvent = (value, socket) => {
       if (registrationEmitted) {
-        emit(value)
+        output.attachSource(socket)
+        output.write(`${JSON.stringify(value)}\n`)
         return
       }
       if (pendingEvents.length >= MAX_PENDING_LEASE_EVENTS) {
@@ -282,11 +308,12 @@ async function main() {
       : null
     parentMonitor?.unref()
     try {
-      await withDaemon(async ({ request, waitForClose }) => {
+      await withDaemon(async ({ request, socket, waitForClose }) => {
+        output.attachSource(socket)
         const registered = await request('register', { descriptor })
-        emit({ status: 'ok', registered })
+        output.write(`${JSON.stringify({ status: 'ok', registered })}\n`)
         registrationEmitted = true
-        pendingEvents.splice(0).forEach(emit)
+        for (const value of pendingEvents.splice(0)) output.write(`${JSON.stringify(value)}\n`)
         await waitForClose()
       }, emitLeaseEvent, { signal: startupAbort.signal })
     } finally {

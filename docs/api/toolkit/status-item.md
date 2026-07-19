@@ -66,3 +66,6 @@ status palette/popover are separate dependent contracts.
   event interfaces
 
 Authoritative schemas live in `shared/schemas/aos-status-item-*-v1.schema.json`.
+Human-readable descriptor strings are canonical input: surrounding JSON
+whitespace is rejected, and the schema's Unicode character limits are shared
+by the toolkit and native host.

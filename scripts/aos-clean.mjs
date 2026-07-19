@@ -519,7 +519,7 @@ function runClean(dryRun) {
   }
 
   const remainingCanvases = dryRun ? canvases : [...currentCanvases, ...otherCanvases];
-  const foundResources = staleDaemons.length > 0 || foregroundDevOwners.length > 0 || staleLocks.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || experienceDrift != null;
+  const foundResources = staleDaemons.length > 0 || foregroundDevOwners.length > 0 || staleLocks.length > 0 || canvases.length > 0 || orphanedClients.length > 0;
   let status = 'clean';
   if (dryRun && foundResources) {
     status = 'dirty';
