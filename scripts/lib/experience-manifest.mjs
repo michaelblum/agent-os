@@ -27,10 +27,6 @@ export function validateManifestTargets(manifest, file) {
     ? manifest.surfaces
     : {};
   const surfaceIDs = new Set(Object.keys(surfaces));
-  const primaryEntry = manifest.default_activation?.primary_entry;
-  if (primaryEntry && !surfaceIDs.has(primaryEntry)) {
-    throw new ExperienceManifestError(`Experience manifest primary_entry has no declared surface: ${primaryEntry}`, 'INVALID_EXPERIENCE_MANIFEST');
-  }
   for (const item of manifest.menu || []) {
     if (!item?.surface) continue;
     if (!surfaceIDs.has(item.surface)) {
@@ -40,6 +36,39 @@ export function validateManifestTargets(manifest, file) {
   return file;
 }
 
+export function normalizeExperienceManifest(manifest) {
+  if (manifest.schema_version === 1) {
+    const hasRetiredFields = Object.hasOwn(manifest, 'default_activation')
+      || Object.hasOwn(manifest, 'status_item')
+      || Object.hasOwn(manifest.vanilla_fallback || {}, 'status_item');
+    if (hasRetiredFields) {
+      throw new ExperienceManifestError(
+        'Experience manifest v1 contains retired status-item activation fields',
+        'INVALID_EXPERIENCE_MANIFEST',
+      );
+    }
+    return manifest;
+  }
+  if (manifest.schema_version !== 0) {
+    throw new ExperienceManifestError('Unsupported experience manifest schema version', 'INVALID_EXPERIENCE_MANIFEST');
+  }
+
+  const {
+    $schema: _legacySchema,
+    default_activation: _legacyActivation,
+    status_item: _legacyStatusItem,
+    vanilla_fallback: legacyFallback,
+    ...normalized
+  } = manifest;
+  return {
+    ...normalized,
+    schema_version: 1,
+    vanilla_fallback: {
+      tools: Array.isArray(legacyFallback?.tools) ? [...legacyFallback.tools] : [],
+    },
+  };
+}
+
 export function discoverExperience(id, {
   experiencesRoot = experienceEnvironment().experiencesRoot,
 } = {}) {
@@ -47,13 +76,14 @@ export function discoverExperience(id, {
   if (!fs.existsSync(file)) {
     throw new ExperienceManifestError(`Experience manifest not found: experiences/${id}/aos-experience.json`, 'EXPERIENCE_NOT_FOUND');
   }
-  const manifest = readJSON(file);
-  if (manifest.id !== id) {
-    throw new ExperienceManifestError(`Manifest id ${manifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
+  const sourceManifest = readJSON(file);
+  if (sourceManifest.id !== id) {
+    throw new ExperienceManifestError(`Manifest id ${sourceManifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
   }
-  if (manifest.schema_version !== 0 || manifest.exclusive !== true) {
+  if (![0, 1].includes(sourceManifest.schema_version) || sourceManifest.exclusive !== true) {
     throw new ExperienceManifestError(`Invalid experience manifest: ${file}`, 'INVALID_EXPERIENCE_MANIFEST');
   }
+  const manifest = normalizeExperienceManifest(sourceManifest);
   validateManifestTargets(manifest, file);
   return manifest;
 }

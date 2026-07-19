@@ -37,7 +37,7 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": { "const": "aos.status_item.anchor.v1" },
-        "anchor_id": { "type": "string", "minLength": 1, "maxLength": 280, "pattern": "^native-status-item/[a-z0-9][a-z0-9._-]{0,127}/[a-z0-9][a-z0-9._-]{0,127}$" },
+        "anchor_id": { "type": "string", "minLength": 1, "maxLength": 280, "pattern": "^(?!.*\\.\\.)native-status-item/[a-z0-9][a-z0-9._-]{0,127}/[a-z0-9][a-z0-9._-]{0,127}$" },
         "host": { "const": "native_status_item" },
         "coordinate_space": { "const": "global_display_top_left" },
         "visible": { "const": true },

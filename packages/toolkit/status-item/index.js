@@ -192,7 +192,7 @@ export function normalizeStatusItemAnchor(input) {
   onlyKeys(anchor, new Set(['schema_version', 'anchor_id', 'host', 'coordinate_space', 'visible', 'bounds', 'display', 'topology']), 'anchor', 'INVALID_STATUS_ITEM_EVENT')
   if (anchor.schema_version !== STATUS_ITEM_ANCHOR_SCHEMA_VERSION) fail('INVALID_STATUS_ITEM_EVENT', 'anchor schema_version is invalid')
   const anchorId = stringValue(anchor.anchor_id, 'anchor.anchor_id', { max: 280, code: 'INVALID_STATUS_ITEM_EVENT' })
-  if (!ANCHOR_ID_RE.test(anchorId)) fail('INVALID_STATUS_ITEM_EVENT', 'anchor.anchor_id is invalid')
+  if (!ANCHOR_ID_RE.test(anchorId) || anchorId.includes('..')) fail('INVALID_STATUS_ITEM_EVENT', 'anchor.anchor_id is invalid')
   if (anchor.host !== 'native_status_item' || anchor.coordinate_space !== 'global_display_top_left' || anchor.visible !== true) {
     fail('INVALID_STATUS_ITEM_EVENT', 'anchor host facts are invalid')
   }

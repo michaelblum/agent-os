@@ -149,6 +149,14 @@ The current top-level commands are:
 
 ## Experience Runtime Context
 
+Active experience manifests use
+`shared/schemas/aos-experience-v1.schema.json`. Version 1 is product-neutral:
+it retains tools, content roots, branding, menus, declared surfaces, cleanup,
+and hooks, but has no `default_activation`, `status_item`, or
+`vanilla_fallback.status_item`. Discovery rejects those retired fields on v1
+input. Legacy v0 manifests remain schema-valid and are normalized through an
+explicit compatibility adapter before active use.
+
 Use `aos experience status <id> --json` before an agent trusts app-owned
 desktop state for perception, annotation, saved-ref action, or evidence
 handoff loops. The command is read-only: it does not activate, repair, restart,
@@ -157,7 +165,7 @@ In the user-facing state model, this is runtime state and content-root
 readback, not a saved workspace selector or Work Record store.
 
 The JSON envelope uses
-`schema_version: "aos.experience-runtime-context.v0"` and includes:
+`schema_version: "aos.experience-runtime-context.v1"` and includes:
 
 - requested and active experience identity;
 - runtime mode, state root, mode-scoped state directory, config path, and
@@ -174,6 +182,11 @@ The JSON envelope uses
   evidence handoff;
 - `recommended_next[]` entries with executable argv arrays. Entries that
   contain placeholders are marked `display_only: true`.
+
+The frozen `aos.experience-runtime-context.v0` schema remains available for
+compatibility validation of historical payloads and still requires its
+config-driven `status_item` projection. The status command does not emit v0;
+the status-item-free payload is v1 rather than an in-place mutation of v0.
 
 For experiences that support pending annotations, corrupt pending annotation
 records fail closed through this same status surface: the

@@ -321,7 +321,7 @@ function reconcileExperienceContentRoots(roots) {
   return removed;
 }
 
-function rollbackStatusSurfaceActivation(snapshot, steps, allowStart) {
+function rollbackExperienceActivation(snapshot, steps) {
   try {
     writeActiveExperience(snapshot.active);
     steps.push({
@@ -338,7 +338,7 @@ function rollbackStatusSurfaceActivation(snapshot, steps, allowStart) {
   }
 }
 
-function activateStatusSurfaceTransaction(manifest, roots, steps, allowStart, rollbackSnapshot) {
+function activateExperienceState(manifest, steps) {
   writeActiveExperience(manifest.id);
   steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
 }
@@ -360,7 +360,7 @@ function activate(id, asJSON, dryRun, allowStart) {
   const planned = plan(manifest, roots, dryRun);
   if (dryRun) {
     if (asJSON) emitJSON({ status: 'dry_run', code: 'OK', ...planned });
-    else process.stdout.write(`dry-run activate experience ${id}: ${manifest.default_activation.kind}\n`);
+    else process.stdout.write(`dry-run activate experience ${id}\n`);
     return;
   }
   const steps = [];
@@ -369,9 +369,9 @@ function activate(id, asJSON, dryRun, allowStart) {
   try {
     ensureContentRoots(roots, steps, allowStart);
     runHooks(manifest, 'before_activate', roots, steps);
-    activateStatusSurfaceTransaction(manifest, roots, steps, allowStart, rollbackSnapshot);
+    activateExperienceState(manifest, steps);
   } catch (err) {
-    rollbackStatusSurfaceActivation(rollbackSnapshot, steps, allowStart);
+    rollbackExperienceActivation(rollbackSnapshot, steps);
     throw err;
   }
   runHooks(manifest, 'after_activate', roots, steps);

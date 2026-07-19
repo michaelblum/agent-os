@@ -1,13 +1,14 @@
-# AOS Experience Runtime Context v0
+# AOS Experience Runtime Context v1
 
 The JSON schema is
-`shared/schemas/aos-experience-runtime-context-v0.schema.json`.
+`shared/schemas/aos-experience-runtime-context-v1.schema.json`.
 
 `aos experience status <id> --json` emits a read-only runtime context envelope
-with `schema_version: "aos.experience-runtime-context.v0"`. The envelope is a
+with `schema_version: "aos.experience-runtime-context.v1"`. The envelope is a
 machine contract for agents that need to decide whether an app-owned experience
-is current before trusting content roots, status-item surfaces, pending
-annotations, or runtime readiness.
+is current before trusting content roots, pending annotations, or runtime
+readiness. Version 1 removes the retired config-driven status-item projection;
+the frozen v0 schema remains available only for compatibility validation.
 
 ## Contract
 
@@ -19,7 +20,7 @@ The envelope includes:
 - `runtime` readiness from passive service and permission readbacks.
 - `state` paths for mode-scoped experience/config state, plus pending
   annotation state only for supported annotation experiences.
-- `content_roots`, `status_item`, and discriminated `pending_annotations`
+- `content_roots` and discriminated `pending_annotations`
   status blocks. Unsupported annotation experiences emit only
   `{ "status": "not_applicable", "supported": false }` and do not expose
   pending annotation store paths.
@@ -45,6 +46,6 @@ Run:
 
 ```bash
 node --test tests/experience-runtime-context-*.test.mjs
-node --test tests/schemas/aos-experience-runtime-context-v0.test.mjs
+node --test tests/schemas/aos-experience-runtime-context-v1.test.mjs
 node --test tests/schemas/*.test.mjs
 ```

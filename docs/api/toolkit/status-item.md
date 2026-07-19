@@ -15,7 +15,9 @@ items are allowed.
 
 Descriptors reject unknown fields, consumer icon/visual fields, scripts,
 duplicate item/action ids, and a menu action that collides with the primary
-action. `normalizeStatusItemUpdateRequest(value)` validates an exact
+action. The descriptor, event, and anchor JSON Schemas reject `..` sequences
+to match the native host's identifier validation.
+`normalizeStatusItemUpdateRequest(value)` validates an exact
 owner/item/generation/current-revision compare-and-swap request and requires the
 descriptor revision to advance.
 
@@ -48,6 +50,11 @@ update, inspect, and invoke calls must present exact owner/item/generation and
 current revision. Update requires a strictly newer descriptor and preserves the
 original lease/event connection. Closing the follow process releases the item.
 Standalone subscribe and cleanup commands do not exist.
+
+The canonical daemon request schema types `register`, `update`, `inspect`,
+`invoke`, and `invoke_dry_run`; the canonical event schema validates the status
+item event payload and requires the envelope event name to match its `type`.
+Dry-run invocation uses the daemon response status `dry_run`.
 
 The AOS-owned monochrome icon is a continuity fallback, not a consumer visual.
 Generic visual projection inside the real status-item button and the rich

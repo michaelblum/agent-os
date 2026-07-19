@@ -112,9 +112,15 @@ class UnifiedDaemon {
     private lazy var annotationSelection = AOSAnnotationSelectionTransport { [weak self] owner, event, data, ref in
         self?.emitConnectionEvent(service: "annotation", to: owner, event: event, data: data, ref: ref)
     }
-    private lazy var statusItemHostController = AOSStatusItemHostController(manager: StatusItemManager()) { [weak self] owner, event, data, ref in
-        self?.emitConnectionEvent(service: "status_item", to: owner, event: event, data: data, ref: ref)
-    }
+    private lazy var statusItemHostController = AOSStatusItemHostController(
+        manager: StatusItemManager(),
+        emit: { [weak self] owner, event, data, ref in
+            self?.emitConnectionEvent(service: "status_item", to: owner, event: event, data: data, ref: ref) ?? false
+        },
+        terminate: { [weak self] owner, reason in
+            self?.terminateConnection(owner, reason: reason)
+        }
+    )
     private var contentServer: ContentServer?
     let coordination = CoordinationBus()
 
@@ -615,18 +621,26 @@ class UnifiedDaemon {
         emitConnectionEvent(service: "voice", to: connectionID, event: event, data: data, ref: ref)
     }
 
+    @discardableResult
     func emitConnectionEvent(
         service: String,
         to connectionID: UUID,
         event: String,
         data: [String: Any],
         ref: String?
-    ) {
-        guard let bytes = envelopeBytes(service: service, event: event, data: data, ref: ref) else { return }
+    ) -> Bool {
+        guard let bytes = envelopeBytes(service: service, event: event, data: data, ref: ref) else { return false }
         subscriberLock.lock()
         let writer = subscribers[connectionID]?.outbound
         subscriberLock.unlock()
-        writer?.enqueue(bytes)
+        return writer?.enqueue(bytes) ?? false
+    }
+
+    private func terminateConnection(_ connectionID: UUID, reason: String) {
+        subscriberLock.lock()
+        let writer = subscribers[connectionID]?.outbound
+        subscriberLock.unlock()
+        writer?.close(reason: reason)
     }
 
     private func sendVoiceTransportError(

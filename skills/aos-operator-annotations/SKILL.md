@@ -43,7 +43,7 @@ authorization.
 ## References
 
 - `docs/api/aos.md`
-- `docs/api/toolkit/runtime.md`
+- `docs/api/toolkit/status-item.md`
 - `manifests/commands/source/aos/40-status-item.json`
 - `manifests/commands/source/aos/03-see-04-annotation.json`
 - `tests/external-command-dispatch.sh`

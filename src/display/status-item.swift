@@ -50,7 +50,7 @@ final class StatusItemManager {
     var statusMenuItems: [StatusItemMenuDescriptor] = []
     var hostedDescriptor: AOSHostedStatusItemDescriptor?
     var hostedGeneration: Int = 0
-    var hostedEventSink: (([String: Any]) -> Void)?
+    var hostedEventSink: (([String: Any]) -> Bool)?
 
     private var fallbackIcon: NSImage?
     private var anchorObservationTokens: [NSObjectProtocol] = []
@@ -206,7 +206,7 @@ final class StatusItemManager {
         let signature = anchorSignature(anchor)
         if onlyWhenChanged, signature == lastAnchorSignature { return }
         lastAnchorSignature = signature
-        hostedEventSink?([
+        _ = hostedEventSink?([
             "type": type,
             "owner": hosted.owner,
             "item_id": hosted.itemID,

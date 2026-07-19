@@ -3,17 +3,6 @@
 import AppKit
 import Foundation
 
-struct AOSHostedStatusItemDescriptor {
-    let owner: String
-    let itemID: String
-    let revision: Int
-    let signature: String
-    let label: String
-    let helpText: String?
-    let primaryActionID: String
-    let menuItems: [[String: Any]]
-}
-
 extension StatusItemManager {
     var currentAccessibilityLabel: String {
         hostedDescriptor?.label ?? Self.defaultAccessibilityLabel
@@ -110,14 +99,14 @@ extension StatusItemManager {
             "anchor": anchor,
         ]
         if let menuItem { payload["menu_item_id"] = menuItem.id }
-        if !dryRun {
-            emitHostedEvent(
+        if !dryRun, !emitHostedEvent(
                 type: isPrimary ? "primary_activation" : "menu_selection",
                 actionID: actionID,
                 menuItemID: menuItem?.id,
                 modifiers: [],
                 origin: statusItemCGPosition()
-            )
+            ) {
+            return ["error": "status item event delivery is unavailable", "code": "STATUS_ITEM_EVENT_UNAVAILABLE"]
         }
         return payload
     }
@@ -179,9 +168,10 @@ extension StatusItemManager {
         }
     }
 
-    func emitHostedEvent(type: String, actionID: String?, menuItemID: String?, modifiers: [String], origin: CGPoint) {
-        guard let hosted = hostedDescriptor else { return }
-        guard let anchor = statusItemAnchorPayload(owner: hosted.owner, itemID: hosted.itemID) else { return }
+    @discardableResult
+    func emitHostedEvent(type: String, actionID: String?, menuItemID: String?, modifiers: [String], origin: CGPoint) -> Bool {
+        guard let hosted = hostedDescriptor else { return false }
+        guard let anchor = statusItemAnchorPayload(owner: hosted.owner, itemID: hosted.itemID) else { return false }
         var payload: [String: Any] = [
             "type": type,
             "owner": hosted.owner,
@@ -197,7 +187,7 @@ extension StatusItemManager {
         ]
         if let actionID { payload["action_id"] = actionID }
         if let menuItemID { payload["menu_item_id"] = menuItemID }
-        hostedEventSink?(payload)
+        return hostedEventSink?(payload) ?? false
     }
 
     private func screenDisplayID(_ screen: NSScreen?) -> UInt32? {
@@ -219,3 +209,5 @@ extension StatusItemManager {
         ]
     }
 }
+
+extension StatusItemManager: AOSStatusItemHosting {}

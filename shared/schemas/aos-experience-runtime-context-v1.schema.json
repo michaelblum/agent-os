@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-experience-runtime-context-v0.schema.json",
-  "title": "AOS Experience Runtime Context v0",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-experience-runtime-context-v1.schema.json",
+  "title": "AOS Experience Runtime Context v1",
   "description": "Read-only runtime context envelope emitted by aos experience status <id> --json.",
   "type": "object",
   "required": [
@@ -14,7 +14,6 @@
     "runtime",
     "state",
     "content_roots",
-    "status_item",
     "pending_annotations",
     "diagnostics",
     "capabilities",
@@ -22,7 +21,7 @@
   ],
   "additionalProperties": true,
   "properties": {
-    "schema_version": { "const": "aos.experience-runtime-context.v0" },
+    "schema_version": { "const": "aos.experience-runtime-context.v1" },
     "collected_at": { "$ref": "#/$defs/timestamp" },
     "status": { "enum": ["ok", "degraded", "blocked"] },
     "code": { "$ref": "#/$defs/non_empty_string" },
@@ -32,7 +31,6 @@
     "runtime": { "$ref": "#/$defs/runtime" },
     "state": { "$ref": "#/$defs/state" },
     "content_roots": { "$ref": "#/$defs/content_roots" },
-    "status_item": { "$ref": "#/$defs/status_item" },
     "pending_annotations": { "$ref": "#/$defs/pending_annotations" },
     "diagnostics": {
       "type": "array",
@@ -363,77 +361,6 @@
         "roots": {
           "type": "array",
           "items": { "$ref": "#/$defs/content_root" }
-        }
-      }
-    },
-    "status_item": {
-      "type": "object",
-      "required": ["status", "configured", "expected", "target", "mounted_surface", "menu_projection"],
-      "additionalProperties": true,
-      "properties": {
-        "status": {
-          "enum": [
-            "current",
-            "not_applicable",
-            "disabled",
-            "wrong_surface",
-            "missing",
-            "drift",
-            "stale",
-            "unknown",
-            "corrupt"
-          ]
-        },
-        "configured": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "expected": {
-          "type": ["object", "null"],
-          "additionalProperties": true
-        },
-        "target": {
-          "type": "object",
-          "required": ["status"],
-          "additionalProperties": true,
-          "properties": {
-            "status": {
-              "enum": ["current", "not_applicable", "disabled", "wrong_surface", "missing", "drift"]
-            },
-            "current_url": { "$ref": "#/$defs/nullable_string" },
-            "expected_url": { "$ref": "#/$defs/nullable_string" },
-            "drift": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/non_empty_string" }
-            }
-          }
-        },
-        "mounted_surface": {
-          "type": "object",
-          "required": ["status"],
-          "additionalProperties": true,
-          "properties": {
-            "status": { "enum": ["current", "not_applicable", "missing", "stale", "unknown"] },
-            "id": { "$ref": "#/$defs/nullable_string" },
-            "url": { "$ref": "#/$defs/nullable_string" },
-            "lifecycle_state": { "$ref": "#/$defs/nullable_string" },
-            "suspended": { "type": ["boolean", "null"] },
-            "show_list_status": { "$ref": "#/$defs/status_word" },
-            "show_list_error": { "$ref": "#/$defs/non_empty_string" }
-          }
-        },
-        "menu_projection": {
-          "type": "object",
-          "required": ["status"],
-          "additionalProperties": true,
-          "properties": {
-            "status": { "enum": ["current", "not_applicable", "missing", "stale", "unknown", "corrupt"] },
-            "expected_menu_count": { "type": "integer", "minimum": 0 },
-            "expected_menu_ids": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/non_empty_string" }
-            }
-          }
         }
       }
     },

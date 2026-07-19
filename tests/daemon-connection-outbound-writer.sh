@@ -22,6 +22,7 @@ assert.equal(source.includes('eventWriteQueue'), false, 'global event writer ret
 assert.match(source, /let outbound = AOSConnectionOutboundWriter\(connectionID: connectionID, fd: clientFD\)/);
 assert.match(source, /outbound\.closeAndWait\(\)[\s\S]*close\(clientFD\)/);
 assert.match(source, /map\(\\\.outbound\)/);
+assert.match(source, /subscribers\[connectionID\]\?\.outbound[\s\S]*writer\?\.close\(reason: reason\)/);
 assert.match(source, /errno == EAGAIN \|\| errno == EWOULDBLOCK[\s\S]*poll\(&descriptor/);
 assert.equal(source.includes('subscribers[connectionID]?.fd'), false, 'voice event routing still looks up a raw fd');
 assert.equal(source.includes('sendResponseJSON(to: clientFD'), false, 'daemon responses bypass the connection writer');

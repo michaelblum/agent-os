@@ -29,7 +29,7 @@ import {
   pendingAnnotationStoreStatus,
 } from './pending-annotations-store.mjs';
 
-export const EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION = 'aos.experience-runtime-context.v0';
+export const EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION = 'aos.experience-runtime-context.v1';
 
 function buildPendingAnnotationStatus({
   env,

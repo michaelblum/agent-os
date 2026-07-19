@@ -22,6 +22,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const descriptorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-descriptor-v1.schema.json')
 const eventSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-event-v1.schema.json')
 const anchorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-anchor-v1.schema.json')
+const hostContractPath = path.join(repoRoot, 'src/display/status-item-host-contract.swift')
+const hostControllerPath = path.join(repoRoot, 'src/display/status-item-host-controller.swift')
+const hostControllerHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-host-controller-harness.swift')
 
 const descriptor = {
   schema_version: STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION,
@@ -161,6 +164,23 @@ function within(promise, timeoutMs, message, onTimeout = () => {}) {
   })
 }
 
+function waitForPIDExit(pid, timeoutMs = 2_000) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs
+    const check = () => {
+      try {
+        process.kill(pid, 0)
+      } catch (error) {
+        if (error?.code === 'ESRCH') return resolve()
+        return reject(error)
+      }
+      if (Date.now() >= deadline) return reject(new Error(`process ${pid} did not exit`))
+      setTimeout(check, 25)
+    }
+    check()
+  })
+}
+
 async function listenFake(stateRoot, onRequest) {
   const sock = path.join(stateRoot, 'repo', 'sock')
   fs.mkdirSync(path.dirname(sock), { recursive: true })
@@ -272,6 +292,10 @@ test('toolkit normalizes the product-neutral descriptor and AOS-derived anchor e
   assert.equal(normalizedEvent.timestamp, event.timestamp)
   assert.equal(normalizedEvent.anchor.anchor_id, anchor.anchor_id)
   assert.equal(normalizedEvent.bounds.display_id, 1)
+  assert.throws(
+    () => normalizeStatusItemAnchor({ ...anchor, anchor_id: 'native-status-item/io..example/companion' }),
+    /anchor_id is invalid/,
+  )
 })
 
 test('toolkit normalizes compare-and-swap updates and rejects stale or mismatched descriptors', () => {
@@ -575,6 +599,109 @@ test('register follow exits on signal while stdout is backpressured', async (t) 
   assert.deepEqual(result, { code: 0, signal: null }, stderr)
 })
 
+test('register follow releases its lease when the external dispatch parent exits', async () => {
+  const stateRoot = fs.mkdtempSync('/private/tmp/aos-status-item-parent-loss-')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-parent-loss-cli-'))
+  const descriptorPath = path.join(dir, 'descriptor.json')
+  const childPIDPath = path.join(dir, 'child.pid')
+  const registeredPath = path.join(dir, 'registered')
+  fs.writeFileSync(descriptorPath, `${JSON.stringify(descriptor)}\n`, 'utf8')
+
+  let leaseSocket
+  let leaseClosedResolve
+  const leaseClosed = new Promise((resolve) => { leaseClosedResolve = resolve })
+  const server = await listenFake(stateRoot, (socket, request) => {
+    leaseSocket = socket
+    socket.once('close', leaseClosedResolve)
+    socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data: { owner: descriptor.owner, item_id: descriptor.item_id, generation: 7, descriptor_revision: 3, anchor } })}\n`)
+    fs.writeFileSync(registeredPath, 'ready\n', 'utf8')
+  })
+
+  const wrapperSource = `
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const child = spawn(process.execPath, ['scripts/aos-status-item.mjs', 'register', '--descriptor', ${JSON.stringify(descriptorPath)}, '--json', '--follow'], {
+  cwd: ${JSON.stringify(repoRoot)},
+  env: {
+    ...process.env,
+    AOS_STATE_ROOT: ${JSON.stringify(stateRoot)},
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_DISABLE_DAEMON_AUTOSTART: '1',
+    AOS_EXTERNAL_DISPATCH_PARENT_PID: String(process.pid),
+  },
+  stdio: 'ignore',
+});
+fs.writeFileSync(${JSON.stringify(childPIDPath)}, String(child.pid));
+const timer = setInterval(() => {
+  if (fs.existsSync(${JSON.stringify(registeredPath)})) process.exit(0);
+}, 10);
+timer.unref();
+setTimeout(() => process.exit(2), 5_000);
+`
+  const wrapper = spawn(process.execPath, ['-e', wrapperSource], { stdio: 'ignore' })
+  let childPID
+  try {
+    const wrapperResult = await within(
+      new Promise((resolve) => wrapper.once('close', (code, signal) => resolve({ code, signal }))),
+      6_000,
+      'external dispatch parent did not exit after registration',
+      () => wrapper.kill('SIGKILL'),
+    )
+    assert.deepEqual(wrapperResult, { code: 0, signal: null })
+    childPID = Number(fs.readFileSync(childPIDPath, 'utf8'))
+    assert.ok(Number.isInteger(childPID) && childPID > 1)
+    await within(leaseClosed, 2_000, 'register follow did not release its socket after parent loss')
+    assert.ok(leaseSocket?.destroyed)
+    await waitForPIDExit(childPID)
+  } finally {
+    const cleanupFailures = []
+    if (wrapper.exitCode == null && wrapper.signalCode == null) {
+      const wrapperClosed = new Promise((resolve) => wrapper.once('close', resolve))
+      wrapper.kill('SIGKILL')
+      try {
+        await within(wrapperClosed, 1_500, 'status item parent wrapper did not exit during cleanup')
+      } catch (error) {
+        cleanupFailures.push(error)
+      }
+    }
+    if (!Number.isInteger(childPID) && fs.existsSync(childPIDPath)) {
+      const recordedPID = Number(fs.readFileSync(childPIDPath, 'utf8'))
+      if (Number.isInteger(recordedPID) && recordedPID > 1) childPID = recordedPID
+    }
+    if (Number.isInteger(childPID)) {
+      try {
+        process.kill(childPID, 'SIGKILL')
+      } catch (error) {
+        if (error?.code !== 'ESRCH') cleanupFailures.push(error)
+      }
+      try {
+        await waitForPIDExit(childPID, 1_500)
+      } catch (error) {
+        cleanupFailures.push(error)
+      }
+    }
+    leaseSocket?.destroy()
+    let cleanupError
+    try {
+      await within(
+        new Promise((resolve) => server.close(resolve)),
+        1_500,
+        'status item parent-loss server did not close during cleanup',
+        () => server.closeAllConnections?.(),
+      )
+    } catch (error) {
+      cleanupError = error
+    } finally {
+      fs.rmSync(stateRoot, { recursive: true, force: true })
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+    if (cleanupError) cleanupFailures.push(cleanupError)
+    if (cleanupFailures.length > 0) {
+      throw new AggregateError(cleanupFailures, 'status item parent-loss cleanup failed')
+    }
+  }
+})
+
 test('CLI settles daemon error, malformed response, legacy success, and disconnect failures', async () => {
   for (const scenario of ['error', 'malformed', 'legacy_success', 'disconnect']) {
     const stateRoot = fs.mkdtempSync(`/private/tmp/aos-status-item-${scenario}-`)
@@ -621,6 +748,37 @@ test('source manifest exposes only the truthful lease command forms', () => {
   const generated = fs.readFileSync(path.join(repoRoot, 'manifests/commands/aos-commands.json'), 'utf8')
   assert(!generated.includes('status-item-cleanup'))
   assert(!generated.includes('status-item-subscribe'))
+})
+
+test('native host controller enforces lease, CAS, failed-delivery, and disconnect lifecycle', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-host-controller-'))
+  const executable = path.join(tempRoot, 'status-item-host-controller-harness')
+  const moduleCache = path.join(tempRoot, 'module-cache')
+  fs.mkdirSync(moduleCache)
+  try {
+    execFileSync('swiftc', [
+      '-parse-as-library',
+      '-module-cache-path', moduleCache,
+      hostContractPath,
+      hostControllerPath,
+      hostControllerHarnessPath,
+      '-o', executable,
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        CLANG_MODULE_CACHE_PATH: moduleCache,
+        SWIFT_MODULECACHE_PATH: moduleCache,
+        TMPDIR: tempRoot,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const output = execFileSync(executable, [], { cwd: repoRoot, encoding: 'utf8' })
+    assert.equal(output, 'status item host controller lifecycle harness passed\n')
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
 })
 
 test('native ownership is focused and excludes superseded visual and lifecycle routes', () => {
@@ -677,9 +835,11 @@ test('status item ownership files stay under the focused-size ratchet', () => {
   const counts = Object.fromEntries([
     'src/display/status-item.swift',
     'src/display/status-item-hosted.swift',
+    'src/display/status-item-host-contract.swift',
     'src/display/status-item-host-controller.swift',
   ].map((file) => [file, fs.readFileSync(path.join(repoRoot, file), 'utf8').split('\n').length]))
   assert.ok(counts['src/display/status-item.swift'] < 400, JSON.stringify(counts))
   assert.ok(counts['src/display/status-item-hosted.swift'] < 300, JSON.stringify(counts))
+  assert.ok(counts['src/display/status-item-host-contract.swift'] < 150, JSON.stringify(counts))
   assert.ok(counts['src/display/status-item-host-controller.swift'] < 500, JSON.stringify(counts))
 })

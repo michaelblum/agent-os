@@ -21,6 +21,11 @@ Success response:
 {"v":1,"status":"success","data":{"routes":[{"audience":"human","route":"voice","delivered":true}]},"ref":"r-42"}
 ```
 
+Validated no-side-effect response:
+```json
+{"v":1,"status":"dry_run","data":{"owner":"io.example.app","item_id":"companion","action_id":"summon"},"ref":"r-43"}
+```
+
 Error response:
 ```json
 {"v":1,"status":"error","error":"audience required","code":"MISSING_ARG","ref":"r-42"}
@@ -52,6 +57,11 @@ Error response:
 | `voice.bind` | Bind a voice to a session. | `session_id`; optional `voice_id`; optional simple filter fields (`provider`, `gender`, `locale`, `language`, `region`, `kind`, `quality_tier`, `tags`). |
 | `voice.next` | Cycle the session voice forward within the filtered pool and audition it. | `session_id`. |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
+| `status_item.register` | Acquire a connection-scoped native status-item lease. | `descriptor` (`aos.status_item.descriptor.v1`). |
+| `status_item.update` | Compare-and-swap a lease descriptor. | `owner`, `item_id`, `generation`, `current_revision`, `descriptor`. |
+| `status_item.inspect` | Inspect an exact lease generation and descriptor revision. | `owner`, `item_id`, `generation`, `descriptor_revision`. |
+| `status_item.invoke` | Invoke a declared status-item action. | `owner`, `item_id`, `action_id`, `generation`, `descriptor_revision`. |
+| `status_item.invoke_dry_run` | Validate an invocation without activating it. | Same as `status_item.invoke`; returns a `dry_run` response envelope. |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create a focus channel. | `id`, `window_id`. |
@@ -70,7 +80,7 @@ Error response:
 | `MISSING_ARG` | Required field absent or empty. |
 | `INVALID_ARG` | Field has unacceptable value. |
 | `UNKNOWN_ACTION` | `(service, action)` not in catalog. |
-| `UNKNOWN_SERVICE` | `service` not one of the eleven known namespaces. |
+| `UNKNOWN_SERVICE` | `service` is not one of the declared request namespaces. |
 | `PARSE_ERROR` | Request not JSON, schema violation, or legacy flat-string request. |
 | `SESSION_NOT_FOUND` | Referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | Daemon could not resolve a session id for an action that requires one. |
@@ -81,6 +91,7 @@ Error response:
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
+| `STATUS_ITEM_*`, `INVALID_STATUS_ITEM_*` | Typed native status-item lease, descriptor, revision, anchor, or protocol failure. |
 
 ## Voice Payload Shapes
 
@@ -195,7 +206,7 @@ Bare `{"action":"subscribe"}` (non-envelope format) is still accepted for backwa
 ## Event Envelope Note
 
 The event envelope (`daemon-event.schema.json` v1) uses `service` values
-`perceive|display|act|voice` in its enum today. The `voice` service carries
+`perceive|display|act|voice|scene|annotation|status_item`. The `voice` service carries
 generic dictation, microphone-capture, meter, and streamed-system-speech
 lifecycle events. Events never carry audio bytes, spoken text, or local paths;
 transcription and product behavior remain consumer-owned.
@@ -217,6 +228,5 @@ daemon fields are absent, unknown, or non-authorized, regardless of foreground
 CLI preflight.
 
 The live daemon additionally emits `system`, `coordination`, and `wiki` event
-services. The request-side namespaces defined here
-(`see|do|show|tell|listen|session|voice|system`) differ from the event-side
-service values. Reconciling both sides is deferred to a v2 event envelope.
+services outside the canonical event schema. Request-side namespaces differ
+from event-side service values; that distinction remains explicit in v1.

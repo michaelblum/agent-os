@@ -34,17 +34,23 @@ struct AOSStatusItemHostCommandResult {
 }
 
 final class AOSStatusItemHostController {
-    private let manager: StatusItemManager
+    private let manager: AOSStatusItemHosting
     private var lease: AOSStatusItemLease?
     private var nextGeneration = 1
-    private let emit: (UUID, String, [String: Any], String?) -> Void
+    private let emit: (UUID, String, [String: Any], String?) -> Bool
+    private let terminate: (UUID, String) -> Void
     private let iso8601 = ISO8601DateFormatter()
 
-    init(manager: StatusItemManager, emit: @escaping (UUID, String, [String: Any], String?) -> Void) {
+    init(
+        manager: AOSStatusItemHosting,
+        emit: @escaping (UUID, String, [String: Any], String?) -> Bool,
+        terminate: @escaping (UUID, String) -> Void
+    ) {
         self.manager = manager
         self.emit = emit
+        self.terminate = terminate
         self.manager.hostedEventSink = { [weak self] event in
-            self?.receiveHostedEvent(event)
+            self?.receiveHostedEvent(event) ?? false
         }
     }
 
@@ -74,7 +80,7 @@ final class AOSStatusItemHostController {
             case "status-item-register":
                 result = self.register(payload: payload, connectionID: connectionID)
             case "status-item-update":
-                result = AOSStatusItemHostCommandResult(self.update(payload: payload))
+                result = self.update(payload: payload)
             case "status-item-inspect":
                 result = AOSStatusItemHostCommandResult(self.inspect(payload: payload))
             case "status-item-invoke":
@@ -146,32 +152,32 @@ final class AOSStatusItemHostController {
         )
     }
 
-    private func update(payload: [String: Any]) -> [String: Any] {
+    private func update(payload: [String: Any]) -> AOSStatusItemHostCommandResult {
         guard let descriptorPayload = payload["descriptor"] as? [String: Any] else {
-            return failure("INVALID_STATUS_ITEM_DESCRIPTOR", "status item update requires descriptor")
+            return AOSStatusItemHostCommandResult(failure("INVALID_STATUS_ITEM_DESCRIPTOR", "status item update requires descriptor"))
         }
         let parsed = parseDescriptor(descriptorPayload)
         guard case .success(let descriptor) = parsed else {
-            if case .failure(let error) = parsed { return error }
-            return failure("INVALID_STATUS_ITEM_DESCRIPTOR", "status item descriptor is invalid")
+            if case .failure(let error) = parsed { return AOSStatusItemHostCommandResult(error) }
+            return AOSStatusItemHostCommandResult(failure("INVALID_STATUS_ITEM_DESCRIPTOR", "status item descriptor is invalid"))
         }
         guard let identity = checkedUpdateIdentity(payload) else {
-            return failure("INVALID_STATUS_ITEM_UPDATE", "status item update requires owner, item_id, generation, current_revision, and descriptor")
+            return AOSStatusItemHostCommandResult(failure("INVALID_STATUS_ITEM_UPDATE", "status item update requires owner, item_id, generation, current_revision, and descriptor"))
         }
         guard descriptor.owner == identity.owner, descriptor.itemID == identity.itemID else {
-            return failure("STATUS_ITEM_IDENTITY_MISMATCH", "descriptor owner and item must match the requested lease")
+            return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_IDENTITY_MISMATCH", "descriptor owner and item must match the requested lease"))
         }
         guard descriptor.revision > identity.currentRevision else {
-            return failure("STATUS_ITEM_REVISION_NOT_ADVANCED", "updated descriptor revision must advance current_revision")
+            return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_REVISION_NOT_ADVANCED", "updated descriptor revision must advance current_revision"))
         }
         guard let current = lease,
               current.ownerID == identity.owner,
               current.itemID == identity.itemID else {
-            return failure("STATUS_ITEM_NOT_FOUND", "status item lease was not found")
+            return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_NOT_FOUND", "status item lease was not found"))
         }
         guard current.generation == identity.generation,
               current.revision == identity.currentRevision else {
-            return failure("STATUS_ITEM_STALE_REVISION", "status item generation or current revision is stale")
+            return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_STALE_REVISION", "status item generation or current revision is stale"))
         }
 
         let previousDescriptor = manager.hostedDescriptor
@@ -183,8 +189,14 @@ final class AOSStatusItemHostController {
             if !restored {
                 manager.teardown()
                 lease = nil
+                return AOSStatusItemHostCommandResult(
+                    failure("STATUS_ITEM_ANCHOR_UNAVAILABLE", "native status item anchor is unavailable"),
+                    afterResponse: { [terminate] in
+                        terminate(current.owner, "status_item_lease_lost")
+                    }
+                )
             }
-            return failure("STATUS_ITEM_ANCHOR_UNAVAILABLE", "native status item anchor is unavailable")
+            return AOSStatusItemHostCommandResult(failure("STATUS_ITEM_ANCHOR_UNAVAILABLE", "native status item anchor is unavailable"))
         }
 
         let updated = AOSStatusItemLease(
@@ -197,7 +209,7 @@ final class AOSStatusItemHostController {
             sequence: current.sequence
         )
         lease = updated
-        return [
+        return AOSStatusItemHostCommandResult([
             "status": "ok",
             "schema_version": aosStatusItemDescriptorSchema,
             "owner": updated.ownerID,
@@ -208,7 +220,7 @@ final class AOSStatusItemHostController {
             "updated": true,
             "anchor": anchor,
             "lease": ["status": "active", "cleanup": "connection_scoped"],
-        ]
+        ])
     }
 
     private func registrationResponse(_ current: AOSStatusItemLease, updated: Bool) -> [String: Any] {
@@ -269,27 +281,33 @@ final class AOSStatusItemHostController {
         )
     }
 
-    private func receiveHostedEvent(_ event: [String: Any]) {
+    private func receiveHostedEvent(_ event: [String: Any]) -> Bool {
         runOnMainSync {
             guard var current = self.lease,
                   current.ownerID == event["owner"] as? String,
                   current.itemID == event["item_id"] as? String,
                   current.generation == self.intValue(event["generation"]),
-                  current.revision == self.intValue(event["descriptor_revision"]) else { return }
+                  current.revision == self.intValue(event["descriptor_revision"]) else { return false }
             current.sequence += 1
-            self.lease = current
             var payload = self.redactedEvent(event)
             payload["schema_version"] = aosStatusItemEventSchema
             payload["sequence"] = current.sequence
             payload["timestamp"] = self.iso8601.string(from: Date())
-            self.emit(current.owner, event["type"] as? String ?? "event", payload, nil)
+            guard self.emit(current.owner, event["type"] as? String ?? "event", payload, nil) else {
+                self.manager.teardown()
+                self.lease = nil
+                self.terminate(current.owner, "status_item_event_delivery_failed")
+                return false
+            }
+            self.lease = current
+            return true
         }
     }
 
     private func emitReady(_ current: AOSStatusItemLease) {
         runOnMainSync {
             guard let anchor = self.manager.statusItemAnchorPayload(owner: current.ownerID, itemID: current.itemID) else { return }
-            self.receiveHostedEvent([
+            _ = self.receiveHostedEvent([
                 "type": "ready",
                 "owner": current.ownerID,
                 "item_id": current.itemID,

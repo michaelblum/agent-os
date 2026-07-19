@@ -25,22 +25,38 @@
         "error": { "type": "string" },
         "code": {
           "type": "string",
-          "enum": [
-            "MISSING_ARG",
-            "INVALID_ARG",
-            "UNKNOWN_ACTION",
-            "UNKNOWN_SERVICE",
-            "PARSE_ERROR",
-            "SESSION_NOT_FOUND",
-            "MISSING_SESSION_ID",
-            "VOICE_NOT_FOUND",
-            "VOICE_NOT_SPEAKABLE",
-            "VOICE_NOT_ALLOCATABLE",
-            "CANVAS_NOT_FOUND",
-            "PERMISSION_DENIED",
-            "INTERNAL"
+          "anyOf": [
+            {
+              "enum": [
+                "MISSING_ARG",
+                "INVALID_ARG",
+                "UNKNOWN_ACTION",
+                "UNKNOWN_SERVICE",
+                "PARSE_ERROR",
+                "SESSION_NOT_FOUND",
+                "MISSING_SESSION_ID",
+                "VOICE_NOT_FOUND",
+                "VOICE_NOT_SPEAKABLE",
+                "VOICE_NOT_ALLOCATABLE",
+                "CANVAS_NOT_FOUND",
+                "PERMISSION_DENIED",
+                "INTERNAL"
+              ]
+            },
+            { "pattern": "^(?:INVALID_)?STATUS_ITEM_[A-Z0-9_]+$" }
           ]
         },
+        "ref": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["v", "status", "data"],
+      "additionalProperties": false,
+      "properties": {
+        "v": { "const": 1 },
+        "status": { "const": "dry_run" },
+        "data": { "type": "object" },
         "ref": { "type": "string" }
       }
     }

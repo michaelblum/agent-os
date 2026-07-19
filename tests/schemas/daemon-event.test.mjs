@@ -9,6 +9,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/daemon-event.schema.json');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/daemon-event');
+const descriptorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-descriptor-v1.schema.json');
+const statusEventSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-event-v1.schema.json');
+const anchorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-anchor-v1.schema.json');
 
 async function jsonFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -49,6 +52,30 @@ if errors:
     ],
     { encoding: 'utf8' },
   );
+}
+
+function runValueJsonschema(targetSchemaPath, value) {
+  return spawnSync('python3', ['-c', `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
+schema_path = Path(sys.argv[1])
+schema = json.loads(schema_path.read_text())
+instance = json.loads(sys.argv[2])
+registry = Registry()
+for candidate in schema_path.parent.glob("*.json"):
+    document = json.loads(candidate.read_text())
+    if document.get("$id"):
+        registry = registry.with_resource(document["$id"], Resource.from_contents(document))
+validator = Draft202012Validator(schema, registry=registry)
+errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
+if errors:
+    for error in errors[:8]:
+        print(error.message)
+    sys.exit(1)
+`, targetSchemaPath, JSON.stringify(value)], { encoding: 'utf8' });
 }
 
 test('valid daemon event fixtures match the canonical schema', async () => {
@@ -111,6 +138,54 @@ test('annotation event vocabulary is strict across desktop selection lifecycle',
     'selection_canceled',
     'selection_failed',
   ]);
+});
+
+test('status-item event envelope has a strict vocabulary and typed event payload', async () => {
+  const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
+  const rule = schema.allOf.find((item) => item.if?.properties?.service?.const === 'status_item' && !item.if?.properties?.event);
+  assert.deepEqual(rule.then.properties.event.enum, [
+    'ready',
+    'bounds_changed',
+    'topology_changed',
+    'primary_activation',
+    'secondary_activation',
+    'menu_selection',
+  ]);
+  assert.equal(
+    rule.then.properties.data.$ref,
+    'https://agent-os.local/schemas/aos-status-item-event-v1.schema.json',
+  );
+
+  const fixture = JSON.parse(await fs.readFile(path.join(fixtureRoot, 'valid/status-item-ready.json'), 'utf8'));
+  const leaked = structuredClone(fixture);
+  leaked.data.path = '/private/status-item-state';
+  const result = runValueJsonschema(schemaPath, leaked);
+  assert.notEqual(result.status, 0, 'status-item event data must remain closed to undeclared fields');
+});
+
+test('descriptor, event, and anchor identifier schemas reject dot-dot sequences', async () => {
+  const envelope = JSON.parse(await fs.readFile(path.join(fixtureRoot, 'valid/status-item-ready.json'), 'utf8'));
+  const descriptor = {
+    schema_version: 'aos.status_item.descriptor.v1',
+    owner: 'io..example',
+    item_id: 'companion',
+    revision: 1,
+    label: 'Companion',
+    primary_action_id: 'summon',
+  };
+  const event = structuredClone(envelope.data);
+  event.item_id = 'companion..menu';
+  const anchor = structuredClone(envelope.data.anchor);
+  anchor.anchor_id = 'native-status-item/io..example/companion';
+
+  for (const [targetSchemaPath, value] of [
+    [descriptorSchemaPath, descriptor],
+    [statusEventSchemaPath, event],
+    [anchorSchemaPath, anchor],
+  ]) {
+    const result = runValueJsonschema(targetSchemaPath, value);
+    assert.notEqual(result.status, 0, `${path.basename(targetSchemaPath)} should reject '..'`);
+  }
 });
 
 test('scene event vocabulary is strict across results and subscribed gestures', async () => {

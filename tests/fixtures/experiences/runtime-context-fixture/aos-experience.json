@@ -1,17 +1,11 @@
 {
-  "$schema": "../../../../shared/schemas/aos-experience-v0.schema.json",
-  "schema_version": 0,
+  "$schema": "../../../../shared/schemas/aos-experience-v1.schema.json",
+  "schema_version": 1,
   "id": "runtime-context-fixture",
   "title": "Runtime Context Fixture",
   "version": "0.1.0",
   "exclusive": true,
-  "default_activation": {
-    "kind": "status_item",
-    "status_item_first": true,
-    "primary_entry": "runtime-context-surface"
-  },
   "vanilla_fallback": {
-    "status_item": true,
     "tools": ["operator-annotation"]
   },
   "content_roots": [
@@ -21,16 +15,6 @@
       "branch_scoped": false
     }
   ],
-  "status_item": {
-    "enabled": true,
-    "label": "Runtime Context Fixture",
-    "icon": "aos",
-    "toggle_surface": {
-      "id": "runtime-context-surface",
-      "url": "aos://${root:toolkit}/runtime/_smoke/lifecycle-timeout.html",
-      "track": "union"
-    }
-  },
   "branding": {
     "display_name": "Runtime Context Fixture",
     "surface_title_prefix": "Context Fixture",
