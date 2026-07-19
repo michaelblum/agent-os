@@ -58,6 +58,7 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
     const operation = payload.operation ?? {}
     const outletReplacement = outlet.prepareReplacement(message)
     let interactionReplacement = null
+    let committed = false
     try {
       interactionReplacement = await interactions.prepareReplacement({
         key: payload.lease_key,
@@ -69,14 +70,25 @@ export function createDesktopWorldSceneOperationCoordinator({ outlet, interactio
       outletReplacement.assertCurrent()
       interactionReplacement.assertCurrent()
       interactionReplacement.commit(() => outletReplacement.commit())
-      await interactionReplacement.settle()
+      committed = true
+      const settled = await interactionReplacement.settle()
+      if (!settled) throw new Error('DesktopWorld scene input-region settlement failed.')
       return { applied: true, op }
     } catch (error) {
       const rollbackFailures = []
-      if (interactionReplacement) {
+      if (committed) {
+        try { await interactionReplacement?.failClosed() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+        try {
+          outlet.apply({ type: 'desktop_world_stage.scene.release', payload: { lease_key: payload.lease_key } })
+        } catch (rollbackError) {
+          rollbackFailures.push(rollbackError)
+        }
+      } else if (interactionReplacement) {
         try { await interactionReplacement.rollback() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
       }
-      try { outletReplacement.rollback() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+      if (!committed) {
+        try { outletReplacement.rollback() } catch (rollbackError) { rollbackFailures.push(rollbackError) }
+      }
       if (rollbackFailures.length > 0) {
         throw new AggregateError([error, ...rollbackFailures], 'DesktopWorld scene replacement and rollback both failed.')
       }

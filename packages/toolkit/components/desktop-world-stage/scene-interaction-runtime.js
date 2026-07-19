@@ -11,13 +11,16 @@ function boundedId(value) {
   return String(value ?? '').replace(/[^a-zA-Z0-9._/-]/gu, '_').slice(0, 128)
 }
 
-export function sceneAffordanceRegionId(owner, resource, affordance) {
-  return `scene:${boundedId(owner)}:${boundedId(resource)}:${boundedId(affordance)}`
+export function sceneAffordanceRegionId(owner, resource, affordance, generation = null) {
+  const base = `scene:${boundedId(owner)}:${boundedId(resource)}:${boundedId(affordance)}`
+  return generation === null || generation === undefined
+    ? base
+    : `${base}:generation:${boundedId(generation)}`
 }
 
 function regionPayload(entry, descriptor, frame) {
   return {
-    id: sceneAffordanceRegionId(entry.owner, entry.resource, descriptor.id),
+    id: sceneAffordanceRegionId(entry.owner, entry.resource, descriptor.id, entry.regionGeneration),
     owner_canvas_id: entry.stageCanvasId,
     frame: [...frame],
     coordinate_space: 'desktop_world',
@@ -32,6 +35,10 @@ function regionPayload(entry, descriptor, frame) {
       scene_affordance: descriptor.id,
     },
   }
+}
+
+function inactiveRegionPayload(payload) {
+  return { ...payload, consume_policy: 'never', enabled: false }
 }
 
 function validateInteractions(interactions, document) {
@@ -62,7 +69,12 @@ export function createDesktopWorldSceneInteractionRuntime({
   const leases = new Map()
   const preparations = new Map()
   const stagedRegionIds = new Map()
-  const retiredRegionIds = new Set()
+  const retiredRegions = new Map()
+  let nextRegionGeneration = 0
+  let retiredCleanupAttempt = 0
+  let retiredCleanupScheduled = false
+  let retiredCleanupTimer = null
+  let runtimeDisposed = false
 
   function publishEntryEvent(entry, event) {
     if (!isPrimary()) return
@@ -132,13 +144,14 @@ export function createDesktopWorldSceneInteractionRuntime({
     return indexed
   }
 
-  function createEntry({ key, owner, resource, document, interactions }) {
+  function createEntry({ key, owner, resource, document, interactions, regionGeneration = null }) {
     const entry = {
       key,
       owner,
       resource,
       document,
       stageCanvasId,
+      regionGeneration,
       interactions,
       controller: null,
       regionIds: new Map(),
@@ -152,6 +165,38 @@ export function createDesktopWorldSceneInteractionRuntime({
     }
     entry.controller = createController(entry)
     return entry
+  }
+
+  async function cleanupRetiredRegions(ids = [...retiredRegions.keys()]) {
+    const pending = ids.filter((id) => retiredRegions.has(id))
+    const results = await Promise.allSettled(pending.map((id) => removeRegion(id)))
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') retiredRegions.delete(pending[index])
+    })
+    if (retiredRegions.size === 0) retiredCleanupAttempt = 0
+    if (retiredRegions.size > 0) scheduleRetiredRegionCleanup()
+    return results.every((result) => result.status === 'fulfilled')
+  }
+
+  function scheduleRetiredRegionCleanup() {
+    if (runtimeDisposed || !isPrimary() || retiredCleanupScheduled || retiredRegions.size === 0) return
+    const defer = scheduleTimer ?? ((callback, delay) => setTimeout(callback, delay))
+    const delay = Math.min(100 * (2 ** Math.min(retiredCleanupAttempt, 6)), 5_000)
+    retiredCleanupAttempt += 1
+    retiredCleanupScheduled = true
+    retiredCleanupTimer = defer(async () => {
+      retiredCleanupScheduled = false
+      retiredCleanupTimer = null
+      await cleanupRetiredRegions()
+    }, delay)
+    retiredCleanupTimer?.unref?.()
+  }
+
+  async function retireAndRemoveRegions(entries) {
+    const unique = new Map(entries)
+    for (const [id, payload] of unique) retiredRegions.set(id, payload)
+    await Promise.allSettled([...unique.values()].map((payload) => updateRegion(inactiveRegionPayload(payload))))
+    return cleanupRetiredRegions([...unique.keys()])
   }
 
   async function removeRegions(entry) {
@@ -227,16 +272,14 @@ export function createDesktopWorldSceneInteractionRuntime({
       if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
     }
     for (const id of preparation.addedIds) {
-      tasks.push(removeRegion(id).finally(() => {
+      const payload = preparation.candidate?.regionIds.get(id)?.payload
+      tasks.push(removeRegion(id).then(() => {
         if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
-      }))
-    }
-    for (const id of preparation.updatedIds) {
-      const payload = preparation.previous?.regionIds.get(id)?.payload
-      if (!payload) continue
-      tasks.push(updateRegion(payload).catch(async (error) => {
-        if (!String(error?.message ?? '').includes('NOT_FOUND')) throw error
-        await registerRegion(payload)
+      }, (error) => {
+        if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        if (payload) retiredRegions.set(id, payload)
+        scheduleRetiredRegionCleanup()
+        throw error
       }))
     }
     const results = await Promise.allSettled(tasks)
@@ -258,13 +301,19 @@ export function createDesktopWorldSceneInteractionRuntime({
     if (validated && !previous && leases.size >= MAX_LEASES) {
       throw new RangeError('DesktopWorld scene interaction lease budget exceeded.')
     }
-    const candidate = validated ? createEntry({ key, owner, resource, document, interactions: validated }) : null
+    const candidate = validated ? createEntry({
+      key,
+      owner,
+      resource,
+      document,
+      interactions: validated,
+      regionGeneration: `r${++nextRegionGeneration}`,
+    }) : null
     const preparation = {
       key,
       previous,
       candidate,
       addedIds: new Set(),
-      updatedIds: new Set(),
       state: 'prepared',
     }
     preparations.set(key, preparation)
@@ -274,17 +323,9 @@ export function createDesktopWorldSceneInteractionRuntime({
         const next = indexRegions(candidate)
         if (isPrimary() && !candidate.suspended) {
           for (const [id, { payload }] of next) {
-            const updatesExisting = previous?.registeredIds.has(id) === true
-            if (!updatesExisting) stagedRegionIds.set(id, preparation)
-            try {
-              await (updatesExisting ? updateRegion(payload) : registerRegion(payload))
-            } catch (error) {
-              if (!updatesExisting || !String(error?.message ?? '').includes('NOT_FOUND')) throw error
-              stagedRegionIds.set(id, preparation)
-              await registerRegion(payload)
-            }
-            if (updatesExisting) preparation.updatedIds.add(id)
-            else preparation.addedIds.add(id)
+            stagedRegionIds.set(id, preparation)
+            preparation.addedIds.add(id)
+            await registerRegion(inactiveRegionPayload(payload))
             candidate.registeredIds.add(id)
           }
         }
@@ -319,14 +360,14 @@ export function createDesktopWorldSceneInteractionRuntime({
         }
         if (candidate) leases.set(key, candidate)
         else leases.delete(key)
-        for (const id of candidate?.regionIds.keys() ?? []) {
-          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
-        }
-        for (const id of candidate?.registeredIds ?? []) retiredRegionIds.delete(id)
+        for (const id of candidate?.registeredIds ?? []) retiredRegions.delete(id)
         preparations.delete(key)
         preparation.state = 'committed'
         for (const id of previous?.registeredIds ?? []) {
-          if (!candidate?.registeredIds.has(id)) retiredRegionIds.add(id)
+          if (!candidate?.registeredIds.has(id)) {
+            const payload = previous?.regionIds.get(id)?.payload
+            if (payload) retiredRegions.set(id, payload)
+          }
         }
         return true
       },
@@ -335,13 +376,24 @@ export function createDesktopWorldSceneInteractionRuntime({
       },
       async settle() {
         if (preparation.state !== 'committed') return false
+        for (const id of candidate?.registeredIds ?? []) {
+          const payload = candidate?.regionIds.get(id)?.payload
+          if (!payload) continue
+          try {
+            await updateRegion(payload)
+          } catch {
+            if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
+            return false
+          }
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
         let pending = [...(previous?.registeredIds ?? [])].filter((id) => !candidate?.registeredIds.has(id))
         for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
           const results = await Promise.allSettled(pending.map((id) => removeRegion(id)))
           pending = pending.filter((id, index) => {
             if (results[index].status === 'fulfilled') {
               previous?.registeredIds.delete(id)
-              retiredRegionIds.delete(id)
+              retiredRegions.delete(id)
               return false
             }
             return true
@@ -357,6 +409,32 @@ export function createDesktopWorldSceneInteractionRuntime({
           if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
           return false
         }
+        preparation.state = 'settled'
+        return true
+      },
+      async failClosed() {
+        if (preparation.state !== 'committed') return false
+        preparation.state = 'failing_closed'
+        candidate?.controller.dispose('resource_removed')
+        radialMenus.close(key, 'resource_removed')
+        if (candidate) {
+          candidate.disposed = true
+          candidate.generation += 1
+        }
+        if (leases.get(key) === candidate) leases.delete(key)
+        const entries = new Map()
+        for (const id of previous?.registeredIds ?? []) {
+          const payload = previous?.regionIds.get(id)?.payload ?? retiredRegions.get(id)
+          if (payload) entries.set(id, payload)
+        }
+        for (const id of candidate?.registeredIds ?? []) {
+          const payload = candidate?.regionIds.get(id)?.payload
+          if (payload) entries.set(id, payload)
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
+        try { await radialMenus.settle(key, { requireClean: true }) } catch {}
+        await retireAndRemoveRegions(entries)
+        preparation.state = 'failed_closed'
         return true
       },
     })
@@ -469,7 +547,7 @@ export function createDesktopWorldSceneInteractionRuntime({
     const input = normalizeCanvasInputMessage(message)
     const regionId = input?.regionId
     if (!regionId) return false
-    if (stagedRegionIds.has(regionId) || retiredRegionIds.has(regionId)) return true
+    if (stagedRegionIds.has(regionId) || retiredRegions.has(regionId)) return true
     for (const entry of leases.values()) {
       const affordanceId = entry.regionIds.get(regionId)?.affordanceId
       if (affordanceId && !entry.suspended) return entry.controller.handle(affordanceId, message)
@@ -575,6 +653,14 @@ export function createDesktopWorldSceneInteractionRuntime({
 
   async function dispose(reason = 'stage_disposed') {
     const failures = []
+    runtimeDisposed = true
+    if (retiredCleanupScheduled && retiredCleanupTimer !== null) {
+      const cancel = cancelTimer ?? (scheduleTimer ? null : clearTimeout)
+      cancel?.(retiredCleanupTimer)
+      retiredCleanupScheduled = false
+      retiredCleanupTimer = null
+      retiredCleanupAttempt = 0
+    }
     for (const preparation of [...preparations.values()]) {
       try {
         await rollbackPreparation(preparation)
@@ -589,10 +675,10 @@ export function createDesktopWorldSceneInteractionRuntime({
         failures.push(error)
       }
     }
-    const retiredResults = await Promise.allSettled([...retiredRegionIds].map((id) => removeRegion(id)))
-    const retiredIds = [...retiredRegionIds]
+    const retiredIds = [...retiredRegions.keys()]
+    const retiredResults = await Promise.allSettled(retiredIds.map((id) => removeRegion(id)))
     retiredIds.forEach((id, index) => {
-      if (retiredResults[index].status === 'fulfilled') retiredRegionIds.delete(id)
+      if (retiredResults[index].status === 'fulfilled') retiredRegions.delete(id)
       else failures.push(retiredResults[index].reason)
     })
     await radialMenus.dispose(reason)
