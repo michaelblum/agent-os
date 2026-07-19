@@ -184,8 +184,11 @@ test('descriptor schema and runtime agree on canonical Unicode character bounds'
     { ...descriptor, label: ' Example Companion' },
     { ...descriptor, label: 'Example Companion ' },
     { ...descriptor, label: '\tExample Companion' },
+    { ...descriptor, label: 'Example Companion\n' },
+    { ...descriptor, label: 'Example Companion\r\n' },
     { ...descriptor, label: '   ' },
     { ...descriptor, help_text: ' Help' },
+    { ...descriptor, help_text: 'Help\n' },
     { ...descriptor, menu: [{ kind: 'item', id: 'park', action_id: 'park', label: ' Park' }] },
   ]) {
     assert.throws(() => validateWithSchema(descriptorSchemaPath, invalid))
@@ -483,6 +486,56 @@ test('register bounds events that arrive before the registration result', async 
   assert.equal(result.code, 1)
   assert.equal(JSON.parse(result.stderr).code, 'STATUS_ITEM_EVENT_BUFFER_EXCEEDED')
   await new Promise((resolve) => server.close(resolve))
+})
+
+test('register follow exits on signal while stdout is backpressured', async (t) => {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-backpressure-signal-'))
+  const descriptorPath = path.join(stateRoot, 'descriptor.json')
+  fs.writeFileSync(descriptorPath, `${JSON.stringify(descriptor)}\n`, 'utf8')
+  let registrationResolved
+  const registrationSent = new Promise((resolve) => { registrationResolved = resolve })
+  const server = await listenFake(stateRoot, (socket, request) => {
+    socket.write(`${JSON.stringify({
+      v: 1,
+      ref: request.ref,
+      status: 'success',
+      data: { generation: 7, descriptor_revision: 3, padding: 'x'.repeat(200_000) },
+    })}\n`)
+    registrationResolved()
+  })
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve))
+    fs.rmSync(stateRoot, { recursive: true, force: true })
+  })
+  const child = spawn('node', [
+    'scripts/aos-status-item.mjs',
+    'register', '--descriptor', descriptorPath, '--json', '--follow',
+  ], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: stateRoot,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_DISABLE_DAEMON_AUTOSTART: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let stderr = ''
+  child.stderr.on('data', (chunk) => { stderr += chunk })
+  await registrationSent
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  child.kill('SIGTERM')
+  const result = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      reject(new Error('register follow did not exit after SIGTERM under stdout backpressure'))
+    }, 1_500)
+    child.once('close', (code, signal) => {
+      clearTimeout(timer)
+      resolve({ code, signal })
+    })
+  })
+  assert.deepEqual(result, { code: 0, signal: null }, stderr)
 })
 
 test('CLI settles daemon error, malformed response, legacy success, and disconnect failures', async () => {

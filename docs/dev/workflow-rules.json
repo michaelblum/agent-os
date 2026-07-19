@@ -150,6 +150,36 @@
       ]
     },
     {
+      "id": "status-item-contract",
+      "summary": "Native status-item host, public toolkit, schema, or CLI transport changed.",
+      "patterns": [
+        "manifests/commands/source/aos/40-status-item.json",
+        "manifests/commands/source/external/48-status-item.json",
+        "packages/toolkit/status-item/**",
+        "scripts/aos-status-item.mjs",
+        "scripts/lib/status-item-output-writer.mjs",
+        "shared/schemas/aos-status-item-*.schema.json",
+        "src/display/status-item*.swift"
+      ],
+      "classes": [
+        "status_item",
+        "command_contract"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "status-item-contract",
+          "command": "node --test tests/status-item-contract.test.mjs",
+          "reason": "Status-item production sources must retain schema, native host, transport, and bounded follow-stream coverage."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "browser-intent-sensor",
       "summary": "Browser intent sensor or JS adapter path changed.",
       "patterns": [

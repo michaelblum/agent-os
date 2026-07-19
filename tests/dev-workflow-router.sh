@@ -232,6 +232,24 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --paths packages/toolkit/status-item/index.js scripts/lib/status-item-output-writer.mjs src/display/status-item-host-controller.swift 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "status-item-contract" in summary["rule_ids"], data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("node --test tests/status-item-contract.test.mjs") == 1, data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+PY
+then
+    pass "dev recommend routes status-item production sources to their focused contract"
+else
+    fail "dev recommend status-item contract routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

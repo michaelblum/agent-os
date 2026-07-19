@@ -235,7 +235,9 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
   })
   socket.once('close', () => {
     closed = true
-    if (!signal?.aborted) {
+    if (signal?.aborted) {
+      terminalError ??= canceledError()
+    } else {
       terminalError ??= makeError('STATUS_ITEM_DAEMON_CLOSED', 'status item daemon connection closed')
       rejectPending(terminalError)
     }
