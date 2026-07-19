@@ -142,6 +142,25 @@ function waitForOutput(child, predicate, timeoutMs = 5_000) {
   })
 }
 
+function within(promise, timeoutMs, message, onTimeout = () => {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      onTimeout()
+      reject(new Error(message))
+    }, timeoutMs)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 async function listenFake(stateRoot, onRequest) {
   const sock = path.join(stateRoot, 'repo', 'sock')
   fs.mkdirSync(path.dirname(sock), { recursive: true })
@@ -490,11 +509,36 @@ test('register bounds events that arrive before the registration result', async 
 
 test('register follow exits on signal while stdout is backpressured', async (t) => {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-backpressure-signal-'))
+  let server = null
+  let child = null
+  let childClosed = null
+  t.after(async () => {
+    let cleanupError = null
+    try {
+      if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      if (childClosed) await within(childClosed, 1_500, 'status item test child did not terminate during cleanup')
+    } catch (error) {
+      cleanupError = error
+    }
+    try {
+      if (server?.listening) {
+        await within(
+          new Promise((resolve) => server.close(resolve)),
+          1_500,
+          'status item fake server did not close during cleanup',
+        )
+      }
+    } catch (error) {
+      cleanupError ??= error
+    }
+    fs.rmSync(stateRoot, { recursive: true, force: true })
+    if (cleanupError) throw cleanupError
+  })
   const descriptorPath = path.join(stateRoot, 'descriptor.json')
   fs.writeFileSync(descriptorPath, `${JSON.stringify(descriptor)}\n`, 'utf8')
   let registrationResolved
   const registrationSent = new Promise((resolve) => { registrationResolved = resolve })
-  const server = await listenFake(stateRoot, (socket, request) => {
+  server = await listenFake(stateRoot, (socket, request) => {
     socket.write(`${JSON.stringify({
       v: 1,
       ref: request.ref,
@@ -503,11 +547,7 @@ test('register follow exits on signal while stdout is backpressured', async (t) 
     })}\n`)
     registrationResolved()
   })
-  t.after(async () => {
-    await new Promise((resolve) => server.close(resolve))
-    fs.rmSync(stateRoot, { recursive: true, force: true })
-  })
-  const child = spawn('node', [
+  child = spawn('node', [
     'scripts/aos-status-item.mjs',
     'register', '--descriptor', descriptorPath, '--json', '--follow',
   ], {
@@ -520,21 +560,18 @@ test('register follow exits on signal while stdout is backpressured', async (t) 
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  childClosed = new Promise((resolve) => child.once('close', (code, signal) => resolve({ code, signal })))
   let stderr = ''
   child.stderr.on('data', (chunk) => { stderr += chunk })
-  await registrationSent
+  await within(registrationSent, 1_500, 'status item register request did not reach the fake daemon')
   await new Promise((resolve) => setTimeout(resolve, 100))
   child.kill('SIGTERM')
-  const result = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      reject(new Error('register follow did not exit after SIGTERM under stdout backpressure'))
-    }, 1_500)
-    child.once('close', (code, signal) => {
-      clearTimeout(timer)
-      resolve({ code, signal })
-    })
-  })
+  const result = await within(
+    childClosed,
+    1_500,
+    'register follow did not exit after SIGTERM under stdout backpressure',
+    () => child.kill('SIGKILL'),
+  )
   assert.deepEqual(result, { code: 0, signal: null }, stderr)
 })
 
