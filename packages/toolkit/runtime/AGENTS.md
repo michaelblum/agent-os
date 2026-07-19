@@ -20,10 +20,7 @@ Good runtime responsibilities:
   canonical `inputIdentity` source, ownership, scope, and envelope projection
   consumed by app policy; unversioned names and `input_event` wrappers are not
   compatibility inputs;
-- generic mounted-surface menu projection consumption from
-  `packages/toolkit/contracts/`, operator annotation menu filtering/routing,
-  and selection evidence helpers that stay app-neutral and consume manifest
-  data supplied by activation.
+- generic operator-selection evidence helpers that stay app-neutral.
 - dependency-injected Three renderer lifecycle mechanics: bounded sizing,
   visibility and context-loss suspension, frame scheduling, and disposal of
   explicitly owned resources.

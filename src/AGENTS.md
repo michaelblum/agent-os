@@ -15,6 +15,9 @@ needs, but public command policy and product UI policy belong above it:
 
 - canvas lifecycle, native frames, display topology, content serving, input
   streams, and lifecycle routing belong here;
+- the owner-scoped native status-item lease, exact-revision compare-and-swap,
+  AppKit-derived anchor facts, and native activation/menu bridge live in
+  `display/status-item*.swift`; consumer visuals and product actions do not;
 - permission status and request primitives belong to the process that owns the
   privileged capability; daemon-owned microphone capture therefore uses
   daemon-owned authorization rather than foreground CLI authorization;

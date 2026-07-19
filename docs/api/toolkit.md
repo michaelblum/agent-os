@@ -10,6 +10,7 @@ Use this index when you are building an AOS canvas surface, composing reusable t
 | --- | --- | --- |
 | Runtime primitives | [toolkit/runtime.md](./toolkit/runtime.md) | runtime bridge, canvas lifecycle helpers, subscriptions, `createResourceScope`, DesktopWorld surface runtime, input regions/events |
 | Scene authoring | [toolkit/scene.md](./toolkit/scene.md) | external package facade, DesktopWorld Three adapter, bounded renderer lifecycle, visual-object descriptors and form bindings |
+| Status-item contract | [toolkit/status-item.md](./toolkit/status-item.md) | descriptor/update validation, observed native anchor/event normalization, and public TypeScript types |
 | Controls | [toolkit/controls.md](./toolkit/controls.md) | plain DOM control factories, stock control CSS classes, timer bar, number-field enhancement |
 | Panel/window policy | [toolkit/panel-window.md](./toolkit/panel-window.md) | `mountChrome`, `createPanelWindowController`, drag/resize/maximize/minimize/restore, placement, `createStageAffordance`, split panes, tabs, single layout |
 | Workbench contracts | [toolkit/workbench.md](./toolkit/workbench.md) | `aos.workbench.subject`, human checkpoint, HTML/Markdown/work-record/artifact/playbook/wiki workbench contracts |
@@ -26,6 +27,7 @@ It is split into these layers:
 | --- | --- | --- |
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake, DesktopWorld adapters, input-region helpers, resource scopes |
 | Scene facade | `packages/toolkit/scene/` | narrow external package exports and TypeScript declarations over reviewed runtime and visual-object contracts |
+| Status item | `packages/toolkit/status-item/` | data-only descriptor/update and AOS-derived native anchor/event contract |
 | Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | panel/window policy, chrome, placement, StageAffordance, and composition primitives |
 | Workbench | `packages/toolkit/workbench/` | shared subject descriptors, workbench contracts, and stock workbench shell styling |
@@ -60,6 +62,7 @@ Before adding a WebView, daemon policy, app-private hit testing, or a new Deskto
 - controls: [controls API](./toolkit/controls.md#factories) and [form harness](./toolkit/panel-window.md#createformcontainer-fields-options).
 - DesktopWorld stage/surface runtime: [runtime DesktopWorld surface runtime](./toolkit/runtime.md#desktopworld-surface-runtime) and [components DesktopWorld stage](./toolkit/components.md#stock-components-snapshot).
 - external Three scene authoring: [scene API](./toolkit/scene.md).
+- native status-item descriptors and observed anchors: [status-item API](./toolkit/status-item.md).
 - input regions/events: [runtime input regions and events](./toolkit/runtime.md#input-regions-and-events).
 - workbench contracts: [workbench API](./toolkit/workbench.md#workbench-contracts).
 - Surface Inspector and Surface-Zoom Inspector: [components API](./toolkit/components.md#stock-components-snapshot) and [Surface-Zoom proof](./toolkit/components.md#surface-zoom-inspector-proof).

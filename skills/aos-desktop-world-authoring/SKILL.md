@@ -88,6 +88,39 @@ the CLI or typed toolkit SDK. The daemon suspends the old host before activating
 the new one; consumers must not fork the telemetry model or create a second
 interactive host.
 
+## Status-Item Anchor
+
+When a cartridge needs menu-bar emergence or docking geometry, use the anchor
+observed from the AOS-hosted native status item. The consumer does not supply or
+bind anchor coordinates in its descriptor.
+
+Register and inspect the native item through the status-item host contract:
+
+```bash
+./aos status-item validate --descriptor ./status-item.json --json
+./aos status-item register --descriptor ./status-item.json --json --follow
+./aos status-item update --descriptor ./status-item-v4.json \
+  --owner io.example.app --item companion \
+  --generation 1 --current-revision 3 --json
+./aos status-item inspect --owner io.example.app --item companion \
+  --generation 1 --descriptor-revision 4 --json
+```
+
+Keep register-follow alive. Its registration result precedes `ready`; take the
+exact generation/revision from that first result. A separate update may install
+a strictly newer descriptor only by matching owner/item/generation/current
+revision. Use the returned revision and inspected `bounds` and `anchor` facts as
+machine-readable evidence. The anchor is derived from the actual `NSStatusItem`
+button and includes current display frame, visible frame, and bounded topology
+facts. Coordinates may be recorded as evidence, but action identity is
+owner/item/action plus generation/revision.
+
+This slice does not project a cartridge into the menu bar. The dependent visual
+slice will host a generic data-only status visual inside the real status-item
+button and bridge that definition plus this anchor to DesktopWorld for
+emergence/docking. A rich AOS-owned status palette/popover is a separate
+dependent slice.
+
 ## Replay
 
 Test gesture logic without live TCC input:
