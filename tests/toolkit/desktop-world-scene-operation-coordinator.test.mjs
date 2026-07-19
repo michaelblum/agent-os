@@ -7,7 +7,7 @@ import {
 import { createDesktopWorldSceneOperationCoordinator } from '../../packages/toolkit/components/desktop-world-stage/scene-operation-coordinator.js'
 import { canonicalInputRegionEvent } from '../lib/input-event-fixtures.mjs'
 
-function scene(id, objectId, position = [100, 200, 0]) {
+function sceneWithObjects(id, objects) {
   return {
     contract: 'aos.scene.document.v1',
     schemaVersion: 1,
@@ -16,18 +16,31 @@ function scene(id, objectId, position = [100, 200, 0]) {
     rootObjectId: 'root',
     objects: [
       { id: 'root', parentId: null, kind: 'group', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, visible: true, geometryId: null, materialId: null, components: [] },
-      { id: objectId, parentId: 'root', kind: 'mesh', transform: { position, rotation: [0, 0, 0], scale: [1, 1, 1] }, visible: true, geometryId: null, materialId: null, components: [] },
+      ...objects.map(({ id: objectId, position }) => ({
+        id: objectId,
+        parentId: 'root',
+        kind: 'mesh',
+        transform: { position, rotation: [0, 0, 0], scale: [1, 1, 1] },
+        visible: true,
+        geometryId: null,
+        materialId: null,
+        components: [],
+      })),
     ],
     resources: [],
     metadata: {},
   }
 }
 
-function interaction(objectId) {
+function scene(id, objectId, position = [100, 200, 0]) {
+  return sceneWithObjects(id, [{ id: objectId, position }])
+}
+
+function interactionsForObjects(objectIds) {
   return {
     contract: 'aos.scene.cartridge.interactions.v1',
     schemaVersion: 1,
-    affordances: [{
+    affordances: objectIds.map((objectId) => ({
       id: `${objectId}-hit`,
       objectId,
       geometry: { kind: 'rect', width: 80, height: 60, offset: [0, 0] },
@@ -35,19 +48,24 @@ function interaction(objectId) {
       priority: 100,
       consumePolicy: 'captured',
       metadata: {},
-    }],
-    interactions: [{
+    })),
+    interactions: objectIds.map((objectId) => ({
       id: `${objectId}-drag`,
       affordanceId: `${objectId}-hit`,
       recognizer: { implementation: 'aos.scene.gesture.drag', parameters: { threshold: 4 } },
       response: { implementation: 'aos.scene.response.translate', parameters: { axis: 'both' } },
-    }],
+    })),
   }
+}
+
+function interaction(objectId) {
+  return interactionsForObjects([objectId])
 }
 
 function harness({
   applyThenRejectAffordance = null,
   applyThenRejectUpdateAffordance = null,
+  deferThenRejectUpdateAffordance = null,
   deferAffordance = null,
   deferRegistrationNumber = null,
   failAffordance = null,
@@ -62,8 +80,12 @@ function harness({
   let registrationCount = 0
   let releaseRegistration = null
   let markRegistrationStarted = null
+  let markUpdateStarted = null
+  let rejectDeferredUpdate = null
   const registrationStarted = new Promise((resolve) => { markRegistrationStarted = resolve })
   const deferredRegistration = new Promise((resolve) => { releaseRegistration = resolve })
+  const updateStarted = new Promise((resolve) => { markUpdateStarted = resolve })
+  const deferredUpdate = new Promise((resolve, reject) => { rejectDeferredUpdate = reject })
   const outlet = {
     apply(message) {
       const key = message.payload.lease_key
@@ -126,6 +148,10 @@ function harness({
       if (payload.metadata.scene_affordance === applyThenRejectUpdateAffordance) {
         throw new Error('update acknowledgement unavailable')
       }
+      if (payload.metadata.scene_affordance === deferThenRejectUpdateAffordance) {
+        markUpdateStarted()
+        await deferredUpdate
+      }
     },
     removeRegion: async (id) => {
       const attempt = (removalAttempts.get(id) ?? 0) + 1
@@ -144,7 +170,9 @@ function harness({
     outlet,
     regions,
     registrationStarted,
+    rejectDeferredUpdate,
     releaseRegistration,
+    updateStarted,
     coordinator: createDesktopWorldSceneOperationCoordinator({ outlet, interactions }),
   }
 }
@@ -323,6 +351,40 @@ test('applied-then-rejected candidate activation fails closed without retaining 
   assert.equal(fixture.outlet.document(key), null)
   assert.equal(fixture.interactions.configuration(key), null)
   assert.deepEqual([...fixture.regions.keys()], [])
+})
+
+test('candidate generation remains staged until every region activation settles', async () => {
+  const key = 'example.consumer::companion/main'
+  const fixture = harness({ deferThenRejectUpdateAffordance: 'next-b-hit' })
+  await fixture.coordinator.apply(mount(key, scene('old-scene', 'old-body'), interaction('old-body')))
+
+  const replacing = fixture.coordinator.apply(mount(
+    key,
+    sceneWithObjects('next-scene', [
+      { id: 'next-a', position: [200, 200, 0] },
+      { id: 'next-b', position: [400, 200, 0] },
+    ]),
+    interactionsForObjects(['next-a', 'next-b']),
+  ))
+  await fixture.updateStarted
+  const firstCandidate = regionIdFor(fixture.regions, 'next-a-hit')
+  const secondCandidate = regionIdFor(fixture.regions, 'next-b-hit')
+
+  assert.equal(fixture.regions.get(firstCandidate).enabled, true)
+  assert.equal(fixture.regions.get(secondCandidate).enabled, true)
+  const dispatchedBeforeCandidate = fixture.dispatchedScenes.length
+  assert.equal(fixture.coordinator.handleInput(pointerDown(firstCandidate)), true)
+  assert.equal(fixture.coordinator.handleInput(pointerDrag(firstCandidate)), true)
+  assert.equal(fixture.dispatchedScenes.length, dispatchedBeforeCandidate)
+
+  const rejection = assert.rejects(replacing, /input-region settlement failed/u)
+  fixture.rejectDeferredUpdate(new Error('second activation acknowledgement unavailable'))
+  await rejection
+
+  assert.equal(fixture.outlet.document(key), null)
+  assert.equal(fixture.interactions.configuration(key), null)
+  assert.deepEqual([...fixture.regions.keys()], [])
+  assert.equal(fixture.dispatchedScenes.includes('next-scene'), false)
 })
 
 test('failed retired-region settlement rejects and retries cleanup from a fail-closed scene', async () => {

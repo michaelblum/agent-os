@@ -385,7 +385,6 @@ export function createDesktopWorldSceneInteractionRuntime({
             if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_ACTIVATION_FAILED'
             return false
           }
-          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
         }
         let pending = [...(previous?.registeredIds ?? [])].filter((id) => !candidate?.registeredIds.has(id))
         for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
@@ -409,6 +408,9 @@ export function createDesktopWorldSceneInteractionRuntime({
           if (candidate) candidate.regionSyncErrorCode = 'INPUT_REGION_CLEANUP_FAILED'
           return false
         }
+        for (const id of candidate?.registeredIds ?? []) {
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
         preparation.state = 'settled'
         return true
       },
@@ -430,10 +432,12 @@ export function createDesktopWorldSceneInteractionRuntime({
         for (const id of candidate?.registeredIds ?? []) {
           const payload = candidate?.regionIds.get(id)?.payload
           if (payload) entries.set(id, payload)
-          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
         }
         try { await radialMenus.settle(key, { requireClean: true }) } catch {}
         await retireAndRemoveRegions(entries)
+        for (const id of candidate?.registeredIds ?? []) {
+          if (stagedRegionIds.get(id) === preparation) stagedRegionIds.delete(id)
+        }
         preparation.state = 'failed_closed'
         return true
       },
