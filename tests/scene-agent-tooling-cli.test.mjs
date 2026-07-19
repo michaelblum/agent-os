@@ -62,7 +62,7 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
         const request = JSON.parse(buffer.slice(0, newline))
         buffer = buffer.slice(newline + 1)
         received.push(request)
-        const reply = (value) => socket.write(`${JSON.stringify({ v: 1, ref: request.ref, ...value })}\n`)
+        const reply = (data) => socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success', data })}\n`)
         if (request.action === 'devtools_open') reply({ status: 'ok', session: snapshot() })
         else if (request.action === 'devtools_status') reply(request.data.session ? { status: 'ok', session: snapshot() } : { status: 'ok', sessions: [snapshot()] })
         else if (request.action === 'devtools_update' || request.action === 'devtools_transfer') reply({ status: 'ok', session: snapshot() })
@@ -121,7 +121,10 @@ test('scene monitor preserves unsolicited events that arrive before the correlat
       v: 1, service: 'scene', event: 'monitor', ref: request.ref, ts: 1,
       data: { resource: request.data.resource, snapshot: stage() },
     })}\n`)
-    socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'ok', resource: request.data.resource, following: true })}\n`)
+    socket.write(`${JSON.stringify({
+      v: 1, ref: request.ref, status: 'success',
+      data: { status: 'ok', resource: request.data.resource, following: true },
+    })}\n`)
   }))
   await new Promise((resolve, reject) => server.listen(path.join(state, 'sock'), resolve).once('error', reject))
   try {
@@ -186,6 +189,26 @@ test('scene tooling bounds daemon output before JSON parsing', async () => {
     assert.equal(result.code, 1)
     assert.equal(result.stdout, '')
     assert.match(result.stderr, /SCENE_DAEMON_LINE_TOO_LARGE/u)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('scene tooling rejects a correlated success response without canonical data', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-scene-tools-invalid-envelope-'))
+  const state = path.join(root, 'repo')
+  await mkdir(state, { recursive: true })
+  const server = net.createServer((socket) => socket.once('data', (chunk) => {
+    const request = JSON.parse(chunk.toString('utf8').trim())
+    socket.write(`${JSON.stringify({ v: 1, ref: request.ref, status: 'success' })}\n`)
+  }))
+  await new Promise((resolve, reject) => server.listen(path.join(state, 'sock'), resolve).once('error', reject))
+  try {
+    const result = await run(['list', '--json'], { AOS_STATE_ROOT: root, AOS_RUNTIME_MODE: 'repo' })
+    assert.equal(result.code, 1)
+    assert.equal(result.stdout, '')
+    assert.match(result.stderr, /INVALID_SCENE_DAEMON_RESPONSE/u)
   } finally {
     await new Promise((resolve) => server.close(resolve))
     await rm(root, { recursive: true, force: true })
