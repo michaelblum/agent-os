@@ -97,7 +97,10 @@ test('scene agent tooling uses headless snapshots and a bounded monitor stream',
     const monitor = await run(['monitor', '--resource', 'companion/main', '--follow', '--json'], env, { stopAfter: '"event":"monitor"' })
     assert.equal(monitor.code, 0, monitor.stderr)
     assert.equal(JSON.parse(monitor.stdout).data.snapshot.resources[0].id, 'companion/main')
-    assert.ok(received.filter((entry) => entry.action === 'devtools_open' && entry.data.headless === true).length >= 3)
+    const opened = received.filter((entry) => entry.action === 'devtools_open')
+    const closed = received.filter((entry) => entry.action === 'devtools_close')
+    assert.ok(opened.filter((entry) => entry.data.headless === true).length >= 3)
+    assert.equal(closed.length, opened.length, 'every DevTools session must be closed')
     assert.deepEqual(received.find((entry) => entry.action === 'devtools_update')?.data, {
       session: 'devtools-test', expected_revision: 1, active_tab: 'performance',
       filters: { query: 'companion', event_kinds: ['gesture', 'error'], errors_only: true }, recording: true,
