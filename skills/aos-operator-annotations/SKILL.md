@@ -11,11 +11,14 @@ consume-once records, not durable task plans.
 ## Loop
 
 1. Inspect `./aos help see annotation --json` before using subcommands.
-2. To start an AOS-owned status-item/operator annotation flow, inspect
-   `./aos experience status <id> --json`, dry-run
-   `./aos experience menu invoke <id> --item <item-id> --dry-run --json`, then
-   run the same invoke command without `--dry-run` only when the mounted surface
-   and menu item match.
+2. For status-item driven annotation flows, use the product-neutral host lease:
+   validate/register the descriptor with `./aos status-item`, follow typed
+   events on that owning process, then let the consumer translate the received
+   action id into the annotation command it owns. Separate inspect/invoke calls
+   must carry the exact registered generation and descriptor revision. Refresh
+   declarative menu state only through compare-and-swap `status-item update`
+   with a strictly newer descriptor while the register-follow owner remains
+   alive.
 3. List pending annotations, read the selected record, and inspect any saved ref
    or fallback reason before acting.
 4. Consume exactly once only when you are ready to handle the annotation.
@@ -28,8 +31,8 @@ consume-once records, not durable task plans.
 - Fallback-only annotations are not proof that a direct action is safe.
 - Keep annotation artifacts compact and cite linked evidence instead of
   replaying the action.
-- `aos experience menu invoke` covers AOS-owned experience status-item entries,
-  not arbitrary third-party macOS menu-extra scraping.
+- `aos status-item` covers only AOS-hosted owner-scoped leases, not arbitrary
+  third-party macOS menu-extra scraping.
 
 ## Stop
 
@@ -40,7 +43,7 @@ authorization.
 ## References
 
 - `docs/api/aos.md`
-- `docs/api/toolkit/runtime.md`
-- `manifests/commands/source/aos/02-experience.json`
+- `docs/api/toolkit/status-item.md`
+- `manifests/commands/source/aos/40-status-item.json`
 - `manifests/commands/source/aos/03-see-04-annotation.json`
 - `tests/external-command-dispatch.sh`

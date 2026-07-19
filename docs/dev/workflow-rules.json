@@ -118,8 +118,10 @@
       "summary": "Reusable toolkit component or runtime browser code changed.",
       "patterns": [
         "packages/toolkit/components/**",
+        "packages/toolkit/contracts/mounted-surface-menu-projection.js",
         "packages/toolkit/panel/**",
         "packages/toolkit/runtime/**",
+        "packages/toolkit/status-item/**",
         "packages/toolkit/package.json",
         "packages/toolkit/package-lock.json"
       ],
@@ -146,6 +148,73 @@
           "reason": "When manually verifying a canvas-backed component, use diagnostic JSON waits so timeout failures include runtime verdict detail."
         }
       ]
+    },
+    {
+      "id": "status-item-contract",
+      "summary": "Native status-item host, public toolkit, schema, or CLI transport changed.",
+      "patterns": [
+        "manifests/commands/source/aos/40-status-item.json",
+        "manifests/commands/source/external/48-status-item.json",
+        "packages/toolkit/status-item/**",
+        "scripts/aos-status-item.mjs",
+        "scripts/lib/status-item-output-writer.mjs",
+        "shared/schemas/aos-status-item-*.schema.json",
+        "shared/schemas/daemon-request.schema.json",
+        "shared/schemas/daemon-response.schema.json",
+        "shared/schemas/daemon-event.schema.json",
+        "shared/schemas/fixtures/daemon-event/**/status-item-*.json",
+        "src/display/status-item*.swift"
+      ],
+      "classes": [
+        "status_item",
+        "command_contract"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "status-item-contract",
+          "command": "node --test tests/status-item-contract.test.mjs",
+          "reason": "Status-item production sources must retain schema, native host, transport, and bounded follow-stream coverage."
+        },
+        {
+          "id": "status-item-daemon-schemas",
+          "command": "bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
+          "reason": "Canonical request, response, and event envelopes must retain strict status-item wire validation."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "experience-runtime-contract",
+      "summary": "Experience manifest normalization or runtime-context contracts changed.",
+      "patterns": [
+        "scripts/aos-experience.mjs",
+        "scripts/lib/experience-manifest.mjs",
+        "scripts/lib/experience-runtime*.mjs",
+        "shared/schemas/aos-experience-v*.schema.json",
+        "shared/schemas/aos-experience-runtime-context-v*.*"
+      ],
+      "classes": [
+        "experience_runtime",
+        "command_contract"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "experience-runtime-contract",
+          "command": "node --test --test-concurrency=1 tests/experience-runtime-context-content-roots.test.mjs tests/experience-runtime-context-env.test.mjs tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-probes.test.mjs tests/schemas/aos-experience-runtime-context-v0.test.mjs tests/schemas/aos-experience-runtime-context-v1.test.mjs tests/schemas/aos-experience-v1.test.mjs",
+          "reason": "Experience production sources must retain frozen v0 compatibility and the active status-item-free v1 contract."
+        }
+      ],
+      "verification": []
     },
     {
       "id": "browser-intent-sensor",
@@ -255,6 +324,7 @@
       "patterns": [
         "scripts/aos-*.mjs",
         "scripts/aos-*",
+        "scripts/lib/status-item-output-writer.mjs",
         "scripts/lib/aos-ready-*.mjs",
         "scripts/lib/aos-readiness.mjs",
         "scripts/sign-aos-runtime",

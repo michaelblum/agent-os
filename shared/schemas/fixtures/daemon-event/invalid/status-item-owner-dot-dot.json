@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "service": "status_item",
+  "event": "ready",
+  "ts": 1784491200.125,
+  "data": {
+    "schema_version": "aos.status_item.event.v1",
+    "type": "ready",
+    "owner": "io..example",
+    "item_id": "companion",
+    "generation": 7,
+    "descriptor_revision": 3,
+    "sequence": 1,
+    "timestamp": "2026-07-19T20:00:00Z",
+    "source": "status_item",
+    "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+    "anchor": {
+      "schema_version": "aos.status_item.anchor.v1",
+      "anchor_id": "native-status-item/io..example/companion",
+      "host": "native_status_item",
+      "coordinate_space": "global_display_top_left",
+      "visible": true,
+      "bounds": { "x": 1, "y": 2, "width": 24, "height": 24, "origin_x": 13, "origin_y": 14, "display_id": 1 },
+      "display": {
+        "id": 1,
+        "frame": { "x": 0, "y": 0, "width": 1920, "height": 1080, "origin_x": 960, "origin_y": 540 },
+        "visible_frame": { "x": 0, "y": 24, "width": 1920, "height": 1056, "origin_x": 960, "origin_y": 552 }
+      },
+      "topology": { "display_count": 1, "display_ids": [1], "truncated": false }
+    }
+  }
+}

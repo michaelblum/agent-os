@@ -15,7 +15,7 @@ Newline-delimited JSON (ndjson) over Unix socket. One JSON object per line.
 | Field     | Type   | Required | Description |
 |-----------|--------|----------|-------------|
 | `v`       | int    | yes      | Envelope version. Currently `1`. Bump only on breaking wire changes. |
-| `service` | string | yes      | Emitting aos subsystem: `"perceive"`, `"display"`, `"act"`, `"voice"`, `"scene"`, or `"annotation"`. |
+| `service` | string | yes      | Emitting aos subsystem: `"perceive"`, `"display"`, `"act"`, `"voice"`, `"scene"`, `"annotation"`, or `"status_item"`. |
 | `event`   | string | yes      | Event name. Snake_case, service-specific. |
 | `ts`      | number | yes      | Unix timestamp, millisecond precision. |
 | `data`    | object | yes      | Event payload. Structure is service + event specific. Always an object. |
@@ -164,6 +164,15 @@ No voice event carries captured audio, spoken text, or a local path.
 Transcription and product behavior remain outside AOS. Downstream shorthand
 such as `voice.wake_detected` means
 `{service:"voice", event:"wake_detected"}`.
+
+### status_item
+
+The `status_item` namespace carries the typed
+`aos.status_item.event.v1` payload from the AOS-owned native host. The envelope
+`event` must exactly equal the payload `type`; both vocabularies are closed to
+`ready`, `bounds_changed`, `topology_changed`, `primary_activation`,
+`secondary_activation`, and `menu_selection`. See
+[`../../docs/api/toolkit/status-item.md`](../../docs/api/toolkit/status-item.md).
 
 ## Shared Types
 

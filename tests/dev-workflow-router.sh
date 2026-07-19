@@ -232,6 +232,44 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --paths packages/toolkit/status-item/index.js scripts/lib/status-item-output-writer.mjs src/display/status-item-host-controller.swift 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "status-item-contract" in summary["rule_ids"], data
+commands = [item["command"] for item in data["next_commands"]]
+assert commands.count("node --test tests/status-item-contract.test.mjs") == 1, data
+assert commands.count("bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs") == 1, data
+assert summary["requires_swift_build"] is True, data
+assert summary["tcc_identity_sensitive"] is True, data
+PY
+then
+    pass "dev recommend routes status-item production sources to their focused contract"
+else
+    fail "dev recommend status-item contract routing drifted"
+fi
+
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --paths scripts/aos-experience.mjs scripts/lib/experience-manifest.mjs scripts/lib/experience-runtime-context.mjs scripts/lib/experience-runtime-facts.mjs shared/schemas/aos-experience-v1.schema.json shared/schemas/aos-experience-runtime-context-v1.schema.json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["proof_worth"]["status"] == "passed", data
+commands = [item["command"] for item in data["next_commands"]]
+expected = "node --test --test-concurrency=1 tests/experience-runtime-context-content-roots.test.mjs tests/experience-runtime-context-env.test.mjs tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-probes.test.mjs tests/schemas/aos-experience-runtime-context-v0.test.mjs tests/schemas/aos-experience-runtime-context-v1.test.mjs tests/schemas/aos-experience-v1.test.mjs"
+assert commands.count(expected) == 1, data
+assert "experience-runtime-contract" in data["summary"]["rule_ids"], data
+assert "unclassified" not in data["summary"]["rule_ids"], data
+PY
+then
+    pass "dev recommend routes experience production contracts to v0/v1 proofs"
+else
+    fail "dev recommend experience production contract routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files manifests/commands/source/aos/03-see-01-capture.json scripts/generate-command-manifests.mjs tests/command-manifest-generation.sh 2>/dev/null)" python3 - <<'PY'
 import json
 import os

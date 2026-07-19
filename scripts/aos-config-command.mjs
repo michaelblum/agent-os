@@ -34,7 +34,6 @@ const DEFAULT_CONFIG = {
     sound: false,
   },
   content: null,
-  status_item: null,
   hotkeys: null,
   see: {
     canvas_inspector_bundle: {
@@ -142,17 +141,6 @@ function ensureContent(config) {
   config.content ??= { port: 0, roots: {} };
 }
 
-function ensureStatusItem(config) {
-  config.status_item ??= {
-    enabled: false,
-    toggle_id: 'status-item-canvas',
-    toggle_url: '',
-    toggle_at: [200, 200, 300, 300],
-    toggle_track: null,
-    icon: 'hexagon',
-  };
-}
-
 function canvasInspectorDefaults() {
   return clone(DEFAULT_CONFIG.see.canvas_inspector_bundle);
 }
@@ -228,11 +216,6 @@ function lookupConfigValue(key, config) {
     if (!rootName) return undefined;
     return config.content?.roots?.[rootName] ?? null;
   }
-  if (key === 'status_item.enabled') return config.status_item?.enabled ?? null;
-  if (key === 'status_item.toggle_id') return config.status_item?.toggle_id ?? null;
-  if (key === 'status_item.toggle_url') return config.status_item?.toggle_url ?? null;
-  if (key === 'status_item.toggle_track') return config.status_item?.toggle_track ?? null;
-  if (key === 'status_item.icon') return config.status_item?.icon ?? null;
   if (key === 'hotkeys.cancel_speech') return config.hotkeys?.cancel_speech ?? null;
   if (key === 'see.canvas_inspector_bundle') return effectiveCanvasInspector(config);
   if (key === 'see.canvas_inspector_bundle.hotkey') return effectiveCanvasInspector(config).hotkey ?? null;
@@ -316,21 +299,6 @@ function setConfigValue(config, key, value) {
     const rootName = key.slice('content.roots.'.length);
     if (!rootName) throw new Error('content.roots requires a name');
     config.content.roots[rootName] = value;
-  } else if (key === 'status_item.enabled') {
-    ensureStatusItem(config);
-    config.status_item.enabled = boolValue(value);
-  } else if (key === 'status_item.toggle_id') {
-    ensureStatusItem(config);
-    config.status_item.toggle_id = value;
-  } else if (key === 'status_item.toggle_url') {
-    ensureStatusItem(config);
-    config.status_item.toggle_url = value;
-  } else if (key === 'status_item.toggle_track') {
-    ensureStatusItem(config);
-    config.status_item.toggle_track = value === 'none' ? null : value;
-  } else if (key === 'status_item.icon') {
-    ensureStatusItem(config);
-    config.status_item.icon = value;
   } else if (key === 'hotkeys.cancel_speech') {
     config.hotkeys ??= { cancel_speech: null };
     ensureVoiceControls(config);

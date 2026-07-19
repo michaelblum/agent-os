@@ -128,7 +128,7 @@ final class AOSConnectionOutboundWriter {
         return enqueue(frame)
     }
 
-    func closeAndWait(reason: String = "connection_closed") {
+    func close(reason: String = "connection_closed") {
         let shouldShutdown: Bool = withStateLock {
             guard !closed else { return false }
             closed = true
@@ -136,6 +136,10 @@ final class AOSConnectionOutboundWriter {
             return true
         }
         if shouldShutdown { shutdownConnection() }
+    }
+
+    func closeAndWait(reason: String = "connection_closed") {
+        close(reason: reason)
         queue.sync {}
     }
 

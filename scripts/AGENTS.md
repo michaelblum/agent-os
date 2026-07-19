@@ -33,21 +33,24 @@ commands, runtime helpers, wiki tools, and command adapters.
   `AOS_PATH`, `AOS_EXPERIENCES_DIR`, mode-scoped state/config files, and the
   legacy active-experience fallback path.
 - `lib/experience-manifest.mjs` owns reusable experience manifest discovery,
-  content-root resolution, status-item URL equivalence, and mounted-surface
-  menu projection helpers used by experience activation, status, and
-  status-item menu invocation.
+  target validation, content-root resolution, and content URL equivalence.
 - `lib/experience-runtime-facts.mjs` owns read-only fact collection for
-  `aos.experience-runtime-context.v0`: passive AOS readbacks plus local
+  `aos.experience-runtime-context.v1`: passive AOS readbacks plus local
   active-experience and runtime-config file reads. Passive probes must be
   hard-bounded; test-only timing overrides must preserve the default public
   timeout posture.
 - `lib/experience-runtime-context.mjs` owns the read-only
-  `aos.experience-runtime-context.v0` envelope assembler behind
+  `aos.experience-runtime-context.v1` envelope assembler behind
   `aos experience status <id> --json`; focused `lib/experience-runtime-*`
-  projector modules own content-root status, status-item/menu status,
-  runtime readiness, status ranking, diagnostics, capabilities, and
-  recommendations. Mounted-surface menu projection status must compare the full
-  canonical projection envelope, not only menu ids.
+  projector modules own content-root status, runtime readiness, status ranking,
+  diagnostics, capabilities, and recommendations.
+  `aos.experience-runtime-context.v0` remains a frozen compatibility schema and
+  is not silently reused for the status-item-free output.
+- `aos-status-item.mjs` owns the public descriptor CLI. Register-follow retains
+  lease/event ownership; update is exact-revision compare-and-swap, and the
+  registration result must be emitted before buffered initial events.
+  `lib/status-item-output-writer.mjs` owns bounded stdout backpressure for that
+  follow stream and pauses its source socket until buffered output drains.
 - `lib/pending-annotations-model.mjs` owns the pending annotation durable
   record model: schema version, id policy, lifecycle/target/capability enums,
   saved-ref DTO normalization, artifact-ref DTO normalization, source-capture

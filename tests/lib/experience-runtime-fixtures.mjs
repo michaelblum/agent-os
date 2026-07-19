@@ -9,7 +9,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const repoRoot = path.resolve(__dirname, '../..');
 export const toolkitRoot = path.join(repoRoot, 'packages/toolkit');
-export const runtimeContextSchemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-runtime-context-v0.schema.json');
+export const testExperiencesRoot = path.join(repoRoot, 'tests/fixtures/experiences');
+export const runtimeContextFixtureID = 'runtime-context-fixture';
+export const runtimeContextSchemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-runtime-context-v1.schema.json');
 
 export function runNode(args, env = {}) {
   return spawnSync('node', args, {
@@ -18,16 +20,11 @@ export function runNode(args, env = {}) {
       ...process.env,
       AOS_RUNTIME_MODE: 'repo',
       AOS_BYPASS_PREFLIGHT: '1',
+      AOS_EXPERIENCES_DIR: testExperiencesRoot,
       ...env,
     },
     encoding: 'utf8',
   });
-}
-
-export function dryRunToggleURL(id, env = {}) {
-  const result = runNode(['scripts/aos-experience.mjs', 'activate', id, '--dry-run', '--json'], env);
-  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  return JSON.parse(result.stdout).status_item.toggle_surface.url;
 }
 
 export async function writeJSON(file, value) {
@@ -136,7 +133,6 @@ setInterval(() => {}, 1000);
 
 export function baseResponses(tmp, {
   contentRoots = { toolkit: toolkitRoot },
-  canvases = [],
   service = {},
   permissions = {},
 } = {}) {
@@ -199,9 +195,6 @@ export function baseResponses(tmp, {
     'content status --json': {
       value: { roots: contentRoots },
     },
-    'show list --json': {
-      value: { status: 'success', canvases },
-    },
   };
 }
 
@@ -241,23 +234,16 @@ export async function writeExperienceManifestFixture({
   contentRootId,
   contentRootPath,
   surfaceId,
-  expectedURL,
   menu = [],
 }) {
   await fs.mkdir(path.join(experiencesRoot, id), { recursive: true });
   await writeJSON(path.join(experiencesRoot, id, 'aos-experience.json'), {
-    schema_version: 0,
+    schema_version: 1,
     id,
     title,
     version: '0.1.0',
     exclusive: true,
-    default_activation: {
-      kind: 'status_item',
-      status_item_first: true,
-      primary_entry: surfaceId,
-    },
     vanilla_fallback: {
-      status_item: true,
       tools: [],
     },
     content_roots: [{
@@ -265,16 +251,6 @@ export async function writeExperienceManifestFixture({
       path: contentRootPath,
       branch_scoped: false,
     }],
-    status_item: {
-      enabled: true,
-      label: title,
-      icon: 'aos',
-      toggle_surface: {
-        id: surfaceId,
-        url: expectedURL,
-        track: 'union',
-      },
-    },
     branding: {
       display_name: title,
       surface_title_prefix: title,
@@ -295,8 +271,6 @@ export async function writeRuntimeStateFixture({
   id,
   contentRootKey,
   contentRootPath,
-  surfaceId,
-  expectedURL,
 }) {
   await writeJSON(path.join(stateRoot, 'repo', 'experience-state.json'), {
     active_experience: id,
@@ -307,13 +281,6 @@ export async function writeRuntimeStateFixture({
       roots: {
         [contentRootKey]: contentRootPath,
       },
-    },
-    status_item: {
-      enabled: true,
-      toggle_id: surfaceId,
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
     },
   });
 }

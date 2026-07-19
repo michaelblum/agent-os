@@ -4,6 +4,24 @@
   "summary": "Proof ownership for generic AOS contracts separated from the retired embedded product.",
   "entries": [
     {
+      "id": "desktop-capability-map-contract",
+      "path_patterns": [
+        "tests/aos-desktop-capabilities.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "desktop-command-surface",
+      "harness_level": "model_unit",
+      "proof_kind": "capability_documentation_contract",
+      "contract": "The desktop capability map stays backed by current command manifest forms and does not advertise retired status-item or unsupported desktop verbs.",
+      "worth": "This prevents active desktop guidance from preserving retired experience status-item invocation or claiming unsupported macOS semantics.",
+      "command": "node --test tests/aos-desktop-capabilities.test.mjs",
+      "replaces": [
+        "experience status-item menu invoke as active desktop capability"
+      ],
+      "guard": "manifest and docs assertions only; no daemon",
+      "status": "active"
+    },
+    {
       "id": "agent-terminal-substrate-contract",
       "path_patterns": [
         "packages/toolkit/components/agent-terminal/launch.sh",
@@ -286,17 +304,24 @@
     {
       "id": "experience-runtime-context-contract",
       "path_patterns": [
+        "tests/experience-runtime-context-content-roots.test.mjs",
+        "tests/experience-runtime-context-env.test.mjs",
         "tests/experience-runtime-context-pending-annotations.test.mjs",
-        "tests/experience-runtime-context-status-item.test.mjs",
-        "tests/status-item-readiness-contract.test.mjs"
+        "tests/experience-runtime-context-probes.test.mjs",
+        "tests/lib/experience-runtime-fixtures.mjs",
+        "tests/schemas/aos-experience-runtime-context-v0.test.mjs",
+        "tests/schemas/aos-experience-runtime-context-v1.test.mjs",
+        "tests/schemas/aos-experience-v1.test.mjs"
       ],
-      "fixture_patterns": [],
+      "fixture_patterns": [
+        "tests/fixtures/experiences/runtime-context-fixture/aos-experience.json"
+      ],
       "owner": "experience-runtime",
       "harness_level": "model_unit",
       "proof_kind": "experience_runtime_contract",
-      "contract": "Experience status and status-item readiness project neutral mounted-surface, annotation, permission, and mismatch facts without product-private state.",
-      "worth": "This keeps the reusable experience contract centered on operator-fixture after product experience discovery is removed.",
-      "command": "node --test tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-status-item.test.mjs tests/status-item-readiness-contract.test.mjs",
+      "contract": "Experience status emits the status-item-free runtime-context v1 contract from product-neutral v1 manifests, keeps runtime v0 frozen for compatibility, and normalizes legacy manifest v0 without preserving retired activation fields.",
+      "worth": "This keeps active experience discovery and readback centered on content-root and annotation facts without silently mutating either legacy public contract.",
+      "command": "node --test --test-concurrency=1 tests/experience-runtime-context-content-roots.test.mjs tests/experience-runtime-context-env.test.mjs tests/experience-runtime-context-pending-annotations.test.mjs tests/experience-runtime-context-probes.test.mjs tests/schemas/aos-experience-runtime-context-v0.test.mjs tests/schemas/aos-experience-runtime-context-v1.test.mjs tests/schemas/aos-experience-v1.test.mjs",
       "replaces": [
         "embedded Sigil experience and status-item behavior tests"
       ],
@@ -306,15 +331,18 @@
     {
       "id": "daemon-ipc-schema-contract",
       "path_patterns": [
-        "tests/daemon-ipc-schema.sh"
+        "tests/daemon-ipc-schema.sh",
+        "tests/schemas/daemon-event.test.mjs"
       ],
-      "fixture_patterns": [],
+      "fixture_patterns": [
+        "shared/schemas/fixtures/daemon-event/**/status-item-*.json"
+      ],
       "owner": "daemon-ipc",
       "harness_level": "schema",
       "proof_kind": "daemon_ipc_contract",
-      "contract": "Daemon request and response schemas accept neutral DesktopWorld URL examples and reject malformed envelopes.",
-      "worth": "This prevents product URLs from becoming canonical IPC examples.",
-      "command": "bash tests/daemon-ipc-schema.sh",
+      "contract": "Canonical daemon request, response, and event schemas strictly type product-neutral status-item actions, dry-run and error responses, and matching event envelopes alongside existing services.",
+      "worth": "This prevents the public daemon schemas from lagging behind the native host wire surface or weakening unrelated envelope validation.",
+      "command": "bash tests/daemon-ipc-schema.sh && node --test tests/schemas/daemon-event.test.mjs",
       "replaces": [],
       "guard": "JSON Schema validation only; no daemon",
       "status": "active"

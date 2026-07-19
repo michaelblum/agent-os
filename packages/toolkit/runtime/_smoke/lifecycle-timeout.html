@@ -45,17 +45,12 @@ function record(type) {
 
 declareManifest({
   name: 'runtime-lifecycle-timeout-smoke',
-  accepts: ['lifecycle', 'status_item.toggle'],
-  emits: ['ready', 'lifecycle.complete', 'status_item.state'],
+  accepts: ['lifecycle'],
+  emits: ['ready', 'lifecycle.complete'],
 })
 
 wireBridge((msg) => {
   record(`received_${msg.type}_${msg.action || 'none'}`)
-  if (msg.type === 'status_item.toggle') {
-    window.__smokeState.visible = msg.target_state === 'visible'
-    emit('status_item.state', { visible: window.__smokeState.visible })
-    return
-  }
   if (msg.type !== 'lifecycle') return
   if (msg.action === 'resume' && ackResume) {
     emitLifecycleComplete('resume')

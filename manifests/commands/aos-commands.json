@@ -191,71 +191,6 @@
         {
           "args" : [
             {
-              "id" : "id",
-              "kind" : "positional",
-              "required" : true,
-              "summary" : "Experience id",
-              "value_type" : "string"
-            },
-            {
-              "id" : "item",
-              "kind" : "flag",
-              "required" : true,
-              "summary" : "Experience status-item menu item id or action id",
-              "token" : "--item",
-              "value_type" : "string"
-            },
-            {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit machine-readable invocation result",
-              "token" : "--json",
-              "value_type" : "bool"
-            },
-            {
-              "id" : "dry-run",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Plan status-item menu invocation without posting to the mounted surface",
-              "token" : "--dry-run",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos experience menu invoke operator-fixture --item annotate-visible-target --dry-run --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : true,
-            "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : true
-          },
-          "id" : "experience-menu-invoke",
-          "output" : {
-            "default_mode" : "text",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos experience menu invoke <id> --item <item-id> [--json] [--dry-run]"
-        }
-      ],
-      "path" : [
-        "experience",
-        "menu",
-        "invoke"
-      ],
-      "summary" : "Invoke a source-owned experience status-item menu action"
-    },
-    {
-      "forms" : [
-        {
-          "args" : [
-            {
               "id" : "json",
               "kind" : "flag",
               "required" : false,
@@ -13050,6 +12985,363 @@
           "examples" : [
             "aos scene devtools close --session devtools-example --json"
           ]
+        }
+      ]
+    },
+    {
+      "path" : [
+        "status-item"
+      ],
+      "summary" : "Register-follow, update, inspect, and invoke native AOS status-item leases",
+      "forms" : [
+      ]
+    },
+    {
+      "path" : [
+        "status-item",
+        "validate"
+      ],
+      "summary" : "Validate a product-neutral status-item descriptor without contacting the daemon",
+      "forms" : [
+        {
+          "id" : "status-item-validate",
+          "usage" : "aos status-item validate --descriptor <file.json> --json",
+          "args" : [
+            {
+              "id" : "descriptor",
+              "kind" : "flag",
+              "token" : "--descriptor",
+              "required" : true,
+              "value_type" : "path",
+              "summary" : "Status-item descriptor JSON file"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable validation result"
+            }
+          ],
+          "examples" : [
+            "aos status-item validate --descriptor status-item.json --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
+      "path" : [
+        "status-item",
+        "register"
+      ],
+      "summary" : "Open an owner-scoped native status-item lease from a descriptor",
+      "forms" : [
+        {
+          "id" : "status-item-register",
+          "usage" : "aos status-item register --descriptor <file.json> --json --follow",
+          "args" : [
+            {
+              "id" : "descriptor",
+              "kind" : "flag",
+              "token" : "--descriptor",
+              "required" : true,
+              "value_type" : "path",
+              "summary" : "Status-item descriptor JSON file"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable registration result"
+            },
+            {
+              "id" : "follow",
+              "kind" : "flag",
+              "token" : "--follow",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Keep the lease connection open and emit status-item events as NDJSON"
+            }
+          ],
+          "examples" : [
+            "aos status-item register --descriptor status-item.json --json --follow"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : true,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : true,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
+      "path" : [
+        "status-item",
+        "update"
+      ],
+      "summary" : "Compare-and-swap a live status-item lease to a newer descriptor revision",
+      "forms" : [
+        {
+          "id" : "status-item-update",
+          "usage" : "aos status-item update --descriptor <file.json> --owner <owner> --item <item-id> --generation <n> --current-revision <n> --json",
+          "args" : [
+            {
+              "id" : "descriptor",
+              "kind" : "flag",
+              "token" : "--descriptor",
+              "required" : true,
+              "value_type" : "path",
+              "summary" : "Newer status-item descriptor JSON file"
+            },
+            {
+              "id" : "owner",
+              "kind" : "flag",
+              "token" : "--owner",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item owner id"
+            },
+            {
+              "id" : "item",
+              "kind" : "flag",
+              "token" : "--item",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item item id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected owner generation"
+            },
+            {
+              "id" : "current-revision",
+              "kind" : "flag",
+              "token" : "--current-revision",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected current descriptor revision"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable update result"
+            }
+          ],
+          "examples" : [
+            "aos status-item update --descriptor status-item-v4.json --owner io.example.app --item companion --generation 1 --current-revision 3 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
+      "path" : [
+        "status-item",
+        "inspect"
+      ],
+      "summary" : "Inspect an exact native status-item lease generation and revision",
+      "forms" : [
+        {
+          "id" : "status-item-inspect",
+          "usage" : "aos status-item inspect --owner <owner> --item <item-id> --generation <n> --descriptor-revision <n> --json",
+          "args" : [
+            {
+              "id" : "owner",
+              "kind" : "flag",
+              "token" : "--owner",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item owner id"
+            },
+            {
+              "id" : "item",
+              "kind" : "flag",
+              "token" : "--item",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item item id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected owner generation"
+            },
+            {
+              "id" : "descriptor-revision",
+              "kind" : "flag",
+              "token" : "--descriptor-revision",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected descriptor revision"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable inspect result"
+            }
+          ],
+          "examples" : [
+            "aos status-item inspect --owner io.example.app --item companion --generation 1 --descriptor-revision 3 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
+        }
+      ]
+    },
+    {
+      "path" : [
+        "status-item",
+        "invoke"
+      ],
+      "summary" : "Dry-run or invoke a semantic status-item action by owner, item, and action id",
+      "forms" : [
+        {
+          "id" : "status-item-invoke",
+          "usage" : "aos status-item invoke --owner <owner> --item <item-id> --action <action-id> --generation <n> --descriptor-revision <n> --json [--dry-run]",
+          "args" : [
+            {
+              "id" : "owner",
+              "kind" : "flag",
+              "token" : "--owner",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item owner id"
+            },
+            {
+              "id" : "item",
+              "kind" : "flag",
+              "token" : "--item",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Status-item item id"
+            },
+            {
+              "id" : "action",
+              "kind" : "flag",
+              "token" : "--action",
+              "required" : true,
+              "value_type" : "string",
+              "summary" : "Descriptor action id"
+            },
+            {
+              "id" : "generation",
+              "kind" : "flag",
+              "token" : "--generation",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected owner generation"
+            },
+            {
+              "id" : "descriptor-revision",
+              "kind" : "flag",
+              "token" : "--descriptor-revision",
+              "required" : true,
+              "value_type" : "integer",
+              "summary" : "Expected descriptor revision"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "token" : "--json",
+              "required" : true,
+              "value_type" : "bool",
+              "summary" : "Emit machine-readable invocation result"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "token" : "--dry-run",
+              "required" : false,
+              "value_type" : "bool",
+              "summary" : "Validate action identity without emitting an event"
+            }
+          ],
+          "examples" : [
+            "aos status-item invoke --owner io.example.app --item companion --action summon --generation 1 --descriptor-revision 3 --dry-run --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          }
         }
       ]
     }

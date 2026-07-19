@@ -119,6 +119,7 @@ The current top-level commands are:
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos scene` | Connection-scoped declarative DesktopWorld scene and gesture stream |
+| `aos status-item` | Owner-scoped native status-item lease, compare-and-swap update, observed anchor/event, inspect, and invoke contract |
 | `aos focus` | Focus-channel management |
 | `aos gate` | Human input gates and local gate record readback |
 | `aos graph` | Display/window graph queries |
@@ -136,7 +137,7 @@ The current top-level commands are:
 | `aos content` | Content-server status |
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
-| `aos experience` | active AOS experience-layer status, activation, deactivation, and AOS-owned status-item menu invocation |
+| `aos experience` | active AOS experience-layer status, activation, and deactivation |
 | `aos runtime` | packaged runtime utilities |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
@@ -148,6 +149,14 @@ The current top-level commands are:
 
 ## Experience Runtime Context
 
+Active experience manifests use
+`shared/schemas/aos-experience-v1.schema.json`. Version 1 is product-neutral:
+it retains tools, content roots, branding, menus, declared surfaces, cleanup,
+and hooks, but has no `default_activation`, `status_item`, or
+`vanilla_fallback.status_item`. Discovery rejects those retired fields on v1
+input. Legacy v0 manifests remain schema-valid and are normalized through an
+explicit compatibility adapter before active use.
+
 Use `aos experience status <id> --json` before an agent trusts app-owned
 desktop state for perception, annotation, saved-ref action, or evidence
 handoff loops. The command is read-only: it does not activate, repair, restart,
@@ -156,25 +165,28 @@ In the user-facing state model, this is runtime state and content-root
 readback, not a saved workspace selector or Work Record store.
 
 The JSON envelope uses
-`schema_version: "aos.experience-runtime-context.v0"` and includes:
+`schema_version: "aos.experience-runtime-context.v1"` and includes:
 
 - requested and active experience identity;
 - runtime mode, state root, mode-scoped state directory, config path, and
   pending annotation root;
-- status-item target URL, expected URL, mounted surface id/URL, and
-  mounted-surface menu projection status;
 - content root declared/configured/live status; declared roots are valid only
   when their paths resolve to directories, so missing paths, regular files,
   symlinks, and unreadable paths do not report as current;
 - passive service and permission readiness from `aos service status`,
-  `aos permissions check`, `aos content status`, and `aos show list`;
-- diagnostics for active-experience mismatch, status-item drift, mounted
-  surface drift, stale/missing content roots, pending annotation state, stale
+  `aos permissions check`, and `aos content status`;
+- diagnostics for active-experience mismatch, stale/missing content roots,
+  pending annotation state, stale
   locks, and runtime blockers;
 - capability summaries for perception, annotation, saved-ref action, and
   evidence handoff;
 - `recommended_next[]` entries with executable argv arrays. Entries that
   contain placeholders are marked `display_only: true`.
+
+The frozen `aos.experience-runtime-context.v0` schema remains available for
+compatibility validation of historical payloads and still requires its
+config-driven `status_item` projection. The status command does not emit v0;
+the status-item-free payload is v1 rather than an in-place mutation of v0.
 
 For experiences that support pending annotations, corrupt pending annotation
 records fail closed through this same status surface: the
@@ -186,35 +198,96 @@ valid records, not the index, decide whether the store is initialized.
 `aos experience status --json` without an id remains the compact legacy
 active-experience readback.
 
-### AOS-Owned Status-Item Menu Invocation
+## Native Status-Item Host
 
-For AOS-owned experience status-item/operator annotation menus, first read the
-mounted surface and menu projection:
+`aos status-item` is the product-neutral native menu-bar host contract. A
+consumer opens one owner-scoped lease with a data-only descriptor. AOS owns the
+single `NSStatusItem`, stable accessibility label/help text, a neutral
+monochrome fallback visual, exact native anchor/display facts, typed observed
+events, semantic dry-run/invoke, and cleanup on disconnect. Product commands
+remain in the consumer after event receipt.
 
-```bash
-aos experience status <id> --json
-```
+The descriptor contains only owner/item identity, a monotonic revision,
+accessibility text, a primary action id, and an optional simple declarative
+native menu. It does not accept icon paths, consumer visuals, scripts, remote
+assets, or a consumer-supplied DesktopWorld anchor.
 
-Then preview the menu item action:
-
-```bash
-aos experience menu invoke <id> --item <item-id> --dry-run --json
-```
-
-The dry-run is runtime-gated: it fails closed unless the requested experience,
-status item target, mounted surface, and menu projection are current.
-
-If the dry-run reports the expected mounted status surface and menu item, invoke
-the live action:
+Validate a descriptor without touching the daemon:
 
 ```bash
-aos experience menu invoke <id> --item <item-id> --json
+aos status-item validate --descriptor ./status-item.json --json
 ```
 
-This command posts the generic `status_item.menu_action` event to the
-experience's mounted status surface. It is only for AOS-owned experience
-status-item menu entries; it is not arbitrary third-party macOS menu-extra
-scraping or dispatch.
+Open a lease and follow typed events:
+
+```bash
+aos status-item register --descriptor ./status-item.json --json --follow
+```
+
+After writing a descriptor whose revision advances from 3 to 4, update the live
+lease from a separate process, then inspect and invoke by the new semantic
+identity:
+
+```bash
+aos status-item update --descriptor ./status-item-v4.json \
+  --owner io.example.app --item companion \
+  --generation 1 --current-revision 3 --json
+aos status-item inspect --owner io.example.app --item companion \
+  --generation 1 --descriptor-revision 4 --json
+aos status-item invoke --owner io.example.app --item companion \
+  --action summon --generation 1 --descriptor-revision 4 --dry-run --json
+aos status-item invoke --owner io.example.app --item companion \
+  --action summon --generation 1 --descriptor-revision 4 --json
+```
+
+`register --follow` is the lease owner and event stream. Keep that process
+alive while separate update/inspect/invoke commands use its exact identity. The
+registration result is the first NDJSON line; the initial `ready` event follows
+it. Update is compare-and-swap: owner, item, generation, and `current_revision`
+must match the live lease, while the descriptor revision must advance. Ending
+the follow process closes its socket and removes the native item; there is no
+standalone cleanup or subscribe command.
+
+Minimal descriptor:
+
+```json
+{
+  "schema_version": "aos.status_item.descriptor.v1",
+  "owner": "io.example.app",
+  "item_id": "companion",
+  "revision": 3,
+  "label": "Example Companion",
+  "help_text": "Example app status item",
+  "primary_action_id": "summon",
+  "menu": [
+    { "kind": "item", "id": "park", "action_id": "park", "label": "Park" }
+  ]
+}
+```
+
+Descriptor schema:
+`shared/schemas/aos-status-item-descriptor-v1.schema.json`.
+
+Event schema:
+`shared/schemas/aos-status-item-event-v1.schema.json`.
+
+Anchor schema:
+`shared/schemas/aos-status-item-anchor-v1.schema.json`.
+
+AOS emits only `ready`, observed `bounds_changed` / `topology_changed`, native
+`primary_activation` / `secondary_activation`, and `menu_selection`. Inspect,
+invoke responses, and every event include current `bounds` plus the AOS-derived
+`anchor`; the anchor names `native_status_item`, uses global display top-left
+coordinates, and carries current display frame, visible frame, and bounded
+topology facts. Coordinates are evidence, while owner/item/action plus exact
+generation/revision remain the semantic identity.
+
+The fallback visual reserves the slot and prevents an invisible failure; it is
+not the consumer's final visual. Two dependent slices are intentionally not in
+v1: a generic data-only status visual projected inside the real status-item
+button and bridged to DesktopWorld emergence/docking, and an AOS-owned rich
+status palette/popover. A separate click-through menu-bar overlay is not part
+of this contract.
 
 ## Target And Handle Ladder
 
@@ -354,23 +427,11 @@ created pending record by its returned annotation id to consume the comment.
 Selection evidence is initially `fallback_only` and does not manufacture a
 semantic saved ref.
 
-Experience manifests can declare app-owned operator selection affordances in
-their status-item `menu[]` with `kind: "operator_annotation"` and a target
-`surface`. Activation validates mounted-surface menu targets against declared
-surfaces and the mounted status surface, then projects manifest menu entries
-for that mounted surface into the URL with `aos_mounted_surface_menu`. Surfaces
-without matching mounted menu entries keep their templated URLs unchanged.
-Native status item dispatch remains generic (`status_item.menu_action`);
-mounted surfaces validate the projection envelope and refuse cross-surface
-operator routes before using the toolkit runtime helper
-`routeOperatorAnnotationMenuAction()` to filter and route
-`operator_annotation` menu actions to `aos.operator_annotation.start` on the
-projected operator surface. `operator-fixture` remains the minimal reusable
-contract fixture for this route. External consumers should consume this
-AOS-owned primitive through `aos experience status <id> --json`, then
-`aos experience menu invoke <id> --item <item-id> --dry-run --json`, then the
-same invoke command without `--dry-run`, instead of scraping third-party macOS
-menu extras.
+Compatibility boundary: archived reports, sealed fixtures, and historical
+experience manifests may still contain config-driven status-item fields. The
+runtime does not read or project them, and they are not active command
+authority. New operator annotation or product menu flows use `aos status-item`
+leases and consumer-owned typed event handling.
 
 Current wait/assertion boundary: saved workspaces do not expose
 `aos see capture --wait-for-change`, `aos see capture --until-stable`,

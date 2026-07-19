@@ -2,11 +2,6 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { explicitStateRootOverride } from './aos-cli.mjs';
-import {
-  MOUNTED_SURFACE_MENU_QUERY_PARAM,
-  mountedSurfaceMenuItemsForSurface,
-  mountedSurfaceMenuProjectionEnvelope,
-} from '../../packages/toolkit/contracts/mounted-surface-menu-projection.js';
 import { experienceRuntimeEnv } from './experience-runtime-env.mjs';
 
 export class ExperienceManifestError extends Error {
@@ -32,10 +27,6 @@ export function validateManifestTargets(manifest, file) {
     ? manifest.surfaces
     : {};
   const surfaceIDs = new Set(Object.keys(surfaces));
-  const primaryEntry = manifest.default_activation?.primary_entry;
-  if (primaryEntry && !surfaceIDs.has(primaryEntry)) {
-    throw new ExperienceManifestError(`Experience manifest primary_entry has no declared surface: ${primaryEntry}`, 'INVALID_EXPERIENCE_MANIFEST');
-  }
   for (const item of manifest.menu || []) {
     if (!item?.surface) continue;
     if (!surfaceIDs.has(item.surface)) {
@@ -45,6 +36,39 @@ export function validateManifestTargets(manifest, file) {
   return file;
 }
 
+export function normalizeExperienceManifest(manifest) {
+  if (manifest.schema_version === 1) {
+    const hasRetiredFields = Object.hasOwn(manifest, 'default_activation')
+      || Object.hasOwn(manifest, 'status_item')
+      || Object.hasOwn(manifest.vanilla_fallback || {}, 'status_item');
+    if (hasRetiredFields) {
+      throw new ExperienceManifestError(
+        'Experience manifest v1 contains retired status-item activation fields',
+        'INVALID_EXPERIENCE_MANIFEST',
+      );
+    }
+    return manifest;
+  }
+  if (manifest.schema_version !== 0) {
+    throw new ExperienceManifestError('Unsupported experience manifest schema version', 'INVALID_EXPERIENCE_MANIFEST');
+  }
+
+  const {
+    $schema: _legacySchema,
+    default_activation: _legacyActivation,
+    status_item: _legacyStatusItem,
+    vanilla_fallback: legacyFallback,
+    ...normalized
+  } = manifest;
+  return {
+    ...normalized,
+    schema_version: 1,
+    vanilla_fallback: {
+      tools: Array.isArray(legacyFallback?.tools) ? [...legacyFallback.tools] : [],
+    },
+  };
+}
+
 export function discoverExperience(id, {
   experiencesRoot = experienceEnvironment().experiencesRoot,
 } = {}) {
@@ -52,13 +76,14 @@ export function discoverExperience(id, {
   if (!fs.existsSync(file)) {
     throw new ExperienceManifestError(`Experience manifest not found: experiences/${id}/aos-experience.json`, 'EXPERIENCE_NOT_FOUND');
   }
-  const manifest = readJSON(file);
-  if (manifest.id !== id) {
-    throw new ExperienceManifestError(`Manifest id ${manifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
+  const sourceManifest = readJSON(file);
+  if (sourceManifest.id !== id) {
+    throw new ExperienceManifestError(`Manifest id ${sourceManifest.id} does not match experience ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
   }
-  if (manifest.schema_version !== 0 || manifest.exclusive !== true) {
+  if (![0, 1].includes(sourceManifest.schema_version) || sourceManifest.exclusive !== true) {
     throw new ExperienceManifestError(`Invalid experience manifest: ${file}`, 'INVALID_EXPERIENCE_MANIFEST');
   }
+  const manifest = normalizeExperienceManifest(sourceManifest);
   validateManifestTargets(manifest, file);
   return manifest;
 }
@@ -191,41 +216,3 @@ export function equivalentContentURLs(left, right) {
     && leftIdentity.path === rightIdentity.path
     && leftIdentity.query === rightIdentity.query;
 }
-
-export function encodeManifestMenuProjection(manifest, surfaceID) {
-  const menu = mountedSurfaceMenuItemsForSurface(manifest.menu, surfaceID);
-  return Buffer.from(JSON.stringify(mountedSurfaceMenuProjectionEnvelope({
-    experienceId: manifest.id,
-    surfaceId: surfaceID,
-    menu,
-  })), 'utf8').toString('base64url');
-}
-
-export function appendQueryParam(rawURL, key, value) {
-  if (!rawURL || !value) return rawURL;
-  const separator = rawURL.includes('?') ? '&' : '?';
-  return `${rawURL}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-}
-
-export function projectedToggleURL(manifest, surface, rootsByID, {
-  mode = 'repo',
-  repoRoot = process.cwd(),
-} = {}) {
-  const nextURL = template(surface.url, rootsByID, { mode, repoRoot });
-  if (mountedSurfaceMenuItemsForSurface(manifest.menu, surface.id).length === 0) return nextURL;
-  return appendQueryParam(nextURL, MOUNTED_SURFACE_MENU_QUERY_PARAM, encodeManifestMenuProjection(manifest, surface.id));
-}
-
-export function mountedSurfaceMenuProjectionFromURL(rawURL) {
-  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
-  try {
-    const parsed = new URL(rawURL);
-    const encoded = parsed.searchParams.get(MOUNTED_SURFACE_MENU_QUERY_PARAM);
-    if (!encoded) return null;
-    return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-  } catch {
-    return false;
-  }
-}
-
-export { mountedSurfaceMenuItemsForSurface };

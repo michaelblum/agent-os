@@ -112,6 +112,15 @@ class UnifiedDaemon {
     private lazy var annotationSelection = AOSAnnotationSelectionTransport { [weak self] owner, event, data, ref in
         self?.emitConnectionEvent(service: "annotation", to: owner, event: event, data: data, ref: ref)
     }
+    private lazy var statusItemHostController = AOSStatusItemHostController(
+        manager: StatusItemManager(),
+        emit: { [weak self] owner, event, data, ref in
+            self?.emitConnectionEvent(service: "status_item", to: owner, event: event, data: data, ref: ref) ?? false
+        },
+        terminate: { [weak self] owner, reason in
+            self?.terminateConnection(owner, reason: reason)
+        }
+    )
     private var contentServer: ContentServer?
     let coordination = CoordinationBus()
 
@@ -186,7 +195,6 @@ class UnifiedDaemon {
     // daemon restart. Written by a renderer on every transition to IDLE; read
     // by the same renderer on boot to resume where the user last left it.
     var configChangeHandler: ((AosConfig) -> Void)?
-    var statusItemStateHandler: ((String, Bool) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
 
@@ -217,6 +225,7 @@ class UnifiedDaemon {
     // MARK: - Start
 
     func start() {
+        initializeNativeHosts()
         let mode = aosCurrentRuntimeMode()
         let otherSocketPath = aosSocketPath(for: mode.other)
         if socketIsReachable(otherSocketPath, timeoutMs: 250) {
@@ -410,15 +419,6 @@ class UnifiedDaemon {
                 case "clipboard.write":
                     self.handleClipboardWrite(canvasID: canvasID, payload: inner ?? [:])
                     return
-                case "status_item.state":
-                    let visible = (inner?["visible"] as? Bool)
-                        ?? (dict["visible"] as? Bool)
-                    if let visible {
-                        DispatchQueue.main.async { [weak self] in
-                            self?.statusItemStateHandler?(canvasID, visible)
-                        }
-                    }
-                    return
                 default:
                     if type == "ready" {
                         self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
@@ -596,6 +596,10 @@ class UnifiedDaemon {
         }
     }
 
+    private func initializeNativeHosts() {
+        _ = statusItemHostController
+    }
+
     // MARK: - Event Broadcasting
 
     func broadcastEvent(service: String, event: String, data: [String: Any]) {
@@ -617,18 +621,26 @@ class UnifiedDaemon {
         emitConnectionEvent(service: "voice", to: connectionID, event: event, data: data, ref: ref)
     }
 
-    private func emitConnectionEvent(
+    @discardableResult
+    func emitConnectionEvent(
         service: String,
         to connectionID: UUID,
         event: String,
         data: [String: Any],
         ref: String?
-    ) {
-        guard let bytes = envelopeBytes(service: service, event: event, data: data, ref: ref) else { return }
+    ) -> Bool {
+        guard let bytes = envelopeBytes(service: service, event: event, data: data, ref: ref) else { return false }
         subscriberLock.lock()
         let writer = subscribers[connectionID]?.outbound
         subscriberLock.unlock()
-        writer?.enqueue(bytes)
+        return writer?.enqueue(bytes) ?? false
+    }
+
+    private func terminateConnection(_ connectionID: UUID, reason: String) {
+        subscriberLock.lock()
+        let writer = subscribers[connectionID]?.outbound
+        subscriberLock.unlock()
+        writer?.close(reason: reason)
     }
 
     private func sendVoiceTransportError(
@@ -2540,6 +2552,7 @@ class UnifiedDaemon {
         defer {
             voiceTransport.connectionClosed(connectionID)
             annotationSelection.connectionClosed(connectionID)
+            statusItemHostController.connectionClosed(connectionID)
             cleanupSceneLeases(connectionID)
             subscriberLock.lock()
             let hadSceneMonitor = subscribers[connectionID]?.sceneMonitorResource != nil
@@ -2982,6 +2995,12 @@ class UnifiedDaemon {
         case ("voice", "cancel"):             return "voice-speech-cancel"
         case ("annotation", "select"):        return "annotation-select"
         case ("annotation", "cancel"):        return "annotation-select-cancel"
+        case ("status_item", "register"):     return "status-item-register"
+        case ("status_item", "update"):       return "status-item-update"
+        case ("status_item", "inspect"):      return "status-item-inspect"
+        case ("status_item", "invoke"):       return "status-item-invoke"
+        case ("status_item", "invoke_dry_run"):
+                                                return "status-item-invoke-dry-run"
         case ("scene", "follow"):             return "scene-follow"
         case ("scene", "devtools_open"):      return "scene-devtools-open"
         case ("scene", "devtools_status"):    return "scene-devtools-status"
@@ -3080,7 +3099,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "annotation", "scene", "system", "focus", "graph", "content"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "annotation", "status_item", "scene", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: outbound, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -3156,6 +3175,18 @@ class UnifiedDaemon {
                 envelopeActive: envelopeActive,
                 envelopeRef: envelopeRef
             )
+
+        case "status-item-register", "status-item-update", "status-item-inspect", "status-item-invoke",
+             "status-item-invoke-dry-run":
+            statusItemHostController.handleCommand(
+                action: action,
+                payload: json,
+                connectionID: connectionID,
+                ref: envelopeRef
+            ) { result in
+                sendResponseJSON(to: outbound, result.response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+                result.afterResponse?()
+            }
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "audit":

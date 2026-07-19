@@ -2072,18 +2072,6 @@
       }
     },
     {
-      "path": ["experience", "menu", "invoke"],
-      "summary": "Invoke a source-owned experience status-item menu action.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-experience.mjs", "menu", "invoke"],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
       "path": ["experience", "deactivate"],
       "summary": "Deactivate the active AOS experience layer.",
       "executable": "/usr/bin/env",
@@ -2935,6 +2923,78 @@
       "argv_prefix": ["node", "scripts/aos-scene.mjs", "devtools", "close"],
       "cwd": "repo",
       "stdio": "inherit"
+    },
+    {
+      "path": ["status-item"],
+      "summary": "Register-follow, update, inspect, and invoke native AOS status-item leases.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["status-item", "validate"],
+      "summary": "Validate a product-neutral status-item descriptor without contacting the daemon.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs", "validate"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["status-item", "register"],
+      "summary": "Open an owner-scoped native status-item lease from a descriptor.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs", "register"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["status-item", "update"],
+      "summary": "Compare-and-swap a live status-item lease to a newer descriptor revision.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs", "update"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["status-item", "inspect"],
+      "summary": "Inspect an exact native status-item lease generation and revision.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs", "inspect"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["status-item", "invoke"],
+      "summary": "Dry-run or invoke a semantic status-item action by owner, item, and action id.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status-item.mjs", "invoke"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
     }
   ]
 }

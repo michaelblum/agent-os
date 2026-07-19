@@ -38,23 +38,49 @@ capability map.
 - Use `./aos do press|focus|set-value --pid <pid> --role <role> ... --dry-run`
   for direct native AX current matching.
 
-## AOS Experience Status-Item Menus
+## Native Status-Item Host Leases
 
-For AOS-owned experience status-item/operator annotation menus, use:
+For product-neutral native status-item leases, use the `status-item` family.
+The descriptor is data-only: owner, item id, revision, label/help text, primary
+action id, and optional simple native menu items. AOS owns the monochrome
+fallback visual and derives the anchor from the real native item. Product
+commands stay in the consumer after typed event receipt.
 
 ```bash
-./aos experience status <id> --json
-./aos experience menu invoke <id> --item <item-id> --dry-run --json
-./aos experience menu invoke <id> --item <item-id> --json
+./aos status-item validate --descriptor ./status-item.json --json
+./aos status-item register --descriptor ./status-item.json --json --follow
+./aos status-item update --descriptor ./status-item-v4.json \
+  --owner io.example.app --item companion \
+  --generation 1 --current-revision 3 --json
+./aos status-item inspect --owner io.example.app --item companion \
+  --generation 1 --descriptor-revision 4 --json
+./aos status-item invoke --owner io.example.app --item companion \
+  --action summon --generation 1 --descriptor-revision 4 --dry-run --json
+./aos status-item invoke --owner io.example.app --item companion \
+  --action summon --generation 1 --descriptor-revision 4 --json
 ```
 
-This is AOS-owned experience status-item invocation against the mounted status
-surface, not arbitrary third-party macOS menu-extra scraping.
+Keep `register --follow` alive as the lease owner and event stream. Its first
+line is the registration result and the initial `ready` event follows. Use its
+exact identity from separate update/inspect/invoke processes. Update requires
+the live generation/current revision and a strictly newer descriptor; use the
+returned revision afterward. Stale values fail closed. End the follow process
+to clean up the lease; there is no separate subscribe or cleanup command. Do
+not scrape AX menu extras or click coordinates when a hosted AOS status item
+exposes semantic identity.
+
+Events are limited to initial `ready`, observed `bounds_changed` and
+`topology_changed`, primary/secondary activation, and native menu selection.
+Every event carries the current AOS-derived anchor and bounds. The fallback
+icon is slot/AX continuity, not the consumer's final visual; status visual
+projection and a rich status palette/popover are separate dependent slices.
 
 ## Boundaries
 
 - Window fullscreen, Space switching, and Mission Control are not first-class
   semantic commands in this slice.
+- Arbitrary third-party menu extras remain unsupported; `status-item` controls
+  only AOS-hosted owner-scoped leases.
 - Do not simulate fullscreen, Space switching, or Mission Control with
   `./aos do key`, AppleScript, or coordinates unless the task explicitly
   authorizes that lower-level fallback.

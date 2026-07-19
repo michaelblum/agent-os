@@ -91,8 +91,9 @@ test('installable browser and saved-workspace skills preserve split contracts', 
   assert.match(verification, /see refs --diff/);
 
   const annotations = await readFile(path.join(repoRoot, 'skills', 'aos-operator-annotations', 'SKILL.md'), 'utf8');
-  assert.match(annotations, /experience menu invoke/);
-  assert.match(annotations, /status-item\/operator annotation flow/);
+  assert.match(annotations, /aos status-item/);
+  assert.match(annotations, /status-item driven annotation flows/);
+  assert.match(annotations, /status-item update/);
 
   const routing = await readFile(path.join(repoRoot, 'skills', 'aos-maintainer-routing', 'SKILL.md'), 'utf8');
   assert.match(routing, /node scripts\/aos-dev-workflow\.mjs recommend --json --paths/);

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos-status-item-anchor-v1.schema.json",
+  "title": "AOS native status item anchor v1",
+  "$ref": "#/$defs/anchor",
+  "$defs": {
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height", "origin_x", "origin_y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "origin_x": { "type": "number" },
+        "origin_y": { "type": "number" }
+      }
+    },
+    "status_item_bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height", "origin_x", "origin_y", "display_id"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "origin_x": { "type": "number" },
+        "origin_y": { "type": "number" },
+        "display_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["schema_version", "anchor_id", "host", "coordinate_space", "visible", "bounds", "display", "topology"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "aos.status_item.anchor.v1" },
+        "anchor_id": { "type": "string", "minLength": 1, "maxLength": 280, "pattern": "^(?!.*\\.\\.)native-status-item/[a-z0-9][a-z0-9._-]{0,127}/[a-z0-9][a-z0-9._-]{0,127}$" },
+        "host": { "const": "native_status_item" },
+        "coordinate_space": { "const": "global_display_top_left" },
+        "visible": { "const": true },
+        "bounds": { "$ref": "#/$defs/status_item_bounds" },
+        "display": {
+          "type": "object",
+          "required": ["id", "frame", "visible_frame"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+            "frame": { "$ref": "#/$defs/rect" },
+            "visible_frame": { "$ref": "#/$defs/rect" }
+          }
+        },
+        "topology": {
+          "type": "object",
+          "required": ["display_count", "display_ids", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "display_count": { "type": "integer", "minimum": 1, "maximum": 1024 },
+            "display_ids": {
+              "type": "array",
+              "maxItems": 32,
+              "uniqueItems": true,
+              "items": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

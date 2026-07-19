@@ -219,27 +219,6 @@ else
     fail "exact skills companion nested help drifted"
 fi
 
-if EXPERIENCE_MENU_HELP="$(./aos help experience menu invoke --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["EXPERIENCE_MENU_HELP"])
-assert data["path"] == ["experience", "menu", "invoke"], data
-assert {form["id"] for form in data["forms"]} == {"experience-menu-invoke"}, data
-form = data["forms"][0]
-assert form["usage"] == "aos experience menu invoke <id> --item <item-id> [--json] [--dry-run]", form
-assert form["output"]["supports_json_flag"] is True, form
-assert form["execution"]["supports_dry_run"] is True, form
-assert any(arg["kind"] == "positional" and arg["id"] == "id" and arg["required"] is True for arg in form["args"]), form
-assert any(arg.get("token") == "--item" and arg["required"] is True for arg in form["args"]), form
-assert any(arg.get("token") == "--dry-run" and arg["required"] is False for arg in form["args"]), form
-PY
-then
-    pass "experience menu invoke help exposes dry-run status-item invocation form"
-else
-    fail "experience menu invoke help contract drifted"
-fi
-
 # --- 3. aos help <bogus> → UNKNOWN_COMMAND on stderr, exit 1 ---
 if ERR=$(./aos help definitely-not-a-command --json 2>&1 >/dev/null); then
     fail "aos help bogus should exit non-zero"
@@ -887,7 +866,6 @@ config = Path("src/shared/config.swift").read_text(encoding="utf-8")
 assert "sigil/agents/" not in wiki_graph
 assert ('raw == "' + 'agent"') not in wiki_graph
 assert 'toggle_id: "avatar"' not in config
-assert 'toggle_id: "status-item-canvas"' in config
 PY
 then
     pass "native source keeps product-specific names out of generic binary paths"

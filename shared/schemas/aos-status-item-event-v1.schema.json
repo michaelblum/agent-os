@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos-status-item-event-v1.schema.json",
+  "title": "AOS status item event v1",
+  "type": "object",
+  "required": ["schema_version", "type", "owner", "item_id", "generation", "descriptor_revision", "sequence", "timestamp", "source", "bounds", "anchor"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "aos.status_item.event.v1" },
+    "type": {
+      "enum": [
+        "ready",
+        "bounds_changed",
+        "topology_changed",
+        "primary_activation",
+        "secondary_activation",
+        "menu_selection"
+      ]
+    },
+    "owner": { "$ref": "#/$defs/id" },
+    "item_id": { "$ref": "#/$defs/id" },
+    "generation": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "descriptor_revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "timestamp": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "source": { "const": "status_item" },
+    "action_id": { "$ref": "#/$defs/path_id" },
+    "menu_item_id": { "$ref": "#/$defs/path_id" },
+    "origin_x": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "origin_y": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "modifiers": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": { "enum": ["command", "option", "control", "shift"] }
+    },
+    "bounds": { "$ref": "#/$defs/status_item_bounds" },
+    "anchor": { "$ref": "#/$defs/anchor" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "primary_activation" } }, "required": ["type"] },
+      "then": { "required": ["action_id", "origin_x", "origin_y", "modifiers"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "secondary_activation" } }, "required": ["type"] },
+      "then": { "required": ["origin_x", "origin_y", "modifiers"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "menu_selection" } }, "required": ["type"] },
+      "then": { "required": ["action_id", "menu_item_id", "origin_x", "origin_y", "modifiers"] }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^(?!.*\\.\\.)[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "path_id": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^(?!.*\\.\\.)[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
+    },
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height", "origin_x", "origin_y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "origin_x": { "type": "number" },
+        "origin_y": { "type": "number" }
+      }
+    },
+    "status_item_bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height", "origin_x", "origin_y", "display_id"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "origin_x": { "type": "number" },
+        "origin_y": { "type": "number" },
+        "display_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["schema_version", "anchor_id", "host", "coordinate_space", "visible", "bounds", "display", "topology"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "aos.status_item.anchor.v1" },
+        "anchor_id": { "type": "string", "minLength": 1, "maxLength": 280, "pattern": "^(?!.*\\.\\.)native-status-item/[a-z0-9][a-z0-9._-]{0,127}/[a-z0-9][a-z0-9._-]{0,127}$" },
+        "host": { "const": "native_status_item" },
+        "coordinate_space": { "const": "global_display_top_left" },
+        "visible": { "const": true },
+        "bounds": { "$ref": "#/$defs/status_item_bounds" },
+        "display": {
+          "type": "object",
+          "required": ["id", "frame", "visible_frame"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+            "frame": { "$ref": "#/$defs/rect" },
+            "visible_frame": { "$ref": "#/$defs/rect" }
+          }
+        },
+        "topology": {
+          "type": "object",
+          "required": ["display_count", "display_ids", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "display_count": { "type": "integer", "minimum": 1, "maximum": 1024 },
+            "display_ids": {
+              "type": "array",
+              "maxItems": 32,
+              "uniqueItems": true,
+              "items": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

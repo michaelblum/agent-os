@@ -186,7 +186,6 @@ export async function collectExperienceRuntimeFacts({
     serviceStatus,
     permissionStatus,
     contentStatus,
-    showList,
   ] = await Promise.all([
     runAosJSON(runtimeEnv.aos, ['service', 'status', '--mode', runtimeEnv.mode, '--json'], {
       cwd: runtimeEnv.repoRoot,
@@ -206,12 +205,6 @@ export async function collectExperienceRuntimeFacts({
       mode: runtimeEnv.mode,
       ...timing,
     }),
-    runAosJSON(runtimeEnv.aos, ['show', 'list', '--json'], {
-      cwd: runtimeEnv.repoRoot,
-      env: normalizedEnv,
-      mode: runtimeEnv.mode,
-      ...timing,
-    }),
   ]);
   return {
     collected_at: collectedAt,
@@ -221,6 +214,5 @@ export async function collectExperienceRuntimeFacts({
     serviceStatus,
     permissionStatus,
     contentStatus,
-    showList,
   };
 }

@@ -270,11 +270,6 @@ auditions the new voice (does not pin).
 | feedback.sound | bool | false | Sound feedback |
 | content.port | int | 0 | Content server port (0 = OS-assigned) |
 | content.roots.{name} | string | — | Content root: URL prefix → directory path |
-| status_item.enabled | bool | false | Show menu bar icon |
-| status_item.toggle_id | string | "status-item-canvas" | Canvas ID to toggle on click |
-| status_item.toggle_url | string | — | URL loaded in toggled canvas |
-| status_item.toggle_track | string | — | Optional track target (e.g. "union") |
-| status_item.icon | string | "hexagon" | Icon style |
 | see.canvas_inspector_bundle.hotkey | string\|none | ctrl+opt+c | Global hotkey for Surface Inspector see-bundle export |
 | see.canvas_inspector_bundle.include.{capture_image,capture_metadata,inspector_state,display_geometry,canvas_list,xray} | bool | true except xray=false | Include specific artifacts in the Surface Inspector see bundle |
 
@@ -293,7 +288,7 @@ Use canonical root names in the single-checkout local workflow. Branch-scoped
 sibling roots via `scripts/aos-content-scope.sh` are for explicit isolated
 runtime proofs under `AOS_STATE_ROOT`, not the default local relay loop.
 
-Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
+Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments.
 
 ### Wiki (aos wiki)
 

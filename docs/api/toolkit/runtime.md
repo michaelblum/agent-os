@@ -409,46 +409,6 @@ Use `advanceMenuActivation(request, phase, extra?)` to move through the
 lifecycle. Unknown phases throw, so provider or app mismatches fail loudly
 instead of creating ad-hoc status names.
 
-`packages/toolkit/contracts/mounted-surface-menu-projection.js` owns the
-neutral mounted-surface menu projection query name, legacy query name, schema
-version, envelope, and surface filter. Experience manifests declare menu items
-with a target `surface`; activation validates mounted-surface menu targets
-generically and projects manifest-owned menu items for the mounted surface into
-the URL via `aos_mounted_surface_menu` only when that surface has matching menu
-entries. Non-menu status surfaces keep their templated URLs unchanged.
-
-`packages/toolkit/runtime/operator-annotation-menu.js` provides the reusable
-surface-side bridge for app-owned status item entries that start operator
-selection/annotation mode. Runtime decode validates the generic mounted-surface
-projection schema, experience id, mounted surface id, current surface match
-when available, and menu array before filtering to the `operator_annotation`
-entries it understands. Operator annotation entries whose declared target
-differs from the projected mounted surface fail closed and are not routed from
-URL data. The native status item still emits the generic
-`status_item.menu_action` event; the toolkit helper maps that action id to a
-`canvas.send` message for the projected operator surface.
-
-Public operators should invoke this path through the AOS-owned experience
-status-item menu command sequence: `aos experience status <id> --json`,
-`aos experience menu invoke <id> --item <item-id> --dry-run --json`, then the
-same invoke command without `--dry-run`. This posts the generic
-`status_item.menu_action` event to the mounted status surface; it does not scrape
-or dispatch arbitrary third-party macOS menu extras.
-
-Use `operatorAnnotationStatusMenuItems(menu)` to project manifest menu entries
-to native menu descriptors, `operatorAnnotationMenuFromLocation(location)` to
-read the activation-projected `aos_mounted_surface_menu` data inside the
-mounted surface, and
-`routeOperatorAnnotationMenuAction(message, menu, host)` to route an incoming
-menu event. The default routed message type is `aos.operator_annotation.start`;
-it includes the menu item id, action id, source, selection mode, creation
-intent, origin point, and modifiers. The helper does not create pending
-annotations by itself; the receiving operator surface owns capture/comment/
-commit behavior and should write pending annotations through
-`aos see annotation`. Runtime also accepts the legacy `aos_manifest_menu`
-parameter for older mounted surfaces, but activation emits the generic
-`aos_mounted_surface_menu` contract.
-
 `packages/toolkit/runtime/operator-annotation-surface.js` provides the minimal
 state model for that receiving surface. `createOperatorAnnotationSurface()`
 handles `aos.operator_annotation.start`, accepts comment updates, supports

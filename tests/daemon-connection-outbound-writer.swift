@@ -25,6 +25,23 @@ private final class LineResult {
     }
 }
 
+private final class IntegerResult {
+    private let lock = NSLock()
+    private var stored: Int?
+
+    func set(_ value: Int) {
+        lock.lock()
+        stored = value
+        lock.unlock()
+    }
+
+    func get() -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+}
+
 private func makeSocketPair() -> (writer: Int32, reader: Int32) {
     var descriptors: [Int32] = [-1, -1]
     require(socketpair(AF_UNIX, SOCK_STREAM, 0, &descriptors) == 0, "socketpair failed")
@@ -126,9 +143,11 @@ struct DaemonConnectionOutboundWriterTest {
         let activePair = makeSocketPair()
         let timeoutPair = makeSocketPair()
         let overflowPair = makeSocketPair()
+        let terminationPair = makeSocketPair()
         setSendBuffer(activePair.writer, bytes: 2_048)
         setSendBuffer(timeoutPair.writer, bytes: 2_048)
         setSendBuffer(overflowPair.writer, bytes: 2_048)
+        setSendBuffer(terminationPair.writer, bytes: 2_048)
 
         let activeLimits = AOSConnectionOutboundLimits(
             maxQueuedBytes: 2 * 1024 * 1024,
@@ -160,6 +179,18 @@ struct DaemonConnectionOutboundWriterTest {
             fd: overflowPair.writer,
             limits: overflowLimits
         )
+        let terminationWriter = AOSConnectionOutboundWriter(
+            connectionID: UUID(),
+            fd: terminationPair.writer,
+            limits: timeoutLimits
+        )
+        let daemonReadDone = DispatchSemaphore(value: 0)
+        let daemonReadResult = IntegerResult()
+        DispatchQueue.global(qos: .userInitiated).async {
+            var byte: UInt8 = 0
+            daemonReadResult.set(Int(Darwin.read(terminationPair.writer, &byte, 1)))
+            daemonReadDone.signal()
+        }
 
         let voiceEventCount = 16
         let expectedLineCount = voiceEventCount + 1
@@ -262,6 +293,30 @@ struct DaemonConnectionOutboundWriterTest {
         )
 
         require(
+            terminationWriter.enqueue(voiceFrame(sequence: 2, payloadBytes: 4 * 1024 * 1024)),
+            "termination writer rejected its initial frame"
+        )
+        let terminationStarted = DispatchTime.now().uptimeNanoseconds
+        terminationWriter.close(reason: "status_item_event_delivery_failed")
+        let terminationElapsed = DispatchTime.now().uptimeNanoseconds - terminationStarted
+        let terminationSnapshot = terminationWriter.snapshot()
+        require(terminationElapsed < 250_000_000, "connection termination blocked on queued output")
+        require(terminationSnapshot.closed, "connection termination left the writer open")
+        require(
+            terminationSnapshot.disconnectReason == "status_item_event_delivery_failed",
+            "connection termination lost its exact reason"
+        )
+        require(
+            daemonReadDone.wait(timeout: .now() + 1) == .success,
+            "connection termination did not wake the daemon-side read loop"
+        )
+        require(
+            (daemonReadResult.get() ?? 1) <= 0,
+            "daemon-side read loop returned data after connection termination"
+        )
+        require(peerReachedEOF(terminationPair.reader), "connection termination did not wake the peer read loop")
+
+        require(
             waitUntil(timeoutMilliseconds: 2_000) {
                 activeWriter.snapshot().pendingMessages == 0
             },
@@ -285,6 +340,7 @@ struct DaemonConnectionOutboundWriterTest {
         activeWriter.closeAndWait()
         timeoutWriter.closeAndWait()
         overflowWriter.closeAndWait()
+        terminationWriter.closeAndWait()
         require(peerReachedEOF(activePair.reader), "active voice socket did not close")
         require(peerReachedEOF(timeoutPair.reader), "timed-out subscriber socket did not close")
         require(peerReachedEOF(overflowPair.reader), "overflowing subscriber socket did not close")
@@ -296,6 +352,8 @@ struct DaemonConnectionOutboundWriterTest {
         close(timeoutPair.reader)
         close(overflowPair.writer)
         close(overflowPair.reader)
+        close(terminationPair.writer)
+        close(terminationPair.reader)
 
         let reusePair = makeSocketPair()
         require(reusePair.writer == staleFD, "test did not obtain deterministic descriptor reuse")

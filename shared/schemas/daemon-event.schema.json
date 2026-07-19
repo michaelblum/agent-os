@@ -379,6 +379,60 @@
         "properties": { "service": { "const": "annotation" }, "event": { "const": "selection_failed" } }
       },
       "then": { "properties": { "data": { "$ref": "#/$defs/AnnotationSelectionFailureData" } } }
+    },
+    {
+      "if": {
+        "required": ["service"],
+        "properties": { "service": { "const": "status_item" } }
+      },
+      "then": {
+        "properties": {
+          "event": { "enum": ["ready", "bounds_changed", "topology_changed", "primary_activation", "secondary_activation", "menu_selection"] },
+          "data": { "$ref": "https://agent-os.local/schemas/aos-status-item-event-v1.schema.json" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "ready" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "ready" } } } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "bounds_changed" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "bounds_changed" } } } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "topology_changed" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "topology_changed" } } } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "primary_activation" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "primary_activation" } } } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "secondary_activation" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "secondary_activation" } } } } }
+    },
+    {
+      "if": {
+        "required": ["service", "event"],
+        "properties": { "service": { "const": "status_item" }, "event": { "const": "menu_selection" } }
+      },
+      "then": { "properties": { "data": { "required": ["type"], "properties": { "type": { "const": "menu_selection" } } } } }
     }
   ],
   "properties": {
@@ -388,7 +442,7 @@
     },
     "service": {
       "type": "string",
-      "enum": ["perceive", "display", "act", "voice", "scene", "annotation"],
+      "enum": ["perceive", "display", "act", "voice", "scene", "annotation", "status_item"],
       "description": "Which aos subsystem emitted this event."
     },
     "event": {

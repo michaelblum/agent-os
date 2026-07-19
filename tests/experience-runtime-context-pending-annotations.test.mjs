@@ -6,7 +6,6 @@ import path from 'node:path';
 import { buildExperienceRuntimeContext } from '../scripts/lib/experience-runtime-context.mjs';
 import {
   baseResponses,
-  dryRunToggleURL,
   readFakeAosCalls,
   runContext,
   runNode,
@@ -54,19 +53,11 @@ test('experience status omits pending annotation store internals for non-annotat
     id,
     contentRootKey: 'plainroot',
     contentRootPath: contentRoot,
-    surfaceId: 'plain-surface',
-    expectedURL,
   });
   await fs.writeFile(path.join(stateRoot, 'repo', 'pending-annotations'), 'corrupt if inspected\n', 'utf8');
 
   const responses = baseResponses(stateRoot, {
     contentRoots: { plainroot: contentRoot },
-    canvases: [{
-      id: 'plain-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   });
   const { fake, log } = await writeFakeAos(tmp, responses);
   const env = {
@@ -102,15 +93,13 @@ test('experience status omits pending annotation store internals for non-annotat
     'content status --json',
     'permissions check --json',
     'service status --mode repo --json',
-    'show list --json',
   ].sort());
 });
 
-test('operator fixture status reports supported pending annotations when runtime state is current', async () => {
+test('test-owned runtime context fixture reports supported pending annotations when state is current', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-operator-annotation-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -119,34 +108,17 @@ test('operator fixture status reports supported pending annotations when runtime
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
   await fs.mkdir(path.join(tmp, 'repo', 'pending-annotations', 'records'), { recursive: true });
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp, {
     contentRoots: {
       toolkit: toolkitRoot,
     },
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   }));
 
   assert.equal(payload.status, 'ok');
-  assert.equal(payload.experience.id, 'operator-fixture');
-  assert.equal(payload.status_item.target.status, 'current');
-  assert.equal(payload.status_item.mounted_surface.status, 'current');
-  assert.equal(payload.status_item.menu_projection.status, 'current');
-  assert.deepEqual(payload.status_item.menu_projection.expected_menu_ids, ['annotate-visible-target']);
+  assert.equal(payload.experience.id, 'runtime-context-fixture');
   assert.equal(payload.pending_annotations.supported, true);
   assert.equal(payload.pending_annotations.status, 'initialized');
   assert.equal(payload.pending_annotations.record_count, 0);
@@ -154,11 +126,10 @@ test('operator fixture status reports supported pending annotations when runtime
   assert.equal(payload.capabilities.annotation.status, 'ready');
 });
 
-test('operator fixture status fails closed on corrupt pending annotation state', async () => {
+test('test-owned runtime context fixture fails closed on corrupt pending annotation state', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-operator-corrupt-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -167,26 +138,13 @@ test('operator fixture status fails closed on corrupt pending annotation state',
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
   await fs.writeFile(path.join(tmp, 'repo', 'pending-annotations'), 'not a directory\n', 'utf8');
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp, {
     contentRoots: {
       toolkit: toolkitRoot,
     },
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
   }));
 
   assert.equal(payload.status, 'blocked');
@@ -200,9 +158,8 @@ test('operator fixture status fails closed on corrupt pending annotation state',
 
 test('experience status blocks corrupt pending state and reports passive readiness blockers', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-corrupt-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -211,23 +168,11 @@ test('experience status blocks corrupt pending state and reports passive readine
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
   await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
   await fs.writeFile(path.join(tmp, 'repo', 'pending-annotations'), 'not a directory\n', 'utf8');
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-    }],
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp, {
     service: {
       status: 'degraded',
       running: false,
@@ -257,9 +202,8 @@ test('experience status blocks corrupt pending state and reports passive readine
 
 test('experience status blocks annotation capability on corrupt pending record', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-corrupt-record-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -268,26 +212,12 @@ test('experience status blocks annotation capability on corrupt pending record',
         toolkit: toolkitRoot,
       },
     },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
-    },
   });
   const corruptRecordPath = path.join(tmp, 'repo', 'pending-annotations', 'records', 'ann-bad-json.json');
   await fs.mkdir(path.dirname(corruptRecordPath), { recursive: true });
   await fs.writeFile(corruptRecordPath, '{bad json', 'utf8');
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
 
   assert.equal(payload.status, 'blocked');
   assert.equal(payload.pending_annotations.status, 'corrupt');
@@ -303,9 +233,8 @@ test('experience status blocks annotation capability on corrupt pending record',
 
 test('experience status counts durable pending annotation ids containing .tmp-', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-tmp-id-record-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -313,13 +242,6 @@ test('experience status counts durable pending annotation ids containing .tmp-',
       roots: {
         toolkit: toolkitRoot,
       },
-    },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
     },
   });
   const created = parsePendingAnnotationJSON(runPendingAnnotation([
@@ -337,14 +259,7 @@ test('experience status counts durable pending annotation ids containing .tmp-',
   }));
   await fs.writeFile(`${created.annotation.path}.tmp-98765-abc123xy`, '{partial', 'utf8');
 
-  const { payload } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
 
   assert.equal(payload.status, 'ok');
   assert.equal(payload.pending_annotations.status, 'initialized');
@@ -355,9 +270,8 @@ test('experience status counts durable pending annotation ids containing .tmp-',
 test('experience status reports symlinked pending index through store-owned status without mutation', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-symlink-'));
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-context-index-outside-'));
-  const expectedURL = dryRunToggleURL('operator-fixture', { AOS_STATE_ROOT: tmp });
   await writeJSON(path.join(tmp, 'repo', 'experience-state.json'), {
-    active_experience: 'operator-fixture',
+    active_experience: 'runtime-context-fixture',
     exclusive: true,
   });
   await writeJSON(path.join(tmp, 'repo', 'config.json'), {
@@ -365,13 +279,6 @@ test('experience status reports symlinked pending index through store-owned stat
       roots: {
         toolkit: toolkitRoot,
       },
-    },
-    status_item: {
-      enabled: true,
-      toggle_id: 'operator-fixture-surface',
-      toggle_url: expectedURL,
-      toggle_track: 'union',
-      icon: 'aos',
     },
   });
   const pendingRoot = path.join(tmp, 'repo', 'pending-annotations');
@@ -387,14 +294,7 @@ test('experience status reports symlinked pending index through store-owned stat
   });
   await fs.symlink(outsideIndex, path.join(pendingRoot, 'index.json'));
 
-  const { payload, calls } = await runContext(tmp, 'operator-fixture', baseResponses(tmp, {
-    canvases: [{
-      id: 'operator-fixture-surface',
-      url: expectedURL,
-      lifecycleState: 'active',
-      suspended: false,
-    }],
-  }));
+  const { payload, calls } = await runContext(tmp, 'runtime-context-fixture', baseResponses(tmp));
 
   assert.equal(payload.status, 'blocked');
   assert.equal(payload.pending_annotations.status, 'corrupt');
@@ -409,6 +309,5 @@ test('experience status reports symlinked pending index through store-owned stat
     'content status --json',
     'permissions check --json',
     'service status --mode repo --json',
-    'show list --json',
   ].sort());
 });

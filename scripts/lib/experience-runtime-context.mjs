@@ -1,7 +1,6 @@
 import {
   discoverExperience,
   resolveContentRoots,
-  rootMap,
 } from './experience-manifest.mjs';
 import {
   collectExperienceRuntimeFacts,
@@ -27,13 +26,10 @@ import {
   worstStatus,
 } from './experience-runtime-status-rank.mjs';
 import {
-  buildStatusItemStatus,
-} from './experience-runtime-status-item.mjs';
-import {
   pendingAnnotationStoreStatus,
 } from './pending-annotations-store.mjs';
 
-export const EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION = 'aos.experience-runtime-context.v0';
+export const EXPERIENCE_RUNTIME_CONTEXT_SCHEMA_VERSION = 'aos.experience-runtime-context.v1';
 
 function buildPendingAnnotationStatus({
   env,
@@ -69,23 +65,13 @@ export async function buildExperienceRuntimeContext(id, {
     serviceStatus,
     permissionStatus,
     contentStatus,
-    showList,
   } = await collectExperienceRuntimeFacts({ env, repoRoot });
-  const rootsByID = rootMap(roots);
   const service = buildServiceStatus(serviceStatus);
   const permissions = buildPermissionStatus(permissionStatus);
   const contentRoots = buildContentRootStatus({
     roots,
     config: config.value,
     contentStatus,
-    repoRoot: runtimeEnv.repoRoot,
-  });
-  const statusItem = buildStatusItemStatus({
-    manifest,
-    rootsByID,
-    config: config.value,
-    showList,
-    mode: runtimeEnv.mode,
     repoRoot: runtimeEnv.repoRoot,
   });
   const pendingAnnotations = buildPendingAnnotationStatus({ env: runtimeEnv.env, manifest });
@@ -101,13 +87,11 @@ export async function buildExperienceRuntimeContext(id, {
     requestedId: id,
     config,
     contentRoots,
-    statusItem,
     pendingAnnotations,
     runtime,
   });
   const capabilities = buildCapabilities({
     runtime,
-    statusItem,
     pendingAnnotations,
   });
   const recommendations = [];
@@ -116,7 +100,6 @@ export async function buildExperienceRuntimeContext(id, {
     recommendations,
     prefix,
     requestedId: id,
-    statusItem,
     contentRoots,
     pendingAnnotations,
     runtime,
@@ -155,7 +138,6 @@ export async function buildExperienceRuntimeContext(id, {
     runtime,
     state,
     content_roots: contentRoots,
-    status_item: statusItem,
     pending_annotations: pendingAnnotations,
     diagnostics,
     capabilities,

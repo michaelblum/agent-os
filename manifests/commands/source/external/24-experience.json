@@ -60,27 +60,6 @@
     {
       "path": [
         "experience",
-        "menu",
-        "invoke"
-      ],
-      "summary": "Invoke a source-owned experience status-item menu action.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": [
-        "node",
-        "scripts/aos-experience.mjs",
-        "menu",
-        "invoke"
-      ],
-      "cwd": "repo",
-      "env": {
-        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
-        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
-        "AOS_PATH": "$AOS_PATH"
-      }
-    },
-    {
-      "path": [
-        "experience",
         "deactivate"
       ],
       "summary": "Deactivate the active AOS experience layer.",
