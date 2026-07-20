@@ -375,11 +375,17 @@ export function createDesktopWorldSceneOutlet({ canvas, window: hostWindow = win
   }
 
   const suspendPlaybackClocks = (at = performance.now()) => {
-    for (const mounted of resources.values()) mounted.playClock.suspend(at)
+    for (const mounted of resources.values()) {
+      mounted.playClock.suspend(at)
+      mounted.interactionVisuals?.suspend(at)
+    }
   }
   const resumePlaybackClocks = (at = performance.now()) => {
     for (const mounted of resources.values()) {
-      if (!mounted.suspended) mounted.playClock.resume(at)
+      if (!mounted.suspended) {
+        mounted.playClock.resume(at)
+        mounted.interactionVisuals?.resume(at)
+      }
     }
   }
   const onVisibility = () => {

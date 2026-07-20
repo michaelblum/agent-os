@@ -153,6 +153,8 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /mounted\.playGeneration = \+\+nextPlayGeneration/u)
   assert.match(outlet, /resources\.has\(key\) \? nextPlayGeneration \+ 1 : null/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.tick\(at\)/u)
+  assert.match(outlet, /mounted\.interactionVisuals\?\.suspend\(at\)/u)
+  assert.match(outlet, /mounted\.interactionVisuals\?\.resume\(at\)/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
   assert.match(outlet, /interactionVisuals: null/u)

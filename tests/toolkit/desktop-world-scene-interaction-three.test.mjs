@@ -165,13 +165,23 @@ test('historical aim rendering uses the route vector for glow, dashes, head, and
 
 test('100 preview and route cycles do not allocate additional GPU resources', () => {
   const { projection, scene } = harness()
-  const visuals = createDesktopWorldSceneInteractionThree({ THREE, scene, projection })
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({
+    THREE,
+    scene,
+    projection,
+    now: () => renderAt,
+  })
   const allocations = visuals.snapshot().allocations
   for (let index = 0; index < 100; index += 1) {
+    renderAt = index * 300
     visuals.apply(aim('start', index * 300))
+    renderAt += 10
     visuals.apply(aim('update', index * 300 + 10, [200, 300, 0]))
+    renderAt += 10
     visuals.apply(aim('end', index * 300 + 20, [200, 300, 0]))
-    visuals.tick(index * 300 + 240)
+    renderAt = index * 300 + 240
+    visuals.tick(renderAt)
   }
   assert.deepEqual(visuals.snapshot().allocations, allocations)
   assert.equal(visuals.snapshot().route.active, false)
@@ -188,4 +198,27 @@ test('suspension hides the shared group and disposal is idempotent', () => {
   assert.equal(visuals.dispose(), true)
   assert.equal(scene.getObjectByName('aos.scene.interaction.visuals'), undefined)
   assert.equal(visuals.dispose(), false)
+})
+
+test('suspension excludes hidden time from an active route', () => {
+  const { projection, scene } = harness()
+  let renderAt = 0
+  const visuals = createDesktopWorldSceneInteractionThree({
+    THREE,
+    scene,
+    projection,
+    now: () => renderAt,
+  })
+  visuals.apply(aim('end', 0, [300, 400, 0]))
+  renderAt = 10
+  visuals.tick(renderAt)
+  const before = visuals.snapshot().route.progress
+
+  visuals.suspend(renderAt)
+  renderAt = 5_010
+  visuals.resume(renderAt)
+  visuals.tick(renderAt)
+
+  assert.equal(visuals.snapshot().route.progress, before)
+  assert.equal(visuals.snapshot().route.active, true)
 })
