@@ -43,6 +43,10 @@ daemon-backed singleton transport is exposed only through owner/resource-scoped
 `scene-follow` leases. Pair visual objects with
 explicit interaction surfaces or input regions; do not make the full visual
 stage interactive by default. ADR 0024 owns the 3D outlet boundary.
+One-shot spatial animation temporarily quiesces affected native interaction
+regions and settles the terminal pose through a fresh staged generation. Keep
+the authored scene revision stable and do not synchronize native hit geometry
+per frame.
 
 DesktopWorld DevTools are AOS-owned toolkit views over a daemon-owned session.
 Consumers may host the public inspector view, but one revisioned AOS host lease

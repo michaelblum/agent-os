@@ -53,6 +53,16 @@ stage internals.
 - Signal and animation bindings carry finite numeric values only. Text, audio,
   prompts, product state vocabularies, and arbitrary timelines stay outside
   this contract.
+- A DesktopWorld `play` with one-shot 2D-affordance transform bindings
+  (`position.x/y`, `rotation.z`, or `scale.x/y`) quiesces native affordances
+  before movement and atomically activates a fresh region generation at the
+  terminal pose. The terminal interaction projection stays separate from the
+  authored scene document and revision. Do not add per-frame native region
+  updates; moving affordances for loop or ping-pong playback need a future
+  atomic batch transport or a stable nonanimated collider ancestor.
+- Completed one-shot bindings stop applying until the next explicit play
+  generation. Operation suspension, page visibility, and context loss pause
+  elapsed animation time.
 - Generic implementation parameter validators fail before projection. The
   stock browser outlet uses the pinned local Three module and performs no
   runtime network fetch; the package facade remains dependency-injected.

@@ -209,7 +209,9 @@
       "path_patterns": [
         "tests/toolkit/desktop-world-surface-three.test.mjs",
         "tests/toolkit/desktop-world-scene-outlet.test.mjs",
+        "tests/toolkit/scene-document.test.mjs",
         "tests/toolkit/scene-generic-three.test.mjs",
+        "tests/toolkit/scene-host.test.mjs",
         "tests/toolkit/scene-public-contract.test.mjs",
         "tests/toolkit/three-render-lifecycle.test.mjs",
         "tests/toolkit/toolkit-api-docs-contract.test.mjs"
@@ -220,7 +222,7 @@
       "proof_kind": "scene_toolkit_contract",
       "contract": "The external scene facade exposes only product-neutral DesktopWorld, bounded Three lifecycle, canvas projection, and visual-object primitives.",
       "worth": "This lets external first-party consumers reuse renderer mechanics and editing contracts without copying toolkit source or restoring product authority to AOS.",
-      "command": "node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs tests/toolkit/scene-generic-three.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs",
+      "command": "node --test tests/toolkit/desktop-world-surface-three.test.mjs tests/toolkit/desktop-world-scene-outlet.test.mjs tests/toolkit/scene-document.test.mjs tests/toolkit/scene-generic-three.test.mjs tests/toolkit/scene-host.test.mjs tests/toolkit/scene-public-contract.test.mjs tests/toolkit/three-render-lifecycle.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs",
       "replaces": [
         "embedded product avatar renderer lifecycle tests"
       ],

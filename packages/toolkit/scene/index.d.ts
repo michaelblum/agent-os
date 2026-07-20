@@ -672,10 +672,12 @@ export interface SceneAnimationController {
   tick(elapsedMs: number): number;
   snapshot(): {
     bindings: Array<Pick<SceneAnimationBinding, 'id' | 'objectId' | 'componentId' | 'target' | 'playback'>>;
+    completed: number;
     disposed: boolean;
     failures: number;
     frames: number;
   };
+  restart(): boolean;
   dispose(): boolean;
 }
 
@@ -692,6 +694,11 @@ export function createSceneAnimationController(
       value: number,
       elapsedMs: number,
       progress: number,
+    ) => unknown;
+    onComplete?: (
+      binding: Readonly<SceneAnimationBinding>,
+      value: number,
+      elapsedMs: number,
     ) => unknown;
     maxBindings?: number;
   },

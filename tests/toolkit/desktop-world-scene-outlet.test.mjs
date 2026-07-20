@@ -2,10 +2,131 @@ import assert from 'node:assert/strict'
 import { readFile, stat } from 'node:fs/promises'
 import test from 'node:test'
 
+import { createSceneAnimationInteractionState } from '../../packages/toolkit/components/desktop-world-stage/scene-animation-interaction-state.js'
+import { createScenePlaybackClock } from '../../packages/toolkit/components/desktop-world-stage/scene-playback-clock.js'
+import { compileSceneAnimationBindings, resolveSceneAffordanceFrame } from '../../packages/toolkit/scene/index.js'
+
 const outletURL = new URL('../../packages/toolkit/components/desktop-world-stage/scene-outlet.js', import.meta.url)
 const stageURL = new URL('../../packages/toolkit/components/desktop-world-stage/index.js', import.meta.url)
 const threeURL = new URL('../../packages/toolkit/vendor/three/three.module.min.js', import.meta.url)
 const threeCoreURL = new URL('../../packages/toolkit/vendor/three/three.core.min.js', import.meta.url)
+
+function interactionScene() {
+  const animation = (id, target, from, to) => ({
+    id,
+    implementation: 'aos.scene.animation.bind',
+    parameters: { delayMs: 0, durationMs: 400, easing: 'linear', from, playback: 'once', target, to },
+    enabled: true,
+  })
+  return {
+    contract: 'aos.scene.document.v1',
+    schemaVersion: 1,
+    id: 'companion/main',
+    revision: 1,
+    rootObjectId: 'root',
+    objects: [{
+      id: 'root',
+      parentId: null,
+      kind: 'group',
+      transform: { position: [20, 30, 0], rotation: [0, 0, 0], scale: [0.1, 0.1, 0.1] },
+      visible: true,
+      geometryId: null,
+      materialId: null,
+      components: [
+        animation('animation/position-x', 'position.x', 20, 300),
+        animation('animation/position-y', 'position.y', 30, 240),
+        animation('animation/scale-x', 'scale.x', 0.1, 1),
+        animation('animation/scale-y', 'scale.y', 0.1, 1),
+      ],
+    }],
+    resources: [],
+    metadata: {},
+  }
+}
+
+test('completed spatial animations update one coalesced interaction document without rewriting source', () => {
+  const source = interactionScene()
+  const state = createSceneAnimationInteractionState(source)
+  const bindings = new Map(compileSceneAnimationBindings(source).bindings.map((binding) => [binding.target, binding]))
+
+  assert.equal(state.complete({ objectId: 'root', target: 'material.opacity' }, 0.5), false)
+  assert.equal(state.complete(bindings.get('position.x'), 300), true)
+  assert.equal(state.complete(bindings.get('position.y'), 240), true)
+  assert.equal(state.complete(bindings.get('scale.x'), 1), true)
+  assert.equal(state.complete(bindings.get('scale.y'), 1), true)
+  assert.equal(state.takeDirty(), true)
+  assert.equal(state.takeDirty(), false)
+  assert.deepEqual(source.objects[0].transform.position, [20, 30, 0])
+  assert.deepEqual(resolveSceneAffordanceFrame(state.document(), {
+    objectId: 'root',
+    geometry: { kind: 'rect', width: 80, height: 60, offset: [0, 0] },
+  }), [260, 210, 80, 60])
+
+  assert.equal(state.setObjectPosition('root', [500, 400, 0]), true)
+  assert.deepEqual(state.document().objects[0].transform.scale, [1, 1, 0.1])
+  assert.deepEqual(state.document().objects[0].transform.position, [500, 400, 0])
+  state.reset(source)
+  assert.equal(state.takeDirty(), false)
+  assert.deepEqual(state.document().objects[0].transform.position, [20, 30, 0])
+})
+
+test('3D-only and continuous animation bindings do not claim native hit-geometry settlement', () => {
+  const source = interactionScene()
+  source.objects[0].components = [
+    {
+      id: 'animation/depth',
+      implementation: 'aos.scene.animation.bind',
+      parameters: {
+        delayMs: 0,
+        durationMs: 400,
+        easing: 'linear',
+        from: 0,
+        playback: 'once',
+        target: 'position.z',
+        to: 100,
+      },
+      enabled: true,
+    },
+    {
+      id: 'animation/orbit',
+      implementation: 'aos.scene.animation.bind',
+      parameters: {
+        delayMs: 0,
+        durationMs: 400,
+        easing: 'linear',
+        from: 0,
+        playback: 'loop',
+        target: 'rotation.z',
+        to: Math.PI * 2,
+      },
+      enabled: true,
+    },
+  ]
+  const state = createSceneAnimationInteractionState(source)
+  const depth = compileSceneAnimationBindings(source).bindings.find((binding) => binding.target === 'position.z')
+
+  assert.equal(state.hasSpatialAnimation(), false)
+  assert.equal(state.complete(depth, 100), false)
+  assert.equal(state.takeDirty(), false)
+})
+
+test('scene playback clock excludes operation, visibility, and context suspension time', () => {
+  const clock = createScenePlaybackClock()
+
+  assert.equal(clock.elapsed(100), 0)
+  assert.equal(clock.restart(100), true)
+  assert.equal(clock.elapsed(250), 150)
+  assert.equal(clock.suspend(250), true)
+  assert.equal(clock.elapsed(1_000), 150)
+  assert.equal(clock.resume(1_000), true)
+  assert.equal(clock.elapsed(1_100), 250)
+  assert.deepEqual(clock.snapshot(), { paused: false, pausedAt: null, startedAt: 850 })
+
+  assert.equal(clock.restart(2_000), true)
+  assert.equal(clock.suspend(2_000), true)
+  assert.equal(clock.resume(5_000), true)
+  assert.equal(clock.elapsed(5_100), 100)
+})
 
 test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop', async () => {
   const [outlet, stage, three, threeCore] = await Promise.all([
@@ -25,6 +146,12 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(outlet, /createSceneAnimationController\(document/u)
   assert.match(outlet, /createSceneSignalController\(document/u)
   assert.match(outlet, /mounted\.animations\.tick\(elapsed\)/u)
+  assert.match(outlet, /mounted\.playClock\.elapsed\(at\)/u)
+  assert.doesNotMatch(outlet, /playStartedAt/u)
+  assert.match(outlet, /onComplete: \(binding, value\) => interactionState\.complete\(binding, value\)/u)
+  assert.match(outlet, /notifyInteractionGeometry\(mounted\.key, mounted\.playGeneration\)/u)
+  assert.match(outlet, /mounted\.playGeneration = \+\+nextPlayGeneration/u)
+  assert.match(outlet, /resources\.has\(key\) \? nextPlayGeneration \+ 1 : null/u)
   assert.match(outlet, /mounted\.interactionVisuals\?\.tick\(at\)/u)
   assert.match(outlet, /createDesktopWorldSceneInteractionThree/u)
   assert.match(outlet, /ensureInteractionVisuals/u)
@@ -53,6 +180,8 @@ test('DesktopWorld scene outlet is local, bounded, and shares one renderer loop'
   assert.match(stage, /if \(surface\.isPrimary\)/u)
   assert.equal((stage.match(/emit\('desktop_world_stage\.scene\.result'/gu) ?? []).length, 2)
   assert.match(stage, /sceneOutlet\.updateSegment\(segment\)/u)
+  assert.match(stage, /enqueueSceneWork\(async \(\) => \{[\s\S]*settleAnimationGeometry\(key, generation\)/u)
+  assert.doesNotMatch(stage, /animationGeometryChanged/u)
   assert.match(stage, /\.then\(\(\) => \{[\s\S]*emitReady\(\)/u)
   assert.doesNotMatch(stage, /\ninstallVisualObjectLiveProof\(\)\nemitReady\(\)\s*$/u)
   assert.ok(three.size > 100_000 && three.size < 1_000_000)
