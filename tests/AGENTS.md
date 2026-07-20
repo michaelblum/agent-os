@@ -35,8 +35,9 @@ tests.
   scene contract work must not execute the repo AOS binary or require TCC.
 - Status-item host contract tests must use disposable fake sockets and schema
   fixtures, model startup admission ordering, and prove registration output
-  precedes initial events; native menu-bar acceptance remains a separate
-  build/runtime gate.
+  precedes initial events. Fake sockets must emit the complete daemon envelope
+  so tests also prove the CLI's canonical public event projection; native
+  menu-bar acceptance remains a separate build/runtime gate.
 - `tests/dev-workflow-router.sh` runs its public `./aos` rejection checks by
   default. Use `AOS_SKIP_LIVE_CLI_CHECKS=1` only for explicit static-only
   validation while the repo artifact is absent or waiting at ADR 0023's human

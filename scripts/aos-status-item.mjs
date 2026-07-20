@@ -206,8 +206,25 @@ async function withDaemon(callback, onEvent = () => {}, { allowStart = true, sig
   signal?.addEventListener('abort', onAbort, { once: true })
   const reader = new LineReader((payload) => {
     if (payload.event) {
-      if (!payload.data) throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon event is malformed')
-      onEvent({ ...payload, data: normalizeStatusItemEvent(payload.data) }, socket)
+      const keys = Object.keys(payload).sort()
+      const expectedKeys = payload.ref === undefined
+        ? 'data,event,service,ts,v'
+        : 'data,event,ref,service,ts,v'
+      if (payload.v !== 1
+          || payload.service !== 'status_item'
+          || typeof payload.event !== 'string'
+          || typeof payload.ts !== 'number'
+          || !Number.isFinite(payload.ts)
+          || !payload.data
+          || (payload.ref !== undefined && typeof payload.ref !== 'string')
+          || keys.join(',') !== expectedKeys) {
+        throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon event is malformed')
+      }
+      const data = normalizeStatusItemEvent(payload.data)
+      if (payload.event !== data.type) {
+        throw makeError('STATUS_ITEM_DAEMON_PROTOCOL_ERROR', 'status item daemon event type is inconsistent')
+      }
+      onEvent({ event: payload.event, data }, socket)
       return
     }
     const pendingRequest = typeof payload.ref === 'string' ? pending.get(payload.ref) : null

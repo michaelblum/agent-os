@@ -28,11 +28,13 @@
       "path_patterns": [
         "tests/status-item-contract.test.mjs"
       ],
-      "fixture_patterns": [],
+      "fixture_patterns": [
+        "tests/fixtures/status-item-host-controller-harness.swift"
+      ],
       "owner": "runtime-readiness",
       "harness_level": "model_unit",
       "proof_kind": "status_item_host_contract",
-      "contract": "The product-neutral status-item descriptor, canonical Unicode text limits, observed anchor/event, pre-listen host admission, registration-before-ready ordering, canonical response-envelope status, bounded follow-stream backpressure, exact-revision compare-and-swap update, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
+      "contract": "The product-neutral status-item descriptor, canonical Unicode text limits, committed installation anchor, observed anchor/event, pre-listen host admission, registration-before-ready ordering, canonical daemon-to-public event projection, bounded follow-stream backpressure, exact-revision compare-and-swap update, toolkit type surface, multi-connection fake transport, and file-size ownership ratchet stay schema-backed.",
       "worth": "This protects the owner-scoped native host contract without requiring a live menu-bar item, TCC, or embedded product fixture.",
       "command": "node --test tests/status-item-contract.test.mjs",
       "replaces": [
