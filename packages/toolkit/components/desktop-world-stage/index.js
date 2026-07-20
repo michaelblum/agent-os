@@ -1,7 +1,8 @@
 import { emit, wireBridge } from '../../runtime/bridge.js'
 import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js'
-import { declareManifest, emitReady } from '../../runtime/manifest.js'
+import { declareManifest, emitLifecycleComplete, emitReady } from '../../runtime/manifest.js'
 import { createVisualObjectDescriptor } from '../../workbench/visual-object-contract.js'
+import { handleDesktopWorldStageLifecycle } from './lifecycle.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
@@ -225,6 +226,7 @@ declareManifest({
     'desktop_world_stage.devtools.configure',
     'desktop_world_stage.devtools.request',
     'input_region.event',
+    'lifecycle',
   ],
   emits: [
     'ready',
@@ -235,6 +237,7 @@ declareManifest({
     'input_region.register',
     'input_region.update',
     'input_region.remove',
+    'lifecycle.complete',
   ],
   surface: 'desktop-world',
 })
@@ -280,6 +283,7 @@ function enqueueSceneWork(work) {
 }
 
 wireBridge((message) => {
+  if (handleDesktopWorldStageLifecycle(message, emitLifecycleComplete)) return
   if (message?.type === 'desktop_world_stage.devtools.configure') {
     devtoolsProbe.configure(message.payload)
     if (message.payload?.enabled === true) devtoolsProbe.emitSnapshot('configured')

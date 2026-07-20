@@ -172,6 +172,13 @@ test('listen routes through inherited stdio so follow forms stream and retain si
   assert.equal(listen.stdio, 'inherit');
 });
 
+test('status item registration inherits stdio for its connection-scoped follow lease', async () => {
+  const manifest = await loadJson(manifestPath);
+  const register = manifest.commands.find((command) => command.path.join(' ') === 'status-item register');
+  assert.ok(register, 'status-item register external route is missing');
+  assert.equal(register.stdio, 'inherit');
+});
+
 test('external command manifest only routes bootstrap families to Swift', async () => {
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([

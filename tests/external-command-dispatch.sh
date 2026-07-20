@@ -330,6 +330,11 @@ assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-say.mjs"], command
 assert command["stdio"] == "inherit", command
 assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+command = commands[("status-item", "register")]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-status-item.mjs", "register"], command
+assert command["stdio"] == "inherit", command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 command = commands[("show", "render")]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-show-render.mjs"], command
