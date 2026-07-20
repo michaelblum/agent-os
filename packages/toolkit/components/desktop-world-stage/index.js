@@ -6,6 +6,10 @@ import { handleDesktopWorldStageLifecycle } from './lifecycle.js'
 import { createDesktopWorldSceneOutlet } from './scene-outlet.js'
 import { createDesktopWorldSceneInteractionRuntime } from './scene-interaction-runtime.js'
 import { createDesktopWorldSceneOperationCoordinator } from './scene-operation-coordinator.js'
+import {
+  projectDesktopWorldDevToolsTopology,
+  projectSceneEventTopology,
+} from './topology.js'
 import { createDesktopWorldDevToolsStageProbe } from '../../scene/desktop-world-devtools.js'
 import { registerInputRegion, removeInputRegion, updateInputRegion } from '../../runtime/input-region.js'
 import { applyVisualObjectControllerUpdate } from '../../workbench/visual-object-controller.js'
@@ -31,13 +35,11 @@ let sceneInteractions = null
 let lastSceneError = null
 
 function sceneTopologySnapshot() {
-  return {
-    displays: surface.topology.slice(0, 16).map((segment) => ({
-      displayId: segment.display_id ?? null,
-      index: segment.index ?? null,
-      bounds: Array.isArray(segment.dw_bounds) ? segment.dw_bounds.slice(0, 4) : null,
-    })),
-  }
+  return projectSceneEventTopology(surface.topology)
+}
+
+function devtoolsTopologySnapshot() {
+  return projectDesktopWorldDevToolsTopology(surface.topology)
 }
 
 const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
@@ -66,7 +68,7 @@ const devtoolsProbe = createDesktopWorldDevToolsStageProbe({
       status: 'available',
       world: {
         affordances: interaction.affordances,
-        displays: sceneTopologySnapshot().displays,
+        displays: devtoolsTopologySnapshot().displays,
         gestures: interaction.gestures,
         hitRegions: interaction.hitRegions,
         nodes: outlet.nodes,

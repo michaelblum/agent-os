@@ -38,7 +38,12 @@
     "Rect": { "type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number", "exclusiveMinimum": 0 }, { "type": "number", "exclusiveMinimum": 0 }], "items": false },
     "Display": {
       "type": "object", "required": ["id", "index", "bounds"], "additionalProperties": false,
-      "properties": { "id": { "$ref": "#/$defs/Identifier" }, "index": { "type": "integer", "minimum": 0, "maximum": 31 }, "bounds": { "$ref": "#/$defs/Rect" } }
+      "properties": {
+        "id": { "$ref": "#/$defs/Identifier" },
+        "index": { "type": "integer", "minimum": 0, "maximum": 31 },
+        "bounds": { "$ref": "#/$defs/Rect" },
+        "nativeBounds": { "$ref": "#/$defs/Rect" }
+      }
     },
     "Node": {
       "type": "object", "required": ["id", "resourceId", "parentId", "kind", "implementation", "position", "visible"], "additionalProperties": false,

@@ -30,7 +30,7 @@ function stage() {
   return {
     contract: 'aos.desktop-world.devtools.stage.v1', sequence: 1, status: 'available',
     world: {
-      displays: [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }],
+      displays: [{ id: 'main', index: 0, bounds: [200, 0, 1440, 900], nativeBounds: [0, 0, 1440, 900] }],
       nodes: [{ id: 'body', resourceId: 'companion/main', parentId: null, kind: 'mesh', implementation: 'aos.scene.geometry.primitive', position: [100, 200, 0], visible: true }],
       hitRegions: [], affordances: [], gestures: [], routes: [],
     },
@@ -62,6 +62,9 @@ test('DesktopWorld tooling schemas accept canonical content-free facts', () => {
 
 test('DesktopWorld tooling schemas reject product content and unknown fields', () => {
   assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', { ...stage(), transcript: 'secret' }).status, 0)
+  const malformedNativeBounds = stage()
+  malformedNativeBounds.world.displays[0].nativeBounds = [0, 0, -1, 900]
+  assert.notEqual(validate('desktop-world-devtools-stage-v1.schema.json', malformedNativeBounds).status, 0)
   assert.notEqual(validate('scene-replay-v1.schema.json', {
     status: 'ok', contract: 'aos.scene.replay.v1', eventCount: 0, resourceCount: 0,
     resources: [], completedGestures: 0, canceledGestures: 0, finalPositions: {}, prompt: 'secret',

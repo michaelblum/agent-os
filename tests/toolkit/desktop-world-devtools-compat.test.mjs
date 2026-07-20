@@ -28,8 +28,8 @@ function snapshot() {
       status: 'available',
       world: {
         displays: [
-          { id: 'main', index: 0, bounds: [0, 0, 1440, 900] },
-          { id: 'lower', index: 1, bounds: [0, 900, 1920, 1080] },
+          { id: 'main', index: 0, bounds: [200, 0, 1440, 900], nativeBounds: [0, 0, 1440, 900] },
+          { id: 'lower', index: 1, bounds: [0, 900, 1920, 1080], nativeBounds: [-200, 900, 1920, 1080] },
         ],
         nodes: [{
           id: 'body', resourceId: 'companion/main', parentId: null, kind: 'mesh',
@@ -69,6 +69,8 @@ test('focused compatibility projections consume the canonical DesktopWorld snaps
 
   const spatial = projectDesktopWorldDevToolsSpatial(snapshot())
   assert.equal(spatial.displays.length, 2)
+  assert.deepEqual(spatial.displays[0].native_bounds, { x: 0, y: 0, w: 1440, h: 900 })
+  assert.deepEqual(spatial.displays[0].desktop_world_bounds, { x: 200, y: 0, w: 1440, h: 900 })
   assert.deepEqual(spatial.canvases[0].atResolved, [280, 200, 80, 80])
   assert.deepEqual(spatial.marksByCanvas.get('scene-resource:companion/main').marks[0], {
     id: 'body', name: 'aos.scene.geometry.primitive', x: 320, y: 240,
@@ -78,6 +80,16 @@ test('focused compatibility projections consume the canonical DesktopWorld snaps
   assert.equal(resources.stageLayers[0].affordanceId, 'body-drag')
   assert.equal(resources.inputRegions[0].affordanceId, 'body-drag')
   assert.deepEqual(resources.inputRegions[0].frame, [280, 200, 80, 80])
+})
+
+test('compatibility projection does not fabricate native geometry for legacy snapshots', () => {
+  const legacy = snapshot()
+  legacy.stage.world.displays = [{ id: 'main', index: 0, bounds: [200, 0, 1440, 900] }]
+
+  const spatial = projectDesktopWorldDevToolsSpatial(legacy)
+
+  assert.deepEqual(spatial.displays, [])
+  assert.equal(spatial.canvases.length, 1)
 })
 
 test('Surface Inspector compatibility state activates and clears atomically', () => {

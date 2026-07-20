@@ -15,7 +15,12 @@ export interface DesktopWorldDevToolsStageSnapshot {
   sequence: number;
   status: 'available' | 'unavailable' | 'unknown';
   world: {
-    displays: ReadonlyArray<Readonly<{ id: string; index: number; bounds: readonly [number, number, number, number] }>>;
+    displays: ReadonlyArray<Readonly<{
+      id: string;
+      index: number;
+      bounds: readonly [number, number, number, number];
+      nativeBounds?: readonly [number, number, number, number];
+    }>>;
     nodes: ReadonlyArray<Readonly<{ id: string; resourceId: string; parentId: string | null; kind: string; implementation: string | null; position: readonly [number, number, number]; visible: boolean }>>;
     hitRegions: ReadonlyArray<Readonly<{ id: string; resourceId: string; affordanceId: string; frame: readonly [number, number, number, number]; registered: boolean }>>;
     affordances: ReadonlyArray<Readonly<{ id: string; resourceId: string; objectId: string; enabled: boolean; priority: number }>>;
@@ -116,7 +121,13 @@ export function buildDesktopWorldMinimapLayout(
 ): Readonly<{
   bounds: readonly [number, number, number, number] | null;
   scale: number;
-  displays: ReadonlyArray<Readonly<{ id: string; index: number; bounds: readonly [number, number, number, number]; frame: readonly number[] }>>;
+  displays: ReadonlyArray<Readonly<{
+    id: string;
+    index: number;
+    bounds: readonly [number, number, number, number];
+    nativeBounds?: readonly [number, number, number, number];
+    frame: readonly number[];
+  }>>;
   nodes: ReadonlyArray<Readonly<Record<string, unknown>>>;
   hitRegions: ReadonlyArray<Readonly<Record<string, unknown>>>;
 }>;
