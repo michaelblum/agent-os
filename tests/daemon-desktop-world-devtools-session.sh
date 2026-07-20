@@ -26,7 +26,11 @@ func stageSnapshot() -> [String: Any] {
         "sequence": 1,
         "status": "available",
         "world": [
-            "displays": [["id": "main", "index": 0, "bounds": [0.0, 0.0, 1440.0, 900.0]]],
+            "displays": [[
+                "id": "main", "index": 0,
+                "bounds": [200.0, 0.0, 1440.0, 900.0],
+                "nativeBounds": [0.0, 0.0, 1440.0, 900.0],
+            ]],
             "nodes": [["id": "body", "resourceId": "companion/main", "parentId": NSNull(), "kind": "mesh", "implementation": "aos.scene.geometry.primitive", "position": [100.0, 200.0, 0.0], "visible": true]],
             "hitRegions": [], "affordances": [], "gestures": [], "routes": [],
         ],
@@ -154,6 +158,10 @@ require(registry.recordStageSnapshot(leaked), "valid stage snapshot with unknown
 let canonical = registry.snapshot(sessionID: first.id)!
 let stage = canonical["stage"] as! [String: Any]
 require(stage["transcript"] == nil, "unknown renderer content crossed the daemon boundary")
+let canonicalWorld = stage["world"] as! [String: Any]
+let canonicalDisplay = (canonicalWorld["displays"] as! [[String: Any]])[0]
+require(canonicalDisplay["bounds"] as? [Double] == [200.0, 0.0, 1440.0, 900.0], "DesktopWorld display bounds drifted")
+require(canonicalDisplay["nativeBounds"] as? [Double] == [0.0, 0.0, 1440.0, 900.0], "native display bounds were lost")
 require((canonical["contract"] as? String) == aosDesktopWorldDevToolsSnapshotContract, "session snapshot contract mismatch")
 let selectedStage = registry.stageSnapshot(resourceID: "companion/main")!
 let selectedResources = selectedStage["resources"] as! [[String: Any]]

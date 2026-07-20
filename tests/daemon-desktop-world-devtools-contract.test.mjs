@@ -4,6 +4,11 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import {
+  projectDesktopWorldDevToolsTopology,
+  projectSceneEventTopology,
+} from '../packages/toolkit/components/desktop-world-stage/topology.js'
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8')
 
@@ -48,7 +53,27 @@ test('stage probe is configured inside the existing DesktopWorld render lifecycl
   const probe = read('packages/toolkit/scene/desktop-world-devtools.js')
 
   assert.match(stage, /sceneOutlet\.setDevToolsProbe\(devtoolsProbe\)/)
+  assert.match(stage, /displays: devtoolsTopologySnapshot\(\)\.displays/)
   assert.match(outlet, /devtoolsProbe\.sampleFrame/)
   assert.match(stage, /desktop_world_stage\.devtools\.configure/)
   assert.doesNotMatch(probe, /requestAnimationFrame|setInterval|setTimeout/)
+})
+
+test('stage topology keeps native geometry in DevTools and out of strict scene events', () => {
+  const segments = [
+    { display_id: 1, index: 0, dw_bounds: [0, 200, 1440, 900], native_bounds: [-1440, 0, 1440, 900] },
+    { display_id: 2, index: 1, dw_bounds: [1440, 0, 1920, 1080], native_bounds: [0, -200, 1920, 1080] },
+  ]
+  const scene = projectSceneEventTopology(segments)
+  const devtools = projectDesktopWorldDevToolsTopology(segments)
+
+  assert.deepEqual(scene.displays, [
+    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900] },
+    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080] },
+  ])
+  assert.deepEqual(devtools.displays, [
+    { displayId: 1, index: 0, bounds: [0, 200, 1440, 900], nativeBounds: [-1440, 0, 1440, 900] },
+    { displayId: 2, index: 1, bounds: [1440, 0, 1920, 1080], nativeBounds: [0, -200, 1920, 1080] },
+  ])
+  assert.equal(scene.displays.some((display) => Object.hasOwn(display, 'nativeBounds')), false)
 })

@@ -55,11 +55,15 @@ function uniqueStrings(values, limit = 32) {
 
 function normalizeDisplay(value = {}, index = 0) {
   const bounds = point(value.bounds, 4)
+  const nativeBounds = point(value.nativeBounds ?? value.native_bounds, 4)
   if (!bounds || bounds[2] <= 0 || bounds[3] <= 0) return null
   return Object.freeze({
     id: boundedString(value.id ?? value.displayId, `display-${index}`),
     index: boundedInteger(value.index, index, 0, 31),
     bounds: Object.freeze(bounds),
+    ...(nativeBounds && nativeBounds[2] > 0 && nativeBounds[3] > 0
+      ? { nativeBounds: Object.freeze(nativeBounds) }
+      : {}),
   })
 }
 

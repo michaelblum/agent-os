@@ -18,8 +18,8 @@ function stageSnapshot(overrides = {}) {
     status: 'available',
     world: {
       displays: [
-        { id: 'left', index: 0, bounds: [-1920, 0, 1920, 1080] },
-        { id: 'main', index: 1, bounds: [0, 0, 2560, 1440] },
+        { id: 'left', index: 0, bounds: [0, 0, 1920, 1080], nativeBounds: [-1920, 0, 1920, 1080] },
+        { id: 'main', index: 1, bounds: [1920, 0, 2560, 1440], nativeBounds: [0, 0, 2560, 1440] },
       ],
       nodes: [{ id: 'node', resourceId: 'resource', position: [1280, 720, 0] }],
       hitRegions: [{ id: 'hit', resourceId: 'resource', affordanceId: 'drag', frame: [1200, 640, 160, 160], registered: true }],
@@ -62,6 +62,20 @@ test('DesktopWorld DevTools stage normalization is strict, bounded, and content-
   assert.equal('transcript' in normalized.interactions[0], false);
   assert.equal(normalized.counters.activeGestures, 1);
   assert.equal(normalized.counters.activeRoutes, 1);
+  assert.deepEqual(normalized.world.displays[0].nativeBounds, [-1920, 0, 1920, 1080]);
+});
+
+test('DesktopWorld DevTools keeps older display facts readable without inventing native geometry', () => {
+  const legacy = stageSnapshot();
+  legacy.world.displays = [{ id: 'main', index: 0, bounds: [0, 0, 1440, 900] }];
+  const normalized = normalizeDesktopWorldDevToolsStageSnapshot(legacy);
+
+  assert.deepEqual(normalized.world.displays[0], {
+    id: 'main',
+    index: 0,
+    bounds: [0, 0, 1440, 900],
+  });
+  assert.equal('nativeBounds' in normalized.world.displays[0], false);
 });
 
 test('DesktopWorld DevTools session normalization validates host and filters', () => {
@@ -135,7 +149,7 @@ test('DesktopWorld minimap projects multi-display world geometry consistently', 
   const stage = normalizeDesktopWorldDevToolsStageSnapshot(stageSnapshot());
   const minimap = buildDesktopWorldMinimapLayout(stage, { width: 480, height: 240, padding: 12 });
 
-  assert.deepEqual(minimap.bounds, [-1920, 0, 4480, 1440]);
+  assert.deepEqual(minimap.bounds, [0, 0, 4480, 1440]);
   assert.equal(minimap.displays.length, 2);
   assert.equal(minimap.nodes.length, 1);
   assert.ok(minimap.displays.every((display) => display.frame.every(Number.isFinite)));

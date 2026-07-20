@@ -214,6 +214,13 @@ performance, event, counter, and last-error facts. Unknown fields are removed
 at the daemon boundary; text, prompts, audio, scene parameters, and desktop
 content are not part of the snapshot.
 
+Each display reports DesktopWorld-local `bounds` and, when the surface host
+provides it, native global `nativeBounds`. Consumers that translate scene
+geometry to native input coordinates must require `nativeBounds`; treating
+DesktopWorld-local bounds as native geometry is invalid on offset or stacked
+display topologies. Older snapshots without `nativeBounds` remain readable,
+but compatibility projections do not fabricate native display geometry.
+
 The probe owns no scheduler. When disabled, `sampleFrame()` and event recording
 perform no stage read and retain no samples. When enabled but not recording,
 frame samples are throttled to 500 ms and snapshots to 2 Hz. Recording samples

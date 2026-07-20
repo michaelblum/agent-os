@@ -33,19 +33,21 @@ export function projectDesktopWorldDevToolsPerformance(input, { now = Date.now()
 export function projectDesktopWorldDevToolsSpatial(input) {
   const snapshot = normalizeDesktopWorldDevToolsSnapshot(input);
   const { stage } = snapshot;
-  const displays = stage.world.displays.map((display) => {
+  const displays = stage.world.displays.flatMap((display) => {
     const bounds = rectObject(display.bounds);
-    return Object.freeze({
+    if (!display.nativeBounds) return [];
+    const nativeBounds = rectObject(display.nativeBounds);
+    return [Object.freeze({
       id: display.id,
       is_main: display.index === 0,
       scale_factor: 1,
-      bounds,
-      visible_bounds: bounds,
-      native_bounds: bounds,
-      native_visible_bounds: bounds,
+      bounds: nativeBounds,
+      visible_bounds: nativeBounds,
+      native_bounds: nativeBounds,
+      native_visible_bounds: nativeBounds,
       desktop_world_bounds: bounds,
       visible_desktop_world_bounds: bounds,
-    });
+    })];
   });
   const canvases = stage.world.hitRegions.map((region) => Object.freeze({
     id: `scene-hit:${region.resourceId}:${region.id}`,

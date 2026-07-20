@@ -136,6 +136,7 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         let id: String
         let index: Int
         let bounds: [Double]
+        let nativeBounds: [Double]?
     }
 
     struct Node: Codable {
@@ -305,6 +306,10 @@ private struct AOSDesktopWorldDevToolsStageSnapshot: Codable {
         guard world.displays.allSatisfy({
             Self.validString($0.id) && $0.bounds.count == 4 && $0.bounds.allSatisfy({ $0.isFinite })
                 && $0.bounds[2] > 0 && $0.bounds[3] > 0 && $0.index >= 0 && $0.index <= 31
+                && ($0.nativeBounds.map({ bounds in
+                    bounds.count == 4 && bounds.allSatisfy({ $0.isFinite })
+                        && bounds[2] > 0 && bounds[3] > 0
+                }) ?? true)
         }), world.nodes.allSatisfy({
             Self.validString($0.id) && Self.validString($0.resourceId)
                 && $0.position.count == 3 && $0.position.allSatisfy({ $0.isFinite })

@@ -71,6 +71,10 @@ stage internals.
   instrumentation creates no timer, RAF, stage read, or per-frame allocation.
   The daemon owns revisioned session and host-lease state; consumers may host
   the public view but never own or fork its telemetry.
+- DevTools display facts use `bounds` for DesktopWorld-local geometry and
+  optional `nativeBounds` for native global geometry. A consumer translating
+  scene coordinates into native input must require the latter rather than
+  infer an origin from DesktopWorld-local bounds.
 - Focused compatibility panels consume the canonical DevTools snapshot through
   `components/desktop-world-devtools/compat.js`. They must not introduce a
   second DesktopWorld sampler or competing session model.
