@@ -221,46 +221,34 @@ if case .deliver(let delivery)? = escaped {
 assert(escapeRegistry.activeCaptureSnapshot() == nil, "Escape cancellation must clear active capture atomically")
 assert(escapeRegistry.cancelActiveCapture(reason: .escape) == nil, "repeated Escape cancellation must be idempotent")
 
-let keyRegistry = AOSInputRegionRegistry()
-let radialPrimary = AOSInputRegionRecord(
-    id: "radial-primary",
+let keyRegistry = AOSInputKeyLeaseRegistry()
+let primaryLease = AOSInputKeyLeaseRecord(
+    id: "stage:escape-primary",
     ownerCanvasGeneration: stageGeneration,
-    nativeFrame: baseFrame,
-    priority: 20,
-    consumePolicy: "captured",
-    metadata: ["cancel_key": "Escape"]
+    logicalKey: "Escape"
 )
-let radialDuplicate = AOSInputRegionRecord(
-    id: "radial-duplicate",
+let duplicateLease = AOSInputKeyLeaseRecord(
+    id: "stage:escape-secondary",
     ownerCanvasGeneration: stageGeneration,
-    nativeFrame: baseFrame,
-    priority: 10,
-    consumePolicy: "captured",
-    metadata: ["cancel_key": "Escape"]
+    logicalKey: "Escape"
 )
-let secondGeneration = CanvasLifecycleGeneration(canvasID: "stage-two", value: 7)
-let radialSecondOwner = AOSInputRegionRecord(
-    id: "radial-second-owner",
-    ownerCanvasGeneration: secondGeneration,
-    nativeFrame: CGRect(x: 200, y: 300, width: 40, height: 40),
-    priority: 5,
-    consumePolicy: "captured",
-    metadata: ["cancel_key": "Escape"]
+let replacementGeneration = CanvasLifecycleGeneration(canvasID: "stage", value: 43)
+let replacementLease = AOSInputKeyLeaseRecord(
+    id: "stage-replacement:escape",
+    ownerCanvasGeneration: replacementGeneration,
+    logicalKey: "Escape"
 )
-let disabledKeyRegion = AOSInputRegionRecord(
-    id: "radial-disabled",
-    ownerCanvasGeneration: CanvasLifecycleGeneration(canvasID: "stage-disabled", value: 3),
-    nativeFrame: baseFrame,
-    metadata: ["cancel_key": "Escape"],
-    enabled: false
-)
-keyRegistry.register(radialDuplicate)
-keyRegistry.register(radialPrimary)
-keyRegistry.register(radialSecondOwner)
-keyRegistry.register(disabledKeyRegion)
-let keyTargets = keyRegistry.keyCancellationTargets(logicalKey: "Escape")
-assert(Set(keyTargets.map(\.id)) == Set(["radial-primary", "radial-second-owner"]), "Escape targets must deduplicate by owner generation and retain priority")
-assert(keyRegistry.keyCancellationTargets(logicalKey: "Enter").isEmpty, "input regions must never subscribe to unrelated keys")
+keyRegistry.register(duplicateLease)
+keyRegistry.register(primaryLease)
+keyRegistry.register(replacementLease)
+assert(keyRegistry.register(AOSInputKeyLeaseRecord(
+    id: primaryLease.id,
+    ownerCanvasGeneration: CanvasLifecycleGeneration(canvasID: "foreign-stage", value: 1),
+    logicalKey: "Escape"
+)) == false, "another canvas generation must not replace an owned key lease id")
+let keyTargets = keyRegistry.targets(logicalKey: "Escape")
+assert(Set(keyTargets.map(\.id)) == Set(["stage:escape-primary", "stage-replacement:escape"]), "Escape leases must deduplicate by exact owner generation")
+assert(keyRegistry.targets(logicalKey: "Enter").isEmpty, "key leases must never subscribe to unrelated keys")
 
 let canonicalEscapeData: [String: Any] = [
     "input_schema_version": 2,
@@ -269,29 +257,29 @@ let canonicalEscapeData: [String: Any] = [
     "sequence": ["source": "daemon", "value": 12],
     "key": [
         "physical_key_code": 53,
-        "logical": "Escape",
+        "logical": "",
         "repeat": false,
         "is_printable": false,
     ],
+    "timestamp_monotonic_ms": 12.0,
 ]
 let canonicalEscape = AOSCanonicalInputEvent(canonicalData: canonicalEscapeData)
-let keyDelivery = AOSInputRegionKeyDelivery(
+let keyDelivery = AOSInputKeyLeaseDelivery(
     event: canonicalEscape,
     canonicalData: canonicalEscapeData,
-    region: radialPrimary,
-    desktopWorld: CGPoint(x: 50, y: 60),
+    lease: primaryLease,
     sourceSequence: "daemon:12"
 )
 if let keyDelivery {
-    let routed = keyDelivery.payload["routed_input"] as? [String: Any]
-    let routedKey = routed?["key"] as? [String: Any]
-    assert(routed?["event_kind"] as? String == "key", "opt-in Escape must retain canonical key kind")
+    let routed = keyDelivery.payload
+    let routedKey = routed["key"] as? [String: Any]
+    assert(routed["event_kind"] as? String == "key", "opt-in Escape must retain canonical key kind")
     assert(routedKey?["logical"] as? String == "Escape", "opt-in Escape must retain only the logical cancel key")
     assert(routedKey?["is_printable"] as? Bool == false, "opt-in Escape must remain non-printable")
-    assert(routed?["region_id"] as? String == "radial-primary", "opt-in Escape must retain its exact region")
-    assert(routed?["modifiers"] == nil, "opt-in Escape delivery must not expose unrelated key facts")
+    assert(keyDelivery.consume == false, "key-lease delivery must always pass Escape through to macOS")
+    assert(routed["flags"] == nil, "opt-in Escape delivery must not expose native flags")
 } else {
-    assert(false, "an enabled opt-in region should receive canonical Escape")
+    assert(false, "an owner-scoped key lease should receive canonical Escape")
 }
 var printableEscapeData = canonicalEscapeData
 printableEscapeData["key"] = [
@@ -300,13 +288,55 @@ printableEscapeData["key"] = [
     "repeat": false,
     "is_printable": true,
 ]
-assert(AOSInputRegionKeyDelivery(
+assert(AOSInputKeyLeaseDelivery(
     event: AOSCanonicalInputEvent(canonicalData: printableEscapeData),
     canonicalData: printableEscapeData,
-    region: radialPrimary,
-    desktopWorld: point,
+    lease: primaryLease,
     sourceSequence: "daemon:13"
 ) == nil, "printable key payloads must fail closed")
+
+var repeatedEscapeData = canonicalEscapeData
+repeatedEscapeData["key"] = [
+    "physical_key_code": 53,
+    "logical": "",
+    "repeat": true,
+    "is_printable": false,
+]
+assert(AOSInputKeyLeaseDelivery(
+    event: AOSCanonicalInputEvent(canonicalData: repeatedEscapeData),
+    canonicalData: repeatedEscapeData,
+    lease: primaryLease,
+    sourceSequence: "daemon:14"
+) == nil, "repeated Escape must not redeliver cancellation")
+
+var mismatchedEscapeData = canonicalEscapeData
+mismatchedEscapeData["key"] = [
+    "physical_key_code": 36,
+    "logical": "Escape",
+    "repeat": false,
+    "is_printable": false,
+]
+assert(AOSInputKeyLeaseDelivery(
+    event: AOSCanonicalInputEvent(canonicalData: mismatchedEscapeData),
+    canonicalData: mismatchedEscapeData,
+    lease: primaryLease,
+    sourceSequence: "daemon:15"
+) == nil, "logical Escape with a non-Escape physical key must fail closed")
+var wrongLogicalEscapeData = canonicalEscapeData
+wrongLogicalEscapeData["key"] = [
+    "physical_key_code": 53,
+    "logical": "Enter",
+    "repeat": false,
+    "is_printable": false,
+]
+assert(AOSInputKeyLeaseDelivery(
+    event: AOSCanonicalInputEvent(canonicalData: wrongLogicalEscapeData),
+    canonicalData: wrongLogicalEscapeData,
+    lease: primaryLease,
+    sourceSequence: "daemon:16"
+) == nil, "physical Escape carrying another logical key must fail closed")
+assert(Set(keyRegistry.removeOwned(by: "stage").map(\.id)) == Set(["stage:escape-primary", "stage:escape-secondary", "stage-replacement:escape"]), "owner cleanup must remove every generation-scoped key lease")
+assert(keyRegistry.targets(logicalKey: "Escape").isEmpty, "owner cleanup must leave no stale Escape target")
 
 let cursorReconciler = AOSNativeCursorSuppressionReconciler()
 let firstCursorSuppression = cursorReconciler.reconcile(active: true)
@@ -410,6 +440,21 @@ let rawKey = inputEventData(type: "key_down", keyCode: 36, flags: flags)
 assert(rawKey["input_schema_version"] as? Int == 2, "daemon key payload may claim input v2")
 assert(rawKey["event_kind"] as? String == "key", "daemon key payload is key kind")
 writeJSON("raw-key", rawKey)
+
+let rawEscape = inputEventData(type: "key_down", keyCode: 53, flags: flags)
+let escapeLease = AOSInputKeyLeaseRecord(
+    id: "desktop-world-stage:escape",
+    ownerCanvasGeneration: CanvasLifecycleGeneration(canvasID: "aos-desktop-world-stage", value: 8),
+    logicalKey: "Escape"
+)
+let targetedEscape = AOSInputKeyLeaseDelivery(
+    event: AOSCanonicalInputEvent(canonicalData: rawEscape),
+    canonicalData: rawEscape,
+    lease: escapeLease,
+    sourceSequence: "daemon:escape"
+)
+assert(targetedEscape != nil, "physical Escape from the native event builder must produce a targeted lease delivery")
+writeJSON("targeted-escape", targetedEscape!.payload)
 
 let unsupportedCancel = inputEventData(type: "pointer_cancel", flags: flags)
 assert(unsupportedCancel["input_schema_version"] == nil, "helper-only cancel without cancel_reason must remain legacy-shaped")

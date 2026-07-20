@@ -52,7 +52,6 @@ function harness({
   const calls = []
   const responses = []
   const events = []
-  const regionRegistrations = []
   const regionUpdates = []
   let interactionDocument = document
   let animationGeneration = 1
@@ -69,11 +68,7 @@ function harness({
     outlet,
     isPrimary: () => primary,
     topology: () => ({ displays: [{ displayId: 1, index: 0, bounds: [0, 0, 1000, 800] }] }),
-    registerRegion: async (payload) => {
-      calls.push(['register', payload.id])
-      regionRegistrations.push(structuredClone(payload))
-      await register(payload)
-    },
+    registerRegion: async (payload) => { calls.push(['register', payload.id]); await register(payload) },
     updateRegion: async (payload) => {
       calls.push(['update', payload.id])
       regionUpdates.push(structuredClone(payload))
@@ -88,7 +83,6 @@ function harness({
     calls,
     events,
     outlet,
-    regionRegistrations,
     regionUpdates,
     responses,
     runtime,
@@ -556,7 +550,7 @@ test('tap-open radial menu coexists with aim-and-commit drag and cleans temporar
 })
 
 test('Escape dismisses an open radial menu and removes every temporary item region', async () => {
-  const { calls, events, regionRegistrations, runtime } = harness()
+  const { calls, events, runtime } = harness()
   const key = 'example.consumer::companion/main'
   const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
   const menuInteractions = structuredClone(interactions)
@@ -578,12 +572,6 @@ test('Escape dismisses an open radial menu and removes every temporary item regi
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.equal(runtime.snapshot(key).radialMenus.length, 1)
-  assert.deepEqual(
-    regionRegistrations
-      .filter((payload) => payload.id.includes(':menu:'))
-      .map((payload) => payload.metadata.cancel_key),
-    ['Escape', 'Escape'],
-  )
   assert.equal(runtime.handleInput(escapeKey(3)), true)
   await runtime.dispose()
 
@@ -594,6 +582,35 @@ test('Escape dismisses an open radial menu and removes every temporary item regi
     ['cancel', 'cancel'],
   ])
   assert.equal(events.at(-1).event.gesture.cancellationReason, 'escape')
+})
+
+test('Escape dismisses an all-disabled radial menu without an item hit region', async () => {
+  const { calls, runtime } = harness()
+  const key = 'example.consumer::companion/main'
+  const bodyRegion = sceneAffordanceRegionId('example.consumer', 'companion/main', 'body-hit')
+  const menuInteractions = structuredClone(interactions)
+  menuInteractions.interactions = [{
+    id: 'open-menu',
+    affordanceId: 'body-hit',
+    recognizer: { implementation: 'aos.scene.gesture.tap', parameters: { button: 0, threshold: 4 } },
+    response: {
+      implementation: 'aos.scene.response.radial-menu',
+      parameters: {
+        items: [{ id: 'inspect', disabled: true }, { id: 'annotate', disabled: true }],
+        menuId: 'disabled-menu',
+      },
+    },
+  }]
+  await runtime.mount({ key, owner: 'example.consumer', resource: 'companion/main', document, interactions: menuInteractions })
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_down', 100, 200, 1))
+  runtime.handleInput(routed(bodyRegion, 'left_mouse_up', 100, 200, 2))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(runtime.snapshot(key).radialMenus.length, 1)
+  assert.equal(calls.filter(([kind, id]) => kind === 'register' && id.includes(':menu:')).length, 0)
+  assert.equal(runtime.handleInput(escapeKey(3)), true)
+  assert.deepEqual(runtime.snapshot(key).radialMenus, [])
+  await runtime.dispose()
 })
 
 test('reopening a radial menu closes the old lease before rendering the replacement', async () => {

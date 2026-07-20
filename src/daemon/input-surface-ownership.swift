@@ -260,61 +260,102 @@ struct AOSInputRegionDelivery {
     }
 }
 
-struct AOSInputRegionKeyDelivery {
+struct AOSInputKeyLeaseRecord: Equatable {
+    let id: String
     let ownerCanvasGeneration: CanvasLifecycleGeneration
-    let regionID: String
-    private let routedInput: [String: Any]
+    let logicalKey: String
+
+    var ownerCanvasID: String { ownerCanvasGeneration.canvasID }
+}
+
+struct AOSInputKeyLeaseDelivery {
+    let ownerCanvasGeneration: CanvasLifecycleGeneration
+    let leaseID: String
+    let consume = false
+    private let input: [String: Any]
 
     init?(
         event: AOSCanonicalInputEvent?,
         canonicalData: [String: Any],
-        region: AOSInputRegionRecord,
-        desktopWorld: CGPoint,
+        lease: AOSInputKeyLeaseRecord,
         sourceSequence: String?
     ) {
         guard let event,
               case .key(let descriptor, let physicalKeyCode) = event,
               descriptor.type == "key_down",
-              desktopWorld.x.isFinite,
-              desktopWorld.y.isFinite,
-              region.enabled,
-              region.consumePolicy != "never",
+              physicalKeyCode == 53,
+              lease.logicalKey == "Escape",
+              let timestamp = (canonicalData["timestamp_monotonic_ms"] as? NSNumber)?.doubleValue,
+              timestamp.isFinite,
               let key = canonicalData["key"] as? [String: Any],
               let physical = key["physical_key_code"] as? Int,
-              Int64(physical) == physicalKeyCode,
+              physical == 53,
               let logical = key["logical"] as? String,
-              logical == "Escape",
-              region.metadata["cancel_key"] == logical,
+              logical.isEmpty || logical == "Escape",
               let repeated = key["repeat"] as? Bool,
+              repeated == false,
               let printable = key["is_printable"] as? Bool,
               printable == false else { return nil }
         let sequence = (sourceSequence?.isEmpty == false ? sourceSequence : nil) ?? descriptor.type
-        self.ownerCanvasGeneration = region.ownerCanvasGeneration
-        self.regionID = region.id
-        self.routedInput = [
-            "routed_schema_version": 1,
+        self.ownerCanvasGeneration = lease.ownerCanvasGeneration
+        self.leaseID = lease.id
+        self.input = [
+            "input_schema_version": 2,
             "event_kind": AOSInputEventKind.key.rawValue,
             "type": descriptor.type,
-            "delivery_role": AOSInputRegionDeliveryRole.owned.rawValue,
+            "timestamp_monotonic_ms": timestamp,
             "sequence": ["source": "daemon", "value": sequence],
-            "gesture_id": "key-cancel:\(sequence):\(region.id)",
-            "desktop_world": ["x": Double(desktopWorld.x), "y": Double(desktopWorld.y)],
-            "coordinate_authority": AOSInputCoordinateAuthority.daemon.rawValue,
             "source_origin": AOSInputSourceOrigin.daemon.rawValue,
-            "source_event": descriptor.type,
-            "region_id": region.id,
-            "owner_canvas_id": region.ownerCanvasID,
             "key": [
                 "physical_key_code": physical,
-                "logical": logical,
+                "logical": "Escape",
                 "repeat": repeated,
                 "is_printable": printable,
+            ],
+            "modifiers": [
+                "shift": false,
+                "ctrl": false,
+                "cmd": false,
+                "opt": false,
+                "fn": false,
+                "caps_lock": false,
             ],
         ]
     }
 
     var payload: [String: Any] {
-        ["type": "input_region.event", "routed_input": routedInput]
+        input
+    }
+}
+
+final class AOSInputKeyLeaseRegistry {
+    private var leases: [String: AOSInputKeyLeaseRecord] = [:]
+
+    @discardableResult
+    func register(_ lease: AOSInputKeyLeaseRecord) -> Bool {
+        if let existing = leases[lease.id], existing.ownerCanvasGeneration != lease.ownerCanvasGeneration {
+            return false
+        }
+        leases[lease.id] = lease
+        return true
+    }
+
+    func removeOwned(by ownerCanvasID: String) -> [AOSInputKeyLeaseRecord] {
+        let removed = leases.values.filter { $0.ownerCanvasID == ownerCanvasID }
+        for lease in removed { leases.removeValue(forKey: lease.id) }
+        return removed.sorted { $0.id < $1.id }
+    }
+
+    func targets(logicalKey: String) -> [AOSInputKeyLeaseRecord] {
+        guard logicalKey == "Escape" else { return [] }
+        var owners = Set<CanvasLifecycleGeneration>()
+        return leases.values
+            .filter { $0.logicalKey == logicalKey }
+            .sorted {
+                if $0.ownerCanvasID != $1.ownerCanvasID { return $0.ownerCanvasID < $1.ownerCanvasID }
+                return $0.id < $1.id
+            }
+            .filter { owners.insert($0.ownerCanvasGeneration).inserted }
     }
 }
 
@@ -405,17 +446,6 @@ final class AOSInputRegionRegistry {
             snapshot["consume_policy"] = region.consumePolicy
         }
         return snapshot
-    }
-
-    func keyCancellationTargets(logicalKey: String) -> [AOSInputRegionRecord] {
-        guard logicalKey == "Escape" else { return [] }
-        var owners = Set<CanvasLifecycleGeneration>()
-        return allRegions.filter { region in
-            guard region.enabled,
-                  region.consumePolicy != "never",
-                  region.metadata["cancel_key"] == logicalKey else { return false }
-            return owners.insert(region.ownerCanvasGeneration).inserted
-        }
     }
 
     func clearCapture() {
