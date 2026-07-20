@@ -53,8 +53,16 @@ final class StatusItemManager {
     var hostedEventSink: (([String: Any]) -> Bool)?
 
     private var fallbackIcon: NSImage?
-    private var anchorObservationTokens: [NSObjectProtocol] = []
-    private var lastAnchorSignature: String?
+    private lazy var anchorObservation = AOSStatusItemAnchorObservation(
+        resolveHost: { [weak self] in
+            guard let button = self?.statusItem?.button,
+                  let window = button.window else { return nil }
+            return AOSStatusItemAnchorObservationHost(button: button, window: window)
+        },
+        readSignature: { [weak self] in self?.currentHostedAnchorSignature() },
+        onBoundsChanged: { [weak self] in self?.emitHostedAnchorEvent(type: "bounds_changed") },
+        onTopologyChanged: { [weak self] in self?.emitHostedAnchorEvent(type: "topology_changed") }
+    )
 
     func setup() {
         guard statusItem == nil else { return }
@@ -75,7 +83,6 @@ final class StatusItemManager {
         hostedDescriptor = nil
         hostedGeneration = 0
         statusMenuItems = []
-        lastAnchorSignature = nil
     }
 
     @objc func handleClick(_ sender: Any?) {
@@ -167,45 +174,24 @@ final class StatusItemManager {
     }
 
     func startHostedAnchorObservation() {
-        stopHostedAnchorObservation()
-        guard let window = statusItem?.button?.window else { return }
-        let center = NotificationCenter.default
-        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
-            anchorObservationTokens.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                self?.emitHostedAnchorEvent(type: "bounds_changed", onlyWhenChanged: true)
-            })
-        }
-        anchorObservationTokens.append(center.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.emitHostedAnchorEvent(type: "topology_changed", onlyWhenChanged: false)
-        })
-        primeHostedAnchorObservation()
+        anchorObservation.start()
     }
 
     private func stopHostedAnchorObservation() {
-        let center = NotificationCenter.default
-        anchorObservationTokens.forEach(center.removeObserver)
-        anchorObservationTokens.removeAll()
+        anchorObservation.stop()
     }
 
-    private func primeHostedAnchorObservation() {
+    private func currentHostedAnchorSignature() -> String? {
         guard let hosted = hostedDescriptor,
               let anchor = statusItemAnchorPayload(owner: hosted.owner, itemID: hosted.itemID) else {
-            lastAnchorSignature = nil
-            return
+            return nil
         }
-        lastAnchorSignature = anchorSignature(anchor)
+        return anchorSignature(anchor)
     }
 
-    private func emitHostedAnchorEvent(type: String, onlyWhenChanged: Bool) {
+    private func emitHostedAnchorEvent(type: String) {
         guard let hosted = hostedDescriptor,
               let anchor = statusItemAnchorPayload(owner: hosted.owner, itemID: hosted.itemID) else { return }
-        let signature = anchorSignature(anchor)
-        if onlyWhenChanged, signature == lastAnchorSignature { return }
-        lastAnchorSignature = signature
         _ = hostedEventSink?([
             "type": type,
             "owner": hosted.owner,

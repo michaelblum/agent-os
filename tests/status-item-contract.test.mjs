@@ -25,6 +25,8 @@ const anchorSchemaPath = path.join(repoRoot, 'shared/schemas/aos-status-item-anc
 const hostContractPath = path.join(repoRoot, 'src/display/status-item-host-contract.swift')
 const hostControllerPath = path.join(repoRoot, 'src/display/status-item-host-controller.swift')
 const hostControllerHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-host-controller-harness.swift')
+const anchorObservationPath = path.join(repoRoot, 'src/display/status-item-anchor-observation.swift')
+const anchorObservationHarnessPath = path.join(repoRoot, 'tests/fixtures/status-item-anchor-observation-harness.swift')
 
 const descriptor = {
   schema_version: STATUS_ITEM_DESCRIPTOR_SCHEMA_VERSION,
@@ -785,16 +787,48 @@ test('native host controller enforces lease, CAS, failed-delivery, and disconnec
   }
 })
 
+test('native anchor observation rebinds, deduplicates, restores, and stops', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-status-item-anchor-observation-'))
+  const executable = path.join(tempRoot, 'status-item-anchor-observation-harness')
+  const moduleCache = path.join(tempRoot, 'module-cache')
+  fs.mkdirSync(moduleCache)
+  try {
+    execFileSync('swiftc', [
+      '-parse-as-library',
+      '-module-cache-path', moduleCache,
+      anchorObservationPath,
+      anchorObservationHarnessPath,
+      '-o', executable,
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        CLANG_MODULE_CACHE_PATH: moduleCache,
+        SWIFT_MODULECACHE_PATH: moduleCache,
+        TMPDIR: tempRoot,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const output = execFileSync(executable, [], { cwd: repoRoot, encoding: 'utf8' })
+    assert.equal(output, 'status item anchor observation lifecycle harness passed\n')
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
+})
+
 test('native ownership is focused and excludes superseded visual and lifecycle routes', () => {
   const manager = fs.readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8')
+  const observation = fs.readFileSync(anchorObservationPath, 'utf8')
   const hosted = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-hosted.swift'), 'utf8')
   const controller = fs.readFileSync(path.join(repoRoot, 'src/display/status-item-host-controller.swift'), 'utf8')
   const daemon = fs.readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
-  const combined = `${manager}\n${hosted}\n${controller}`
+  const combined = `${manager}\n${observation}\n${hosted}\n${controller}`
   assert(!combined.includes('CryptoKit'))
   assert(!combined.includes('descriptor.icon'))
-  assert.match(manager, /didChangeScreenParametersNotification/)
-  assert.match(manager, /didMoveNotification/)
+  assert.match(observation, /didChangeScreenParametersNotification/)
+  assert.match(observation, /didMoveNotification/)
+  assert.match(observation, /NSView\.frameDidChangeNotification/)
   assert.match(controller, /runOnMainSync/)
   assert.match(controller, /STATUS_ITEM_REVISION_NOT_ADVANCED/)
   assert.match(controller, /owner: current\.owner/)
@@ -838,11 +872,13 @@ test('daemon admits status-item requests only after host installation and orders
 test('status item ownership files stay under the focused-size ratchet', () => {
   const counts = Object.fromEntries([
     'src/display/status-item.swift',
+    'src/display/status-item-anchor-observation.swift',
     'src/display/status-item-hosted.swift',
     'src/display/status-item-host-contract.swift',
     'src/display/status-item-host-controller.swift',
   ].map((file) => [file, fs.readFileSync(path.join(repoRoot, file), 'utf8').split('\n').length]))
   assert.ok(counts['src/display/status-item.swift'] < 400, JSON.stringify(counts))
+  assert.ok(counts['src/display/status-item-anchor-observation.swift'] < 200, JSON.stringify(counts))
   assert.ok(counts['src/display/status-item-hosted.swift'] < 300, JSON.stringify(counts))
   assert.ok(counts['src/display/status-item-host-contract.swift'] < 150, JSON.stringify(counts))
   assert.ok(counts['src/display/status-item-host-controller.swift'] < 500, JSON.stringify(counts))
