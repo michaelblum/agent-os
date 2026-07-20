@@ -154,45 +154,54 @@ test('gesture updates reuse resolved visual styles instead of allocating per fra
 
 test('fixed-clock line routes preserve horizontal, vertical, and diagonal vectors', () => {
   for (const destination of [[300, 200, 0], [100, 400, 0], [300, 400, 0]]) {
-    const controller = createSceneInteractionVisualController()
+    let renderAt = 100
+    const controller = createSceneInteractionVisualController({ now: () => renderAt })
     const pointer = { x: destination[0], y: destination[1] }
-    assert.equal(controller.apply(aimEvent('end', { at: 100, pointer, position: destination })).routeStarted, true)
-    controller.tick(210)
+    assert.equal(controller.apply(aimEvent('end', { at: 9_000_000, pointer, position: destination })).routeStarted, true)
+    renderAt = 210
+    controller.tick(renderAt)
     assert.deepEqual(controller.snapshot().route.position.map(Math.round), [
       Math.round((100 + destination[0]) / 2),
       Math.round((200 + destination[1]) / 2),
       0,
     ])
-    controller.tick(320)
+    renderAt = 320
+    controller.tick(renderAt)
     assert.equal(controller.snapshot().route.active, false)
     assert.deepEqual(controller.snapshot().route.position, destination)
   }
 })
 
 test('route visuals retain world coordinates separately from parent-local commits', () => {
-  const controller = createSceneInteractionVisualController()
+  let renderAt = 0
+  const controller = createSceneInteractionVisualController({ now: () => renderAt })
   controller.apply(aimEvent('end', {
     at: 0,
     origin: { x: 110, y: 220 },
     pointer: { x: 300, y: 400 },
     position: [200, 200, 0],
   }))
-  controller.tick(110)
+  renderAt = 110
+  controller.tick(renderAt)
   assert.deepEqual(controller.snapshot().route.position, [205, 310, 0])
 })
 
 test('wormhole route exposes bounded entry, travel, flash, and rebound phases', () => {
   let model
-  const controller = createSceneInteractionVisualController({ onFrame(value) { model = value } })
+  let renderAt = 0
+  const controller = createSceneInteractionVisualController({ now: () => renderAt, onFrame(value) { model = value } })
   controller.apply(aimEvent('end', { at: 0, route: 'wormhole' }))
-  controller.tick(198)
+  renderAt = 198
+  controller.tick(renderAt)
   assert.ok(model.route.scale <= 0.09)
   assert.ok(model.route.opacity <= 0.13)
   assert.ok(model.route.originRing > 0)
-  controller.tick(702)
+  renderAt = 702
+  controller.tick(renderAt)
   assert.ok(model.route.flash > 0)
   assert.ok(model.route.destinationRing > 0)
-  controller.tick(900)
+  renderAt = 900
+  controller.tick(renderAt)
   assert.equal(model.route.active, false)
   assert.equal(model.route.scale, 1)
   assert.deepEqual([...model.route.position], [300, 200, 0])
@@ -226,9 +235,11 @@ test('tap-open radial menus remain visible across pointer sessions and close aft
 test('radial style resolution caps descriptors and suspend pauses route time', () => {
   const style = resolveSceneRadialVisualStyle({ items: 99 })
   assert.equal(style.items.length, 32)
-  const controller = createSceneInteractionVisualController()
+  let renderAt = 0
+  const controller = createSceneInteractionVisualController({ now: () => renderAt })
   controller.apply(aimEvent('end', { at: 0 }))
-  controller.tick(50)
+  renderAt = 50
+  controller.tick(renderAt)
   const before = controller.snapshot().route.progress
   controller.suspend(50)
   assert.equal(controller.tick(1000), false)
@@ -239,4 +250,19 @@ test('radial style resolution caps descriptors and suspend pauses route time', (
   assert.ok(controller.snapshot().route.progress > before)
   assert.equal(controller.dispose(), true)
   assert.equal(controller.dispose(), false)
+})
+
+test('route progress uses the render clock rather than the unrelated gesture clock', () => {
+  let renderAt = 100
+  const controller = createSceneInteractionVisualController({ now: () => renderAt })
+  controller.apply(aimEvent('end', { at: 9_000_000 }))
+
+  renderAt = 210
+  controller.tick(renderAt)
+  assert.ok(controller.snapshot().route.progress > 0)
+
+  renderAt = 320
+  controller.tick(renderAt)
+  assert.equal(controller.snapshot().route.active, false)
+  assert.equal(controller.snapshot().route.progress, 1)
 })
